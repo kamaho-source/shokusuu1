@@ -1,0 +1,34 @@
+services:
+  # PHP-Apache
+  kamakura-shokusu_web:
+    container_name: kamakura-shokusu_web
+    # ./myapp-web/Dockerfile でイメージをビルド
+    build:
+      context: kamakura-shokusu_web
+      dockerfile: Dockerfile
+    # 80 番ポートを割り当て
+    ports:
+      - "8091:80"
+    # ローカル の src_web フォルダをコンテナの /var/www/html にマウント
+    volumes:
+      - "../src_web:/var/www/html"
+      - "../datasource/phpini/php.ini:/usr/local/etc/php/php.ini:cached"
+    #timezone をAsia/Tokyoへ
+    environment:
+      TZ: Asia/Tokyo
+
+  # MySQL
+  kamakura-shokusu_db:
+    container_name: kamakura-shokusu_web_db
+    image: mysql:lts
+    ports:
+      - "3306:3306"
+    volumes:
+      - "../datasource/database:/var/lib/mysql"
+      - "../datasource/dump:/usr/local/dump"
+    environment:
+      MYSQL_DATABASE: shokusu
+      MYSQL_USER: kamakuraadm1n
+      MYSQL_PASSWORD: hata220424
+      MYSQL_ROOT_PASSWORD: KamakurA
+      TZ: Asia/Tokyo
