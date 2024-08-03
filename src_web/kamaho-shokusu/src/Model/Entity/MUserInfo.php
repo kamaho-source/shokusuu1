@@ -48,12 +48,12 @@ class MUserInfo extends Entity
         'c_update_user' => true,
     ];
 
-
-    protected function _setPassword(string $password): ?string
+    protected function _setCLoginPasswd(string $password) : ?string
     {
         if (strlen($password) > 0) {
             return (new DefaultPasswordHasher())->hash($password);
         }
         return null;
     }
+
 }

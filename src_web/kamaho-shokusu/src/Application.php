@@ -20,6 +20,9 @@ use Authentication\AuthenticationService;
 use Authentication\AuthenticationServiceInterface;
 use Authentication\AuthenticationServiceProviderInterface;
 use Authentication\Middleware\AuthenticationMiddleware;
+use Authentication\PasswordHasher\DefaultPasswordHasher;
+use Cake\Routing\Router;
+use Psr\Http\Message\ServerRequestInterface;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
@@ -31,9 +34,8 @@ use Cake\Http\MiddlewareQueue;
 use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
-use Cake\Routing\Router;
 use Laminas\Diactoros\ServerRequest;
-use Psr\Http\Message\ServerRequestInterface;
+
 
 /**
  * Application setup class.
@@ -92,6 +94,14 @@ class Application extends BaseApplication
             // and make an error page/response
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
 
+            ->add(new AssetMiddleware(
+                [
+                    'cacheTime' => Configure::read('Asset.cacheTime'),
+                ]
+            ))
+
+
+
             // Handle plugin/theme assets like CakePHP normally does.
             ->add(new AssetMiddleware([
                 'cacheTime' => Configure::read('Asset.cacheTime'),
@@ -114,32 +124,67 @@ class Application extends BaseApplication
             // https://book.cakephp.org/4/en/security/csrf.html#cross-site-request-forgery-csrf-middleware
             ->add(new CsrfProtectionMiddleware([
                 'httponly' => true,
-            ]))
+            ]));
 
-            ->add(new AuthenticationMiddleware($this));
+        $authentication = new AuthenticationMiddleware($this);
+
+        $authentication->setConfig([
+            'unauthenticatedRedirect' => '/users/login',
+            'queryParam' => 'redirect',
+            'identifiers' => [
+                'Authentication.Password' => [
+                    'fields' => [
+                        'username' => 'c_login_account', // this should match with the login account field in the form
+                        'password' => 'c_login_passwd', // password field from the form
+                    ],
+                    'resolver' => [
+                        'className' => 'Authentication.Orm',
+                        'userModel' => 'MUserInfo', // your user model name
+                    ],
+                    'passwordHasher' => [
+                        'className' => DefaultPasswordHasher::class, // set the hasher class
+                    ],
+                ],
+            ],
+            'authenticators' => [
+                'Authentication.Session',
+                'Authentication.Form',
+            ],
+        ]);
+
+        $middlewareQueue->add($authentication);
+
+
         return $middlewareQueue;
     }
 
 
     public function getAuthenticationService(ServerRequestInterface $request): AuthenticationServiceInterface
     {
-        // TODO: Implement getAuthenticationService() method.
         $authenticationService = new AuthenticationService([
             'unauthenticatedRedirect' => Router::url('/m-user-info/login'),
             'queryParam' => 'redirect',
         ]);
 
-        // Load identifiers, ensure we check email and password fields
+        // Load identifiers - ensure we check the correct fields
         $authenticationService->loadIdentifier('Authentication.Password', [
+            'resolver' => [
+                'className' => 'Authentication.Orm',
+                'userModel' => 'MUserInfo',
+            ],
             'fields' => [
                 'username' => 'c_login_account',
                 'password' => 'c_login_passwd',
+            ],
+            'passwordHasher' => [
+                'className' => DefaultPasswordHasher::class,
             ],
         ]);
 
         // Load the authenticators, you want session first
         $authenticationService->loadAuthenticator('Authentication.Session');
-        // Configure form data check to pick email and password
+
+        // Configure form data check to pick the correct username and password fields
         $authenticationService->loadAuthenticator('Authentication.Form', [
             'fields' => [
                 'username' => 'c_login_account',
@@ -149,7 +194,6 @@ class Application extends BaseApplication
         ]);
 
         return $authenticationService;
-
     }
 
     /**

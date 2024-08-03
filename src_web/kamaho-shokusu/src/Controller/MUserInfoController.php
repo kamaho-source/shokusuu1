@@ -21,8 +21,7 @@ class MUserInfoController extends AppController
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
-        $this->Authentication->allowUnauthenticated(['login']);
-        $this->Authentication->addUnauthenticatedActions(['add']);
+        $this->Authentication->addUnauthenticatedActions(['login', 'add']);
     }
     /**
      * Index method
@@ -55,14 +54,12 @@ class MUserInfoController extends AppController
      *
      * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
      */
-    public function add()
-    {
+    public function add() {
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         if ($this->request->is('post')) {
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
                 $this->Flash->success(__('The m user info has been saved.'));
-
                 return $this->redirect(['action' => 'index']);
             }
             $this->Flash->error(__('The m user info could not be saved. Please, try again.'));
@@ -117,12 +114,19 @@ class MUserInfoController extends AppController
     {
         $this->request->allowMethod(['get', 'post']);
         $result = $this->Authentication->getResult();
-        if ($result->isValid()) {
-            $redirect = $this->request->getQuery('redirect', ['controller' => 'MUserInfo', 'action' => 'index']);
-            return $this->redirect;
+        // regardless of POST or GET, redirect if user is logged in
+        if ($result && $result->isValid()) {
+            // redirect to /articles after login success
+            $redirect = $this->request->getQuery('redirect', [
+                'controller' => 'MUserInfo',
+                'action' => 'index',
+            ]);
+
+            return $this->redirect($redirect);
         }
+        // display error if user submitted and authentication failed
         if ($this->request->is('post') && !$result->isValid()) {
-            $this->Flash->error('Invalid username or password');
+            $this->Flash->error(__('Invalid username or password'));
         }
     }
 

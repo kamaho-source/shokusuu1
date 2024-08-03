@@ -22,17 +22,8 @@
             <fieldset>
                 <legend><?= __('Edit M User Info') ?></legend>
                 <?php
-                    echo $this->Form->control('c_login_account');
-                    echo $this->Form->control('c_login_passwd');
-                    echo $this->Form->control('c__user_name');
-                    echo $this->Form->control('i_admin');
-                    echo $this->Form->control('i_disp__no');
-                    echo $this->Form->control('i_enable');
-                    echo $this->Form->control('i_del_flag');
-                    echo $this->Form->control('dt_create', ['empty' => true]);
-                    echo $this->Form->control('c_create_user');
-                    echo $this->Form->control('dt_update', ['empty' => true]);
-                    echo $this->Form->control('c_update_user');
+                    echo $this->Form->control('c_login_account',['label'=>'ログインID']);
+                    echo $this->Form->control('c__user_name', ['label'=>'ユーザ名']);
                 ?>
             </fieldset>
             <?= $this->Form->button(__('Submit')) ?>

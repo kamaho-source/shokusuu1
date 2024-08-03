@@ -20,10 +20,10 @@
     <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav">
             <li class="nav-item active">
-                <a class="nav-link" href="<?=$this->Url->build('') ?>">Documentation</a>
+                <a class="nav-link" href="<?=$this->Url->build('/MRoomInfo/') ?>">部屋情報</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="https://api.cakephp.org/">API</a>
+                <a class="nav-link" href="<?=$this->Url->build('/MUserInfo/')?>">ユーザ一覧</a>
             </li>
         </ul>
     </div>

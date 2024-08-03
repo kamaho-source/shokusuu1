@@ -1,39 +1,38 @@
 <!-- in templates/Users/login.php -->
-<?php
 
-
-$this->start('styles'); // Add extra styles to the layout
-?>
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
-<?php
-$this->end();
-
-$this->assign('title', 'Login'); // Set the page title
-?>
 <div class="container mt-5">
     <div class="row">
         <div class="col-md-6 offset-md-3">
-            <h1 class="text-center">Login</h1>
+            <h1 class="text-center">食数管理システムログイン</h1>
+            <?= $this->Flash->render() ?>
             <?= $this->Form->create() ?>
+
             <div class="form-group">
-                <?= $this->Form->control('ログインID', [
+                <?= $this->Form->control('c_login_account', [
+                    'type' => 'text',
                     'required' => true,
                     'class' => 'form-control',
-                    'placeholder' => 'ログインID',
+                    'label' =>'ログインID',
                 ]) ?>
             </div>
+
             <div class="form-group">
-                <?= $this->Form->control('パスワード', [
-                    'required' => true,
-                    'class' => 'form-control',
-                    'placeholder' => 'パスワード',
+                <?= $this->Form->control('c_login_passwd', [
                     'type' => 'password',
+                    'required' => true,
+                    'class' => 'form-control',
+                    'label' => 'パスワード',
                 ]) ?>
             </div>
+
             <div class="d-flex justify-content-center mt-3">
-                <?= $this->Form->submit('Login', ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->submit('ログイン', ['class' => 'btn btn-primary']) ?>
             </div>
+
+
+
             <?= $this->Form->end() ?>
+
         </div>
     </div>
 </div>
