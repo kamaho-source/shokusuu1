@@ -1,58 +1,48 @@
-<?php
-/**
- * @var \App\View\AppView $this
- * @var iterable<\App\Model\Entity\TReservationInfo> $tReservationInfo
- */
-?>
-<div class="tReservationInfo index content">
-    <?= $this->Html->link(__('New T Reservation Info'), ['action' => 'add'], ['class' => 'button float-right']) ?>
-    <h3><?= __('T Reservation Info') ?></h3>
-    <div class="table-responsive">
-        <table>
-            <thead>
-                <tr>
-                    <th><?= $this->Paginator->sort('d_reservation_date') ?></th>
-                    <th><?= $this->Paginator->sort('i_id_room') ?></th>
-                    <th><?= $this->Paginator->sort('c_reservation_type') ?></th>
-                    <th><?= $this->Paginator->sort('i_taberu_ninzuu') ?></th>
-                    <th><?= $this->Paginator->sort('i_tabenai_ninzuu') ?></th>
-                    <th><?= $this->Paginator->sort('dt_create') ?></th>
-                    <th><?= $this->Paginator->sort('c_create_user') ?></th>
-                    <th><?= $this->Paginator->sort('dt_update') ?></th>
-                    <th><?= $this->Paginator->sort('c_update_user') ?></th>
-                    <th class="actions"><?= __('Actions') ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($tReservationInfo as $tReservationInfo): ?>
-                <tr>
-                    <td><?= h($tReservationInfo->d_reservation_date) ?></td>
-                    <td><?= $this->Number->format($tReservationInfo->i_id_room) ?></td>
-                    <td><?= $this->Number->format($tReservationInfo->c_reservation_type) ?></td>
-                    <td><?= $tReservationInfo->i_taberu_ninzuu === null ? '' : $this->Number->format($tReservationInfo->i_taberu_ninzuu) ?></td>
-                    <td><?= $tReservationInfo->i_tabenai_ninzuu === null ? '' : $this->Number->format($tReservationInfo->i_tabenai_ninzuu) ?></td>
-                    <td><?= h($tReservationInfo->dt_create) ?></td>
-                    <td><?= h($tReservationInfo->c_create_user) ?></td>
-                    <td><?= h($tReservationInfo->dt_update) ?></td>
-                    <td><?= h($tReservationInfo->c_update_user) ?></td>
-                    <td class="actions">
-                        <?= $this->Html->link(__('View'), ['action' => 'view', $tReservationInfo->d_reservation_date]) ?>
-                        <?= $this->Html->link(__('Edit'), ['action' => 'edit', $tReservationInfo->d_reservation_date]) ?>
-                        <?= $this->Form->postLink(__('Delete'), ['action' => 'delete', $tReservationInfo->d_reservation_date], ['confirm' => __('Are you sure you want to delete # {0}?', $tReservationInfo->d_reservation_date)]) ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-    <div class="paginator">
-        <ul class="pagination">
-            <?= $this->Paginator->first('<< ' . __('first')) ?>
-            <?= $this->Paginator->prev('< ' . __('previous')) ?>
-            <?= $this->Paginator->numbers() ?>
-            <?= $this->Paginator->next(__('next') . ' >') ?>
-            <?= $this->Paginator->last(__('last') . ' >>') ?>
-        </ul>
-        <p><?= $this->Paginator->counter(__('Page {{page}} of {{pages}}, showing {{current}} record(s) out of {{count}} total')) ?></p>
-    </div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AdminPage</title>
+    <!-- Include Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Include FullCalendar CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.2/fullcalendar.min.css">
+</head>
+<body>
+<div class="container">
+    <h1>食数予約</h1>
+    <div id="calendar"></div>
 </div>
+
+<!-- Include jQuery and Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.min.js"></script>
+
+<!-- Include FullCalendar and Moment JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.2/fullcalendar.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.2/locale-all.js"></script>
+
+<script>
+    $(document).ready(function() {
+        $('#calendar').fullCalendar({
+            // 他のカレンダーオプション
+            locale: 'ja',
+            dayClick: function(date, jsEvent, view) {
+                var clickedDate = date.format('YYYY-MM-DD');
+                $.ajax({
+                    url: "/t_reservation_info/view/" + clickedDate,
+                    dataType: "json",
+                    success: function(data) {
+                        alert("On " + data.date + ", the total quantity of meals is: " + data.totalQuantity);
+                    },
+                    error: function(jqXHR, textStatus, errorThrown) {
+                        console.log(textStatus, errorThrown);
+                    }
+                });
+            }
+        });
+    });
+</script>
+</body>
+</html>

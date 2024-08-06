@@ -15,7 +15,7 @@
     <?= $this->fetch('script') ?>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+<nav class="navbar navbar-expand-lg navbar-dark bg-info">
     <a class="navbar-brand" href="<?= $this->Url->build('/') ?>">食数管理システム</a>
     <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav">
@@ -24,6 +24,9 @@
             </li>
             <li class="nav-item">
                 <a class="nav-link" href="<?=$this->Url->build('/MUserInfo/')?>">ユーザ一覧</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="<?=$this->Url->build('/TReservationInfo/') ?>">予約情報</a>
             </li>
         </ul>
     </div>
