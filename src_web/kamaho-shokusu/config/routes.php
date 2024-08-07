@@ -65,6 +65,13 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
+        $builder->connect('MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
+        $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
+        $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
+        $builder->connect('/MUserInfo/delete/*', ['controller' => 'MUserInfo', 'action' => 'delete']);
+        $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
+        $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
+        $builder->connect('/MUserInfo/', ['controller' => 'MUserInfo', 'action' => 'index']);
 
 
         /*
