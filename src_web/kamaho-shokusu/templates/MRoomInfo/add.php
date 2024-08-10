@@ -17,14 +17,7 @@
             <fieldset>
                 <legend><?= __('Add M Room Info') ?></legend>
                 <?php
-                    echo $this->Form->control('c_room_name');
-                    echo $this->Form->control('i_disp_no');
-                    echo $this->Form->control('i_enable');
-                    echo $this->Form->control('i_del_flg');
-                    echo $this->Form->control('dt_create', ['empty' => true]);
-                    echo $this->Form->control('c_create_user');
-                    echo $this->Form->control('dt_update', ['empty' => true]);
-                    echo $this->Form->control('c_update_user');
+                    echo $this->Form->control('c_room_name', ['label' => '部屋名']);
                 ?>
             </fieldset>
             <?= $this->Form->button(__('Submit')) ?>

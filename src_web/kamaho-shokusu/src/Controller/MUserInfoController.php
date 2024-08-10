@@ -30,7 +30,7 @@ class MUserInfoController extends AppController
      */
     public function index()
     {
-        $query = $this->MUserInfo->find();
+        $query = $this->MUserInfo->find()->where(['i_del_flag' => 0]);
         $mUserInfo = $this->paginate($query);
 
         $this->set(compact('mUserInfo'));
@@ -56,6 +56,7 @@ class MUserInfoController extends AppController
      */
     public function add() {
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
+        $mUserInfo->i_del_flag = 0;
         if ($this->request->is('post')) {
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
@@ -76,6 +77,8 @@ class MUserInfoController extends AppController
      */
     public function edit($id = null)
     {
+
+
         $mUserInfo = $this->MUserInfo->get($id, contain: []);
         if ($this->request->is(['patch', 'post', 'put'])) {
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
@@ -100,7 +103,11 @@ class MUserInfoController extends AppController
     {
         $this->request->allowMethod(['post', 'delete']);
         $mUserInfo = $this->MUserInfo->get($id);
-        if ($this->MUserInfo->delete($mUserInfo)) {
+
+        // Set the 'i_del_flag' to 1
+        $mUserInfo->i_del_flag = 1;
+
+        if ($this->MUserInfo->save($mUserInfo)) {
             $this->Flash->success(__('The m user info has been deleted.'));
         } else {
             $this->Flash->error(__('The m user info could not be deleted. Please, try again.'));

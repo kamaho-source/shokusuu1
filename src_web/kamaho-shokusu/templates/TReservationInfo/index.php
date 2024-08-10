@@ -15,34 +15,47 @@
 </div>
 
 <!-- Include jQuery and Bootstrap JS -->
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://code.jquery.com/jqzuery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.min.js"></script>
 
 <!-- Include FullCalendar and Moment JS -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.1/moment.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.2/fullcalendar.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.10.2/locale-all.js"></script>
-
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
 <script>
-    $(document).ready(function() {
-        $('#calendar').fullCalendar({
-            // 他のカレンダーオプション
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
             locale: 'ja',
-            dayClick: function(date, jsEvent, view) {
-                var clickedDate = date.format('YYYY-MM-DD');
-                $.ajax({
-                    url: "/t_reservation_info/view/" + clickedDate,
-                    dataType: "json",
-                    success: function(data) {
-                        alert("On " + data.date + ", the total quantity of meals is: " + data.totalQuantity);
-                    },
-                    error: function(jqXHR, textStatus, errorThrown) {
-                        console.log(textStatus, errorThrown);
-                    }
-                });
-            }
+            businessHours: true,
+            events: [
+                {
+                    title: '朝食:',
+                    start: '2024-08-10'
+
+
+
+                },
+                {
+                    title: '昼食:',
+                    start: '2024-08-10'
+                },
+                {
+                    title: '夕食:',
+                    start: '2024-08-10'
+                }
+
+            ]
+
+
+
         });
+
+
+
+        calendar.render();
     });
+
 </script>
 </body>
 </html>

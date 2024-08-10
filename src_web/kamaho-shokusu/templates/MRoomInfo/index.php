@@ -13,9 +13,6 @@
                 <tr>
                     <th><?= $this->Paginator->sort('i_id_room') ?></th>
                     <th><?= $this->Paginator->sort('c_room_name') ?></th>
-                    <th><?= $this->Paginator->sort('i_disp_no') ?></th>
-                    <th><?= $this->Paginator->sort('i_enable') ?></th>
-                    <th><?= $this->Paginator->sort('i_del_flg') ?></th>
                     <th><?= $this->Paginator->sort('dt_create') ?></th>
                     <th><?= $this->Paginator->sort('c_create_user') ?></th>
                     <th><?= $this->Paginator->sort('dt_update') ?></th>

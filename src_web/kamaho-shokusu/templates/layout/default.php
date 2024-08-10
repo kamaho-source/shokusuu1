@@ -28,6 +28,9 @@
             <li class="nav-item">
                 <a class="nav-link" href="<?=$this->Url->build('/TReservationInfo/') ?>">予約情報</a>
             </li>
+            <li class="nav-item text-right">
+                <a class="nav-link" href="<?=$this->Url->build('/MUserInfo/logout')?>">ログアウト</a>
+            </li>
         </ul>
     </div>
 </nav>
