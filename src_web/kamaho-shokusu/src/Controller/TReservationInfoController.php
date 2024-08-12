@@ -10,6 +10,13 @@ namespace App\Controller;
  */
 class TReservationInfoController extends AppController
 {
+
+    public function initialize(): void
+    {
+        parent::initialize();
+        $this->fetchTable('TReservationInfo');
+        $this->viewBuilder()->setOption('serialize', true);
+    }
     /**
      * Index method
      *
@@ -21,6 +28,23 @@ class TReservationInfoController extends AppController
         $tReservationInfo = $this->paginate($query);
 
         $this->set(compact('tReservationInfo'));
+    }
+
+    public function events()
+    {
+
+        $reservations = $this->TReservationInfo->getTotalMealsByDate()->toArray();
+        $formattedEvents = [];
+        foreach ($reservations as $reservation) {
+            $formattedEvents[] = [
+                'title' => '総食数: ' . $reservation->total_meals . '食',
+                'start' => $reservation->reservation_date->format('Y-m-d'),
+                'url' => '/t_reservation_info/view/' . $reservation->reservation_date->format('Y-m-d')
+            ];
+        }
+
+        $this->set(compact('formattedEvents'));
+
     }
 
     /**
@@ -50,47 +74,45 @@ class TReservationInfoController extends AppController
         $this->viewBuilder()->setOption('serialize', ['date', 'totalQuantity']);
     }
 
+    public function add()
+    {
+        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
+        if ($this->request->is('post')) {
+            $data = $this->request->getData();
+            debug($data); // 送信されたデータを確認するためのデバッグ出力
+
+            // 主キーがすべて存在しているか確認
+            if (empty($data['d_reservation_date']) || empty($data['i_id_room']) || empty($data['c_reservation_type'])) {
+                $this->Flash->error(__('予約日、部屋ID、または予約タイプが選択されていません。'));
+            } else {
+                $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
+                if ($this->TReservationInfo->save($tReservationInfo)) {
+                    $this->Flash->success(__('The reservation has been saved.'));
+                    return $this->redirect(['action' => 'index']);
+                }
+                $this->Flash->error(__('The reservation could not be saved. Please, try again.'));
+            }
+        }
+
+        $MRoomInfoTable = $this->fetchTable('MRoomInfo');
+        $rooms = $MRoomInfoTable->find('list', [
+            'keyField' => 'i_id_room',
+            'valueField' => 'c_room_name'
+        ])->toArray();
+
+        $this->set(compact('tReservationInfo', 'rooms'));
+    }
+
+
+
+
     /**
      * Add method
      *
      * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
      */
-    public function add()
-    {
-        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
-        if ($this->request->is('post')) {
-            $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $this->request->getData());
-            if ($this->TReservationInfo->save($tReservationInfo)) {
-                $this->Flash->success(__('The t reservation info has been saved.'));
 
-                return $this->redirect(['action' => 'index']);
-            }
-            $this->Flash->error(__('The t reservation info could not be saved. Please, try again.'));
-        }
-        $this->set(compact('tReservationInfo'));
-    }
 
-    /**
-     * Edit method
-     *
-     * @param string|null $id T Reservation Info id.
-     * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function edit($id = null)
-    {
-        $tReservationInfo = $this->TReservationInfo->get($id, contain: []);
-        if ($this->request->is(['patch', 'post', 'put'])) {
-            $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $this->request->getData());
-            if ($this->TReservationInfo->save($tReservationInfo)) {
-                $this->Flash->success(__('The t reservation info has been saved.'));
-
-                return $this->redirect(['action' => 'index']);
-            }
-            $this->Flash->error(__('The t reservation info could not be saved. Please, try again.'));
-        }
-        $this->set(compact('tReservationInfo'));
-    }
 
     /**
      * Delete method

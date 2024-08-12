@@ -78,4 +78,15 @@ class TReservationInfoTable extends Table
 
         return $validator;
     }
+
+    public function getTotalMealsByDate()
+    {
+        $query = $this->find()
+            ->select([
+                'd_reservation_date',
+                'total_meals' => $query->func()->sum('i_taberu_ninzuu')
+            ])
+            ->groupBy('d_reservation_date');
+        return $query;
+    }
 }

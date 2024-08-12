@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\TReservationInfo $tReservationInfo
+ * @var array $rooms
  */
 ?>
 <div class="row">
@@ -17,12 +18,31 @@
             <fieldset>
                 <legend><?= __('Add T Reservation Info') ?></legend>
                 <?php
-                    echo $this->Form->control('i_taberu_ninzuu');
-                    echo $this->Form->control('i_tabenai_ninzuu');
-                    echo $this->Form->control('dt_create', ['empty' => true]);
-                    echo $this->Form->control('c_create_user');
-                    echo $this->Form->control('dt_update', ['empty' => true]);
-                    echo $this->Form->control('c_update_user');
+                echo $this->Form->control('i_id_room', [
+                    'type'=>'select',
+                    'label' => '部屋名',
+                    'options' => $rooms,
+                    'empty' => '-- 部屋を選択 --'
+                ]);
+
+                $reservationTypes = [
+                    1 => '朝',
+                    2 => '昼',
+                    3 => '夜'
+                ];
+
+                // フォームで予約タイプを表示
+                echo $this->Form->control('c_reservation_type', [
+                    'label' => '予約タイプ',
+                    'type' => 'select',
+                    'options' => $reservationTypes,
+                    'empty' => '-- 予約タイプを選択 --' // 空の選択肢を追加（オプション）
+                ]);
+
+                echo $this->Form->control('i_taberu_ninzuu');
+                echo $this->Form->control('i_tabenai_ninzuu');
+
+
                 ?>
             </fieldset>
             <?= $this->Form->button(__('Submit')) ?>

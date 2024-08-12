@@ -23,13 +23,16 @@
 
 use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
+use Cake\Routing\Router;
 
 /*
  * This file is loaded in the context of the `Application` class.
   * So you can use  `$this` to reference the application class instance
   * if required.
  */
+
 return function (RouteBuilder $routes): void {
+
     /*
      * The default class to use for all routes
      *
@@ -53,14 +56,19 @@ return function (RouteBuilder $routes): void {
         /*
          * Here, we are connecting '/' (base path) to a controller called 'Pages',
          * its action called 'display', and we pass a param to select the view file
+         *
          * to use (in this case, templates/Pages/home.php)...
          */
+
+
         $builder->connect('/', ['controller' => 'Pages', 'action' => 'display', 'home']);
         $builder->connect('/MRoomInfo', ['controller' => 'MRoomInfo', 'action' => 'index']);
         $builder->connect('/MRoomInfo/add', ['controller' => 'MRoomInfo', 'action' => 'add']);
         $builder->connect('/MRoomInfo/edit/*', ['controller' => 'MRoomInfo', 'action' => 'edit']);
         $builder->connect('/MRoomInfo/delete/*', ['controller' => 'MRoomInfo', 'action' => 'delete']);
         $builder->connect('/TReservationInfo', ['controller' => 'TReservationInfo', 'action' => 'index']);
+        $builder->setExtensions(['json']);
+        $builder->connect('TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
         $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
