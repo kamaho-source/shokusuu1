@@ -18,6 +18,13 @@
             <fieldset>
                 <legend><?= __('Add T Reservation Info') ?></legend>
                 <?php
+
+                echo $this->Form->control('d_reservation_date', [
+                    'type' => 'hidden', // ユーザーには見えないように隠しフィールド
+                    'id' => 'd_reservation_date', // JavaScriptで操作できるようにIDを設定
+                ]);
+
+
                 echo $this->Form->control('i_id_room', [
                     'type'=>'select',
                     'label' => '部屋名',

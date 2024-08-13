@@ -74,35 +74,6 @@ class TReservationInfoController extends AppController
         $this->viewBuilder()->setOption('serialize', ['date', 'totalQuantity']);
     }
 
-    public function add()
-    {
-        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
-        if ($this->request->is('post')) {
-            $data = $this->request->getData();
-            debug($data); // 送信されたデータを確認するためのデバッグ出力
-
-            // 主キーがすべて存在しているか確認
-            if (empty($data['d_reservation_date']) || empty($data['i_id_room']) || empty($data['c_reservation_type'])) {
-                $this->Flash->error(__('予約日、部屋ID、または予約タイプが選択されていません。'));
-            } else {
-                $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
-                if ($this->TReservationInfo->save($tReservationInfo)) {
-                    $this->Flash->success(__('The reservation has been saved.'));
-                    return $this->redirect(['action' => 'index']);
-                }
-                $this->Flash->error(__('The reservation could not be saved. Please, try again.'));
-            }
-        }
-
-        $MRoomInfoTable = $this->fetchTable('MRoomInfo');
-        $rooms = $MRoomInfoTable->find('list', [
-            'keyField' => 'i_id_room',
-            'valueField' => 'c_room_name'
-        ])->toArray();
-
-        $this->set(compact('tReservationInfo', 'rooms'));
-    }
-
 
 
 
@@ -112,7 +83,56 @@ class TReservationInfoController extends AppController
      * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
      */
 
+    public function add()
+    {
+        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
 
+        if ($this->request->is('post')) {
+            $data = $this->request->getData();
+
+            // デバッグ: 送信されたデータを確認
+
+            // URLのクエリパラメータから予約日を取得
+            $reservationDate = $this->request->getQuery('date');
+
+            // 予約日が空でないか確認し、エンティティに設定
+            if (!empty($reservationDate)) {
+                $tReservationInfo->d_reservation_date = $reservationDate;
+            } else {
+                $this->Flash->error(__('予約日が選択されていません。'));
+                return $this->redirect(['action' => 'add']);
+            }
+
+            // i_id_room と c_reservation_type が設定されているか確認
+            if (!empty($data['i_id_room']) && !empty($data['c_reservation_type'])) {
+                $tReservationInfo->i_id_room = $data['i_id_room'];
+                $tReservationInfo->c_reservation_type = $data['c_reservation_type'];
+            } else {
+                $this->Flash->error(__('部屋IDまたは予約タイプが選択されていません。'));
+                return $this->redirect(['action' => 'add']);
+            }
+
+
+            // その他のフィールドをエンティティにパッチ
+            $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
+
+            // データベースに保存
+            if ($this->TReservationInfo->save($tReservationInfo)) {
+                $this->Flash->success(__('The reservation has been saved.'));
+                return $this->redirect(['action' => 'index']);
+            }
+            $this->Flash->error(__('The reservation could not be saved. Please, try again.'));
+        }
+
+        // 部屋情報を取得してビューに渡す
+        $MRoomInfoTable = $this->fetchTable('MRoomInfo');
+        $rooms = $MRoomInfoTable->find('list', [
+            'keyField' => 'i_id_room',
+            'valueField' => 'c_room_name'
+        ])->toArray();
+
+        $this->set(compact('tReservationInfo', 'rooms'));
+    }
 
     /**
      * Delete method

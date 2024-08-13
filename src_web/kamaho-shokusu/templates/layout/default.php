@@ -16,7 +16,7 @@
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-info">
-    <a class="navbar-brand" href="<?= $this->Url->build('/') ?>">食数管理システム</a>
+    <a class="navbar-brand" href="<?= $this->Url->build('/TReservationInfo') ?>">食数管理システム</a>
     <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav">
             <li class="nav-item active">
