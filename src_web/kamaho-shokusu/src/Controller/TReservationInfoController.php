@@ -25,22 +25,22 @@ class TReservationInfoController extends AppController
      */
     public function index()
     {
-        // 予約情報を取得し、ページネーションを適用
         $query = $this->TReservationInfo->find();
         $tReservationInfo = $this->paginate($query);
 
-        // 必要なフィールドを選択して予約情報を取得
+        // 朝、昼、夜の食べる人数を集計
         $mealData = $this->TReservationInfo->find()
             ->select([
                 'd_reservation_date',
-                'i_taberu_ninzuu',
-                'i_tabenai_ninzuu'
+                'c_reservation_type',
+                'total_taberu_ninzuu' => $query->func()->sum('i_taberu_ninzuu')
             ])
+            ->groupBy(['d_reservation_date', 'c_reservation_type'])
             ->all();
-
         // データをビューにセット
         $this->set(compact('tReservationInfo', 'mealData'));
     }
+
     /**
      * event method
      *

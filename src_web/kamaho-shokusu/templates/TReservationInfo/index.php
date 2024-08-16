@@ -28,12 +28,13 @@
             businessHours: true,
             locale: 'ja',
             events: [
-                <?php if (!empty($mealData)): ?>
+                <?php if (!empty($mealData)) : ?>
                 <?php foreach ($mealData as $data): ?>
                 {
-                    title: '食数: <?= h($data->i_taberu_ninzuu + $data->i_tabenai_ninzuu) ?>',
-                    start: '<?= h($data->d_reservation_date->format('Y-m-d')) ?>',
-                    allDay: true
+                    title: '<?= ($data->c_reservation_type == 1) ? "朝: " : (($data->c_reservation_type == 2) ? "昼: " : "夜: ") ?>' +
+                        '<?= $data->total_taberu_ninzuu ?>人',
+                    start: '<?= $data->d_reservation_date->format('Y-m-d') ?>',
+                    allDay: true,
                 },
                 <?php endforeach; ?>
                 <?php endif; ?>
