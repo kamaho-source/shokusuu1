@@ -28,7 +28,7 @@
             businessHours: true,
             locale: 'ja',
             dateClick: function(info) {
-                location.href = 'TReservationInfo/add?date=' + info.dateStr;
+                window.location.href = '<?= $this->Url->build('/TReservationInfo/add') ?>?date=' + info.dateStr;
                 // ここでクリックされた日付に対して何か処理を行うことができます
                 // 例えば、モーダルを開いてその日の予約を追加する処理を行うなど
             }

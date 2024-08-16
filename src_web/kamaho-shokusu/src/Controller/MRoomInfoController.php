@@ -18,6 +18,8 @@ class MRoomInfoController extends AppController
     {
         parent::initialize();
         $this->loadComponent('Authentication.Authentication');
+        $this->viewBuilder()->setOption('serialize', true);
+        $this->viewBuilder()->setLayout('default');
     }
     /**
      * Index method

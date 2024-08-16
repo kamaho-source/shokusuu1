@@ -16,12 +16,15 @@ class MUserInfoController extends AppController
     {
         parent::initialize();
         $this->loadComponent('Authentication.Authentication');
+        $this->viewBuilder()->setLayout('default');
+        $this->viewBuilder()->setOption('serialize', true);
     }
 
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
         $this->Authentication->addUnauthenticatedActions(['login', 'add']);
+
     }
     /**
      * Index method

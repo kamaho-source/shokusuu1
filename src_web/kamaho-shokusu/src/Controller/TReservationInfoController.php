@@ -16,6 +16,7 @@ class TReservationInfoController extends AppController
         parent::initialize();
         $this->fetchTable('TReservationInfo');
         $this->viewBuilder()->setOption('serialize', true);
+        $this->viewBuilder()->setLayout('default');
     }
     /**
      * Index method
@@ -30,22 +31,6 @@ class TReservationInfoController extends AppController
         $this->set(compact('tReservationInfo'));
     }
 
-    public function events()
-    {
-
-        $reservations = $this->TReservationInfo->getTotalMealsByDate()->toArray();
-        $formattedEvents = [];
-        foreach ($reservations as $reservation) {
-            $formattedEvents[] = [
-                'title' => '総食数: ' . $reservation->total_meals . '食',
-                'start' => $reservation->reservation_date->format('Y-m-d'),
-                'url' => '/t_reservation_info/view/' . $reservation->reservation_date->format('Y-m-d')
-            ];
-        }
-
-        $this->set(compact('formattedEvents'));
-
-    }
 
     /**
      * View method
@@ -122,6 +107,65 @@ class TReservationInfoController extends AppController
                 return $this->redirect(['action' => 'index']);
             }
             $this->Flash->error(__('The reservation could not be saved. Please, try again.'));
+        }
+
+        // 部屋情報を取得してビューに渡す
+        $MRoomInfoTable = $this->fetchTable('MRoomInfo');
+        $rooms = $MRoomInfoTable->find('list', [
+            'keyField' => 'i_id_room',
+            'valueField' => 'c_room_name'
+        ])->toArray();
+
+        $this->set(compact('tReservationInfo', 'rooms'));
+    }
+
+
+
+
+    /**
+     * Edit method
+     *
+     * @param string|null $id T Reservation Info id.
+     * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
+     */
+
+    public function edit($id = null)
+    {
+        // まず `id` で予約情報を取得する
+        if ($id !== null) {
+            $tReservationInfo = $this->TReservationInfo->get($id);
+        } else {
+            // `id` がない場合、クエリパラメータから `date` を取得し、予約情報を取得する
+            $reservationDate = $this->request->getQuery('date');
+
+            if (!$reservationDate) {
+                $this->Flash->error(__('Invalid reservation date.'));
+                return $this->redirect(['action' => 'index']);
+            }
+
+            $tReservationInfo = $this->TReservationInfo->find()
+                ->where(['d_reservation_date' => $reservationDate])
+                ->first();
+
+            if (!$tReservationInfo) {
+                $this->Flash->error(__('Reservation not found.'));
+                return $this->redirect(['action' => 'index']);
+            }
+        }
+
+        // リクエストが POST または PUT の場合、データを保存する
+        if ($this->request->is(['post', 'put'])) {
+            $data = $this->request->getData();
+
+            // データをパッチ
+            $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
+
+            // データベースに保存
+            if ($this->TReservationInfo->save($tReservationInfo)) {
+                $this->Flash->success(__('The reservation has been updated.'));
+                return $this->redirect(['action' => 'index']);
+            }
+            $this->Flash->error(__('The reservation could not be updated. Please, try again.'));
         }
 
         // 部屋情報を取得してビューに渡す
