@@ -27,6 +27,17 @@
             initialView: 'dayGridMonth',
             businessHours: true,
             locale: 'ja',
+            events: [
+                <?php if (!empty($mealData)): ?>
+                <?php foreach ($mealData as $data): ?>
+                {
+                    title: '食数: <?= h($data->i_taberu_ninzuu + $data->i_tabenai_ninzuu) ?>',
+                    start: '<?= h($data->d_reservation_date->format('Y-m-d')) ?>',
+                    allDay: true
+                },
+                <?php endforeach; ?>
+                <?php endif; ?>
+            ],
             dateClick: function(info) {
                 window.location.href = '<?= $this->Url->build('/TReservationInfo/add') ?>?date=' + info.dateStr;
                 // ここでクリックされた日付に対して何か処理を行うことができます

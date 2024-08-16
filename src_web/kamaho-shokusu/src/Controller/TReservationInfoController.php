@@ -25,11 +25,47 @@ class TReservationInfoController extends AppController
      */
     public function index()
     {
+        // 予約情報を取得し、ページネーションを適用
         $query = $this->TReservationInfo->find();
         $tReservationInfo = $this->paginate($query);
 
-        $this->set(compact('tReservationInfo'));
+        // 必要なフィールドを選択して予約情報を取得
+        $mealData = $this->TReservationInfo->find()
+            ->select([
+                'd_reservation_date',
+                'i_taberu_ninzuu',
+                'i_tabenai_ninzuu'
+            ])
+            ->all();
+
+        // データをビューにセット
+        $this->set(compact('tReservationInfo', 'mealData'));
     }
+    /**
+     * event method
+     *
+     */
+    public function events()
+    {
+        $this->request->allowMethod(['get', 'ajax']);
+
+        // 全ての予約情報を取得する
+        $reservations = $this->TReservationInfo->find('all');
+
+        // FullCalendarに渡す形式に変換
+        $events = [];
+        foreach ($reservations as $reservation) {
+            $events[] = [
+                'title' => '合計食数: ' . $reservation->i_taberu_ninzuu,
+                'start' => $reservation->d_reservation_date->format('Y-m-d'),
+                'allDay' => true
+            ];
+        }
+
+        $this->set(compact('events'));
+        $this->viewBuilder()->setOption('serialize', 'events');
+    }
+
 
 
     /**
