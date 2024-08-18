@@ -28,21 +28,24 @@
             businessHours: true,
             locale: 'ja',
             events: [
-                <?php if (!empty($mealData)) : ?>
-                <?php foreach ($mealData as $data): ?>
+                <?php if (!empty($mealDataArray)) : ?>
+                <?php foreach ($mealDataArray as $date => $meals): ?>
+                <?php
+                $ordername = ['A','1,朝', '2,昼', '3,夜'];
+                $order = [1, 2, 3];
+                foreach ($order as $mealType):
+                ?>
                 {
-                    title: '<?= ($data->c_reservation_type == 1) ? "朝: " : (($data->c_reservation_type == 2) ? "昼: " : "夜: ") ?>' +
-                        '<?= $data->total_taberu_ninzuu ?>人',
-                    start: '<?= $data->d_reservation_date->format('Y-m-d') ?>',
+                    title: '<?= $ordername[$mealType] ?>: <?= isset($meals[$mealType])?$meals[$mealType]:'-' ?>人',
+                    start: '<?= $date ?>',
                     allDay: true,
                 },
+                <?php endforeach; ?>
                 <?php endforeach; ?>
                 <?php endif; ?>
             ],
             dateClick: function(info) {
-                window.location.href = '<?= $this->Url->build('/TReservationInfo/add') ?>?date=' + info.dateStr;
-                // ここでクリックされた日付に対して何か処理を行うことができます
-                // 例えば、モーダルを開いてその日の予約を追加する処理を行うなど
+                window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
             }
         });
         calendar.render();

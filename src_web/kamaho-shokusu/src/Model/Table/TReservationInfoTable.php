@@ -40,6 +40,11 @@ class TReservationInfoTable extends Table
         $this->setTable('t_reservation_info');
         $this->setDisplayField(['d_reservation_date', 'i_id_room', 'c_reservation_type']);
         $this->setPrimaryKey(['d_reservation_date', 'i_id_room', 'c_reservation_type']);
+
+        $this->belongsTo('MRoomInfo', [
+            'foreignKey' => 'i_id_room', // 実際の外部キーのカラム名
+            'joinType' => 'INNER', // 必要に応じて 'LEFT' に変更
+        ]);
     }
 
     /**

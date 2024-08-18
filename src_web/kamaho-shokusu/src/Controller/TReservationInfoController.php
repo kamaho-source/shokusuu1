@@ -3,6 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+
+use Cake\Event\EventInterface;
+use Cake\Http\Exception\NotFoundException;
+use App\Controller\InvalidArgumentException;
+
 /**
  * TReservationInfo Controller
  *
@@ -15,6 +20,7 @@ class TReservationInfoController extends AppController
     {
         parent::initialize();
         $this->fetchTable('TReservationInfo');
+        $this->fetchTable('MRoomInfo');
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
     }
@@ -23,23 +29,51 @@ class TReservationInfoController extends AppController
      *
      * @return \Cake\Http\Response|null|void Renders view
      */
+
     public function index()
     {
-        $query = $this->TReservationInfo->find();
-        $tReservationInfo = $this->paginate($query);
-
-        // 朝、昼、夜の食べる人数を集計
         $mealData = $this->TReservationInfo->find()
             ->select([
                 'd_reservation_date',
                 'c_reservation_type',
-                'total_taberu_ninzuu' => $query->func()->sum('i_taberu_ninzuu')
+                'i_taberu_ninzuu',
             ])
-            ->groupBy(['d_reservation_date', 'c_reservation_type'])
-            ->all();
-        // データをビューにセット
-        $this->set(compact('tReservationInfo', 'mealData'));
+            ->toArray();
+
+        // 連想配列を作成
+        $mealDataArray = [];
+        // 各日付について処理
+        foreach ($mealData as $data) {
+            $date = $data->d_reservation_date->format('Y-m-d');
+            $mealType = $data->c_reservation_type; // 1: 朝, 2: 昼, 3: 夜
+
+            // 日付ごとのデータが存在しなければ初期化
+            if (!isset($mealDataArray[$date])) {
+                $mealDataArray[$date] = [1 => 0, 2 => 0, 3 => 0];
+            }
+
+            // 食数をセット、値がnullの場合は0をセット
+
+            switch ($mealType) {
+                case 1:
+                    $mealDataArray[$date][1] = is_numeric($data->i_taberu_ninzuu) ? $data->i_taberu_ninzuu : 0;
+                    break;
+                case 2:
+                    $mealDataArray[$date][2] = is_numeric($data->i_taberu_ninzuu) ? $data->i_taberu_ninzuu : 0;
+                    break;
+                case 3:
+                    $mealDataArray[$date][3] = is_numeric($data->i_taberu_ninzuu) ? $data->i_taberu_ninzuu : 0;
+                    break;
+            }
+        }
+
+        $this->set(compact('mealDataArray'));
+   //∂    pr($mealDataArray);
+
     }
+
+
+
 
     /**
      * event method
@@ -75,24 +109,56 @@ class TReservationInfoController extends AppController
      * @return \Cake\Http\Response|null|void Renders view
      * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
      */
-    public function view($date = null)
+    public function view()
     {
-        if($date != null){
-            $orderQuantities = $this->TReservationInfo->find('all', [
-                'conditions' => ['d_reservation_date' => $date]
-            ]);
+        // クエリパラメータから日付を取得
+        $date = $this->request->getQuery('date');
 
-            $totalQuantity = 0;
-            foreach ($orderQuantities as $record) {
-                $totalQuantity += $record->i_taberu_ninzuu;
+        if ($date === null) {
+            throw new \InvalidArgumentException('日付が指定されていません。');
+        }
+
+        // 選択された日付の予約データを取得し、関連する部屋名も含める
+        $roomInfos = $this->TReservationInfo->find()
+            ->contain(['MRoomInfo']) // MRoomInfoテーブルからc_room_nameを取得
+            ->where(['d_reservation_date' => $date]) // クエリパラメータから取得した日付でフィルタリング
+            ->all();
+
+        // 連想配列を作成
+        $groupedRoomInfos = [
+            '朝' => [],
+            '昼' => [],
+            '夜' => []
+        ];
+
+        // データを予約タイプ（朝、昼、夜）でグループ化
+        foreach ($roomInfos as $roomInfo) {
+            $mealType = '';
+            switch ($roomInfo->c_reservation_type) {
+                case 1:
+                    $mealType = '朝';
+                    break;
+                case 2:
+                    $mealType = '昼';
+                    break;
+                case 3:
+                    $mealType = '夜';
+                    break;
+            }
+
+            if ($mealType) {
+                // 部屋名を取得して連想配列に追加
+                $groupedRoomInfos[$mealType][] = [
+                    'room_name' => $roomInfo->m_room_info->c_room_name,
+                    'reservation_type' => $mealType,
+                    'taberu_ninzuu' => $roomInfo->i_taberu_ninzuu,
+                    'tabenai_ninzuu' => $roomInfo->i_tabenai_ninzuu
+                ];
             }
         }
-        else{
-            $totalQuantity = 0;
-        }
 
-        $this->set(compact('date', 'totalQuantity'));
-        $this->viewBuilder()->setOption('serialize', ['date', 'totalQuantity']);
+        // ビューで使用するデータをセット
+        $this->set(compact('groupedRoomInfos', 'date'));
     }
 
 
@@ -139,7 +205,7 @@ class TReservationInfoController extends AppController
 
             // データベースに保存
             if ($this->TReservationInfo->save($tReservationInfo)) {
-                $this->Flash->success(__('The reservation has been saved.'));
+                $this->Flash->success('予約を承りました。' );
                 return $this->redirect(['action' => 'index']);
             }
             $this->Flash->error(__('The reservation could not be saved. Please, try again.'));
