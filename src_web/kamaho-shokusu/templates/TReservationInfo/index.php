@@ -31,19 +31,27 @@
                 <?php if (!empty($mealDataArray)) : ?>
                 <?php foreach ($mealDataArray as $date => $meals): ?>
                 <?php
-                $ordername = ['A','1,朝', '2,昼', '3,夜'];
-                $order = [1, 2, 3];
-                foreach ($order as $mealType):
+                // 明示的に順番を指定
+                $mealTypes = [
+                    '1' => '朝',
+                    '2' => '昼',
+                    '3' => '夜'
+                ];
+                foreach ($mealTypes as $mealType => $mealName):
+                if (isset($meals[$mealType]) && $meals[$mealType] > 0):
                 ?>
                 {
-                    title: '<?= $ordername[$mealType] ?>: <?= isset($meals[$mealType])?$meals[$mealType]:'-' ?>人',
+                    title: '<?= $mealName ?>: <?= $meals[$mealType] ?>人',
                     start: '<?= $date ?>',
                     allDay: true,
+                    displayOrder: <?= $mealType ?> // ソート順序を明示的に指定
                 },
+                <?php endif; ?>
                 <?php endforeach; ?>
                 <?php endforeach; ?>
                 <?php endif; ?>
             ],
+            eventOrder: 'displayOrder', // イベントの順序をソートしないように設定
             dateClick: function(info) {
                 window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
             }

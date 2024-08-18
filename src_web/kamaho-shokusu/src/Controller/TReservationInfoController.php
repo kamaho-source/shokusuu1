@@ -32,7 +32,7 @@ class TReservationInfoController extends AppController
 
     public function index()
     {
-        $mealData = $this->TReservationInfo->find()
+        $reservations = $this->TReservationInfo->find()
             ->select([
                 'd_reservation_date',
                 'c_reservation_type',
@@ -40,37 +40,23 @@ class TReservationInfoController extends AppController
             ])
             ->toArray();
 
-        // 連想配列を作成
+        // 連想配列を作成して朝、昼、夜の総数を計算
         $mealDataArray = [];
-        // 各日付について処理
-        foreach ($mealData as $data) {
-            $date = $data->d_reservation_date->format('Y-m-d');
-            $mealType = $data->c_reservation_type; // 1: 朝, 2: 昼, 3: 夜
 
-            // 日付ごとのデータが存在しなければ初期化
+        foreach ($reservations as $reservation) {
+            $date = $reservation->d_reservation_date->format('Y-m-d');
+            $mealType = $reservation->c_reservation_type; // 1: 朝, 2: 昼, 3: 夜
+
             if (!isset($mealDataArray[$date])) {
                 $mealDataArray[$date] = [1 => 0, 2 => 0, 3 => 0];
             }
 
-            // 食数をセット、値がnullの場合は0をセット
-
-            switch ($mealType) {
-                case 1:
-                    $mealDataArray[$date][1] = is_numeric($data->i_taberu_ninzuu) ? $data->i_taberu_ninzuu : 0;
-                    break;
-                case 2:
-                    $mealDataArray[$date][2] = is_numeric($data->i_taberu_ninzuu) ? $data->i_taberu_ninzuu : 0;
-                    break;
-                case 3:
-                    $mealDataArray[$date][3] = is_numeric($data->i_taberu_ninzuu) ? $data->i_taberu_ninzuu : 0;
-                    break;
-            }
+            $mealDataArray[$date][$mealType] += (int)$reservation->i_taberu_ninzuu;
         }
 
         $this->set(compact('mealDataArray'));
-   //∂    pr($mealDataArray);
-
     }
+
 
 
 
@@ -176,7 +162,7 @@ class TReservationInfoController extends AppController
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
-
+            $tReservationInfo->dt_create = date('Y-m-d H:i:s');
             // デバッグ: 送信されたデータを確認
 
             // URLのクエリパラメータから予約日を取得

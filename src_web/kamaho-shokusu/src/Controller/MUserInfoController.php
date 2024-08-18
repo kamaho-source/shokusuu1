@@ -60,6 +60,7 @@ class MUserInfoController extends AppController
     public function add() {
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
+        $mUserInfo->dt_create = date('Y-m-d H:i:s');
         if ($this->request->is('post')) {
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
