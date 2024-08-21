@@ -222,41 +222,38 @@ class TReservationInfoController extends AppController
 
     public function edit($id = null)
     {
-        // まず `id` で予約情報を取得する
-        if ($id !== null) {
-            $tReservationInfo = $this->TReservationInfo->get($id);
-        } else {
-            // `id` がない場合、クエリパラメータから `date` を取得し、予約情報を取得する
+        // `id` が指定されていない場合、クエリパラメータから `date` を取得
+        if ($id === null) {
             $reservationDate = $this->request->getQuery('date');
 
             if (!$reservationDate) {
-                $this->Flash->error(__('Invalid reservation date.'));
+                $this->Flash->error(__('有効な日付が指定されていません。'));
                 return $this->redirect(['action' => 'index']);
             }
 
+            // 指定された日付の予約情報を取得
             $tReservationInfo = $this->TReservationInfo->find()
                 ->where(['d_reservation_date' => $reservationDate])
                 ->first();
 
             if (!$tReservationInfo) {
-                $this->Flash->error(__('Reservation not found.'));
+                $this->Flash->error(__('指定された日付の予約が見つかりませんでした。'));
                 return $this->redirect(['action' => 'index']);
             }
+        } else {
+            // `id` が指定されている場合、そのIDの予約情報を取得
+            $tReservationInfo = $this->TReservationInfo->get($id);
         }
 
-        // リクエストが POST または PUT の場合、データを保存する
+        // POSTまたはPUTリクエストの場合、予約情報を更新
         if ($this->request->is(['post', 'put'])) {
-            $data = $this->request->getData();
+            $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $this->request->getData());
 
-            // データをパッチ
-            $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
-
-            // データベースに保存
             if ($this->TReservationInfo->save($tReservationInfo)) {
-                $this->Flash->success(__('The reservation has been updated.'));
+                $this->Flash->success(__('予約情報が更新されました。'));
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The reservation could not be updated. Please, try again.'));
+            $this->Flash->error(__('予約情報の更新に失敗しました。もう一度お試しください。'));
         }
 
         // 部屋情報を取得してビューに渡す
@@ -268,6 +265,7 @@ class TReservationInfoController extends AppController
 
         $this->set(compact('tReservationInfo', 'rooms'));
     }
+
 
     /**
      * Delete method

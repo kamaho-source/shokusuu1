@@ -146,7 +146,7 @@ class MUserInfoController extends AppController
         $result = $this->Authentication->getResult();
         if ($result->isValid()) {
             $this->Authentication->logout();
-            $this->Flash->success('Logout successful');
+            $this->Flash->success('正常にログアウトされました。');
         }
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }

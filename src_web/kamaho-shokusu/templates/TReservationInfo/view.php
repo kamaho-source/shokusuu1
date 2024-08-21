@@ -34,4 +34,6 @@
     <button class="btn btn-primary" onclick="location.href='<?= $this->Url->build(['action' => 'add', '?' => ['date' => $date]]) ?>'">
         追加する
     </button>
+    <button class="btn btn-primary" onclick="location.href='<?= $this->Url->build(['action' => 'edit', '?' => ['date' => $date]]) ?>'">
+        編集する
 </div>
