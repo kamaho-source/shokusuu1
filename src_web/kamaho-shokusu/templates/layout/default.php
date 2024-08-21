@@ -56,9 +56,14 @@
         </div>
     </div>
 </nav>
+
 <main class="container mt-3">
-    <?= $this->Flash->render() ?>
+    <?php foreach (['flash', 'error', 'success', 'info', 'warning'] as $key): ?>
+        <?= $this->Flash->render($key, ['params' => ['class' => 'alert alert-' . ($key === 'flash' ? 'primary' : $key) . ' alert-dismissible fade show']]) ?>
+    <?php endforeach; ?>
     <?= $this->fetch('content') ?>
+</main>
+
 </main>
 <footer>
 </footer>

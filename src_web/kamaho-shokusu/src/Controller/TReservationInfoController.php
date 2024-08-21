@@ -21,6 +21,8 @@ class TReservationInfoController extends AppController
         parent::initialize();
         $this->fetchTable('TReservationInfo');
         $this->fetchTable('MRoomInfo');
+        $this->fetchTable('MUserInfo');
+        $this->loadComponent('Flash');
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
     }
@@ -191,7 +193,8 @@ class TReservationInfoController extends AppController
 
             // データベースに保存
             if ($this->TReservationInfo->save($tReservationInfo)) {
-                $this->Flash->success('予約を承りました。' );
+                $this->Flash->success(__('予約を承りました。' ));
+              //  debug($this->request->getSession()->read('Flash'));
                 return $this->redirect(['action' => 'index']);
             }
             $this->Flash->error(__('The reservation could not be saved. Please, try again.'));
