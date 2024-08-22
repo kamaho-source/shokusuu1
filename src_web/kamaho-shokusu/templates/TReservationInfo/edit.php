@@ -8,7 +8,7 @@
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">
-                <h3><?= __('Edit T Reservation Info') ?></h3>
+                <h3><?= __('予約情報の編集') ?></h3>
             </div>
             <div class="card-body">
                 <?= $this->Form->create() ?>

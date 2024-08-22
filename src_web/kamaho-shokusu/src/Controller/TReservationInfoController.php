@@ -185,6 +185,13 @@ class TReservationInfoController extends AppController
                 $this->Flash->error(__('部屋IDまたは予約タイプが選択されていません。'));
                 return $this->redirect(['action' => 'add']);
             }
+            $user = $this->request->getAttribute('identity');
+            if ($user) {
+                $tReservationInfo->c_create_user = $user->get('c__user_name'); // 'username' を正しいフィールドに置き換えてください
+            } else {
+                $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
+                return $this->redirect(['action' => 'add']);
+            }
 
             // その他のフィールドをエンティティにパッチ
             $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
@@ -220,35 +227,60 @@ class TReservationInfoController extends AppController
 
     public function edit($id = null)
     {
-        $reservationDate = $this->request->getQuery('date');
+        $tReservationInfos = [];
 
-        if (!$reservationDate) {
-            $this->Flash->error(__('Invalid reservation date.'));
-            return $this->redirect(['action' => 'index']);
-        }
+        // まず `id` で予約情報を取得する
+        if ($id !== null) {
+            $tReservationInfo = $this->TReservationInfo->get($id);
+            $tReservationInfos[] = $tReservationInfo; // 単一の予約情報でも配列に格納
+        } else {
+            // `id` がない場合、クエリパラメータから `date` を取得し、予約情報を取得する
+            $reservationDate = $this->request->getQuery('date');
 
-        $tReservationInfos = $this->TReservationInfo->find()
-            ->where(['d_reservation_date' => $reservationDate])
-            ->all();
-
-        if (!$tReservationInfos) {
-            $this->Flash->error(__('Reservation not found.'));
-            return $this->redirect(['action' => 'index']);
-        }
-
-        if ($this->request->is(['post', 'put'])) {
-            foreach ($tReservationInfos as $tReservationInfo) {
-                $data = $this->request->getData();
-                $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
-                if ($this->TReservationInfo->save($tReservationInfo)) {
-                    $this->Flash->success(__('予約情報は正常に更新されました。'));
-                } else {
-                    $this->Flash->error(__('予約情報は更新されませんでした。複数回やっても更新されない場合は管理者までご連絡ください。'));
-                }
+            if (!$reservationDate) {
+                $this->Flash->error(__('Invalid reservation date.'));
+                return $this->redirect(['action' => 'index']);
             }
-            return $this->redirect(['action' => 'index']);
+
+            $tReservationInfos = $this->TReservationInfo->find()
+                ->where(['d_reservation_date' => $reservationDate])
+                ->all()
+                ->toArray();
+
+            if (empty($tReservationInfos)) {
+                $this->Flash->error(__('Reservation not found.'));
+                return $this->redirect(['action' => 'index']);
+            }
         }
 
+        // リクエストが POST または PUT の場合、データを保存する
+        if ($this->request->is(['post', 'put'])) {
+            $data = $this->request->getData();
+
+            // Authenticationプラグインでログインユーザー情報を取得
+            $user = $this->request->getAttribute('identity');
+            if ($user) {
+                foreach ($tReservationInfos as $tReservationInfo) {
+                    $tReservationInfo->c_update_user = $user->get('c__user_name');
+                    // データをパッチ
+                    $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
+
+                    // データベースに保存
+                    if (!$this->TReservationInfo->save($tReservationInfo)) {
+                        $this->Flash->error(__('予約情報の更新に失敗しました。もう一度お試しください。'));
+                        return $this->redirect(['action' => 'index']);
+                    }
+                }
+
+                $this->Flash->success(__('予約情報が更新されました。'));
+                return $this->redirect(['action' => 'index']);
+            } else {
+                $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
+                return $this->redirect(['action' => 'edit', $id]);
+            }
+        }
+
+        // 部屋情報を取得してビューに渡す
         $MRoomInfoTable = $this->fetchTable('MRoomInfo');
         $rooms = $MRoomInfoTable->find('list', [
             'keyField' => 'i_id_room',
