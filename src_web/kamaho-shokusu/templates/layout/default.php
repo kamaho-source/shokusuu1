@@ -55,7 +55,7 @@
 </main>
 
 <!-- 正しい順序でスクリプトを読み込む -->
-<?= $this->Html->script('jquery.min.js') ?> <!-- フルバージョンを使用 -->
+<!-- フルバージョンを使用 -->
 <?= $this->Html->script('bootstrap.bundle.min.js') ?> <!-- Popper.jsはバンドル内に含まれています -->
 </body>
 </html>

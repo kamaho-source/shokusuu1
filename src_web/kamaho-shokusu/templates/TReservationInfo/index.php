@@ -23,6 +23,7 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var calendarEl = document.getElementById('calendar');
+
         var calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             businessHours: true,
@@ -55,10 +56,14 @@
             dateClick: function(info) {
                 window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
             }
+
+
         });
         calendar.render();
     });
 </script>
+
+
 
 </body>
 </html>

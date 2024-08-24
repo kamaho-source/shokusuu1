@@ -104,11 +104,11 @@ class MUserInfoController extends AppController
 
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
-                $this->Flash->success(__('The m user info has been saved.'));
+                $this->Flash->success(__('新しくユーザーを追加しました。'));
 
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The m user info could not be saved. Please, try again.'));
+            $this->Flash->error(__('追加することができませんでした。複数回やっても出る場合は管理者に連絡してください。'));
         }
         $this->set(compact('mUserInfo'));
     }
