@@ -16,7 +16,7 @@ use App\Controller\InvalidArgumentException;
 class TReservationInfoController extends AppController
 {
 
-    
+
 
     public function initialize(): void
     {
@@ -266,6 +266,7 @@ class TReservationInfoController extends AppController
             if ($user) {
                 foreach ($tReservationInfos as $tReservationInfo) {
                     $tReservationInfo->c_update_user = $user->get('c__user_name');
+                    $tReservationInfo->dt_update = date('Y-m-d H:i:s');
                     // データをパッチ
                     $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
 
@@ -277,7 +278,6 @@ class TReservationInfoController extends AppController
                 }
 
                 $this->Flash->success(__('予約情報が更新されました。'));
-                $tReservationInfo->dt_update = date('Y-m-d H:i:s');
                 return $this->redirect(['action' => 'index']);
             } else {
                 $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
@@ -287,10 +287,7 @@ class TReservationInfoController extends AppController
 
         // 部屋情報を取得してビューに渡す
         $MRoomInfoTable = $this->fetchTable('MRoomInfo');
-        $rooms = $MRoomInfoTable->find('list', [
-            'keyField' => 'i_id_room',
-            'valueField' => 'c_room_name'
-        ])->toArray();
+        $rooms = $MRoomInfoTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')->toArray();
 
         $this->set(compact('tReservationInfos', 'rooms'));
     }
