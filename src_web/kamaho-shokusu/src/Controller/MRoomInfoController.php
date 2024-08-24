@@ -28,8 +28,9 @@ class MRoomInfoController extends AppController
      */
     public function index()
     {
-        $query = $this->MRoomInfo->find();
+        $query = $this->MRoomInfo->find()->where(['i_del_flg' => 0]);
         $mRoomInfo = $this->paginate($query);
+
 
         $this->set(compact('mRoomInfo'));
     }
@@ -54,6 +55,7 @@ class MRoomInfoController extends AppController
      */
     public function add()
     {
+        date_default_timezone_set('Asia/Tokyo');
         $mRoomInfo = $this->MRoomInfo->newEmptyEntity();
 
         if ($this->request->is('post')) {
@@ -84,6 +86,7 @@ class MRoomInfoController extends AppController
      */
     public function edit($id = null)
     {
+        date_default_timezone_set('Asia/Tokyo');
         $mRoomInfo = $this->MRoomInfo->get($id);
 
         if ($this->request->is(['post', 'put'])) {
@@ -114,9 +117,14 @@ class MRoomInfoController extends AppController
      */
     public function delete($id = null)
     {
+        date_default_timezone_set('Asia/Tokyo');
         $this->request->allowMethod(['post', 'delete']);
         $mRoomInfo = $this->MRoomInfo->get($id);
         $mRoomInfo->i_del_flag = 1;
+        $user = $this->request->getAttribute('identity');
+        if($user) {
+            $mRoomInfo->c_update_user = $user->get('c__user_name');
+        }
         if ($this->MRoomInfo->delete($mRoomInfo)) {
             $this->Flash->success(__('The m room info has been deleted.'));
         } else {

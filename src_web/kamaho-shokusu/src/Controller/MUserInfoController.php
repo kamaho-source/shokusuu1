@@ -61,6 +61,14 @@ class MUserInfoController extends AppController
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
+
+        $user = $this->request->getAttribute('identity');
+        if($user){
+            $mUserInfo->c_create_user = $user->get('c__user_name');
+
+        }else{
+            error_log('User not found');
+        }
         if ($this->request->is('post')) {
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
@@ -81,10 +89,19 @@ class MUserInfoController extends AppController
      */
     public function edit($id = null)
     {
-
-
         $mUserInfo = $this->MUserInfo->get($id, contain: []);
         if ($this->request->is(['patch', 'post', 'put'])) {
+
+            $user = $this->request->getAttribute('identity');
+            if ($user) {
+                $mUserInfo->c_update_user = $user->get('c__user_name');
+            } else {
+                $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
+                return $this->redirect(['action' => 'edit']);
+            }
+
+            $mUserInfo->dt_update = date('Y-m-d H:i:s');
+
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
                 $this->Flash->success(__('The m user info has been saved.'));

@@ -18,29 +18,21 @@
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav mr-auto">
-                <li class="nav-item active">
-                    <a class="nav-link" href="<?=$this->Url->build('/MRoomInfo/') ?>">部屋情報</a>
+            <!-- 左側のリンク -->
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">部屋情報</a>
                 </li>
-                <li class="nav-item active">
-                    <a class="nav-link" href="<?=$this->Url->build('/MUserInfo/')?>">ユーザ一覧</a>
-                </li>
-                <li class="nav-item dropdown active">
-                    <a class="nav-link dropdown-toggle" href="#" id="reservationDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        予約管理
-                    </a>
-                    <div class="dropdown-menu" aria-labelledby="reservationDropdown">
-                        <?= $this->Html->link('予約一覧', ['controller' => 'TReservationInfo', 'action' => 'index'], ['class' => 'dropdown-item']) ?>
-                        <?= $this->Html->link('予約情報編集', ['controller' => 'TReservationInfo', 'action' => 'edit'], ['class' => 'dropdown-item']) ?>
-                        <?= $this->Html->link('予約情報追加', ['controller' => 'TReservationInfo', 'action' => 'add'], ['class' => 'dropdown-item']) ?>
-                    </div>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>">ユーザ一覧</a>
                 </li>
             </ul>
-            <ul class="navbar-nav">
+            <!-- 右側のリンク -->
+            <ul class="navbar-nav ms-auto">
                 <?php if ($user): ?>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle active" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <?= h($user->c__user_name) ?> <!-- ここでユーザー名を表示 -->
+                            <?= h($user->c__user_name) ?> <!-- ユーザー名の表示 -->
                         </a>
                         <div class="dropdown-menu" aria-labelledby="userDropdown">
                             <?= $this->Html->link('プロフィール', ['controller' => 'MUserInfo', 'action' => 'view', $user->i_id_user], ['class' => 'dropdown-item']) ?>
@@ -57,16 +49,15 @@
     </div>
 </nav>
 
+
 <main class="container mt-3">
-    <?php foreach (['flash', 'error', 'success', 'info', 'warning'] as $key): ?>
-        <?= $this->Flash->render($key, ['params' => ['class' => 'alert alert-' . ($key === 'flash' ? 'primary' : $key) . ' alert-dismissible fade show']]) ?>
-    <?php endforeach; ?>
+    <?= $this->Flash->render() ?>
     <?= $this->fetch('content') ?>
 </main>
 
-</main>
 <footer>
 </footer>
+
 <?= $this->Html->script('jquery.slim.min.js') ?>
 <?= $this->Html->script('popper.min.js') ?>
 <?= $this->Html->script('bootstrap.bundle.min.js') ?>
