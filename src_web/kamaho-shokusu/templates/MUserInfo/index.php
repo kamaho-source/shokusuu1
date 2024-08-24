@@ -7,7 +7,7 @@
 $this->Html->css(['bootstrap.min']);
 ?>
 <div class="mUserInfo index content">
-    <?= $this->Html->link(__('ユーザー追加'), ['action' => 'add'], ['class' => 'button float-right']) ?>
+    <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
     <h3><?= __('ユーザー一覧') ?></h3>
     <div class="table-responsive">
         <table class="table table-bordered">

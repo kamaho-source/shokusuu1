@@ -49,17 +49,13 @@
     </div>
 </nav>
 
-
 <main class="container mt-3">
     <?= $this->Flash->render() ?>
     <?= $this->fetch('content') ?>
 </main>
 
-<footer>
-</footer>
-
-<?= $this->Html->script('jquery.slim.min.js') ?>
-<?= $this->Html->script('popper.min.js') ?>
-<?= $this->Html->script('bootstrap.bundle.min.js') ?>
+<!-- 正しい順序でスクリプトを読み込む -->
+<?= $this->Html->script('jquery.min.js') ?> <!-- フルバージョンを使用 -->
+<?= $this->Html->script('bootstrap.bundle.min.js') ?> <!-- Popper.jsはバンドル内に含まれています -->
 </body>
 </html>

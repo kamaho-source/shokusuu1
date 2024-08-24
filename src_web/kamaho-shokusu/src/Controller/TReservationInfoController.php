@@ -16,6 +16,8 @@ use App\Controller\InvalidArgumentException;
 class TReservationInfoController extends AppController
 {
 
+    
+
     public function initialize(): void
     {
         parent::initialize();
@@ -227,6 +229,8 @@ class TReservationInfoController extends AppController
 
     public function edit($id = null)
     {
+
+        date_default_timezone_set('Asia/Tokyo');
         $tReservationInfos = [];
 
         // まず `id` で予約情報を取得する
@@ -273,6 +277,7 @@ class TReservationInfoController extends AppController
                 }
 
                 $this->Flash->success(__('予約情報が更新されました。'));
+                $tReservationInfo->dt_update = date('Y-m-d H:i:s');
                 return $this->redirect(['action' => 'index']);
             } else {
                 $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
