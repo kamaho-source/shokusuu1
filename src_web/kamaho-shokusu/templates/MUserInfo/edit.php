@@ -5,29 +5,36 @@
  */
 ?>
 <div class="row">
-    <aside class="column">
-        <div class="side-nav">
-            <h4 class="heading"><?= __('Actions') ?></h4>
-            <?= $this->Form->postLink(
-                __('Delete'),
-                ['action' => 'delete', $mUserInfo->i_id_user],
-                ['confirm' => __('Are you sure you want to delete # {0}?', $mUserInfo->i_id_user), 'class' => 'side-nav-item']
-            ) ?>
-            <?= $this->Html->link(__('List M User Info'), ['action' => 'index'], ['class' => 'side-nav-item']) ?>
+    <aside class="col-md-3">
+        <div class="list-group">
+            <h4 class="list-group-item list-group-item-action active"><?= __('操作') ?></h4>
+            <?= $this->Html->link(__('ユーザー情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
         </div>
     </aside>
-    <div class="column column-80">
-        <div class="mUserInfo form content">
-            <?= $this->Form->create($mUserInfo) ?>
-            <fieldset>
-                <legend><?= __('Edit M User Info') ?></legend>
-                <?php
-                    echo $this->Form->control('c_login_account',['label'=>'ログインID']);
-                    echo $this->Form->control('c__user_name', ['label'=>'ユーザ名']);
-                ?>
-            </fieldset>
-            <?= $this->Form->button(__('Submit')) ?>
-            <?= $this->Form->end() ?>
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header">
+                <h4><?= __('Mユーザー情報の編集') ?></h4>
+            </div>
+            <div class="card-body">
+                <?= $this->Form->create($mUserInfo) ?>
+                <fieldset>
+                    <div class="mb-3">
+                        <?= $this->Form->control('c_login_account', [
+                            'label' => 'ログインID',
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                    <div class="mb-3">
+                        <?= $this->Form->control('c__user_name', [
+                            'label' => 'ユーザ名',
+                            'class' => 'form-control'
+                        ]) ?>
+                    </div>
+                </fieldset>
+                <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->end() ?>
+            </div>
         </div>
     </div>
 </div>

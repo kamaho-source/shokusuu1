@@ -126,9 +126,9 @@ class MRoomInfoController extends AppController
             $mRoomInfo->c_update_user = $user->get('c__user_name');
         }
         if ($this->MRoomInfo->delete($mRoomInfo)) {
-            $this->Flash->success(__('The m room info has been deleted.'));
+            $this->Flash->success(__('部屋情報を削除しました。'));
         } else {
-            $this->Flash->error(__('The m room info could not be deleted. Please, try again.'));
+            $this->Flash->error(__('部屋情報を削除できませんでした。もう一度お試しください。'));
         }
 
         return $this->redirect(['action' => 'index']);

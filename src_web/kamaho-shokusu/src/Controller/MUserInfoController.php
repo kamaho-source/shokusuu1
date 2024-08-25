@@ -58,6 +58,7 @@ class MUserInfoController extends AppController
      * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
      */
     public function add() {
+        date_default_timezone_set('Asia/Tokyo');
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
@@ -104,7 +105,7 @@ class MUserInfoController extends AppController
 
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
-                $this->Flash->success(__('新しくユーザーを追加しました。'));
+                $this->Flash->success(__('ユーザー情報を更新しました。'));
 
                 return $this->redirect(['action' => 'index']);
             }

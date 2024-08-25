@@ -198,7 +198,7 @@ class TReservationInfoController extends AppController
                 $this->Flash->success(__('予約を承りました。'));
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The reservation could not be saved. Please, try again.'));
+            $this->Flash->error(__('予約を受け付けることができませんでした。もう一度お試しください。'));
         }
 
         // 部屋情報を取得してビューに渡す
@@ -232,7 +232,7 @@ class TReservationInfoController extends AppController
             $reservationDate = $this->request->getQuery('date');
 
             if (!$reservationDate) {
-                $this->Flash->error(__('Invalid reservation date.'));
+                $this->Flash->error(__('予約日が指定されていません。'));
                 return $this->redirect(['action' => 'index']);
             }
 
@@ -296,9 +296,9 @@ class TReservationInfoController extends AppController
         $this->request->allowMethod(['post', 'delete']);
         $tReservationInfo = $this->TReservationInfo->get($id);
         if ($this->TReservationInfo->delete($tReservationInfo)) {
-            $this->Flash->success(__('The t reservation info has been deleted.'));
+            $this->Flash->success(__('予約情報が削除されました。'));
         } else {
-            $this->Flash->error(__('The t reservation info could not be deleted. Please, try again.'));
+            $this->Flash->error(__('予約情報を削除できませんでした。'));
         }
 
         return $this->redirect(['action' => 'index']);

@@ -40,7 +40,8 @@
             {
                 title: '<?= $mealName ?>: <?= $meals[$mealType] ?>人',
                 start: '<?= $date ?>',
-                allDay: true
+                allDay: true,
+                displayOrder: <?= $mealType + 1 ?> // 1: 朝, 2: 昼, 3: 夜に対応
             },
             <?php endif; ?>
             <?php endforeach; ?>
@@ -75,7 +76,8 @@
                                 allDay: true, // 終日イベント
                                 backgroundColor: 'red', // 祝日を強調するための色設定
                                 borderColor: 'red',
-                                textColor: 'white' // 文字色を白に
+                                textColor: 'white', // 文字色を白に
+                                displayOrder: 0 // 祝日は常に最初に表示されるように
                             });
                         });
                     }
@@ -84,6 +86,8 @@
                 // 既存のイベントと祝日イベントを結合してコールバック
                 successCallback(existingEvents.concat(holidayEvents));
             },
+            // イベントの順序をソートしないように設定
+            eventOrder: 'displayOrder',
             dateClick: function(info) {
                 window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
             }
