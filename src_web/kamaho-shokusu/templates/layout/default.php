@@ -54,8 +54,17 @@
     <?= $this->fetch('content') ?>
 </main>
 
-<!-- 正しい順序でスクリプトを読み込む -->
-<!-- フルバージョンを使用 -->
+<!-- 必要なスクリプトを正しい順序で読み込む -->
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
 <?= $this->Html->script('bootstrap.bundle.min.js') ?> <!-- Popper.jsはバンドル内に含まれています -->
+<script>
+    $(document).ready(function() {
+        // ドロップダウンのリンクをクリックしたときの動作を制御
+        $('#userDropdown').on('click', function(event) {
+            event.preventDefault(); // デフォルトの動作を無効化
+            $(this).dropdown('toggle'); // ドロップダウンをトグル
+        });
+    });
+</script>
 </body>
 </html>
