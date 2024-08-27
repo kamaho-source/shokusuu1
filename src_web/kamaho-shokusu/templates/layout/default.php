@@ -55,7 +55,8 @@
 </main>
 
 <!-- 必要なスクリプトを正しい順序で読み込む -->
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+
+<?=$this->Html->script('jquery-3.5.1,min.js')?>
 <?= $this->Html->script('bootstrap.bundle.min.js') ?> <!-- Popper.jsはバンドル内に含まれています -->
 <script>
     $(document).ready(function() {
