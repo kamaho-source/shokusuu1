@@ -61,15 +61,20 @@ class MUserInfoController extends AppController
         date_default_timezone_set('Asia/Tokyo');
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
+
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
 
         $user = $this->request->getAttribute('identity');
-        if($user){
+        if ($user) {
             $mUserInfo->c_create_user = $user->get('c__user_name');
-
-        }else{
+        } else {
             error_log('User not found');
         }
+
+        // データベースから i_disp_no の最大値を取得して +1 する
+        $mUserInfo->i_disp__no = $this->MUserInfo->find()->select(['max_disp_no' => 'MAX(i_disp__no)'])->first()->max_disp_no + 1;
+
+
         if ($this->request->is('post')) {
             $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $this->request->getData());
             if ($this->MUserInfo->save($mUserInfo)) {
@@ -80,6 +85,7 @@ class MUserInfoController extends AppController
         }
         $this->set(compact('mUserInfo'));
     }
+
 
     /**
      * Edit method

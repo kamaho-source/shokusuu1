@@ -1,41 +1,38 @@
-<?php
-/**
- * @var \App\View\AppView $this
- * @var \App\Model\Entity\TReservationInfo $tReservationInfo
- * @var array $rooms
- * @var string $reservationDate
- */
-?>
 <div class="row">
     <aside class="col-md-3">
         <div class="list-group">
             <h4 class="list-group-item list-group-item-action active"><?= __('Actions') ?></h4>
             <?= $this->Html->link(__('食数予約一覧に戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
+
+            <?php
+            // クエリパラメータから日付を取得し、月曜日かどうかをチェック
+            $date = $this->request->getQuery('date') ?? date('Y-m-d');
+            if (date('N', strtotime($date)) == 1): // 月曜日かどうかをチェック ?>
+                <?= $this->Html->link(__('週の一括予約'), ['action' => 'bulkAddForm', '?' => ['date' => $date]], ['class' => 'list-group-item list-group-item-action']) ?>
+            <?php endif; ?>
         </div>
     </aside>
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">
-                <h3><?= __('予約情報を追加') ?></h3>
+                <h3><?= __('予約の追加') ?></h3>
             </div>
             <div class="card-body">
                 <?= $this->Form->create($tReservationInfo) ?>
                 <fieldset>
-                    <legend><?= __('予約の詳細') ?></legend>
-
+                    <legend><?= __('Reservation Details') ?></legend>
                     <div class="form-group row">
                         <?= $this->Form->label('d_reservation_date', '予約日', ['class' => 'col-sm-3 col-form-label']) ?>
                         <div class="col-sm-9">
                             <?= $this->Form->control('d_reservation_date', [
-                                'type' => 'text',
-                                'value' => isset($reservationDate) ? $reservationDate : '',
+                                'type' => 'date',
                                 'label' => false,
                                 'class' => 'form-control',
-                                'disabled' => true
+                                'disabled' => true, // 日付は修正できないようにする
+                                'value' => $date // クリックされた日付を表示
                             ]) ?>
                         </div>
                     </div>
-
                     <div class="form-group">
                         <?= $this->Form->control('i_id_room', [
                             'type' => 'select',
@@ -45,7 +42,6 @@
                             'class' => 'form-control'
                         ]) ?>
                     </div>
-
                     <div class="form-group">
                         <?php
                         $reservationTypes = [
@@ -62,14 +58,12 @@
                             'class' => 'form-control'
                         ]) ?>
                     </div>
-
                     <div class="form-group">
                         <?= $this->Form->control('i_taberu_ninzuu', [
                             'label' => '食べる人数',
                             'class' => 'form-control'
                         ]) ?>
                     </div>
-
                     <div class="form-group">
                         <?= $this->Form->control('i_tabenai_ninzuu', [
                             'label' => '食べない人数',
@@ -77,7 +71,7 @@
                         ]) ?>
                     </div>
                 </fieldset>
-                <?= $this->Form->button(__('予約を追加'), ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->button(__('Submit'), ['class' => 'btn btn-primary']) ?>
                 <?= $this->Form->end() ?>
             </div>
         </div>

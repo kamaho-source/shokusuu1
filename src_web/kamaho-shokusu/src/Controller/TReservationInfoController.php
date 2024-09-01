@@ -6,6 +6,10 @@ namespace App\Controller;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
 use App\Controller\InvalidArgumentException;
+use Cake\I18n\DateTime;
+use Cake\Log\Log;
+use Cake\I18n\FrozenDate;
+use Cake\I18n\FrozenTime;
 
 /**
  * TReservationInfo コントローラー
@@ -211,6 +215,171 @@ class TReservationInfoController extends AppController
         // 予約情報と部屋リストをビューにセット
         $this->set(compact('tReservationInfo', 'rooms', 'reservationDate'));
     }
+
+
+
+    public function bulkAddForm()
+    {
+        $selectedDate = $this->request->getQuery('date');
+
+        if (!$selectedDate) {
+            $this->Flash->error(__('日付が指定されていません。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
+        try {
+            $startDate = new \DateTime($selectedDate);
+            $startDate->modify('monday this week'); // 週の月曜日を取得
+        } catch (\Exception $e) {
+            $this->Flash->error(__('無効な日付が指定されました。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $dates = [];
+        for ($i = 0; $i < 5; $i++) { // 月曜日から金曜日まで
+            $dates[] = clone $startDate;
+            $startDate->modify('+1 day');
+        }
+
+        // 部屋の情報を取得
+        $MRoomInfoTable = $this->fetchTable('MRoomInfo');
+        $rooms = $MRoomInfoTable->find('list', [
+            'keyField' => 'i_id_room',
+            'valueField' => 'c_room_name'
+        ])->toArray();
+
+        // ビューにデータをセット
+        $this->set(compact('dates', 'rooms'));
+    }
+
+
+    public function bulkAddSubmit()
+    {
+        // リクエストがPOSTであるか確認
+        if (!$this->request->is('post')) {
+            $this->Flash->error(__('不正なリクエストです。POSTメソッドで送信してください。'));
+            return $this->redirect(['action' => 'bulkAddForm']);
+        }
+
+        // フォームデータの取得
+        $data = $this->request->getData();
+
+        // デバッグのためのログ出力
+        Log::debug('--- フォームデータの内容 ---');
+        Log::debug(print_r($data, true)); // フォームデータを文字列形式でログに記録
+
+        // 部屋IDが選択されているか確認
+        if (empty($data['i_id_room'])) {
+            Log::error('部屋が選択されていません。');
+            $this->Flash->error(__('部屋が選択されていません。'));
+            return $this->redirect(['action' => 'bulkAddForm', 'date' => $data['start_date'] ?? null]);
+        }
+
+        // データの中身が正しいか確認
+        if (empty($data['data']) || !is_array($data['data'])) {
+            Log::error('日付が指定されていません。またはデータが正しくありません。');
+            $this->Flash->error(__('日付が指定されていません。'));
+            return $this->redirect(['action' => 'bulkAddForm', 'date' => $data['start_date'] ?? null]);
+        }
+
+        // 食事タイプのマッピング
+        $mealTypeMapping = [
+            'morning' => 1,
+            'noon' => 2,
+            'night' => 3
+        ];
+
+        // 各日付のデータを処理
+        foreach ($data['data'] as $date => $mealData) {
+            Log::debug("Processing date: $date");
+
+            foreach ($mealTypeMapping as $mealTypeStr => $mealTypeInt) {
+                if (!empty($mealData[$mealTypeStr]['taberu']) || !empty($mealData[$mealTypeStr]['tabenai'])) {
+                    $reservation = $this->TReservationInfo->newEmptyEntity();
+                    $reservation->d_reservation_date = $date;
+                    $reservation->c_reservation_type = $mealTypeInt; // 整数値を使用
+                    $reservation->i_id_room = $data['i_id_room'];
+                    $reservation->i_taberu_ninzuu = $mealData[$mealTypeStr]['taberu'];
+                    $reservation->i_tabenai_ninzuu = $mealData[$mealTypeStr]['tabenai'];
+                    $reservation->dt_create = FrozenTime::now();
+                    $reservation->c_create_user = $this->request->getAttribute('identity')->c_user_name;
+
+                    Log::debug("Meal type: $mealTypeStr, Taberu: {$mealData[$mealTypeStr]['taberu']}, Tabenai: {$mealData[$mealTypeStr]['tabenai']}");
+
+                    if ($this->TReservationInfo->save($reservation)) {
+                        Log::debug("予約が正常に保存されました: 日付=" . $date . " 食事タイプ=" . $mealTypeInt);
+                    } else {
+                        Log::error("予約の保存に失敗しました: 日付=" . $date . " 食事タイプ=" . $mealTypeInt);
+                        Log::error(print_r($reservation->getErrors(), true));
+                    }
+                }
+            }
+        }
+
+        $this->Flash->success(__('データが正常に保存されました。'));
+        return $this->redirect(['action' => 'index']);
+    }
+
+    private function saveReservation($startDate, $reservationType, $roomId, $eatingCount, $notEatingCount)
+    {
+        // $startDate が null の場合の処理
+        if ($startDate === null) {
+            $this->Flash->error(__('開始日が指定されていません。'));
+            return;
+        }
+
+        // 有効な日付文字列であることを確認
+        try {
+            $currentDate = new \DateTime($startDate);
+        } catch (\Exception $e) {
+            $this->Flash->error(__('無効な日付が指定されました。'));
+            return;
+        }
+
+        for ($day = 0; $day < 5; $day++) { // 月曜日から金曜日まで
+            $reservationDate = $currentDate->format('Y-m-d');
+
+            $reservation = $this->TReservationInfo->find()
+                ->where([
+                    'd_reservation_date' => $reservationDate,
+                    'c_reservation_type' => $reservationType,
+                    'i_id_room' => $roomId
+                ])
+                ->first();
+
+            if (!$reservation) {
+                $reservation = $this->TReservationInfo->newEmptyEntity();
+                $reservation->d_reservation_date = $reservationDate;
+                $reservation->c_reservation_type = $reservationType;
+                $reservation->i_id_room = $roomId;
+            }
+
+            $reservation->i_eating_count = $eatingCount;
+            $reservation->i_not_eating_count = $notEatingCount;
+
+            if ($this->TReservationInfo->save($reservation)) {
+                // 成功した場合の処理
+            } else {
+                $this->Flash->error(__('予約を保存できませんでした。もう一度お試しください。'));
+            }
+
+            $currentDate->modify('+1 day');
+        }
+    }
+
+    private function getHolidays($startDate, $endDate)
+    {
+        // 祝日情報を取得するロジックを実装
+        // この例では、祝日を管理するための日本の祝日APIなどを呼び出すことを想定
+        // APIが無い場合、固定の祝日リストなどを利用
+
+        return [
+            // 'YYYY-MM-DD'形式の祝日リスト
+            '2024-09-16', // 敬老の日
+            '2024-09-23', // 秋分の日
+        ];
+    }
+
 
     /**
      * 編集メソッド

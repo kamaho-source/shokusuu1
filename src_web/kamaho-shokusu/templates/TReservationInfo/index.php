@@ -89,12 +89,28 @@
             // イベントの順序をソートしないように設定
             eventOrder: 'displayOrder',
             dateClick: function(info) {
-                window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
+                var date = new Date(info.dateStr);
+                var day = date.getDay();
+
+                if (day === 1) { // 月曜日のみ週の一括予約の選択肢を提示
+                    var firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+                    var weekNumber = Math.ceil((date.getDate() + firstDayOfMonth.getDay()) / 7); // 週番号を計算
+                    if (confirm("週の一括予約を行いますか？")) {
+                        window.location.href = '<?= $this->Url->build('/TReservationInfo/bulkAddForm') ?>?date=' + info.dateStr;
+                    } else {
+                        // 日別の予約ページに遷移
+                        window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
+                    }
+                } else {
+                    // 日別の予約ページに遷移
+                    window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
+                }
             }
         });
 
         calendar.render(); // カレンダーをレンダリング
     });
+
 </script>
 </body>
 </html>

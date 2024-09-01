@@ -70,6 +70,9 @@ return function (RouteBuilder $routes): void {
         $builder->setExtensions(['json']);
         $builder->connect('TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
         $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
+        $builder->connect('/TReservationInfo/bulk-add-submit', ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit', '_method' => 'POST']);
+        $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
+
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
