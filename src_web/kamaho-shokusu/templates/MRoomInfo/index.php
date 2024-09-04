@@ -22,7 +22,7 @@
                 <tr>
                     <td><?= $this->Number->format($room->i_id_room) ?></td>
                     <td><?= h($room->c_room_name) ?></td>
-                    <td><?= $this->Number->format('i_disp_no') ?></td>
+                    <td><?= $this->Number->format($room->i_disp_no) ?></td>
                     <td class="text-center">
                         <?= $this->Html->link(__('表示'), ['action' => 'view', $room->i_id_room], ['class' => 'btn btn-info btn-sm']) ?>
                         <?= $this->Html->link(__('編集'), ['action' => 'edit', $room->i_id_room], ['class' => 'btn btn-warning btn-sm']) ?>
