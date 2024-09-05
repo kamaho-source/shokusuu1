@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Datasource\Exception\RecordNotFoundException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
 use App\Controller\InvalidArgumentException;
@@ -159,49 +160,48 @@ class TReservationInfoController extends AppController
      */
     public function add()
     {
+        // 新規の予約情報エンティティを作成
         $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
-
-        // URLのクエリパラメータから予約日を取得
         $reservationDate = $this->request->getQuery('date');
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
-            $tReservationInfo->dt_create = date('Y-m-d H:i:s'); // 作成日時を設定
 
-            // 予約日が指定されているか確認し、エンティティに設定
-            if (!empty($reservationDate)) {
-                $tReservationInfo->d_reservation_date = $reservationDate;
-            } else {
+            // 予約日が指定されているか確認
+            if (empty($reservationDate)) {
                 $this->Flash->error(__('予約日が選択されていません。'));
                 return $this->redirect(['action' => 'add']);
             }
 
             // 部屋IDと予約タイプが指定されているか確認
-            if (!empty($data['i_id_room']) && !empty($data['c_reservation_type'])) {
-                $tReservationInfo->i_id_room = $data['i_id_room'];
-                $tReservationInfo->c_reservation_type = $data['c_reservation_type'];
-            } else {
+            if (empty($data['i_id_room']) || empty($data['c_reservation_type'])) {
                 $this->Flash->error(__('部屋IDまたは予約タイプが選択されていません。'));
                 return $this->redirect(['action' => 'add']);
             }
 
-            // ログインユーザー情報を取得
+            // ログインユーザー情報の取得
             $user = $this->request->getAttribute('identity');
-            if ($user) {
-                $tReservationInfo->c_create_user = $user->get('c__user_name'); // 作成ユーザーを設定
-            } else {
+            if (!$user) {
                 $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
                 return $this->redirect(['action' => 'add']);
             }
 
+            // データを予約情報に設定
+            $tReservationInfo->d_reservation_date = $reservationDate;
+            $tReservationInfo->i_id_room = $data['i_id_room'];
+            $tReservationInfo->c_reservation_type = $data['c_reservation_type'];
+            $tReservationInfo->c_create_user = $user->get('c__user_name');
+            $tReservationInfo->dt_create = date('Y-m-d H:i:s');
+
             // 他のフィールドをリクエストデータからパッチ
             $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
 
-            // 予約情報をデータベースに保存
+            // 予約情報を保存
             if ($this->TReservationInfo->save($tReservationInfo)) {
                 $this->Flash->success(__('予約を承りました。'));
                 return $this->redirect(['action' => 'index']);
             }
+
             $this->Flash->error(__('予約を受け付けることができませんでした。もう一度お試しください。'));
         }
 
@@ -215,7 +215,6 @@ class TReservationInfoController extends AppController
         // 予約情報と部屋リストをビューにセット
         $this->set(compact('tReservationInfo', 'rooms', 'reservationDate'));
     }
-
 
 
     public function bulkAddForm()
@@ -253,6 +252,42 @@ class TReservationInfoController extends AppController
     }
 
 
+    /**
+     * 予約情報を保存するメソッド
+     *
+     * @param int $counts 予約数
+     * @param \DateTime $reservationDate 予約日
+     * @param int $mealType 食事タイプ
+     * @param string $userName ユーザー名
+     * @return bool 保存に成功した場合はtrue、それ以外はfalse
+     */
+
+    private function saveReservation($data, $reservationDate, $mealType, $userName)
+    {
+        $reservation = $this->TReservationInfo->newEmptyEntity();
+
+        // データをエンティティにパッチ
+        $reservation->d_reservation_date = $reservationDate;
+        $reservation->c_reservation_type = $mealType;
+        $reservation->i_id_room = $data['i_id_room'] ?? null;
+        $reservation->i_taberu_ninzuu = $data['taberu'] ?? 0;
+        $reservation->i_tabenai_ninzuu = $data['tabenai'] ?? 0;
+        $reservation->dt_create = FrozenTime::now();
+        $reservation->c_create_user = $userName;
+
+        // 予約情報を保存
+        return $this->TReservationInfo->save($reservation);
+    }
+
+
+
+    /**
+     * 一括追加メソッド
+     *
+     * @return \Cake\Http\Response|null|void 成功時にはリダイレクト、ビューをレンダリング
+     */
+
+
     public function bulkAddSubmit()
     {
         date_default_timezone_set('Asia/Tokyo');
@@ -262,33 +297,28 @@ class TReservationInfoController extends AppController
         }
 
         $data = $this->request->getData();
+        $user = $this->request->getAttribute('identity');
 
-        // デバッグログを使ってフォームデータを確認
-        Log::debug('--- フォームデータの内容 ---');
-        Log::debug(print_r($data, true));
+        if (!$user) {
+            $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
+            return $this->redirect(['action' => 'bulkAddForm']);
+        }
 
-        // 二週間前のチェック
         $twoWeeksAgo = (new DateTime())->modify('-2 weeks');
 
         foreach ($data['data'] as $date => $meals) {
             $reservationDate = new DateTime($date);
 
-            // 二週間前より古い日付は登録できない
             if ($reservationDate < $twoWeeksAgo) {
                 $this->Flash->error(__('過去二週間以前の日付には予約を登録できません。'));
                 return $this->redirect(['action' => 'bulkAddForm']);
             }
 
-            Log::debug("Processing date: $date");
-
             foreach ($meals as $mealType => $counts) {
-                Log::debug("Meal type: $mealType, Taberu: {$counts['taberu']}, Tabenai: {$counts['tabenai']}");
-
-                // 予約タイプの文字列を数値にマッピング
                 $mealTypeMapping = [
-                    'morning' => 1, // 朝
-                    'noon' => 2, // 昼
-                    'night' => 3  // 夜
+                    'morning' => 1,
+                    'noon' => 2,
+                    'night' => 3
                 ];
 
                 if (!isset($mealTypeMapping[$mealType])) {
@@ -296,26 +326,8 @@ class TReservationInfoController extends AppController
                     return $this->redirect(['action' => 'bulkAddForm']);
                 }
 
-                $reservation = $this->TReservationInfo->newEmptyEntity();
-                $reservation->d_reservation_date = $reservationDate;
-                $reservation->c_reservation_type = $mealTypeMapping[$mealType];
-                $reservation->i_id_room = $data['i_id_room'] ?? null;
-                $reservation->i_taberu_ninzuu = $counts['taberu'];
-                $reservation->i_tabenai_ninzuu = $counts['tabenai'];
-                $reservation->dt_create = FrozenTime::now();
-
-                // ユーザー情報の取得
-                $user = $this->request->getAttribute('identity');
-                if ($user) {
-                    $reservation->c_create_user = $user->get('c__user_name'); // 正しいフィールド名に変更
-                } else {
-                    $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
-                    return $this->redirect(['action' => 'bulkAddForm']);
-                }
-
-                if (!$this->TReservationInfo->save($reservation)) {
-                    Log::error("予約の保存に失敗しました: 日付=" . $reservationDate->format('Y-m-d') . " 食事タイプ=" . $mealType);
-                    $this->Flash->error(__('予約情報の保存に失敗しました。もう一度お試しください。'));
+                if (!$this->saveReservation($counts, $reservationDate, $mealTypeMapping[$mealType], $user->get('c__user_name'))) {
+                    $this->Flash->error(__('予約情報の保存に失敗しました。'));
                     return $this->redirect(['action' => 'bulkAddForm']);
                 }
             }
@@ -324,6 +336,7 @@ class TReservationInfoController extends AppController
         $this->Flash->success(__('データが正常に保存されました。'));
         return $this->redirect(['action' => 'index']);
     }
+
     /**
      * 編集メソッド
      *
@@ -336,30 +349,40 @@ class TReservationInfoController extends AppController
 
         // `id`が指定されている場合、そのIDで予約情報を取得
         if ($id !== null) {
-            $tReservationInfo = $this->TReservationInfo->get($id);
-            $tReservationInfos[] = $tReservationInfo; // 単一の予約情報でも配列に格納
+            try {
+                $tReservationInfo = $this->TReservationInfo->get($id);
+                $tReservationInfos[] = $tReservationInfo;
+                Log::debug('取得した予約情報: ' . print_r($tReservationInfo, true));
+            } catch (RecordNotFoundException $e) {
+                $this->Flash->error(__('予約情報が見つかりませんでした。'));
+                Log::error('予約情報が見つかりませんでした: ' . $id);
+                return $this->redirect(['action' => 'index']);
+            }
         } else {
-            // `id`が指定されていない場合、クエリパラメータから`date`を取得
+            // クエリパラメータから`date`を取得
             $reservationDate = $this->request->getQuery('date');
+            Log::debug('クエリパラメータから取得した日付: ' . $reservationDate);
 
             if (!$reservationDate) {
-                $this->Flash->error(__('Invalid reservation date.'));
+                $this->Flash->error(__('予約日が指定されていません。'));
+                Log::error('予約日が指定されていません');
                 return $this->redirect(['action' => 'index']);
             }
 
-            // 指定された日付の予約情報を取得
+            // 日付で予約情報を検索
             $tReservationInfos = $this->TReservationInfo->find()
                 ->where(['d_reservation_date' => $reservationDate])
                 ->all()
                 ->toArray();
+            Log::debug('取得した予約情報のリスト: ' . print_r($tReservationInfos, true));
 
             if (empty($tReservationInfos)) {
-                $this->Flash->error(__('Reservation not found.'));
+                $this->Flash->error(__('指定された日付の予約が見つかりませんでした。'));
+                Log::error('指定された日付の予約が見つかりませんでした: ' . $reservationDate);
                 return $this->redirect(['action' => 'index']);
             }
         }
 
-        // リクエストがPOSTまたはPUTの場合、データを保存する
         if ($this->request->is(['post', 'put'])) {
             $data = $this->request->getData();
             Log::debug('フォームデータ: ' . print_r($data, true));
@@ -368,28 +391,23 @@ class TReservationInfoController extends AppController
             $user = $this->request->getAttribute('identity');
             if ($user) {
                 foreach ($tReservationInfos as $index => $tReservationInfo) {
-                    // 各エンティティに対するフォームデータのパッチ
                     if (isset($data['tReservationInfos'][$index])) {
                         $editData = $data['tReservationInfos'][$index];
 
-                        // 必要なフィールドをすべてパッチ
                         $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, [
                             'i_id_room' => $editData['i_id_room'] ?? $tReservationInfo->i_id_room,
                             'c_reservation_type' => $editData['c_reservation_type'] ?? $tReservationInfo->c_reservation_type,
-                            'i_taberu_ninzuu' => $data['i_taberu_ninzuu'] ?? $tReservationInfo->i_taberu_ninzuu,
-                            'i_tabenai_ninzuu' => $data['i_tabenai_ninzuu'] ?? $tReservationInfo->i_tabenai_ninzuu,
+                            'i_taberu_ninzuu' => $editData['i_taberu_ninzuu'] ?? $tReservationInfo->i_taberu_ninzuu,
+                            'i_tabenai_ninzuu' => $editData['i_tabenai_ninzuu'] ?? $tReservationInfo->i_tabenai_ninzuu,
                         ]);
 
-                        // 更新者の情報と更新日時をセット
+                        // ログインユーザー情報を正しくセット
                         $tReservationInfo->c_update_user = $user->get('c_user_name');
                         $tReservationInfo->dt_update = date('Y-m-d H:i:s');
-
                         Log::debug('保存前の予約情報: ' . print_r($tReservationInfo, true));
 
-                        // データベースに保存
                         if (!$this->TReservationInfo->save($tReservationInfo)) {
-                            // バリデーションエラーをログに記録
-                            Log::error('保存に失敗しました: ' . print_r($tReservationInfo->getErrors(), true));
+                            Log::error('予約情報の保存に失敗: ' . print_r($tReservationInfo->getErrors(), true));
                             $this->Flash->error(__('予約情報の更新に失敗しました。もう一度お試しください。'));
                             return $this->redirect(['action' => 'index']);
                         }
@@ -402,6 +420,7 @@ class TReservationInfoController extends AppController
                 return $this->redirect(['action' => 'index']);
             } else {
                 $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
+                Log::error('ユーザー情報の取得に失敗');
                 return $this->redirect(['action' => 'edit', $id]);
             }
         }
@@ -412,12 +431,10 @@ class TReservationInfoController extends AppController
             'keyField' => 'i_id_room',
             'valueField' => 'c_room_name'
         ])->toArray();
+        Log::debug('取得した部屋情報リスト: ' . print_r($rooms, true));
 
         $this->set(compact('tReservationInfos', 'rooms', 'id'));
     }
-
-
-
     /**
      * 削除メソッド
      *

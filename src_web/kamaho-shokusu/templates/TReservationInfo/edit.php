@@ -19,7 +19,7 @@
                             <div class="form-group row">
                                 <?= $this->Form->label("d_reservation_date", '予約日', ['class' => 'col-sm-3 col-form-label']) ?>
                                 <div class="col-sm-9">
-                                    <?= $this->Form->control("d_reservation_date", [
+                                    <?= $this->Form->control("tReservationInfos.$index.d_reservation_date", [
                                         'type' => 'date',
                                         'label' => false,
                                         'class' => 'form-control',
@@ -29,7 +29,7 @@
                                 </div>
                             </div>
                             <div class="form-group row">
-                                <?= $this->Form->label("i_id_room", '部屋名', ['class' => 'col-sm-3 col-form-label']) ?>
+                                <?= $this->Form->label("tReservationInfos.$index.i_id_room", '部屋名', ['class' => 'col-sm-3 col-form-label']) ?>
                                 <div class="col-sm-9">
                                     <?= $this->Form->control("tReservationInfos.$index.i_id_room", [
                                         'type' => 'select',
@@ -59,9 +59,9 @@
                                 </div>
                             </div>
                             <div class="form-group row">
-                                <?= $this->Form->label("i_taberu_ninzuu", '食事を取る人数', ['class' => 'col-sm-3 col-form-label']) ?>
+                                <?= $this->Form->label("tReservationInfos.$index.i_taberu_ninzuu", '食事を取る人数', ['class' => 'col-sm-3 col-form-label']) ?>
                                 <div class="col-sm-9">
-                                    <?= $this->Form->control("i_taberu_ninzuu", [
+                                    <?= $this->Form->control("tReservationInfos.$index.i_taberu_ninzuu", [
                                         'label' => false,
                                         'class' => 'form-control',
                                         'value' => $tReservationInfo->i_taberu_ninzuu
@@ -69,9 +69,9 @@
                                 </div>
                             </div>
                             <div class="form-group row">
-                                <?= $this->Form->label("i_tabenai_ninzuu", '食事を取らない人数', ['class' => 'col-sm-3 col-form-label']) ?>
+                                <?= $this->Form->label("tReservationInfos.$index.i_tabenai_ninzuu", '食事を取らない人数', ['class' => 'col-sm-3 col-form-label']) ?>
                                 <div class="col-sm-9">
-                                    <?= $this->Form->control("i_tabenai_ninzuu", [
+                                    <?= $this->Form->control("tReservationInfos.$index.i_tabenai_ninzuu", [
                                         'label' => false,
                                         'class' => 'form-control',
                                         'value' => $tReservationInfo->i_tabenai_ninzuu
