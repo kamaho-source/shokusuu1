@@ -63,8 +63,9 @@ class TReservationInfoTable extends Table
             ->integer('i_tabenai_ninzuu')
             ->allowEmptyString('i_tabenai_ninzuu');
 
+        // 日付のバリデーションを修正。フォーマットを配列で指定する
         $validator
-            ->dateTime('dt_create')
+            ->dateTime('dt_create', ['ymd'])
             ->allowEmptyDateTime('dt_create');
 
         $validator
@@ -73,7 +74,7 @@ class TReservationInfoTable extends Table
             ->allowEmptyString('c_create_user');
 
         $validator
-            ->dateTime('dt_update')
+            ->dateTime('dt_update', ['ymd'])
             ->allowEmptyDateTime('dt_update');
 
         $validator
@@ -83,6 +84,7 @@ class TReservationInfoTable extends Table
 
         return $validator;
     }
+
 
     public function getTotalMealsByDate()
     {

@@ -3,14 +3,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use Cake\Datasource\Exception\RecordNotFoundException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
 use App\Controller\InvalidArgumentException;
-use Cake\I18n\DateTime;
+use Cake\I18n\Date;
+use Cake\I18n\FrozenTime;
+use Cake\I18n\Time;
 use Cake\Log\Log;
 use Cake\I18n\FrozenDate;
-use Cake\I18n\FrozenTime;
 
 /**
  * TReservationInfo コントローラー
@@ -290,50 +290,48 @@ class TReservationInfoController extends AppController
 
     public function bulkAddSubmit()
     {
-        date_default_timezone_set('Asia/Tokyo');
-        if (!$this->request->is('post')) {
-            $this->Flash->error(__('不正なリクエストです。POSTメソッドで送信してください。'));
-            return $this->redirect(['action' => 'bulkAddForm']);
-        }
+        // 送信されたデータをデバッグする（配列をJSON形式でログ出力）
+        $this->log(json_encode($this->request->getData(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), 'debug');
 
         $data = $this->request->getData();
+        $reservations = [];
         $user = $this->request->getAttribute('identity');
+        $currentUser = $user->get('c__user_name');// ログインしているユーザーの取得
+        $currentDateTime = date('Y-m-d H:i:s'); // 現在の日時
 
-        if (!$user) {
-            $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
-            return $this->redirect(['action' => 'bulkAddForm']);
-        }
+        // 各日付に対して予約データを作成
+        foreach ($data['data'] as $date => $reservationData) {
+            foreach (['morning', 'noon', 'night'] as $mealTime) {
+                $reservation = $this->TReservationInfo->newEmptyEntity();
 
-        $twoWeeksAgo = (new DateTime())->modify('-2 weeks');
+                // 主キーの値を確認するデバッグ出力（文字列化してログ出力）
+                $this->log("Date: $date, Room: {$data['i_id_room']}, Reservation Type: {$reservationData[$mealTime]['reservation_type']}", 'debug');
 
-        foreach ($data['data'] as $date => $meals) {
-            $reservationDate = new DateTime($date);
+                // 主キーおよび必要なデータの設定
+                $reservation->d_reservation_date = $date;
+                $reservation->i_id_room = $data['i_id_room']; // 部屋番号
+                $reservation->c_reservation_type = $reservationData[$mealTime]['reservation_type']; // 朝昼夜の区別
 
-            if ($reservationDate < $twoWeeksAgo) {
-                $this->Flash->error(__('過去二週間以前の日付には予約を登録できません。'));
-                return $this->redirect(['action' => 'bulkAddForm']);
-            }
+                // 他のフィールドの設定
+                $reservation->i_taberu_ninzuu = $reservationData[$mealTime]['taberu'] ?? 0; // デフォルト値0
+                $reservation->i_tabenai_ninzuu = $reservationData[$mealTime]['tabenai'] ?? 0; // デフォルト値0
+                $reservation->dt_create = $currentDateTime; // 作成日時
+                $reservation->c_create_user = $currentUser; // ログインユーザー名
 
-            foreach ($meals as $mealType => $counts) {
-                $mealTypeMapping = [
-                    'morning' => 1,
-                    'noon' => 2,
-                    'night' => 3
-                ];
+                // エンティティが正しく作成されたか確認（オブジェクトを文字列化してログ出力）
+                $this->log(print_r($reservation, true), 'debug');
 
-                if (!isset($mealTypeMapping[$mealType])) {
-                    $this->Flash->error(__('無効な食事タイプが指定されました。'));
-                    return $this->redirect(['action' => 'bulkAddForm']);
-                }
-
-                if (!$this->saveReservation($counts, $reservationDate, $mealTypeMapping[$mealType], $user->get('c__user_name'))) {
-                    $this->Flash->error(__('予約情報の保存に失敗しました。'));
-                    return $this->redirect(['action' => 'bulkAddForm']);
-                }
+                $reservations[] = $reservation;
             }
         }
 
-        $this->Flash->success(__('データが正常に保存されました。'));
+        // データベースに保存
+        if ($this->TReservationInfo->saveMany($reservations)) {
+            $this->Flash->success(__('Reservations were successfully added.'));
+        } else {
+            $this->Flash->error(__('Reservations could not be saved. Please, try again.'));
+        }
+
         return $this->redirect(['action' => 'index']);
     }
 
