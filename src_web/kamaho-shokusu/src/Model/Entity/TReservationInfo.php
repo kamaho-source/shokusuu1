@@ -37,4 +37,22 @@ class TReservationInfo extends Entity
         'dt_update' => true,
         'c_update_user' => true,
     ];
+
+
+
+    public function initialize(array $config): void
+    {
+        parent::initialize($config);
+        $this->setTable('t_reservation_info');
+        $this->setPrimaryKey('i_id_room');
+
+    }
+
+
+    public function getReservationSummary($roomId,$date,$mealType)
+    {
+        return $this->find()
+            ->where(['i_id_room' => $roomId, 'd_reservation_date' => $date, 'c_reservation_type' => $mealType])
+            ->first();
+    }
 }

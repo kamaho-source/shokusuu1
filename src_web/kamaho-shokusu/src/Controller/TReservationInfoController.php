@@ -25,6 +25,7 @@ class TReservationInfoController extends AppController
         $this->fetchTable('TReservationInfo');
         $this->fetchTable('MRoomInfo');
         $this->fetchTable('MUserInfo');
+        $this->fetchTable('MUserGroup');
         $this->loadComponent('Flash');
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
@@ -327,9 +328,9 @@ class TReservationInfoController extends AppController
 
         // データベースに保存
         if ($this->TReservationInfo->saveMany($reservations)) {
-            $this->Flash->success(__('Reservations were successfully added.'));
+            $this->Flash->success(__('月曜日から金曜日までの一括予約が完了しました。.'));
         } else {
-            $this->Flash->error(__('Reservations could not be saved. Please, try again.'));
+            $this->Flash->error(__('月曜日から金曜日までの一括予約を完了できませんでした。再度やり直してください。'));
         }
 
         return $this->redirect(['action' => 'index']);
