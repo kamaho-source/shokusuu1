@@ -5,7 +5,6 @@ namespace App\Controller;
 
 use Cake\Event\EventInterface;
 
-
 /**
  * MRoomInfo Controller
  *
@@ -13,6 +12,8 @@ use Cake\Event\EventInterface;
  */
 class MRoomInfoController extends AppController
 {
+    public $MUserGroup;
+    public $MUserInfo;
 
     public function initialize(): void
     {
@@ -20,7 +21,11 @@ class MRoomInfoController extends AppController
         $this->loadComponent('Authentication.Authentication');
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
+
+       $this->MUserGroup = $this->fetchTable('MUserGroup');
+       $this->MUserInfo = $this->fetchTable('MUserInfo');
     }
+
     /**
      * Index method
      *
@@ -30,7 +35,6 @@ class MRoomInfoController extends AppController
     {
         $query = $this->MRoomInfo->find()->where(['i_del_flg' => 0]);
         $mRoomInfo = $this->paginate($query);
-
 
         $this->set(compact('mRoomInfo'));
     }
@@ -44,10 +48,28 @@ class MRoomInfoController extends AppController
      */
     public function view($id = null)
     {
-        $mRoomInfo = $this->MRoomInfo->get($id, contain: []);
-        $this->set(compact('mRoomInfo'));
-    }
+        // ネームドアーギュメントを使用して部屋情報を取得しつつ、関連するユーザーグループを結合して取得
+        $mRoomInfo = $this->MRoomInfo->get($id, ['contain' => ['MUserGroup']]);
 
+        // MUserGroupが存在するかどうかをチェックし、存在しない場合は空の配列を使用
+        $userGroups = $mRoomInfo->m_user_group ? $mRoomInfo->m_user_group : [];
+
+        // ユーザーIDのリストを作成
+        $userIds = array_map(function($group) {
+            return $group->i_id_user;
+        }, $userGroups);
+
+        // 空のリストを渡さないよう、安全確保
+        if (!empty($userIds)) {
+            $users = $this->MUserInfo->find('all', [
+                'conditions' => ['MUserInfo.i_id_user IN' => $userIds]
+            ])->toArray();
+        } else {
+            $users = [];
+        }
+
+        $this->set(compact('mRoomInfo', 'users'));
+    }
     /**
      * Add method
      *
@@ -63,9 +85,9 @@ class MRoomInfoController extends AppController
             $mRoomInfo->dt_create = date('Y-m-d H:i:s');
             $user = $this->request->getAttribute('identity');
             if ($user) {
-                $mRoomInfo->c_create_user = $user->get('c__user_name');
+                $mRoomInfo->c_create_user = $user->get('c_user_name');
             }
-            $mRoomInfo->i_disp_no = $this->MRoomInfo->find()->select(['max_disp_no' => 'MAX(i_disp_no)'])->first()->max_disp_no + 1;;
+            $mRoomInfo->i_disp_no = $this->MRoomInfo->find()->select(['max_disp_no' => 'MAX(i_disp_no)'])->first()->max_disp_no + 1;
 
             $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data);
 
@@ -95,7 +117,7 @@ class MRoomInfoController extends AppController
             $mRoomInfo->dt_update = date('Y-m-d H:i:s');
             $user = $this->request->getAttribute('identity');
             if ($user) {
-                $mRoomInfo->c_update_user = $user->get('c__user_name');
+                $mRoomInfo->c_update_user = $user->get('c_user_name');
             }
 
             $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data);
@@ -124,7 +146,7 @@ class MRoomInfoController extends AppController
         $mRoomInfo->i_del_flag = 1;
         $user = $this->request->getAttribute('identity');
         if($user) {
-            $mRoomInfo->c_update_user = $user->get('c__user_name');
+            $mRoomInfo->c_update_user = $user->get('c_user_name');
         }
         if ($this->MRoomInfo->delete($mRoomInfo)) {
             $this->Flash->success(__('部屋情報を削除しました。'));

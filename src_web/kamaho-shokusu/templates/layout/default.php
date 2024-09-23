@@ -30,7 +30,7 @@
                 <?php if ($user): ?>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle active" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                            <?= h($user->c__user_name) ?>
+                            <?= h($user->c_user_name) ?>
                         </a>
                         <div class="dropdown-menu" aria-labelledby="userDropdown">
                             <?= $this->Html->link('プロフィール', ['controller' => 'MUserInfo', 'action' => 'view', $user->i_id_user], ['class' => 'dropdown-item']) ?>

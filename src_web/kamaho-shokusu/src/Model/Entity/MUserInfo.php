@@ -37,9 +37,9 @@ class MUserInfo extends Entity
     protected array $_accessible = [
         'c_login_account' => true,
         'c_login_passwd' => true,
-        'c__user_name' => true,
+        'c_user_name' => true,
         'i_admin' => true,
-        'i_disp__no' => true,
+        'i_disp_no' => true,
         'i_enable' => true,
         'i_del_flag' => true,
         'dt_create' => true,

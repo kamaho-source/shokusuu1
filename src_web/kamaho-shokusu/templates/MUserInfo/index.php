@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var iterable<\App\Model\Entity\MUserInfo> $mUserInfo
+ * @var array $userRooms
  */
 
 $this->Html->css(['bootstrap.min']);
@@ -13,22 +14,24 @@ $this->Html->css(['bootstrap.min']);
         <table class="table table-bordered">
             <thead>
             <tr>
-                <th><?= $this->Paginator->sort('i_id_user',['label'=>'ユーザー識別ID']) ?></th>
-                <th><?= $this->Paginator->sort('c__user_name',['label'=>'ユーザ名']) ?></th>
-                <th><?= $this->Paginator->sort('i_disp__no',['label'=>'表示順']) ?></th>
-                <th class="actions"><?= __('Actions') ?></th>
+                <th><?= $this->Paginator->sort('i_id_user', ['label' => 'ユーザー識別ID']) ?></th>
+                <th><?= $this->Paginator->sort('c_user_name', ['label' => 'ユーザー名']) ?></th>
+                <th><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
+                <th><?= __('所属部屋') ?></th>
+                <th class="actions"><?= __('操作') ?></th>
             </tr>
             </thead>
             <tbody>
-            <?php foreach ($mUserInfo as $mUserInfo): ?>
+            <?php foreach ($mUserInfo as $user): ?>
                 <tr>
-                    <td><?= $this->Number->format($mUserInfo->i_id_user) ?></td>
-                    <td><?= h($mUserInfo->c__user_name) ?></td>
-                    <td><?= $mUserInfo->i_disp__no === null ? '' : $this->Number->format($mUserInfo->i_disp__no) ?></td>
+                    <td><?= $this->Number->format($user->i_id_user) ?></td>
+                    <td><?= h($user->c_user_name) ?></td>
+                    <td><?= $user->i_disp_no === null ? '' : $this->Number->format($user->i_disp_no) ?></td>
+                    <td><?= !empty($userRooms[$user->i_id_user]) ? implode(', ', $userRooms[$user->i_id_user]) : '未所属' ?></td>
                     <td class="actions">
-                        <?= $this->Html->link(__('表示'), ['action' => 'view', $mUserInfo->i_id_user], ['class' => 'btn btn-primary']) ?>
-                        <?= $this->Html->link(__('編集'), ['action' => 'edit', $mUserInfo->i_id_user], ['class' => 'btn btn-primary']) ?>
-                        <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $mUserInfo->i_id_user], ['confirm' => __('Are you sure you want to delete # {0}?', $mUserInfo->i_id_user), 'class' => 'btn btn-danger']) ?>
+                        <?= $this->Html->link(__('表示'), ['action' => 'view', $user->i_id_user], ['class' => 'btn btn-primary']) ?>
+                        <?= $this->Html->link(__('編集'), ['action' => 'edit', $user->i_id_user], ['class' => 'btn btn-primary']) ?>
+                        <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $user->i_id_user], ['confirm' => __('ユーザー ID {0} を削除してもよろしいですか？', $user->i_id_user), 'class' => 'btn btn-danger']) ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -37,12 +40,12 @@ $this->Html->css(['bootstrap.min']);
     </div>
     <div class="paginator">
         <ul class="pagination">
-            <?= $this->Paginator->first('<< ' . __('first')) ?>
-            <?= $this->Paginator->prev('< ' . __('previous')) ?>
+            <?= $this->Paginator->first('<< ' . __('最初')) ?>
+            <?= $this->Paginator->prev('< ' . __('前へ')) ?>
             <?= $this->Paginator->numbers() ?>
-            <?= $this->Paginator->next(__('next') . ' >') ?>
-            <?= $this->Paginator->last(__('last') . ' >>') ?>
+            <?= $this->Paginator->next(__('次へ') . ' >') ?>
+            <?= $this->Paginator->last(__('最後') . ' >>') ?>
         </ul>
-        <p><?= $this->Paginator->counter(__('Page {{page}} of {{pages}}, showing {{current}} record(s) out of {{count}} total')) ?></p>
+        <p><?= $this->Paginator->counter(__('ページ {{page}} / {{pages}}, 全 {{count}} 件中の {{current}} 件を表示')) ?></p>
     </div>
 </div>

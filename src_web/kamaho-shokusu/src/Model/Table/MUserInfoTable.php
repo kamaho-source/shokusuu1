@@ -3,80 +3,47 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query\SelectQuery;
-use Cake\ORM\RulesChecker;
+use ArrayObject;
+use Authentication\PasswordHasher\DefaultPasswordHasher;
+use Cake\Event\EventInterface;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
-/**
- * MUserInfo Model
- *
- * @method \App\Model\Entity\MUserInfo newEmptyEntity()
- * @method \App\Model\Entity\MUserInfo newEntity(array $data, array $options = [])
- * @method array<\App\Model\Entity\MUserInfo> newEntities(array $data, array $options = [])
- * @method \App\Model\Entity\MUserInfo get(mixed $primaryKey, array|string $finder = 'all', \Psr\SimpleCache\CacheInterface|string|null $cache = null, \Closure|string|null $cacheKey = null, mixed ...$args)
- * @method \App\Model\Entity\MUserInfo findOrCreate($search, ?callable $callback = null, array $options = [])
- * @method \App\Model\Entity\MUserInfo patchEntity(\Cake\Datasource\EntityInterface $entity, array $data, array $options = [])
- * @method array<\App\Model\Entity\MUserInfo> patchEntities(iterable $entities, array $data, array $options = [])
- * @method \App\Model\Entity\MUserInfo|false save(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method \App\Model\Entity\MUserInfo saveOrFail(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method iterable<\App\Model\Entity\MUserInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\MUserInfo>|false saveMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\MUserInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\MUserInfo> saveManyOrFail(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\MUserInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\MUserInfo>|false deleteMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\MUserInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\MUserInfo> deleteManyOrFail(iterable $entities, array $options = [])
- */
 class MUserInfoTable extends Table
 {
-    /**
-     * Initialize method
-     *
-     * @param array<string, mixed> $config The configuration for the Table.
-     * @return void
-     */
     public function initialize(array $config): void
     {
         parent::initialize($config);
 
         $this->setTable('m_user_info');
-        $this->setDisplayField('i_id_user');
         $this->setPrimaryKey('i_id_user');
+
+        $this->hasMany('MUserGroup', [
+            'foreignKey' => 'i_id_user',
+            'dependent' => false,
+            'cascadeCallbacks' => true,
+        ]);
     }
 
-    /**
-     * Default validation rules.
-     *
-     * @param \Cake\Validation\Validator $validator Validator instance.
-     * @return \Cake\Validation\Validator
-     */
+    public function beforeSave(EventInterface $event, $entity, ArrayObject $options)
+    {
+        if (!empty($entity->c_login_passwd) && $entity->isDirty('c_login_passwd')) {
+            $hasher = new DefaultPasswordHasher();
+            $entity->c_login_passwd = $hasher->hash($entity->c_login_passwd);
+        }
+    }
+
     public function validationDefault(Validator $validator): Validator
     {
         $validator
-            ->scalar('c_login_account')
-            ->maxLength('c_login_account', 50)
-            ->allowEmptyString('c_login_account');
+            ->integer('i_id_user')
+            ->allowEmptyString('i_id_user', 'create');
 
         $validator
-            ->scalar('c_login_passwd')
-            ->maxLength('c_login_passwd', 255)
-            ->allowEmptyString('c_login_passwd');
-
-        $validator
-            ->scalar('c__user_name')
-            ->maxLength('c__user_name', 50)
-            ->allowEmptyString('c__user_name');
-
-        $validator
-            ->allowEmptyString('i_admin');
-
-        $validator
-            ->integer('i_disp__no')
-            ->allowEmptyString('i_disp__no');
-
-        $validator
-            ->allowEmptyString('i_enable');
-
-        $validator
-            ->allowEmptyString('i_del_flag');
+            ->scalar('c_user_name')
+            ->maxLength('c_user_name', 50)
+            ->requirePresence('c_user_name', 'create')
+            ->notEmptyString('c_user_name', 'ユーザー名を入力してください。');
 
         $validator
             ->dateTime('dt_create')

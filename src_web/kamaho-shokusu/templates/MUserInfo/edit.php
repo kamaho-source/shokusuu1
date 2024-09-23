@@ -2,7 +2,12 @@
 /**
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MUserInfo $mUserInfo
+ * @var array $rooms
+ * @var array $selectedRooms
  */
+
+// $rooms は部屋情報の配列としてコントローラから渡されることを想定しています。
+// $selectedRooms はユーザーが現在所属している部屋のID配列です。
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -26,10 +31,25 @@
                         ]) ?>
                     </div>
                     <div class="mb-3">
-                        <?= $this->Form->control('c__user_name', [
+                        <?= $this->Form->control('c_user_name', [
                             'label' => 'ユーザ名',
                             'class' => 'form-control'
                         ]) ?>
+                    </div>
+                    <div class="mb-3">
+                        <label>所属部屋</label>
+                        <?php foreach ($rooms as $id => $name): ?>
+                            <div class="form-check">
+                                <?= $this->Form->checkbox("rooms[$id]", [
+                                    'value' => $id === 0 ? 0 : 1,
+                                    'checked' => in_array($id, $selectedRooms),
+                                    'class' => 'form-check-input'
+                                ]) ?>
+                                <label class="form-check-label" for="rooms-<?= $id ?>">
+                                    <?= h($name) ?>
+                                </label>
+                            </div>
+                        <?php endforeach; ?>
                     </div>
                 </fieldset>
                 <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary']) ?>

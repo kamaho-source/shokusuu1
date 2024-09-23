@@ -28,6 +28,7 @@
                         <th><?= __('C User Name') ?></th>
                         <td><?= h($mUserInfo->c__user_name) ?></td>
                     </tr>
+
                 </table>
             </div>
         </div>

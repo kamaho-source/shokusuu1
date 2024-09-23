@@ -190,7 +190,7 @@ class TReservationInfoController extends AppController
             $tReservationInfo->d_reservation_date = $reservationDate;
             $tReservationInfo->i_id_room = $data['i_id_room'];
             $tReservationInfo->c_reservation_type = $data['c_reservation_type'];
-            $tReservationInfo->c_create_user = $user->get('c__user_name');
+            $tReservationInfo->c_create_user = $user->get('c_user_name');
             $tReservationInfo->dt_create = date('Y-m-d H:i:s');
 
             // 他のフィールドをリクエストデータからパッチ
