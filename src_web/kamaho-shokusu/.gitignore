@@ -5,8 +5,7 @@
 /logs/*
 /tmp/*
 /vendor/*
-database/database
-
+datasource/database
 # OS generated files #
 ######################
 .DS_Store
