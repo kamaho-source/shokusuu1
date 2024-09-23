@@ -48,12 +48,43 @@ class MUserInfo extends Entity
         'c_update_user' => true,
     ];
 
+
+    /**
+     * @param string $password
+     * @return string|null
+     */
+
     protected function _setCLoginPasswd(string $password) : ?string
     {
         if (strlen($password) > 0) {
             return (new DefaultPasswordHasher())->hash($password);
         }
         return null;
+    }
+
+
+    /**
+     *
+     */
+
+
+    public function initialize(array $config): void
+    {
+        parent::initialize($config);
+        $this->setTable('m_user_info');
+        $this->setPrimaryKey('i_id_user');
+
+    }
+
+    public function getUserRooms($userId)
+    {
+        $query = $this->getConnection()->newQuery()
+            ->select('room_id')
+            ->from('m_user_group')
+            ->where(['user_id' => $userId]);
+
+
+        return $query->execute()->fetchAll('assoc');
     }
 
 }

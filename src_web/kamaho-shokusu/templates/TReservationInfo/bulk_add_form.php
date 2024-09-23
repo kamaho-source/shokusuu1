@@ -25,7 +25,8 @@
                         'label' => '部屋名',
                         'options' => $rooms,
                         'empty' => '-- 部屋を選択 --',
-                        'class' => 'form-control'
+                        'class' => 'form-control',
+                        'id' => 'i_id_room' // Add an ID for JavaScript validation
                     ]) ?>
                 </div>
                 <div class="form-group">
@@ -41,9 +42,9 @@
                         <label><?= __('朝食') ?></label>
                         <input type="hidden" name="data[<?= $date->format('Y-m-d') ?>][morning][reservation_type]" value="1">
                         <label><?= __('食べる人数') ?></label>
-                        <input type="number" name="data[<?= $date->format('Y-m-d') ?>][morning][taberu]" class="form-control">
+                        <input type="number" id="morning_taberu_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][morning][taberu]" class="form-control">
                         <label><?= __('食べない人数') ?></label>
-                        <input type="number" name="data[<?= $date->format('Y-m-d') ?>][morning][tabenai]" class="form-control">
+                        <input type="number" id="morning_tabenai_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][morning][tabenai]" class="form-control">
                     </div>
 
                     <!-- 昼食 -->
@@ -51,9 +52,9 @@
                         <label><?= __('昼食') ?></label>
                         <input type="hidden" name="data[<?= $date->format('Y-m-d') ?>][noon][reservation_type]" value="2">
                         <label><?= __('食べる人数') ?></label>
-                        <input type="number" name="data[<?= $date->format('Y-m-d') ?>][noon][taberu]" class="form-control">
+                        <input type="number" id="noon_taberu_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][noon][taberu]" class="form-control">
                         <label><?= __('食べない人数') ?></label>
-                        <input type="number" name="data[<?= $date->format('Y-m-d') ?>][noon][tabenai]" class="form-control">
+                        <input type="number" id="noon_tabenai_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][noon][tabenai]" class="form-control">
                     </div>
 
                     <!-- 夕食 -->
@@ -61,9 +62,9 @@
                         <label><?= __('夕食') ?></label>
                         <input type="hidden" name="data[<?= $date->format('Y-m-d') ?>][night][reservation_type]" value="3">
                         <label><?= __('食べる人数') ?></label>
-                        <input type="number" name="data[<?= $date->format('Y-m-d') ?>][night][taberu]" class="form-control">
+                        <input type="number" id="night_taberu_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][night][taberu]" class="form-control">
                         <label><?= __('食べない人数') ?></label>
-                        <input type="number" name="data[<?= $date->format('Y-m-d') ?>][night][tabenai]" class="form-control">
+                        <input type="number" id="night_tabenai_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][night][tabenai]" class="form-control">
                     </div>
 
                 <?php endforeach; ?>
@@ -75,9 +76,10 @@
     </div>
 </div>
 
-<!-- JavaScript to handle copying values -->
+<!-- JavaScript to handle copying values and validation -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // 月曜日の入力を火曜日以降にコピーする処理
         document.getElementById('copy_to_all').addEventListener('change', function () {
             if (this.checked) {
                 var mondayMorningTaberu = document.querySelector('input[name="data[<?= $dates[0]->format('Y-m-d') ?>][morning][taberu]"]').value;
@@ -97,13 +99,18 @@
                 <?php endforeach; ?>
             }
         });
-    });
 
-    document.addEventListener('DOMContentLoaded', function () {
-        // フォームの送信イベントをキャプチャ
+        // フォーム送信時のバリデーション処理
         document.querySelector('form').addEventListener('submit', function (event) {
             var valid = true; // フォームが有効かどうかを追跡するフラグ
             var alertMessage = ''; // アラートメッセージの初期化
+
+            // 部屋の選択がされているかをチェック
+            var roomSelection = document.getElementById('i_id_room').value;
+            if (!roomSelection) {
+                alertMessage += '部屋が選択されていません。\n';
+                valid = false;
+            }
 
             // 全ての朝、昼、夜の入力フィールドをチェック
             <?php foreach ($dates as $index => $date): ?>
@@ -128,5 +135,4 @@
             }
         });
     });
-
 </script>
