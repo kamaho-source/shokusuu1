@@ -18,10 +18,13 @@ class MUserInfoTable extends Table
         $this->setTable('m_user_info');
         $this->setPrimaryKey('i_id_user');
 
-        $this->hasMany('MUserGroup', [
+        $this->belongsTo('MUserGroup', [
             'foreignKey' => 'i_id_user',
-            'dependent' => false,
-            'cascadeCallbacks' => true,
+            'joinType' => 'INNER'
+        ]);
+        $this->belongsTo('MRoomInfo', [
+            'foreignKey' => 'i_id_room',
+            'joinType' => 'INNER'
         ]);
     }
 
@@ -37,13 +40,33 @@ class MUserInfoTable extends Table
     {
         $validator
             ->integer('i_id_user')
-            ->allowEmptyString('i_id_user', 'create');
+            ->allowEmpty('i_id_user', 'create');
 
         $validator
             ->scalar('c_user_name')
             ->maxLength('c_user_name', 50)
             ->requirePresence('c_user_name', 'create')
             ->notEmptyString('c_user_name', 'ユーザー名を入力してください。');
+
+        // 追加: パスワードのバリデーション
+        $validator
+            ->scalar('c_login_passwd')
+            ->maxLength('c_login_passwd', 255)
+            ->requirePresence('c_login_passwd', 'create')
+            ->notEmptyString('c_login_passwd', 'パスワードを入力してください。');
+
+        // 追加: ユーザー年齢のバリデーション
+        $validator
+            ->integer('i_user_age')
+            ->allowEmptyString('i_user_age', 'create')
+            ->notEmptyString('i_user_age', '年齢を入力してください。')
+            ->range('i_user_age', [0, 80], '年齢は0から120の範囲で指定してください。');
+
+        // 追加: ユーザーレベルのバリデーション
+        $validator
+            ->integer('i_user_level')
+            ->allowEmptyString('i_user_level', 'create')
+            ->notEmptyString('i_user_level', 'ユーザーレベルを入力して下さい。');
 
         $validator
             ->dateTime('dt_create')

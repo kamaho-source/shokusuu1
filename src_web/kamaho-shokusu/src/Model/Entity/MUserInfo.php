@@ -5,7 +5,7 @@ namespace App\Model\Entity;
 
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\ORM\Entity;
-use SlevomatCodingStandard\Sniffs\Functions\StrictCallSniff;
+use Cake\I18n\DateTime;
 
 /**
  * MUserInfo Entity
@@ -13,9 +13,9 @@ use SlevomatCodingStandard\Sniffs\Functions\StrictCallSniff;
  * @property int $i_id_user
  * @property string|null $c_login_account
  * @property string|null $c_login_passwd
- * @property string|null $c__user_name
+ * @property string|null $c_user_name
  * @property int|null $i_admin
- * @property int|null $i_disp__no
+ * @property int|null $i_disp_no
  * @property int|null $i_enable
  * @property int|null $i_del_flag
  * @property \Cake\I18n\DateTime|null $dt_create
@@ -35,9 +35,12 @@ class MUserInfo extends Entity
      * @var array<string, bool>
      */
     protected array $_accessible = [
+        'i_id_user' => true,
         'c_login_account' => true,
         'c_login_passwd' => true,
         'c_user_name' => true,
+        'i_user_age'=> true,
+        'i_user_level'=> true,
         'i_admin' => true,
         'i_disp_no' => true,
         'i_enable' => true,
@@ -48,12 +51,10 @@ class MUserInfo extends Entity
         'c_update_user' => true,
     ];
 
-
     /**
      * @param string $password
      * @return string|null
      */
-
     protected function _setCLoginPasswd(string $password) : ?string
     {
         if (strlen($password) > 0) {
@@ -62,29 +63,20 @@ class MUserInfo extends Entity
         return null;
     }
 
-
     /**
+     * Get user rooms by user ID.
      *
+     * @param int $userId
+     * @return array
      */
-
-
-    public function initialize(array $config): void
+    public function getUserRooms(int $userId): array
     {
-        parent::initialize($config);
-        $this->setTable('m_user_info');
-        $this->setPrimaryKey('i_id_user');
+        // プロパティ`getConnection`がエンティティに定義されていないので、使用できません。
+        // 代わりに、テーブルクラスからクエリを実行してください。
+        $query = $this->getTableLocator()->get('MUserGroup')->find()
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => $userId]);
 
+        return $query->all()->toArray();
     }
-
-    public function getUserRooms($userId)
-    {
-        $query = $this->getConnection()->newQuery()
-            ->select('room_id')
-            ->from('m_user_group')
-            ->where(['user_id' => $userId]);
-
-
-        return $query->execute()->fetchAll('assoc');
-    }
-
 }

@@ -16,6 +16,7 @@ class MUserInfoController extends AppController
     protected $MUserInfo;
     protected $MRoomInfo;
 
+
     public function initialize(): void
     {
         parent::initialize();
@@ -81,55 +82,140 @@ class MUserInfoController extends AppController
         return $rooms;
     }
 
+    // src/Controller/MUserInfoController.php
+
+    // src/Controller/MUserInfoController.php
+
+    private function castGroupData(array $groupData): array {
+        return array_map(function ($group) {
+            return [
+                'i_id_room' => isset($group['i_id_room']) ? (int)$group['i_id_room'] : 0,
+                'c_create_user' => $group['c_create_user'],
+                'dt_create' => $group['dt_create']
+            ];
+        }, $groupData);
+    }
+
     public function add()
     {
         date_default_timezone_set('Asia/Tokyo');
 
+        // i_disp_noフィールドの最大値取得
+        $maxDispNoQuery = $this->MUserInfo->find()
+            ->select(['max_disp_no' => $this->MUserInfo->find()->func()->max('i_disp_no')])
+            ->first();
+        $maxDispNo = $maxDispNoQuery ? $maxDispNoQuery->max_disp_no + 1 : 1;
+
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
-        $mUserInfo->i_disp_no = max($this->MUserInfo->find()->select(['max_disp_no' => 'MAX(i_disp_no)'])->first()->max_disp_no + 1, 1);
+        $mUserInfo->i_disp_no = $maxDispNo;
+        $mUserInfo->i_user_age = (int)$this->request->getData('age');
+        $mUserInfo->i_user_level = (int)$this->request->getData('role');
 
         if ($this->request->is('post')) {
-            // リクエストデータを取得
             $data = $this->request->getData();
 
-            // c_user_nameのデフォルト値設定
+            // デフォルトユーザー名の設定
             if (empty($data['c_user_name'])) {
                 $data['c_user_name'] = 'デフォルトユーザー名';
             }
 
-            // c_create_user設定
+            // 作成ユーザーの設定
             $user = $this->request->getAttribute('identity');
             $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
 
-            // 部屋情報の処理
-            if (!empty($data['MUserGroup'])) {
-                foreach ($data['MUserGroup'] as $index => $groupData) {
-                    if (empty($groupData['i_id_room']) || $groupData['i_id_room'] == '0') {
-                        unset($data['MUserGroup'][$index]);
-                    }
+            // ルームIDの変換
+            $roomIds = array_map(function($groupData) {
+                return isset($groupData['i_id_room']) && $groupData['i_id_room'] !== '0' ? 1 : 0;
+            }, $data['MUserGroup'] ?? []);
+
+            // 有効なグループの設定
+            $validGroups = array_map(function($roomId) use ($user) {
+                return [
+                    'i_id_room' => (int)$roomId,
+                    'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー',
+                    'dt_create' => date('Y-m-d H:i:s')
+                ];
+            }, $roomIds);
+
+            $data['MUserGroup'] = $validGroups;
+
+            try {
+                /*
+                $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
+                    'associated' => ['MUserGroup']
+                ]);
+                */
+
+
+
+                if ($mUserInfo->hasErrors()) {
+                    throw new \Exception('バリデーションエラーが発生しました。');
                 }
-            }
 
-            // エンティティにデータをパッチ
-            $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
-                'associated' => ['MUserGroup']
-            ]);
+                if ($this->MUserInfo->save($mUserInfo, ['associated' => ['MUserGroup']])) {
+                    $this->Flash->success(__('ユーザー情報が保存されました。'));
+                    $i_id_user = $mUserInfo->i_id_user;
+                    foreach ($roomIds as $roomId => $insert_flag){
+                        if((int)$insert_flag === 1) {
 
-            // エラーログを確認
-            if ($mUserInfo->hasErrors()) {
-                $errors = $mUserInfo->getErrors();
-                Log::debug('Validation Errors: ' . json_encode($errors));
-            }
+                            $userGroup = $this->MUserGroup->newEntity([
+                                'i_id_user' => (int)$i_id_user,
+                                'i_id_room' => (int)$roomId,
+                                'active_flag' => 0,
+                                'dt_create' => date('Y-m-d H:i:s'),
+                                'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー'
+                            ]);
+                            pr($userGroup);
 
-            // データ保存
-            if ($this->MUserInfo->save($mUserInfo)) {
-                $this->Flash->success(__('ユーザー情報が保存されました。'));
-                return $this->redirect(['action' => 'index']);
-            } else {
-                $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
-                Log::debug('Failed to save user info: ' . json_encode($mUserInfo->getErrors()));
+                            if($this->MUserGroup->save($userGroup)){
+                                $this->Flash->success(__('部屋の所属情報が保存されました。'));
+                            }else{
+                                pr($userGroup->getErrors());
+                                pr("miss");
+                            }
+
+
+
+                        }
+                    }
+/*
+                    foreach ($roomIds as $roomId => $insert_flag) {
+                        if($insert_flag == 1){
+
+
+                            $userGroup = $this->MUserGroup->newEntity([
+                                'i_id_user' => (int)$mUserInfo->i_id_user,
+                                'i_id_room' => (int)$roomId,
+                                'active_flag' => 0,
+                                'dt_create' => date('Y-m-d H:i:s'),
+                                'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー'
+                        ]);
+
+                        if (!$this->MUserGroup->save($userGroup)) {
+                            $errorMessages = [];
+                            foreach ($userGroup->getErrors() as $field => $messages) {
+                                $errorMessages[] = "$field: " . implode(", ", $messages);
+                            }
+                            $errorMessage = '部屋の所属情報の保存に失敗しました: ' . implode("; ", $errorMessages);
+                            $this->Flash->error(__($errorMessage));
+                            Log::error('部屋グループの保存に失敗しました: ' . json_encode($userGroup->getErrors(), JSON_UNESCAPED_UNICODE));
+                            throw new \Exception($errorMessage);
+                        }
+                    }
+*/
+
+
+                  //  return $this->redirect(['action' => 'index']);
+                } else {
+                    $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
+                    Log::error('ユーザー情報の保存に失敗しました: ' . json_encode($mUserInfo->getErrors(), JSON_UNESCAPED_UNICODE));
+                    throw new \Exception('ユーザー情報の保存に失敗しました。');
+                }
+            } catch (\Exception $e) {
+                pr($e);
+                $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
 
@@ -138,12 +224,12 @@ class MUserInfoController extends AppController
             'valueField' => 'c_room_name'
         ])->toArray();
 
-        // 年齢と役職のオプションをビューに渡す
-        $ages = range(1, 80); // 年齢の範囲
-        $roles = [0 => '職員', 1 => '児童', 3 => 'その他']; // 役職の選択肢
-
+        Log::debug('部屋のデータ: ' . json_encode($rooms, JSON_UNESCAPED_UNICODE));
+        $ages = range(1, 80);
+        $roles = [0 => '職員', 1 => '児童', 3 => 'その他'];
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
     }
+
 
 
 
@@ -246,6 +332,7 @@ class MUserInfoController extends AppController
         $createUser = $user ? $user->get('c_user_name') : '不明なユーザー';
 
         if ($this->request->is('post')) {
+
             $roomId = $this->request->getData('i_id_room');
             if ($this->MUserInfo->saveUserRoom($userId, $roomId, $createUser)) {
                 $this->Flash->success(__('ユーザーに部屋が追加されました。'));

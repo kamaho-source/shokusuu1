@@ -11,12 +11,12 @@
                 <h4><?= __('ユーザー情報の追加') ?></h4>
             </div>
             <div class="card-body">
-                <?= $this->Form->create($mUserInfo) ?>
+                <?= $this->Form->create($mUserInfo, ['class' => 'needs-validation', 'novalidate' => true]) ?>
                 <fieldset>
                     <!-- ログインID -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_login_account', [
-                            'label' => 'ログインID',
+                            'label' => ['text' => 'ログインID', 'class' => 'form-label'],
                             'class' => 'form-control'
                         ]) ?>
                     </div>
@@ -24,7 +24,7 @@
                     <!-- パスワード -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_login_passwd', [
-                            'label' => 'パスワード',
+                            'label' => ['text' => 'パスワード', 'class' => 'form-label'],
                             'type' => 'password',
                             'class' => 'form-control'
                         ]) ?>
@@ -33,7 +33,7 @@
                     <!-- ユーザー名 -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_user_name', [
-                            'label' => 'ユーザー名',
+                            'label' => ['text' => 'ユーザー名', 'class' => 'form-label'],
                             'class' => 'form-control'
                         ]) ?>
                     </div>
@@ -43,8 +43,9 @@
                         <?= $this->Form->control('age', [
                             'type' => 'select',
                             'options' => range(1, 80),
-                            'label' => '年齢',
-                            'class' => 'form-control'
+                            'label' => ['text' => '年齢', 'class' => 'form-label'],
+                            'class' => 'form-control',
+                            'empty' => '選択してください'
                         ]) ?>
                     </div>
 
@@ -53,11 +54,11 @@
                         <?= $this->Form->control('role', [
                             'type' => 'select',
                             'options' => [0 => '職員', 1 => '児童', 3 => 'その他'],
-                            'label' => '役職',
-                            'class' => 'form-control'
+                            'label' => ['text' => '役職', 'class' => 'form-label'],
+                            'class' => 'form-control',
+                            'empty' => '選択してください'
                         ]) ?>
                     </div>
-
 
                     <!-- 部屋情報のチェックボックス -->
                     <div class="mb-3">
@@ -65,11 +66,11 @@
                         <?php if (!empty($rooms)): ?>
                             <?php foreach ($rooms as $roomId => $roomName): ?>
                                 <div class="form-check">
-                                    <?= $this->Form->checkbox('MUserGroup.' . $roomId . '.i_id_room', [
+                                    <?= $this->Form->checkbox('MUserGroup[' . $roomId . '][i_id_room]', [
                                         'value' => $roomId,
                                         'class' => 'form-check-input'
                                     ]) ?>
-                                    <label class="form-check-label"><?= h($roomName) ?></label>
+                                    <label class="form-check-label" for="MUserGroup-<?= $roomId ?>-i_id_room"><?= h($roomName) ?></label>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>

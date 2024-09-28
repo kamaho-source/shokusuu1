@@ -13,13 +13,12 @@ class MRoomInfoTable extends Table
         parent::initialize($config);
 
         $this->setTable('m_room_info');
-        $this->setDisplayField('i_id_room');
         $this->setPrimaryKey('i_id_room');
 
         // MUserGroup モデルとの関連付けを設定
-        $this->hasMany('MUserGroup', [
-            'foreignKey' => 'i_id_room',
-        ]);
+        //$this->hasMany('MUserGroup', [
+          //  'foreignKey' => 'i_id_room',
+        //]);
     }
 
     public function validationDefault(Validator $validator): Validator

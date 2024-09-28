@@ -28,6 +28,8 @@ class MUserGroup extends Entity
      * @var array<string, bool>
      */
     protected array $_accessible = [
+        'i_id_user' => true,
+        'i_id_room' => true,
         'active_flag' => true,
         'dt_create' => true,
         'c_create_user' => true,
