@@ -42,8 +42,8 @@ class MUserInfoController extends AppController
             ->contain(['MUserGroup' => ['MRoomInfo']]);
 
         $mUserInfo = $this->paginate($query);
-        $userRooms = [];
 
+        $userRooms = [];
         foreach ($mUserInfo as $user) {
             if (!empty($user->m_user_group)) {
                 foreach ($user->m_user_group as $group) {
@@ -58,6 +58,7 @@ class MUserInfoController extends AppController
 
         $this->set(compact('mUserInfo', 'userRooms'));
     }
+
 
     public function getUserRooms($userId)
     {
@@ -125,96 +126,48 @@ class MUserInfoController extends AppController
             $user = $this->request->getAttribute('identity');
             $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
 
-            // ルームIDの変換
-            $roomIds = array_map(function($groupData) {
-                return isset($groupData['i_id_room']) && $groupData['i_id_room'] !== '0' ? 1 : 0;
-            }, $data['MUserGroup'] ?? []);
-
-            // 有効なグループの設定
-            $validGroups = array_map(function($roomId) use ($user) {
-                return [
-                    'i_id_room' => (int)$roomId,
-                    'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー',
-                    'dt_create' => date('Y-m-d H:i:s')
-                ];
-            }, $roomIds);
-
-            $data['MUserGroup'] = $validGroups;
-
             try {
-                /*
-                $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
-                    'associated' => ['MUserGroup']
-                ]);
-                */
+                // patchEntityでMUserInfoにデータをパッチ
+                $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data);
 
-
-
+                // バリデーションエラーの確認
                 if ($mUserInfo->hasErrors()) {
                     throw new \Exception('バリデーションエラーが発生しました。');
                 }
 
-                if ($this->MUserInfo->save($mUserInfo, ['associated' => ['MUserGroup']])) {
+                // ユーザー情報の保存
+                if ($this->MUserInfo->save($mUserInfo)) {
                     $this->Flash->success(__('ユーザー情報が保存されました。'));
                     $i_id_user = $mUserInfo->i_id_user;
-                    foreach ($roomIds as $roomId => $insert_flag){
-                        if((int)$insert_flag === 1) {
 
-                            $userGroup = $this->MUserGroup->newEntity([
+                    // MUserGroupデータを手動で作成・保存
+                    $userGroups = [];
+                    foreach ($data['MUserGroup'] as $groupData) {
+                        if (!empty($groupData['i_id_room'])) {
+                            $userGroups[] = $this->MUserGroup->newEntity([
                                 'i_id_user' => (int)$i_id_user,
-                                'i_id_room' => (int)$roomId,
+                                'i_id_room' => (int)$groupData['i_id_room'],
                                 'active_flag' => 0,
                                 'dt_create' => date('Y-m-d H:i:s'),
                                 'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー'
                             ]);
-                            pr($userGroup);
-
-                            if($this->MUserGroup->save($userGroup)){
-                                $this->Flash->success(__('部屋の所属情報が保存されました。'));
-                            }else{
-                                pr($userGroup->getErrors());
-                                pr("miss");
-                            }
-
-
-
                         }
                     }
-/*
-                    foreach ($roomIds as $roomId => $insert_flag) {
-                        if($insert_flag == 1){
 
-
-                            $userGroup = $this->MUserGroup->newEntity([
-                                'i_id_user' => (int)$mUserInfo->i_id_user,
-                                'i_id_room' => (int)$roomId,
-                                'active_flag' => 0,
-                                'dt_create' => date('Y-m-d H:i:s'),
-                                'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー'
-                        ]);
-
-                        if (!$this->MUserGroup->save($userGroup)) {
-                            $errorMessages = [];
-                            foreach ($userGroup->getErrors() as $field => $messages) {
-                                $errorMessages[] = "$field: " . implode(", ", $messages);
-                            }
-                            $errorMessage = '部屋の所属情報の保存に失敗しました: ' . implode("; ", $errorMessages);
-                            $this->Flash->error(__($errorMessage));
-                            Log::error('部屋グループの保存に失敗しました: ' . json_encode($userGroup->getErrors(), JSON_UNESCAPED_UNICODE));
-                            throw new \Exception($errorMessage);
+                    // userGroupsが空でない場合に保存を実行
+                    if (!empty($userGroups)) {
+                        if ($this->MUserGroup->saveMany($userGroups)) {
+                            $this->Flash->success(__('部屋の所属情報が保存されました。'));
+                        } else {
+                            $this->Flash->error(__('部屋の所属情報の保存に失敗しました。'));
                         }
                     }
-*/
 
-
-                  //  return $this->redirect(['action' => 'index']);
+                    return $this->redirect(['action' => 'index']);
                 } else {
                     $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
-                    Log::error('ユーザー情報の保存に失敗しました: ' . json_encode($mUserInfo->getErrors(), JSON_UNESCAPED_UNICODE));
-                    throw new \Exception('ユーザー情報の保存に失敗しました。');
                 }
             } catch (\Exception $e) {
-                pr($e);
                 $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
@@ -224,13 +177,10 @@ class MUserInfoController extends AppController
             'valueField' => 'c_room_name'
         ])->toArray();
 
-        Log::debug('部屋のデータ: ' . json_encode($rooms, JSON_UNESCAPED_UNICODE));
         $ages = range(1, 80);
         $roles = [0 => '職員', 1 => '児童', 3 => 'その他'];
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
     }
-
-
 
 
     public function edit($id = null)

@@ -13,19 +13,14 @@ class MUserGroupTable extends Table
         parent::initialize($config);
 
         $this->setTable('m_user_group');
-        $this->setPrimaryKey('i_id_user', 'i_id_room');
-        //$this->setPrimaryKey('i_id_room');
-
-        // MUserInfo モデルとの関連付けを設定
+        $this->setPrimaryKey(['i_id_user', 'i_id_room']);
         $this->belongsTo('MUserInfo', [
             'foreignKey' => 'i_id_user',
-            'joinType' => 'INNER'
+            'joinType' => 'INNER',
         ]);
-
-        // MRoomInfo モデルとの関連付けを設定
         $this->belongsTo('MRoomInfo', [
             'foreignKey' => 'i_id_room',
-            'joinType' => 'INNER'
+            'joinType' => 'INNER',
         ]);
     }
 
@@ -45,7 +40,7 @@ class MUserGroupTable extends Table
             ->integer('active_flag')
             ->requirePresence('active_flag', 'create')
             ->notEmptyString('active_flag', 'アクティブフラグを入力してください。')
-            ->inList('active_flag', [0, 1], 'アクティブフラグは0または1を指定してください。');
+            ->inList('active_flag', [0, 1], 'アクティブフラグは0または1を指定してください.');
 
         $validator
             ->dateTime('dt_create')

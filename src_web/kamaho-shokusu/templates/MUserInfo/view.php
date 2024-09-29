@@ -26,7 +26,7 @@
 
                     <tr>
                         <th><?= __('C User Name') ?></th>
-                        <td><?= h($mUserInfo->c__user_name) ?></td>
+                        <td><?= h($mUserInfo->c_user_name) ?></td>
                     </tr>
 
                 </table>

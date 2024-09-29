@@ -66,9 +66,10 @@
                         <?php if (!empty($rooms)): ?>
                             <?php foreach ($rooms as $roomId => $roomName): ?>
                                 <div class="form-check">
-                                    <?= $this->Form->checkbox('MUserGroup[' . $roomId . '][i_id_room]', [
+                                    <?= $this->Form->checkbox('MUserGroup.' . $roomId . '.i_id_room', [
                                         'value' => $roomId,
-                                        'class' => 'form-check-input'
+                                        'class' => 'form-check-input',
+                                        'id' => 'MUserGroup-' . $roomId . '-i_id_room'
                                     ]) ?>
                                     <label class="form-check-label" for="MUserGroup-<?= $roomId ?>-i_id_room"><?= h($roomName) ?></label>
                                 </div>

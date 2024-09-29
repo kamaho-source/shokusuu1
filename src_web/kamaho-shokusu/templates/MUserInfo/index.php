@@ -5,7 +5,7 @@
  * @var array $userRooms
  */
 
-$this->Html->css(['bootstrap.min']);
+echo $this->Html->css(['bootstrap.min']);
 ?>
 <div class="mUserInfo index content">
     <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
@@ -24,14 +24,14 @@ $this->Html->css(['bootstrap.min']);
             <tbody>
             <?php foreach ($mUserInfo as $user): ?>
                 <tr>
-                    <td><?= $this->Number->format($user->i_id_user) ?></td>
+                    <td><?= h($user->i_id_user) ?></td>
                     <td><?= h($user->c_user_name) ?></td>
-                    <td><?= $user->i_disp_no === null ? '' : $this->Number->format($user->i_disp_no) ?></td>
-                    <td><?= !empty($userRooms[$user->i_id_user]) ? implode(', ', $userRooms[$user->i_id_user]) : '未所属' ?></td>
+                    <td><?= $user->i_disp_no !== null ? $this->Number->format($user->i_disp_no) : '' ?></td>
+                    <td><?= !empty($userRooms[$user->i_id_user]) ? h(implode(', ', $userRooms[$user->i_id_user])) : '未所属' ?></td>
                     <td class="actions">
-                        <?= $this->Html->link(__('表示'), ['action' => 'view', $user->i_id_user], ['class' => 'btn btn-primary']) ?>
-                        <?= $this->Html->link(__('編集'), ['action' => 'edit', $user->i_id_user], ['class' => 'btn btn-primary']) ?>
-                        <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $user->i_id_user], ['confirm' => __('ユーザー ID {0} を削除してもよろしいですか？', $user->i_id_user), 'class' => 'btn btn-danger']) ?>
+                        <?= $this->Html->link(__('表示'), ['action' => 'view', $user->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
+                        <?= $this->Html->link(__('編集'), ['action' => 'edit', $user->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
+                        <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $user->i_id_user], ['confirm' => __('ユーザー ID {0} を削除してもよろしいですか？', $user->i_id_user), 'class' => 'btn btn-danger btn-sm']) ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
