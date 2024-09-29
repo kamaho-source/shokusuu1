@@ -193,43 +193,62 @@ class MUserInfoController extends AppController
 
         if ($this->request->is(['patch', 'post', 'put'])) {
             $data = $this->request->getData();
-            pr($data);
+
             // フィールド名の修正とnullチェック (c_user_nameがnullの場合のデフォルト値を設定)
             $data['c_user_name'] = $data['c_user_name'] ?? 'デフォルトユーザー名';
 
             $user = $this->request->getAttribute('identity');
             $data['c_update_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
-
-            if (!empty($data['MUserGroup'])) {
-                $this->MUserInfo->MUserGroup->deleteAll(['i_id_user' => $id]);
-
-                $newUserGroups = [];
-                foreach ($data['MUserGroup'] as $groupData) {
-                    if (!empty($groupData['i_id_room'])) {
-                        $newUserGroups[] = $this->MUserGroup->newEntity([
+            // MUserGroupデータのセットアップ
+            $newUserGroups = [];
+            if (!empty($data['rooms'])) {
+                foreach ($data['rooms'] as $roomId => $activeFlag) {
+                    if ($activeFlag === '1') {
+                        $newUserGroups[] = $this->MUserInfo->MUserGroup->newEntity([
                             'i_id_user' => $id,
-                            'i_id_room' => $groupData['i_id_room']
+                            'i_id_room' => (int)$roomId,
+                            'active_flag' => 0, // 元のコードのロジックに従って 0 を設定
+                            'dt_create' => date('Y-m-d H:i:s'),
+                            'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー',
+                            'dt_update' => date('Y-m-d H:i:s'),
+                            'c_update_user' => $user ? $user->get('c_user_name') : '不明なユーザー',
                         ]);
                     }
                 }
-                $data['MUserGroup'] = $newUserGroups;
-            } else {
-                $data['MUserGroup'] = [];
             }
 
-            $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
-                'associated' => ['MUserGroup']
-            ]);
 
-            if ($this->MUserInfo->save($mUserInfo, ['associated' => ['MUserGroup']])) {
-                $this->Flash->success(__('ユーザー情報が更新されました。'));
-                return $this->redirect(['action' => 'index']);
-            } else {
-                $this->Flash->error(__('ユーザー情報の更新に失敗しました。もう一度お試しください。'));
+            // トランザクション開始
+            $conn = $this->MUserInfo->getConnection();
+            $conn->begin();
+
+            try {
+                // 現在のMUserGroup関係を削除
+                $this->MUserInfo->MUserGroup->deleteAll(['i_id_user' => $id]);
+
+                // パッチを適用して関連付けを設定
+                $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, ['associated' => ['MUserGroup']]);
+                $mUserInfo->m_user_group = $newUserGroups;
+
+
+                // 保存処理
+                if ($this->MUserInfo->save($mUserInfo, ['associated' => ['MUserGroup']])) {
+                    $conn->commit();
+                    $this->Flash->success(__('ユーザー情報が更新されました。'));
+                    return $this->redirect(['action' => 'index']);
+                } else {
+                    // デバッグメッセージ2: 保存失敗
+                    $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
+                    $conn->rollback();
+                }
+            } catch (\Exception $e) {
+                // ロールバックを行い、エラー処理
+                $conn->rollback();
+                $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
 
-        $rooms = $this->MRoomInfo->find('list', keyField: 'i_id_room', valueField: 'c_room_name')->toArray();
+        $rooms = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->toArray();
 
         $selectedRooms = [];
         if (!empty($mUserInfo->m_user_group)) {
@@ -240,6 +259,8 @@ class MUserInfoController extends AppController
 
         $this->set(compact('mUserInfo', 'rooms', 'selectedRooms'));
     }
+
+
 
     public function view($id = null)
     {
