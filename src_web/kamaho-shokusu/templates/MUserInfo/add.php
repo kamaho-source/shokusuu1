@@ -78,6 +78,26 @@
                             <p><?= __('表示できる部屋がありません') ?></p>
                         <?php endif; ?>
                     </div>
+
+                    <!-- ユーザー選択 -->
+                    <div id="user-selection" class="mb-3" style="display: none;">
+                        <label><?= __('部屋に属する利用者をご選択ください') ?></label>
+                        <div id="user-table-container">
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th>利用者名</th>
+                                    <th>朝</th>
+                                    <th>昼</th>
+                                    <th>夜</th>
+                                </tr>
+                                </thead>
+                                <tbody id="user-checkboxes">
+                                <!-- 利用者のチェックボックスがここに追加されます -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </fieldset>
                 <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary']) ?>
                 <?= $this->Form->end() ?>
@@ -85,3 +105,92 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', (event) => {
+        const fetchUsersByRoom = async (roomId) => {
+            const response = await fetch(`http://localhost:8091/kamaho-shokusu/TReservationInfo/getUsersByRoom/${roomId}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Network response was not ok:', errorText);
+                throw new Error('Network response was not ok');
+            }
+            try {
+                return await response.json();
+            } catch (e) {
+                const errorText = await response.text();
+                console.error('Failed to parse JSON:', errorText);
+                throw new Error('Failed to parse JSON: ' + e.message);
+            }
+        };
+
+        document.querySelectorAll('.form-check-input').forEach((checkbox) => {
+            checkbox.addEventListener('change', function () {
+                const roomId = this.value;
+                const userSelection = document.getElementById('user-selection');
+                const userCheckboxes = document.getElementById('user-checkboxes');
+
+                userCheckboxes.innerHTML = ''; // 既存のチェックボックスをクリア
+
+                if (this.checked) {
+                    userSelection.style.display = 'block';
+                    fetchUsersByRoom(roomId)
+                        .then(data => {
+                            if (data.error) {
+                                throw new Error(data.error);
+                            }
+                            if (Array.isArray(data) && data.length === 0) {
+                                console.error('No users found for the selected room');
+                            }
+                            data.forEach(user => {
+                                const row = document.createElement('tr');
+
+                                // ユーザー名を表示
+                                const nameCell = document.createElement('td');
+                                const nameLabel = document.createElement('label');
+                                nameLabel.className = 'form-check-label';
+                                nameLabel.htmlFor = 'user-' + user.id;
+                                nameLabel.textContent = user.name;
+                                nameCell.appendChild(nameLabel);
+                                row.appendChild(nameCell);
+
+                                // 朝のチェックボックス
+                                const morningCell = document.createElement('td');
+                                const morningCheckbox = document.createElement('input');
+                                morningCheckbox.className = 'form-check-input';
+                                morningCheckbox.type = 'checkbox';
+                                morningCheckbox.name = `morning_${user.id}`;
+                                morningCell.appendChild(morningCheckbox);
+                                row.appendChild(morningCell);
+
+                                // 昼のチェックボックス
+                                const afternoonCell = document.createElement('td');
+                                const afternoonCheckbox = document.createElement('input');
+                                afternoonCheckbox.className = 'form-check-input';
+                                afternoonCheckbox.type = 'checkbox';
+                                afternoonCheckbox.name = `afternoon_${user.id}`;
+                                afternoonCell.appendChild(afternoonCheckbox);
+                                row.appendChild(afternoonCell);
+
+                                // 夜のチェックボックス
+                                const eveningCell = document.createElement('td');
+                                const eveningCheckbox = document.createElement('input');
+                                eveningCheckbox.className = 'form-check-input';
+                                eveningCheckbox.type = 'checkbox';
+                                eveningCheckbox.name = `evening_${user.id}`;
+                                eveningCell.appendChild(eveningCheckbox);
+                                row.appendChild(eveningCell);
+
+                                // 行をテーブルに追加
+                                userCheckboxes.appendChild(row);
+                            });
+                        })
+                        .catch(error => console.error('Fetch error:', error));
+                } else {
+                    userSelection.style.display = 'none';
+                }
+            });
+        });
+    })
+
+</script>

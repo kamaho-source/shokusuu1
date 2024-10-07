@@ -1,8 +1,8 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Model\Table;
 
-use Cake\ORM\Query\SelectQuery;
-use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -18,6 +18,10 @@ class MRoomInfoTable extends Table
         // MUserGroup モデルとの関連付けを設定
         $this->hasMany('MUserGroup', [
             'foreignKey' => 'i_id_room',
+        ]);
+
+        $this->hasMany('MUserInfo',[
+            'foreignKey' => 'i_id_room'
         ]);
     }
 

@@ -73,6 +73,9 @@ return function (RouteBuilder $routes): void {
         $builder->connect('TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/bulk-add-submit', ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit', '_method' => 'POST']);
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
+        $builder->connect('/TReservation-info/getUsersByRoom/:roomId', ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom'])
+            ->setPass(['roomId']);
+
 
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);

@@ -45,6 +45,10 @@ class TReservationInfoTable extends Table
             'foreignKey' => 'i_id_room', // 実際の外部キーのカラム名
             'joinType' => 'INNER', // 必要に応じて 'LEFT' に変更
         ]);
+        $this->belongsTo('MUserInfo', [
+            'foreignKey' => 'i_id_user', // 実際の外部キーのカラム名
+            'joinType' => 'INNER', // 必要に応じて 'LEFT' に変更
+        ]);
     }
 
     /**

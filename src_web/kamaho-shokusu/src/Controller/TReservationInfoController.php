@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Cake\Event\EventInterface;
+use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\NotFoundException;
 use App\Controller\InvalidArgumentException;
 use Cake\I18n\Date;
@@ -11,21 +12,29 @@ use Cake\I18n\FrozenTime;
 use Cake\I18n\Time;
 use Cake\Log\Log;
 use Cake\I18n\FrozenDate;
+use mysql_xdevapi\Result;
 
 /**
  * TReservationInfo コントローラー
  *
  * @property \App\Model\Table\TReservationInfoTable $TReservationInfo
+ * @property \App\Model\Table\MRoomInfoTable $MRoomInfo
+ * @property \App\Model\Table\MUserInfoTable $MUserInfo
+ * @property \App\Model\Table\MUserGroupTable $MUserGroup
+ *
  */
 class TReservationInfoController extends AppController
 {
+
+    protected $MUserGroup;
+
     public function initialize(): void
     {
         parent::initialize();
         $this->fetchTable('TReservationInfo');
-        $this->fetchTable('MRoomInfo');
-        $this->fetchTable('MUserInfo');
-        $this->fetchTable('MUserGroup');
+        $this->MRoomInfo = $this->fetchTable('MRoomInfo');
+        $this->MUserInfo =  $this->fetchTable('MUserInfo');
+        $this->MUserGroup =  $this->fetchTable('MUserGroup');
         $this->loadComponent('Flash');
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
@@ -154,6 +163,57 @@ class TReservationInfoController extends AppController
         $this->set(compact('groupedRoomInfos', 'date'));
     }
 
+
+    /**
+     * 所属しているユーザーを取得するメソッド
+     */
+
+    public function getUsersByRoom($roomId)
+    {
+        // HTTPメソッドの制限
+        $this->request->allowMethod(['get']);
+
+        // 不要なビューをレンダリングしないように設定
+        $this->autoRender = false;
+
+        // $roomIdを整数に変換
+        $roomId = (int) $roomId;
+
+        // ユーザー情報を取得
+        $usersByRoom = $this->MUserGroup->find()
+            ->select(['i_id_user', 'i_id_room'])
+            ->where(['i_id_room' => $roomId])
+            ->toArray();
+
+        // 完全なユーザー情報を構築
+        $completeUserInfo = [];
+
+        foreach ($usersByRoom as $user) {
+            // ユーザー情報をfindを使って取得
+            $userInfo = $this->MUserInfo->find()
+                ->select(['c_user_name'])
+                ->where(['i_id_user' => $user->i_id_user])
+                ->first();
+
+            if ($userInfo) {
+                $completeUserInfo[] = [
+                    'id' => $user->i_id_user,
+                    'name' => $userInfo->c_user_name,
+                    'room' => $user->i_id_room
+                ];
+            }
+        }
+
+        // JSONレスポンスをセット
+        $response = ['usersByRoom' => $completeUserInfo];
+
+        // レスポンスをJSONとして返す
+        $this->response = $this->response->withType('application/json')
+            ->withStringBody(json_encode($response));
+
+        return $this->response;
+    }
+
     /**
      * 追加メソッド
      *
@@ -161,62 +221,62 @@ class TReservationInfoController extends AppController
      */
     public function add()
     {
-        // 新規の予約情報エンティティを作成
         $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
         $reservationDate = $this->request->getQuery('date');
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
 
-            // 予約日が指定されているか確認
             if (empty($reservationDate)) {
-                $this->Flash->error(__('予約日が選択されていません。'));
-                return $this->redirect(['action' => 'add']);
+                return $this->jsonErrorResponse(__('予約日が選択されていません。'));
             }
 
-            // 部屋IDと予約タイプが指定されているか確認
             if (empty($data['i_id_room']) || empty($data['c_reservation_type'])) {
-                $this->Flash->error(__('部屋IDまたは予約タイプが選択されていません。'));
-                return $this->redirect(['action' => 'add']);
+                return $this->jsonErrorResponse(__('部屋IDまたは予約タイプが選択されていません。'));
             }
 
-            // ログインユーザー情報の取得
             $user = $this->request->getAttribute('identity');
             if (!$user) {
-                $this->Flash->error(__('ユーザー情報が取得できませんでした。'));
-                return $this->redirect(['action' => 'add']);
+                return $this->jsonErrorResponse(__('ユーザー情報が取得できませんでした。'));
             }
 
-            // データを予約情報に設定
             $tReservationInfo->d_reservation_date = $reservationDate;
             $tReservationInfo->i_id_room = $data['i_id_room'];
             $tReservationInfo->c_reservation_type = $data['c_reservation_type'];
             $tReservationInfo->c_create_user = $user->get('c_user_name');
             $tReservationInfo->dt_create = date('Y-m-d H:i:s');
 
-            // 他のフィールドをリクエストデータからパッチ
             $tReservationInfo = $this->TReservationInfo->patchEntity($tReservationInfo, $data);
 
-            // 予約情報を保存
             if ($this->TReservationInfo->save($tReservationInfo)) {
-                $this->Flash->success(__('予約を承りました。'));
-                return $this->redirect(['action' => 'index']);
+                return $this->jsonSuccessResponse(__('予約を承りました。'));
             }
 
-            $this->Flash->error(__('予約を受け付けることができませんでした。もう一度お試しください。'));
+            return $this->jsonErrorResponse(__('予約を受け付けることができませんでした。もう一度お試しください。'));
         }
 
-        // 部屋情報を取得してビューに渡す
         $MRoomInfoTable = $this->fetchTable('MRoomInfo');
         $rooms = $MRoomInfoTable->find('list', [
             'keyField' => 'i_id_room',
             'valueField' => 'c_room_name'
         ])->toArray();
 
-        // 予約情報と部屋リストをビューにセット
         $this->set(compact('tReservationInfo', 'rooms', 'reservationDate'));
     }
 
+    private function jsonErrorResponse($message)
+    {
+        $response = ['status' => 'error', 'message' => $message];
+        return $this->response->withType('application/json')
+            ->withStringBody(json_encode($response));
+    }
+
+    private function jsonSuccessResponse($message)
+    {
+        $response = ['status' => 'success', 'message' => $message];
+        return $this->response->withType('application/json')
+            ->withStringBody(json_encode($response));
+    }
 
     public function bulkAddForm()
     {
@@ -453,4 +513,5 @@ class TReservationInfoController extends AppController
 
         return $this->redirect(['action' => 'index']);
     }
+
 }

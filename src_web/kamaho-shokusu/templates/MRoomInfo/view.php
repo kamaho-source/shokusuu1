@@ -40,8 +40,8 @@ $this->Html->css(['bootstrap.min']);
                             <tr>
                                 <th><?= __('ユーザー識別ID') ?></th>
                                 <th><?= __('ユーザー名') ?></th>
-                                <th><?= __('属性') ?></th>
                                 <th><?= __('表示順') ?></th>
+                                <th><?= __('ユーザーレベル') ?></th>
                             </tr>
                             </thead>
                             <tbody>
@@ -49,8 +49,10 @@ $this->Html->css(['bootstrap.min']);
                                 <tr>
                                     <td><?= $this->Number->format($user->i_id_user) ?></td>
                                     <td><?= h($user->c_user_name) ?></td>
-                                    <td><?= h($user->c_attribute) ?></td> <!-- 属性を表示 -->
                                     <td><?= $user->i_disp_no === null ? '' : $this->Number->format($user->i_disp_no) ?></td>
+                                    <td>
+                                        <?= h($user->i_user_level === 0 ? '職員' : ($user->i_user_level === 1 ? '児童' : 'その他')) ?>
+                                    </td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
@@ -61,7 +63,6 @@ $this->Html->css(['bootstrap.min']);
                         <?= __('この部屋には現在所属メンバーがいません。') ?>
                     </div>
                 <?php endif; ?>
-
             </div>
         </div>
     </div>
