@@ -30,12 +30,16 @@ class TIndividualReservationInfo extends Entity
      * @var array<string, bool>
      */
     protected array $_accessible = [
+        'i_id_user' => true,
         'i_reservation_type' => true,
+        'i_id_room' => true,
+
         'eat_flag' => true,
         'dt_create' => true,
         'c_create_user' => true,
         'dt_update' => true,
         'c_update_user' => true,
+
     ];
 
 

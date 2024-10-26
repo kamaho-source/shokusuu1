@@ -45,7 +45,19 @@ $this->Html->css(['bootstrap.min']);
                             </tr>
                             </thead>
                             <tbody>
-                            <?php foreach ($users as $user): ?>
+                            <?php
+                            $staff = array_filter($users, function ($user) {
+                                return $user->i_user_level === 0;
+                            });
+                            $children = array_filter($users, function ($user) {
+                                return $user->i_user_level === 1;
+                            });
+                            $others = array_filter($users, function ($user) {
+                                return $user->i_user_level !== 0 && $user->i_user_level !== 1;
+                            });
+                            $groupedUsers = array_merge($staff, $children, $others);
+                            ?>
+                            <?php foreach ($groupedUsers as $user): ?>
                                 <tr>
                                     <td><?= $this->Number->format($user->i_id_user) ?></td>
                                     <td><?= h($user->c_user_name) ?></td>

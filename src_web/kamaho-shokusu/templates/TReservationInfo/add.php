@@ -1,3 +1,18 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var \App\Model\Entity\TIndividualReservationInfo $tReservationInfo
+ * @var array $users
+ * @var array $rooms
+ */
+
+use Cake\Form\Form;
+use Cake\Form\Schema;
+use Cake\Validation\Validator;
+
+$this->Html->script('reservation', ['block' => true]);
+$this->Html->css(['bootstrap.min']);
+?>
 <div class="row">
     <aside class="col-md-3">
         <div class="list-group">
@@ -36,44 +51,64 @@
 
                     <!-- 予約タイプの選択 -->
                     <div class="form-group">
-                        <?php $reservationTypes = [
+                        <?php
+                        $reservationTypes = [
                             1 => '個人',
                             2 => '集団'
                         ]; ?>
-                        <?= $this->Form->control('c_reservation_type', [
-                            'label' => '予約タイプ',
-                            'type' => 'select',
-                            'options' => $reservationTypes,
-                            'empty' => '-- 予約タイプを選択 --',
-                            'class' => 'form-control',
-                            'id' => 'reservation-type-select' // idを追加
-                        ]) ?>
+                        <label for="c_reservation_type">予約タイプ(個人/集団)</label>
+                        <select id="c_reservation_type" name="reservation_type" class="form-control">
+                            <option value="" selected disabled>-- 予約タイプを選択 --</option>
+                            <?php foreach ($reservationTypes as $value => $label): ?>
+                                <option value="<?= $value ?>"><?= $label ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
 
-                    <!-- 部屋のチェックボックス（個人用） -->
-                    <div class="form-group" id="room-checkboxes-group" style="display: none;">
-                        <?= $this->Form->label('rooms', '部屋') ?>
-                        <div id="room-checkboxes" class="form-check">
-                            <!-- 部屋のチェックボックスがここに動的に追加されます -->
+                    <!-- 個人予約用の部屋と食事選択テーブル -->
+                    <div class="form-group" id="room-selection-table" style="display: none;">
+                        <?= $this->Form->label('rooms', '部屋名と食事選択') ?>
+                        <div id="room-table-container">
+                            <table class="table table-bordered">
+                                <thead>
+                                <tr>
+                                    <th>部屋名</th>
+                                    <th>朝</th>
+                                    <th>昼</th>
+                                    <th>夜</th>
+                                </tr>
+                                </thead>
+                                <tbody id="room-checkboxes">
+                                <!-- 部屋名とチェックボックスが動的に追加されます -->
+                                <?php foreach ($rooms as $roomId => $roomName): ?>
+                                    <tr>
+                                        <td><?= $roomName ?></td>
+                                        <td><?= $this->Form->checkbox("meals.morning[$roomId]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("meals.afternoon[$roomId]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("meals.evening[$roomId]", ['value' => 1]) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
 
-                    <!-- 部屋のセレクトボックス（集団用） -->
+                    <!-- 集団予約用の部屋セレクトボックス -->
                     <div class="form-group" id="room-select-group" style="display: none;">
                         <?= $this->Form->label('room-select', '部屋を選択') ?>
-                        <?= $this->Form->control('room_select', [
+                        <?= $this->Form->control('i_id_room', [
                             'type' => 'select',
                             'label' => false,
                             'options' => $rooms,
                             'empty' => '-- 部屋を選択 --',
                             'class' => 'form-control',
-                            'id' => 'room-select' // idを追加
+                            'id' => 'room-select'
                         ]) ?>
                     </div>
 
-                    <!-- 部屋に属するユーザーのテーブル -->
-                    <div class="form-group" id="user-selection" style="display: none;">
-                        <?= $this->Form->label('users', '部屋に属する利用者') ?>
+                    <!-- 集団予約用の利用者テーブル -->
+                    <div class="form-group" id="user-selection-table" style="display: none;">
+                        <?= $this->Form->label('users', '部屋に属する利用者と食事選択') ?>
                         <div id="user-table-container">
                             <table class="table table-bordered">
                                 <thead>
@@ -85,148 +120,28 @@
                                 </tr>
                                 </thead>
                                 <tbody id="user-checkboxes">
-                                <!-- ユーザーが動的に追加されます -->
+                                <!-- 利用者名とチェックボックスが動的に追加されます -->
+                                <?php foreach ($users as $userId => $userName): ?>
+                                    <tr>
+                                        <td><?= $userName ?></td>
+                                        <td><?= $this->Form->checkbox("users[$userId][morning]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("users[$userId][afternoon]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("users[$userId][evening]", ['value' => 1]) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </fieldset>
-                <?= $this->Form->button(__('Submit'), ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->button(__('登録'), ['class' => 'btn btn-primary']) ?>
                 <?= $this->Form->end() ?>
             </div>
         </div>
     </div>
 </div>
 
-<!-- JavaScriptでの動的リスト取得 -->
+<!-- 部屋データをJavaScriptオブジェクトとして出力 -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('reservation-type-select').addEventListener('change', function() {
-            var reservationType = this.value;
-            var roomCheckboxesGroup = document.getElementById('room-checkboxes-group');
-            var roomSelectGroup = document.getElementById('room-select-group');
-            var userSelection = document.getElementById('user-selection');
-            var userCheckboxes = document.getElementById('user-checkboxes');
-            var roomCheckboxes = document.getElementById('room-checkboxes');
-
-            // チェックボックスとセレクトボックスのクリア
-            userCheckboxes.innerHTML = '';
-            roomCheckboxes.innerHTML = '';
-
-            // Reservation typeによる表示制御
-            if (reservationType == 1) {
-                // Individual selected
-                roomCheckboxesGroup.style.display = 'block';
-                roomSelectGroup.style.display = 'none';
-                userSelection.style.display = 'none';
-
-                <?php foreach ($rooms as $roomId => $roomName): ?>
-                var checkboxWrapper = document.createElement('div');
-                checkboxWrapper.className = 'form-check';
-
-                var checkbox = document.createElement('input');
-                checkbox.className = 'form-check-input';
-                checkbox.type = 'checkbox';
-                checkbox.name = 'room_ids[]';
-                checkbox.value = <?= json_encode($roomId) ?>;
-                checkbox.id = 'room-<?= $roomId ?>';
-
-                var label = document.createElement('label');
-                label.className = 'form-check-label';
-                label.htmlFor = 'room-<?= $roomId ?>';
-                label.appendChild(document.createTextNode(<?= json_encode($roomName) ?>));
-
-                checkboxWrapper.appendChild(checkbox);
-                checkboxWrapper.appendChild(label);
-                roomCheckboxes.appendChild(checkboxWrapper);
-                <?php endforeach; ?>
-
-            } else if (reservationType == 2) {
-                // Group selected
-                roomCheckboxesGroup.style.display = 'none';
-                roomSelectGroup.style.display = 'block';
-                userSelection.style.display = 'block';
-
-                var roomSelect = document.getElementById('room-select');
-
-                // イベントリスナーの設定
-                roomSelect.removeEventListener('change', handleRoomSelect);
-                roomSelect.addEventListener('change', handleRoomSelect);
-            } else {
-                roomCheckboxesGroup.style.display = 'none';
-                roomSelectGroup.style.display = 'none';
-                userSelection.style.display = 'none';
-            }
-        });
-
-        function handleRoomSelect() {
-            var roomId = this.value;
-            var userCheckboxes = document.getElementById('user-checkboxes');
-            userCheckboxes.innerHTML = '';
-
-            if (roomId) {
-                // 相対URLを使用してエンドポイントにアクセス
-                var url = `/kamaho-shokusu/TReservationInfo/getUsersByRoom/${roomId}`;
-
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.text().then(text => { throw new Error(text); });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        // レスポンスの検証
-                        if (!data.usersByRoom) {
-                            console.error('Invalid JSON response: usersByRoom property is missing');
-                            alert('Invalid JSON response: usersByRoom property is missing');
-                            return;
-                        }
-
-                        // ユーザー情報の表示
-                        data.usersByRoom.forEach(user => {
-                            var row = document.createElement('tr');
-
-                            var nameCell = document.createElement('td');
-                            nameCell.appendChild(document.createTextNode(user.name));
-
-                            var morningCell = document.createElement('td');
-                            var morningCheckbox = document.createElement('input');
-                            morningCheckbox.className = 'form-check-input';
-                            morningCheckbox.type = 'checkbox';
-                            morningCheckbox.name = `morning_${user.id}`;
-                            morningCheckbox.value = 1;
-                            morningCell.appendChild(morningCheckbox);
-
-                            var afternoonCell = document.createElement('td');
-                            var afternoonCheckbox = document.createElement('input');
-                            afternoonCheckbox.className = 'form-check-input';
-                            afternoonCheckbox.type = 'checkbox';
-                            afternoonCheckbox.name = `afternoon_${user.id}`;
-                            afternoonCheckbox.value = 1;
-                            afternoonCell.appendChild(afternoonCheckbox);
-
-                            var eveningCell = document.createElement('td');
-                            var eveningCheckbox = document.createElement('input');
-                            eveningCheckbox.className = 'form-check-input';
-                            eveningCheckbox.type = 'checkbox';
-                            eveningCheckbox.name = `evening_${user.id}`;
-                            eveningCheckbox.value = 1;
-                            eveningCell.appendChild(eveningCheckbox);
-
-                            row.appendChild(nameCell);
-                            row.appendChild(morningCell);
-                            row.appendChild(afternoonCell);
-                            row.appendChild(eveningCell);
-
-                            userCheckboxes.appendChild(row);
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Fetch error:', error);
-                        alert('Fetch error: ' + error.message);
-                    });
-            }
-        }
-    });
+    var roomsData = <?= json_encode($rooms); ?>;
 </script>

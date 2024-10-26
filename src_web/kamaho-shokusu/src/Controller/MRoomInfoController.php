@@ -62,7 +62,7 @@ class MRoomInfoController extends AppController
         // 空のリストを渡さないよう、安全確保
         if (!empty($userIds)) {
             $users = $this->MUserInfo->find('all', [
-                'conditions' => ['MUserInfo.i_id_user IN' => $userIds]
+                'conditions' => ['MUserInfo.i_id_user IN' => $userIds],
             ])->toArray();
         } else {
             $users = [];

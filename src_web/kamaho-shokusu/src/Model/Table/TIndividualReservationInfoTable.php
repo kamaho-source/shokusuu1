@@ -38,7 +38,7 @@ class TIndividualReservationInfoTable extends Table
         parent::initialize($config);
 
         $this->setTable('t_individual_reservation_info');
-        $this->setDisplayField(['i_id_user', 'd_reservation_date', 'i_id_room']);
+        $this->setDisplayField('i_id_user');
         $this->setPrimaryKey(['i_id_user', 'd_reservation_date', 'i_id_room']);
     }
 
@@ -51,10 +51,27 @@ class TIndividualReservationInfoTable extends Table
     public function validationDefault(Validator $validator): Validator
     {
         $validator
-            ->allowEmptyString('i_reservation_type');
+            ->integer('i_id_user')
+            ->requirePresence('i_id_user', 'create')
+            ->notEmptyString('i_id_user', 'User ID is required');
 
         $validator
-            ->allowEmptyString('eat_flag');
+            ->date('d_reservation_date')
+            ->requirePresence('d_reservation_date', 'create')
+            ->notEmptyDate('d_reservation_date', 'Reservation date is required');
+
+        $validator
+            ->integer('i_id_room')
+            ->requirePresence('i_id_room', 'create')
+            ->notEmptyString('i_id_room', 'Room ID is required');
+
+        $validator
+            ->integer('i_reservation_type')
+            ->requirePresence('i_reservation_type', 'create')
+            ->notEmptyString('i_reservation_type', 'Reservation type is required');
+
+        $validator
+            ->notEmptyString('eat_flag', 'Eat flag is required');
 
         $validator
             ->dateTime('dt_create')
