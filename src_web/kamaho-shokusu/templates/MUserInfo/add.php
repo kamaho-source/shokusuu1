@@ -1,3 +1,7 @@
+
+<?php
+$this->assign('title', 'ユーザー情報の追加');
+?>
 <div class="row">
     <aside class="col-md-3">
         <div class="list-group">

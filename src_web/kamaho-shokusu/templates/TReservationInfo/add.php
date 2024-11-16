@@ -9,9 +9,10 @@
 use Cake\Form\Form;
 use Cake\Form\Schema;
 use Cake\Validation\Validator;
-
+$this->assign('title','ユーザー情報登録');
 $this->Html->script('reservation', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
+echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -33,9 +34,9 @@ $this->Html->css(['bootstrap.min']);
                 <h3><?= __('予約の追加') ?></h3>
             </div>
             <div class="card-body">
-                <?= $this->Form->create($tReservationInfo) ?>
+                <?= $this->Form->create($tReservationInfo, ['id' => 'reservation-form']) ?>
                 <fieldset>
-                    <legend><?= __('Reservation Details') ?></legend>
+                    <legend><?= __("食数予約") ?></legend>
                     <div class="form-group row">
                         <?= $this->Form->label('d_reservation_date', '予約日', ['class' => 'col-sm-3 col-form-label']) ?>
                         <div class="col-sm-9">
@@ -43,8 +44,8 @@ $this->Html->css(['bootstrap.min']);
                                 'type' => 'date',
                                 'label' => false,
                                 'class' => 'form-control',
-                                'disabled' => true, // 日付は修正できないようにする
-                                'value' => $date // クリックされた日付を表示
+                                'disabled' => true,
+                                'value' => $date
                             ]) ?>
                         </div>
                     </div>
@@ -79,13 +80,12 @@ $this->Html->css(['bootstrap.min']);
                                 </tr>
                                 </thead>
                                 <tbody id="room-checkboxes">
-                                <!-- 部屋名とチェックボックスが動的に追加されます -->
                                 <?php foreach ($rooms as $roomId => $roomName): ?>
                                     <tr>
                                         <td><?= $roomName ?></td>
-                                        <td><?= $this->Form->checkbox("meals.morning[$roomId]", ['value' => 1]) ?></td>
-                                        <td><?= $this->Form->checkbox("meals.afternoon[$roomId]", ['value' => 1]) ?></td>
-                                        <td><?= $this->Form->checkbox("meals.evening[$roomId]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("meals[1][$roomId]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("meals[2][$roomId]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("meals[3][$roomId]", ['value' => 1]) ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                                 </tbody>
@@ -120,15 +120,7 @@ $this->Html->css(['bootstrap.min']);
                                 </tr>
                                 </thead>
                                 <tbody id="user-checkboxes">
-                                <!-- 利用者名とチェックボックスが動的に追加されます -->
-                                <?php foreach ($users as $userId => $userName): ?>
-                                    <tr>
-                                        <td><?= $userName ?></td>
-                                        <td><?= $this->Form->checkbox("users[$userId][morning]", ['value' => 1]) ?></td>
-                                        <td><?= $this->Form->checkbox("users[$userId][afternoon]", ['value' => 1]) ?></td>
-                                        <td><?= $this->Form->checkbox("users[$userId][evening]", ['value' => 1]) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
+                                <!-- JavaScriptで動的にユーザー情報を表示 -->
                                 </tbody>
                             </table>
                         </div>

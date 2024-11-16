@@ -33,7 +33,7 @@ class TIndividualReservationInfo extends Entity
         'i_id_user' => true,
         'i_reservation_type' => true,
         'i_id_room' => true,
-
+        'd_reservation_date' => true,
         'eat_flag' => true,
         'dt_create' => true,
         'c_create_user' => true,

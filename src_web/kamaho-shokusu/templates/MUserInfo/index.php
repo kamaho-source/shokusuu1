@@ -6,6 +6,7 @@
  */
 
 echo $this->Html->css(['bootstrap.min']);
+$this->assign('title', 'ユーザー情報一覧');
 ?>
 <div class="mUserInfo index content">
     <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>

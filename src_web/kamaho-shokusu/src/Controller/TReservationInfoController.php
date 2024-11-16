@@ -179,39 +179,65 @@ class TReservationInfoController extends AppController
 
     public function getUsersByRoom($roomId)
     {
+        Log::debug('Received reservation_type: ' . $this->request->getData('reservation_type'));
+
         $this->request->allowMethod(['get', 'ajax']);
         $this->autoRender = false;
 
         // $roomIdを整数に変換
         $roomId = (int) $roomId;
 
-        // 部屋に属するユーザー情報を取得
-        $usersByRoom = $this->MUserGroup->find()
-            ->select(['i_id_user', 'i_id_room'])
-            ->where(['i_id_room' => $roomId])
-            ->toArray();
+        // reservation_typeを取得 (クエリパラメータから受け取る)
+        $reservationType = $this->request->getQuery('reservation_type');
 
-        if (empty($usersByRoom)) {
-            throw new NotFoundException(__('部屋に属するユーザーが見つかりませんでした。'));
-        }
+        // 個人予約の場合は現在のログインユーザーのみを取得
+        if ($reservationType == '1') {
+            $userId = $this->Auth->user('id'); // ログイン中のユーザーのIDを取得
 
-        $completeUserInfo = [];
-        foreach ($usersByRoom as $user) {
+            // ユーザー情報を取得
             $userInfo = $this->MUserInfo->find()
-                ->select(['c_user_name'])
-                ->where(['i_id_user' => $user->i_id_user])
+                ->select(['i_id_user', 'c_user_name'])
+                ->where(['i_id_user' => $userId])
                 ->first();
-            if ($userInfo) {
-                $completeUserInfo[] = [
-                    'id' => $user->i_id_user,
-                    'name' => $userInfo->c_user_name,
-                    'room' => $user->i_id_room
-                ];
+
+            if (!$userInfo) {
+                throw new NotFoundException(__('ユーザーが見つかりませんでした。'));
+            }
+
+            $completeUserInfo[] = [
+                'id' => $userInfo->i_id_user,
+                'name' => $userInfo->c_user_name,
+                'room' => $roomId
+            ];
+        } else {
+            // 集団予約の場合は部屋に属するユーザーを取得
+            $usersByRoom = $this->MUserGroup->find()
+                ->select(['i_id_user', 'i_id_room'])
+                ->where(['i_id_room' => $roomId])
+                ->toArray();
+
+            if (empty($usersByRoom)) {
+                throw new NotFoundException(__('部屋に属するユーザーが見つかりませんでした。'));
+            }
+
+            $completeUserInfo = [];
+            foreach ($usersByRoom as $user) {
+                $userInfo = $this->MUserInfo->find()
+                    ->select(['c_user_name'])
+                    ->where(['i_id_user' => $user->i_id_user])
+                    ->first();
+                if ($userInfo) {
+                    $completeUserInfo[] = [
+                        'id' => $user->i_id_user,
+                        'name' => $userInfo->c_user_name,
+                        'room' => $user->i_id_room
+                    ];
+                }
             }
         }
 
+        // JSON形式でレスポンスを返す
         $response = ['usersByRoom' => $completeUserInfo];
-
         return $this->response->withType('application/json')
             ->withStringBody(json_encode($response));
     }
@@ -220,31 +246,39 @@ class TReservationInfoController extends AppController
 
     public function add()
     {
-        // 新規エンティティの作成
-        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
-
-        $reservationDate = $this->request->getQuery('date');
-        Log::debug('Retrieved reservation date from query: ' . $reservationDate);
-
-        if ($reservationDate === null) {
-            Log::error('Reservation date is missing!');
-            return $this->jsonErrorResponse(__('予約日が選択されていません。'));
-        }
-
         if ($this->request->is('post')) {
             $data = $this->request->getData();
-            if (isset($data['users']) && is_array($data['users']) && !empty($data['users'])) {
+            Log::debug('Received POST data: ' . print_r($data, true));
+
+            // reservationDate の確認
+            $reservationDate = $data['d_reservation_date'] ?? null;
+            Log::debug('Retrieved reservation date from POST data: ' . $reservationDate);
+
+            if ($reservationDate === null) {
+                Log::error('Reservation date is missing!');
+                return $this->jsonErrorResponse(__('予約日が選択されていません。'));
+            }
+
+            $reservationType = $data['reservation_type'] ?? '1';
+            Log::debug('Effective reservation_type: ' . $reservationType);
+
+            if ($reservationType === '2') {
                 return $this->processGroupReservation($reservationDate, $data);
             } else {
                 return $this->processIndividualReservation($reservationDate, $data);
             }
         }
 
+        // GET リクエスト
         $user = $this->request->getAttribute('identity');
-        $userId = $user->get('i_id_user');
-        $username = $user->get('c_user_name');
+        $userId = $user ? $user->get('i_id_user') : null;
 
-        // 部屋情報の取得
+        if ($userId === null) {
+            Log::error('User ID is missing!');
+            return $this->jsonErrorResponse(__('ユーザー情報が取得できませんでした。'));
+        }
+
+        // 部屋情報取得
         $rooms = $this->MRoomInfo->find('list', [
             'keyField' => 'i_id_room',
             'valueField' => 'c_room_name'
@@ -254,16 +288,16 @@ class TReservationInfoController extends AppController
             })
             ->toArray();
 
-        // ユーザー情報の取得
-        $users = $this->MUserInfo->find('list', [
-            'keyField' => 'i_id_user',
-            'valueField' => 'c_user_name'
-        ])->toArray();
-
-        // ビューにデータを渡す
-        $this->set(compact('tReservationInfo', 'rooms', 'reservationDate', 'users', 'userId'));
+        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
+        $this->set(compact('tReservationInfo', 'rooms'));
     }
 
+
+
+
+    /**
+     * 個人予約の処理
+     */
     /**
      * 個人予約の処理
      */
@@ -271,7 +305,6 @@ class TReservationInfoController extends AppController
     {
         Log::debug('Processing individual reservation.');
 
-        // ログインユーザーの取得
         $user = $this->request->getAttribute('identity');
         if (!$user) {
             Log::error('User information could not be retrieved.');
@@ -279,43 +312,32 @@ class TReservationInfoController extends AppController
         }
 
         $userId = $user->get('i_id_user');
-        $convertedData['users'] = [];
+        $username = $user->get('c_user_name');
 
-        // 部屋IDの確認
-        if (empty($data['i_id_room'])) {
-            Log::error('Room ID is missing.');
-            return $this->jsonErrorResponse(__('部屋が選択されていません。'));
+        if (empty($data['meals']) || !is_array($data['meals'])) {
+            Log::error('Meals data is missing or invalid.');
+            return $this->jsonErrorResponse(__('食事データが不正です。'));
         }
 
-        $roomId = $data['i_id_room'];
+        Log::debug('Received meals data: ' . json_encode($data['meals'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-        // 朝、昼、夜の食事データを確認し、重複を排除
-        if (!empty($data['users'][$userId])) {
-            $mealData = $data['users'][$userId];
+        foreach ($data['meals'] as $mealType => $rooms) {
+            foreach ($rooms as $roomId => $value) {
+                if ($value == "1") { // チェックされた項目のみ処理
+                    Log::debug("Processing mealType: $mealType, roomId: $roomId for userId: $userId");
 
-            foreach (['morning', 'afternoon', 'evening'] as $mealType) {
-                if (!empty($mealData[$mealType])) {
-                    $mealTime = ['morning' => 1, 'afternoon' => 2, 'evening' => 3][$mealType];
+                    $mealTime = (int) $mealType; // 1: 朝, 2: 昼, 3: 夜
+                    $result = $this->saveIndividualReservation($userId, $reservationDate, $roomId, $mealTime, $username);
 
-                    $reservation = $this->TIndividualReservationInfo->newEntity([
-                        'i_id_user' => $userId,
-                        'd_reservation_date' => new FrozenDate($reservationDate),
-                        'i_id_room' => $roomId,
-                        'i_reservation_type' => $mealTime,
-                        'eat_flag' => 1,
-                        'c_create_user' => $user->get('c_user_name'),
-                        'dt_create' => FrozenTime::now(),
-                    ]);
-
-                    if (!$this->TIndividualReservationInfo->save($reservation)) {
-                        $errors = $reservation->getErrors();
-                        Log::error('Individual reservation save failed: ' . json_encode($errors));
-                        return $this->jsonErrorResponse(__('予約情報の保存に失敗しました。'), ['errors' => $errors]);
+                    if (!$result['success']) {
+                        Log::error('Failed to save reservation for mealType: ' . $mealType . ', roomId: ' . $roomId);
+                        return $this->jsonErrorResponse(
+                            __('予約情報の保存に失敗しました。'),
+                            ['errors' => $result['errors']]
+                        );
                     }
                 }
             }
-        } else {
-            return $this->jsonErrorResponse(__('朝昼夜のいずれかを選択してください。'));
         }
 
         return $this->jsonSuccessResponse(__('予約を承りました。'));
@@ -324,90 +346,85 @@ class TReservationInfoController extends AppController
 
     /**
      * 集団予約の処理
+     *
      */
     private function processGroupReservation($reservationDate, $data)
     {
         Log::debug('Processing group reservation.');
+        Log::debug('Received users data: ' . json_encode($data['users'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-        // データを処理する際、朝・昼・夜に対応する値が格納される
-        $mealTimeMapping = [
-            'morning' => 1,
-            'afternoon' => 2,
-            'evening' => 3
-        ];
-
-        $filteredUsers = [];
-
-        foreach ($data['users'] as $userId => $meals) {
-            // ユーザーの全ての食事の状態が「0」でないことを確認
-            $hasMealSelection = false;
-
-            foreach ($meals as $mealTime => $eatFlag) {
-                if (array_key_exists($mealTime, $mealTimeMapping) && intval($eatFlag)) {
-                    $filteredUsers[$userId][$mealTimeMapping[$mealTime]] = intval($eatFlag);
-                    $hasMealSelection = true;
-                }
-            }
-
-            // 全て「0」ならこのユーザーをリストに追加しない
-            if (!$hasMealSelection) {
-                unset($filteredUsers[$userId]);
-            }
+        // 必要なデータが存在するか確認
+        if (empty($data['i_id_room'])) {
+            Log::error('Room ID is missing.');
+            return $this->jsonErrorResponse(__('部屋が選択されていません。'));
         }
 
-        // フィルタリングされたユーザーのデータで処理を続ける
-        $data['users'] = $filteredUsers;
-        $user = $this->request->getAttribute('identity');
+        if (!isset($data['users']) || !is_array($data['users']) || empty($data['users'])) {
+            Log::error('ユーザー情報が不足しています。');
+            return $this->jsonErrorResponse(__('ユーザー情報が不足しています。'));
+        }
+
+        // 日付のフォーマットチェックと変換
         try {
             $reservationDateObj = new FrozenDate($reservationDate);
-            Log::debug('Reservation date after FrozenDate conversion: ' . $reservationDateObj->i18nFormat('yyyy-MM-dd'));
+            Log::debug('Converted reservation date: ' . $reservationDateObj);
         } catch (\Exception $e) {
-            Log::error('Failed to convert reservation date to FrozenDate: ' . $e->getMessage());
-            return $this->jsonErrorResponse(__('予約日が不正です。もう一度入力してください。'));
+            Log::error('Failed to convert reservation date: ' . $e->getMessage());
+            return $this->jsonErrorResponse(__('予約日が不正です。'));
         }
+
+        // フィルタリング: 選択されたデータのみ取得
+        $filteredUsersData = array_filter($data['users'], function ($meals) {
+            return is_array($meals) && array_filter($meals, fn($value) => intval($value) === 1);
+        });
+
+        Log::debug('Filtered users data: ' . json_encode($filteredUsersData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
         $connection = ConnectionManager::get('default');
         $connection->begin();
 
         try {
-            foreach ($data['users'] as $userId => $meals) {
-                foreach ($meals as $mealTime => $eatFlag) {
-                    if ($eatFlag) {
+            foreach ($filteredUsersData as $userId => $meals) {
+                foreach ([1 => '朝', 2 => '昼', 3 => '夜'] as $mealTime => $mealName) {
+                    if (isset($meals[$mealTime]) && intval($meals[$mealTime]) === 1) {
                         $individualReservation = $this->TIndividualReservationInfo->newEntity([
                             'i_id_user' => $userId,
                             'd_reservation_date' => $reservationDateObj,
                             'i_id_room' => $data['i_id_room'],
                             'i_reservation_type' => $mealTime,
-                            'eat_flag' => $eatFlag,
-                            'c_create_user' => $user->get('c_user_name'),
+                            'eat_flag' => 1,
+                            'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name'),
                             'dt_create' => FrozenTime::now()
                         ]);
 
+                        // 主キーの各フィールドが設定されているかを確認
+                        Log::debug('Attempting to save reservation: ' . json_encode([
+                                'i_id_user' => $userId,
+                                'd_reservation_date' => $reservationDateObj,
+                                'i_id_room' => $data['i_id_room'],
+                            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
                         if (!$this->TIndividualReservationInfo->save($individualReservation)) {
                             $errors = $individualReservation->getErrors();
-                            Log::error('Individual reservation save failed: ' . json_encode($errors));
+                            Log::error('Individual reservation save failed: ' . json_encode($errors, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
                             $connection->rollback();
-                            return $this->jsonErrorResponse(
-                                __('予約情報の保存に失敗しました。もう一度お試しください。'),
-                                ['errors' => $errors, 'data' => $data]
-                            );
+                            return $this->jsonErrorResponse(__('予約情報の保存に失敗しました。'), ['errors' => $errors]);
                         }
                     }
                 }
             }
 
             $connection->commit();
-            return $this->jsonSuccessResponse(__('予約を承りました。'), ['data' => $data]);
+            return $this->jsonSuccessResponse(__('予約を承りました。'));
 
         } catch (\Exception $e) {
             Log::error('Exception during reservation save: ' . $e->getMessage());
             $connection->rollback();
-            return $this->jsonErrorResponse(
-                __('予約を受け付けることができませんでした。もう一度お試しください。'),
-                ['exception' => $e->getMessage(), 'data' => $data]
-            );
+            return $this->jsonErrorResponse(__('予約を受け付けることができませんでした。'), ['exception' => $e->getMessage()]);
         }
     }
+
+
 
 
     protected function jsonErrorResponse(string $message, array $data = [])
@@ -423,6 +440,7 @@ class TReservationInfoController extends AppController
             ->withType('application/json')
             ->withStringBody(json_encode(['status' => 'success', 'message' => $message, 'data' => $data], JSON_PRETTY_PRINT));
     }
+
 
 
     public function bulkAddForm()
@@ -660,5 +678,28 @@ class TReservationInfoController extends AppController
 
         return $this->redirect(['action' => 'index']);
     }
+    private function saveIndividualReservation($userId, $reservationDate, $roomId, $mealTime, $username)
+    {
+        Log::debug("Saving reservation - userId: $userId, reservationDate: $reservationDate, roomId: $roomId, mealTime: $mealTime");
+
+        $reservation = $this->TIndividualReservationInfo->newEntity([
+            'i_id_user' => $userId,
+            'd_reservation_date' => $reservationDate,
+            'i_id_room' => $roomId,
+            'i_reservation_type' => $mealTime,
+            'eat_flag' => 1,
+            'c_create_user' => $username,
+            'dt_create' => FrozenTime::now()
+        ]);
+
+        if (!$this->TIndividualReservationInfo->save($reservation)) {
+            $errors = $reservation->getErrors();
+            Log::error('Reservation save failed: ' . json_encode($errors, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+            return ['success' => false, 'errors' => $errors];
+        }
+
+        return ['success' => true];
+    }
+
 
 }

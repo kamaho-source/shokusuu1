@@ -209,7 +209,6 @@ class MUserInfoController extends AppController
                             'i_id_room' => (int)$roomId,
                             'active_flag' => 0, // 元のコードのロジックに従って 0 を設定
                             'dt_create' => date('Y-m-d H:i:s'),
-                            'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー',
                             'dt_update' => date('Y-m-d H:i:s'),
                             'c_update_user' => $user ? $user->get('c_user_name') : '不明なユーザー',
                         ]);

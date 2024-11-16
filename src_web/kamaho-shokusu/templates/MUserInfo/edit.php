@@ -5,7 +5,7 @@
  * @var array $rooms
  * @var array $selectedRooms
  */
-
+$this->assign('title', 'ユーザー情報の編集');
 // $rooms は部屋情報の配列としてコントローラから渡されることを想定しています。
 // $selectedRooms はユーザーが現在所属している部屋のID配列です。
 ?>

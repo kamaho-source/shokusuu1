@@ -3,6 +3,8 @@
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MUserInfo $mUserInfo
  */
+
+$this->assign('title', 'ユーザー情報の表示');
 ?>
 <div class="row">
     <aside class="col-md-3">

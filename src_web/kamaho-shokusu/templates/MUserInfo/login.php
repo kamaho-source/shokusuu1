@@ -1,4 +1,7 @@
 <!-- in templates/Users/login.php -->
+<?php
+$this->assign('title', 'ログイン');
+?>
 
 <div class="container mt-5">
     <div class="row">
