@@ -9,7 +9,7 @@
 use Cake\Form\Form;
 use Cake\Form\Schema;
 use Cake\Validation\Validator;
-$this->assign('title','ユーザー情報登録');
+$this->assign('title','食数予約の追加');
 $this->Html->script('reservation', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
 echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));

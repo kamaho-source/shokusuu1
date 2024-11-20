@@ -95,13 +95,13 @@ class TReservationInfoController extends AppController
         $this->request->allowMethod(['get', 'ajax']);
 
         // 全ての予約データを取得
-        $reservations = $this->TReservationInfo->find('all');
+        $reservations = $this->TIndividualReservationInfo->find('all');
 
         // 予約データをFullCalendarで使用する形式に変換
         $events = [];
         foreach ($reservations as $reservation) {
             $events[] = [
-                'title' => '合計食数: ' . $reservation->i_taberu_ninzuu,
+                'title' => '合計食数: ' . $reservation->sum(''),
                 'start' => $reservation->d_reservation_date->format('Y-m-d'),
                 'allDay' => true
             ];
@@ -340,20 +340,16 @@ class TReservationInfoController extends AppController
             }
         }
 
-        return $this->jsonSuccessResponse(__('予約を承りました。'));
+        // 成功した場合のリダイレクト先を指定
+        $redirectUrl = $this->referer(['action' => 'index']); // indexにリダイレクト
+        return $this->jsonSuccessResponse(__('予約を承りました。'), [], $this->request->getAttribute('webroot').'/TReservationInfo/index');
     }
 
-
-    /**
-     * 集団予約の処理
-     *
-     */
     private function processGroupReservation($reservationDate, $data)
     {
         Log::debug('Processing group reservation.');
         Log::debug('Received users data: ' . json_encode($data['users'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
-        // 必要なデータが存在するか確認
         if (empty($data['i_id_room'])) {
             Log::error('Room ID is missing.');
             return $this->jsonErrorResponse(__('部屋が選択されていません。'));
@@ -364,7 +360,6 @@ class TReservationInfoController extends AppController
             return $this->jsonErrorResponse(__('ユーザー情報が不足しています。'));
         }
 
-        // 日付のフォーマットチェックと変換
         try {
             $reservationDateObj = new FrozenDate($reservationDate);
             Log::debug('Converted reservation date: ' . $reservationDateObj);
@@ -373,7 +368,6 @@ class TReservationInfoController extends AppController
             return $this->jsonErrorResponse(__('予約日が不正です。'));
         }
 
-        // フィルタリング: 選択されたデータのみ取得
         $filteredUsersData = array_filter($data['users'], function ($meals) {
             return is_array($meals) && array_filter($meals, fn($value) => intval($value) === 1);
         });
@@ -397,13 +391,6 @@ class TReservationInfoController extends AppController
                             'dt_create' => FrozenTime::now()
                         ]);
 
-                        // 主キーの各フィールドが設定されているかを確認
-                        Log::debug('Attempting to save reservation: ' . json_encode([
-                                'i_id_user' => $userId,
-                                'd_reservation_date' => $reservationDateObj,
-                                'i_id_room' => $data['i_id_room'],
-                            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
                         if (!$this->TIndividualReservationInfo->save($individualReservation)) {
                             $errors = $individualReservation->getErrors();
                             Log::error('Individual reservation save failed: ' . json_encode($errors, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
@@ -415,15 +402,16 @@ class TReservationInfoController extends AppController
             }
 
             $connection->commit();
-            return $this->jsonSuccessResponse(__('予約を承りました。'));
 
+            // 成功した場合のリダイレクト先を指定
+            $redirectUrl = $this->referer(['action'=>'index']); // indexにリダイレクト
+            return $this->jsonSuccessResponse(__('予約を承りました。'), [], $this->request->getAttribute('webroot').'/TReservationInfo/index');
         } catch (\Exception $e) {
             Log::error('Exception during reservation save: ' . $e->getMessage());
             $connection->rollback();
             return $this->jsonErrorResponse(__('予約を受け付けることができませんでした。'), ['exception' => $e->getMessage()]);
         }
     }
-
 
 
 
@@ -434,13 +422,22 @@ class TReservationInfoController extends AppController
             ->withStringBody(json_encode(['status' => 'error', 'message' => $message, 'data' => $data], JSON_PRETTY_PRINT));
     }
 
-    protected function jsonSuccessResponse(string $message, array $data = [])
+    protected function jsonSuccessResponse(string $message, array $data = [], string $redirect = null)
     {
+        $responseData = [
+            'status' => 'success',
+            'message' => $message,
+            'data' => $data,
+        ];
+
+        if ($redirect) {
+            $responseData['redirect'] = $redirect;
+        }
+
         return $this->response
             ->withType('application/json')
-            ->withStringBody(json_encode(['status' => 'success', 'message' => $message, 'data' => $data], JSON_PRETTY_PRINT));
+            ->withStringBody(json_encode($responseData, JSON_PRETTY_PRINT));
     }
-
 
 
     public function bulkAddForm()

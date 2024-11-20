@@ -55,23 +55,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (reservationType === 1) {
             // 個人予約処理
             const mealData = collectMealCheckboxData();
-            const mealKeys = Array.from(mealData.keys());
-            console.log("Meal Keys:", mealKeys); // mealDataのキーを確認
+            console.log("Collected Meal Data:", Array.from(mealData.entries()));
 
-            const roomIds = mealKeys.map(key => {
-                console.log("Processing Key:", key); // 処理中のキーを出力
-                const match = key.match(/\[(\d+)\]\[(\d+)\]/); // 正規表現で部屋IDを抽出
-                if (match) {
-                    console.log("Match Found:", match); // 正規表現にマッチした場合
-                    return match[2]; // 部屋IDを返す
-                } else {
-                    console.warn("No Match for Key:", key); // マッチしない場合
-                    return null;
-                }
+            const roomIds = Array.from(mealData.keys()).map(key => {
+                const match = key.match(/\[.*?\]\[(\d+)\]/); // 部屋IDを抽出
+                return match ? match[1] : null;
             }).filter(Boolean);
 
             console.log("Extracted Room IDs:", roomIds);
-            console.log(roomIds);
 
             const uniqueRoomIds = [...new Set(roomIds)];
             if (uniqueRoomIds.length > 0) {
@@ -82,6 +73,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('部屋が選択されていません。');
                 return;
             }
+
+            // mealsデータを追加
+            mealData.forEach((value, key) => formData.append(key, value));
         } else if (reservationType === 2) {
             // 集団予約処理
             if (roomSelect.value) {
@@ -94,6 +88,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const userData = collectUserCheckboxData();
+            console.log("Collected User Data:", Array.from(userData.entries()));
+
             if (userData.size === 0) {
                 alert('ユーザーが選択されていません。');
                 console.error('ユーザーが選択されていません。');
@@ -124,6 +120,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert(`エラーが発生しました: ${data.message}`);
                 } else {
                     alert(`送信結果: ${data.message}`);
+                    if (data.redirect) {
+                        window.location.href = data.redirect; // リダイレクトを処理
+                    }
                 }
             })
             .catch(error => {
@@ -149,19 +148,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const data = new Map();
         roomCheckboxes.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
             if (checkbox.checked) {
-                console.log("Checkbox name:", checkbox.name, "Checked:", checkbox.checked); // デバッグログ
                 const match = checkbox.name.match(/\[(\d+)\]\[(\d+)\]/); // 正規表現で mealType と roomId を抽出
                 if (match) {
                     const mealType = match[1]; // 食事タイプ
                     const roomId = match[2];  // 部屋ID
                     data.set(`meals[${mealType}][${roomId}]`, 1);
-                    console.log("Data set - mealType:", mealType, "roomId:", roomId); // デバッグログ
                 } else {
                     console.warn("No Match for Checkbox name:", checkbox.name); // マッチしない場合
                 }
             }
         });
-        console.log("Collected Meal Data:", Array.from(data.entries())); // 最終データ確認
         return data;
     }
 
@@ -181,12 +177,10 @@ document.addEventListener('DOMContentLoaded', function() {
         })
             .then(response => response.json())
             .then(data => {
-                console.log('Fetched user data:', data);
                 if (data.usersByRoom) {
                     renderUserCheckboxes(data.usersByRoom);
                 } else {
                     alert('ユーザー情報が見つかりません。');
-                    console.warn('ユーザー情報が見つかりません。');
                 }
             })
             .catch(error => {
@@ -196,11 +190,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderUserCheckboxes(users) {
-        console.log("Rendering user checkboxes for users:", users);
         userCheckboxes.innerHTML = '';
-        if (users.length === 0) {
-            console.warn('ユーザーリストが空です。');
-        }
         users.forEach(user => {
             const row = document.createElement('tr');
             row.innerHTML = `
