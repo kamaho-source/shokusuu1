@@ -87,6 +87,7 @@ class MRoomInfoController extends AppController
             if ($user) {
                 $mRoomInfo->c_create_user = $user->get('c_user_name');
             }
+            $mRoomInfo->i_del_flg = 0;
             $mRoomInfo->i_disp_no = $this->MRoomInfo->find()->select(['max_disp_no' => 'MAX(i_disp_no)'])->first()->max_disp_no + 1;
 
             $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data);

@@ -57,12 +57,15 @@ class TReservationInfoController extends AppController
     public function index()
     {
         // TReservationInfoテーブルから予約データを取得
-        $reservations = $this->TReservationInfo->find()
+        $reservations = $this->TIndividualReservationInfo->find()
             ->select([
                 'd_reservation_date',
-                'c_reservation_type',
-                'i_taberu_ninzuu',
+                'i_reservation_type',
+                'eat_flag',
+                'total_eaters'=> $this->TIndividualReservationInfo->find()->func()->count("*")
             ])
+            ->where(['eat_flag' => 1])
+            ->groupBy(['d_reservation_date', 'i_reservation_type'])
             ->toArray();
 
         // 日付ごとの食事タイプ（朝、昼、夜）の総数を保持するための連想配列を初期化
@@ -70,7 +73,8 @@ class TReservationInfoController extends AppController
 
         foreach ($reservations as $reservation) {
             $date = $reservation->d_reservation_date->format('Y-m-d');
-            $mealType = $reservation->c_reservation_type; // 食事タイプ: 1 (朝), 2 (昼), 3 (夜)
+            $mealType = $reservation->i_reservation_type; // 食事タイプ: 1 (朝), 2 (昼), 3 (夜)
+            $totalEaters = $reservation->total_eaters;
 
             // 指定された日付のエントリが存在しない場合、初期化
             if (!isset($mealDataArray[$date])) {
@@ -78,7 +82,7 @@ class TReservationInfoController extends AppController
             }
 
             // 特定の日付と食事タイプに対して食事の人数を加算
-            $mealDataArray[$date][$mealType] += (int)$reservation->i_taberu_ninzuu;
+            $mealDataArray[$date][$mealType] += (int)$reservation->total_eaters;
         }
 
         // 計算した食事データをビューにセット
@@ -129,48 +133,92 @@ class TReservationInfoController extends AppController
             throw new \InvalidArgumentException('日付が指定されていません。');
         }
 
-        // 指定された日付の予約データを取得し、関連する部屋情報も含める
-        $roomInfos = $this->TReservationInfo->find()
-            ->contain(['MRoomInfo']) // MRoomInfoテーブルから部屋情報を含める
-            ->where(['d_reservation_date' => $date]) // 指定された日付でフィルタリング
+        // データを取得
+        $roomInfos = $this->TIndividualReservationInfo->find()
+            ->select([
+                'room_id' => 'TIndividualReservationInfo.i_id_room', // 別名を付ける際はキーを指定
+                'TIndividualReservationInfo.i_reservation_type',
+                'taberu_ninzuu' => 'COUNT(TIndividualReservationInfo.i_id_user)',
+                'room_name' => 'MAX(MRoomInfo.c_room_name)', // 最大値を取得
+                'total_users' => '(SELECT COUNT(*) FROM m_user_group WHERE m_user_group.i_id_room = TIndividualReservationInfo.i_id_room)'
+            ])
+            ->contain(['MRoomInfo']) // 部屋情報を結合
+            ->where(['TIndividualReservationInfo.d_reservation_date' => $date]) // 指定された日付でフィルタリング
+            ->groupBy([
+                'TIndividualReservationInfo.i_id_room',
+                'TIndividualReservationInfo.i_reservation_type'
+            ])
             ->all();
-
-        // 食事タイプごとに部屋情報をグループ化するための連想配列を初期化
-        $groupedRoomInfos = [
+        // データを食事タイプごとにグループ化
+        $mealDataArray = [
             '朝' => [],
             '昼' => [],
             '夜' => []
         ];
 
-        // データを食事タイプ（朝、昼、夜）ごとにグループ化
         foreach ($roomInfos as $roomInfo) {
             $mealType = '';
-            switch ($roomInfo->c_reservation_type) {
+            switch ($roomInfo->i_reservation_type) {
                 case 1:
-                    $mealType = '朝'; // 朝食
+                    $mealType = '朝';
                     break;
                 case 2:
-                    $mealType = '昼'; // 昼食
+                    $mealType = '昼';
                     break;
                 case 3:
-                    $mealType = '夜'; // 夕食
+                    $mealType = '夜';
                     break;
             }
 
-            // 食事タイプが正しく設定された場合のみ連想配列に追加
             if ($mealType) {
-                $groupedRoomInfos[$mealType][] = [
-                    'room_name' => $roomInfo->m_room_info->c_room_name, // 部屋名
-                    'reservation_type' => $mealType, // 予約タイプ
-                    'taberu_ninzuu' => $roomInfo->i_taberu_ninzuu, // 食べる人数
-                    'tabenai_ninzuu' => $roomInfo->i_tabenai_ninzuu // 食べない人数
+                $mealDataArray[$mealType][] = [
+                    'room_name' => $roomInfo->room_name,
+                    'room_id' => $roomInfo->i_id_room, // 部屋IDを追加
+                    'taberu_ninzuu' => $roomInfo->taberu_ninzuu,
+                    'tabenai_ninzuu' => $roomInfo->total_users - $roomInfo->taberu_ninzuu
                 ];
             }
         }
 
-        // グループ化された部屋情報と日付をビューにセット
-        $this->set(compact('groupedRoomInfos', 'date'));
+        // ビューにデータをセット
+        $this->set(compact('mealDataArray', 'date'));
     }
+
+
+
+
+    public function roomDetails($roomId, $date, $mealType)
+    {
+
+        debug(compact('roomId', 'date', 'mealType'));
+        // roomId, date, mealType がすべて指定されていることを確認
+        if (!$roomId || !$date || !$mealType) {
+            throw new \InvalidArgumentException('部屋ID、日付、または食事タイプが指定されていません。');
+        }
+
+        // 指定された条件に基づいてデータを取得
+        $eaters = $this->TIndividualReservationInfo->find()
+            ->select(['MUserInfo.c_user_name'])
+            ->contain(['MUserInfo']) // ユーザー情報を取得
+            ->where([
+                'TIndividualReservationInfo.i_id_room' => $roomId,
+                'TIndividualReservationInfo.d_reservation_date' => $date,
+                'TIndividualReservationInfo.i_reservation_type' => $mealType, // 食事タイプでフィルタリング
+                'TIndividualReservationInfo.eat_flag' => 1 // 食べるフラグがON
+            ])
+            ->all();
+
+        // ユーザー名のリストを生成
+        $userNames = [];
+        foreach ($eaters as $eater) {
+            $userNames[] = $eater->m_user_info->c_user_name;
+        }
+
+        // ビューにデータをセット
+        $this->set(compact('roomId', 'date', 'mealType'));
+    }
+
+
 
 
     /**
@@ -348,72 +396,83 @@ class TReservationInfoController extends AppController
     private function processGroupReservation($reservationDate, $data)
     {
         Log::debug('Processing group reservation.');
-        Log::debug('Received users data: ' . json_encode($data['users'], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
+        // 必要なデータがあるか確認
         if (empty($data['i_id_room'])) {
             Log::error('Room ID is missing.');
             return $this->jsonErrorResponse(__('部屋が選択されていません。'));
         }
 
-        if (!isset($data['users']) || !is_array($data['users']) || empty($data['users'])) {
+        if (empty($data['users']) || !is_array($data['users'])) {
             Log::error('ユーザー情報が不足しています。');
             return $this->jsonErrorResponse(__('ユーザー情報が不足しています。'));
         }
 
         try {
-            $reservationDateObj = new FrozenDate($reservationDate);
+            $reservationDateObj = new Date($reservationDate);  // Cake\I18n\Dateを使用
             Log::debug('Converted reservation date: ' . $reservationDateObj);
         } catch (\Exception $e) {
-            Log::error('Failed to convert reservation date: ' . $e->getMessage());
+            Log::error('Invalid reservation date: ' . $e->getMessage());
             return $this->jsonErrorResponse(__('予約日が不正です。'));
         }
 
-        $filteredUsersData = array_filter($data['users'], function ($meals) {
-            return is_array($meals) && array_filter($meals, fn($value) => intval($value) === 1);
-        });
+        $allReservations = [];
+        foreach ($data['users'] as $userId => $meals) {
+            foreach ([1 => '朝', 2 => '昼', 3 => '夜'] as $mealType => $mealName) {
+                Log::debug("Checking meal for User: $userId, Meal: $mealName");
+                if (!empty($meals[$mealType]) && intval($meals[$mealType]) === 1) {
+                    Log::debug("Registering meal - User: $userId, MealTime: $mealName");
 
-        Log::debug('Filtered users data: ' . json_encode($filteredUsersData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                    // エンティティ作成
+                    $reservation = $this->TIndividualReservationInfo->newEmptyEntity();
+                    $reservation = $this->TIndividualReservationInfo->patchEntity($reservation, [
+                        'i_id_user' => $userId,
+                        'd_reservation_date' => $reservationDateObj,
+                        'i_id_room' => $data['i_id_room'],
+                        'i_reservation_type' => $mealType,
+                        'eat_flag' => 1,
+                        'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name'),
+                        'dt_create' => FrozenTime::now(),
+                    ]);
 
-        $connection = ConnectionManager::get('default');
+                    // エラーがあるか確認
+                    if ($reservation->getErrors()) {
+                        Log::error("Validation errors for reservation (User: $userId, MealTime: $mealName): " . json_encode($reservation->getErrors()));
+                    }
+
+                    // すべての予約エンティティを配列に追加
+                    $allReservations[] = $reservation;
+                } else {
+                    Log::debug("Skipping meal - User: $userId, MealTime: $mealName");
+                }
+            }
+        }
+
+        // トランザクションの開始
+        $connection = $this->TIndividualReservationInfo->getConnection();
         $connection->begin();
 
         try {
-            foreach ($filteredUsersData as $userId => $meals) {
-                foreach ([1 => '朝', 2 => '昼', 3 => '夜'] as $mealTime => $mealName) {
-                    if (isset($meals[$mealTime]) && intval($meals[$mealTime]) === 1) {
-                        $individualReservation = $this->TIndividualReservationInfo->newEntity([
-                            'i_id_user' => $userId,
-                            'd_reservation_date' => $reservationDateObj,
-                            'i_id_room' => $data['i_id_room'],
-                            'i_reservation_type' => $mealTime,
-                            'eat_flag' => 1,
-                            'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name'),
-                            'dt_create' => FrozenTime::now()
-                        ]);
-
-                        if (!$this->TIndividualReservationInfo->save($individualReservation)) {
-                            $errors = $individualReservation->getErrors();
-                            Log::error('Individual reservation save failed: ' . json_encode($errors, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-                            $connection->rollback();
-                            return $this->jsonErrorResponse(__('予約情報の保存に失敗しました。'), ['errors' => $errors]);
-                        }
+            // すべての予約エンティティを一括保存
+            if (!$this->TIndividualReservationInfo->saveMany($allReservations)) {
+                foreach ($allReservations as $reservation) {
+                    if ($reservation->getErrors()) {
+                        Log::error("Validation errors during saveMany for reservation: " . json_encode($reservation->getErrors()));
                     }
                 }
+                $connection->rollback();
+                return $this->jsonErrorResponse(__('予約情報の保存に失敗しました。'));
             }
 
+            Log::debug("Successfully saved all reservations.");
             $connection->commit();
-
-            // 成功した場合のリダイレクト先を指定
-            $redirectUrl = $this->referer(['action'=>'index']); // indexにリダイレクト
-            return $this->jsonSuccessResponse(__('予約を承りました。'), [], $this->request->getAttribute('webroot').'/TReservationInfo/index');
+            return $this->jsonSuccessResponse(__('予約を受け付けました。'), [], $this->request->getAttribute('webroot') . '/TReservationInfo/index');
         } catch (\Exception $e) {
-            Log::error('Exception during reservation save: ' . $e->getMessage());
             $connection->rollback();
+            Log::error('Exception during group reservation: ' . $e->getMessage());
             return $this->jsonErrorResponse(__('予約を受け付けることができませんでした。'), ['exception' => $e->getMessage()]);
         }
     }
-
-
 
     protected function jsonErrorResponse(string $message, array $data = [])
     {

@@ -1,39 +1,51 @@
 <div class="container">
-    <h1>予約詳細 (<?= h($date) ?>)</h1>
-    <table class="table">
-        <thead class="thead-light">
-        <tr>
-            <th>部屋名</th>
-            <th>予約タイプ</th>
-            <th>食べる人数</th>
-            <th>食べない人数</th>
-            <th>合計人数</th>
-        </tr>
-        </thead>
-        <tbody>
-        <?php foreach (['朝', '昼', '夜'] as $type): ?>
-            <?php if (!empty($groupedRoomInfos[$type])): ?>
+    <h1>予約一覧</h1>
+    <h3>日付: <?= h($date) ?></h3>
+
+    <?php foreach (['朝' => 1, '昼' => 2, '夜' => 3] as $mealLabel => $mealType): ?>
+        <h2><?= h($mealLabel) ?>の予約</h2>
+
+        <?php if (!empty($mealDataArray[$mealLabel])): ?>
+            <table class="table table-bordered">
+                <thead>
                 <tr>
-                    <td colspan="5" class="table-primary"><?= h($type) ?></td>
+                    <th>部屋名</th>
+                    <th>食べる人数</th>
+                    <th>食べない人数</th>
+                    <th>詳細</th>
                 </tr>
-                <?php foreach ($groupedRoomInfos[$type] as $roomInfo): ?>  <!-- 取得したデータをループで表示 -->
+                </thead>
+                <tbody>
+                <?php foreach ($mealDataArray[$mealLabel] as $data): ?>
                     <tr>
-                        <td><?= h($roomInfo['room_name']) ?></td> <!-- 部屋名 -->
-                        <td><?= h($roomInfo['reservation_type']) ?></td> <!-- 予約タイプ -->
-                        <td><?= h($roomInfo['taberu_ninzuu']) ?></td> <!-- 食べる人数 -->
-                        <td><?= h($roomInfo['tabenai_ninzuu']) ?></td> <!-- 食べない人数 -->
-                        <td><?= h($roomInfo['taberu_ninzuu'] + $roomInfo['tabenai_ninzuu']) ?></td> <!-- 合計人数 -->
+                        <td><?= h($data['room_name']) ?></td>
+                        <td><?= h($data['taberu_ninzuu']) ?></td>
+                        <td><?= h($data['tabenai_ninzuu']) ?></td>
+                        <td>
+                            <?= $this->Html->link(
+                                __('詳細'),
+                                [
+                                    'controller' => 'TReservationInfo',
+                                    'action' => 'roomDetails',
+                                    $data['room_id'], // 部屋ID
+                                    $date,
+                                    $mealType // 食事タイプ
+                                ],
+                                ['class' => 'btn btn-primary btn-sm']
+                            ) ?>
+                        </td>
+
                     </tr>
                 <?php endforeach; ?>
-            <?php endif; ?>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
+                </tbody>
+            </table>
+        <?php else: ?>
+            <p>予約データがありません。</p>
+        <?php endif; ?>
+    <?php endforeach; ?>
 
-    <!-- 追加するボタン -->
-    <button class="btn btn-primary" onclick="location.href='<?= $this->Url->build(['action' => 'add', '?' => ['date' => $date]]) ?>'">
-        追加する
-    </button>
-    <button class="btn btn-primary" onclick="location.href='<?= $this->Url->build(['action' => 'edit', '?' => ['date' => $date]]) ?>'">
-        編集する
+    <!-- 他のページに戻るリンク -->
+    <div>
+        <?= $this->Html->link(__('新しい予約を追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>
+    </div>
 </div>

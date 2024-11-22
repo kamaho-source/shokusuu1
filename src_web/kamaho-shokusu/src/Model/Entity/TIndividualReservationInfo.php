@@ -49,6 +49,7 @@ class TIndividualReservationInfo extends Entity
         parent::initialize($config);
         $this->setTable('t_individual_reservation_info');
         $this->setDisplayField('i_id_user');
+        $this->setPrimaryKey(['i_id_user', 'd_reservation_date','i_id_room','i_reservation_type']);
 
     }
 

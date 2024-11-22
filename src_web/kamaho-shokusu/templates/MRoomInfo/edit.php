@@ -13,14 +13,14 @@
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">
-                <h4><?= __('Edit M Room Info') ?></h4>
+                <h4><?= __('部屋情報の修正') ?></h4>
             </div>
             <div class="card-body">
                 <?= $this->Form->create($mRoomInfo) ?>
                 <fieldset>
                     <div class="mb-3">
                         <?= $this->Form->control('c_room_name', [
-                            'label' => ['class' => 'form-label'],
+                            'label' => ['class' => 'form-label', 'text' => '部屋名'],
                             'class' => 'form-control'
                         ]) ?>
                     </div>

@@ -110,6 +110,16 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                     <div class="form-group" id="user-selection-table" style="display: none;">
                         <?= $this->Form->label('users', '部屋に属する利用者と食事選択') ?>
                         <div id="user-table-container">
+                            <!-- 一括選択ボタン -->
+                            <div class="d-flex justify-content-between mb-2">
+                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', true)">全員朝チェック</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', false)">全員朝解除</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', true)">全員昼チェック</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', false)">全員昼解除</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', true)">全員夜チェック</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', false)">全員夜解除</button>
+                            </div>
+
                             <table class="table table-bordered">
                                 <thead>
                                 <tr>
@@ -125,6 +135,33 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                             </table>
                         </div>
                     </div>
+
+                    <script>
+                        /**
+                         * 全員のチェックボックスを指定された時間帯で操作する関数
+                         * @param {string} mealTime - "morning", "noon", "night" のいずれか
+                         * @param {boolean} isChecked - チェック状態 (true: チェック, false: 解除)
+                         */
+                        function toggleAllUsers(mealTime, isChecked) {
+                            const mealTimeMapping = {
+                                morning: 1, // 朝
+                                noon: 2,    // 昼
+                                night: 3    // 夜
+                            };
+
+                            const mealType = mealTimeMapping[mealTime];
+                            if (!mealType) {
+                                console.error('無効なmealTime:', mealTime);
+                                return;
+                            }
+
+                            // 指定された時間帯のチェックボックスを取得
+                            const checkboxes = document.querySelectorAll(`input[name^="users"][name$="[${mealType}]"]`);
+                            checkboxes.forEach(checkbox => {
+                                checkbox.checked = isChecked;
+                            });
+                        }
+                    </script>
                 </fieldset>
                 <?= $this->Form->button(__('登録'), ['class' => 'btn btn-primary']) ?>
                 <?= $this->Form->end() ?>

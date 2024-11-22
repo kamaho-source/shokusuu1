@@ -39,7 +39,17 @@ class TIndividualReservationInfoTable extends Table
 
         $this->setTable('t_individual_reservation_info');
         $this->setDisplayField('i_id_user');
-        $this->setPrimaryKey(['i_id_user', 'd_reservation_date', 'i_id_room']);
+        $this->setPrimaryKey(['i_id_user', 'd_reservation_date', 'i_id_room', 'i_reservation_type']);
+
+        $this->belongsTo('MRoomInfo', [
+            'foreignKey' => 'i_id_room',
+            'joinType' => 'INNER',
+        ]);
+        $this->belongsTo('MUserInfo', [
+            'foreignKey' => 'i_id_user',
+            'joinType' => 'INNER',
+        ]);
+
     }
 
     /**

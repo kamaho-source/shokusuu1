@@ -1,4 +1,4 @@
-create table trancate_reservation_info(
+create table t_individual_reservation_info(
   i_id_user int(11),
   d_reservation_date date,
   i_reservation_type tinyint(4),

@@ -51,6 +51,7 @@ return function (RouteBuilder $routes): void {
      * `{action}` markers.
      */
     $routes->setRouteClass(DashedRoute::class);
+    $routes->setRouteClass(\Cake\Routing\Route\Route::class);
 
     $routes->scope('/', function (RouteBuilder $builder): void {
         /*
@@ -76,6 +77,18 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservation-info/getUsersByRoom/:roomId', ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom'])
             ->setPass(['roomId']);
         $builder->connect('/TReservationInfo/processGroupReservation/',[\App\Controller\TReservationInfoController::class],);
+        $builder->connect(
+            '/TReservationInfo/room-details/:roomId/:date/:mealType',
+            ['controller' => 'TReservationInfo', 'action' => 'roomDetails'],
+            [
+                'pass' => ['roomId', 'date', 'mealType'],
+                'roomId' => '\d+',
+                'date' => '\d{4}-\d{2}-\d{2}',
+                'mealType' => '\d+'
+            ]
+        );
+
+
 
 
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
