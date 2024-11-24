@@ -3,7 +3,22 @@
     <h2>部屋ID: <?= h($roomId) ?></h2>
     <p>日付: <?= h($date) ?></p>
     <p>食事タイプ:
-        <?= h($mealType == 1 ? '朝' : ($mealType == 2 ? '昼' : '夜')) ?>
+        <?php
+        switch ($mealType) {
+            case 1:
+                echo '朝';
+                break;
+            case 2:
+                echo '昼';
+                break;
+            case 3:
+                echo '夜';
+                break;
+            default:
+                echo '不明';
+                break;
+        }
+        ?>
     </p>
 
     <h3>食べる人のリスト:</h3>
@@ -16,6 +31,7 @@
     <?php else: ?>
         <p>この食事タイプで食べる人はいません。</p>
     <?php endif; ?>
+
 
     <!-- 戻るボタン -->
     <div>

@@ -26,6 +26,9 @@ class MUserInfoTable extends Table
             'foreignKey' => 'i_id_room',
             'joinType' => 'INNER'
         ]);
+        $this->hasMany('TIndividualReservationInfo', [
+            'foreignKey' => 'i_id_user'
+        ]);
     }
 
     public function beforeSave(EventInterface $event, $entity, ArrayObject $options)

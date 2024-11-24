@@ -14,6 +14,7 @@ use Cake\I18n\FrozenTime;
 use Cake\I18n\Time;
 use Cake\Log\Log;
 use Cake\I18n\FrozenDate;
+use mysql_xdevapi\DatabaseObject;
 use mysql_xdevapi\Result;
 
 /**
@@ -136,19 +137,20 @@ class TReservationInfoController extends AppController
         // データを取得
         $roomInfos = $this->TIndividualReservationInfo->find()
             ->select([
-                'room_id' => 'TIndividualReservationInfo.i_id_room', // 別名を付ける際はキーを指定
-                'TIndividualReservationInfo.i_reservation_type',
-                'taberu_ninzuu' => 'COUNT(TIndividualReservationInfo.i_id_user)',
-                'room_name' => 'MAX(MRoomInfo.c_room_name)', // 最大値を取得
-                'total_users' => '(SELECT COUNT(*) FROM m_user_group WHERE m_user_group.i_id_room = TIndividualReservationInfo.i_id_room)'
+                'room_id' => 'TIndividualReservationInfo.i_id_room', // 部屋IDをエイリアス名で取得
+                'room_name' => 'MRoomInfo.c_room_name',             // 部屋名
+                'taberu_ninzuu' => 'COUNT(TIndividualReservationInfo.i_id_user)', // 食べる人数
+                'tabenai_ninzuu' => '(SELECT COUNT(*) FROM m_user_group WHERE m_user_group.i_id_room = TIndividualReservationInfo.i_id_room) - COUNT(TIndividualReservationInfo.i_id_user)', // 食べない人数
+                'i_reservation_type' => 'TIndividualReservationInfo.i_reservation_type', // 食事タイプ
             ])
             ->contain(['MRoomInfo']) // 部屋情報を結合
-            ->where(['TIndividualReservationInfo.d_reservation_date' => $date]) // 指定された日付でフィルタリング
-            ->groupBy([
-                'TIndividualReservationInfo.i_id_room',
-                'TIndividualReservationInfo.i_reservation_type'
-            ])
-            ->all();
+            ->where(['TIndividualReservationInfo.d_reservation_date' => $date])
+            ->group(['TIndividualReservationInfo.i_id_room', 'TIndividualReservationInfo.i_reservation_type'])
+            ->toArray();
+
+        // デバッグ用出力
+        Log::debug('roomInfos: ' . json_encode($roomInfos, JSON_PRETTY_PRINT));
+
         // データを食事タイプごとにグループ化
         $mealDataArray = [
             '朝' => [],
@@ -173,13 +175,16 @@ class TReservationInfoController extends AppController
             if ($mealType) {
                 $mealDataArray[$mealType][] = [
                     'room_name' => $roomInfo->room_name,
-                    'room_id' => $roomInfo->i_id_room, // 部屋IDを追加
+                    'room_id' => $roomInfo->room_id, // 修正：room_idの取得を確認
                     'taberu_ninzuu' => $roomInfo->taberu_ninzuu,
-                    'tabenai_ninzuu' => $roomInfo->total_users - $roomInfo->taberu_ninzuu
+                    'tabenai_ninzuu' => $roomInfo->tabenai_ninzuu,
                 ];
             }
         }
 
+        Log::debug('mealDataArray: ' . json_encode($mealDataArray, JSON_PRETTY_PRINT));
+        Log::debug('date: ' . $date);
+        Log::debug($mealType);
         // ビューにデータをセット
         $this->set(compact('mealDataArray', 'date'));
     }
@@ -187,37 +192,58 @@ class TReservationInfoController extends AppController
 
 
 
+
     public function roomDetails($roomId, $date, $mealType)
     {
+        // パラメータのログ出力
+        $this->log("roomId: $roomId, date: $date, mealType: $mealType", 'debug');
 
-        debug(compact('roomId', 'date', 'mealType'));
-        // roomId, date, mealType がすべて指定されていることを確認
-        if (!$roomId || !$date || !$mealType) {
+        if (empty($roomId) || empty($date) || empty($mealType)) {
             throw new \InvalidArgumentException('部屋ID、日付、または食事タイプが指定されていません。');
         }
 
-        // 指定された条件に基づいてデータを取得
+        if (!is_numeric($mealType)) {
+            throw new \InvalidArgumentException('食事タイプは整数である必要があります。');
+        }
+
+        $mealType = (int)$mealType;
+
         $eaters = $this->TIndividualReservationInfo->find()
-            ->select(['MUserInfo.c_user_name'])
-            ->contain(['MUserInfo']) // ユーザー情報を取得
+            ->select(['TIndividualReservationInfo.i_id_user', 'MUserInfo.c_user_name'])
+            ->contain(['MUserInfo'])
             ->where([
                 'TIndividualReservationInfo.i_id_room' => $roomId,
                 'TIndividualReservationInfo.d_reservation_date' => $date,
-                'TIndividualReservationInfo.i_reservation_type' => $mealType, // 食事タイプでフィルタリング
-                'TIndividualReservationInfo.eat_flag' => 1 // 食べるフラグがON
+                'TIndividualReservationInfo.i_reservation_type' => $mealType,
+                'TIndividualReservationInfo.eat_flag' => 1
             ])
             ->all();
 
-        // ユーザー名のリストを生成
+        // クエリ結果をログに出力
+        $this->log("Eaters: " . json_encode($eaters->toArray(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), 'debug');
+
         $userNames = [];
         foreach ($eaters as $eater) {
-            $userNames[] = $eater->m_user_info->c_user_name;
+            $this->log("Eater ID: {$eater->id}", 'debug');
+            if ($eater->has('m_user_info')) {
+                $this->log("MUserInfo ID: {$eater->m_user_info->id}, Name: {$eater->m_user_info->c_user_name}", 'debug');
+                $userNames[] = $eater->m_user_info->c_user_name;
+            } else {
+                $this->log("Missing MUserInfo for eater ID: {$eater->id}", 'debug');
+            }
         }
 
-        // ビューにデータをセット
-        $this->set(compact('roomId', 'date', 'mealType'));
+        $this->set(compact('roomId', 'date', 'mealType', 'userNames'));
     }
+        /**
+         * デバック出力用
+         */
 
+
+        public function someMethod()
+        {
+            Log::debug('debug message');
+        }
 
 
 

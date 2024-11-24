@@ -76,17 +76,14 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservation-info/getUsersByRoom/:roomId', ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom'])
             ->setPass(['roomId']);
-        $builder->connect('/TReservationInfo/processGroupReservation/',[\App\Controller\TReservationInfoController::class],);
         $builder->connect(
-            '/TReservationInfo/room-details/:roomId/:date/:mealType',
-            ['controller' => 'TReservationInfo', 'action' => 'roomDetails'],
-            [
-                'pass' => ['roomId', 'date', 'mealType'],
-                'roomId' => '\d+',
-                'date' => '\d{4}-\d{2}-\d{2}',
-                'mealType' => '\d+'
-            ]
-        );
+            '/TReservationInfo/roomDetails/:roomId/:date/:mealType',
+            ['controller' => 'TReservationInfo', 'action' => 'roomDetails'])
+            ->setPass(['roomId', 'date', 'mealType'])
+            ->setPatterns(['roomId' => '\d+', 'date' => '\d{4}-\d{2}-\d{2}', 'mealType' => '\d+'])
+            ->setMethods(['GET']);
+
+
 
 
 

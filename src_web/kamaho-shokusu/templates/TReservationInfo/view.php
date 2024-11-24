@@ -22,19 +22,11 @@
                         <td><?= h($data['taberu_ninzuu']) ?></td>
                         <td><?= h($data['tabenai_ninzuu']) ?></td>
                         <td>
-                            <?= $this->Html->link(
-                                __('詳細'),
-                                [
-                                    'controller' => 'TReservationInfo',
-                                    'action' => 'roomDetails',
-                                    $data['room_id'], // 部屋ID
-                                    $date,
-                                    $mealType // 食事タイプ
-                                ],
-                                ['class' => 'btn btn-primary btn-sm']
-                            ) ?>
+                            <?php
+                            $url = "/TReservationInfo/roomDetails/{$data['room_id']}/{$date}/{$mealType}";
+                            echo $this->Html->link('詳細', $url, ['class' => 'btn btn-primary btn-sm']);
+                            ?>
                         </td>
-
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -44,8 +36,6 @@
         <?php endif; ?>
     <?php endforeach; ?>
 
-    <!-- 他のページに戻るリンク -->
-    <div>
-        <?= $this->Html->link(__('新しい予約を追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>
-    </div>
+    <button class="btn btn-primary" onclick="location.href='<?= $this->Url->build(['action' => 'add', '?' => ['date' => $date]]) ?>'">追加する</button>
+    <button class="btn btn-primary" onclick="location.href='<?= $this->Url->build(['action' => 'edit', '?' => ['date' => $date]]) ?>'">編集する</button>
 </div>
