@@ -9,6 +9,7 @@ use Cake\Log\Log;
 use Cake\ORM\TableRegistry;
 use InvalidArgumentException;
 use Cake\Datasource\ConnectionManager;
+use Authentication\PasswordHasher\DefaultPasswordHasher;
 
 class MUserInfoController extends AppController
 {
@@ -286,6 +287,16 @@ class MUserInfoController extends AppController
         $mUserInfo->dt_update = date('Y-m-d H:i:s');
         $user = $this->request->getAttribute('identity');
         $mUserInfo->c_update_user = $user ? $user->get('c_user_name') : '不明なユーザー';
+        //MUserGroupに登録されている部屋所属情報のactive_flagを0から1に変更
+        $userGroups = $this->MUserGroup->find()
+            ->where(['i_id_user' => $id, 'active_flag' => 0])
+            ->all();
+        foreach ($userGroups as $userGroup) {
+            $userGroup->active_flag = 1;
+            $userGroup->dt_update = date('Y-m-d H:i:s');
+            $userGroup->c_update_user = $user ? $user->get('c_user_name') : '不明なユーザー';
+            $this->MUserGroup->save($userGroup);
+        }
 
         if ($this->MUserInfo->save($mUserInfo)) {
             $this->Flash->success(__('ユーザー情報が削除されました。'));

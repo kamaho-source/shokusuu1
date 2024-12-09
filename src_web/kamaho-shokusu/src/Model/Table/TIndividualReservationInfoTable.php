@@ -3,36 +3,11 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use Cake\ORM\Query\SelectQuery;
-use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
-/**
- * TIndividualReservationInfo Model
- *
- * @method \App\Model\Entity\TIndividualReservationInfo newEmptyEntity()
- * @method \App\Model\Entity\TIndividualReservationInfo newEntity(array $data, array $options = [])
- * @method array<\App\Model\Entity\TIndividualReservationInfo> newEntities(array $data, array $options = [])
- * @method \App\Model\Entity\TIndividualReservationInfo get(mixed $primaryKey, array|string $finder = 'all', \Psr\SimpleCache\CacheInterface|string|null $cache = null, \Closure|string|null $cacheKey = null, mixed ...$args)
- * @method \App\Model\Entity\TIndividualReservationInfo findOrCreate($search, ?callable $callback = null, array $options = [])
- * @method \App\Model\Entity\TIndividualReservationInfo patchEntity(\Cake\Datasource\EntityInterface $entity, array $data, array $options = [])
- * @method array<\App\Model\Entity\TIndividualReservationInfo> patchEntities(iterable $entities, array $data, array $options = [])
- * @method \App\Model\Entity\TIndividualReservationInfo|false save(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method \App\Model\Entity\TIndividualReservationInfo saveOrFail(\Cake\Datasource\EntityInterface $entity, array $options = [])
- * @method iterable<\App\Model\Entity\TIndividualReservationInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\TIndividualReservationInfo>|false saveMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\TIndividualReservationInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\TIndividualReservationInfo> saveManyOrFail(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\TIndividualReservationInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\TIndividualReservationInfo>|false deleteMany(iterable $entities, array $options = [])
- * @method iterable<\App\Model\Entity\TIndividualReservationInfo>|\Cake\Datasource\ResultSetInterface<\App\Model\Entity\TIndividualReservationInfo> deleteManyOrFail(iterable $entities, array $options = [])
- */
 class TIndividualReservationInfoTable extends Table
 {
-    /**
-     * Initialize method
-     *
-     * @param array<string, mixed> $config The configuration for the Table.
-     * @return void
-     */
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -49,17 +24,15 @@ class TIndividualReservationInfoTable extends Table
             'foreignKey' => 'i_id_user',
             'joinType' => 'INNER',
         ]);
-
+        $this->belongsTo('MUserGroup', [
+            'foreignKey' => ['i_id_user', 'i_id_room'],
+            'joinType' => 'INNER',
+        ]);
     }
 
-    /**
-     * Default validation rules.
-     *
-     * @param \Cake\Validation\Validator $validator Validator instance.
-     * @return \Cake\Validation\Validator
-     */
     public function validationDefault(Validator $validator): Validator
     {
+        // 基本的なバリデーション
         $validator
             ->integer('i_id_user')
             ->requirePresence('i_id_user', 'create')
@@ -100,6 +73,29 @@ class TIndividualReservationInfoTable extends Table
             ->scalar('c_update_user')
             ->maxLength('c_update_user', 50)
             ->allowEmptyString('c_update_user');
+
+        // 重複登録を防ぐバリデーション
+        $validator->add('d_reservation_date', 'uniqueReservation', [
+            'rule' => function ($value, $context) {
+                $conditions = [
+                    'i_id_user' => $context['data']['i_id_user'],
+                    'd_reservation_date' => $value,
+                    'i_reservation_type' => $context['data']['i_reservation_type'],
+                ];
+
+                // 既存のレコードを除外する（編集の場合）
+                if (!empty($context['data']['id'])) {
+                    $conditions[] = ['id !=' => $context['data']['id']];
+                }
+
+                $count = $this->find()
+                    ->where($conditions)
+                    ->count();
+
+                return $count === 0;
+            },
+            'message' => 'This reservation already exists for the given date and meal type.'
+        ]);
 
         return $validator;
     }

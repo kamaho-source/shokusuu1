@@ -1,138 +1,130 @@
 <?php
-/**
- * @var \App\View\AppView $this
- * @var \DateTime[] $dates
- * @var array $rooms
- */
+$this->Html->script('bulk_add_form', ['block' => true]);
+echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 ?>
-<div class="row">
-    <aside class="col-md-3">
-        <div class="list-group">
-            <h4 class="list-group-item list-group-item-action active"><?= __('Actions') ?></h4>
-            <?= $this->Html->link(__('食数予約一覧に戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-        </div>
-    </aside>
-    <div class="col-md-9">
-        <div class="card">
-            <div class="card-header">
-                <h3><?= __('週の一括予約') ?></h3>
+
+<div class="container">
+    <h1>一括予約</h1>
+    <h3>日付: <?= h($selectedDate) ?></h3>
+
+    <!-- 一括予約チェックボックス -->
+    <form action="<?= $this->Url->build(['action' => 'bulkAddSubmit']) ?>" method="post" id="reservation-form">
+        <fieldset>
+            <legend>一括予約の日付を選択</legend>
+
+            <div class="form-group">
+                <label><?= $dates[0]->format('Y-m-d') ?>(月)</label>
+                <input type="checkbox" name="dates[<?= $dates[0]->format('Y-m-d') ?>]" value="1" id="monday">
             </div>
-            <div class="card-body">
-                <?= $this->Form->create(null, ['url' => ['action' => 'bulkAddSubmit']]) ?>
-                <div class="form-group">
-                    <?= $this->Form->control('i_id_room', [
-                        'type' => 'select',
-                        'label' => '部屋名',
-                        'options' => $rooms,
-                        'empty' => '-- 部屋を選択 --',
-                        'class' => 'form-control',
-                        'id' => 'i_id_room' // Add an ID for JavaScript validation
-                    ]) ?>
-                </div>
-                <div class="form-group">
-                    <label>月曜日の入力を火曜日〜金曜日にコピーする</label>
-                    <?= $this->Form->checkbox('copy_to_all', ['id' => 'copy_to_all']) ?>
-                </div>
-
-                <?php foreach ($dates as $index => $date): ?>
-                    <h5><?= $date->format('Y-m-d') ?> (<?= $date->format('l') ?>)</h5>
-
-                    <!-- 朝食 -->
-                    <div class="form-group">
-                        <label><?= __('朝食') ?></label>
-                        <input type="hidden" name="data[<?= $date->format('Y-m-d') ?>][morning][reservation_type]" value="1">
-                        <label><?= __('食べる人数') ?></label>
-                        <input type="number" id="morning_taberu_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][morning][taberu]" class="form-control">
-                        <label><?= __('食べない人数') ?></label>
-                        <input type="number" id="morning_tabenai_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][morning][tabenai]" class="form-control">
-                    </div>
-
-                    <!-- 昼食 -->
-                    <div class="form-group">
-                        <label><?= __('昼食') ?></label>
-                        <input type="hidden" name="data[<?= $date->format('Y-m-d') ?>][noon][reservation_type]" value="2">
-                        <label><?= __('食べる人数') ?></label>
-                        <input type="number" id="noon_taberu_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][noon][taberu]" class="form-control">
-                        <label><?= __('食べない人数') ?></label>
-                        <input type="number" id="noon_tabenai_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][noon][tabenai]" class="form-control">
-                    </div>
-
-                    <!-- 夕食 -->
-                    <div class="form-group">
-                        <label><?= __('夕食') ?></label>
-                        <input type="hidden" name="data[<?= $date->format('Y-m-d') ?>][night][reservation_type]" value="3">
-                        <label><?= __('食べる人数') ?></label>
-                        <input type="number" id="night_taberu_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][night][taberu]" class="form-control">
-                        <label><?= __('食べない人数') ?></label>
-                        <input type="number" id="night_tabenai_<?= $index ?>" name="data[<?= $date->format('Y-m-d') ?>][night][tabenai]" class="form-control">
-                    </div>
-
-                <?php endforeach; ?>
-
-                <?= $this->Form->button(__('Submit'), ['class' => 'btn btn-primary']) ?>
-                <?= $this->Form->end() ?>
+            <div class="form-group">
+                <label><?= $dates[1]->format('Y-m-d') ?>(火)</label>
+                <input type="checkbox" name="dates[<?= $dates[1]->format('Y-m-d') ?>]" value="1" id="tuesday">
             </div>
-        </div>
-    </div>
+            <div class="form-group">
+                <label><?= $dates[2]->format('Y-m-d') ?>(水)</label>
+                <input type="checkbox" name="dates[<?= $dates[2]->format('Y-m-d') ?>]" value="1" id="wednesday">
+            </div>
+            <div class="form-group">
+                <label><?= $dates[3]->format('Y-m-d') ?>(木)</label>
+                <input type="checkbox" name="dates[<?= $dates[3]->format('Y-m-d') ?>]" value="1" id="thursday">
+            </div>
+            <div class="form-group">
+                <label><?= $dates[4]->format('Y-m-d') ?>(金)</label>
+                <input type="checkbox" name="dates[<?= $dates[4]->format('Y-m-d') ?>]" value="1" id="friday">
+            </div>
+        </fieldset>
+
+        <!-- 食数入力のテーブル -->
+        <fieldset>
+            <legend>食数予約</legend>
+
+            <div class="form-group">
+                <?= $this->Form->label('i_id_room', '部屋を選択') ?>
+                <?= $this->Form->control('i_id_room', [
+                    'type' => 'select',
+                    'label' => false,
+                    'options' => $rooms,
+                    'empty' => '-- 部屋を選択 --',
+                    'class' => 'form-control',
+                    'required' => true,
+                    'onchange' => "fetchUsersByRoom(this.value)"
+                ]) ?>
+            </div>
+
+            <div id="user-table-container">
+                <div class="d-flex justify-content-between mb-2">
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', true)">全員朝チェック</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', false)">全員朝解除</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', true)">全員昼チェック</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', false)">全員昼解除</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', true)">全員夜チェック</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', false)">全員夜解除</button>
+                </div>
+
+                <div id="user-table-container">
+                    <!-- 朝昼夜の食数入力フォーム -->
+                    <table class="table table-bordered">
+                        <thead>
+                        <tr>
+                            <th>利用者名</th>
+                            <th>朝</th>
+                            <th>昼</th>
+                            <th>夜</th>
+                        </tr>
+                        </thead>
+                        <tbody id="user-checkboxes">
+                        <!-- ユーザー情報はAjaxで動的に表示 -->
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+
+        </fieldset>
+
+        <button class="btn btn-primary" type="submit">一括予約を登録</button>
+    </form>
 </div>
 
-<!-- JavaScript to handle copying values and validation -->
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        // 月曜日の入力を火曜日以降にコピーする処理
-        document.getElementById('copy_to_all').addEventListener('change', function () {
-            if (this.checked) {
-                var mondayMorningTaberu = document.querySelector('input[name="data[<?= $dates[0]->format('Y-m-d') ?>][morning][taberu]"]').value;
-                var mondayMorningTabenai = document.querySelector('input[name="data[<?= $dates[0]->format('Y-m-d') ?>][morning][tabenai]"]').value;
-                var mondayNoonTaberu = document.querySelector('input[name="data[<?= $dates[0]->format('Y-m-d') ?>][noon][taberu]"]').value;
-                var mondayNoonTabenai = document.querySelector('input[name="data[<?= $dates[0]->format('Y-m-d') ?>][noon][tabenai]"]').value;
-                var mondayNightTaberu = document.querySelector('input[name="data[<?= $dates[0]->format('Y-m-d') ?>][night][taberu]"]').value;
-                var mondayNightTabenai = document.querySelector('input[name="data[<?= $dates[0]->format('Y-m-d') ?>][night][tabenai]"]').value;
+    function fetchUsersByRoom(roomId) {
+        // 部屋IDが選ばれた場合のみAjaxリクエストを送信
+        if (roomId) {
+            fetch(`/kamaho-shokusu/TReservationInfo/getUsersByRoomForBulk/${roomId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data && data.users) {
+                        renderUsers(data.users);
+                    } else {
+                        document.getElementById('user-checkboxes').innerHTML = '<tr><td colspan="4">利用者が見つかりません。</td></tr>';
+                    }
+                })
+                .catch(error => {
+                    console.error('ユーザー情報の取得に失敗しました:', error);
+                    document.getElementById('user-checkboxes').innerHTML = '<tr><td colspan="4">データを取得できませんでした。</td></tr>';
+                });
+        }
+    }
 
-                <?php foreach (array_slice($dates, 1) as $date): ?>
-                document.querySelector('input[name="data[<?= $date->format('Y-m-d') ?>][morning][taberu]"]').value = mondayMorningTaberu;
-                document.querySelector('input[name="data[<?= $date->format('Y-m-d') ?>][morning][tabenai]"]').value = mondayMorningTabenai;
-                document.querySelector('input[name="data[<?= $date->format('Y-m-d') ?>][noon][taberu]"]').value = mondayNoonTaberu;
-                document.querySelector('input[name="data[<?= $date->format('Y-m-d') ?>][noon][tabenai]"]').value = mondayNoonTabenai;
-                document.querySelector('input[name="data[<?= $date->format('Y-m-d') ?>][night][taberu]"]').value = mondayNightTaberu;
-                document.querySelector('input[name="data[<?= $date->format('Y-m-d') ?>][night][tabenai]"]').value = mondayNightTabenai;
-                <?php endforeach; ?>
-            }
+    function renderUsers(users) {
+        const userTableBody = document.getElementById('user-checkboxes');
+        userTableBody.innerHTML = ''; // テーブルをリセット
+        users.forEach(user => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${user.name}</td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][morning]" value="1"></td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][noon]" value="1"></td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][night]" value="1"></td>
+            `;
+            userTableBody.appendChild(row);
         });
+    }
 
-        // フォーム送信時のバリデーション処理
-        document.querySelector('form').addEventListener('submit', function (event) {
-            var valid = true; // フォームが有効かどうかを追跡するフラグ
-            var alertMessage = ''; // アラートメッセージの初期化
-
-            // 部屋の選択がされているかをチェック
-            var roomSelection = document.getElementById('i_id_room').value;
-            if (!roomSelection) {
-                alertMessage += '部屋が選択されていません。\n';
-                valid = false;
-            }
-
-            // 全ての朝、昼、夜の入力フィールドをチェック
-            <?php foreach ($dates as $index => $date): ?>
-            var morningTaberu = document.getElementById('morning_taberu_<?= $index ?>').value;
-            var morningTabenai = document.getElementById('morning_tabenai_<?= $index ?>').value;
-            var noonTaberu = document.getElementById('noon_taberu_<?= $index ?>').value;
-            var noonTabenai = document.getElementById('noon_tabenai_<?= $index ?>').value;
-            var nightTaberu = document.getElementById('night_taberu_<?= $index ?>').value;
-            var nightTabenai = document.getElementById('night_tabenai_<?= $index ?>').value;
-
-            // 未入力チェック
-            if (!morningTaberu || !morningTabenai || !noonTaberu || !noonTabenai || !nightTaberu || !nightTabenai) {
-                alertMessage += '<?= $date->format('Y-m-d') ?> の入力に不足があります。\n';
-                valid = false; // 無効フラグをセット
-            }
-            <?php endforeach; ?>
-
-            // 未入力がある場合はアラートを表示してフォーム送信をキャンセル
-            if (!valid) {
-                alert(alertMessage);
-                event.preventDefault(); // フォーム送信をキャンセル
-            }
+    function toggleAllUsers(mealTime, isChecked) {
+        const checkboxes = document.querySelectorAll(`input[name$="[${mealTime}]"]`);
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
         });
-    });
+    }
 </script>

@@ -51,7 +51,6 @@ return function (RouteBuilder $routes): void {
      * `{action}` markers.
      */
     $routes->setRouteClass(DashedRoute::class);
-    $routes->setRouteClass(\Cake\Routing\Route\Route::class);
 
     $routes->scope('/', function (RouteBuilder $builder): void {
         /*
@@ -75,13 +74,24 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/bulk-add-submit', ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit', '_method' => 'POST']);
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservation-info/getUsersByRoom/:roomId', ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom'])
-            ->setPass(['roomId']);
+            ->setPass(['roomId'])
+            ->setPatterns(['roomId' => '\d+']);
         $builder->connect(
             '/TReservationInfo/roomDetails/:roomId/:date/:mealType',
             ['controller' => 'TReservationInfo', 'action' => 'roomDetails'])
             ->setPass(['roomId', 'date', 'mealType'])
             ->setPatterns(['roomId' => '\d+', 'date' => '\d{4}-\d{2}-\d{2}', 'mealType' => '\d+'])
             ->setMethods(['GET']);
+        $builder->connect(
+            '/TReservationInfo/getUsersByRoomForEdit/:roomId',
+            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForEdit'],
+            ['pass' => ['roomId'], 'roomId' => '\d+']
+        );
+        $builder->connect(
+            '/TReservationInfo/checkDuplicateReservation',
+            ['controller' => 'TReservationInfo', 'action' => 'checkDuplicateReservation']
+        )->setMethods(['POST']);
+
 
 
 
@@ -91,6 +101,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
+        $builder->connect('/MUserInfo/changePassword', ['controller' => 'MUserInfo', 'action' => 'changePassword']);
         $builder->connect('MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
