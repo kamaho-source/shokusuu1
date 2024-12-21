@@ -33,19 +33,20 @@
                                         'class' => 'meal-checkbox',
                                         'data-reservation-type' => 1,
                                         'data-user-id' => $user->m_user_info->i_id_user,
+                                        'data-room-id' => $room->i_id_room ?? '0',
+                                        'data-existing-room-id' => $userReservations[$user->m_user_info->i_id_user][1]['room_id'] ?? null,
+                                        'data-eat-flag' => $userReservations[$user->m_user_info->i_id_user][1]['eat_flag'] ?? null
                                     ]
                                 ) ?>
                                 <span class="eat-flag-indicator">
                                     <?php if (isset($userReservations[$user->m_user_info->i_id_user][1])): ?>
                                         <?php if ($userReservations[$user->m_user_info->i_id_user][1]['eat_flag'] == 0): ?>
-                                            <!-- 他の部屋で食べないとして登録 -->
                                             <i class="text-warning">
-                                                他の部屋で食べないとして登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][1]['room_name'] ?? '不明な部屋') ?>)
+                                                他の部屋で食べないとして登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][1]['room_name'] ?? '不明な部屋') ?>)。
                                             </i>
                                         <?php elseif ($userReservations[$user->m_user_info->i_id_user][1]['room_id'] != ($room->i_id_room ?? '0')): ?>
-                                            <!-- 他の部屋で登録 -->
                                             <i class="text-danger">
-                                                他の部屋で登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][1]['room_name'] ?? '不明な部屋') ?>)
+                                                他の部屋で登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][1]['room_name'] ?? '不明な部屋') ?>)。
                                             </i>
                                         <?php endif; ?>
                                     <?php endif; ?>
@@ -61,17 +62,20 @@
                                         'class' => 'meal-checkbox',
                                         'data-reservation-type' => 2,
                                         'data-user-id' => $user->m_user_info->i_id_user,
+                                        'data-room-id' => $room->i_id_room ?? '0',
+                                        'data-existing-room-id' => $userReservations[$user->m_user_info->i_id_user][2]['room_id'] ?? null,
+                                        'data-eat-flag' => $userReservations[$user->m_user_info->i_id_user][2]['eat_flag'] ?? null
                                     ]
                                 ) ?>
                                 <span class="eat-flag-indicator">
                                     <?php if (isset($userReservations[$user->m_user_info->i_id_user][2])): ?>
                                         <?php if ($userReservations[$user->m_user_info->i_id_user][2]['eat_flag'] == 0): ?>
                                             <i class="text-warning">
-                                                他の部屋で食べないとして登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][2]['room_name'] ?? '不明な部屋') ?>)
+                                                他の部屋で食べないとして登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][2]['room_name'] ?? '不明な部屋') ?>)。
                                             </i>
                                         <?php elseif ($userReservations[$user->m_user_info->i_id_user][2]['room_id'] != ($room->i_id_room ?? '0')): ?>
                                             <i class="text-danger">
-                                                他の部屋で登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][2]['room_name'] ?? '不明な部屋') ?>)
+                                                他の部屋で登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][2]['room_name'] ?? '不明な部屋') ?>)。
                                             </i>
                                         <?php endif; ?>
                                     <?php endif; ?>
@@ -87,17 +91,20 @@
                                         'class' => 'meal-checkbox',
                                         'data-reservation-type' => 3,
                                         'data-user-id' => $user->m_user_info->i_id_user,
+                                        'data-room-id' => $room->i_id_room ?? '0',
+                                        'data-existing-room-id' => $userReservations[$user->m_user_info->i_id_user][3]['room_id'] ?? null,
+                                        'data-eat-flag' => $userReservations[$user->m_user_info->i_id_user][3]['eat_flag'] ?? null
                                     ]
                                 ) ?>
                                 <span class="eat-flag-indicator">
                                     <?php if (isset($userReservations[$user->m_user_info->i_id_user][3])): ?>
                                         <?php if ($userReservations[$user->m_user_info->i_id_user][3]['eat_flag'] == 0): ?>
                                             <i class="text-warning">
-                                                他の部屋で食べないとして登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][3]['room_name'] ?? '不明な部屋') ?>)
+                                                他の部屋で食べないとして登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][3]['room_name'] ?? '不明な部屋') ?>)。
                                             </i>
                                         <?php elseif ($userReservations[$user->m_user_info->i_id_user][3]['room_id'] != ($room->i_id_room ?? '0')): ?>
                                             <i class="text-danger">
-                                                他の部屋で登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][3]['room_name'] ?? '不明な部屋') ?>)
+                                                他の部屋で登録されています (部屋名: <?= h($userReservations[$user->m_user_info->i_id_user][3]['room_name'] ?? '不明な部屋') ?>)。
                                             </i>
                                         <?php endif; ?>
                                     <?php endif; ?>
@@ -113,23 +120,22 @@
         <?= $this->Form->end() ?>
     </div>
 </div>
-<!-- 必要なスクリプトを読み込み -->
-<?php
-$this->Html->script('edit.js', ['block' => true]);
-?>
+
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const checkboxes = document.querySelectorAll('.meal-checkbox');
 
         checkboxes.forEach(function (checkbox) {
-            checkbox.addEventListener('change', function () {
-                const userId = this.dataset.userId;
-                const reservationType = this.dataset.reservationType;
-                const isChecked = this.checked;
+            checkbox.addEventListener('click', function (e) {
+                const existingRoomId = this.dataset.existingRoomId;
+                const currentRoomId = this.dataset.roomId;
+                const eatFlag = this.dataset.eatFlag;
 
-                // テンプレートリテラルを使ってログ文を正しく構築
-                const action = isChecked ? '食べる' : '食べない';
-                console.log(`予約タイプ ${reservationType} に対して、ユーザーID ${userId} の予約が "${action}" に設定されました。`);
+                // 他の部屋への登録チェック
+                if (existingRoomId && existingRoomId !== currentRoomId && eatFlag !== '0') {
+                    e.preventDefault(); // チェックの動作をキャンセル
+                    alert("この利用者は別の部屋で予約されています。");
+                }
             });
         });
     });
