@@ -22,12 +22,12 @@ $this->assign('title', 'ユーザー情報の表示');
             <div class="card-body">
                 <table class="table table-striped">
                     <tr>
-                        <th><?= __('C Login Account') ?></th>
+                        <th><?= __('ログインID') ?></th>
                         <td><?= h($mUserInfo->c_login_account) ?></td>
                     </tr>
 
                     <tr>
-                        <th><?= __('C User Name') ?></th>
+                        <th><?= __('ユーザー名') ?></th>
                         <td><?= h($mUserInfo->c_user_name) ?></td>
                     </tr>
 

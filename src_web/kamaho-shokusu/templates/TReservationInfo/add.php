@@ -9,6 +9,7 @@
 use Cake\Form\Form;
 use Cake\Form\Schema;
 use Cake\Validation\Validator;
+
 $this->assign('title','食数予約の追加');
 $this->Html->script('reservation', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
@@ -74,9 +75,20 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                 <thead>
                                 <tr>
                                     <th>部屋名</th>
-                                    <th>朝</th>
-                                    <th>昼</th>
-                                    <th>夜</th>
+                                    <!-- 朝・昼・夜 それぞれの列にチェックボックスを設置 -->
+                                    <th>
+                                        朝
+                                        <!-- 第2引数 this.checked を渡して、ヘッダのチェック状態に連動させる -->
+                                        <input type="checkbox" onclick="toggleAllRooms(1, this.checked)">
+                                    </th>
+                                    <th>
+                                        昼
+                                        <input type="checkbox" onclick="toggleAllRooms(2, this.checked)">
+                                    </th>
+                                    <th>
+                                        夜
+                                        <input type="checkbox" onclick="toggleAllRooms(3, this.checked)">
+                                    </th>
                                 </tr>
                                 </thead>
                                 <tbody id="room-checkboxes">
@@ -110,23 +122,23 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                     <div class="form-group" id="user-selection-table" style="display: none;">
                         <?= $this->Form->label('users', '部屋に属する利用者と食事選択') ?>
                         <div id="user-table-container">
-                            <!-- 一括選択ボタン -->
-                            <div class="d-flex justify-content-between mb-2">
-                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', true)">全員朝チェック</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', false)">全員朝解除</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', true)">全員昼チェック</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', false)">全員昼解除</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', true)">全員夜チェック</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', false)">全員夜解除</button>
-                            </div>
-
                             <table class="table table-bordered">
                                 <thead>
                                 <tr>
                                     <th>利用者名</th>
-                                    <th>朝</th>
-                                    <th>昼</th>
-                                    <th>夜</th>
+                                    <th>
+                                        <!-- 集団用のトグルも同様に、on/off を受け取り全チェック/全解除 -->
+                                        <input type="checkbox" onclick="toggleAllUsers('morning', this.checked)">
+                                        朝
+                                    </th>
+                                    <th>
+                                        <input type="checkbox" onclick="toggleAllUsers('noon', this.checked)">
+                                        昼
+                                    </th>
+                                    <th>
+                                        <input type="checkbox" onclick="toggleAllUsers('night', this.checked)">
+                                        夜
+                                    </th>
                                 </tr>
                                 </thead>
                                 <tbody id="user-checkboxes">
@@ -138,7 +150,19 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
 
                     <script>
                         /**
-                         * 全員のチェックボックスを指定された時間帯で操作する関数
+                         * 個人予約テーブルの「朝・昼・夜」欄を、ヘッダのチェックに応じて一括で操作する関数
+                         * @param {number} mealType - 1: 朝, 2: 昼, 3: 夜
+                         * @param {boolean} isChecked - チェック状態 (true: チェック, false: 解除)
+                         */
+                        function toggleAllRooms(mealType, isChecked) {
+                            const checkboxes = document.querySelectorAll(`input[name^="meals[${mealType}]"]`);
+                            checkboxes.forEach(checkbox => {
+                                checkbox.checked = isChecked;
+                            });
+                        }
+
+                        /**
+                         * 集団予約テーブル全体を一括で操作する関数
                          * @param {string} mealTime - "morning", "noon", "night" のいずれか
                          * @param {boolean} isChecked - チェック状態 (true: チェック, false: 解除)
                          */

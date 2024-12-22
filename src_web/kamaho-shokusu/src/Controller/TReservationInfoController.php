@@ -1057,7 +1057,7 @@ class TReservationInfoController extends AppController
                         if ($reservation) {
                             // eat_flag == 1 で部屋変更制限
                             if ($reservation->eat_flag == 1 && $reservation->i_id_room != $roomId) {
-                                $this->log("更新禁止（eat_flag=1）: ReservationID={$reservation->id}, UserID={$userId}", 'warn');
+                                $this->log("更新禁止（eat_flag=1) UserID={$userId}", 'warning');
                                 continue; // 処理スキップ
                             }
 

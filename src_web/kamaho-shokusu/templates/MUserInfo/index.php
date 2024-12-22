@@ -40,12 +40,12 @@ $this->assign('title', 'ユーザー情報一覧');
         </table>
     </div>
     <div class="paginator">
-        <ul class="pagination">
-            <?= $this->Paginator->first('<< ' . __('最初')) ?>
-            <?= $this->Paginator->prev('< ' . __('前へ')) ?>
+        <ul class="pagination" style="align-content: center">
+            <?= $this->Paginator->first('<< ' . __('最初')) ?>&nbsp;
+            <?= $this->Paginator->prev('< ' . __('前へ')) ?>&nbsp;
             <?= $this->Paginator->numbers() ?>
-            <?= $this->Paginator->next(__('次へ') . ' >') ?>
-            <?= $this->Paginator->last(__('最後') . ' >>') ?>
+            <?= $this->Paginator->next(__('次へ') . ' >') ?>&nbsp;
+            <?= $this->Paginator->last(__('最後') . ' >>') ?>&nbsp;
         </ul>
         <p><?= $this->Paginator->counter(__('ページ {{page}} / {{pages}}, 全 {{count}} 件中の {{current}} 件を表示')) ?></p>
     </div>

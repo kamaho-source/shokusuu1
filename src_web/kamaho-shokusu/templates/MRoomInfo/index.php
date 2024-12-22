@@ -26,7 +26,7 @@
                     <td class="text-center">
                         <?= $this->Html->link(__('表示'), ['action' => 'view', $room->i_id_room], ['class' => 'btn btn-info btn-sm']) ?>
                         <?= $this->Html->link(__('編集'), ['action' => 'edit', $room->i_id_room], ['class' => 'btn btn-warning btn-sm']) ?>
-                        <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $room->i_id_room], ['confirm' => __('本当に削除してもよろしいですか？ # {0}?', $room->i_id_room), 'class' => 'btn btn-danger btn-sm']) ?>
+                        <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $room->i_id_room], ['confirm' => __('本当に削除してもよろしいですか？', $room->i_id_room), 'class' => 'btn btn-danger btn-sm']) ?>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -34,8 +34,8 @@
         </table>
     </div>
     <div class="paginator">
-        <ul class="pagination">
-            <?= $this->Paginator->first('<< ' . __('最初')) ?>
+        <ul class="pagination" style="">
+            <?= $this->Paginator->first('<< ' . __('最初')) ?>&nbsp;
             <?= $this->Paginator->prev('< ' . __('前へ')) ?>
             <?= $this->Paginator->numbers() ?>
             <?= $this->Paginator->next(__('次へ') . ' >') ?>
