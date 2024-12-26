@@ -14,3 +14,6 @@ RUN apt-get update \
   # mod_rewrite 有効化
   && a2enmod rewrite
 
+# Composer インストール
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
