@@ -703,7 +703,7 @@ class TReservationInfoController extends AppController
                         if ($eatRegistered) {
                             return $this->jsonErrorResponse(
                                 sprintf(
-                                    '同じ日付と食事タイプの予約が既に存在しているユーザーがいます。ユーザー名: "%s"',
+                                    '同じ日付と食事タイプの予約が既に存在しているユーザーがいます。ユーザー名: "%s" さん',
                                     $registeredUsersList
                                 )
                             );
