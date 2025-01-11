@@ -13,9 +13,12 @@ services:
     volumes:
       - "../src_web:/var/www/html"
       - "../datasource/phpini/php.ini:/usr/local/etc/php/php.ini:cached"
-    #timezone をAsia/Tokyoへ
+    # timezone を Asia/Tokyo に設定
     environment:
       TZ: Asia/Tokyo
+    networks:
+      - network-inner
+      - network-db
 
   # MySQL
   kamakura-shokusu_db:
@@ -32,3 +35,39 @@ services:
       MYSQL_PASSWORD: hata220424
       MYSQL_ROOT_PASSWORD: KamakurA
       TZ: Asia/Tokyo
+    networks:
+      - network-db
+
+  # NGINX reverse proxy
+  network-reverse:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - "./nginx/nginx.conf:/etc/nginx/nginx.conf"
+    networks:
+      - network-reverse
+      - network-inner # 修正箇所
+
+  # network-inner サービス (追加的な例)
+  network-inner:
+    image: php:8.3-apache
+    build:
+      context: Kamakura-shokusu_web
+      dockerfile: Dockerfile
+    volumes:
+      - "../src_web:/var/www/html"
+    networks:
+      - network-inner #  修正箇
+      - network-db
+
+networks:
+  network-inner:  # 定義が正しい
+    name: network-inner
+    internal: false
+  network-reverse:
+    name: network-reverse
+    internal: false
+  network-db:
+    name: network-db
+    internal: false
