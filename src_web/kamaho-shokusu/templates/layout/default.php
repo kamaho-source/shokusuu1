@@ -13,17 +13,17 @@
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-info">
     <div class="container">
-        <a class="navbar-brand" href="<?= $this->Url->build('/TReservationInfo') ?>">食数管理システム</a>
+        <a class="navbar-brand" href="<?= $this->Url->build('/TReservationInfo') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">食数管理システム</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">部屋情報</a>
+                    <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">部屋情報</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>">ユーザ一覧</a>
+                    <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">ユーザ一覧</a>
                 </li>
             </ul>
             <ul class="navbar-nav ms-auto">
