@@ -89,6 +89,11 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                         夜
                                         <input type="checkbox" onclick="toggleAllRooms(3, this.checked)">
                                     </th>
+                                    <th>
+                                        弁当
+                                        <input type="checkbox" onclick="toggleAllRooms(4, this.checked)">
+                                    </th>
+
                                 </tr>
                                 </thead>
                                 <tbody id="room-checkboxes">
@@ -98,6 +103,7 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                         <td><?= $this->Form->checkbox("meals[1][$roomId]", ['value' => 1]) ?></td>
                                         <td><?= $this->Form->checkbox("meals[2][$roomId]", ['value' => 1]) ?></td>
                                         <td><?= $this->Form->checkbox("meals[3][$roomId]", ['value' => 1]) ?></td>
+                                        <td><?= $this->Form->checkbox("meals[4][$roomId]", ['value' => 1]) ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                                 </tbody>
@@ -139,6 +145,11 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                         <input type="checkbox" onclick="toggleAllUsers('night', this.checked)">
                                         夜
                                     </th>
+                                    <th>
+                                        <input type="checkbox" onclick="toggleAllUsers('bento', this.checked)">
+                                        弁当
+                                    </th>
+
                                 </tr>
                                 </thead>
                                 <tbody id="user-checkboxes">
@@ -170,7 +181,10 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                             const mealTimeMapping = {
                                 morning: 1, // 朝
                                 noon: 2,    // 昼
-                                night: 3    // 夜
+                                night: 3,  // 夜
+                                bento: 4    // 弁当
+
+
                             };
 
                             const mealType = mealTimeMapping[mealTime];

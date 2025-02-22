@@ -19,6 +19,7 @@ namespace App;
 use Authentication\AuthenticationService;
 use Authentication\AuthenticationServiceInterface;
 use Authentication\AuthenticationServiceProviderInterface;
+use Authentication\Identifier\AbstractIdentifier;
 use Authentication\Middleware\AuthenticationMiddleware;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\Routing\Router;
@@ -129,17 +130,20 @@ class Application extends BaseApplication
         $authentication = new AuthenticationMiddleware($this);
 
         $authentication->setConfig([
-            'unauthenticatedRedirect' => '/users/login',
+            'unauthenticatedRedirect' => '/MUserInfo/login',
             'queryParam' => 'redirect',
             'identifiers' => [
                 'Authentication.Password' => [
                     'fields' => [
-                        'username' => 'c_login_account', // this should match with the login account field in the form
-                        'password' => 'c_login_passwd', // password field from the form
+                        AbstractIdentifier::CREDENTIAL_USERNAME => 'c_login_account',
+                        AbstractIdentifier::CREDENTIAL_PASSWORD => 'c_login_passwd',
+                       // 'username' => 'c_login_account', // this should match with the login account field in the form
+                        //'password' => 'c_login_passwd', // password field from the form
                     ],
                     'resolver' => [
                         'className' => 'Authentication.Orm',
-                        'userModel' => 'MUserInfo', // your user model name
+                        'finder' => 'active',
+                        'userModel' => 'm_user_info', // your user model name
                     ],
                     'passwordHasher' => [
                         'className' => DefaultPasswordHasher::class, // set the hasher class
@@ -162,7 +166,7 @@ class Application extends BaseApplication
     public function getAuthenticationService(ServerRequestInterface $request): AuthenticationServiceInterface
     {
         $authenticationService = new AuthenticationService([
-            'unauthenticatedRedirect' => Router::url('/m-user-info/login'),
+            'unauthenticatedRedirect' => Router::url('/MUserInfo/login'),
             'queryParam' => 'redirect',
         ]);
 
@@ -171,6 +175,7 @@ class Application extends BaseApplication
             'resolver' => [
                 'className' => 'Authentication.Orm',
                 'userModel' => 'MUserInfo',
+                'fields' => ['i_id_user', 'c_login_account', 'i_admin'],
             ],
             'fields' => [
                 'username' => 'c_login_account',

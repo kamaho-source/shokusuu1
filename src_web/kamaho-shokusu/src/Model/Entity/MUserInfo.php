@@ -35,12 +35,15 @@ class MUserInfo extends Entity
      * @var array<string, bool>
      */
     protected array $_accessible = [
+        'i_id_staff' => true,
         'i_id_user' => true,
         'c_login_account' => true,
         'c_login_passwd' => true,
         'c_user_name' => true,
+        'i_user_gender' => true,
         'i_user_age'=> true,
         'i_user_level'=> true,
+        'i_user_rank'=> true,
         'i_admin' => true,
         'i_disp_no' => true,
         'i_enable' => true,
@@ -55,12 +58,13 @@ class MUserInfo extends Entity
      * @param string $password
      * @return string|null
      */
-    protected function _setCLoginPasswd(string $password) : ?string
+    protected function _setCLoginPasswd(?string $password): ?string
     {
-        if (strlen($password) > 0) {
+        if ($password && password_get_info($password)['algo'] === 0) {
+            // すでにハッシュ化されていない場合のみハッシュ化する
             return (new DefaultPasswordHasher())->hash($password);
         }
-        return null;
+        return $password;
     }
 
     /**

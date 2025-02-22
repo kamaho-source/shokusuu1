@@ -111,12 +111,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         const morningChecked = user.eat_flag === 1 || user.morning;
                         const noonChecked = user.eat_flag === 1 || user.noon;
                         const nightChecked = user.eat_flag === 1 || user.night;
+                        const bentoChecked = user.eat_flag === 1 || user.bento;
 
                         row.innerHTML = `
                         <td>${user.name}</td>
                         <td><input type="checkbox" name="users[${user.id}][1]" value="1" ${morningChecked ? 'checked' : ''}></td>
                         <td><input type="checkbox" name="users[${user.id}][2]" value="1" ${noonChecked ? 'checked' : ''}></td>
                         <td><input type="checkbox" name="users[${user.id}][3]" value="1" ${nightChecked ? 'checked' : ''}></td>
+                        <td><input type="checkbox" name="users[${user.id}][4]" value="1" ${bentoChecked ? 'checked' : ''}> </td>
                     `;
                         userCheckboxes.appendChild(row);
                     });

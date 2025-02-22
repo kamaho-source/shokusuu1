@@ -6,7 +6,9 @@ $this->assign('title', 'ログイン');
 <div class="container mt-5">
     <div class="row">
         <div class="col-md-6 offset-md-3">
-            <h1 class="text-center">食数管理システムログイン</h1>
+           <?= $this->Html->image('logo_top.svg', ['class' => 'img-fluid']) ?>
+            <h1 class="text-center">鎌倉児童ホーム食数管理システム</h1>
+            <h2 class="text-center">ログイン</h2>
             <?= $this->Flash->render() ?>
             <?= $this->Form->create() ?>
 

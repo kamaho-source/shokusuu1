@@ -70,6 +70,7 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                             <th>朝</th>
                             <th>昼</th>
                             <th>夜</th>
+                            <th>弁当</th>
                         </tr>
                         </thead>
                         <tbody id="user-checkboxes">
@@ -116,6 +117,7 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                 <td><input class="form-check-input" type="checkbox" name="users[${user.id}][morning]" value="1"></td>
                 <td><input class="form-check-input" type="checkbox" name="users[${user.id}][noon]" value="1"></td>
                 <td><input class="form-check-input" type="checkbox" name="users[${user.id}][night]" value="1"></td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][bento]" value="1"></td>
             `;
             userTableBody.appendChild(row);
         });

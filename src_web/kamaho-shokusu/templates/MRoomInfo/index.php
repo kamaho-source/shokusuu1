@@ -3,6 +3,9 @@
  * @var \App\View\AppView $this
  * @var iterable<\App\Model\Entity\MRoomInfo> $mRoomInfo
  */
+
+// 管理者権限の確認
+$isAdmin = $user->get('i_admin') === 1;
 ?>
 <div class="mRoomInfo index content">
     <?= $this->Html->link(__('新しい部屋情報を追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
@@ -25,8 +28,10 @@
                     <td><?= $this->Number->format($room->i_disp_no) ?></td>
                     <td class="text-center">
                         <?= $this->Html->link(__('表示'), ['action' => 'view', $room->i_id_room], ['class' => 'btn btn-info btn-sm']) ?>
-                        <?= $this->Html->link(__('編集'), ['action' => 'edit', $room->i_id_room], ['class' => 'btn btn-warning btn-sm']) ?>
-                        <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $room->i_id_room], ['confirm' => __('本当に削除してもよろしいですか？', $room->i_id_room), 'class' => 'btn btn-danger btn-sm']) ?>
+                        <?php if ($isAdmin): // 管理者のみが編集と削除を行える ?>
+                            <?= $this->Html->link(__('編集'), ['action' => 'edit', $room->i_id_room], ['class' => 'btn btn-warning btn-sm']) ?>
+                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $room->i_id_room], ['confirm' => __('本当に削除してもよろしいですか？', $room->i_id_room), 'class' => 'btn btn-danger btn-sm']) ?>
+                        <?php endif; ?>
                     </td>
                 </tr>
             <?php endforeach; ?>

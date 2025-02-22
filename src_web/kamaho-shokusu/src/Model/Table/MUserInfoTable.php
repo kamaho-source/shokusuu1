@@ -6,6 +6,7 @@ namespace App\Model\Table;
 use ArrayObject;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\Event\EventInterface;
+use Cake\ORM\Query;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -36,6 +37,7 @@ class MUserInfoTable extends Table
         if (!empty($entity->c_login_passwd) && $entity->isDirty('c_login_passwd')) {
             $hasher = new DefaultPasswordHasher();
             $entity->c_login_passwd = $hasher->hash($entity->c_login_passwd);
+            \Cake\Log\Log::debug('password hashed'.$entity->c_login_passwd);
         }
     }
 
@@ -90,5 +92,14 @@ class MUserInfoTable extends Table
             ->allowEmptyString('c_update_user');
 
         return $validator;
+    }
+
+    public function findAuth(Query $query, array $options)
+    {
+        return $query->select([
+            'i_id_user',
+            'c_login_account',
+            'i_admin'
+        ]);
     }
 }

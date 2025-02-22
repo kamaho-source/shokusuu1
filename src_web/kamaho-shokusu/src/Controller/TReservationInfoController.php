@@ -57,6 +57,10 @@ class TReservationInfoController extends AppController
      */
     public function index()
     {
+        //i_adminの情報取得のため。消してはダメ。
+        $authUser = $this->Authentication->getIdentity();
+        $userId = $authUser->get('i_id_user');
+        $user = $this->MUserInfo->get($userId);
         // TReservationInfoテーブルから予約データを取得
         $reservations = $this->TIndividualReservationInfo->find()
             ->select([
@@ -79,7 +83,7 @@ class TReservationInfoController extends AppController
 
             // 指定された日付のエントリが存在しない場合、初期化
             if (!isset($mealDataArray[$date])) {
-                $mealDataArray[$date] = [1 => 0, 2 => 0, 3 => 0]; // 朝、昼、夜のカウントを0で初期化
+                $mealDataArray[$date] = [1 => 0, 2 => 0, 3 => 0,4 => 0]; // 朝、昼、夜のカウントを0で初期化
             }
 
             // 特定の日付と食事タイプに対して食事の人数を加算
@@ -87,7 +91,7 @@ class TReservationInfoController extends AppController
         }
 
         // 計算した食事データをビューにセット
-        $this->set(compact('mealDataArray'));
+        $this->set(compact('mealDataArray','user'));
     }
 
     /**
@@ -138,7 +142,7 @@ class TReservationInfoController extends AppController
         $rooms = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->toArray();
 
         // 食事タイプ（朝、昼、夜）の集計データ
-        $mealTypes = [1 => '朝', 2 => '昼', 3 => '夜'];
+        $mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
         $mealDataArray = [];
 
         foreach ($mealTypes as $mealType => $mealLabel) {
@@ -444,50 +448,6 @@ class TReservationInfoController extends AppController
             ->toArray();
     }
 
-    /*
-    public function checkDuplicateReservation()
-    {
-        $this->request->allowMethod(['post']);
-
-        $data = $this->request->getData();
-
-        // 必須フィールドの検証
-        if (empty($data['d_reservation_date']) || empty($data['i_id_room']) || empty($data['reservation_type'])) {
-            return $this->response->withType('application/json')
-                ->withStringBody(json_encode([
-                    'isDuplicate' => false,
-                    'message' => '必要なデータが不足しています。',
-                ]));
-        }
-
-        $existingReservation = $this->TIndividualReservationInfo->find()
-            ->where([
-                'd_reservation_date' => $data['d_reservation_date'],
-                'i_id_room' => $data['i_id_room'],
-                'i_reservation_type' => $data['reservation_type'],
-            ])
-            ->first();
-
-        if ($existingReservation) {
-            $editUrl = $this->Url->build([
-                'controller' => 'TReservationInfo',
-                'action' => 'edit',
-                'roomId' => $data['i_id_room'],
-                'date' => $data['d_reservation_date'],
-                'mealType' => $data['reservation_type'],
-            ]);
-            return $this->response->withType('application/json')
-                ->withStringBody(json_encode([
-                    'isDuplicate' => true,
-                    'editUrl' => $editUrl,
-                ]));
-        }
-
-        return $this->response->withType('application/json')
-            ->withStringBody(json_encode(['isDuplicate' => false]));
-    }
-*/
-
     // サーバーエラー時にJSONエラーレスポンスを返す
     // サーバー側の修正例 (checkDuplicateReservationメソッド)
     public function checkDuplicateReservation()
@@ -669,7 +629,7 @@ class TReservationInfoController extends AppController
         }
 
         foreach ($data['users'] as $userId => $meals) {
-            foreach ([1 => '朝', 2 => '昼', 3 => '夜'] as $mealType => $mealName) {
+            foreach ([1 => '朝', 2 => '昼', 3 => '夜', 4=>'弁当'] as $mealType => $mealName) {
                 if (!empty($meals[$mealType]) && intval($meals[$mealType]) === 1) {
 
                     // 特定のユーザーと食事タイプについて既に予約されているか確認
@@ -846,25 +806,6 @@ class TReservationInfoController extends AppController
      * @param string $userName ユーザー名
      * @return bool 保存に成功した場合はtrue、それ以外はfalse
      */
-
-    private function saveReservation($data, $reservationDate, $mealType, $userName)
-    {
-        $reservation = $this->TReservationInfo->newEmptyEntity();
-
-        // データをエンティティにパッチ
-        $reservation->d_reservation_date = $reservationDate;
-        $reservation->c_reservation_type = $mealType;
-        $reservation->i_id_room = $data['i_id_room'] ?? null;
-        $reservation->i_taberu_ninzuu = $data['taberu'] ?? 0;
-        $reservation->i_tabenai_ninzuu = $data['tabenai'] ?? 0;
-        $reservation->dt_create = FrozenTime::now();
-        $reservation->c_create_user = $userName;
-
-        // 予約情報を保存
-        return $this->TReservationInfo->save($reservation);
-    }
-
-
 
     /**
      * 一括追加メソッド
@@ -1204,6 +1145,203 @@ class TReservationInfoController extends AppController
 
         return ['success' => true];
     }
+
+
+    public function exportJson()
+    {
+
+
+        try {
+            // リクエストから月を取得（フォーマット: YYYY-MM）
+            $month = $this->request->getQuery('month'); // 例: 2023-11
+            if (!$month) {
+                throw new \InvalidArgumentException('月を指定してください (例: 2023-11)');
+            }
+
+            // 指定された月の開始日と終了日を取得
+            $startDate = new \DateTime("$month-01");
+            $endDate = (clone $startDate)->modify('last day of this month');
+
+            // 弁当、朝、昼、夜のデータをDBから集計（指定された月）
+            $reservations = $this->TIndividualReservationInfo->find()
+                ->select([
+                    'room_id' => 'TIndividualReservationInfo.i_id_room', // i_id_roomを明確に指定
+                    'room_name' => 'MRoomInfo.c_room_name', // m_room_infoから部屋名を取得
+                    'd_reservation_date',
+                    'meal_type' => 'TIndividualReservationInfo.i_reservation_type', // テーブルを明確に
+                    'total_eaters' => $this->TIndividualReservationInfo->find()->func()->count('*') // 人数をカウント
+                ])
+                ->join([
+                    'table' => 'm_room_info', // 部屋情報テーブル
+                    'alias' => 'MRoomInfo', // エイリアスを設定
+                    'type' => 'INNER', // INNER JOIN
+                    'conditions' => 'MRoomInfo.i_id_room = TIndividualReservationInfo.i_id_room', // 結合条件
+                ])
+                ->where([
+                    'TIndividualReservationInfo.eat_flag' => 1, // eat_flagの条件を明確化
+                    'TIndividualReservationInfo.d_reservation_date >=' => $startDate->format('Y-m-d'),
+                    'TIndividualReservationInfo.d_reservation_date <=' => $endDate->format('Y-m-d'),
+                ])
+                ->groupBy([
+                    'TIndividualReservationInfo.i_id_room',
+                    'MRoomInfo.c_room_name',
+                    'TIndividualReservationInfo.d_reservation_date',
+                    'TIndividualReservationInfo.i_reservation_type'
+                ]) // グループ化
+                ->enableHydration(false) // 結果を配列形式で取得
+                ->toArray();
+
+            // 結果を部屋ごとに整形
+            $result = ['rooms' => []];
+            foreach ($reservations as $reservation) {
+                $roomName = $reservation['room_name']; // 部屋名
+                $date = $reservation['d_reservation_date']->format('Y-m-d'); // 日付フォーマット
+                $mealType = $reservation['meal_type']; // 食事タイプ
+                $totalEaters = $reservation['total_eaters'];
+
+                // 部屋ごとのデータを初期化
+                if (!isset($result['rooms'][$roomName])) {
+                    $result['rooms'][$roomName] = [];
+                }
+
+                // 日付ごとのデータを初期化
+                if (!isset($result['rooms'][$roomName][$date])) {
+                    $result['rooms'][$roomName][$date] = ['朝' => 0, '昼' => 0, '夜' => 0, '弁当' => 0];
+                }
+
+                // 食事タイプごとの合計を増加
+                $mealTypeMap = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
+                $result['rooms'][$roomName][$date][$mealTypeMap[$mealType]] += (int)$totalEaters;
+            }
+
+            // JSON形式で返却
+            return $this->response
+                ->withType('application/json')
+                ->withStringBody(json_encode($result, JSON_UNESCAPED_UNICODE)); // 部屋名を正確に出力
+        } catch (\Exception $e) {
+            // エラー時の例外処理
+            Log::write('error', $e->getMessage());
+            return $this->response
+                ->withStatus(500) // ステータスコード 500 を設定
+                ->withType('application/json')
+                ->withStringBody(json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+    public function exportJsonrank()
+    {
+        $this->autoRender = false;
+
+        // クエリパラメータから月情報を取得
+        $month = $this->request->getQuery('month');
+        if (!$month || !preg_match('/^\d{4}-\d{2}$/', $month)) { // 年-月形式のチェック
+            $output = [
+                'message' => '無効な月が指定されました。'
+            ];
+            $this->response = $this->response
+                ->withType('application/json')
+                ->withStringBody(json_encode($output));
+            return $this->response; // ここで処理停止
+        }
+
+        // ランク名とランクIDのマッピング
+        $rankNames = [
+            1 => '3~5歳',
+            2 => '低学年',
+            3 => '中学年',
+            4 => '高学年',
+            5 => '中学生',
+            6 => '高校生',
+            7 => '大人',
+        ];
+
+        // データ取得: 指定された月のデータを取得
+        $reservations = $this->TIndividualReservationInfo->find()
+            ->select([
+                'user_rank' => 'MUserInfo.i_user_rank', // ランクID
+                'gender' => 'MUserInfo.i_user_gender', // 性別
+                'reservation_date' => 'TIndividualReservationInfo.d_reservation_date', // 日付
+                'meal_type' => 'TIndividualReservationInfo.i_reservation_type', // 食事タイプ（朝・昼・夜・弁当）
+                'total_eaters' => $this->TIndividualReservationInfo->find()->func()->count('*') // 合計人数
+            ])
+            ->join([
+                [
+                    'table' => 'm_user_info',
+                    'alias' => 'MUserInfo',
+                    'type' => 'INNER',
+                    'conditions' => 'MUserInfo.i_id_user = TIndividualReservationInfo.i_id_user',
+                ]
+            ])
+            ->where([
+                'TIndividualReservationInfo.eat_flag' => 1, // 食事済み
+                'TIndividualReservationInfo.d_reservation_date >=' => $month . '-01',
+                'TIndividualReservationInfo.d_reservation_date <' => date('Y-m-d', strtotime($month . ' +1 month'))
+            ])
+            ->group([
+                'MUserInfo.i_user_rank',
+                'MUserInfo.i_user_gender',
+                'TIndividualReservationInfo.d_reservation_date',
+                'TIndividualReservationInfo.i_reservation_type' // 食事タイプ別でグループ化
+            ])
+            ->enableHydration(false)
+            ->toArray();
+
+        // 結果データ整形
+        $output = [];
+        foreach ($reservations as $reservation) {
+            $rankId = $reservation['user_rank'];
+            $gender = $reservation['gender'] === 'male' ? '男子' : '女子';
+            $rankName = isset($rankNames[$rankId]) ? $rankNames[$rankId] : '不明';
+
+            // ランクと性別、日付ですでにキーが存在するか確認
+            $key = $rankId . '_' . $gender . '_' . $reservation['reservation_date']->format('Y-m-d');
+            if (!isset($output[$key])) {
+                $output[$key] = [
+                    'rank_name' => $rankName,
+                    'gender' => $gender,
+                    'reservation_date' => $reservation['reservation_date']->format('Y-m-d'),
+                    'breakfast' => 0, // 朝食初期化
+                    'lunch' => 0,     // 昼食初期化
+                    'dinner' => 0,    // 夕食初期化
+                    'bento' => 0,     // 弁当初期化
+                    'total_eaters' => 0 // 合計人数初期化
+                ];
+            }
+
+            // 食事タイプを判別して人数を追加
+            $totalEaters = $reservation['total_eaters'] ?? 0;
+            if ($reservation['meal_type'] === 1) {
+                $output[$key]['breakfast'] += $totalEaters; // 朝食カウント更新
+            } elseif ($reservation['meal_type'] === 2) {
+                $output[$key]['lunch'] += $totalEaters; // 昼食カウント更新
+            } elseif ($reservation['meal_type'] === 3) {
+                $output[$key]['dinner'] += $totalEaters; // 夕食カウント更新
+            } elseif ($reservation['meal_type'] === 4) {
+                $output[$key]['bento'] += $totalEaters; // 弁当カウント更新
+            }
+
+            // 総人数を更新
+            $output[$key]['total_eaters'] += $totalEaters;
+        }
+
+        // データフォーマットを調整
+        $finalOutput = array_values($output);
+
+        // データが空の場合の処理
+        if (empty($finalOutput)) {
+            $finalOutput = [
+                'message' => '指定された月にデータが見つかりませんでした。'
+            ];
+        }
+
+        // JSON形式で返却
+        $this->response = $this->response
+            ->withType('application/json')
+            ->withStringBody(json_encode($finalOutput));
+
+        return $this->response;
+    }
+
 
 
 }

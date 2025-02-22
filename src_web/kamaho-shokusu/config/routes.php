@@ -92,6 +92,10 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'checkDuplicateReservation']
         )->setMethods(['POST']);
 
+        $builder->connect('MMealPriceInfo/',['controller'=> 'MMealPriceInfo','action'=>'index']);
+        $builder->connect('MMealPriceInfo/add',['controller'=>'MMealPriceInfo','action'=>'add']);
+        $builder->connect('MMealPriceInfo/GetMealSummary',['controller'=>'MMealPriceInfo','action'=>'GetMealSummary']);
+
 
 
 
@@ -102,6 +106,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
         $builder->connect('/MUserInfo/changePassword', ['controller' => 'MUserInfo', 'action' => 'changePassword']);
+        $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
         $builder->connect('MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);

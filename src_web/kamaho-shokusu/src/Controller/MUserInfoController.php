@@ -7,15 +7,25 @@ use AllowDynamicProperties;
 use Cake\Event\EventInterface;
 use Cake\Log\Log;
 use Cake\ORM\TableRegistry;
+use http\Encoding\Stream\Debrotli;
 use InvalidArgumentException;
 use Cake\Datasource\ConnectionManager;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
+
+
 
 class MUserInfoController extends AppController
 {
     protected $MUserGroup;
     protected $MUserInfo;
     protected $MRoomInfo;
+    /**
+     * @var \Cake\Controller\Component|\Cake\ORM\Table|mixed|null
+     */
+
+    /**
+     * @var \Cake\Controller\Component|\Cake\ORM\Table|mixed|null
+     */
 
 
     public function initialize(): void
@@ -34,6 +44,7 @@ class MUserInfoController extends AppController
     {
         parent::beforeFilter($event);
         $this->Authentication->addUnauthenticatedActions(['login', 'add']);
+
     }
 
     public function index()
@@ -84,9 +95,6 @@ class MUserInfoController extends AppController
         return $rooms;
     }
 
-    // src/Controller/MUserInfoController.php
-
-    // src/Controller/MUserInfoController.php
 
     private function castGroupData(array $groupData): array {
         return array_map(function ($group) {
@@ -114,6 +122,11 @@ class MUserInfoController extends AppController
         $mUserInfo->i_disp_no = $maxDispNo;
         $mUserInfo->i_user_age = (int)$this->request->getData('age');
         $mUserInfo->i_user_level = (int)$this->request->getData('role');
+        if ($mUserInfo->i_user_level === 0) {
+            $mUserInfo->i_id_staff = $this->request->getData('staff_id');
+        }
+        $mUserInfo->i_user_gender = (int)$this->request->getData('i_user_gender');
+        $mUserInfo->i_user_rank = (int)$this->request->getData('age_group');
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
@@ -123,53 +136,62 @@ class MUserInfoController extends AppController
                 $data['c_user_name'] = 'デフォルトユーザー名';
             }
 
-            // 作成ユーザーの設定
-            $user = $this->request->getAttribute('identity');
-            $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
+            // ログインIDの重複チェック
+            $existingUser = $this->MUserInfo->find()
+                ->where(['c_login_account' => $data['c_login_account']])
+                ->first();
 
-            try {
-                // patchEntityでMUserInfoにデータをパッチ
-                $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data);
+            if ($existingUser) {
+                $this->Flash->error(__('このログインIDは既に使用されています。他のIDをお試しください。'));
+            } else {
+                // 作成ユーザーの設定
+                $user = $this->request->getAttribute('identity');
+                $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
 
-                // バリデーションエラーの確認
-                if ($mUserInfo->hasErrors()) {
-                    throw new \Exception('バリデーションエラーが発生しました。');
-                }
+                try {
+                    // patchEntityでMUserInfoにデータをパッチ
+                    $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data);
 
-                // ユーザー情報の保存
-                if ($this->MUserInfo->save($mUserInfo)) {
-                    $this->Flash->success(__('ユーザー情報が保存されました。'));
-                    $i_id_user = $mUserInfo->i_id_user;
-
-                    // MUserGroupデータを手動で作成・保存
-                    $userGroups = [];
-                    foreach ($data['MUserGroup'] as $groupData) {
-                        if (!empty($groupData['i_id_room'])) {
-                            $userGroups[] = $this->MUserGroup->newEntity([
-                                'i_id_user' => (int)$i_id_user,
-                                'i_id_room' => (int)$groupData['i_id_room'],
-                                'active_flag' => 0,
-                                'dt_create' => date('Y-m-d H:i:s'),
-                                'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー'
-                            ]);
-                        }
+                    // バリデーションエラーの確認
+                    if ($mUserInfo->hasErrors()) {
+                        throw new \Exception('バリデーションエラーが発生しました。');
                     }
 
-                    // userGroupsが空でない場合に保存を実行
-                    if (!empty($userGroups)) {
-                        if ($this->MUserGroup->saveMany($userGroups)) {
-                            $this->Flash->success(__('部屋の所属情報が保存されました。'));
-                        } else {
-                            $this->Flash->error(__('部屋の所属情報の保存に失敗しました。'));
-                        }
-                    }
+                    // ユーザー情報の保存
+                    if ($this->MUserInfo->save($mUserInfo)) {
+                        $this->Flash->success(__('ユーザー情報が保存されました。'));
+                        $i_id_user = $mUserInfo->i_id_user;
 
-                    return $this->redirect(['action' => 'index']);
-                } else {
-                    $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
+                        // MUserGroupデータを手動で作成・保存
+                        $userGroups = [];
+                        foreach ($data['MUserGroup'] as $groupData) {
+                            if (!empty($groupData['i_id_room'])) {
+                                $userGroups[] = $this->MUserGroup->newEntity([
+                                    'i_id_user' => (int)$i_id_user,
+                                    'i_id_room' => (int)$groupData['i_id_room'],
+                                    'active_flag' => 0,
+                                    'dt_create' => date('Y-m-d H:i:s'),
+                                    'c_create_user' => $user ? $user->get('c_user_name') : '不明なユーザー'
+                                ]);
+                            }
+                        }
+
+                        // userGroupsが空でない場合に保存を実行
+                        if (!empty($userGroups)) {
+                            if ($this->MUserGroup->saveMany($userGroups)) {
+                                $this->Flash->success(__('部屋の所属情報が保存されました。'));
+                            } else {
+                                $this->Flash->error(__('部屋の所属情報の保存に失敗しました。'));
+                            }
+                        }
+
+                        return $this->redirect(['action' => 'index']);
+                    } else {
+                        $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
+                    }
+                } catch (\Exception $e) {
+                    $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
                 }
-            } catch (\Exception $e) {
-                $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
 
@@ -182,7 +204,6 @@ class MUserInfoController extends AppController
         $roles = [0 => '職員', 1 => '児童', 3 => 'その他'];
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
     }
-
 
     public function edit($id = null)
     {
@@ -235,6 +256,7 @@ class MUserInfoController extends AppController
                 if ($this->MUserInfo->save($mUserInfo, ['associated' => ['MUserGroup']])) {
                     $conn->commit();
                     $this->Flash->success(__('ユーザー情報が更新されました。'));
+                    $mUserInfo->dt_update = date('Y-m-d H:i:s');
                     return $this->redirect(['action' => 'index']);
                 } else {
                     // デバッグメッセージ2: 保存失敗
@@ -259,6 +281,45 @@ class MUserInfoController extends AppController
 
         $this->set(compact('mUserInfo', 'rooms', 'selectedRooms'));
     }
+
+    public function updateAdminStatus()
+    {
+        // POSTメソッドのみを許可
+        $this->request->allowMethod(['post']);
+
+        // リクエストデータを取得
+        $data = $this->request->getData(); // JSONデータから取得
+        $userId = $data['i_id_user'] ?? null;
+        $isAdmin = $data['i_admin'] ?? null;
+
+        // 必須データがない場合、BadRequestを返す
+        if (is_null($userId) || is_null($isAdmin)) {
+            return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode(['success' => false, 'message' => 'ユーザーIDまたは管理者権限が指定されていません。']));
+        }
+
+        // ユーザーデータを取得し更新処理を実行
+        $this->fetchTable('MUserInfo');
+        $user = $this->MUserInfo->get($userId); // 対象ユーザーを取得
+
+        if (!$user) {
+            return $this->response->withType('application/json')
+                ->withStringBody(json_encode(['success' => false, 'message' => '対象ユーザーが見つかりません。']));
+        }
+
+        // 権限を更新
+        $user->i_admin = (int)$isAdmin;
+        if ($this->MUserInfo->save($user)) {
+            return $this->response->withType('application/json')
+                ->withStringBody(json_encode(['success' => true, 'message' => '管理者権限が正常に更新されました。']));
+        } else {
+            return $this->response->withType('application/json')
+                ->withStringBody(json_encode(['success' => false, 'message' => '管理者権限の更新に失敗しました。']));
+        }
+    }
+
+
 
 
 
@@ -334,10 +395,15 @@ class MUserInfoController extends AppController
         return $this->redirect(['action' => 'view', $userId]);
     }
 
+
+
+
+
     public function login()
     {
         $this->request->allowMethod(['get', 'post']);
         $result = $this->Authentication->getResult();
+
         if ($result && $result->isValid()) {
             $redirect = $this->request->getQuery('redirect', [
                 'controller' => 'TReservationInfo',
@@ -347,8 +413,16 @@ class MUserInfoController extends AppController
         }
 
         if ($this->request->is('post') && !$result->isValid()) {
+            // デバッグのため値を取得
+            $status = $result ? $result->getStatus() : 'Result is null';
+            $data = $result ? (array)$result->getData() : ['Result is null'];
+
+            // デバッグログに文字列変換して出力
+            $this->log(print_r($status, true), 'debug');
+            $this->log(print_r($data, true), 'debug');
+            $this->log(print_r($this->request->getData(), true), 'debug');
+
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
         }
     }
 
@@ -361,4 +435,5 @@ class MUserInfoController extends AppController
         }
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
+
 }

@@ -2,7 +2,7 @@
     <h1>予約一覧</h1>
     <h3>日付: <?= h($date) ?></h3>
 
-    <?php foreach (['朝' => 1, '昼' => 2, '夜' => 3] as $mealLabel => $mealType): ?>
+    <?php foreach (['朝' => 1, '昼' => 2, '夜' => 3,'弁当'=>4] as $mealLabel => $mealType): ?>
         <h2><?= h($mealLabel) ?>の予約</h2>
 
         <?php if (!empty($mealDataArray[$mealLabel])): ?>

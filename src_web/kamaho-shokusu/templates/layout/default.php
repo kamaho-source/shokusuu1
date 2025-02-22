@@ -25,12 +25,31 @@
                 <li class="nav-item">
                     <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">ユーザ一覧</a>
                 </li>
+                <?php if ($user && $user->i_admin): ?>
+                    <li class="nav-item dropdown">
+                        <!-- ドロップダウンをトリガーするリンク -->
+                        <a class="nav-link dropdown-toggle active" id="userDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            予約情報
+                        </a>
+                        <!-- ドロップダウンメニュー -->
+                        <ul class="dropdown-menu" aria-labelledby="userDropdown">
+                            <li>
+                                <?= $this->Html->link('食数単価一覧', ['controller' => 'MMealPriceInfo', 'action' => 'index'], ['class' => 'dropdown-item']) ?>
+                                <?= $this->Html->link('食事控除表ダウンロード', ['controller' => 'MMealPriceInfo', 'action' => 'GetMealSummary'], ['class' => 'dropdown-item']) ?>
+                            </li>
+                        </ul>
+                    </li>
+                <?php endif; ?>
             </ul>
             <ul class="navbar-nav ms-auto">
                 <?php if ($user): ?>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle active" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <?php if (!empty($user->i_id_staff)): ?>
+                                <span class="small text-light">(職員ID: <?= h($user->i_id_staff) ?>)</span>
+                            <?php endif; ?>
                             <?= h($user->c_user_name) ?>
+
                         </a>
                         <div class="dropdown-menu" aria-labelledby="userDropdown">
                             <?= $this->Html->link('プロフィール', ['controller' => 'MUserInfo', 'action' => 'view', $user->i_id_user], ['class' => 'dropdown-item']) ?>
@@ -54,6 +73,6 @@
 
 <!-- 必要なスクリプトを正しい順序で読み込む -->
 <?= $this->Html->script('jquery-3.5.1.min.js') ?>
-<?= $this->Html->script('bootstrap.bundle.min.js') ?> <!-- これだけでOK -->
+<?= $this->Html->script('bootstrap.bundle.min.js') ?>
 </body>
 </html>

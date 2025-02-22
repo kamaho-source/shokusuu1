@@ -1,4 +1,3 @@
-
 <?php
 $this->assign('title', 'ユーザー情報の追加');
 ?>
@@ -21,8 +20,10 @@ $this->assign('title', 'ユーザー情報の追加');
                     <div class="mb-3">
                         <?= $this->Form->control('c_login_account', [
                             'label' => ['text' => 'ログインID', 'class' => 'form-label'],
-                            'class' => 'form-control'
+                            'class' => 'form-control',
+                            'id' => 'c_login_account'
                         ]) ?>
+                        <div id="login-id-error" class="text-danger" style="display: none;">このログインIDは既に使用されています。</div>
                     </div>
 
                     <!-- パスワード -->
@@ -32,6 +33,7 @@ $this->assign('title', 'ユーザー情報の追加');
                             'type' => 'password',
                             'class' => 'form-control'
                         ]) ?>
+                        <button type="button" id="toggle-password" class="btn btn-secondary btn-sm mt-2">表示</button>
                     </div>
 
                     <!-- ユーザー名 -->
@@ -41,7 +43,33 @@ $this->assign('title', 'ユーザー情報の追加');
                             'class' => 'form-control'
                         ]) ?>
                     </div>
-
+                    <div class="mb-3">
+                        <?= $this->Form->control('i_user_gender', [
+                            'type' => 'select',
+                            'options' => [1 => '男性', 2 => '女性'],
+                            'label' => ['text' => '性別', 'class' => 'form-label'],
+                            'class' => 'form-control',
+                            'empty' => '選択してください'
+                        ]) ?>
+                    </div>
+                    <!-- どの年代が食べたか -->
+                    <div class="mb-3">
+                        <?= $this->Form->control('age_group', [
+                            'type' => 'select',
+                            'options' => [
+                                1 => '3~5才',
+                                2 => '低学年',
+                                3 => '中学年',
+                                4 => '高学年',
+                                5 => '中学生',
+                                6 => '高校生',
+                                7 => '大人'
+                            ],
+                            'label' => ['text' => '年代選択', 'class' => 'form-label'],
+                            'class' => 'form-control',
+                            'empty' => '選択してください'
+                        ]) ?>
+                    </div>
                     <!-- 年齢 -->
                     <div class="mb-3">
                         <?= $this->Form->control('age', [
@@ -64,6 +92,16 @@ $this->assign('title', 'ユーザー情報の追加');
                         ]) ?>
                     </div>
 
+                    <!-- 職員ID入力フィールド（動的に表示） -->
+                    <div id="staff-id-field" class="mb-3" style="display: none;">
+                        <?= $this->Form->control('staff_id', [
+                            'label' => ['text' => '職員ID', 'class' => 'form-label'],
+                            'class' => 'form-control',
+                            'type' => 'text',
+                            'placeholder' => '職員IDを入力してください'
+                        ]) ?>
+                    </div>
+
                     <!-- 部屋情報のチェックボックス -->
                     <div class="mb-3">
                         <label><?= __('所属する部屋') ?></label>
@@ -82,119 +120,75 @@ $this->assign('title', 'ユーザー情報の追加');
                             <p><?= __('表示できる部屋がありません') ?></p>
                         <?php endif; ?>
                     </div>
-
-                    <!-- ユーザー選択 -->
-                    <div id="user-selection" class="mb-3" style="display: none;">
-                        <label><?= __('部屋に属する利用者をご選択ください') ?></label>
-                        <div id="user-table-container">
-                            <table class="table table-bordered">
-                                <thead>
-                                <tr>
-                                    <th>利用者名</th>
-                                    <th>朝</th>
-                                    <th>昼</th>
-                                    <th>夜</th>
-                                </tr>
-                                </thead>
-                                <tbody id="user-checkboxes">
-                                <!-- 利用者のチェックボックスがここに追加されます -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
                 </fieldset>
-                <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary', 'id' => 'submit-button']) ?>
                 <?= $this->Form->end() ?>
             </div>
         </div>
     </div>
 </div>
 
+<!-- JavaScript部分 -->
 <script>
     document.addEventListener('DOMContentLoaded', (event) => {
-        const fetchUsersByRoom = async (roomId) => {
-            const response = await fetch(`http://localhost:8091/kamaho-shokusu/TReservationInfo/getUsersByRoom/${roomId}`);
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Network response was not ok:', errorText);
-                throw new Error('Network response was not ok');
+        // ログインIDの重複チェック
+        const loginIdField = document.getElementById('c_login_account');
+        const loginIdError = document.getElementById('login-id-error');
+        const submitButton = document.getElementById('submit-button');
+
+        loginIdField.addEventListener('blur', function () {
+            const loginId = loginIdField.value.trim();
+            if (loginId) {
+                fetch('/m-user-info/check-unique-login-id', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': document.querySelector('input[name="_csrfToken"]').value
+                    },
+                    body: JSON.stringify({ c_login_account: loginId })
+                })
+                    .then((response) => response.json())
+                    .then((data) => {
+                        if (!data.unique) {
+                            loginIdError.style.display = 'block';
+                            submitButton.disabled = true;
+                        } else {
+                            loginIdError.style.display = 'none';
+                            submitButton.disabled = false;
+                        }
+                    });
             }
-            try {
-                return await response.json();
-            } catch (e) {
-                const errorText = await response.text();
-                console.error('Failed to parse JSON:', errorText);
-                throw new Error('Failed to parse JSON: ' + e.message);
+        });
+
+        // 役職の選択肢フィールド制御
+        const roleSelect = document.querySelector('[name="role"]');
+        const staffIdField = document.getElementById('staff-id-field');
+        const toggleStaffIdField = (roleValue) => {
+            if (roleValue === '0') { // 役職が「職員」の場合のみ表示
+                staffIdField.style.display = 'block';
+            } else {
+                staffIdField.style.display = 'none';
             }
         };
 
-        document.querySelectorAll('.form-check-input').forEach((checkbox) => {
-            checkbox.addEventListener('change', function () {
-                const roomId = this.value;
-                const userSelection = document.getElementById('user-selection');
-                const userCheckboxes = document.getElementById('user-checkboxes');
+        toggleStaffIdField(roleSelect.value);
 
-                userCheckboxes.innerHTML = ''; // 既存のチェックボックスをクリア
-
-                if (this.checked) {
-                    userSelection.style.display = 'block';
-                    fetchUsersByRoom(roomId)
-                        .then(data => {
-                            if (data.error) {
-                                throw new Error(data.error);
-                            }
-                            if (Array.isArray(data) && data.length === 0) {
-                                console.error('No users found for the selected room');
-                            }
-                            data.forEach(user => {
-                                const row = document.createElement('tr');
-
-                                // ユーザー名を表示
-                                const nameCell = document.createElement('td');
-                                const nameLabel = document.createElement('label');
-                                nameLabel.className = 'form-check-label';
-                                nameLabel.htmlFor = 'user-' + user.id;
-                                nameLabel.textContent = user.name;
-                                nameCell.appendChild(nameLabel);
-                                row.appendChild(nameCell);
-
-                                // 朝のチェックボックス
-                                const morningCell = document.createElement('td');
-                                const morningCheckbox = document.createElement('input');
-                                morningCheckbox.className = 'form-check-input';
-                                morningCheckbox.type = 'checkbox';
-                                morningCheckbox.name = `morning_${user.id}`;
-                                morningCell.appendChild(morningCheckbox);
-                                row.appendChild(morningCell);
-
-                                // 昼のチェックボックス
-                                const afternoonCell = document.createElement('td');
-                                const afternoonCheckbox = document.createElement('input');
-                                afternoonCheckbox.className = 'form-check-input';
-                                afternoonCheckbox.type = 'checkbox';
-                                afternoonCheckbox.name = `afternoon_${user.id}`;
-                                afternoonCell.appendChild(afternoonCheckbox);
-                                row.appendChild(afternoonCell);
-
-                                // 夜のチェックボックス
-                                const eveningCell = document.createElement('td');
-                                const eveningCheckbox = document.createElement('input');
-                                eveningCheckbox.className = 'form-check-input';
-                                eveningCheckbox.type = 'checkbox';
-                                eveningCheckbox.name = `evening_${user.id}`;
-                                eveningCell.appendChild(eveningCheckbox);
-                                row.appendChild(eveningCell);
-
-                                // 行をテーブルに追加
-                                userCheckboxes.appendChild(row);
-                            });
-                        })
-                        .catch(error => console.error('Fetch error:', error));
-                } else {
-                    userSelection.style.display = 'none';
-                }
-            });
+        roleSelect.addEventListener('change', (event) => {
+            toggleStaffIdField(event.target.value);
         });
-    })
 
+        // パスワード表示/非表示の制御
+        const passwordField = document.querySelector('[name="c_login_passwd"]');
+        const togglePasswordButton = document.getElementById('toggle-password');
+
+        togglePasswordButton.addEventListener('click', () => {
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                togglePasswordButton.textContent = '非表示';
+            } else {
+                passwordField.type = 'password';
+                togglePasswordButton.textContent = '表示';
+            }
+        });
+    });
 </script>
