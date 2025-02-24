@@ -16,14 +16,11 @@ class MMealPriceInfoController extends AppController
     public function initialize(): void
     {
         parent::initialize();
-        $this ->MMealPriceInfo = $this->fetchTable('MMealPriceInfo');
+        $this->MMealPriceInfo = $this->fetchTable('MMealPriceInfo');
         $this->TIndividualReservationInfo = $this->fetchTable('TIndividualReservationInfo');
         $this->MUserInfo = $this->fetchTable('MUserInfo');
-
-
-
-
     }
+
     /**
      * Index method
      *
@@ -61,11 +58,11 @@ class MMealPriceInfoController extends AppController
         if ($this->request->is('post')) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
-                $this->Flash->success(__('The m meal price info has been saved.'));
+                $this->Flash->success(__('食事料金情報が正常に保存されました。'));
 
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The m meal price info could not be saved. Please, try again.'));
+            $this->Flash->error(__('食事料金情報を保存できませんでした。もう一度お試しください。'));
         }
         $this->set(compact('mMealPriceInfo'));
     }
@@ -83,11 +80,11 @@ class MMealPriceInfoController extends AppController
         if ($this->request->is(['patch', 'post', 'put'])) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
-                $this->Flash->success(__('The m meal price info has been saved.'));
+                $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
                 return $this->redirect(['action' => 'index']);
             }
-            $this->Flash->error(__('The m meal price info could not be saved. Please, try again.'));
+            $this->Flash->error(__('食事料金情報を更新できませんでした。もう一度お試しください。'));
         }
         $this->set(compact('mMealPriceInfo'));
     }
@@ -104,19 +101,16 @@ class MMealPriceInfoController extends AppController
         $this->request->allowMethod(['post', 'delete']);
         $mMealPriceInfo = $this->MMealPriceInfo->get($id);
         if ($this->MMealPriceInfo->delete($mMealPriceInfo)) {
-            $this->Flash->success(__('The m meal price info has been deleted.'));
+            $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {
-            $this->Flash->error(__('The m meal price info could not be deleted. Please, try again.'));
+            $this->Flash->error(__('食事料金情報を削除できませんでした。もう一度お試しください。'));
         }
 
         return $this->redirect(['action' => 'index']);
     }
 
-
-
     public function getMealSummary()
     {
-
         // 年度と月をリクエストから取得 (デフォルト値は今年と現在の月)
         $Year = $this->request->getQuery('year', date('Y'));
         $month = $this->request->getQuery('month', date('n')); // 月は1月から12月で選択
@@ -132,7 +126,6 @@ class MMealPriceInfoController extends AppController
 
         $this->set(compact('yearList', 'monthList', 'Year', 'month'));
     }
-
 
     public function exportMealSummary()
     {
@@ -220,6 +213,4 @@ class MMealPriceInfoController extends AppController
             ->withStringBody(json_encode($monthlyData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         return $this->response;
     }
-
-
 }

@@ -114,6 +114,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
         $builder->connect('/MUserInfo/', ['controller' => 'MUserInfo', 'action' => 'index']);
+   //     $builder->connect('/MUserInfo/adminChangePassword', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
 
 
         /*

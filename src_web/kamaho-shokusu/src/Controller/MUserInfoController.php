@@ -436,9 +436,69 @@ class MUserInfoController extends AppController
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
 
-    public function recoverPassword()
+
+/*
+    public function adminChangePassword()
     {
+        // すべてのユーザーを取得（リスト表示用）
+        $users = $this->fetchTable('MUserInfo')->find('list', [
+            'keyField' => 'i_id_user',
+            'valueField' => 'c_user_name'
+        ])->where(['i_del_flag' => 0])->toArray();
 
+        $selectedUser = null;
+
+        if ($this->request->is(['post', 'put'])) {
+            $data = $this->request->getData();
+            $this->log('受信データ: ' . json_encode($data, JSON_UNESCAPED_UNICODE), 'debug');
+
+            $userId = $data['user_id'] ?? null;
+            $newPassword = $data['new_password'] ?? '';
+            $confirmPassword = $data['confirm_password'] ?? '';
+
+            if (!$userId || !isset($users[$userId])) {
+                $this->Flash->error(__('ユーザーを選択してください。'));
+                return $this->redirect(['action' => 'adminChangePassword']);
+            }
+
+            $selectedUser = $this->fetchTable('MUserInfo')->get($userId);
+
+            // パスワードバリデーション
+            if ($newPassword !== $confirmPassword) {
+                $this->Flash->error(__('新しいパスワードが一致しません。'));
+                return $this->redirect(['action' => 'adminChangePassword']);
+            }
+
+            if (strlen($newPassword) < 6) {
+                $this->Flash->error(__('新しいパスワードは6文字以上にしてください。'));
+                return $this->redirect(['action' => 'adminChangePassword']);
+            }
+
+            // **現在のパスワードをログに記録**
+            $this->log('現在のデータベースのパスワード: ' . $selectedUser->c_login_passwd, 'debug');
+
+            // **新しいパスワードのハッシュ化前後をログに記録**
+            $this->log('ハッシュ化前のパスワード: ' . $newPassword, 'debug');
+            $hashedPassword = (new DefaultPasswordHasher())->hash($newPassword);
+            $this->log('ハッシュ化後のパスワード: ' . $hashedPassword, 'debug');
+
+            // パスワードをハッシュ化して保存
+            $selectedUser->c_login_passwd = $hashedPassword;
+            if ($this->fetchTable('MUserInfo')->save($selectedUser)) {
+                $this->log('パスワード変更完了: ユーザーID ' . $selectedUser->i_id_user, 'debug');
+
+                // **保存後のデータベースのパスワードをログに記録**
+                $savedUser = $this->fetchTable('MUserInfo')->get($userId);
+                $this->log('保存後のデータベースのパスワード: ' . $savedUser->c_login_passwd, 'debug');
+
+                $this->Flash->success(__('パスワードを変更しました。'));
+                return $this->redirect(['action' => 'index']);
+            }
+
+            $this->Flash->error(__('パスワードの変更に失敗しました。'));
+        }
+
+        $this->set(compact('users', 'selectedUser'));
     }
-
+*/
 }

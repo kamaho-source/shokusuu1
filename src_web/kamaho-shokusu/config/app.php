@@ -179,6 +179,10 @@ return [
         ],
     ],
 
+    'Authentication'=>[
+        'passwordHasher'=>'Authentication\PasswordHasher\DefaultPasswordHasher',
+    ],
+
     /*
      * Debugger configuration
      *
