@@ -116,25 +116,34 @@
                             mealCounts.morning || 0, // 朝食回数
                             mealCounts.lunch || 0, // 昼食回数
                             mealCounts.dinner || 0, // 夕食回数
-                            totalDeductions// , // 控除額合計
+                            totalDeductions // 控除額合計
                         ]);
                     });
 
-                    // 書式設定
-                    sheet.getRow(1).font = { bold: true }; // ヘッダーを太字で表示
+                    // ◆ 合計行を追加
+                    sheet.addRow([
+                        "合計", // 合計ラベル
+                        { formula: `SUM(B2:B${data.length + 1})` }, // 弁当回数 合計
+                        { formula: `SUM(C2:C${data.length + 1})` }, // 朝食回数 合計
+                        { formula: `SUM(D2:D${data.length + 1})` }, // 昼食回数 合計
+                        { formula: `SUM(E2:E${data.length + 1})` }, // 夕食回数 合計
+                        { formula: `SUM(F2:F${data.length + 1})` }  // 控除額 合計
+                    ]);
 
-                    // 列幅を自動調整
-                    sheet.columns.forEach((column) => {
+                    // 書式設定：ヘッダ行と集計行を太字にする
+                    sheet.getRow(1).font = { bold: true }; // ヘッダー
+                    sheet.getRow(sheet.lastRow.number).font = { bold: true }; // 合計行を太字にする
+
+                    // **列幅を自動調整**
+                    sheet.columns.forEach((column, index) => {
                         let maxLength = 0;
                         column.eachCell({ includeEmpty: true }, (cell) => {
                             if (cell.value) {
-                                const cellLength = cell.value.toString().length;
-                                if (cellLength > maxLength) {
-                                    maxLength = cellLength;
-                                }
+                                const stringValue = cell.value.toString();
+                                maxLength = Math.max(maxLength, stringValue.length);
                             }
                         });
-                        column.width = maxLength + 2; // 余白を持たせるため +2
+                        column.width = maxLength ? maxLength + 2 : 10; // 若干のゆとりを設定
                     });
 
                     // Excel ファイルを生成
@@ -162,3 +171,4 @@
         }
     });
 </script>
+

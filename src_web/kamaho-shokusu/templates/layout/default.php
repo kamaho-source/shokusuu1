@@ -18,12 +18,12 @@
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto">
+            <ul class="navbar-nav me-auto ">
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">部屋情報</a>
+                    <a class="nav-link active" href="<?= $this->Url->build('/MRoomInfo/') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">部屋情報</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">ユーザ一覧</a>
+                    <a class="nav-link active" href="<?= $this->Url->build('/MUserInfo/') ?>" onclick="if (!<?= json_encode($user) ?>) { window.location.href = '<?= $this->Url->build('/MUserInfo/login') ?>'; return false; }">ユーザ一覧</a>
                 </li>
                 <?php if ($user && $user->i_admin): ?>
                     <li class="nav-item dropdown">

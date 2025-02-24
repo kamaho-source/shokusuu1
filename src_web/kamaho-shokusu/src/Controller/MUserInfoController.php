@@ -436,4 +436,9 @@ class MUserInfoController extends AppController
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
 
+    public function recoverPassword()
+    {
+
+    }
+
 }
