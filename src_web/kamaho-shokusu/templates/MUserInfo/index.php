@@ -87,7 +87,7 @@ $this->assign('title', 'ユーザー情報一覧');
                 // 確認ダイアログを生成
                 const confirmMessage = isAdmin
                     ? `${userName}に管理者権限を付与しますか？`
-                    : `${userName}から管理者権限を剥奪しますか？`;
+                    : `${userName}から管理者権限を削除しますか？`;
 
                 // ユーザーによる確認
                 if (!confirm(confirmMessage)) {
