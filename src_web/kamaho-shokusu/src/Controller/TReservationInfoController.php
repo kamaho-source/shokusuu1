@@ -50,6 +50,37 @@ class TReservationInfoController extends AppController
         $this->viewBuilder()->setLayout('default');
     }
 
+    private function validateReservationDate($reservationDate)
+    {
+        // 予約日が null の場合、エラーを返す
+        if (empty($reservationDate)) {
+            return '予約日が指定されていません。';
+        }
+
+        try {
+            // 予約日を DateTime オブジェクトに変換
+            $reservationDateObj = new FrozenDate($reservationDate);
+        } catch (\Exception $e) {
+            return '無効な日付フォーマットです。';
+        }
+
+        // 今日の日付を取得
+        $currentDate = FrozenTime::now();
+        // 当日から1ヶ月後の日付を計算（※modify('+1 month')は元のオブジェクトを変更するので注意）
+        $oneMonthLater = (new FrozenTime($currentDate))->modify('+1 month');
+        $oneMonthLaterDate = new FrozenDate($oneMonthLater);
+
+        // 予約日は「当日から１ヶ月後」以降でなければならない
+        if ($reservationDateObj < $oneMonthLaterDate) {
+            return '当日から１ヶ月後までは予約の登録ができません。';
+        }
+
+        return true; // 予約可能
+    }
+
+
+
+
     /**
      * インデックスメソッド
      *
@@ -511,7 +542,6 @@ class TReservationInfoController extends AppController
 
     public function add()
     {
-        // 必要な情報を取得する前に確認
         $user = $this->request->getAttribute('identity');
         if (!$user) {
             return $this->jsonErrorResponse(__('ログイン情報がありません。'));
@@ -520,24 +550,28 @@ class TReservationInfoController extends AppController
         $userId = $user->get('i_id_user');
         $rooms = $this->getAuthorizedRooms($userId);
 
-        // URLから日付（date）を取得する
-        $date = $this->request->getParam('date') ?? date('Y-m-d');  // URLパラメータ 'date'
+        // クエリパラメータから日付を取得（nullの場合は今日の日付を設定）
+        $date = $this->request->getQuery('date') ?? date('Y-m-d');
 
-        // 部屋IDが必要
+        // バリデーションチェック
+        $dateValidation = $this->validateReservationDate($date);
+        if ($dateValidation !== true) {
+            $this->Flash->error(__($dateValidation));
+            return $this->redirect(['action' => 'index']);
+        }
 
-        $roomId = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->toArray();
+        $roomId = $this->MRoomInfo->find('list', [
+            'keyField' => 'i_id_room',
+            'valueField' => 'c_room_name'
+        ])->toArray();
 
         if (!$roomId) {
             $this->Flash->error(__('部屋が見つかりません。'));
             return $this->redirect(['action' => 'index']);
-
-
         }
 
-        // TReservationInfoエンティティの作成
         $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
 
-        // POSTリクエスト時の処理
         if ($this->request->is('post')) {
             $data = $this->request->getData();
             $reservationType = $data['reservation_type'] ?? '1';
@@ -549,9 +583,9 @@ class TReservationInfoController extends AppController
             }
         }
 
-        // ビューに渡すデータ
         $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomId'));
     }
+
 
 
 
@@ -564,6 +598,12 @@ class TReservationInfoController extends AppController
      */
     private function processIndividualReservation($reservationDate, $data, $rooms)
     {
+
+        $dateValidation = $this->validateReservationDate($reservationDate);
+        if ($dateValidation !== true) {
+            return $this->jsonErrorResponse(__($dateValidation));
+        }
+
         $reservations = [];
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
         $userName = $this->request->getAttribute('identity')->get('c_user_name');
@@ -618,6 +658,12 @@ class TReservationInfoController extends AppController
 
     private function processGroupReservation($reservationDate, $data, $rooms)
     {
+        $dateValidation = $this->validateReservationDate($reservationDate);
+        if ($dateValidation !== true) {
+            return $this->jsonErrorResponse(__($dateValidation));
+        }
+
+
         if (!is_array($rooms)) {
             $rooms = [];
         }
@@ -1019,7 +1065,28 @@ class TReservationInfoController extends AppController
                             );
 
                             $this->log("予約データ更新中: OldRoomId={$originalRoomId}, NewRoomId={$roomId}, UserID={$userId}", 'debug');
+                        }else {
+                            // 予約データが存在しない場合、新規登録
+                            if ($value == 1) {
+                                $newReservation = $this->TIndividualReservationInfo->newEmptyEntity();
+                                $newReservation = $this->TIndividualReservationInfo->patchEntity($newReservation, [
+                                    'i_id_user' => $userId,
+                                    'd_reservation_date' => $date,
+                                    'i_id_room' => $roomId,
+                                    'i_reservation_type' => $mealType,
+                                    'eat_flag' => 1,
+                                    'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name'),
+                                    'dt_create' => FrozenTime::now(),
+                                ]);
+
+                                if (!$this->TIndividualReservationInfo->save($newReservation)) {
+                                    throw new \Exception("新規予約の保存に失敗しました: UserID={$userId}");
+                                }
+
+                                $this->log("新規予約登録: UserID={$userId}, RoomID={$roomId}, MealType={$mealType}", 'debug');
+                            }
                         }
+
                     }
                 }
 

@@ -57,6 +57,8 @@ class MMealPriceInfoController extends AppController
         $mMealPriceInfo = $this->MMealPriceInfo->newEmptyEntity();
         if ($this->request->is('post')) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
+            $this->MMealPriceInfo->dt_created = date('Y-m-d H:i:s');
+
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
 

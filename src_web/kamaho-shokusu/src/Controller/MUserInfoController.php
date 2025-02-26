@@ -437,7 +437,7 @@ class MUserInfoController extends AppController
     }
 
 
-/*
+
     public function adminChangePassword()
     {
         // すべてのユーザーを取得（リスト表示用）
@@ -500,5 +500,4 @@ class MUserInfoController extends AppController
 
         $this->set(compact('users', 'selectedUser'));
     }
-*/
 }

@@ -3,6 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <title>食数予約</title>
+    <style>
+        /* カレンダー公開エリア全体の調整 */
+        #calendar {
+            max-width: 130%; /* 画面幅に合わせてリサイズ */
+            margin: 0 auto; /* センター配置 */
+        }
+
+        /* ヘッダーツールバーやフォントをスマホ向けに調整 */
+        @media screen and (max-width: 768px) {
+            .fc-toolbar button {
+                font-size: 12px; /* ボタンのフォントサイズを小さめに */
+            }
+            .fc-toolbar-title {
+                font-size: 14px; /* タイトルも少し小さめに */
+            }
+            #calendar {
+                font-size: 12px; /* カレンダー全体のフォントを縮小 */
+            }
+        }
+
+        /* タブレット向け */
+        @media screen and (min-width: 769px) and (max-width: 1024px) {
+            .fc-toolbar button {
+                font-size: 14px; /* ボタンフォントサイズ少し大きく */
+            }
+            .fc-toolbar-title {
+                font-size: 16px; /* タイトルのフォントサイズを調整 */
+            }
+            #calendar {
+                font-size: 14px; /* 全体のフォント */
+            }
+        }
+
+        /* PCでは通常通りの表示 */
+        @media screen and (min-width: 1025px) {
+            #calendar {
+                font-size: 16px; /* 標準サイズのフォント適用 */
+            }
+        }
+    </style>
 </head>
 <body>
 
@@ -74,6 +114,17 @@
         var calendar = new FullCalendar.Calendar(calendarEl, {
             initialView: 'dayGridMonth',
             locale: 'ja',
+            height: 'auto',
+            contentHeight: 'auto',
+            expandRows: true,
+            aspectRatio: 1.35,
+            buttonText: {
+                today: '今日',
+                month: '月',
+                week: '週',
+                day: '日',
+                list: 'リスト'
+            },
             events: function(fetchInfo, successCallback, failureCallback) {
                 var startYear = fetchInfo.start.getFullYear();
                 var endYear = fetchInfo.end.getFullYear();
