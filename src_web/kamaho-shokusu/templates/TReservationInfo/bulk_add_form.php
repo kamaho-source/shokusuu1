@@ -66,6 +66,8 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                     <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', false)" <?= $isDisabled ? 'disabled' : '' ?>>全員昼解除</button>
                     <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', true)" <?= $isDisabled ? 'disabled' : '' ?>>全員夜チェック</button>
                     <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', false)" <?= $isDisabled ? 'disabled' : '' ?>>全員夜解除</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('bento', true)" <?= $isDisabled ? 'disabled' : '' ?>>全員弁当チェック</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('bento', false)" <?= $isDisabled ? 'disabled' : '' ?>>全員弁当解除</button>
                 </div>
 
                 <div id="user-table-container">

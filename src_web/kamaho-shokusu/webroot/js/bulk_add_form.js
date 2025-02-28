@@ -1,79 +1,123 @@
-document.addEventListener('DOMContentLoaded', function (message) {
+document.addEventListener('DOMContentLoaded', function () {
     const csrfToken = document.querySelector('meta[name="csrfToken"]').getAttribute('content');
     const reservationForm = document.getElementById('reservation-form');
 
-    // 曜日チェックボックスを取得
-    const mondayCheckbox = document.getElementById('monday');
-    const tuesdayCheckbox = document.getElementById('tuesday');
-    const wednesdayCheckbox = document.getElementById('wednesday');
-    const thursdayCheckbox = document.getElementById('thursday');
-    const fridayCheckbox = document.getElementById('friday');
+    // 部屋選択の変更イベント
+    const roomSelect = document.getElementById('i_id_room');
+    if (roomSelect) {
+        roomSelect.addEventListener('change', function () {
+            const roomId = this.value;
+            if (roomId) {
+                fetchUsersByRoom(roomId);
+            }
+        });
+    }
 
-    // 曜日の入力データ
-    const dateInputs = {
-        monday: mondayCheckbox ? mondayCheckbox.value : '',
-        tuesday: tuesdayCheckbox ? tuesdayCheckbox.value : '',
-        wednesday: wednesdayCheckbox ? wednesdayCheckbox.value : '',
-        thursday: thursdayCheckbox ? thursdayCheckbox.value : '',
-        friday: fridayCheckbox ? fridayCheckbox.value : ''
-    };
-
-    // 送信ボタン
-    const submitButton = document.querySelector('button[type="submit"]');
-
-    submitButton.addEventListener('click', function (event) {
-        event.preventDefault();
-
-        // 選択された曜日に対してデータを一括登録
-        const selectedDates = [];
-
-        if (mondayCheckbox.checked) selectedDates.push(dateInputs.monday);
-        if (tuesdayCheckbox.checked) selectedDates.push(dateInputs.tuesday);
-        if (wednesdayCheckbox.checked) selectedDates.push(dateInputs.wednesday);
-        if (thursdayCheckbox.checked) selectedDates.push(dateInputs.thursday);
-        if (fridayCheckbox.checked) selectedDates.push(dateInputs.friday);
-
-        // 選択された曜日がある場合、一括登録処理
-        if (selectedDates.length > 0) {
-            // 選択された曜日データをフォームにセットして送信
-            const formData = new FormData(reservationForm);
-            formData.append('selected_dates', JSON.stringify(selectedDates)); // 追加した日付の情報
-
-            // 一括登録リクエスト
-            fetch('/kamaho-shokusu/TReservationInfo/bulkAddSubmit', {
-                method: 'POST',
-                body: formData, // FormDataをそのまま送る
-                headers: {
-                    'X-CSRF-Token': csrfToken, // CSRFトークン
-                    // 'Content-Type': 'application/json' // FormDataを送る場合、このヘッダーは必要ない
+    // ユーザー情報を取得して表示する関数
+    function fetchUsersByRoom(roomId) {
+        fetch(`/kamaho-shokusu/TReservationInfo/getUsersByRoomForBulk/${roomId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data && data.users) {
+                    renderUsers(data.users);
+                } else {
+                    displayNoUsersFound();
                 }
             })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTPエラー: ${response.status}`);
-                    }
-                    const contentType = response.headers.get('content-type');
-                    if (!contentType || !contentType.includes('application/json')) {
-                        throw new Error('サーバーがJSONではなくHTMLを返しました');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.status === 'success') {
-                        alert('一括予約が完了しました。');
-                        window.location.href = data.redirect_url;
-                    } else {
-                        alert('一括予約に失敗しました。再度お試しください。');
-                        alert(`エラー: ${data.message}`);
-                    }
-                })
-                .catch(error => {
-                    console.error('エラーが発生しました:', error);
-                    alert('エラーが発生しました。再度お試しください。');
-                });
+            .catch(error => {
+                console.error('ユーザー情報の取得に失敗しました:', error);
+                displayNoUsersFound();
+            });
+    }
 
-        } else {
-            alert('一括予約する曜日を選択してください。');
+    // ユーザーをテーブルに表示
+    function renderUsers(users) {
+        const userTableBody = document.getElementById('user-checkboxes');
+        if (!userTableBody) return;
+
+        userTableBody.innerHTML = '';
+        users.forEach(user => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${user.name}</td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][morning]" value="1"></td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][noon]" value="1"></td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][night]" value="1"></td>
+                <td><input class="form-check-input" type="checkbox" name="users[${user.id}][bento]" value="1"></td>
+            `;
+            userTableBody.appendChild(row);
+        });
+    }
+
+    // ユーザーが見つからない場合のメッセージ表示
+    function displayNoUsersFound() {
+        const userTableBody = document.getElementById('user-checkboxes');
+        if (userTableBody) {
+            userTableBody.innerHTML = '<tr><td colspan="5">利用者が見つかりません。</td></tr>';
         }
+    }
+
+    // 全員の朝・昼・夜チェック状態を切り替える関数
+    function toggleAllUsers(mealTime, isChecked) {
+        const checkboxes = document.querySelectorAll(`input[name$="[${mealTime}]"]`);
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+    }
+
+    // 全員チェックボタンにクリックイベントを登録
+    const toggleButtons = {
+        morningCheckAll: document.querySelector('button[onclick*="toggleAllUsers(\'morning\', true)"]'),
+        morningUncheckAll: document.querySelector('button[onclick*="toggleAllUsers(\'morning\', false)"]'),
+        noonCheckAll: document.querySelector('button[onclick*="toggleAllUsers(\'noon\', true)"]'),
+        noonUncheckAll: document.querySelector('button[onclick*="toggleAllUsers(\'noon\', false)"]'),
+        nightCheckAll: document.querySelector('button[onclick*="toggleAllUsers(\'night\', true)"]'),
+        nightUncheckAll: document.querySelector('button[onclick*="toggleAllUsers(\'night\', false)"]')
+    };
+
+    if (toggleButtons.morningCheckAll) {
+        toggleButtons.morningCheckAll.addEventListener('click', () => toggleAllUsers('morning', true));
+    }
+    if (toggleButtons.morningUncheckAll) {
+        toggleButtons.morningUncheckAll.addEventListener('click', () => toggleAllUsers('morning', false));
+    }
+    if (toggleButtons.noonCheckAll) {
+        toggleButtons.noonCheckAll.addEventListener('click', () => toggleAllUsers('noon', true));
+    }
+    if (toggleButtons.noonUncheckAll) {
+        toggleButtons.noonUncheckAll.addEventListener('click', () => toggleAllUsers('noon', false));
+    }
+    if (toggleButtons.nightCheckAll) {
+        toggleButtons.nightCheckAll.addEventListener('click', () => toggleAllUsers('night', true));
+    }
+    if (toggleButtons.nightUncheckAll) {
+        toggleButtons.nightUncheckAll.addEventListener('click', () => toggleAllUsers('night', false));
+    }
+
+    // フォームの送信イベント
+    reservationForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const formData = new FormData(this);
+
+        fetch('/kamaho-shokusu/TReservationInfo/bulkAddSubmit', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-Token': csrfToken
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('一括予約が完了しました。');
+                    window.location.href = data.redirect_url;
+                } else {
+                    alert(`エラー: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                console.error('エラーが発生しました:', error);
+                alert('エラーが発生しました。再度お試しください。');
+            });
     });
 });

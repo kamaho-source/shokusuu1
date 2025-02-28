@@ -663,7 +663,6 @@ class TReservationInfoController extends AppController
             return $this->jsonErrorResponse(__($dateValidation));
         }
 
-
         if (!is_array($rooms)) {
             $rooms = [];
         }
@@ -675,15 +674,16 @@ class TReservationInfoController extends AppController
         }
 
         foreach ($data['users'] as $userId => $meals) {
-            foreach ([1 => '朝', 2 => '昼', 3 => '夜', 4=>'弁当'] as $mealType => $mealName) {
+            foreach ([1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'] as $mealType => $mealName) {
                 if (!empty($meals[$mealType]) && intval($meals[$mealType]) === 1) {
 
                     // 特定のユーザーと食事タイプについて既に予約されているか確認
                     $existingReservations = $this->TIndividualReservationInfo->find()
                         ->where([
                             'd_reservation_date' => $reservationDate,
+                            'i_id_room' => $data['i_id_room'],
                             'i_reservation_type' => $mealType,
-                            'i_id_user' => $userId,
+                            'eat_flag' => 1, // 有効な予約のみチェック
                         ])
                         ->toArray();
 
@@ -693,23 +693,40 @@ class TReservationInfoController extends AppController
                             return $reservation->i_id_user;
                         }, $existingReservations);
 
+                        $this->log('Duplicate Users: ' . print_r($duplicateUsers, true), 'debug'); // デバッグ用ログ
+
                         $uniqueUsers = array_unique($duplicateUsers);
 
+                        $this->log('Unique Users: ' . print_r($uniqueUsers, true), 'debug'); // デバッグ用ログ
+
                         // ユーザー名を取得
-                        $userNames = $this->MUserInfo->find() // 適切なユーザーテーブルに変更
-                        ->select(['c_user_name'])
+                        $userNames = $this->MUserInfo->find()
+                            ->select(['c_user_name'])
                             ->whereInList('i_id_user', $uniqueUsers)
                             ->toArray();
 
-                        $registeredUsersList = implode(', ', array_column($userNames, 'c_user_name'));
+                        $this->log('User Names: ' . print_r($userNames, true), 'debug'); // デバッグ用ログ
 
+                        // エンティティ形式のユーザー名リストを処理
+                        if (!empty($userNames)) {
+                            $registeredUsersList = implode('、', array_map(function ($user) {
+                                return $user->c_user_name;
+                            }, $userNames));
+                        } else {
+                            $registeredUsersList = '該当するユーザーが見つかりません'; // デフォルト値
+                        }
+
+                        $this->log('Registered Users List: ' . $registeredUsersList, 'debug'); // デバッグ用ログ
+
+                        // 条件を満たす予約が既に存在しているかをチェック
                         $eatRegistered = array_reduce($existingReservations, function($carry, $reservation) {
                             return $carry || $reservation->eat_flag == 1;
                         }, false);
+
                         if ($eatRegistered) {
                             return $this->jsonErrorResponse(
                                 sprintf(
-                                    '同じ日付と食事タイプの予約が既に存在しているユーザーがいます。ユーザー名: "%s" さん',
+                                    '同じ日付と食事タイプの予約が既に存在します。ユーザー名: "%s" さん',
                                     $registeredUsersList
                                 )
                             );
@@ -749,7 +766,6 @@ class TReservationInfoController extends AppController
 
         return $this->jsonErrorResponse(__('集団予約の登録中にエラーが発生しました。'));
     }
-
 
     protected function jsonErrorResponse(string $message, array $data = [])
     {
