@@ -488,11 +488,11 @@ class TReservationInfoController extends AppController
         $data = $this->request->getData();
 
         // デバッグログ: リクエストデータを確認
-        \Cake\Log\Log::debug('Request Data: ' . json_encode($data));
+        Log::debug('Request Data: ' . json_encode($data));
 
         // 必須フィールドの検証
         if (empty($data['d_reservation_date']) || empty($data['i_id_room']) || empty($data['reservation_type'])) {
-            \Cake\Log\Log::debug('必須フィールド不足');
+            Log::debug('必須フィールド不足');
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode([
                     'isDuplicate' => false,
@@ -509,7 +509,7 @@ class TReservationInfoController extends AppController
             ->first();
 
         // デバッグログ: 既存の予約を確認
-        \Cake\Log\Log::debug('Existing Reservation: ' . json_encode($existingReservation));
+        Log::debug('Existing Reservation: ' . json_encode($existingReservation));
 
         if ($existingReservation) {
             if (isset($this->Url)) {
@@ -523,7 +523,7 @@ class TReservationInfoController extends AppController
             }
 
             // デバッグログ: 生成されたURLを確認
-            \Cake\Log\Log::debug('Edit URL: ' . $editUrl);
+            Log::debug('Edit URL: ' . $editUrl);
 
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode([
@@ -533,7 +533,7 @@ class TReservationInfoController extends AppController
         }
 
         // デバッグログ: 重複予約なし
-        \Cake\Log\Log::debug('No duplicate reservation found');
+        Log::debug('No duplicate reservation found');
 
         return $this->response->withType('application/json')
             ->withStringBody(json_encode(['isDuplicate' => false]));
@@ -585,10 +585,6 @@ class TReservationInfoController extends AppController
 
         $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomId'));
     }
-
-
-
-
 
     /**
      * 個人予約の処理
@@ -855,10 +851,6 @@ class TReservationInfoController extends AppController
         $this->set(compact('dates', 'rooms', 'selectedDate'));
     }
 
-
-
-
-
     /**
      * 予約情報を保存するメソッド
      *
@@ -886,12 +878,13 @@ class TReservationInfoController extends AppController
             $mealTimeMap = [
                 'morning' => 1,
                 'noon' => 2,
-                'night' => 3
+                'night' => 3,
+                'bento'=> 4
             ];
 
             foreach ($data['dates'] as $date => $value) {
                 foreach ($data['users'] as $userId => $mealData) {
-                    foreach (['morning', 'noon', 'night'] as $mealTime) {
+                    foreach (['morning', 'noon', 'night','bento'] as $mealTime) {
 
                         // mealTime を整数に変換
                         if (isset($mealData[$mealTime]) && $mealData[$mealTime] == 1) {
@@ -981,14 +974,6 @@ class TReservationInfoController extends AppController
             ]));
         }
     }
-
-
-
-
-
-
-
-
 
     /**
      * 編集メソッド
@@ -1373,7 +1358,7 @@ class TReservationInfoController extends AppController
         $output = [];
         foreach ($reservations as $reservation) {
             $rankId = $reservation['user_rank'];
-            $gender = $reservation['gender'] === 'male' ? '男子' : '女子';
+            $gender = $reservation['gender'] === 1 ? '男子' : ($reservation['gender'] === 2 ? '女子' : '不明');
             $rankName = isset($rankNames[$rankId]) ? $rankNames[$rankId] : '不明';
 
             // ランクと性別、日付ですでにキーが存在するか確認

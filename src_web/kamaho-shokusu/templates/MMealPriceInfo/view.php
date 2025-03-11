@@ -24,45 +24,26 @@
             <div class="card-body">
                 <table class="table table-bordered table-striped">
                     <tr>
-                        <th><?= __('作成ユーザー') ?></th>
-                        <td><?= h($mMealPriceInfo->c_create_user) ?></td>
-                    </tr>
-                    <tr>
-                        <th><?= __('更新ユーザー') ?></th>
-                        <td><?= h($mMealPriceInfo->c_update_user) ?></td>
-                    </tr>
-                    <tr>
-                        <th><?= __('ID') ?></th>
-                        <td><?= $this->Number->format($mMealPriceInfo->i_id) ?></td>
-                    </tr>
-                    <tr>
                         <th><?= __('対象年度') ?></th>
                         <td><?= $mMealPriceInfo->i_fiscal_year === null ? '' : h($mMealPriceInfo->i_fiscal_year) ?></td>
                     </tr>
                     <tr>
                         <th><?= __('朝食単価') ?></th>
-                        <td><?= $mMealPriceInfo->i_morning_price === null ? '' : $this->Number->format($mMealPriceInfo->i_morning_price) ?></td>
+                        <td><?= $mMealPriceInfo->i_morning_price === null ? '' : $this->Number->format($mMealPriceInfo->i_morning_price) ?>円</td>
                     </tr>
                     <tr>
                         <th><?= __('昼食単価') ?></th>
-                        <td><?= $mMealPriceInfo->i_lunch_price === null ? '' : $this->Number->format($mMealPriceInfo->i_lunch_price) ?></td>
+                        <td><?= $mMealPriceInfo->i_lunch_price === null ? '' : $this->Number->format($mMealPriceInfo->i_lunch_price) ?>円</td>
                     </tr>
                     <tr>
                         <th><?= __('夕食単価') ?></th>
-                        <td><?= $mMealPriceInfo->i_dinner_price === null ? '' : $this->Number->format($mMealPriceInfo->i_dinner_price) ?></td>
+                        <td><?= $mMealPriceInfo->i_dinner_price === null ? '' : $this->Number->format($mMealPriceInfo->i_dinner_price) ?>円</td>
                     </tr>
                     <tr>
                         <th><?= __('弁当単価') ?></th>
-                        <td><?= $mMealPriceInfo->i_bento_price === null ? '' : $this->Number->format($mMealPriceInfo->i_bento_price) ?></td>
+                        <td><?= $mMealPriceInfo->i_bento_price === null ? '' : $this->Number->format($mMealPriceInfo->i_bento_price) ?>円</td>
                     </tr>
-                    <tr>
-                        <th><?= __('作成日時') ?></th>
-                        <td><?= h($mMealPriceInfo->dt_create) ?></td>
-                    </tr>
-                    <tr>
-                        <th><?= __('更新日時') ?></th>
-                        <td><?= h($mMealPriceInfo->dt_update) ?></td>
-                    </tr>
+
                 </table>
             </div>
         </div>
