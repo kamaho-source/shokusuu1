@@ -1119,7 +1119,7 @@ class TReservationInfoController extends AppController
                 'd_reservation_date' => $date,
                 'eat_flag' => 1 // 集計対象は eat_flag = 1 のみ
             ])
-            ->group('i_reservation_type')
+            ->groupBy('i_reservation_type')
             ->toArray();
 
         return $mealCounts;
@@ -1345,7 +1345,7 @@ class TReservationInfoController extends AppController
                 'TIndividualReservationInfo.d_reservation_date >=' => $month . '-01',
                 'TIndividualReservationInfo.d_reservation_date <' => date('Y-m-d', strtotime($month . ' +1 month'))
             ])
-            ->group([
+            ->groupBy([
                 'MUserInfo.i_user_rank',
                 'MUserInfo.i_user_gender',
                 'TIndividualReservationInfo.d_reservation_date',
