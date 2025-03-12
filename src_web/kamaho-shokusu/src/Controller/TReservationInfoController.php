@@ -644,7 +644,7 @@ class TReservationInfoController extends AppController
             return $this->jsonSuccessResponse(
                 __('個人予約が正常に登録されました。'),
                 [],
-                $this->request->getAttribute('webroot') . 'TReservationInfo/index'
+                $this->request->getAttribute('webroot') . 'TReservationInfo/'
             );
         }
 
@@ -756,7 +756,7 @@ class TReservationInfoController extends AppController
             return $this->jsonSuccessResponse(
                 __('集団予約が正常に登録されました。'),
                 [],
-                $this->request->getAttribute('webroot') . 'TReservationInfo/index'
+                $this->request->getAttribute('webroot') . 'TReservationInfo/'
             );
         }
 
