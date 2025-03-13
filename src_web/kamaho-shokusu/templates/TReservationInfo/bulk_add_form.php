@@ -94,9 +94,19 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 
         <?php if (!$isDisabled): ?>
             <button class="btn btn-primary" type="submit">一括予約を登録</button>
+            <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; text-align: center;">
+                <div style="position: relative; top: 50%; transform: translateY(-50%);">
+                    <!-- スピナー -->
+                    <div class="spinner-border text-info" role="status">
+
+                    </div>
+                    <p style="color: white; margin-top: 10px;">処理中です。少々お待ちください...</p>
+                </div>
+            </div>
         <?php else: ?>
             <button class="btn btn-secondary" disabled>一括予約不可（当日から1ヶ月後までは登録不可）</button>
         <?php endif; ?>
+
     </form>
 </div>
 
@@ -141,4 +151,17 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
             checkbox.checked = isChecked;
         });
     }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('reservation-form');
+        const overlay = document.getElementById('loading-overlay');
+        const submitButton = form.querySelector('button[type="submit"]');
+
+        form.addEventListener('submit', function () {
+            // オーバーレイを表示して画面全体をブロック
+            overlay.style.display = 'block';
+            // ボタンを無効化
+            submitButton.disabled = true;
+        });
+    });
 </script>

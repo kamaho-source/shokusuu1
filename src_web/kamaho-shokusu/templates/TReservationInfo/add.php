@@ -209,7 +209,7 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                         <div class="spinner-border text-info" role="status">
 
                         </div>
-                        <p style="color: black; margin-top: 10px;">処理中です。少々お待ちください...</p>
+                        <p style="color: white; margin-top: 10px;">処理中です。少々お待ちください...</p>
                     </div>
                 </div>
 
