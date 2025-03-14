@@ -405,10 +405,23 @@ class MUserInfoController extends AppController
         $result = $this->Authentication->getResult();
 
         if ($result && $result->isValid()) {
+            // ログインユーザーが削除済みかチェック
+            $user = $result->getData(); // ログイン成功後のユーザーデータを取得
+
+            if ($user->i_del_flag === 1) {
+                // ユーザーが削除済みの場合はログインを拒否
+                $this->Authentication->logout(); // ログイン状態を解除
+                $this->Flash->error(__('このアカウントは無効化されています。'));
+
+                return $this->redirect(['action' => 'login']); // ログイン画面にリダイレクト
+            }
+
+            // 削除されていない場合は通常のリダイレクト処理
             $redirect = $this->request->getQuery('redirect', [
                 'controller' => 'TReservationInfo',
                 'action' => 'index',
             ]);
+
             return $this->redirect($redirect);
         }
 
@@ -425,7 +438,6 @@ class MUserInfoController extends AppController
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
         }
     }
-
     public function logout()
     {
         $result = $this->Authentication->getResult();

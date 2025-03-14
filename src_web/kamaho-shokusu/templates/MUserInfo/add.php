@@ -1,6 +1,9 @@
 <?php
 $this->assign('title', 'ユーザー情報の追加');
+$this->Html->css('bootstrap-icons.css', ['block' => true]);
+$this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 ?>
+
 <div class="row">
     <aside class="col-md-3">
         <div class="list-group">
@@ -14,7 +17,7 @@ $this->assign('title', 'ユーザー情報の追加');
                 <h4><?= __('ユーザー情報の追加') ?></h4>
             </div>
             <div class="card-body">
-                <?= $this->Form->create($mUserInfo, ['class' => 'needs-validation', 'novalidate' => true]) ?>
+                <?= $this->Form->create($mUserInfo, ['class' => 'needs-validation', 'novalidate' => true,'id'=>'reservation-form']) ?>
                 <fieldset>
                     <!-- ログインID -->
                     <div class="mb-3">
@@ -28,14 +31,28 @@ $this->assign('title', 'ユーザー情報の追加');
 
                     <!-- パスワード -->
                     <div class="mb-3">
-                        <?= $this->Form->control('c_login_passwd', [
-                            'label' => ['text' => 'パスワード', 'class' => 'form-label'],
-                            'type' => 'password',
-                            'class' => 'form-control'
+                        <!-- ラベルは個別に出力 -->
+                        <?= $this->Form->label('c_login_passwd', 'パスワード', [
+                            'class' => 'form-label',
+                            'for' => 'inputPassword'
                         ]) ?>
-                        <button type="button" id="toggle-password" class="btn btn-secondary btn-sm mt-2">表示</button>
+                        <!-- 入力フィールドとアイコンを相対配置するコンテナ -->
+                        <div class="position-relative">
+                            <?= $this->Form->control('c_login_passwd', [
+                                'type' => 'password',
+                                'class' => 'form-control pe-5', // 右側に余白を追加
+                                'id' => 'inputPassword',
+                                'label' => false, // ラベル出力を抑制
+                                'div' => false,   // 自動ラッパーを抑制
+                            ]) ?>
+                            <img src="<?= $this->Html->Url->image('eye-slash.svg') ?>"
+                                 id="eyeIcon"
+                                 alt="パスワード非表示"
+                                 class="position-absolute"
+                                 style="cursor: pointer; top: 50%; right: 10px; transform: translateY(-50%);"
+                            />
+                        </div>
                     </div>
-
                     <!-- ユーザー名 -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_user_name', [
@@ -52,7 +69,7 @@ $this->assign('title', 'ユーザー情報の追加');
                             'empty' => '選択してください'
                         ]) ?>
                     </div>
-                    <!-- どの年代が食べたか -->
+                    <!-- どの年代が食べたか -->　
                     <div class="mb-3">
                         <?= $this->Form->control('age_group', [
                             'type' => 'select',
@@ -122,8 +139,17 @@ $this->assign('title', 'ユーザー情報の追加');
                     </div>
                 </fieldset>
                 <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary', 'id' => 'submit-button']) ?>
+                <!-- ローディングオーバーレイ -->
+                <div id="loading-overlay" class="loading-overlay">
+                    <div class="spinner">
+                        <div class="spinner-border text-info" role="status"></div>
+                        <p class="loading-text">処理中です。少々お待ちください...</p>
+                    </div>
+                </div>
+
                 <?= $this->Form->end() ?>
             </div>
+        </div>
         </div>
     </div>
 </div>
@@ -177,18 +203,33 @@ $this->assign('title', 'ユーザー情報の追加');
             toggleStaffIdField(event.target.value);
         });
 
-        // パスワード表示/非表示の制御
-        const passwordField = document.querySelector('[name="c_login_passwd"]');
-        const togglePasswordButton = document.getElementById('toggle-password');
-
-        togglePasswordButton.addEventListener('click', () => {
-            if (passwordField.type === 'password') {
-                passwordField.type = 'text';
-                togglePasswordButton.textContent = '非表示';
+        // eyeIconのクリックイベント
+        // eyeIconのクリックイベント
+        $("#eyeIcon").on("click", function(){
+            var input = $("#inputPassword");
+            // パスワードかテキストかでタイプを切り替え、アイコンも差し替え
+            if(input.attr("type") === "password"){
+                input.attr("type", "text");
+                $(this).attr("src", "<?= $this->Html->Url->image('eye.svg') ?>");
             } else {
-                passwordField.type = 'password';
-                togglePasswordButton.textContent = '表示';
+                input.attr("type", "password");
+                $(this).attr("src", "<?= $this->Html->Url->image('eye-slash.svg') ?>");
             }
         });
+
+
+
+        const form = document.getElementById('reservation-form');
+        const overlay = document.getElementById('loading-overlay');
+        form.addEventListener('submit', function () {
+            // オーバーレイを表示して画面全体をブロック
+            overlay.style.display = 'block';
+            // ボタンを無効化
+            submitButton.disabled = true;
+        });
     });
+
+
+
 </script>
+
