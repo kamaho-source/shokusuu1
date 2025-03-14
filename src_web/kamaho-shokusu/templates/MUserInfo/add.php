@@ -26,7 +26,6 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                             'class' => 'form-control',
                             'id' => 'c_login_account'
                         ]) ?>
-                        <div id="login-id-error" class="text-danger" style="display: none;">このログインIDは既に使用されています。</div>
                     </div>
 
                     <!-- パスワード -->
@@ -139,13 +138,7 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                     </div>
                 </fieldset>
                 <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary', 'id' => 'submit-button']) ?>
-                <!-- ローディングオーバーレイ -->
-                <div id="loading-overlay" class="loading-overlay">
-                    <div class="spinner">
-                        <div class="spinner-border text-info" role="status"></div>
-                        <p class="loading-text">処理中です。少々お待ちください...</p>
-                    </div>
-                </div>
+
 
                 <?= $this->Form->end() ?>
             </div>
@@ -215,17 +208,6 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                 input.attr("type", "password");
                 $(this).attr("src", "<?= $this->Html->Url->image('eye-slash.svg') ?>");
             }
-        });
-
-
-
-        const form = document.getElementById('reservation-form');
-        const overlay = document.getElementById('loading-overlay');
-        form.addEventListener('submit', function () {
-            // オーバーレイを表示して画面全体をブロック
-            overlay.style.display = 'block';
-            // ボタンを無効化
-            submitButton.disabled = true;
         });
     });
 

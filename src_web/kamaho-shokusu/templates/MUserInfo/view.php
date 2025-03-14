@@ -30,6 +30,17 @@ $this->assign('title', 'ユーザー情報の表示');
                         <th><?= __('ユーザー名') ?></th>
                         <td><?= h($mUserInfo->c_user_name) ?></td>
                     </tr>
+                    <?php if ($mUserInfo->i_id_staff): ?>
+                        <tr>
+                            <th><?= __('職員ID') ?></th>
+                            <td><?= h($mUserInfo->i_id_staff) ?></td>
+                        </tr>
+                    <?php endif; ?>
+                    <?php if ($mUserInfo->i_admin === 1):?>
+                    <th>パスワード</th>
+                    <td><?=h($mUserInfo->c_login_passwd)?></td>
+                    <?php endif; ?>
+
 
                 </table>
             </div>

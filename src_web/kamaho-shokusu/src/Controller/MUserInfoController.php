@@ -489,13 +489,13 @@ class MUserInfoController extends AppController
             // **現在のパスワードをログに記録**
             $this->log('現在のデータベースのパスワード: ' . $selectedUser->c_login_passwd, 'debug');
 
-            // **新しいパスワードのハッシュ化前後をログに記録**
-            $this->log('ハッシュ化前のパスワード: ' . $newPassword, 'debug');
-            $hashedPassword = (new DefaultPasswordHasher())->hash($newPassword);
-            $this->log('ハッシュ化後のパスワード: ' . $hashedPassword, 'debug');
+            // **入力された平文パスワードをログに記録**
+            $this->log('入力された平文のパスワード: ' . $newPassword, 'debug');
 
-            // パスワードをハッシュ化して保存
-            $selectedUser->c_login_passwd = $hashedPassword;
+            // 手動でのハッシュ化を行わず、平文のパスワードをエンティティにセット
+            // → モデル側のbeforeSave()で自動的にハッシュ化される前提
+            $selectedUser->c_login_passwd = $newPassword;
+
             if ($this->fetchTable('MUserInfo')->save($selectedUser)) {
                 $this->log('パスワード変更完了: ユーザーID ' . $selectedUser->i_id_user, 'debug');
 
@@ -512,4 +512,5 @@ class MUserInfoController extends AppController
 
         $this->set(compact('users', 'selectedUser'));
     }
+
 }

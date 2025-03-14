@@ -45,33 +45,47 @@ class MUserInfoTable extends Table
     {
         $validator
             ->integer('i_id_user')
-            ->allowEmpty('i_id_user', 'create');
+            ->allowEmptyString('i_id_user', 'create');
 
+        // c_user_name（ユーザー名）のバリデーション
         $validator
             ->scalar('c_user_name')
             ->maxLength('c_user_name', 50)
             ->requirePresence('c_user_name', 'create')
-            ->notEmptyString('c_user_name', 'ユーザー名を入力してください。');
+            ->notEmptyString('c_user_name', 'ユーザー名を入力してください。')
+            ->add('c_user_name', [
+                'unique' => [
+                    'rule' => ['validateUnique', ['scope' => null]],
+                    'provider' => 'table',
+                    'message' => 'このユーザー名は既に使用されています。'
+                ]
+            ]);
 
-        // パスワードのバリデーション
+        // パスワード（c_login_passwd）のバリデーション
         $validator
             ->scalar('c_login_passwd')
             ->maxLength('c_login_passwd', 255)
             ->requirePresence('c_login_passwd', 'create')
-            ->notEmptyString('c_login_passwd', 'パスワードを入力してください。');
+            ->notEmptyString('c_login_passwd', 'パスワードを入力してください。')
+            ->add('c_login_passwd', [
+                'unique' => [
+                    'rule' => ['validateUnique', ['scope' => null]],
+                    'provider' => 'table',
+                    'message' => 'このパスワードは既に使用されています。'
+                ]
+            ]);
 
-        // ユーザー年齢のバリデーション
+        // ユーザー年齢（i_user_age）のバリデーション
         $validator
             ->integer('i_user_age')
             ->allowEmptyString('i_user_age', 'create')
-            ->notEmptyString('i_user_age', '年齢を入力してください。')
             ->range('i_user_age', [0, 80], '年齢は0から80の範囲で指定してください。');
 
-        // ユーザーレベルのバリデーション
+        // ユーザーレベル（i_user_level）のバリデーション
         $validator
             ->integer('i_user_level')
             ->allowEmptyString('i_user_level', 'create')
-            ->notEmptyString('i_user_level', 'ユーザーレベルを入力して下さい。');
+            ->notEmptyString('i_user_level', 'ユーザーレベルを入力してください。');
 
         $validator
             ->dateTime('dt_create')

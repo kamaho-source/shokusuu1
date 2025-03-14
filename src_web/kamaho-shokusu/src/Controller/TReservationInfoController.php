@@ -456,6 +456,7 @@ class TReservationInfoController extends AppController
                 'morning' => in_array(1, array_column($reservations, 'i_reservation_type')),
                 'noon' => in_array(2, array_column($reservations, 'i_reservation_type')),
                 'night' => in_array(3, array_column($reservations, 'i_reservation_type')),
+                'bento' => in_array(4, array_column($reservations, 'i_reservation_type')),
             ];
         }
 

@@ -54,6 +54,9 @@
                         <div class="dropdown-menu" aria-labelledby="userDropdown">
                             <?= $this->Html->link('プロフィール', ['controller' => 'MUserInfo', 'action' => 'view', $user->i_id_user], ['class' => 'dropdown-item']) ?>
                             <?= $this->Html->link('ログアウト', ['controller' => 'MUserInfo', 'action' => 'logout'], ['class' => 'dropdown-item']) ?>
+                            <?php if ($user->i_admin === 1):?>
+                                <?= $this->Html->link('管理者：パスワード変更', ['controller' => 'MUserInfo', 'action' => 'admin_change_password'], ['class' => 'dropdown-item']) ?>
+                            <?php endif; ?>
                         </div>
                     </li>
                 <?php else: ?>
