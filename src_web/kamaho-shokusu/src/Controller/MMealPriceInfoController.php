@@ -153,7 +153,7 @@ class MMealPriceInfoController extends AppController
         // 職員IDが存在するユーザーを取得
         $users = $this->MUserInfo->find()
             ->select(['i_id_user', 'c_user_name', 'i_id_staff'])
-            ->where(['i_id_staff IS NOT' => null]) // 職員IDが null でないユーザー
+            ->where(['i_id_staff IS NOT' => null,'i_del_flag' => 0]) // 職員IDが null でないユーザー
             ->all();
 
         // 該当月のデータを収集

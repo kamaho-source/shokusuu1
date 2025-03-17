@@ -86,7 +86,18 @@ class MUserInfoTable extends Table
             ->integer('i_user_level')
             ->allowEmptyString('i_user_level', 'create')
             ->notEmptyString('i_user_level', 'ユーザーレベルを入力してください。');
+        $validator
+            ->integer('i_user_gender')
+            ->allowEmptyString('i_user_gender', 'create');
 
+        $validator
+            ->integer('i_user_age')
+            ->allowEmptyString('i_user_age', 'create')
+            ->notEmptyString('i_user_age', '年齢を選択してください。');
+        $validator
+            ->integer('i_user_rank')
+            ->allowEmptyString('i_user_rank', 'create')
+            ->notEmptyString('i_user_rank', '役職を選択してください。');
         $validator
             ->dateTime('dt_create')
             ->allowEmptyDateTime('dt_create');

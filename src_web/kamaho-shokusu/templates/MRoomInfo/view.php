@@ -46,15 +46,22 @@ $this->Html->css(['bootstrap.min']);
                             </thead>
                             <tbody>
                             <?php
-                            $staff = array_filter($users, function ($user) {
+                            // i_del_flag が 0 のユーザーのみを抽出
+                            $filteredUsers = array_filter($users, function ($user) {
+                                return $user->i_del_flag === 0;
+                            });
+
+                            // ユーザーを分類
+                            $staff = array_filter($filteredUsers, function ($user) {
                                 return $user->i_user_level === 0;
                             });
-                            $children = array_filter($users, function ($user) {
+                            $children = array_filter($filteredUsers, function ($user) {
                                 return $user->i_user_level === 1;
                             });
-                            $others = array_filter($users, function ($user) {
+                            $others = array_filter($filteredUsers, function ($user) {
                                 return $user->i_user_level !== 0 && $user->i_user_level !== 1;
                             });
+
                             $groupedUsers = array_merge($staff, $children, $others);
                             ?>
                             <?php foreach ($groupedUsers as $user): ?>
