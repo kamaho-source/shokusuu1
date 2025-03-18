@@ -655,104 +655,97 @@ class TReservationInfoController extends AppController
 
     private function processGroupReservation($reservationDate, $data, $rooms)
     {
+        // 日付の確認
         $dateValidation = $this->validateReservationDate($reservationDate);
         if ($dateValidation !== true) {
             return $this->jsonErrorResponse(__($dateValidation));
         }
 
+        // 部屋データが配列であるかどうか検証
         if (!is_array($rooms)) {
             $rooms = [];
         }
+
         $reservations = [];
         $creatorName = $this->request->getAttribute('identity')->get('c_user_name');
 
+        // 指定された部屋が許可されているか確認
         if (!array_key_exists($data['i_id_room'], $rooms)) {
             return $this->jsonErrorResponse(__('選択された部屋は権限がありません。'));
         }
+
+        $duplicateUsers = []; // 重複ユーザー情報を保持
 
         foreach ($data['users'] as $userId => $meals) {
             foreach ([1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'] as $mealType => $mealName) {
                 if (!empty($meals[$mealType]) && intval($meals[$mealType]) === 1) {
 
-                    // 特定のユーザーと食事タイプについて既に予約されているか確認
+                    // 他の部屋も含め、特定のユーザーが既に予約されていないか確認
                     $existingReservations = $this->TIndividualReservationInfo->find()
+                        ->contain(['MRoomInfo']) // 必要に応じて関連モデルを取得
                         ->where([
                             'd_reservation_date' => $reservationDate,
-                            'i_id_room' => $data['i_id_room'],
+                            'i_id_user' => $userId,
                             'i_reservation_type' => $mealType,
-                            'eat_flag' => 1, // 有効な予約のみチェック
+                            'eat_flag' => 1, // 有効な予約のみ確認
                         ])
                         ->toArray();
 
                     if (!empty($existingReservations)) {
-                        // 重複しているユーザーのリストを作成
-                        $duplicateUsers = array_map(function($reservation) {
-                            return $reservation->i_id_user;
+                        // 重複しているユーザー情報を格納
+                        $userName = $this->MUserInfo->find()
+                            ->select(['c_user_name'])
+                            ->where(['i_id_user' => $userId])
+                            ->first();
+
+                        $userErrorDetails = array_map(function ($reservation) {
+                            return sprintf(
+                                '部屋: %s(%s)',
+                                $reservation->m_room_info->c_room_name, // 関連する部屋の名前
+                                $reservation->i_id_room // 部屋ID
+                            );
                         }, $existingReservations);
 
-                        $this->log('Duplicate Users: ' . print_r($duplicateUsers, true), 'debug'); // デバッグ用ログ
-
-                        $uniqueUsers = array_unique($duplicateUsers);
-
-                        $this->log('Unique Users: ' . print_r($uniqueUsers, true), 'debug'); // デバッグ用ログ
-
-                        // ユーザー名を取得
-                        $userNames = $this->MUserInfo->find()
-                            ->select(['c_user_name'])
-                            ->whereInList('i_id_user', $uniqueUsers)
-                            ->toArray();
-
-                        $this->log('User Names: ' . print_r($userNames, true), 'debug'); // デバッグ用ログ
-
-                        // エンティティ形式のユーザー名リストを処理
-                        if (!empty($userNames)) {
-                            $registeredUsersList = implode('、', array_map(function ($user) {
-                                return $user->c_user_name;
-                            }, $userNames));
-                        } else {
-                            $registeredUsersList = '該当するユーザーが見つかりません'; // デフォルト値
-                        }
-
-                        $this->log('Registered Users List: ' . $registeredUsersList, 'debug'); // デバッグ用ログ
-
-                        // 条件を満たす予約が既に存在しているかをチェック
-                        $eatRegistered = array_reduce($existingReservations, function($carry, $reservation) {
-                            return $carry || $reservation->eat_flag == 1;
-                        }, false);
-
-                        if ($eatRegistered) {
-                            return $this->jsonErrorResponse(
-                                sprintf(
-                                    '同じ日付と食事タイプの予約が既に存在します。ユーザー名: "%s" さん',
-                                    $registeredUsersList
-                                )
-                            );
-                        } else {
-                            return $this->jsonErrorResponse(
-                                sprintf(
-                                    '同じ日付と食事タイプの予約が既に存在しますが、ユーザー名: "%s" さんにより登録されていません。',
-                                    $registeredUsersList
-                                )
-                            );
-                        }
+                        $duplicateUsers[$userId] = [
+                            'user_name' => $userName ? $userName->c_user_name : '該当ユーザー',
+                            'details' => $userErrorDetails
+                        ];
+                    } else {
+                        // 新しい予約エンティティを作成
+                        $reservation = $this->TIndividualReservationInfo->newEmptyEntity();
+                        $reservation = $this->TIndividualReservationInfo->patchEntity(
+                            $reservation,
+                            [
+                                'i_id_user' => $userId,
+                                'd_reservation_date' => $reservationDate,
+                                'i_id_room' => $data['i_id_room'],
+                                'i_reservation_type' => $mealType,
+                                'eat_flag' => 1,
+                                'c_create_user' => $creatorName,
+                                'dt_create' => FrozenTime::now(),
+                            ]
+                        );
+                        $reservations[] = $reservation;
                     }
-
-                    // 新しい予約エンティティ作成
-                    $reservation = $this->TIndividualReservationInfo->newEmptyEntity();
-                    $reservation = $this->TIndividualReservationInfo->patchEntity($reservation, [
-                        'i_id_user' => $userId,
-                        'd_reservation_date' => $reservationDate,
-                        'i_id_room' => $data['i_id_room'],
-                        'i_reservation_type' => $mealType,
-                        'eat_flag' => 1,
-                        'c_create_user' => $creatorName,
-                        'dt_create' => FrozenTime::now(),
-                    ]);
-                    $reservations[] = $reservation;
                 }
             }
         }
 
+        // 重複ユーザーが存在する場合、エラーメッセージを生成して返す
+        if (!empty($duplicateUsers)) {
+            $errorMessages = [];
+            foreach ($duplicateUsers as $userId => $duplicateUser) {
+                $errorMessages[] = sprintf(
+                    'ユーザー "%s" はすでに同じ日付（%s）の予約があります。詳細: %s',
+                    $duplicateUser['user_name'],
+                    $reservationDate,
+                    implode(', ', $duplicateUser['details'])
+                );
+            }
+            return $this->jsonErrorResponse(implode("\n", $errorMessages));
+        }
+
+        // 予約を保存
         if ($this->TIndividualReservationInfo->saveMany($reservations)) {
             return $this->jsonSuccessResponse(
                 __('集団予約が正常に登録されました。'),

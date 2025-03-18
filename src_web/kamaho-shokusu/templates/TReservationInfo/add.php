@@ -223,57 +223,5 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
 <!-- 部屋データをJavaScriptオブジェクトとして出力 -->
 <script>
     var roomsData = <?= json_encode($rooms); ?>;
-    document.addEventListener('DOMContentLoaded', function () {
-        const form = document.getElementById('reservation-form');
-        const overlay = document.getElementById('loading-overlay');
-        const submitButton = form.querySelector('button[type="submit"]');
-
-        // ローディング表示を制御する関数
-        const showLoading = () => {
-            overlay.style.display = 'block';
-            submitButton.disabled = true; // ボタンを無効化
-        };
-
-        // ローディング解除を制御する関数
-        const hideLoading = () => {
-            overlay.style.display = 'none';
-            submitButton.disabled = false; // ボタンを再有効化
-        };
-
-        // フォーム送信イベント
-        form.addEventListener('submit', function (e) {
-            e.preventDefault(); // 既存アクションの無効化
-            showLoading(); // ローディングを表示
-
-            const formData = new FormData(form); // フォームデータを生成
-
-            // フォームデータをサーバーに送信
-            fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRF-Token': document.querySelector('meta[name="csrfToken"]').content
-                }
-            })
-                .then((response) => response.json()) // サーバーから JSON レスポンスを期待
-                .then((serverResponse) => {
-                    // サーバーのレスポンスを基に動作を分岐
-                    if (serverResponse.status === 'success') {
-                        // 正常登録：ローディングを保持する（何もしない）
-                        return true;
-                    } else if (serverResponse.status === 'duplicate') {
-                        // 重複登録：ローディングを無効化
-                        hideLoading();
-                    } else {
-                        // その他のエラー：ローディングを無効化
-                        hideLoading();
-                    }
-                })
-                .catch((error) => {
-                    console.error('通信エラー:', error); // ネットワークエラー時のログ
-                    // 通信エラー時にはローディング解除
-                    hideLoading();
-                });
-        });
     });
 </script>
