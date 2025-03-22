@@ -62,13 +62,13 @@
     </div>
 
     <div class="paginator">
-        <ul class="pagination justify-content-center">
-            <?= $this->Paginator->first('<< 最初', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->prev('< 前', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->numbers(['class' => 'page-item']) ?>
-            <?= $this->Paginator->next('次 >', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->last('最後 >>', ['class' => 'page-item']) ?>
-        </ul>
+<!--        <ul class="pagination justify-content-center">-->
+<!--            --><?php //= $this->Paginator->first('<< 最初', ['class' => 'page-item']) ?>
+<!--            --><?php //= $this->Paginator->prev('< 前', ['class' => 'page-item']) ?>
+<!--            --><?php //= $this->Paginator->numbers(['class' => 'page-item']) ?>
+<!--            --><?php //= $this->Paginator->next('次 >', ['class' => 'page-item']) ?>
+<!--            --><?php //= $this->Paginator->last('最後 >>', ['class' => 'page-item']) ?>
+<!--        </ul>-->
         <p class="text-muted text-center">
             <?= $this->Paginator->counter('ページ {{page}}/{{pages}} (全{{count}}件中 {{current}}件を表示)') ?>
         </p>
