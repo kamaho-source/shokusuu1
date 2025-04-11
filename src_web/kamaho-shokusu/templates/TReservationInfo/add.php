@@ -13,7 +13,7 @@ use Cake\Validation\Validator;
 $this->assign('title','食数予約の追加');
 $this->Html->script('reservation', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
-echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
+echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -24,7 +24,7 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
             <?php
             // クエリパラメータから日付を取得し、月曜日かどうかをチェック
             $date = $this->request->getQuery('date') ?? date('Y-m-d');
-            if (date('N', strtotime($date)) == 1): // 月曜日かどうかをチェック ?>
+            if (date('N', strtotime($date)) == 1): ?>
                 <?= $this->Html->link(__('週の一括予約'), ['action' => 'bulkAddForm', '?' => ['date' => $date]], ['class' => 'list-group-item list-group-item-action']) ?>
             <?php endif; ?>
         </div>
@@ -75,10 +75,8 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                 <thead>
                                 <tr>
                                     <th>部屋名</th>
-                                    <!-- 朝・昼・夜 それぞれの列にチェックボックスを設置 -->
                                     <th>
                                         朝
-                                        <!-- 第2引数 this.checked を渡して、ヘッダのチェック状態に連動させる -->
                                         <input type="checkbox" onclick="toggleAllRooms(1, this.checked)">
                                     </th>
                                     <th>
@@ -93,7 +91,6 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                         弁当
                                         <input type="checkbox" onclick="toggleAllRooms(4, this.checked)">
                                     </th>
-
                                 </tr>
                                 </thead>
                                 <tbody id="room-checkboxes">
@@ -133,7 +130,6 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                 <tr>
                                     <th>利用者名</th>
                                     <th>
-                                        <!-- 集団用のトグルも同様に、on/off を受け取り全チェック/全解除 -->
                                         <input type="checkbox" onclick="toggleAllUsers('morning', this.checked)">
                                         朝
                                     </th>
@@ -149,7 +145,6 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                                         <input type="checkbox" onclick="toggleAllUsers('bento', this.checked)">
                                         弁当
                                     </th>
-
                                 </tr>
                                 </thead>
                                 <tbody id="user-checkboxes">
@@ -161,9 +156,9 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
 
                     <script>
                         /**
-                         * 個人予約テーブルの「朝・昼・夜」欄を、ヘッダのチェックに応じて一括で操作する関数
-                         * @param {number} mealType - 1: 朝, 2: 昼, 3: 夜
-                         * @param {boolean} isChecked - チェック状態 (true: チェック, false: 解除)
+                         * 個人予約テーブルのチェックボックスをヘッダの状態に連動させる関数
+                         * @param {number} mealType - 1: 朝, 2: 昼, 3: 夜, 4: 弁当
+                         * @param {boolean} isChecked
                          */
                         function toggleAllRooms(mealType, isChecked) {
                             const checkboxes = document.querySelectorAll(`input[name^="meals[${mealType}]"]`);
@@ -173,31 +168,106 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                         }
 
                         /**
-                         * 集団予約テーブル全体を一括で操作する関数
-                         * @param {string} mealTime - "morning", "noon", "night" のいずれか
-                         * @param {boolean} isChecked - チェック状態 (true: チェック, false: 解除)
+                         * 集団予約用の利用者チェックボックスを一括操作する関数
+                         * @param {string} mealTime - "morning", "noon", "night", "bento"
+                         * @param {boolean} isChecked
                          */
                         function toggleAllUsers(mealTime, isChecked) {
                             const mealTimeMapping = {
-                                morning: 1, // 朝
-                                noon: 2,    // 昼
-                                night: 3,  // 夜
-                                bento: 4    // 弁当
-
-
+                                morning: 1,
+                                noon: 2,
+                                night: 3,
+                                bento: 4
                             };
-
                             const mealType = mealTimeMapping[mealTime];
                             if (!mealType) {
                                 console.error('無効なmealTime:', mealTime);
                                 return;
                             }
-
-                            // 指定された時間帯のチェックボックスを取得
                             const checkboxes = document.querySelectorAll(`input[name^="users"][name$="[${mealType}]"]`);
                             checkboxes.forEach(checkbox => {
                                 checkbox.checked = isChecked;
                             });
+                        }
+
+                        /**
+                         * 個人予約用の既存予約データを取得してチェックボックスに反映する関数
+                         */
+                        function fetchPersonalReservationData() {
+                            const url = `${window.location.origin}/kamaho-shokusu/TReservationInfo/getPersonalReservation?date=${encodeURIComponent("<?= $date ?>")}`;
+                            showLoading();
+                            fetch(url)
+                                .then(response => response.json())
+                                .then(data => {
+                                    // data の例: { "user": {"i_id_user":123,"c_user_name":"山田太郎"}, "reservation": {"1":true,"2":false,"3":true,"4":false} }
+                                    const reservationData = data.data.reservation;
+                                    const checkboxes = document.querySelectorAll('#room-checkboxes input[type="checkbox"]');
+                                    checkboxes.forEach(checkbox => {
+                                        const name = checkbox.getAttribute('name'); // 例: "meals[1][2]"
+                                        const match = name.match(/^meals\[(\d+)\]/);
+                                        if (match) {
+                                            const mealType = match[1];
+                                            if (reservationData[mealType] === true || Number(reservationData[mealType]) === 1) {
+                                                checkbox.checked = true;
+                                            } else {
+                                                checkbox.checked = false;
+                                            }
+                                        }
+                                    });
+                                })
+                                .catch(error => {
+                                    console.error('個人予約データ取得エラー:', error);
+                                })
+                                .finally(() => {
+                                    hideLoading();
+                                });
+                        }
+
+                        /**
+                         * 集団予約用のユーザーデータを取得する関数
+                         */
+                        function fetchUserData(roomId) {
+                            const url = `${window.location.origin}/kamaho-shokusu/TReservationInfo/getUsersByRoom/${roomId}?date=${encodeURIComponent("<?= $date ?>")}`;
+                            showLoading();
+                            fetch(url)
+                                .then(response => response.json())
+                                .then(data => {
+                                    const users = data.usersByRoom;
+                                    if (Array.isArray(users)) {
+                                        users.forEach(user => {
+                                            const row = document.createElement('tr');
+                                            const morningChecked = Number(user.morning) === 1;
+                                            const noonChecked = Number(user.noon) === 1;
+                                            const nightChecked = Number(user.night) === 1;
+                                            const bentoChecked = Number(user.bento) === 1;
+                                            row.innerHTML = `
+                                                <td>${user.name}</td>
+                                                <td><input type="checkbox" name="users[${user.id}][1]" value="1" ${morningChecked ? 'checked' : ''}></td>
+                                                <td><input type="checkbox" name="users[${user.id}][2]" value="1" ${noonChecked ? 'checked' : ''}></td>
+                                                <td><input type="checkbox" name="users[${user.id}][3]" value="1" ${nightChecked ? 'checked' : ''}></td>
+                                                <td><input type="checkbox" name="users[${user.id}][4]" value="1" ${bentoChecked ? 'checked' : ''}></td>
+                                            `;
+                                            document.getElementById('user-checkboxes').appendChild(row);
+                                        });
+                                    } else {
+                                        console.error('予期しないデータ型: usersByRoom が配列ではありません', users);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('ユーザーデータの取得エラー:', error);
+                                })
+                                .finally(() => {
+                                    hideLoading();
+                                });
+                        }
+
+                        function showLoading() {
+                            document.getElementById('loading-overlay').style.display = 'block';
+                            submitButton.disabled = true;
+                        }
+                        function hideLoading() {
+                            document.getElementById('loading-overlay').style.display = 'none';
+                            submitButton.disabled = false;
                         }
                     </script>
                 </fieldset>
@@ -205,15 +275,10 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
                 <!-- オーバーレイ -->
                 <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; text-align: center;">
                     <div style="position: relative; top: 50%; transform: translateY(-50%);">
-                        <!-- スピナー -->
-                        <div class="spinner-border text-info" role="status">
-
-                        </div>
+                        <div class="spinner-border text-info" role="status"></div>
                         <p style="color: white; margin-top: 10px;">処理中です。少々お待ちください...</p>
                     </div>
                 </div>
-
-
                 <?= $this->Form->end() ?>
             </div>
         </div>
@@ -223,5 +288,4 @@ echo $this->Html->meta('csrfToken',$this->request->getAttribute('csrfToken'));
 <!-- 部屋データをJavaScriptオブジェクトとして出力 -->
 <script>
     var roomsData = <?= json_encode($rooms); ?>;
-    });
 </script>

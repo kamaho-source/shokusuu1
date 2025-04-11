@@ -84,19 +84,40 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // フォーム送信処理
+    // フォーム送信処理（重複情報の処理を追加）
     function submitForm(formData) {
         fetch(form.action, {
             method: 'POST',
             body: formData,
             headers: { 'X-CSRF-Token': csrfToken }
         })
-            .then(response => response.json())
+            .then(response => {
+                const contentType = response.headers.get('Content-Type');
+
+                // 応答がJSONの場合は JSON として処理する
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
+                } else {
+                    return response.text().then(html => {
+                        throw new Error(`期待していないレスポンスが返されました:\n${html}`);
+                    });
+                }
+            })
             .then(data => {
                 if (data.status === 'error') {
-                    alert(`エラー: ${data.message}`);
-                } else {
-                    alert(`成功: ${data.message}`);
+                    // 重複エラーの処理
+                    if (data.errors && data.errors.duplicates) {
+                        const duplicateUsers = data.errors.duplicates
+                            .map(dup => `ユーザー: ${dup.user_name}, 食事タイプ: ${dup.meal_type}, 部屋: ${dup.room_name}`)
+                            .join('\n');
+
+                        alert(`以下のユーザーは既に予約登録されています:\n${duplicateUsers}`);
+                        return;
+                    }
+
+                    alert('エラー: ' + (data.message || '不明なエラーが発生しました。'));
+                } else if (data.status === 'success') {
+                    alert('成功: ' + data.message);
                     if (data.redirect) {
                         window.location.href = data.redirect;
                     }
@@ -107,20 +128,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert(`送信エラー: ${error.message}`);
             })
             .finally(() => {
-                hideLoading(); // ローディングを非表示
+                hideLoading(); // ローディング非表示
             });
     }
 
     // バリデーション用関数の追加
-    /**
-     * @param {number} reservationType
-     */
-
     function validateForm(reservationType) {
         let hasSelection = false;
 
         if (reservationType === 1) {
-            // 個人予約のチェック
             const checkboxes = document.querySelectorAll('#room-checkboxes input[type="checkbox"]');
             checkboxes.forEach(checkbox => {
                 if (checkbox.checked) {
@@ -129,14 +145,12 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             if (!hasSelection) {
-                // 個人予約用のチェックが1つもない場合のエラーハイライトとメッセージ
                 roomCheckboxes.classList.add('error-highlight');
                 alert('食数を入力してください。');
             } else {
                 roomCheckboxes.classList.remove('error-highlight');
             }
         } else if (reservationType === 2) {
-            // 集団予約のチェック
             const roomSelected = roomSelect.value !== '';
             const checkboxes = document.querySelectorAll('#user-checkboxes input[type="checkbox"]');
 
@@ -147,7 +161,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             if (!roomSelected) {
-                roomSelect.classList.add('error-highlight'); // 部屋未選択の場合のエラー
+                roomSelect.classList.add('error-highlight');
                 alert('部屋を選択してください。');
             } else {
                 roomSelect.classList.remove('error-highlight');
@@ -164,7 +178,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return hasSelection;
     }
 
-    // 予約タイプの表示切り替え
     function toggleReservationTypeDisplay(reservationType) {
         if (reservationType === 1) {
             roomSelectionTable.style.display = 'block';
@@ -177,40 +190,46 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // ユーザーデータを取得する関数
     function fetchUserData(roomId) {
         const url = `${window.location.origin}/kamaho-shokusu/TReservationInfo/getUsersByRoom/${roomId}?date=${encodeURIComponent(date)}`;
+        console.log('Fetching user data from URL:', url); // URL ログ出力
+
         fetch(url)
-            .then(response => response.json())
-            .then(data => {
-                const users = data.usersByRoom;
-                if (Array.isArray(users)) {
-                    users.forEach(user => {
-                        const row = document.createElement('tr');
+            .then(response => {
+                const contentType = response.headers.get('Content-Type');
 
-                        const morningChecked = user.eat_flag === 1 || user.morning;
-                        const noonChecked = user.eat_flag === 1 || user.noon;
-                        const nightChecked = user.eat_flag === 1 || user.night;
-                        const bentoChecked = user.eat_flag === 1 || user.bento;
-
-                        row.innerHTML = `
-                            <td>${user.name}</td>
-                            <td><input type="checkbox" name="users[${user.id}][1]" value="1" ${morningChecked ? 'checked' : ''}></td>
-                            <td><input type="checkbox" name="users[${user.id}][2]" value="1" ${noonChecked ? 'checked' : ''}></td>
-                            <td><input type="checkbox" name="users[${user.id}][3]" value="1" ${nightChecked ? 'checked' : ''}></td>
-                            <td><input type="checkbox" name="users[${user.id}][4]" value="1" ${bentoChecked ? 'checked' : ''}> </td>
-                        `;
-                        userCheckboxes.appendChild(row);
-                    });
+                if (contentType && contentType.includes('application/json')) {
+                    return response.json();
                 } else {
-                    console.error('予期しないデータ型: usersByRoom が配列ではありません', users);
+                    return response.text().then(html => {
+                        throw new Error(`HTML がサーバーから返されました: ${html}`);
+                    });
                 }
             })
+            .then(data => {
+                if (!Array.isArray(data.usersByRoom)) {
+                    throw new Error('usersByRoom が配列ではありません');
+                }
+
+                userCheckboxes.innerHTML = '';
+                data.usersByRoom.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${user.name}</td>
+                        <td><input type="checkbox" name="users[${user.id}][1]" ${user.morning ? 'checked' : ''}></td>
+                        <td><input type="checkbox" name="users[${user.id}][2]" ${user.noon ? 'checked' : ''}></td>
+                        <td><input type="checkbox" name="users[${user.id}][3]" ${user.night ? 'checked' : ''}></td>
+                        <td><input type="checkbox" name="users[${user.id}][4]" ${user.bento ? 'checked' : ''}></td>
+                    `;
+                    userCheckboxes.appendChild(row);
+                });
+            })
             .catch(error => {
-                console.error('ユーザーデータの取得エラー:', error);
+                console.error('ユーザーデータ取得エラー:', error);
+                alert(`ユーザーデータ取得エラー: ${error.message}`);
             })
             .finally(() => {
-                hideLoading(); // ローディング解除
+                hideLoading();
             });
     }
 });
