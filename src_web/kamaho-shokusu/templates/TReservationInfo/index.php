@@ -7,39 +7,36 @@
         /* カレンダー公開エリア全体の調整 */
         #calendar {
             max-width: 130%; /* 画面幅に合わせてリサイズ */
-            margin: 0 auto; /* センター配置 */
+            margin: 0 auto;  /* センター配置 */
         }
-
         /* ヘッダーツールバーやフォントをスマホ向けに調整 */
         @media screen and (max-width: 768px) {
             .fc-toolbar button {
-                font-size: 12px; /* ボタンのフォントサイズを小さめに */
+                font-size: 12px;
             }
             .fc-toolbar-title {
-                font-size: 14px; /* タイトルも少し小さめに */
+                font-size: 14px;
             }
             #calendar {
-                font-size: 12px; /* カレンダー全体のフォントを縮小 */
+                font-size: 12px;
             }
         }
-
         /* タブレット向け */
         @media screen and (min-width: 769px) and (max-width: 1024px) {
             .fc-toolbar button {
-                font-size: 14px; /* ボタンフォントサイズ少し大きく */
+                font-size: 14px;
             }
             .fc-toolbar-title {
-                font-size: 16px; /* タイトルのフォントサイズを調整 */
+                font-size: 16px;
             }
             #calendar {
-                font-size: 14px; /* 全体のフォント */
+                font-size: 14px;
             }
         }
-
         /* PCでは通常通りの表示 */
         @media screen and (min-width: 1025px) {
             #calendar {
-                font-size: 16px; /* 標準サイズのフォント適用 */
+                font-size: 16px;
             }
         }
     </style>
@@ -50,17 +47,16 @@
     <h1>食数予約</h1>
 
     <?php if ($user->get('i_admin') === 1): // i_adminが1の場合 ?>
-    <div style="margin-bottom: 15px;">
-        <label for="monthSelect">エクスポートする月を選択:</label>
-        <select id="monthSelect">
-            <?php for ($month = 1; $month <= 12; $month++) : ?>
-                <option value="<?= date('Y-') . str_pad($month, 2, '0', STR_PAD_LEFT) ?>" <?= $month == date('n') ? 'selected' : '' ?>>
-                    <?= $month ?>月
-                </option>
-            <?php endfor; ?>
-        </select>
-    </div>
-
+        <div style="margin-bottom: 15px;">
+            <label for="monthSelect">エクスポートする月を選択:</label>
+            <select id="monthSelect">
+                <?php for ($month = 1; $month <= 12; $month++) : ?>
+                    <option value="<?= date('Y-') . str_pad($month, 2, '0', STR_PAD_LEFT) ?>" <?= $month == date('n') ? 'selected' : '' ?>>
+                        <?= $month ?>月
+                    </option>
+                <?php endfor; ?>
+            </select>
+        </div>
         <button class="btn btn-success float-lg-right mb-3" id="downloadExcel" style="margin-bottom: 10px;">食数予定表をダウンロード</button>
         <button class="btn btn-success float-lg-right mb-3" id="downloadExcelRank" style="margin-bottom: 10px;">実施食数表をダウンロード</button>
     <?php endif; ?>
@@ -84,6 +80,10 @@
     document.addEventListener('DOMContentLoaded', function() {
         var calendarEl = document.getElementById('calendar');
 
+        // 本日から1か月先の日付を計算（初期表示用）
+        var defaultDate = new Date();
+        defaultDate.setMonth(defaultDate.getMonth() + 1);
+
         // PHPで生成された既存のイベント（食数予約）
         var existingEvents = [
             <?php if (!empty($mealDataArray)) : ?>
@@ -102,7 +102,7 @@
                 title: '<?= $mealName ?>: <?= $meals[$mealType] ?>人',
                 start: '<?= $date ?>',
                 allDay: true,
-                displayOrder: <?= $mealType ?> // 順序を指定
+                displayOrder: <?= $mealType ?>
             },
             <?php endif; ?>
             <?php endforeach; ?>
@@ -110,14 +110,27 @@
             <?php endif; ?>
         ];
 
-        // カレンダーの初期化とイベント統合
+        // FullCalendar の初期化（customButtons と headerToolbar で次月ボタンを追加、中央タイトルを非表示）
         var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialDate: defaultDate, // 初期表示: 本日から1か月先の日付
             initialView: 'dayGridMonth',
             locale: 'ja',
             height: 'auto',
             contentHeight: 'auto',
             expandRows: true,
             aspectRatio: 1.35,
+            customButtons: {
+                nextMonth: {
+                    text: '次月',
+                    click: function() {
+                        calendar.next();  // 現在のビューが month モードの場合、次の月へ移動
+                    }
+                }
+            },
+            headerToolbar: {
+                right: 'prev,today,nextMonth,next', // 「前」「今日」「次月」「次」ボタンを左側に配置
+                center: '', // 中央のタイトルを非表示
+            },
             buttonText: {
                 today: '今日',
                 month: '月',
@@ -147,11 +160,10 @@
                         });
                     }
                 }
-
                 // 食数予約データと祝日データを統合
                 successCallback(existingEvents.concat(holidayEvents));
             },
-            eventOrder: 'displayOrder', // 順序で並べ替え
+            eventOrder: 'displayOrder',
             dateClick: function(info) {
                 let date = new Date(info.dateStr);
                 let isMonday = date.getDay() === 1;
@@ -165,14 +177,13 @@
 
         calendar.render();
 
-        // 「Excelをダウンロード」処理
+        // Excel ダウンロード処理以下はそのまま...
         const excelButton = document.getElementById("downloadExcel");
         const monthSelect = document.getElementById("monthSelect");
-
         if (excelButton) {
             excelButton.addEventListener("click", async function () {
                 try {
-                    const selectedMonth = monthSelect.value; // 選択された月
+                    const selectedMonth = monthSelect.value;
                     console.info("選択された月:", selectedMonth);
 
                     const response = await fetch(`/kamaho-shokusu/TReservationInfo/exportJson?month=${selectedMonth}`);
@@ -183,10 +194,7 @@
                     const workbook = new ExcelJS.Workbook();
                     const sheet = workbook.addWorksheet("食数予約");
 
-                    // ヘッダー行を作成
                     sheet.addRow(["部屋名", "日付", "朝食", "昼食", "夕食", "弁当"]);
-
-                    // データ行を追加
                     if (data.rooms && Object.keys(data.rooms).length > 0) {
                         Object.keys(data.rooms).forEach(roomName => {
                             const roomData = data.rooms[roomName];
@@ -206,13 +214,10 @@
                         console.warn("データが空です！");
                     }
 
-                    // Excelファイルを生成
                     const buffer = await workbook.xlsx.writeBuffer();
                     const blob = new Blob([buffer], {
                         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     });
-
-                    // ダウンロード処理
                     const link = document.createElement("a");
                     link.href = window.URL.createObjectURL(blob);
                     link.download = `食数予約_${selectedMonth}.xlsx`;
@@ -229,64 +234,53 @@
         if (rankExportButton) {
             rankExportButton.addEventListener("click", async function () {
                 try {
-                    const selectedMonth = monthSelect.value; // 選択された月
+                    const selectedMonth = monthSelect.value;
                     console.info("選択された月（ランク別エクセル）:", selectedMonth);
 
-                    // ランク・性別ごとのデータを取得
                     const response = await fetch(`/kamaho-shokusu/TReservationInfo/exportJsonrank?month=${selectedMonth}`);
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
-
                     const data = await response.json();
                     console.info("取得したランク別のデータ（性別込み）:", data);
 
-                    // データが空の場合の処理
                     if (!Array.isArray(data)) {
                         console.error("データ形式が不正です:", data);
                         alert(data.message || "エクスポートするデータが見つかりませんでした。");
                         return;
                     }
 
-                    // 日本語表記を変換する関数
                     function translateMealType(breakfast, lunch, dinner, bento) {
                         const meals = [];
                         if (breakfast > 0) meals.push(`朝食 (${breakfast})`);
                         if (lunch > 0) meals.push(`昼食 (${lunch})`);
                         if (dinner > 0) meals.push(`夕食 (${dinner})`);
                         if (bento > 0) meals.push(`弁当 (${bento})`);
-                        return meals.join('、') || "該当なし"; // データがない場合は「該当なし」
+                        return meals.join('、') || "該当なし";
                     }
 
-                    // Excel ワークブックを作成
                     const workbook = new ExcelJS.Workbook();
-                    workbook.creator = "予約システム"; // 作成者情報
+                    workbook.creator = "予約システム";
                     workbook.created = new Date();
                     workbook.modified = new Date();
 
-                    // メインシート作成
                     const sheet = workbook.addWorksheet(`ランク別データ`);
-
-                    // シートのヘッダー行 (日本語のラベル)
                     const header = ["ランク", "性別", "日付", "朝", "昼", "夜", "弁当", "合計人数"];
                     sheet.addRow(header);
 
-                    // データを埋め込む
                     data.forEach(rankData => {
                         sheet.addRow([
-                            rankData.rank_name,                // ランク名
-                            rankData.gender,                   // 性別（男子/女子）
-                            rankData.reservation_date,         // 日付
-                            rankData.breakfast || 0,           // 朝食人数
-                            rankData.lunch || 0,               // 昼食人数
-                            rankData.dinner || 0,              // 夕食人数
-                            rankData.bento || 0,               // 弁当
-                            rankData.total_eaters || 0         // 合計人数
+                            rankData.rank_name,
+                            rankData.gender,
+                            rankData.reservation_date,
+                            rankData.breakfast || 0,
+                            rankData.lunch || 0,
+                            rankData.dinner || 0,
+                            rankData.bento || 0,
+                            rankData.total_eaters || 0
                         ]);
                     });
 
-                    // 書式設定
-                    sheet.getRow(1).font = { bold: true }; // ヘッダーを太字で表示
+                    sheet.getRow(1).font = { bold: true };
 
-                    // **列幅を自動調整**
                     sheet.columns.forEach(column => {
                         let maxLength = 0;
                         column.eachCell({ includeEmpty: true }, cell => {
@@ -297,23 +291,19 @@
                                 }
                             }
                         });
-                        column.width = maxLength + 2; // 余白を持たせるため +2
+                        column.width = maxLength + 2;
                     });
 
-                    // Excel ファイルを生成
                     const buffer = await workbook.xlsx.writeBuffer();
                     const blob = new Blob([buffer], {
                         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     });
-
-                    // ダウンロード処理
                     const link = document.createElement("a");
                     link.href = URL.createObjectURL(blob);
-                    link.download = `実施食数表_${selectedMonth}.xlsx`; // ファイル名
+                    link.download = `実施食数表_${selectedMonth}.xlsx`;
                     document.body.appendChild(link);
                     link.click();
                     link.remove();
-
                     console.info("ランク別データのエクセルファイルが生成されました！");
                 } catch (error) {
                     console.error("ランク別データのエクスポート中にエラー:", error);

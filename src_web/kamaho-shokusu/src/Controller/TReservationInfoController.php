@@ -915,7 +915,9 @@ class TReservationInfoController extends AppController
             return $this->jsonErrorResponse(__('登録中にエラーが発生しました。'));
         }
 
-        return $this->jsonSuccessResponse(__('予約が正常に登録されました。'));
+        return $this->jsonSuccessResponse(__('予約が正常に登録されました。'),[],
+            $this->request->getAttribute('webroot') . 'TReservationInfo/');
+
     }
 
     /**

@@ -76,20 +76,21 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                                 <tr>
                                     <th>部屋名</th>
                                     <th>
-                                        朝
                                         <input type="checkbox" onclick="toggleAllRooms(1, this.checked)">
+                                        朝
                                     </th>
                                     <th>
-                                        昼
                                         <input type="checkbox" onclick="toggleAllRooms(2, this.checked)">
+                                        昼
+
                                     </th>
                                     <th>
-                                        夜
                                         <input type="checkbox" onclick="toggleAllRooms(3, this.checked)">
+                                        夜
                                     </th>
                                     <th>
-                                        弁当
                                         <input type="checkbox" onclick="toggleAllRooms(4, this.checked)">
+                                        弁当
                                     </th>
                                 </tr>
                                 </thead>
