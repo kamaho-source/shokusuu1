@@ -1070,75 +1070,66 @@ class TReservationInfoController extends AppController
 
             $errorMessages = []; // エラーを蓄積する配列
 
+            // 各日付ごとに処理
             foreach ($data['dates'] as $date => $value) {
+                // ※$date は "YYYY-MM-DD" 形式などで渡されることを想定
                 foreach ($data['users'] as $userId => $mealData) {
+                    // 各食事種別についてチェック
                     foreach (['morning', 'noon', 'night', 'bento'] as $mealTime) {
+                        // 数値としてチェック(1が選択されている場合)
+                        if (isset($mealData[$mealTime]) && intval($mealData[$mealTime]) === 1) {
 
-                        // mealTime を整数に変換
-                        if (isset($mealData[$mealTime]) && $mealData[$mealTime] == 1) {
-
-                            // 重複している予約を確認 (eat_flag = 1として有効データのみ検索)
+                            // 重複チェック： 指定した日付（DATE()関数での比較）、食事種別、ユーザーで有効な予約が存在するか
                             $existingReservations = $this->TIndividualReservationInfo->find()
+                                ->where(function ($exp, $q) use ($date) {
+                                    // DATE(d_reservation_date) と $date を正確に比較する
+                                    return $exp->eq('DATE(d_reservation_date)', $date);
+                                })
                                 ->where([
-                                    'DATE(d_reservation_date)' => $date, // 日付は DATE 形式で精密比較
                                     'i_reservation_type' => $mealTimeMap[$mealTime],
                                     'i_id_user' => $userId,
-                                    'eat_flag' => 1 // 有効な予約のみ対象
+                                    'eat_flag' => 1
                                 ])
                                 ->toArray();
 
-                            // デバッグ用ログ (クエリと結果)
                             $this->log(sprintf(
-                                'Checking duplicates for date: %s, mealType: %s, userId: %s. Result: %s',
+                                'Checking duplicates for date: %s, mealTime: %s, userId: %s. Found %s records.',
                                 $date,
                                 $mealTime,
                                 $userId,
-                                json_encode($existingReservations)
+                                count($existingReservations)
                             ), 'debug');
 
                             if (!empty($existingReservations)) {
-                                // 重複エラーの対応
+                                // 重複がある場合は、登録済みユーザー名を取得してエラーメッセージに追加
                                 $duplicateUsers = array_unique(array_column($existingReservations, 'i_id_user'));
 
-                                // ユーザー名を取得
-                                $userNames = $this->MUserInfo->find()
+                                // ユーザー名を一括取得
+                                $userNameRecords = $this->MUserInfo->find()
                                     ->select(['c_user_name'])
                                     ->whereInList('i_id_user', $duplicateUsers)
                                     ->toArray();
 
-                                $registeredUsersList = implode(', ', array_column($userNames, 'c_user_name'));
+                                $registeredUsersList = implode(', ', array_column($userNameRecords, 'c_user_name'));
 
-                                $eatRegistered = array_reduce(
-                                    $existingReservations,
-                                    fn($carry, $reservation) => $carry || $reservation->eat_flag == 1,
-                                    false
-                                );
-
-                                // エラーメッセージを収集
-                                if ($eatRegistered) {
+                                // エラーメッセージ作成（登録済みの予約が存在する場合のみ）
+                                if (count($existingReservations) > 0) {
                                     $errorMessages[] = sprintf(
                                         '同じ日付 %s と食事タイプ "%s" の予約が既に存在しているユーザー: "%s"',
                                         $date,
-                                        $mealTimeDisplayNames[$mealTime], // 配列から日本語表現を取得
-                                        $registeredUsersList
-                                    );
-                                } else {
-                                    $errorMessages[] = sprintf(
-                                        '同じ日付 %s と食事タイプ "%s" の予約が既に存在しますが、登録されていません: "%s"',
-                                        $date,
-                                        $mealTimeDisplayNames[$mealTime], // 配列から日本語表現を取得
+                                        $mealTimeDisplayNames[$mealTime],
                                         $registeredUsersList
                                     );
                                 }
-
-                                continue; // この予約についてはスキップ
+                                // この予約はスキップ
+                                continue;
                             }
 
-                            // 新しい予約エンティティ作成
+                            // 重複が無ければ新しい予約エンティティを作成
                             $reservation = $this->TIndividualReservationInfo->newEmptyEntity();
                             $reservation->d_reservation_date = $date;
                             $reservation->i_id_room = $data['i_id_room']; // 部屋ID
-                            $reservation->i_reservation_type = $mealTimeMap[$mealTime]; // 朝昼夜の区別を整数に変換
+                            $reservation->i_reservation_type = $mealTimeMap[$mealTime]; // 朝昼夜の区別
                             $reservation->i_id_user = $userId; // ユーザーID
                             $reservation->eat_flag = 1; // 食べるフラグ
                             $reservation->c_create_user = $this->request->getAttribute('identity')->get('c_user_name');
@@ -1150,11 +1141,11 @@ class TReservationInfoController extends AppController
                 }
             }
 
-            // エラーメッセージがある場合、レスポンスとして返す
+            // エラーメッセージがある場合、重複が本当に存在する場合のみ返す
             if (!empty($errorMessages)) {
                 return $this->response->withType('json')->withStringBody(json_encode([
                     'status' => 'error',
-                    'message' => implode("\n", $errorMessages), // 改行で区切る
+                    'message' => implode("\n", $errorMessages)
                 ]));
             }
 
@@ -1179,6 +1170,7 @@ class TReservationInfoController extends AppController
             ]));
         }
     }
+
 
     /**
      * 編集メソッド
