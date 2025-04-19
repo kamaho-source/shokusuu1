@@ -58,28 +58,33 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                 ]) ?>
             </div>
 
-            <div id="user-table-container">
-                <div class="d-flex justify-content-between mb-2">
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', true)" <?= $isDisabled ? 'disabled' : '' ?>>全員朝チェック</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('morning', false)" <?= $isDisabled ? 'disabled' : '' ?>>全員朝解除</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', true)" <?= $isDisabled ? 'disabled' : '' ?>>全員昼チェック</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('noon', false)" <?= $isDisabled ? 'disabled' : '' ?>>全員昼解除</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', true)" <?= $isDisabled ? 'disabled' : '' ?>>全員夜チェック</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('night', false)" <?= $isDisabled ? 'disabled' : '' ?>>全員夜解除</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('bento', true)" <?= $isDisabled ? 'disabled' : '' ?>>全員弁当チェック</button>
-                    <button type="button" class="btn btn-secondary" onclick="toggleAllUsers('bento', false)" <?= $isDisabled ? 'disabled' : '' ?>>全員弁当解除</button>
-                </div>
 
+</div> <!-- Add this closing div for the id="user-table-container" -->
+<div style="margin-top: 20px;"></div>
+            <div id="user-table-container"
                 <div id="user-table-container">
                     <!-- 朝昼夜の食数入力フォーム -->
                     <table class="table table-bordered">
                         <thead>
                         <tr>
                             <th>利用者名</th>
-                            <th>朝</th>
-                            <th>昼</th>
-                            <th>夜</th>
-                            <th>弁当</th>
+
+                            <th>
+                                <input type="checkbox" id="morning-all" onclick="toggleAllUsers('morning', this.checked)">
+                                朝
+                            </th>
+                            <th>
+                                <input type="checkbox" id="noon-all" onclick="toggleAllUsers('noon', this.checked)">
+                                昼
+                            </th>
+                            <th>
+                                <input type="checkbox" id="night-all" onclick="toggleAllUsers('night', this.checked)">
+                                夜
+                            </th>
+                            <th>
+                                <input type="checkbox" id="bento-all" onclick="toggleAllUsers('bento', this.checked)">
+                                弁当
+                            </th>
                         </tr>
                         </thead>
                         <tbody id="user-checkboxes">
