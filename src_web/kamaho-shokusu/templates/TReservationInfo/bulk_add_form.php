@@ -58,31 +58,31 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                 ]) ?>
             </div>
 
+            <div id="user-table-container">
+                <div class="d-flex justify-content-between mb-2">
 
-</div> <!-- Add this closing div for the id="user-table-container" -->
-<div style="margin-top: 20px;"></div>
-            <div id="user-table-container"
+                </div>
+
                 <div id="user-table-container">
                     <!-- 朝昼夜の食数入力フォーム -->
                     <table class="table table-bordered">
                         <thead>
                         <tr>
                             <th>利用者名</th>
-
                             <th>
-                                <input type="checkbox" id="morning-all" onclick="toggleAllUsers('morning', this.checked)">
+                                <input type="checkbox" onclick="toggleAllUsers('morning', this.checked)">
                                 朝
                             </th>
                             <th>
-                                <input type="checkbox" id="noon-all" onclick="toggleAllUsers('noon', this.checked)">
+                                <input type="checkbox" onclick="toggleAllUsers('noon', this.checked)">
                                 昼
                             </th>
                             <th>
-                                <input type="checkbox" id="night-all" onclick="toggleAllUsers('night', this.checked)">
+                                <input type="checkbox" onclick="toggleAllUsers('night', this.checked)">
                                 夜
                             </th>
                             <th>
-                                <input type="checkbox" id="bento-all" onclick="toggleAllUsers('bento', this.checked)">
+                                <input type="checkbox" onclick="toggleAllUsers('bento', this.checked)">
                                 弁当
                             </th>
                         </tr>
