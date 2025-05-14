@@ -6,3 +6,11 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
+/dataSources.xml
+/modules.xml
+/php-docker-settings.xml
+/php.xml
+/phpunit.xml
+/shokusuu1.iml
+/vcs.xml
+
