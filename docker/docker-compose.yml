@@ -4,7 +4,7 @@ services:
     container_name: kamakura-shokusu_web
     # ./myapp-web/Dockerfile でイメージをビルド
     build:
-      context: kamakura-shokusu_web
+      context: ./kamakura-shokusu_web
       dockerfile: Dockerfile
     # 80 番ポートを割り当て
     ports:
