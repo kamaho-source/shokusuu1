@@ -32,7 +32,11 @@ class TReservationInfoControllerTest extends TestCase
      */
     public function testIndex(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+       //インデックスメソッドのテスト
+        $this->get('/t-reservation-info');
+        $this->assertResponseOk();
+        $this->assertResponseContains('TReservationInfo');
+
     }
 
     /**
@@ -43,7 +47,11 @@ class TReservationInfoControllerTest extends TestCase
      */
     public function testView(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        //ビューのテスト
+        $this->get('/TReservationInfo/view?date=2025-07-02');
+        $this->assertResponseOk();
+        $this->assertResponseContains('2025-07-02');
+
     }
 
     /**
