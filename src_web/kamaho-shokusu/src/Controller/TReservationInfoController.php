@@ -1608,7 +1608,4 @@ class TReservationInfoController extends AppController
 
         return $this->response;
     }
-
-
-
 }
