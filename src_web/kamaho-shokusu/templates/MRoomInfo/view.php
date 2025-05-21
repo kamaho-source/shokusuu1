@@ -12,14 +12,17 @@ $this->Html->css(['bootstrap.min']);
         <div class="list-group">
             <h4 class="list-group-item-heading"><?= __('アクション') ?></h4>
             <?= $this->Html->link(__('部屋情報を編集'), ['action' => 'edit', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>
-            <?= $this->Form->postLink(__('部屋情報を削除'), ['action' => 'delete', $mRoomInfo->i_id_room], ['confirm' => __('本当に削除しますか？ # {0}', $mRoomInfo->i_id_room), 'class' => 'list-group-item list-group-item-action']) ?>
+            <!-- 部屋情報を削除はadmin権限のみ表示 -->
+            <?php if ($user->get('i_admin') === 1): ?>
+            <?= $this->Html->link(__('部屋情報を削除'), ['action' => 'delete', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>
+            <?php endif; ?>
             <?= $this->Html->link(__('部屋情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
             <?= $this->Html->link(__('新しい部屋情報'), ['action' => 'add'], ['class' => 'list-group-item list-group-item-action']) ?>
         </div>
     </aside>
     <div class="col-md-9">
         <div class="card">
-            <h5 class="card-header"><?= __('部屋情報') . ' ' . h($mRoomInfo->i_id_room) ?></h5>
+            <h5 class="card-header"><?= __('部屋情報') . ' ' . h($mRoomInfo->c_room_name) ?></h5>
             <div class="card-body">
                 <table class="table table-striped">
                     <tr>

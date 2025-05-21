@@ -196,11 +196,9 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
             toggleStaffIdField(event.target.value);
         });
 
-        // eyeIconのクリックイベント
-        // eyeIconのクリックイベント
+        // パスワード表示切替
         $("#eyeIcon").on("click", function(){
             var input = $("#inputPassword");
-            // パスワードかテキストかでタイプを切り替え、アイコンも差し替え
             if(input.attr("type") === "password"){
                 input.attr("type", "text");
                 $(this).attr("src", "<?= $this->Html->Url->image('eye.svg') ?>");
@@ -209,9 +207,53 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                 $(this).attr("src", "<?= $this->Html->Url->image('eye-slash.svg') ?>");
             }
         });
+
+        // ✅ フロントエンド バリデーション追加
+        const form = document.getElementById('reservation-form');
+        form.addEventListener('submit', function (e) {
+            const requiredFields = [
+                { id: 'c_login_account', label: 'ログインID' },
+                { id: 'inputPassword', label: 'パスワード' },
+                { name: 'c_user_name', label: 'ユーザー名' },
+                { name: 'i_user_gender', label: '性別' },
+                { name: 'age_group', label: '年代選択' },
+                { name: 'age', label: '年齢' },
+                { name: 'role', label: '役職' },
+            ];
+
+            for (const fieldInfo of requiredFields) {
+                let field = fieldInfo.id
+                    ? document.getElementById(fieldInfo.id)
+                    : document.querySelector(`[name="${fieldInfo.name}"]`);
+
+                if (!field || !field.value || field.value.trim() === '') {
+                    alert(`${fieldInfo.label}は必須入力です。`);
+                    field?.focus();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            // 役職 = 職員のときは staff_id 必須
+            if (roleSelect.value === '0') {
+                const staffInput = document.querySelector('[name="staff_id"]');
+                if (!staffInput.value || staffInput.value.trim() === '') {
+                    alert('職員IDは必須入力です。');
+                    staffInput.focus();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            // 所属部屋のチェック
+            const roomCheckboxes = document.querySelectorAll('input[type="checkbox"][name^="MUserGroup"]');
+            const anyChecked = Array.from(roomCheckboxes).some(cb => cb.checked);
+            if (!anyChecked) {
+                alert('所属する部屋を1つ以上選択してください。');
+                e.preventDefault();
+                return;
+            }
+        });
     });
-
-
-
 </script>
 

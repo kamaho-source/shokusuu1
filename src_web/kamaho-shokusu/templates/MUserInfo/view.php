@@ -5,6 +5,7 @@
  */
 
 $this->assign('title', 'ユーザー情報の表示');
+$currentUserId = $user->get('i_id_user');
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -17,14 +18,16 @@ $this->assign('title', 'ユーザー情報の表示');
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">
-                <h3><?= h($mUserInfo->i_id_user) ?></h3>
+                <h3><?= 'ユーザー情報:'.h($mUserInfo->c_user_name) ?></h3>
             </div>
             <div class="card-body">
                 <table class="table table-striped">
+                    <?php if($mUserInfo->i_id_user === $currentUserId || $user->get('i_admin') == 1): ?>
                     <tr>
                         <th><?= __('ログインID') ?></th>
                         <td><?= h($mUserInfo->c_login_account) ?></td>
                     </tr>
+                    <?php endif; ?>
 
                     <tr>
                         <th><?= __('ユーザー名') ?></th>
@@ -35,10 +38,6 @@ $this->assign('title', 'ユーザー情報の表示');
                             <th><?= __('職員ID') ?></th>
                             <td><?= h($mUserInfo->i_id_staff) ?></td>
                         </tr>
-                    <?php endif; ?>
-                    <?php if ($mUserInfo->i_admin === 1):?>
-                    <th>パスワード</th>
-                    <td><?=h($mUserInfo->c_login_passwd)?></td>
                     <?php endif; ?>
 
 
