@@ -1,43 +1,29 @@
+<?php
+// 追加: $user を取得
+$user = $this->request->getAttribute('identity');
+?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <title>食数予約</title>
     <style>
-        /* カレンダー公開エリア全体の調整 */
         #calendar {
-            max-width: 130%; /* 画面幅に合わせてリサイズ */
-            margin: 0 auto;  /* センター配置 */
+            max-width: 130%;
+            margin: 0 auto;
         }
-        /* ヘッダーツールバーやフォントをスマホ向けに調整 */
         @media screen and (max-width: 768px) {
-            .fc-toolbar button {
-                font-size: 12px;
-            }
-            .fc-toolbar-title {
-                font-size: 14px;
-            }
-            #calendar {
-                font-size: 12px;
-            }
+            .fc-toolbar button { font-size: 12px; }
+            .fc-toolbar-title { font-size: 14px; }
+            #calendar { font-size: 12px; }
         }
-        /* タブレット向け */
         @media screen and (min-width: 769px) and (max-width: 1024px) {
-            .fc-toolbar button {
-                font-size: 14px;
-            }
-            .fc-toolbar-title {
-                font-size: 16px;
-            }
-            #calendar {
-                font-size: 14px;
-            }
+            .fc-toolbar button { font-size: 14px; }
+            .fc-toolbar-title { font-size: 16px; }
+            #calendar { font-size: 14px; }
         }
-        /* PCでは通常通りの表示 */
         @media screen and (min-width: 1025px) {
-            #calendar {
-                font-size: 16px;
-            }
+            #calendar { font-size: 16px; }
         }
     </style>
 </head>
@@ -46,7 +32,7 @@
 <div class="container">
     <h1>食数予約</h1>
 
-    <?php if ($user->get('i_admin') === 1): // i_adminが1の場合 ?>
+    <?php if ($user && $user->get('i_admin') === 1): // i_adminが1の場合 ?>
         <div style="margin-bottom: 15px;">
             <label for="monthSelect">エクスポートする月を選択:</label>
             <select id="monthSelect">
@@ -64,27 +50,17 @@
     <div id="calendar"></div>
 </div>
 
-<!-- Include jQuery and Bootstrap JS -->
 <?= $this->Html->script('jquery-3.5.1.slim.min.js') ?>
-
-<!-- Include FullCalendar JS -->
 <?= $this->Html->script('index.global.min.js') ?>
-
-<!-- Include japanese-holidays.js -->
 <?= $this->Html->script('japanese-holidays.min.js') ?>
-
-<!-- Include ExcelJS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         var calendarEl = document.getElementById('calendar');
-
-        // 本日から1か月先の日付を計算（初期表示用）
         var defaultDate = new Date();
         defaultDate.setMonth(defaultDate.getMonth() + 1);
 
-        // PHPで生成された既存のイベント（食数予約）
         var existingEvents = [
             <?php if (!empty($mealDataArray)) : ?>
             <?php foreach ($mealDataArray as $date => $meals): ?>
@@ -110,9 +86,8 @@
             <?php endif; ?>
         ];
 
-        // FullCalendar の初期化（customButtons と headerToolbar で次月ボタンを追加、中央タイトルを非表示）
         var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialDate: defaultDate, // 初期表示: 本日から1か月先の日付
+            initialDate: defaultDate,
             initialView: 'dayGridMonth',
             locale: 'ja',
             height: 'auto',
@@ -123,13 +98,13 @@
                 nextMonth: {
                     text: '次月',
                     click: function() {
-                        calendar.next();  // 現在のビューが month モードの場合、次の月へ移動
+                        calendar.next();
                     }
                 }
             },
             headerToolbar: {
-                right: 'prev,today,nextMonth,next', // 「前」「今日」「次月」「次」ボタンを左側に配置
-                center: '', // 中央のタイトルを非表示
+                right: 'prev,today,nextMonth,next',
+                center: '',
             },
             buttonText: {
                 today: '今日',
@@ -142,25 +117,26 @@
                 var startYear = fetchInfo.start.getFullYear();
                 var endYear = fetchInfo.end.getFullYear();
 
-                // 祝日イベントを生成
                 var holidayEvents = [];
                 for (var year = startYear; year <= endYear; year++) {
-                    const holidays = JapaneseHolidays.getHolidaysOf(year);
-                    if (holidays && Array.isArray(holidays)) {
-                        holidays.forEach(function(holiday) {
-                            holidayEvents.push({
-                                title: holiday.name,
-                                start: `${year}-${String(holiday.month).padStart(2, '0')}-${String(holiday.date).padStart(2, '0')}`,
-                                allDay: true,
-                                backgroundColor: 'red',
-                                borderColor: 'red',
-                                textColor: 'white',
-                                displayOrder: 0,
+                    // 修正: yearが数値かどうかをチェック
+                    if (typeof year === "number" && !isNaN(year)) {
+                        const holidays = JapaneseHolidays.getHolidaysOf(year);
+                        if (holidays && Array.isArray(holidays)) {
+                            holidays.forEach(function(holiday) {
+                                holidayEvents.push({
+                                    title: holiday.name,
+                                    start: `${year}-${String(holiday.month).padStart(2, '0')}-${String(holiday.date).padStart(2, '0')}`,
+                                    allDay: true,
+                                    backgroundColor: 'red',
+                                    borderColor: 'red',
+                                    textColor: 'white',
+                                    displayOrder: 0,
+                                });
                             });
-                        });
+                        }
                     }
                 }
-                // 食数予約データと祝日データを統合
                 successCallback(existingEvents.concat(holidayEvents));
             },
             eventOrder: 'displayOrder',
@@ -177,7 +153,6 @@
 
         calendar.render();
 
-        // Excel ダウンロード処理以下はそのまま...
         const excelButton = document.getElementById("downloadExcel");
         const monthSelect = document.getElementById("monthSelect");
         if (excelButton) {
