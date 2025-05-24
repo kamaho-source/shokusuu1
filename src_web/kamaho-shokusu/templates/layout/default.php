@@ -23,9 +23,11 @@
                     <li class="nav-item">
                         <a class="nav-link active" href="<?= $this->Url->build('/MRoomInfo/') ?>">部屋情報</a>
                     </li>
+                <?php if ($user->get('i_admin') === 1): ?>
                     <li class="nav-item">
                         <a class="nav-link active" href="<?= $this->Url->build('/MUserInfo/') ?>">ユーザ一覧</a>
                     </li>
+                <?php endif; ?>
                 <?php endif; ?>
                 <?php if ($user && $user->i_admin): ?>
                     <li class="nav-item dropdown">
