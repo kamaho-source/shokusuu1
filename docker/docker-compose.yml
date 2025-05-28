@@ -53,7 +53,7 @@ services:
   network-inner:
     image: php:8.3-apache
     build:
-      context: Kamakura-shokusu_web
+      context: ./kamakura-shokusu_web
       dockerfile: Dockerfile
     volumes:
       - "../src_web:/var/www/html"
