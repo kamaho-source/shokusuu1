@@ -7,7 +7,6 @@ use AllowDynamicProperties;
 use Cake\Event\EventInterface;
 use Cake\Log\Log;
 use Cake\ORM\TableRegistry;
-use http\Encoding\Stream\Debrotli;
 use InvalidArgumentException;
 use Cake\Datasource\ConnectionManager;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
