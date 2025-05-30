@@ -14,7 +14,9 @@ $currentUserId = $user->get('i_id_user');
             <?php if ($mUserInfo->i_id_user === $currentUserId || $user->get('i_admin') == 1 ): ?>
             <?= $this->Html->link(__('ユーザ情報を編集する'), ['action' => 'edit', $mUserInfo->i_id_user], ['class' => 'list-group-item list-group-item-action']) ?>
             <?php endif; ?>
+            <?php if ($user->get('i_admin') == 1): ?>
             <?= $this->Html->link(__('ユーザ一覧を表示する'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
+            <?php endif; ?>
         </div>
     </aside>
     <div class="col-md-9">

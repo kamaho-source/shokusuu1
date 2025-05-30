@@ -625,6 +625,7 @@ class TReservationInfoController extends AppController
         if (!$user) {
             return $this->jsonErrorResponse(__('ログイン情報がありません。'));
         }
+        $userLevel = $user->i_user_level;
 
         $userId = $user->get('i_id_user');
         $rooms = $this->getAuthorizedRooms($userId);
@@ -662,7 +663,7 @@ class TReservationInfoController extends AppController
             }
         }
 
-        $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomId'));
+        $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomId', 'userLevel'));
     }
 
     /**
