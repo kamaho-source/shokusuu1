@@ -110,9 +110,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
+        $builder->connect('/MUserInfo/admin_change_password', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
         $builder->connect('/MUserInfo/changePassword', ['controller' => 'MUserInfo', 'action' => 'changePassword']);
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
-        $builder->connect('MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
+        $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
         $builder->connect('/MUserInfo/delete/*', ['controller' => 'MUserInfo', 'action' => 'delete']);

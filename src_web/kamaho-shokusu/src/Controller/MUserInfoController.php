@@ -48,12 +48,23 @@ class MUserInfoController extends AppController
 
     public function index()
     {
+        // ログインユーザー情報取得
+        $user = $this->request->getAttribute('identity');
+        $isAdmin = $user->i_admin === 1;
+        $currentUserId = $user->i_id_user;
+
+        // 管理者は全件、一般ユーザーは自分だけを取得
         $query = $this->MUserInfo->find()
             ->where(['i_del_flag' => 0])
             ->contain(['MUserGroup' => ['MRoomInfo']]);
 
+        if (!$isAdmin) {
+            $query->where(['i_id_user' => $currentUserId]);
+        }
+
         $mUserInfo = $this->paginate($query);
 
+        // 所属部屋データの整理
         $userRooms = [];
         foreach ($mUserInfo as $user) {
             if (!empty($user->m_user_group)) {
@@ -67,7 +78,8 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'userRooms'));
+        // ビューに必要なデータを渡す
+        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId'));
     }
 
 
@@ -77,8 +89,14 @@ class MUserInfoController extends AppController
             return ['未所属'];
         }
 
+        $this->loadModel('MUserGroup');
+        $this->loadModel('MRoomInfo');
+
         $userRooms = $this->MUserGroup->find()
-            ->where(['MUserGroup.i_id_user' => $userId, 'MUserGroup.active_flag' => 0])
+            ->where([
+                'MUserGroup.i_id_user' => $userId,
+                'MUserGroup.active_flag' => 0
+            ])
             ->contain(['MRoomInfo'])
             ->all();
 
@@ -88,11 +106,14 @@ class MUserInfoController extends AppController
 
         $rooms = [];
         foreach ($userRooms as $userRoom) {
-            $rooms[] = $userRoom->m_room_info->c_room_name;
+            if (!empty($userRoom->m_room_info)) {
+                $rooms[] = $userRoom->m_room_info->c_room_name;
+            }
         }
 
         return $rooms;
     }
+
 
 
     private function castGroupData(array $groupData): array {
@@ -318,12 +339,18 @@ class MUserInfoController extends AppController
         }
     }
 
-
-
-
-
     public function view($id = null)
     {
+        $user = $this->request->getAttribute('identity');
+        $isAdmin = $user->i_admin === 1;
+        $currentUserId = $user->i_id_user;
+
+        // 管理者か、自分自身でない場合は拒否
+        if (!$isAdmin && (int)$id !== (int)$currentUserId) {
+            $this->Flash->error(__('あなたは閲覧権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
         $mUserInfo = $this->MUserInfo->get($id, [
             'contain' => ['MUserGroup' => ['MRoomInfo']]
         ]);
@@ -331,12 +358,15 @@ class MUserInfoController extends AppController
         $userRooms = [];
         if (!empty($mUserInfo->m_user_group)) {
             foreach ($mUserInfo->m_user_group as $group) {
-                $userRooms[] = $group->m_room_info->c_room_name;
+                if (!empty($group->m_room_info)) {
+                    $userRooms[] = $group->m_room_info->c_room_name;
+                }
             }
         }
 
         $this->set(compact('mUserInfo', 'userRooms'));
     }
+
 
     public function delete($id = null)
     {
