@@ -13,4 +13,5 @@
 /phpunit.xml
 /shokusuu1.iml
 /vcs.xml
+../dataSource/dump/shokusuu1.sql
 
