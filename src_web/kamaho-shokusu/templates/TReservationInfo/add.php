@@ -14,6 +14,7 @@ $this->assign('title','食数予約の追加');
 $this->Html->script('reservation', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
 echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
+$user = $this->request->getAttribute('identity'); // ユーザー情報を取得
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -22,7 +23,6 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
             <?= $this->Html->link(__('食数予約一覧に戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
 
             <?php
-            // クエリパラメータから日付を取得し、月曜日かどうかをチェック
             $date = $this->request->getQuery('date') ?? date('Y-m-d');
             if (date('N', strtotime($date)) == 1): ?>
                 <?= $this->Html->link(__('週の一括予約'), ['action' => 'bulkAddForm', '?' => ['date' => $date]], ['class' => 'list-group-item list-group-item-action']) ?>
@@ -51,23 +51,17 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                         </div>
                     </div>
 
-                    <!-- 予約タイプの選択 -->
                     <div class="form-group">
-                        <?php
-                        $reservationTypes = [
-                            1 => '個人',
-                            2 => '集団'
-                        ]; ?>
                         <label for="c_reservation_type">予約タイプ(個人/集団)</label>
                         <select id="c_reservation_type" name="reservation_type" class="form-control">
                             <option value="" selected disabled>-- 予約タイプを選択 --</option>
-                            <?php foreach ($reservationTypes as $value => $label): ?>
-                                <option value="<?= $value ?>"><?= $label ?></option>
-                            <?php endforeach; ?>
+                            <option value="1">個人</option>
+                            <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
+                                <option value="2">集団</option>
+                            <?php endif; ?>
                         </select>
                     </div>
 
-                    <!-- 個人予約用の部屋と食事選択テーブル -->
                     <div class="form-group" id="room-selection-table" style="display: none;">
                         <?= $this->Form->label('rooms', '部屋名と食事選択') ?>
                         <div id="room-table-container">
@@ -75,23 +69,10 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                                 <thead>
                                 <tr>
                                     <th>部屋名</th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllRooms(1, this.checked)">
-                                        朝
-                                    </th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllRooms(2, this.checked)">
-                                        昼
-
-                                    </th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllRooms(3, this.checked)">
-                                        夜
-                                    </th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllRooms(4, this.checked)">
-                                        弁当
-                                    </th>
+                                    <th><input type="checkbox" onclick="toggleAllRooms(1, this.checked)">朝</th>
+                                    <th><input type="checkbox" onclick="toggleAllRooms(2, this.checked)">昼</th>
+                                    <th><input type="checkbox" onclick="toggleAllRooms(3, this.checked)">夜</th>
+                                    <th><input type="checkbox" onclick="toggleAllRooms(4, this.checked)">弁当</th>
                                 </tr>
                                 </thead>
                                 <tbody id="room-checkboxes">
@@ -109,52 +90,37 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                         </div>
                     </div>
 
-                    <!-- 集団予約用の部屋セレクトボックス -->
-                    <div class="form-group" id="room-select-group" style="display: none;">
-                        <?= $this->Form->label('room-select', '部屋を選択') ?>
-                        <?= $this->Form->control('i_id_room', [
-                            'type' => 'select',
-                            'label' => false,
-                            'options' => $rooms,
-                            'empty' => '-- 部屋を選択 --',
-                            'class' => 'form-control',
-                            'id' => 'room-select'
-                        ]) ?>
-                    </div>
-
-                    <!-- 集団予約用の利用者テーブル -->
-                    <div class="form-group" id="user-selection-table" style="display: none;">
-                        <?= $this->Form->label('users', '部屋に属する利用者と食事選択') ?>
-                        <div id="user-table-container">
-                            <table class="table table-bordered">
-                                <thead>
-                                <tr>
-                                    <th>利用者名</th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllUsers('morning', this.checked)">
-                                        朝
-                                    </th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllUsers('noon', this.checked)">
-                                        昼
-                                    </th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllUsers('night', this.checked)">
-                                        夜
-                                    </th>
-                                    <th>
-                                        <input type="checkbox" onclick="toggleAllUsers('bento', this.checked)">
-                                        弁当
-                                    </th>
-                                </tr>
-                                </thead>
-                                <tbody id="user-checkboxes">
-                                <!-- JavaScriptで動的にユーザー情報を表示 -->
-                                </tbody>
-                            </table>
+                    <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
+                        <div class="form-group" id="room-select-group" style="display: none;">
+                            <?= $this->Form->label('room-select', '部屋を選択') ?>
+                            <?= $this->Form->control('i_id_room', [
+                                'type' => 'select',
+                                'label' => false,
+                                'options' => $rooms,
+                                'empty' => '-- 部屋を選択 --',
+                                'class' => 'form-control',
+                                'id' => 'room-select'
+                            ]) ?>
                         </div>
-                    </div>
 
+                        <div class="form-group" id="user-selection-table" style="display: none;">
+                            <?= $this->Form->label('users', '部屋に属する利用者と食事選択') ?>
+                            <div id="user-table-container">
+                                <table class="table table-bordered">
+                                    <thead>
+                                    <tr>
+                                        <th>利用者名</th>
+                                        <th><input type="checkbox" onclick="toggleAllUsers('morning', this.checked)">朝</th>
+                                        <th><input type="checkbox" onclick="toggleAllUsers('noon', this.checked)">昼</th>
+                                        <th><input type="checkbox" onclick="toggleAllUsers('night', this.checked)">夜</th>
+                                        <th><input type="checkbox" onclick="toggleAllUsers('bento', this.checked)">弁当</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="user-checkboxes"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     <script>
                         /**
                          * 個人予約テーブルのチェックボックスをヘッダの状態に連動させる関数
@@ -271,9 +237,9 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
                             submitButton.disabled = false;
                         }
                     </script>
+
                 </fieldset>
                 <?= $this->Form->button(__('登録'), ['class' => 'btn btn-primary']) ?>
-                <!-- オーバーレイ -->
                 <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; text-align: center;">
                     <div style="position: relative; top: 50%; transform: translateY(-50%);">
                         <div class="spinner-border text-info" role="status"></div>
@@ -285,8 +251,6 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
         </div>
     </div>
 </div>
-
-<!-- 部屋データをJavaScriptオブジェクトとして出力 -->
 <script>
     var roomsData = <?= json_encode($rooms); ?>;
 </script>

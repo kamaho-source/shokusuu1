@@ -14,7 +14,9 @@ echo $this->Html->css(['bootstrap.min']);
 $this->assign('title', 'ユーザー情報一覧');
 ?>
 <div class="mUserInfo index content">
+    <?php if($isAdmin || $user->get('i_user_level') === 0): ?>
     <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
+    <?php endif; ?>
     <h3><?= __('ユーザー一覧') ?></h3>
     <div class="table-responsive">
         <table class="table table-bordered">
