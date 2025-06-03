@@ -9,9 +9,12 @@ namespace App\Controller;
  */
 class MMealPriceInfoController extends AppController
 {
+
     protected $MMealPriceInfo;
     protected $TIndividualReservationInfo;
     protected $MUserInfo;
+
+
 
     public function initialize(): void
     {
@@ -55,9 +58,11 @@ class MMealPriceInfoController extends AppController
     public function add()
     {
         $mMealPriceInfo = $this->MMealPriceInfo->newEmptyEntity();
+        $user = $this->request->getAttribute('identity');
         if ($this->request->is('post')) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
             $this->MMealPriceInfo->dt_created = date('Y-m-d H:i:s');
+            $this->MMealPriceInfo->c_create_user = $user->get('c_user_name');
 
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
@@ -79,8 +84,11 @@ class MMealPriceInfoController extends AppController
     public function edit($id = null)
     {
         $mMealPriceInfo = $this->MMealPriceInfo->get($id, contain: []);
+        $user = $this->request->getAttribute('identity');
         if ($this->request->is(['patch', 'post', 'put'])) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
+            $mMealPriceInfo->dt_update = date('Y-m-d H:i:s');
+            $mMealPriceInfo->c_update_user = $user->get('c_user_name');
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
                 $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
@@ -103,6 +111,7 @@ class MMealPriceInfoController extends AppController
         $this->request->allowMethod(['post', 'delete']);
         $mMealPriceInfo = $this->MMealPriceInfo->get($id);
         if ($this->MMealPriceInfo->delete($mMealPriceInfo)) {
+
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {
             $this->Flash->error(__('食事料金情報を削除できませんでした。もう一度お試しください。'));
