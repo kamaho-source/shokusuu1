@@ -1,0 +1,7 @@
+/* dropdown アニメーション強化 (必要に応じて) */
+@media (max-width: 991.98px) {
+    .navbar-nav .dropdown-menu {
+        position: static !important;
+        float: none;
+    }
+}
