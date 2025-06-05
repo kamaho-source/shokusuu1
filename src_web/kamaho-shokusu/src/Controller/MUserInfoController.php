@@ -235,12 +235,12 @@ class MUserInfoController extends AppController
 
         if ($this->request->is(['patch', 'post', 'put'])) {
             $data = $this->request->getData();
-
             // フィールド名の修正とnullチェック (c_user_nameがnullの場合のデフォルト値を設定)
             $data['c_user_name'] = $data['c_user_name'] ?? 'デフォルトユーザー名';
-
-            $user = $this->request->getAttribute('identity');
+	        $user = $this->request->getAttribute('identity');
             $data['c_update_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
+            $data['dt_update'] = date('Y-m-d H:i:s');
+
             // MUserGroupデータのセットアップ
             $newUserGroups = [];
             if (!empty($data['rooms'])) {
