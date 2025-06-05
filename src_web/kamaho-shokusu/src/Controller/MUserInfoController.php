@@ -330,6 +330,8 @@ class MUserInfoController extends AppController
 
         // 権限を更新
         $user->i_admin = (int)$isAdmin;
+        $user->dt_update = date('Y-m-d H:i:s');
+        $user->c_update_user = $this->request->getAttribute('identity')->get('c_user_name') ?? '不明なユーザー';
         if ($this->MUserInfo->save($user)) {
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode(['success' => true, 'message' => '管理者権限が正常に更新されました。']));
