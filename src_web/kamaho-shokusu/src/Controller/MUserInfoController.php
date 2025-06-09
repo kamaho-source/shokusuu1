@@ -440,7 +440,7 @@ class MUserInfoController extends AppController
             // ログインユーザーが削除済みかチェック
             $user = $result->getData(); // ログイン成功後のユーザーデータを取得
 
-            if ($user->i_del_flag === 1) {
+            if ($user->i_del_flag === 1 || $user->i_enable === 1) {
                 // ユーザーが削除済みの場合はログインを拒否
                 $this->Authentication->logout(); // ログイン状態を解除
                 $this->Flash->error(__('このアカウントは無効化されています。'));
