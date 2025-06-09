@@ -6,5 +6,7 @@ cd kamaho-shokusu
 cp .env.example .env
 composer install
 ここから先はPMかSEに聞くこと
+```
+
 
 
