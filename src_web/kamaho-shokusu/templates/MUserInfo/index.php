@@ -56,7 +56,7 @@ $this->assign('title', 'ユーザー情報一覧');
                             <?= $this->Html->link(__('編集'), ['action' => 'edit', $user->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
                         <?php endif; ?>
                         <?php if ($isAdmin): ?>
-                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $user->i_id_user], ['confirm' => __('ユーザー ID {0} を削除してもよろしいですか？', $user->i_id_user), 'class' => 'btn btn-danger btn-sm']) ?>
+                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $user->i_id_user], ['confirm' => __(' {0} を削除してもよろしいですか？', $user->c_user_name), 'class' => 'btn btn-danger btn-sm']) ?>
                         <?php endif; ?>
                     </td>
                 </tr>
