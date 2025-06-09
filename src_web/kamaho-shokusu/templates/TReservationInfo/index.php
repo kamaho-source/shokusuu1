@@ -143,12 +143,22 @@ $user = $this->request->getAttribute('identity');
             dateClick: function(info) {
                 let date = new Date(info.dateStr);
                 let isMonday = date.getDay() === 1;
-                if (isMonday && confirm("週の一括予約を行いますか？")) {
-                    window.location.href = '<?= $this->Url->build('/TReservationInfo/bulkAddForm') ?>?date=' + info.dateStr;
-                } else {
-                    window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
+
+                // PHPからユーザー権限を埋め込む
+                const isAdmin = <?= $user && $user->get('i_admin') === 1 ? 'true' : 'false' ?>;
+                const isLevel0 = <?= $user && $user->get('i_user_level') == 0 ? 'true' : 'false' ?>;
+
+                if (isMonday && (isAdmin || isLevel0)) {
+                    if (confirm("週の一括予約を行いますか？")) {
+                        window.location.href = '<?= $this->Url->build('/TReservationInfo/bulkAddForm') ?>?date=' + info.dateStr;
+                        return;
+                    }
                 }
+
+                // 一括予約が許可されないユーザー、または月曜日以外は通常予約へ
+                window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
             }
+
         });
 
         calendar.render();
