@@ -1,3 +1,7 @@
+<?php
+$this->assign('title', h($date).'の食数予約一覧');
+?>
+
 <div class="container">
     <h1>予約一覧</h1>
     <h3>日付: <?= h($date) ?></h3>

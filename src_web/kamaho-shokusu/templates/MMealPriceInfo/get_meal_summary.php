@@ -1,3 +1,12 @@
+<?php
+/**
+ * 食数予約のカレンダー表示とエクスポート機能を提供するテンプレート
+ *
+ * @var \App\View\AppView $this
+ * @var array $mealDataArray 食数データの配列
+ */
+$this->assign('title', __('食事給与控除データエクスポート'));
+?>
 <!-- Example Form with Bootstrap -->
 <div class="container mt-5">
     <h2>食事給与控除データエクスポート</h2>

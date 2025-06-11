@@ -4,7 +4,7 @@
  * @var \App\Model\Entity\MRoomInfo $mRoomInfo
  * @var array $users
  */
-
+$this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
 $this->Html->css(['bootstrap.min']);
 ?>
 <div class="row">

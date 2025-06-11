@@ -3,6 +3,7 @@
  * @var \App\View\AppView $this
  * @var \Cake\Datasource\EntityInterface $mMealPriceInfo
  */
+$this->assign('title', __('食事単価情報表示'));
 ?>
 <div class="row">
     <aside class="col-md-3">

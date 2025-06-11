@@ -4,6 +4,8 @@
  * @var iterable<\App\Model\Entity\MRoomInfo> $mRoomInfo
  */
 
+$this->assign('title', __('部屋情報一覧'));
+
 // 管理者権限の確認
 $isAdmin = $user->get('i_admin') === 1;
 ?>

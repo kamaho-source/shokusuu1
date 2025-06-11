@@ -11,6 +11,8 @@ RUN apt-get update \
   && docker-php-ext-install intl \
   # PDO MySQL 拡張
   && docker-php-ext-install pdo_mysql \
+  && pecl install xdebug \
+  && docker-php-ext-enable xdebug \
   # mod_rewrite 有効化
   && a2enmod rewrite
 

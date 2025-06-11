@@ -1,4 +1,5 @@
 <?php
+$this->assign('title', '食数予約');
 // 追加: $user を取得
 $user = $this->request->getAttribute('identity');
 ?>

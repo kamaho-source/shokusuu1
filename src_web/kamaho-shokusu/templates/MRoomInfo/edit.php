@@ -3,6 +3,7 @@
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MRoomInfo $mRoomInfo
  */
+$this->assign('title', __('部屋情報編集'));
 ?>
 <div class="row">
     <aside class="col-md-3">

@@ -3,6 +3,8 @@
  * @var \App\View\AppView $this
  * @var iterable<\Cake\Datasource\EntityInterface> $mMealPriceInfo
  */
+
+$this->assign('title', __('食事単価情報一覧'));
 ?>
 <style>
     /* 列ごとの背景色を定義 */
