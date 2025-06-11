@@ -3,3 +3,4 @@
 /.idea/runConfigurations/.xml
 /.idea/php-test-framework.xml
 .DS_Store
+/.phpunit.result.cache
