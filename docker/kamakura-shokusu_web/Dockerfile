@@ -1,27 +1,21 @@
 FROM php:8.3-apache
 
-# 必要パッケージとPHP拡張のインストール
+
 RUN apt-get update \
-  && apt-get install -y \
-    vim \
-    unzip \
-    libicu-dev \
-    libzip-dev \
-    zip \
-    curl \
-    git \
-  && docker-php-ext-install \
-    intl \
-    pdo_mysql \
-    zip \
+  # vim （省略可）
+  && apt-get install -y vim \
+  # unzip コマンド (composer create-project で必要)
+  && apt-get install -y unzip \
+  # PHP の intl 拡張 (CakePHP 4 で必要)
+  && apt-get install -y libicu-dev \
+  && docker-php-ext-install intl \
+  # PDO MySQL 拡張
+  && docker-php-ext-install pdo_mysql \
   && pecl install xdebug \
   && docker-php-ext-enable xdebug \
-  && a2enmod rewrite \
-  && apt-get clean \
-  && rm -rf /var/lib/apt/lists/*
+  # mod_rewrite 有効化
+  && a2enmod rewrite
 
 # Composer インストール
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-# タイムゾーン設定（任意）
-ENV TZ=Asia/Tokyo
