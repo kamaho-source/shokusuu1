@@ -25,42 +25,12 @@ use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
 use Cake\Routing\Router;
 
-/*
- * This file is loaded in the context of the `Application` class.
-  * So you can use  `$this` to reference the application class instance
-  * if required.
- */
-
 return function (RouteBuilder $routes): void {
 
-    /*
-     * The default class to use for all routes
-     *
-     * The following route classes are supplied with CakePHP and are appropriate
-     * to set as the default:
-     *
-     * - Route
-     * - InflectedRoute
-     * - DashedRoute
-     *
-     * If no call is made to `Router::defaultRouteClass()`, the class used is
-     * `Route` (`Cake\Routing\Route\Route`)
-     *
-     * Note that `Route` does not do any inflections on URLs which will result in
-     * inconsistently cased URLs when used with `{plugin}`, `{controller}` and
-     * `{action}` markers.
-     */
     $routes->setRouteClass(DashedRoute::class);
 
     $routes->scope('/', function (RouteBuilder $builder): void {
         $builder->setExtensions(['json']);
-        /*
-         * Here, we are connecting '/' (base path) to a controller called 'Pages',
-         * its action called 'display', and we pass a param to select the view file
-         *
-         * to use (in this case, templates/Pages/home.php)...
-         */
-
 
         $builder->connect('/', ['controller' => 'Pages', 'action' => 'display', 'home']);
         $builder->connect('/MRoomInfo', ['controller' => 'MRoomInfo', 'action' => 'index']);
@@ -72,7 +42,21 @@ return function (RouteBuilder $routes): void {
         $builder->connect('TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
         $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
         $builder->connect('TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
-        $builder->connect('/TReservationInfo/bulk-add-submit', ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit', '_method' => 'POST']);
+
+        // bulkAddSubmit用 POST専用ルート
+        $builder->connect(
+            '/TReservationInfo/bulkAddSubmit',
+            ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit'],
+            ['method' => ['POST']]
+        );
+
+        $builder->connect(
+            '/TReservationInfo/getUsersByRoomForBulk/:roomId',
+            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForBulk'],
+            ['pass' => ['roomId'], 'method' => ['GET']]
+        );
+
+
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservation-info/getUsersByRoom/:roomId', ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom'])
             ->setPass(['roomId'])
@@ -97,15 +81,10 @@ return function (RouteBuilder $routes): void {
             'action' => 'getPersonalReservation'
         ]);
 
-        $builder->connect('MMealPriceInfo/',['controller'=> 'MMealPriceInfo','action'=>'index']);
-        $builder->connect('MMealPriceInfo/add',['controller'=>'MMealPriceInfo','action'=>'add']);
-        $builder->connect('MMealPriceInfo/GetMealSummary',['controller'=>'MMealPriceInfo','action'=>'GetMealSummary']);
 
-
-
-
-
-
+        $builder->connect('MMealPriceInfo/', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
+        $builder->connect('MMealPriceInfo/add', ['controller'=>'MMealPriceInfo', 'action'=>'add']);
+        $builder->connect('MMealPriceInfo/GetMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'GetMealSummary']);
 
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
@@ -120,12 +99,8 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
         $builder->connect('/MUserInfo/', ['controller' => 'MUserInfo', 'action' => 'index']);
-   //     $builder->connect('/MUserInfo/adminChangePassword', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
+        // $builder->connect('/MUserInfo/adminChangePassword', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
 
-
-        /*
-         * ...and connect the rest of 'Pages' controller's URLs.
-         */
         $builder->connect('/pages/*', 'Pages::display');
 
         $builder->connect(
@@ -134,19 +109,6 @@ return function (RouteBuilder $routes): void {
             ['pass' => ['date']]
         );
 
-        /*
-         * Connect catchall routes for all controllers.
-         *
-         * The `fallbacks` method is a shortcut for
-         *
-         * ```
-         * $builder->connect('/{controller}', ['action' => 'index']);
-         * $builder->connect('/{controller}/{action}/*', []);
-         * ```
-         *
-         * You can remove these routes once you've connected the
-         * routes you want in your application.
-         */
         $builder->fallbacks();
     });
 

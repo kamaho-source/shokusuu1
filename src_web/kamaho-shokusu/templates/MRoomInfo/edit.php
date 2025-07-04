@@ -26,7 +26,7 @@ $this->assign('title', __('部屋情報編集'));
                         ]) ?>
                     </div>
                 </fieldset>
-                <?= $this->Form->button(__('Submit'), ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->button(__('変更'), ['class' => 'btn btn-primary']) ?>
                 <?= $this->Form->end() ?>
             </div>
         </div>

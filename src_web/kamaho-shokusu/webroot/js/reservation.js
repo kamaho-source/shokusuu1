@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         if (!reservationType || isNaN(reservationType)) {
-            alert('予約タイプを選択してください。');
+            alert('予約タイプを選択してくださœ∑œい。');
             return false;
         }
 
