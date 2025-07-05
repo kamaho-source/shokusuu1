@@ -147,18 +147,19 @@ $user = $this->request->getAttribute('identity');
 
                 // PHPからユーザー権限を埋め込む
                 const isAdmin = <?= $user && $user->get('i_admin') === 1 ? 'true' : 'false' ?>;
-                const isLevel0 = <?= $user && $user->get('i_user_level') == 0 ? 'true' : 'false' ?>;
-
-                if (isMonday && (isAdmin || isLevel0)) {
+                const userLevel = <?= $user ? (int)$user->get('i_user_level') : 'null' ?>;
+                // レベル1（個人用）: 個人一括予約
+                if (isMonday) {
                     if (confirm("週の一括予約を行いますか？")) {
                         window.location.href = '<?= $this->Url->build('/TReservationInfo/bulkAddForm') ?>?date=' + info.dateStr;
                         return;
                     }
                 }
 
-                // 一括予約が許可されないユーザー、または月曜日以外は通常予約へ
+                // 通常予約確認画面へ
                 window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
             }
+
 
         });
 

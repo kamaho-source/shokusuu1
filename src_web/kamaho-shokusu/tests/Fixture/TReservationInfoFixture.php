@@ -25,15 +25,15 @@ class TReservationInfoFixture extends TestFixture
     {
         $this->records = [
             [
-                'd_reservation_date' => '2024-08-03',
+                'i_id' => 1,
+                'dt_date' => '2025-06-25',
                 'i_id_room' => 1,
-                'c_reservation_type' => 1,
-                'i_taberu_ninzuu' => 1,
-                'i_tabenai_ninzuu' => 1,
-                'dt_create' => '2024-08-03 07:55:38',
-                'c_create_user' => 'Lorem ipsum dolor sit amet',
-                'dt_update' => '2024-08-03 07:55:38',
-                'c_update_user' => 'Lorem ipsum dolor sit amet',
+                'i_id_user' => 1,
+                'i_id_user_group' => 1,
+                'dt_create' => '2025-05-21 19:20:24',
+                's_create_user' => '秦晴彦',
+                'dt_update' => null,
+                's_update_user' => null
             ],
         ];
         parent::init();

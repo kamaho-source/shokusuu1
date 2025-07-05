@@ -7,6 +7,7 @@
     <?= $this->Html->css('bootstrap.min.css') ?>
     <?= $this->Html->meta('icon') ?>
     <?= $this->Html->meta('description', '食数管理システム') ?>
+    <?= $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken')) ?>
     <?= $this->Html->css('animate.min.css') ?>
     <?= $this->Html->css('custom.css') ?>
     <?= $this->fetch('meta') ?>
