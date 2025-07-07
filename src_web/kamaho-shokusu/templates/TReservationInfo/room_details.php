@@ -45,6 +45,7 @@
     <!-- 食べない人のリスト -->
     <h3>食べない人のリスト:</h3>
     <?php if (!empty($noEatUsers)): ?>
+
         <table class="table table-bordered">
             <thead>
             <tr>
