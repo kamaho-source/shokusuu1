@@ -27,7 +27,7 @@ class MUserGroupFixture extends TestFixture
             [
                 'i_id_user' => 1,
                 'i_id_room' => 1,
-                'active_flag' => 1,
+                'active_flag' => 0,
                 'dt_create' => '2024-09-07 15:59:52',
                 'c_create_user' => 'Lorem ipsum dolor sit amet',
                 'dt_update' => '2024-09-07 15:59:52',

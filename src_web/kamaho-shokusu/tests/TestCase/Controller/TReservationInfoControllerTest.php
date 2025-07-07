@@ -121,4 +121,295 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
     }
+
+    /**
+     * getUsersByRoomForBulkアクションのテスト
+     */
+    public function testGetUsersByRoomForBulk()
+    {
+        // 有効なルームIDでテスト
+        $this->get('/t-reservation-info/getUsersByRoomForBulk/1');
+        $this->assertResponseOk();
+        $this->assertHeader('Content-Type', 'application/json');
+
+        // レスポンスのJSONを解析
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('users', $responseJson);
+
+        // 無効なルームIDでテスト（ユーザーが存在しない場合）
+        $this->get('/t-reservation-info/getUsersByRoomForBulk/999');
+        $this->assertResponseOk(); // エラーではなく空の結果を返すべき
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('users', $responseJson);
+        $this->assertEmpty($responseJson['users']);
+    }
+
+    /**
+     * bulkAddFormアクションのテスト（正常系）
+     */
+    public function testBulkAddFormSuccess()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+            ]
+        ]);
+
+        $date = (new FrozenDate('+1 month'))->format('Y-m-d');
+        $this->get('/t-reservation-info/bulk-add-form?date=' . $date);
+        $this->assertResponseOk();
+        $this->assertResponseContains('dates');
+        $this->assertResponseContains('rooms');
+    }
+
+    /**
+     * bulkAddFormアクションのテスト（日付なし）
+     */
+    public function testBulkAddFormNoDate()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+            ]
+        ]);
+
+        $this->get('/t-reservation-info/bulk-add-form');
+        $this->assertResponseSuccess(); // リダイレクトも成功レスポンス
+        $this->assertRedirect(['action' => 'index']);
+    }
+
+    /**
+     * bulkAddSubmitアクションのテスト（個人予約）
+     */
+    public function testBulkAddSubmitPersonal()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+                'c_user_name' => 'テストユーザー'
+            ]
+        ]);
+
+        $date = (new FrozenDate('+2 months'))->format('Y-m-d');
+
+        $data = [
+            'reservation_type' => 'personal',
+            'dates' => [
+                $date => 1
+            ],
+            'meals' => [
+                'morning' => [
+                    '1' => 1 // 部屋ID 1の朝食
+                ]
+            ]
+        ];
+
+        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->assertResponseOk();
+        $this->assertHeader('Content-Type', 'application/json');
+
+        // レスポンスのJSONを解析
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('status', $responseJson);
+    }
+
+    /**
+     * bulkAddSubmitアクションのテスト（集団予約）
+     */
+    public function testBulkAddSubmitGroup()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+                'c_user_name' => 'テストユーザー'
+            ]
+        ]);
+
+        $date = (new FrozenDate('+2 months'))->format('Y-m-d');
+
+        $data = [
+            'reservation_type' => 'group',
+            'dates' => [
+                $date => 1
+            ],
+            'room_id' => 1,
+            'users' => [
+                '1' => [
+                    'morning' => 1
+                ]
+            ]
+        ];
+
+        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->assertResponseOk();
+        $this->assertHeader('Content-Type', 'application/json');
+
+        // レスポンスのJSONを解析
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('status', $responseJson);
+    }
+
+    /**
+     * bulkAddSubmitアクションのテスト（予約タイプなし）
+     */
+    public function testBulkAddSubmitNoType()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+                'c_user_name' => 'テストユーザー'
+            ]
+        ]);
+
+        $data = []; // 予約タイプなし
+
+        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->assertResponseOk();
+        $this->assertHeader('Content-Type', 'application/json');
+
+        // レスポンスのJSONを解析
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('status', $responseJson);
+        $this->assertEquals('error', $responseJson['status']);
+        $this->assertArrayHasKey('message', $responseJson);
+    }
+
+    /**
+     * bulkAddSubmitアクションのテスト（個人予約・日付なし）
+     */
+    public function testBulkAddSubmitPersonalNoDates()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+                'c_user_name' => 'テストユーザー'
+            ]
+        ]);
+
+        $data = [
+            'reservation_type' => 'personal',
+            // 日付なし
+            'meals' => [
+                'morning' => [
+                    '1' => 1
+                ]
+            ]
+        ];
+
+        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->assertResponseOk();
+        $this->assertHeader('Content-Type', 'application/json');
+
+        // レスポンスのJSONを解析
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('status', $responseJson);
+        // 日付がないのでエラーになるはず
+        $this->assertEquals('error', $responseJson['status']);
+    }
+
+    /**
+     * bulkAddSubmitアクションのテスト（個人予約・食事タイプなし）
+     */
+    public function testBulkAddSubmitPersonalNoMeals()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+                'c_user_name' => 'テストユーザー'
+            ]
+        ]);
+
+        $date = (new FrozenDate('+2 months'))->format('Y-m-d');
+
+        $data = [
+            'reservation_type' => 'personal',
+            'dates' => [
+                $date => 1
+            ]
+            // 食事タイプなし
+        ];
+
+        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->assertResponseOk();
+        $this->assertHeader('Content-Type', 'application/json');
+
+        // レスポンスのJSONを解析
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('status', $responseJson);
+        // 食事タイプがないのでエラーになるはず
+        $this->assertEquals('error', $responseJson['status']);
+    }
+
+    /**
+     * bulkAddSubmitアクションのテスト（集団予約・部屋IDなし）
+     */
+    public function testBulkAddSubmitGroupNoRoom()
+    {
+        // ユーザー認証モック
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+                'c_user_name' => 'テストユーザー'
+            ]
+        ]);
+
+        $date = (new FrozenDate('+2 months'))->format('Y-m-d');
+
+        $data = [
+            'reservation_type' => 'group',
+            'dates' => [
+                $date => 1
+            ],
+            // 部屋IDなし
+            'users' => [
+                '1' => [
+                    'morning' => 1
+                ]
+            ]
+        ];
+
+        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->assertResponseOk();
+        $this->assertHeader('Content-Type', 'application/json');
+
+        // レスポンスのJSONを解析
+        $responseJson = json_decode((string)$this->_response->getBody(), true);
+        $this->assertArrayHasKey('status', $responseJson);
+        // 部屋IDがないのでエラーになるはず
+        $this->assertEquals('error', $responseJson['status']);
+    }
+
+    /**
+     * formatDuplicateMessageメソッドのテスト
+     */
+    public function testFormatDuplicateMessage()
+    {
+        $duplicates = [
+            '2024-10-01' => [
+                'morning' => ['ユーザー1', 'ユーザー2'],
+                'noon' => ['ユーザー1']
+            ],
+            '2024-10-02' => [
+                'night' => ['ユーザー3']
+            ]
+        ];
+
+        $result = $this->invokeMethod($this->Controller, 'formatDuplicateMessage', [$duplicates]);
+
+        $this->assertStringContainsString('2024-10-01', $result);
+        $this->assertStringContainsString('朝', $result);
+        $this->assertStringContainsString('昼', $result);
+        $this->assertStringContainsString('ユーザー1', $result);
+        $this->assertStringContainsString('ユーザー2', $result);
+        $this->assertStringContainsString('2024-10-02', $result);
+        $this->assertStringContainsString('夜', $result);
+        $this->assertStringContainsString('ユーザー3', $result);
+    }
 }

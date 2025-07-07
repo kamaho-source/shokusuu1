@@ -41,6 +41,12 @@ class TReservationInfoController extends AppController
         $this->viewBuilder()->setLayout('default');
     }
 
+    /**
+     * 予約日のバリデーションを行う
+     *
+     * @param string|null $reservationDate 検証する予約日
+     * @return string|bool 予約可能な場合はtrue、不可の場合はエラーメッセージ
+     */
     private function validateReservationDate($reservationDate)
     {
         // 予約日が null の場合、エラーを返す
@@ -117,8 +123,9 @@ class TReservationInfoController extends AppController
     }
 
     /**
-     * イベントメソッド
+     * イベントメソッド - FullCalendarで使用するイベントデータを提供する
      *
+     * @return \Cake\Http\Response|null|void JSONレスポンスを返す
      */
     public function events()
     {
@@ -163,96 +170,107 @@ class TReservationInfoController extends AppController
         // 部屋情報を取得
         $rooms = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->toArray();
 
-        // 食事タイプ（朝、昼、夜）の集計データ
+        // 食事タイプ（朝、昼、夜、弁当）
         $mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
         $mealDataArray = [];
 
         foreach ($mealTypes as $mealType => $mealLabel) {
-            // 食べる人数を集計
+            // 食べる・食べない情報を集計
             $reservations = $this->TIndividualReservationInfo->find()
                 ->select([
-                    'room_id' => 'TIndividualReservationInfo.i_id_room', // 部屋IDを取得
+                    'room_id'     => 'TIndividualReservationInfo.i_id_room',
+                    'i_id_user'   => 'TIndividualReservationInfo.i_id_user',
                     'eat_flag',
-                    'taberu_ninzuu' => $this->TIndividualReservationInfo->find()->func()->count('TIndividualReservationInfo.i_id_user') // 食べる人数を集計
+                    'taberu_ninzuu' => $this->TIndividualReservationInfo->find()->func()->count('TIndividualReservationInfo.i_id_user')
                 ])
                 ->where([
-                    'd_reservation_date' => $date,
-                    'i_reservation_type' => $mealType
+                    'd_reservation_date'  => $date,
+                    'i_reservation_type'  => $mealType
                 ])
-                ->group(['TIndividualReservationInfo.i_id_room', 'TIndividualReservationInfo.eat_flag'])
+                ->groupBy(['TIndividualReservationInfo.i_id_room', 'TIndividualReservationInfo.eat_flag', 'TIndividualReservationInfo.i_id_user'])
                 ->toArray();
 
             $mealDataArray[$mealLabel] = [];
 
-            // 各部屋の食べる人数と食べない人数を集計
+            // 部屋ごとの食べる/食べないユーザーIDセットを作るための準備
+            $roomUserEatMap = [];
+            $roomUserNotEatMap = [];
             foreach ($reservations as $reservation) {
                 $roomId = $reservation->room_id;
                 $eatFlag = $reservation->eat_flag;
-                $count = $reservation->taberu_ninzuu;
+                $userId = $reservation->i_id_user;
 
+                // 部屋リストに存在しない部屋はスキップ
+                if (!isset($rooms[$roomId])) {
+                    continue;
+                }
+
+                // 部屋初期化
                 if (!isset($mealDataArray[$mealLabel][$roomId])) {
                     $mealDataArray[$mealLabel][$roomId] = [
-                        'room_name' => $rooms[$roomId] ?? '不明な部屋',
-                        'taberu_ninzuu' => 0,
+                        'room_name'      => $rooms[$roomId],
+                        'taberu_ninzuu'  => 0,
                         'tabenai_ninzuu' => 0,
-                        'room_id' => $roomId,
+                        'room_id'        => $roomId,
                     ];
                 }
+                if (!isset($roomUserEatMap[$roomId])) $roomUserEatMap[$roomId] = [];
+                if (!isset($roomUserNotEatMap[$roomId])) $roomUserNotEatMap[$roomId] = [];
 
+                // 食べる/食べないのユーザーID振分
                 if ($eatFlag == 1) {
-                    // 食べる人数を加算
-                    $mealDataArray[$mealLabel][$roomId]['taberu_ninzuu'] += $count;
+                    $roomUserEatMap[$roomId][$userId] = true;
+                    $mealDataArray[$mealLabel][$roomId]['taberu_ninzuu']++;
+                } else {
+                    $roomUserNotEatMap[$roomId][$userId] = true;
                 }
             }
 
-            // 食べない人数は部屋の所属人数から食べる人数を引いたもの
+            // 登録されている部屋ごと
             foreach ($mealDataArray[$mealLabel] as &$roomData) {
-                // 部屋に所属する有効なユーザー数を取得（active_flag=1、i_del_flag=0）
-                $totalUsersInRoom = $this->MUserGroup->find()
-                    ->matching('MUserInfo', function ($q) {
+                $roomId = $roomData['room_id'];
+
+                // 有効ユーザー取得（active_flag=0, i_del_flag=0, dt_create≤date, 現在登録部屋限定）
+                $usersInRoom = $this->MUserGroup->find()
+                    ->matching('MUserInfo', function ($q) use ($date) {
                         return $q->where([
                             'MUserInfo.i_del_flag' => 0, // 削除されていない
                             'MUserGroup.active_flag' => 0 // アクティブなユーザー
-                        ]);
+                        ])->andWhere(function ($exp, $q) use ($date) {
+                            return $exp->lte('MUserInfo.dt_create', $date);
+                        });
                     })
-                    ->where(['MUserGroup.i_id_room' => $roomData['room_id']])
-                    ->count();
-                //debug($totalUsersInRoom);
+                    ->where(['MUserGroup.i_id_room' => $roomId])
+                    ->contain(['MUserInfo'])
+                    ->all();
 
-                $totalUsersInRoom = $this->MUserGroup->find()
-                    ->matching('MUserInfo', function ($q) {
-                        return $q->where([
-                            'MUserInfo.i_del_flag' => 0, // 削除されていない
-                            'MUserGroup.active_flag' => 0 // アクティブなユーザー
-                        ]);
-                    })
-                    ->where(['MUserGroup.i_id_room' => $roomData['room_id']])
-                    ->count();
+                $tabenaiCount = 0;
+                foreach ($usersInRoom as $userGroup) {
+                    $userInfo = $userGroup->m_user_info;
+                    $userId = $userInfo->i_id_user;
 
+                    // このユーザーが予約テーブルにない場合、またはeat_flag=0のレコードでしか存在しない場合は「食べない」とみなす
+                    $haveEat = isset($roomUserEatMap[$roomId][$userId]);
+                    $haveNotEat = isset($roomUserNotEatMap[$roomId][$userId]);
+
+                    // 「予約がない」または「eat_flag==0」のみ→食べない
+                    if (!$haveEat) {
+                        $tabenaiCount++;
+                    }
+                    // eat_flag=1があれば食べるに入っているので、こちらには含めない
+                }
+                $roomData['tabenai_ninzuu'] = $tabenaiCount;
 
                 // デバッグログ
-                $this->log("食べる人数 in room {$roomData['room_id']}: " . $roomData['taberu_ninzuu'], 'debug');
-                $this->log("部屋 {$roomData['room_id']} に所属する有効ユーザー数: $totalUsersInRoom", 'debug');
-
-                // 食べない人数は部屋の総ユーザー数から食べる人数を引く
-                if ($totalUsersInRoom > 0) {
-                    $remainingUsers = $totalUsersInRoom - $roomData['taberu_ninzuu'];
-                    $roomData['tabenai_ninzuu'] = ($remainingUsers < 0) ? 0 : $remainingUsers;
-                } else {
-                    $roomData['tabenai_ninzuu'] = 0;
-                }
-
-
-                // 食べない人数の最終確認ログ
-                $this->log("最終的な食べない人数 in room {$roomData['room_id']}: " . $roomData['tabenai_ninzuu'], 'debug');
+                $this->log("食べる人数 in room {$roomId}: " . $roomData['taberu_ninzuu'], 'debug');
+                $this->log("部屋 {$roomId} の食べない人数: " . $roomData['tabenai_ninzuu'], 'debug');
             }
+            unset($roomData);
         }
 
         // ビューにデータをセット
         $this->set(compact('mealDataArray', 'date'));
     }
-
-
 
 
 
@@ -316,35 +334,59 @@ class TReservationInfoController extends AppController
             ])
             ->all();
 
-        // 全ユーザーを取得して「登録なし」のユーザーを集計
+        // 全ユーザーを取得
         $allUsers = $this->MUserGroup->find()
-            ->select(['MUserInfo.i_id_user', 'MUserInfo.c_user_name'])
+            ->select(['MUserInfo.i_id_user', 'MUserInfo.c_user_name', 'MUserInfo.dt_create'])
             ->contain(['MUserInfo'])
             ->where([
                 'MUserGroup.i_id_room' => $roomId,
-                'MUserInfo.i_del_flag' => 0, // 削除されていない
-                'MUserGroup.active_flag' => 0 // グループが有効
+                'MUserInfo.i_del_flag' => 0,
+                'MUserGroup.active_flag' => 0
             ])
             ->all();
 
-        $nonEatersFull = [];
+
+        // ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ ここから追記 ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+        // --- 予約未登録でMUserGroupにactive_flag=0で存在する人も「食べない人」に表示するための加工 ---
+
+        // 全ユーザーIDと名前
+        $allUserIds = [];
+        $allUserNames = [];
+
         foreach ($allUsers as $user) {
-            // 食べる人に含まれていたらスキップ
-            $isEater = $eaters->filter(function ($eater) use ($user) {
-                    return $eater->i_id_user === $user->m_user_info->i_id_user;
-                })->count() > 0;
-
-            $isNonEater = $nonEaters->filter(function ($nonEater) use ($user) {
-                    return $nonEater->i_id_user === $user->m_user_info->i_id_user;
-                })->count() > 0;
-
-            // 食べる人に含まれず、食べない人に含まれていない場合
-            if (!$isEater && !$isNonEater) {
-                $nonEatersFull[] = [
-                    'i_id_user' => $user->m_user_info->i_id_user,
-                    'c_user_name' => $user->m_user_info->c_user_name,
-                ];
+            $userInfo = $user->m_user_info ?? null;
+            if ($userInfo) {
+                $allUserIds[] = $userInfo->i_id_user;
+                $allUserNames[$userInfo->i_id_user] = $userInfo->c_user_name;
             }
+        }
+        // 食べる人のID一覧
+        $eatUserIds = [];
+        foreach ($eaters as $eater) {
+            $eatUserIds[] = $eater->i_id_user;
+        }
+
+        // 食べない人のID一覧
+        $noEatUserIds = [];
+        foreach ($nonEaters as $nonEater) {
+            $noEatUserIds[] = $nonEater->i_id_user;
+        }
+        // 未登録(食数テーブルに存在しない)でMUserGroup.active_flag=0のユーザーID
+        $notRegisteredUserIds = array_diff($allUserIds, array_merge($eatUserIds, $noEatUserIds));
+        // ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓ ここまで追記 ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+
+        // 予約テーブルに存在するユーザーID一覧を取得
+        $reservedUserIds = [];
+        foreach ($this->TIndividualReservationInfo->find()
+                     ->select(['i_id_user'])
+                     ->where([
+                         'i_id_room' => $roomId,
+                         'd_reservation_date' => $date,
+                         'i_reservation_type' => $mealType,
+                     ])
+                     ->distinct(['i_id_user'])
+                     ->all() as $row) {
+            $reservedUserIds[] = $row->i_id_user;
         }
 
         // 食べる人の名前リスト
@@ -355,44 +397,48 @@ class TReservationInfoController extends AppController
             }
         }
 
-        // 食べない人の名前リスト（登録済み＋登録なし）
+        // 食べない人の名前リスト（eat_flag==0の登録済みのみ）
         $noEatUsers = [];
         foreach ($nonEaters as $nonEater) {
             if ($nonEater->has('m_user_info')) {
-                $noEatUsers[] = $nonEater->m_user_info->c_user_name;
+                $userInfo = $nonEater->m_user_info;
+                if (empty($userInfo->dt_create) || $userInfo->dt_create <= $date) {
+                    $noEatUsers[] = $userInfo->c_user_name;
+                }
             }
         }
 
-        // 登録なしユーザーを追加
-        foreach ($nonEatersFull as $nonEater) {
-            $noEatUsers[] = $nonEater['c_user_name'];
+        // --- ここから修正部分 ---
+        // 未登録ユーザーも「食べない人」として追加
+
+        foreach ($notRegisteredUserIds as $userId) {
+            if (isset($allUserNames[$userId]) && !in_array($allUserNames[$userId], $noEatUsers, true)) {
+                $noEatUsers[] = $allUserNames[$userId];
+            }
         }
+        // --- ここまで修正部分 ---
 
         // 他の部屋で食べないとして登録されているユーザーの部屋名を取得
         $otherRoomEaters = [];
         foreach ($eaters as $eater) {
-            // i_id_roomがnullでないことを確認
             if ($eater->has('m_user_info') && $eater->i_id_room !== null && $eater->i_id_room != $roomId) {
                 $otherRoomRoom = $this->MRoomInfo->find()
                     ->select(['c_room_name'])
                     ->where(['i_id_room' => $eater->i_id_room])
                     ->first();
 
-                // otherRoomRoomがnullの場合に備えてデフォルト値を設定
                 $roomName = $otherRoomRoom ? $otherRoomRoom->c_room_name : '不明な部屋';
 
                 $otherRoomEaters[] = [
                     'user_name' => $eater->m_user_info->c_user_name,
-                    'room_name' => $otherRoomRoom->c_room_name
+                    'room_name' => $roomName
                 ];
             }
         }
 
-
         // ビューにデータをセット
         $this->set(compact('room', 'date', 'mealType', 'eatUsers', 'noEatUsers', 'otherRoomEaters'));
     }
-
 
 
 
@@ -658,10 +704,12 @@ class TReservationInfoController extends AppController
     }
 
     /**
-     * 個人予約の処理
-     */
-    /**
-     * 個人予約の処理
+     * 個人予約の処理 - ユーザーの個人予約データを処理する
+     *
+     * @param string $reservationDate 予約日
+     * @param array|string $jsonData 予約データ（JSON文字列または連想配列）
+     * @param array $rooms 予約可能な部屋の連想配列
+     * @return \Cake\Http\Response JSONレスポンスを返す
      */
     private function processIndividualReservation($reservationDate, $jsonData, $rooms)
     {
@@ -784,6 +832,14 @@ class TReservationInfoController extends AppController
 
 
 
+    /**
+     * グループ予約の処理 - 複数ユーザーの予約データを一括で処理する
+     *
+     * @param string $reservationDate 予約日
+     * @param array|string $jsonData 予約データ（JSON文字列または連想配列）
+     * @param array $rooms 予約可能な部屋の連想配列
+     * @return \Cake\Http\Response JSONレスポンスを返す
+     */
     private function processGroupReservation($reservationDate, $jsonData, $rooms)
     {
         // JSON デコードと入力検証
@@ -936,6 +992,13 @@ class TReservationInfoController extends AppController
 
 
 
+    /**
+     * エラーレスポンスをJSON形式で返す
+     *
+     * @param string $message エラーメッセージ
+     * @param array $data 追加データ
+     * @return \Cake\Http\Response JSONレスポンス
+     */
     protected function jsonErrorResponse(string $message, array $data = [])
     {
         return $this->response
@@ -943,6 +1006,14 @@ class TReservationInfoController extends AppController
             ->withStringBody(json_encode(['status' => 'error', 'message' => $message, 'data' => $data], JSON_PRETTY_PRINT));
     }
 
+    /**
+     * 成功レスポンスをJSON形式で返す
+     *
+     * @param string $message 成功メッセージ
+     * @param array $data 追加データ
+     * @param string|null $redirect リダイレクト先URL
+     * @return \Cake\Http\Response JSONレスポンス
+     */
     protected function jsonSuccessResponse(string $message, array $data = [], string $redirect = null)
     {
         $responseData = [
@@ -988,7 +1059,15 @@ class TReservationInfoController extends AppController
     }
 
 
-
+    /**
+     * 一括登録に必要なフォームを作成するメソッド
+     *
+     * 日付をクエリパラメータから取得し、週の月曜日から金曜日までの日付を生成します。
+     * 自分が所属している部屋しか表示できないように設計されている。
+     *
+     * @return \Cake\Http\Response|void|null リダイレクトまたはビューのレンダリング
+     * @throws \DateMalformedStringException 無効な日付形式の場合
+     */
     public function bulkAddForm()
     {
         $selectedDate = $this->request->getQuery('date');
@@ -1034,6 +1113,14 @@ class TReservationInfoController extends AppController
         $this->set(compact('dates', 'rooms', 'users', 'selectedDate'));
     }
 
+    /**
+     * @return \Cake\Http\Response
+     * 一括登録のフォームから送信されたデータを処理するメソッド
+     * 予約タイプ（個人予約 or 集団予約）を選択し、各日付と食事タイプに対して登録を行います。
+     * 個人予約の場合は、ユーザーごとに日付と食事タイプを選択し、登録済みの予約がないか確認します。→登録済みの場合は登録をスキップします
+     * 集団予約の場合は、日付ごとにユーザーと食事タイプを選択し、登録済みの予約がないか確認します。→登録済みの場合は登録をスキップします
+     *
+     */
     public function bulkAddSubmit()
     {
         $data = $this->request->getData();
