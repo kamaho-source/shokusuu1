@@ -27,7 +27,12 @@ class TReservationInfoController extends AppController
     protected $MRoomInfo;
     protected $TIndividualReservationInfo;
 
-
+    /**
+     * initialize メソッド
+     *
+     * コントローラーの初期化処理を行います。
+     * 必要なモデルをロードし、コンポーネントを設定します。
+     */
     public function initialize(): void
     {
         parent::initialize();
@@ -124,7 +129,6 @@ class TReservationInfoController extends AppController
 
     /**
      * イベントメソッド - FullCalendarで使用するイベントデータを提供する
-     *
      * @return \Cake\Http\Response|null|void JSONレスポンスを返す
      */
     public function events()
@@ -156,6 +160,7 @@ class TReservationInfoController extends AppController
      * @param string|null $id T Reservation Info id.
      * @return \Cake\Http\Response|null|void ビューをレンダリングする
      * @throws \Cake\Datasource\Exception\RecordNotFoundException 記録が見つからない場合
+     * 管理者および所属部屋のみ詳細閲覧と修正可能
      */
     public function view()
     {
@@ -281,6 +286,7 @@ class TReservationInfoController extends AppController
      * @param string $date 日付
      * @param int $mealType 食事タイプ
      * @return \Cake\Http\Response|null|void ビューをレンダリングする
+     * 食べる人と食べない人のリストを表示する→データベースに登録されてない場合は食べない人として表示される
      */
     public function roomDetails($roomId, $date, $mealType)
     {
@@ -444,6 +450,9 @@ class TReservationInfoController extends AppController
 
     /**
      * 所属しているユーザーを取得するメソッド
+     * @param int $roomId
+     * @param string $users
+     *
      */
 
     public function getUsersByRoom($roomId = null)
@@ -503,7 +512,12 @@ class TReservationInfoController extends AppController
             ->withStringBody(json_encode(['usersByRoom' => $usersByRoom]));
     }
 
-
+    /**
+     * 個人予約情報を取得するメソッド
+     * このメソッドは、ログイン中のユーザーの個人予約情報を取得し、指定された日付に基づいて食事タイプごとの予約状況を返します。
+     * @return \Cake\Http\Response JSON形式で予約情報を返す
+     *
+     */
     public function getPersonalReservation()
     {
         $this->autoRender = false;
@@ -581,7 +595,12 @@ class TReservationInfoController extends AppController
 
 
 
-
+    /**
+     * ユーザーが予約可能な部屋を取得するメソッド
+     * @param int $userId ユーザーID
+     * @return array 予約可能な部屋のリスト
+     * このメソッドは、指定されたユーザーIDに基づいて、ユーザーが所属する部屋の情報を取得します。
+     */
 
     private function getAuthorizedRooms($userId)
     {
@@ -595,8 +614,11 @@ class TReservationInfoController extends AppController
             ->toArray();
     }
 
-    // サーバーエラー時にJSONエラーレスポンスを返す
-    // サーバー側の修正例 (checkDuplicateReservationメソッド)
+    /**
+     * 重複予約のチェックを行うメソッド
+     * @return \Cake\Http\Response JSON形式で重複予約の有無を返す
+     * このメソッドは、指定された日付、部屋ID、および予約タイプに基づいて、既存の予約と重複するかどうかを確認します。
+     */
     public function checkDuplicateReservation()
     {
         $this->request->allowMethod(['post']);
@@ -655,6 +677,14 @@ class TReservationInfoController extends AppController
             ->withStringBody(json_encode(['isDuplicate' => false]));
     }
 
+
+    /**
+     * 予約の追加メソッド(日付ごとの個人予約またはグループ予約を追加)
+     *
+     * @return \Cake\Http\Response|null|void ビューをレンダリングする
+     * ユーザーが新しい予約を追加するためのメソッドです。
+     * ユーザーの権限に基づいて、個人予約またはグループ予約を処理します。
+     */
 
     public function add()
     {
@@ -1514,11 +1544,13 @@ class TReservationInfoController extends AppController
         return ['success' => true];
     }
 
-
+    /**
+     * JSON形式で予約情報をエクスポートするメソッド
+     * Json形式で指定された月の予約情報をエクスポートします。
+     * @return \Cake\Http\Response JSONレスポンス
+     */
     public function exportJson()
     {
-
-
         try {
             // リクエストから月を取得（フォーマット: YYYY-MM）
             $month = $this->request->getQuery('month'); // 例: 2023-11
@@ -1595,6 +1627,13 @@ class TReservationInfoController extends AppController
                 ->withStringBody(json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
         }
     }
+
+    /**
+     * JSON形式でランク別の予約情報をエクスポートするメソッド
+     * 指定された月のランク別予約情報をJSON形式でエクスポートします。
+     *
+     * @return \Cake\Http\Response JSONレスポンス
+     */
 
     public function exportJsonrank()
     {
