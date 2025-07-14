@@ -22,7 +22,7 @@ $user = $this->request->getAttribute('identity');
  * が混在している場合があるため、両方を考慮する。
  */
 
-    // ① 直接プロパティ
+// ① 直接プロパティ
 if (!isset($userRoomId)) {
     $userRoomId = null;
     if ($user !== null) {
@@ -52,12 +52,12 @@ if (!isset($isAdmin)) {
 
     <?php
     /* ─────────────────────────────
-     * 当日から 30 日先まで編集禁止
+     * 当日から 14 日先まで編集禁止
      * ───────────────────────────── */
     $currentDate   = new \DateTime();
-    $oneMonthLater = (clone $currentDate)->modify('+30 days');
+    $twoweekLater  = (clone $currentDate)->modify('+14 days');
     $selectedDate  = new \DateTime($date);
-    $isDisabled    = ($selectedDate < $oneMonthLater);
+    $isDisabled    = ($selectedDate < $twoweekLater);
     ?>
 
     <?php foreach (['朝' => 1, '昼' => 2, '夜' => 3, '弁当' => 4] as $mealLabel => $mealType): ?>
@@ -92,7 +92,7 @@ if (!isset($isAdmin)) {
                                 ?>
 
                                 <?php
-                                /* 編集（30 日以内は無効化） */
+                                /* 編集（14 日以内は無効化） */
                                 $urlEdit = "/TReservationInfo/edit/{$data['room_id']}/{$date}/{$mealType}";
                                 echo $this->Html->link(
                                     '編集',
@@ -122,6 +122,6 @@ if (!isset($isAdmin)) {
             追加する
         </button>
     <?php else: ?>
-        <button class="btn btn-secondary" disabled>追加不可（当日から1ヶ月後までは登録不可）</button>
+        <button class="btn btn-secondary" disabled>追加不可（当日から14日先までは登録不可）</button>
     <?php endif; ?>
 </div>

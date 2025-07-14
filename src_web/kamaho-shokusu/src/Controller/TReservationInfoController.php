@@ -69,12 +69,12 @@ class TReservationInfoController extends AppController
         // 今日の日付を取得
         $currentDate = FrozenTime::now();
         // 当日から1ヶ月後の日付を計算（※modify('+1 month')は元のオブジェクトを変更するので注意）
-        $oneMonthLater = (new FrozenTime($currentDate))->modify('+1 month');
+        $oneMonthLater = (new FrozenTime($currentDate))->modify('+14 days')->format('Y-m-d');
         $oneMonthLaterDate = new FrozenDate($oneMonthLater);
 
         // 予約日は「当日から１ヶ月後」以降でなければならない
         if ($reservationDateObj < $oneMonthLaterDate) {
-            return '当日から１ヶ月後までは予約の登録ができません。';
+            return '当日から2週間後までは予約の登録ができません。';
         }
 
         return true; // 予約可能
