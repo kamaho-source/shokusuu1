@@ -1,6 +1,5 @@
 FROM php:8.3-apache
 
-
 RUN apt-get update \
   # vim （省略可）
   && apt-get install -y vim \
@@ -11,11 +10,8 @@ RUN apt-get update \
   && docker-php-ext-install intl \
   # PDO MySQL 拡張
   && docker-php-ext-install pdo_mysql \
-  && pecl install xdebug \
-  && docker-php-ext-enable xdebug \
   # mod_rewrite 有効化
   && a2enmod rewrite
 
 # Composer インストール
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-
