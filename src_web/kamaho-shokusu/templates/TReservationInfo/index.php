@@ -1,13 +1,21 @@
 <?php
 $this->assign('title', '食数予約');
-// 追加: $user を取得
 $user = $this->request->getAttribute('identity');
+
+/**
+ * コントローラ側で
+ *   $myReservationDates = ['2025-07-15', '2025-07-20', ...];
+ * を渡している想定。渡されていない場合は空配列で初期化しておく。
+ */
+$myReservationDates = $myReservationDates ?? [];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <title>食数予約</title>
+    <!-- CSRFトークンを埋め込み -->
+    <meta name="csrfToken" content="<?= h($this->request->getAttribute('csrfToken')) ?>">
     <style>
         #calendar {
             max-width: 130%;
@@ -33,19 +41,25 @@ $user = $this->request->getAttribute('identity');
 <div class="container">
     <h1>食数予約</h1>
 
-    <?php if ($user && $user->get('i_admin') === 1): // i_adminが1の場合 ?>
+    <?php if ($user && $user->get('i_admin') === 1): ?>
         <div style="margin-bottom: 15px;">
-            <label for="monthSelect">エクスポートする月を選択:</label>
-            <select id="monthSelect">
-                <?php for ($month = 1; $month <= 12; $month++) : ?>
-                    <option value="<?= date('Y-') . str_pad($month, 2, '0', STR_PAD_LEFT) ?>" <?= $month == date('n') ? 'selected' : '' ?>>
-                        <?= $month ?>月
-                    </option>
-                <?php endfor; ?>
-            </select>
+            <label for="fromDate">期間開始日:</label>
+            <input type="date" id="fromDate"
+                   value="<?= date('Y-m-01') ?>">
+
+            <label for="toDate" style="margin-left:10px;">期間終了日:</label>
+            <input type="date" id="toDate"
+                   value="<?= date('Y-m-t') ?>">
         </div>
-        <button class="btn btn-success float-lg-right mb-3" id="downloadExcel" style="margin-bottom: 10px;">食数予定表をダウンロード</button>
-        <button class="btn btn-success float-lg-right mb-3" id="downloadExcelRank" style="margin-bottom: 10px;">実施食数表をダウンロード</button>
+
+        <button class="btn btn-success float-lg-right mb-3"
+                id="downloadExcel" style="margin-bottom: 10px;">
+            食数予定表をダウンロード
+        </button>
+        <button class="btn btn-success float-lg-right mb-3"
+                id="downloadExcelRank" style="margin-bottom: 10px;">
+            実施食数表をダウンロード
+        </button>
     <?php endif; ?>
 
     <div id="calendar"></div>
@@ -57,14 +71,39 @@ $user = $this->request->getAttribute('identity');
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var calendarEl = document.getElementById('calendar');
-        var defaultDate = new Date();
-        defaultDate.setMonth(defaultDate.getMonth() + 1);
+    document.addEventListener('DOMContentLoaded', () => {
+        /* ===== HTML 要素取得 ===== */
+        const calendarEl       = document.getElementById('calendar');
 
-        var existingEvents = [
-            <?php if (!empty($mealDataArray)) : ?>
-            <?php foreach ($mealDataArray as $date => $meals): ?>
+        /* ===== 翌月をデフォルト表示 ===== */
+        const defaultDate = (() => {
+            const d = new Date();
+            d.setMonth(d.getMonth() + 1);
+            return d;
+        })();
+
+        /* ===== PHP から渡された予約済み日付 ===== */
+        const reservedDates = [
+            <?php foreach ($myReservationDates as $reservedDate): ?>
+            '<?= h($reservedDate) ?>',
+            <?php endforeach; ?>
+        ];
+
+        /* ===== 既存イベント（予約済・集計済み食数） ===== */
+        const existingEvents = [
+            <?php foreach ($myReservationDates as $reservedDate): ?>
+            {
+                title: '予約済',
+                start: '<?= h($reservedDate) ?>',
+                allDay: true,
+                backgroundColor: '#28a745',
+                borderColor: '#28a745',
+                textColor: 'white',
+                displayOrder: -1
+            },
+            <?php endforeach; ?>
+
+            <?php if (!empty($mealDataArray)): ?>
             <?php
             $mealTypes = [
                 '1' => '朝',
@@ -72,22 +111,26 @@ $user = $this->request->getAttribute('identity');
                 '3' => '夜',
                 '4' => '弁当'
             ];
+            foreach ($mealDataArray as $date => $meals):
+            foreach ($mealTypes as $type => $name):
+            if (isset($meals[$type]) && $meals[$type] > 0):
             ?>
-            <?php foreach ($mealTypes as $mealType => $mealName): ?>
-            <?php if (isset($meals[$mealType]) && $meals[$mealType] > 0): ?>
             {
-                title: '<?= $mealName ?>: <?= $meals[$mealType] ?>人',
+                title: '<?= $name ?>: <?= $meals[$type] ?>人',
                 start: '<?= $date ?>',
                 allDay: true,
-                displayOrder: <?= $mealType ?>
+                displayOrder: <?= $type ?>
             },
-            <?php endif; ?>
-            <?php endforeach; ?>
-            <?php endforeach; ?>
-            <?php endif; ?>
+            <?php
+            endif;
+            endforeach;
+            endforeach;
+            endif;
+            ?>
         ];
 
-        var calendar = new FullCalendar.Calendar(calendarEl, {
+        /* ===== FullCalendar 初期化 ===== */
+        const calendar = new FullCalendar.Calendar(calendarEl, {
             initialDate: defaultDate,
             initialView: 'dayGridMonth',
             locale: 'ja',
@@ -98,207 +141,275 @@ $user = $this->request->getAttribute('identity');
             customButtons: {
                 nextMonth: {
                     text: '次月',
-                    click: function() {
-                        calendar.next();
-                    }
+                    click: () => calendar.next()
                 }
             },
             headerToolbar: {
                 right: 'prev,today,nextMonth,next',
-                center: '',
+                center: ''
             },
             buttonText: {
-                today: '今日',
-                month: '月',
-                week: '週',
-                day: '日',
-                list: 'リスト'
+                today: '今日'
             },
-            events: function(fetchInfo, successCallback, failureCallback) {
-                var startYear = fetchInfo.start.getFullYear();
-                var endYear = fetchInfo.end.getFullYear();
-
-                var holidayEvents = [];
-                for (var year = startYear; year <= endYear; year++) {
-                    // 修正: yearが数値かどうかをチェック
-                    if (typeof year === "number" && !isNaN(year)) {
-                        const holidays = JapaneseHolidays.getHolidaysOf(year);
-                        if (holidays && Array.isArray(holidays)) {
-                            holidays.forEach(function(holiday) {
-                                holidayEvents.push({
-                                    title: holiday.name,
-                                    start: `${year}-${String(holiday.month).padStart(2, '0')}-${String(holiday.date).padStart(2, '0')}`,
-                                    allDay: true,
-                                    backgroundColor: 'red',
-                                    borderColor: 'red',
-                                    textColor: 'white',
-                                    displayOrder: 0,
-                                });
-                            });
-                        }
-                    }
+            /* ----- 祝日 + 予約済 + 未予約 ----- */
+            events: (fetchInfo, successCallback) => {
+                const holidayEvents = [];
+                for (let y = fetchInfo.start.getFullYear(); y <= fetchInfo.end.getFullYear(); y++) {
+                    const holidays = JapaneseHolidays.getHolidaysOf(y) ?? [];
+                    holidays.forEach(h => {
+                        holidayEvents.push({
+                            title: h.name,
+                            start: `${y}-${String(h.month).padStart(2, '0')}-${String(h.date).padStart(2, '0')}`,
+                            allDay: true,
+                            backgroundColor: 'red',
+                            borderColor: 'red',
+                            textColor: 'white',
+                            displayOrder: 0
+                        });
+                    });
                 }
-                successCallback(existingEvents.concat(holidayEvents));
+
+                /* 未予約（予約日以外すべて） */
+                const unreservedEvents = [];
+                const cur = new Date(fetchInfo.start);
+                while (cur < fetchInfo.end) {
+                    const dateStr = cur.toISOString().slice(0, 10);
+                    if (!reservedDates.includes(dateStr)) {
+                        unreservedEvents.push({
+                            title: '未予約',
+                            start: dateStr,
+                            allDay: true,
+                            backgroundColor: '#fd7e14',
+                            borderColor: '#fd7e14',
+                            textColor: 'white',
+                            displayOrder: -1
+                        });
+                    }
+                    cur.setDate(cur.getDate() + 1);
+                }
+
+                successCallback([...existingEvents, ...holidayEvents, ...unreservedEvents]);
             },
             eventOrder: 'displayOrder',
-            dateClick: function(info) {
-                let date = new Date(info.dateStr);
-                let isMonday = date.getDay() === 1;
-
-                // PHPからユーザー権限を埋め込む
-                const isAdmin = <?= $user && $user->get('i_admin') === 1 ? 'true' : 'false' ?>;
-                const userLevel = <?= $user ? (int)$user->get('i_user_level') : 'null' ?>;
-                // レベル1（個人用）: 個人一括予約
-                if (isMonday) {
-                    if (confirm("週の一括予約を行いますか？")) {
-                        window.location.href = '<?= $this->Url->build('/TReservationInfo/bulkAddForm') ?>?date=' + info.dateStr;
-                        return;
-                    }
+            dateClick: info => {
+                const d = new Date(info.dateStr);
+                if (d.getDay() === 1 && confirm('週の一括予約を行いますか？')) {
+                    window.location.href = '<?= $this->Url->build('/TReservationInfo/bulkAddForm') ?>?date=' + info.dateStr;
+                    return;
                 }
-
-                // 通常予約確認画面へ
                 window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
             }
-
-
         });
 
         calendar.render();
 
-        const excelButton = document.getElementById("downloadExcel");
-        const monthSelect = document.getElementById("monthSelect");
-        if (excelButton) {
-            excelButton.addEventListener("click", async function () {
-                try {
-                    const selectedMonth = monthSelect.value;
-                    console.info("選択された月:", selectedMonth);
-
-                    const response = await fetch(`/kamaho-shokusu/TReservationInfo/exportJson?month=${selectedMonth}`);
-                    if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
-                    const data = await response.json();
-                    console.info("取得したデータ:", data);
-
-                    const workbook = new ExcelJS.Workbook();
-                    const sheet = workbook.addWorksheet("食数予約");
-
-                    sheet.addRow(["部屋名", "日付", "朝食", "昼食", "夕食", "弁当"]);
-                    if (data.rooms && Object.keys(data.rooms).length > 0) {
-                        Object.keys(data.rooms).forEach(roomName => {
-                            const roomData = data.rooms[roomName];
-                            Object.keys(roomData).forEach(date => {
-                                const meals = roomData[date];
-                                sheet.addRow([
-                                    roomName,
-                                    date,
-                                    meals['朝'] || 0,
-                                    meals['昼'] || 0,
-                                    meals['夜'] || 0,
-                                    meals['弁当'] || 0
-                                ]);
-                            });
-                        });
-                    } else {
-                        console.warn("データが空です！");
-                    }
-
-                    const buffer = await workbook.xlsx.writeBuffer();
-                    const blob = new Blob([buffer], {
-                        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    });
-                    const link = document.createElement("a");
-                    link.href = window.URL.createObjectURL(blob);
-                    link.download = `食数予約_${selectedMonth}.xlsx`;
-                    document.body.appendChild(link);
-                    link.click();
-                    link.remove();
-                } catch (error) {
-                    console.error("エクスポート中にエラー発生:", error);
-                    alert("エクスポート中にエラーが発生しました。管理者に連絡してください。");
-                }
+        /* ===== 共通: ブック→ダウンロード ===== */
+        async function downloadWorkbook(workbook, filename) {
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
         }
-        const rankExportButton = document.getElementById("downloadExcelRank");
-        if (rankExportButton) {
-            rankExportButton.addEventListener("click", async function () {
+
+        const excelButton      = document.getElementById('downloadExcel');
+        const rankExportButton = document.getElementById('downloadExcelRank');
+        const fromDateInput    = document.getElementById('fromDate');
+        const toDateInput      = document.getElementById('toDate');
+
+        /* ===== 食数予定表エクスポート ===== */
+        if (excelButton) {
+            excelButton.addEventListener('click', async () => {
                 try {
-                    const selectedMonth = monthSelect.value;
-                    console.info("選択された月（ランク別エクセル）:", selectedMonth);
+                    /* ========== 1. パラメータチェック ========== */
+                    const fromDate = fromDateInput.value;
+                    const toDate   = toDateInput.value;
 
-                    const response = await fetch(`/kamaho-shokusu/TReservationInfo/exportJsonrank?month=${selectedMonth}`);
+                    if (!fromDate || !toDate) {
+                        alert('開始日・終了日を入力してください');
+                        return;
+                    }
+                    if (fromDate > toDate) {
+                        alert('開始日は終了日以前の日付を指定してください');
+                        return;
+                    }
+                    console.info('抽出期間:', fromDate, '〜', toDate);
+
+                    /* ========== 2. API 取得 ========== */
+                    const response = await fetch(
+                        `/kamaho-shokusu/TReservationInfo/exportJson?from=${fromDate}&to=${toDate}`,
+                    );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
-                    const data = await response.json();
-                    console.info("取得したランク別のデータ（性別込み）:", data);
 
-                    if (!Array.isArray(data)) {
-                        console.error("データ形式が不正です:", data);
-                        alert(data.message || "エクスポートするデータが見つかりませんでした。");
+                    const data = await response.json();
+                    console.info('取得したデータ:', data);
+
+                    const hasRooms   = data.rooms   && Object.keys(data.rooms).length   > 0;
+                    const hasOverall = data.overall && Object.keys(data.overall).length > 0;
+
+                    if (!hasRooms && !hasOverall) {
+                        alert('データがありません');
                         return;
                     }
 
-                    function translateMealType(breakfast, lunch, dinner, bento) {
-                        const meals = [];
-                        if (breakfast > 0) meals.push(`朝食 (${breakfast})`);
-                        if (lunch > 0) meals.push(`昼食 (${lunch})`);
-                        if (dinner > 0) meals.push(`夕食 (${dinner})`);
-                        if (bento > 0) meals.push(`弁当 (${bento})`);
-                        return meals.join('、') || "該当なし";
+                    /* ========== 3. Excel 生成 ========== */
+                    const workbook = new ExcelJS.Workbook();
+
+                    /**
+                     * ヘッダー行を追加
+                     * @param {ExcelJS.Worksheet} sheet
+                     * @param {boolean} includeRoomName 部屋名列を含めるか
+                     */
+                    const addHeader = (sheet, includeRoomName = false) => {
+                        const header = includeRoomName
+                            ? ['日付', '部屋名', '朝食', '昼食', '夕食', '弁当']
+                            : ['日付', '朝食', '昼食', '夕食', '弁当'];
+                        sheet.addRow(header).font = { bold: true };
+                    };
+
+                    /* ----- 3-A. 全体シート（日付・部屋名別） ----- */
+                    const overallSheet = workbook.addWorksheet('全体');
+                    addHeader(overallSheet, true);
+
+                    if (hasRooms) {
+                        /* rooms から作成：日付 × 部屋名 ------------------------ */
+                        const allDates  = new Set();
+                        const roomNames = Object.keys(data.rooms).sort();
+
+                        // 全日付収集
+                        roomNames.forEach(room => {
+                            Object.keys(data.rooms[room] ?? {})
+                                .forEach(d => allDates.add(d));
+                        });
+                        const sortedDates = [...allDates].sort();
+
+                        // 出力
+                        sortedDates.forEach(date => {
+                            roomNames.forEach(room => {
+                                const counts = (data.rooms[room] ?? {})[date] ?? {};
+                                overallSheet.addRow([
+                                    date,
+                                    room,
+                                    counts['朝']   ?? 0,
+                                    counts['昼']   ?? 0,
+                                    counts['夜']   ?? 0,
+                                    counts['弁当'] ?? 0,
+                                ]);
+                            });
+                        });
+                    } else if (hasOverall) {
+                        /* 旧 API フォーマット（集計値のみ） -------------------- */
+                        Object.keys(data.overall)
+                            .sort()
+                            .forEach(date => {
+                                const c = data.overall[date] ?? {};
+                                overallSheet.addRow([
+                                    date,
+                                    '全体',
+                                    c['朝']   ?? 0,
+                                    c['昼']   ?? 0,
+                                    c['夜']   ?? 0,
+                                    c['弁当'] ?? 0,
+                                ]);
+                            });
                     }
 
-                    const workbook = new ExcelJS.Workbook();
-                    workbook.creator = "予約システム";
-                    workbook.created = new Date();
-                    workbook.modified = new Date();
+                    /* ----- 3-B. 部屋別シート（存在する場合のみ） ----- */
+                    if (hasRooms) {
+                        Object.keys(data.rooms).forEach(roomNameRaw => {
+                            // Excel のシート名は 31 文字 & 禁止文字除去
+                            const sheetName =
+                                roomNameRaw.replace(/[:\\/?*\[\]]/g, '').substring(0, 31) || '部屋';
+                            const sheet = workbook.addWorksheet(sheetName);
+                            addHeader(sheet);
 
-                    const sheet = workbook.addWorksheet(`ランク別データ`);
-                    const header = ["ランク", "性別", "日付", "朝", "昼", "夜", "弁当", "合計人数"];
-                    sheet.addRow(header);
-
-                    data.forEach(rankData => {
-                        sheet.addRow([
-                            rankData.rank_name,
-                            rankData.gender,
-                            rankData.reservation_date,
-                            rankData.breakfast || 0,
-                            rankData.lunch || 0,
-                            rankData.dinner || 0,
-                            rankData.bento || 0,
-                            rankData.total_eaters || 0
-                        ]);
-                    });
-
-                    sheet.getRow(1).font = { bold: true };
-
-                    sheet.columns.forEach(column => {
-                        let maxLength = 0;
-                        column.eachCell({ includeEmpty: true }, cell => {
-                            if (cell.value) {
-                                const cellLength = cell.value.toString().length;
-                                if (cellLength > maxLength) {
-                                    maxLength = cellLength;
-                                }
-                            }
+                            const roomData = data.rooms[roomNameRaw];
+                            Object.keys(roomData)
+                                .sort()
+                                .forEach(date => {
+                                    const m = roomData[date];
+                                    sheet.addRow([
+                                        date,
+                                        m['朝']   ?? 0,
+                                        m['昼']   ?? 0,
+                                        m['夜']   ?? 0,
+                                        m['弁当'] ?? 0,
+                                    ]);
+                                });
                         });
-                        column.width = maxLength + 2;
-                    });
+                    }
 
-                    const buffer = await workbook.xlsx.writeBuffer();
-                    const blob = new Blob([buffer], {
-                        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    });
-                    const link = document.createElement("a");
-                    link.href = URL.createObjectURL(blob);
-                    link.download = `実施食数表_${selectedMonth}.xlsx`;
-                    document.body.appendChild(link);
-                    link.click();
-                    link.remove();
-                    console.info("ランク別データのエクセルファイルが生成されました！");
+                    /* ========== 4. ダウンロード ========== */
+                    await downloadWorkbook(
+                        workbook,
+                        `食数予約_${fromDate}〜${toDate}.xlsx`,
+                    );
                 } catch (error) {
-                    console.error("ランク別データのエクスポート中にエラー:", error);
-                    alert("ランク別データのエクセルエクスポート中にエラーが発生しました。");
+                    console.error('エクスポート中にエラー発生:', error);
+                    alert('エクスポート中にエラーが発生しました。管理者に連絡してください。');
                 }
             });
         }
+
+        /* ===== 実施食数表エクスポート ===== */
+        if (!rankExportButton) return;
+
+        rankExportButton.addEventListener('click', async () => {
+            try {
+                const fromDate = fromDateInput.value;
+                const toDate   = toDateInput.value;
+                if (!fromDate || !toDate) { alert('開始日・終了日を入力してください'); return; }
+                if (fromDate > toDate)    { alert('開始日は終了日以前の日付を指定してください'); return; }
+
+                const res = await fetch(
+                    `/kamaho-shokusu/TReservationInfo/exportJsonrank?from=${fromDate}&to=${toDate}`
+                );
+                if (!res.ok) throw new Error(`APIエラー: ${res.status}`);
+
+                const json = await res.json();
+                // 配列形式ならそのまま、オブジェクト形式なら整形
+                const rows = Array.isArray(json)
+                    ? json
+                    : Object.values(json);
+
+                if (rows.length === 0) { alert('データがありません'); return; }
+
+                /* ===== Excel 作成 ===== */
+                const wb = new ExcelJS.Workbook();
+                const ws = wb.addWorksheet('実施食数表');
+
+                // 列定義（英語キー → 日本語ヘッダー）
+                const columns = [
+                    { key: 'reservation_date', header: '日付'    },
+                    { key: 'rank_name',        header: 'ランク'  },
+                    { key: 'gender',           header: '性別'    },
+                    { key: 'breakfast',        header: '朝食'    },
+                    { key: 'lunch',            header: '昼食'    },
+                    { key: 'dinner',           header: '夕食'    },
+                    { key: 'bento',            header: '弁当'    },
+                    { key: 'total_eaters',     header: '合計'    },
+                ];
+
+                // ヘッダー行
+                ws.addRow(columns.map(c => c.header)).font = { bold: true };
+
+                // データ行
+                rows.forEach(r => ws.addRow(columns.map(c => r[c.key] ?? '')));
+
+                await downloadWorkbook(wb, `実施食数表_${fromDate}〜${toDate}.xlsx`);
+            } catch (e) {
+                console.error(e);
+                alert('エクスポートに失敗しました');
+            }
+        });
     });
+
 </script>
 </body>
 </html>

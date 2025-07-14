@@ -11,10 +11,40 @@ $this->assign('title', h($date) . ' の食数予約一覧');
 /* ──────────────────────────────────────────────
  * ログインユーザー情報
  * ────────────────────────────────────────────── */
-$user       = $this->request->getAttribute('identity');
-$userRoomId = $user ? $user->get('i_id_room') : null;             // 所属部屋 ID
-$isAdmin    = $user ? ((int)$user->get('i_admin') === 1) : false; // 管理者フラグ
+$user = $this->request->getAttribute('identity');
+
+/**
+ * 所属部屋 ID を取得する
+ *
+ * CakePHP の Identity には
+ *   1) 直接プロパティ（i_id_room）
+ *   2) 関連エンティティ m_user_info 内の i_id_room
+ * が混在している場合があるため、両方を考慮する。
+ */
+
+    // ① 直接プロパティ
+if (!isset($userRoomId)) {
+    $userRoomId = null;
+    if ($user !== null) {
+        /* 1) Identity 直下の i_id_room */
+        $userRoomId = $user->get('i_id_room');
+
+        /* 2) 関連エンティティ m_user_info 内 */
+        if ($userRoomId === null && $user->get('m_user_info')) {
+            $userRoomId = $user->get('m_user_info')->get('i_id_room');
+        }
+
+        if ($userRoomId !== null) {
+            $userRoomId = (int)$userRoomId;
+        }
+    }
+}
+
+if (!isset($isAdmin)) {
+    $isAdmin = $user ? ((int)$user->get('i_admin') === 1) : false;
+}
 ?>
+
 
 <div class="container">
     <h1>予約一覧</h1>
@@ -50,7 +80,7 @@ $isAdmin    = $user ? ((int)$user->get('i_admin') === 1) : false; // 管理者�
                         <td><?= h($data['taberu_ninzuu']) ?></td>
                         <td><?= h($data['tabenai_ninzuu']) ?></td>
                         <td>
-                            <?php if ($isAdmin || $data['room_id'] === $userRoomId): /* 自分の部屋 または 管理者 */ ?>
+                            <?php if ($isAdmin || (int)$data['room_id'] === $userRoomId): /* 自分の部屋 または 管理者 */ ?>
                                 <?php
                                 /* 詳細 */
                                 $urlDetails = "/TReservationInfo/roomDetails/{$data['room_id']}/{$date}/{$mealType}";

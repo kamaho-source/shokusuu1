@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use Cake\ORM\Table;
+use Cake\ORM\RulesChecker;          // 追加
 use Cake\Validation\Validator;
 
 class TIndividualReservationInfoTable extends Table
@@ -18,15 +19,15 @@ class TIndividualReservationInfoTable extends Table
 
         $this->belongsTo('MRoomInfo', [
             'foreignKey' => 'i_id_room',
-            'joinType' => 'INNER',
+            'joinType'   => 'INNER',
         ]);
         $this->belongsTo('MUserInfo', [
             'foreignKey' => 'i_id_user',
-            'joinType' => 'INNER',
+            'joinType'   => 'INNER',
         ]);
         $this->belongsTo('MUserGroup', [
             'foreignKey' => ['i_id_user', 'i_id_room'],
-            'joinType' => 'INNER',
+            'joinType'   => 'INNER',
         ]);
     }
 
@@ -74,18 +75,18 @@ class TIndividualReservationInfoTable extends Table
             ->maxLength('c_update_user', 50)
             ->allowEmptyString('c_update_user');
 
-        // 重複登録を防ぐバリデーション
+        // 重複登録を防ぐバリデーション（同一ユーザー・日付・区分での多重登録防止）
         $validator->add('d_reservation_date', 'uniqueReservation', [
             'rule' => function ($value, $context) {
                 $conditions = [
-                    'i_id_user' => $context['data']['i_id_user'],
+                    'i_id_user'          => $context['data']['i_id_user'],
                     'd_reservation_date' => $value,
                     'i_reservation_type' => $context['data']['i_reservation_type'],
                 ];
 
                 // 既存のレコードを除外する（編集の場合）
-                if (!empty($context['data']['id'])) {
-                    $conditions[] = ['id !=' => $context['data']['id']];
+                if (!empty($context['data']['i_id_room'])) {
+                    $conditions[] = ['i_id_room !=' => $context['data']['i_id_room']];
                 }
 
                 $count = $this->find()
@@ -98,5 +99,43 @@ class TIndividualReservationInfoTable extends Table
         ]);
 
         return $validator;
+    }
+
+    /**
+     * RulesChecker による一意性保証
+     *
+     * 同じユーザーが同じ日付・食事区分で複数の部屋を予約できないよう制限します。
+     */
+    public function buildRules(RulesChecker $rules): RulesChecker
+    {
+        $rules->add(
+            function ($entity, $options) {
+                // 食事を取らない行（eat_flag = 0）は重複チェックの対象外
+                if ((int)$entity->eat_flag === 0) {
+                    return true;
+                }
+
+                $conditions = [
+                    'i_id_user'          => $entity->i_id_user,
+                    'd_reservation_date' => $entity->d_reservation_date,
+                    'i_reservation_type' => $entity->i_reservation_type,
+                    'eat_flag'           => 1,
+                ];
+
+                // 更新時は自分自身の部屋 ID を除外
+                if (!$entity->isNew()) {
+                    $conditions['i_id_room !='] = $entity->i_id_room;
+                }
+
+                return !$this->exists($conditions);
+            },
+            'uniqueDayMeal',
+            [
+                'errorField' => 'i_id_room',
+                'message'    => '同じ日付・食事区分では 1 部屋のみ予約できます。'
+            ]
+        );
+
+        return $rules;
     }
 }
