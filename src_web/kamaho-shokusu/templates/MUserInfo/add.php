@@ -3,7 +3,6 @@ $this->assign('title', 'ユーザー情報の追加');
 $this->Html->css('bootstrap-icons.css', ['block' => true]);
 $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 ?>
-
 <div class="row">
     <aside class="col-md-3">
         <div class="list-group">
@@ -30,6 +29,10 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                             'class' => 'form-control',
                             'id'    => 'c_login_account'
                         ]) ?>
+                        <!-- 重複エラーメッセージ（JS から制御） -->
+                        <div id="login-id-error" class="invalid-feedback" style="display:none;">
+                            <?= __('このログインIDは既に使用されています。') ?>
+                        </div>
                     </div>
 
                     <!-- 生年月日（追加） -->
@@ -104,14 +107,13 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 
                     <!-- 年齢 -->
                     <div class="mb-3">
-                        <?= $this->Form->control('age', [
-                            'type'    => 'select',
-                            'options' => range(1, 80),
-                            'label'   => ['text' => '年齢', 'class' => 'form-label'],
-                            'class'   => 'form-control',
-                            'empty'   => '選択してください',
-                            'id'      => 'ageSelect'
-                        ]) ?>
+                        <label for="ageSelect" class="form-label">年齢</label>
+                        <select id="ageSelect" name="age" class="form-control">
+                            <option value="">選択してください</option>
+                            <?php for ($i = 1; $i <= 80; $i++): ?>
+                                <option value="<?= $i ?>"><?= $i ?>歳</option>
+                            <?php endfor; ?>
+                        </select>
                     </div>
 
                     <!-- 役職 -->
@@ -166,32 +168,67 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         /* ==================================================================
-           生年月日を選択したら年齢セレクトを自動設定
+           生年月日を選択したら年齢セレクトを自動設定（タイムゾーン誤差対策済）
         ================================================================== */
         const birthDateInput = document.getElementById('birthDate');
         const ageSelect      = document.getElementById('ageSelect');
 
-        const calcAge = (birthStr) => {
-            const bd = new Date(birthStr);
-            if (Number.isNaN(bd.getTime())) return null;
+        /**
+         * 年齢を計算する（ローカル時刻で正確に比較）
+         * @param {string} value "YYYY-MM-DD" の日付文字列
+         * @returns {number|null}
+         */
+        const calcAge = (value) => {
+            if (!value) return null;
+
+            const [year, month, day] = value.split('-').map(Number);
+            if (!year || !month || !day) return null;
 
             const today = new Date();
-            let age = today.getFullYear() - bd.getFullYear();
-            const m = today.getMonth() - bd.getMonth();
-            if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) {
+            const todayYear = today.getFullYear();
+            const todayMonth = today.getMonth() + 1; // getMonth()は0始まり
+            const todayDay = today.getDate();
+
+            console.log('--- 年齢計算ログ ---');
+            console.log('入力値:', value);
+            console.log('誕生日:', year, month, day);
+            console.log('今日:', todayYear, todayMonth, todayDay);
+
+            let age = todayYear - year;
+
+            if (todayMonth < month || (todayMonth === month && todayDay < day)) {
                 age--;
+                console.log('今年の誕生日はまだ来ていない → 1歳引きます');
+            } else {
+                console.log('今年の誕生日はもう来ている → 年齢そのまま');
             }
+
+            console.log('計算された年齢:', age);
             return age;
         };
 
+
         birthDateInput.addEventListener('change', () => {
-            const age = calcAge(birthDateInput.value);
-            if (age && age >= 1 && age <= 80) {
-                ageSelect.value = age.toString();
+            const inputValue = birthDateInput.value;
+            console.log('生年月日選択:', inputValue);
+
+            const age = calcAge(inputValue);
+            if (Number.isInteger(age) && age >= 1 && age <= 80) {
+                // まず即時設定
+                ageSelect.value = String(age);
+                console.log('セレクトに即時反映:', age);
+
+                // DOM再描画後に再度強制反映（CakePHP自動再描画・他のJS上書き対策）
+                setTimeout(() => {
+                    ageSelect.value = String(age);
+                    console.log('[setTimeout後] セレクトを再設定:', ageSelect.value);
+                }, 10);
             } else {
                 ageSelect.value = '';
+                console.log('年齢が不正、セレクトを空に');
             }
         });
+
 
         /* ==================================================================
            ログインIDの重複チェック
@@ -240,14 +277,18 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
         /* ==================================================================
            パスワード表示／非表示切替
         ================================================================== */
-        $('#eyeIcon').on('click', function() {
-            const input = $('#inputPassword');
-            if (input.attr('type') === 'password') {
-                input.attr('type', 'text');
-                $(this).attr('src', '<?= $this->Html->Url->image('eye.svg') ?>');
+        const eyeIcon       = document.getElementById('eyeIcon');
+        const passwordInput = document.getElementById('inputPassword');
+
+        eyeIcon.addEventListener('click', () => {
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.src        = '<?= $this->Html->Url->image('eye.svg') ?>';
+                eyeIcon.alt        = 'パスワード表示';
             } else {
-                input.attr('type', 'password');
-                $(this).attr('src', '<?= $this->Html->Url->image('eye-slash.svg') ?>');
+                passwordInput.type = 'password';
+                eyeIcon.src        = '<?= $this->Html->Url->image('eye-slash.svg') ?>';
+                eyeIcon.alt        = 'パスワード非表示';
             }
         });
 
@@ -259,7 +300,6 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
             const requiredFields = [
                 { id: 'c_login_account', label: 'ログインID' },
                 { id: 'inputPassword',   label: 'パスワード'  },
-             //   { id: 'birthDate',       label: '生年月日'    }, // 追加
                 { name: 'c_user_name',   label: 'ユーザー名'  },
                 { name: 'i_user_gender', label: '性別'       },
                 { name: 'age_group',     label: '年代選択'   },
