@@ -129,45 +129,170 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                             const checkboxes = document.querySelectorAll(
                                 `input[type="checkbox"][name^="meals[${mealType}]"]`
                             );
+
+                            const headerCheckbox = document.querySelector(
+                                `input[type="checkbox"][onclick^="toggleAllRooms(${mealType},"]`
+                            );
+
                             checkboxes.forEach(cb => {
                                 cb.checked = isChecked;
-                                cb.dispatchEvent(new Event('change'));
+
+                                // 昼⇔弁当 排他制御
+                                const nameMatch = cb.name.match(/^meals\[(\d+)]\[(\d+)]$/);
+                                if (nameMatch && (mealType === 2 || mealType === 4)) {
+                                    const roomId = nameMatch[2];
+                                    const counterpartType = mealType === 2 ? 4 : 2;
+                                    const counterpartCb = document.querySelector(
+                                        `input[name="meals[${counterpartType}][${roomId}]"]`
+                                    );
+                                    if (counterpartCb && isChecked) {
+                                        counterpartCb.checked = false;
+                                    }
+                                }
+
+                                // イベントの重複登録を防ぐ
+                                cb.removeEventListener('change', cb._onchangeHandler ?? (() => {}));
+                                cb._onchangeHandler = () => {
+                                    const allChecked = [...checkboxes].every(c => c.checked);
+                                    if (headerCheckbox) {
+                                        headerCheckbox.checked = allChecked;
+                                    }
+
+                                    // 排他（変更時）
+                                    const nameMatch = cb.name.match(/^meals\[(\d+)]\[(\d+)]$/);
+                                    if (nameMatch && (mealType === 2 || mealType === 4)) {
+                                        const roomId = nameMatch[2];
+                                        const counterpartType = mealType === 2 ? 4 : 2;
+                                        const counterpartCb = document.querySelector(
+                                            `input[name="meals[${counterpartType}][${roomId}]"]`
+                                        );
+                                        if (counterpartCb && cb.checked) {
+                                            counterpartCb.checked = false;
+                                        }
+                                    }
+                                };
+                                cb.addEventListener('change', cb._onchangeHandler);
                             });
+
+                            // 最終的な一括チェック状態（初期同期）
+                            const allChecked = [...checkboxes].every(c => c.checked);
+                            if (headerCheckbox) {
+                                headerCheckbox.checked = allChecked;
+                            }
                         }
+
+
                         function toggleAllUsers(mealTime, isChecked) {
                             const map = {morning: 1, noon: 2, night: 3, bento: 4};
                             const mealType = map[mealTime];
                             if (!mealType) return;
-                            const cbs = document.querySelectorAll(
+
+                            const checkboxes = document.querySelectorAll(
                                 `input[type="checkbox"][name^="users"][name$="[${mealType}]"]`
                             );
-                            cbs.forEach(cb => {
+
+                            const headerCheckbox = document.querySelector(
+                                `input[type="checkbox"][onclick^="toggleAllUsers('${mealTime}'"]`
+                            );
+
+                            checkboxes.forEach(cb => {
                                 cb.checked = isChecked;
-                                cb.dispatchEvent(new Event('change'));
+
+                                // 昼⇔弁当 排他制御（一括チェック時）
+                                const match = cb.name.match(/^users\[(\d+)]\[(\d+)]$/);
+                                if (match && (mealType === 2 || mealType === 4)) {
+                                    const userId = match[1];
+                                    const counterpartType = mealType === 2 ? 4 : 2;
+                                    const counterpartMealTime = mealType === 2 ? 'bento' : 'noon';
+                                    const counterpartCb = document.querySelector(
+                                        `input[name="users[${userId}][${counterpartType}]"]`
+                                    );
+                                    if (counterpartCb && isChecked) {
+                                        counterpartCb.checked = false;
+
+                                        // ✅ 変更イベントを明示的に発火（これが重要）
+                                        counterpartCb.dispatchEvent(new Event('change'));
+                                    }
+                                }
+
+                                // 個別チェック変更イベント
+                                cb.removeEventListener('change', cb._onchangeHandler ?? (() => {}));
+                                cb._onchangeHandler = () => {
+                                    const allChecked = [...checkboxes].every(c => c.checked);
+                                    if (headerCheckbox) {
+                                        headerCheckbox.checked = allChecked;
+                                    }
+
+                                    // 排他制御（個別変更時）
+                                    const match = cb.name.match(/^users\[(\d+)]\[(\d+)]$/);
+                                    if (match && (mealType === 2 || mealType === 4)) {
+                                        const userId = match[1];
+                                        const counterpartType = mealType === 2 ? 4 : 2;
+                                        const counterpartMealTime = mealType === 2 ? 'bento' : 'noon';
+                                        const counterpartCb = document.querySelector(
+                                            `input[name="users[${userId}][${counterpartType}]"]`
+                                        );
+                                        if (counterpartCb && cb.checked) {
+                                            counterpartCb.checked = false;
+                                            counterpartCb.dispatchEvent(new Event('change'));
+                                        }
+                                    }
+                                };
+                                cb.addEventListener('change', cb._onchangeHandler);
                             });
+
+                            // 初期時点で一括チェックボックスも更新
+                            const allChecked = [...checkboxes].every(c => c.checked);
+                            if (headerCheckbox) {
+                                headerCheckbox.checked = allChecked;
+                            }
                         }
+
+
+
+
+
+
 
                         /* ==== 昼⇄弁当ペアリング用ユーティリティ ================= */
                         function setupLunchBentoPair(lunchCb, bentoCb) {
                             if (!lunchCb || !bentoCb) return;
-                            /* 既にペアリング済みならスキップ（重複リスナー防止） */
                             if (lunchCb.dataset._paired || bentoCb.dataset._paired) return;
 
-                            const sync = () => {
-                                /* どちらかを ON にしたらもう片方は OFF & disabled */
-                                if (lunchCb.checked) bentoCb.checked = false;
-                                if (bentoCb.checked) lunchCb.checked = false;
-                                bentoCb.disabled = lunchCb.checked;
-                                lunchCb.disabled = bentoCb.checked;
+                            const updateHeaderCheckbox = (changedCb, mealType) => {
+                                const allCbs = document.querySelectorAll(`input[name^="users"][name$="[${mealType}]"]`);
+                                const headerCb = document.querySelector(
+                                    `input[type="checkbox"][onclick^="toggleAllUsers('${mealType === 2 ? 'noon' : 'bento'}'"]`
+                                );
+                                if (!headerCb) return;
+                                const allChecked = [...allCbs].every(c => c.checked);
+                                headerCb.checked = allChecked;
                             };
-                            lunchCb.addEventListener('change', sync);
-                            bentoCb.addEventListener('change', sync);
-                            sync();                       // 初期同期
 
-                            /* フラグをセットして二重登録を防ぐ */
+                            lunchCb.addEventListener('change', () => {
+                                if (lunchCb.checked) {
+                                    bentoCb.checked = false;
+                                    bentoCb.dispatchEvent(new Event('change'));
+
+                                    // 昼をチェック → 弁当が外れる → 弁当の一括状態更新
+                                    updateHeaderCheckbox(bentoCb, 4);
+                                }
+                            });
+
+                            bentoCb.addEventListener('change', () => {
+                                if (bentoCb.checked) {
+                                    lunchCb.checked = false;
+                                    lunchCb.dispatchEvent(new Event('change'));
+
+                                    // 弁当をチェック → 昼が外れる → 昼の一括状態更新
+                                    updateHeaderCheckbox(lunchCb, 2);
+                                }
+                            });
+
                             lunchCb.dataset._paired = '1';
                             bentoCb.dataset._paired = '1';
                         }
+
 
                         /* ==== meals[2][roomId] ⇄ meals[4][roomId] 自動ペアリング === */
                         function setupAllRoomPairs() {
@@ -186,8 +311,7 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
 
                         /* --------------------------------------------------------- */
                         function fetchPersonalReservationData() {
-                            const url = `${window.location.origin}/kamaho-shokusu/TReservationInfo/getPersonalReservation` +
-                                `?date=${encodeURIComponent("<?= $date ?>")}`;
+                            const url = `${window.location.origin}/kamaho-shokusu/TReservationInfo/getPersonalReservation?date=${encodeURIComponent("<?= $date ?>")}`;
                             showLoading();
                             fetch(url)
                                 .then(r => r.json())
@@ -200,12 +324,16 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                                             if (!m) return;
                                             const type = m[1];
                                             cb.checked = res[type] == true || Number(res[type]) === 1;
-                                            cb.dispatchEvent(new Event('change')); // ⇒ 排他処理が走る
+                                            cb.dispatchEvent(new Event('change')); // 排他制御のため
                                         });
+
+                                    // ✅ ここでペアリング実行（チェックボックスが描画されたあと）
+                                    setupAllRoomPairs();
                                 })
                                 .catch(e => console.error('個人予約取得失敗', e))
                                 .finally(hideLoading);
                         }
+
                         function fetchUserData(roomId) {
                             const url = `${window.location.origin}/kamaho-shokusu/TReservationInfo/getUsersByRoom/${roomId}` +
                                 `?date=${encodeURIComponent("<?= $date ?>")}`;
@@ -304,28 +432,24 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
 <script>
     var roomsData = <?= json_encode($rooms); ?>;
 </script>
-
-<!-- ========= 追加スクリプト: 予約タイプ／部屋選択の UI 制御 ========= -->
 <script>
     /**
-     * 予約タイプと部屋選択に応じてフォーム要素を表示／非表示にする初期化関数
+     * 予約タイプ・部屋選択制御と、昼／弁当チェックボックスの相互排他制御
      */
     function initReservationForm() {
+        /* ────────── 予約タイプ・部屋選択表示制御 ────────── */
         const typeSelect   = document.getElementById('c_reservation_type');
-        const roomTable    = document.getElementById('room-selection-table'); // 個人予約用
-        const roomSelectGp = document.getElementById('room-select-group');    // 集団予約: 部屋選択
-        const userTableGp  = document.getElementById('user-selection-table'); // 集団予約: 利用者
+        const roomTable    = document.getElementById('room-selection-table');
+        const roomSelectGp = document.getElementById('room-select-group');
+        const userTableGp  = document.getElementById('user-selection-table');
 
-        /**
-         * 予約タイプ変更時のハンドラ
-         */
         const handleTypeChange = () => {
             const val = typeSelect.value;
             if (val === '1') {              // 個人予約
                 roomTable.style.display    = '';
                 roomSelectGp.style.display = 'none';
                 userTableGp.style.display  = 'none';
-                fetchPersonalReservationData();     // 既存予約読み込み
+                fetchPersonalReservationData();
             } else if (val === '2') {       // 集団予約
                 roomTable.style.display    = 'none';
                 roomSelectGp.style.display = '';
@@ -337,10 +461,7 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
             }
         };
 
-        /**
-         * 部屋プルダウン変更時のハンドラ
-         */
-        const roomSelect   = document.getElementById('room-select');
+        const roomSelect = document.getElementById('room-select');
         const handleRoomChange = () => {
             const roomId = roomSelect.value;
             document.getElementById('user-checkboxes').innerHTML = '';
@@ -352,11 +473,31 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
             fetchUserData(roomId);
         };
 
-        /* イベント登録 */
+        /* ────────── 昼／弁当 相互排他制御 ────────── */
+        const lunchCb  = document.getElementById('meal-lunch');             // 「昼」
+        const bentoCbs = document.querySelectorAll('.meal-bento');         // 複数「弁当」
+
+        const onLunchChange = () => {
+            if (lunchCb.checked) {
+                // 「昼」がチェックされたら弁当は全てチェックを外す
+                bentoCbs.forEach(cb => { cb.checked = false; });
+            }
+        };
+
+        const onBentoChange = () => {
+            // 弁当が一つでもチェックされたら「昼」を外す
+            if ([...bentoCbs].some(cb => cb.checked)) {
+                lunchCb.checked = false;
+            }
+        };
+
+        /* ────────── イベント登録 ────────── */
         typeSelect.addEventListener('change', handleTypeChange);
         if (roomSelect) roomSelect.addEventListener('change', handleRoomChange);
+        if (lunchCb) lunchCb.addEventListener('change', onLunchChange);
+        bentoCbs.forEach(cb => cb.addEventListener('change', onBentoChange));
 
-        /* 初期表示 */
+        /* ────────── 初期表示 ────────── */
         handleTypeChange();
     }
 
