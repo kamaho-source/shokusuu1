@@ -1,3 +1,8 @@
+</fieldset>
+
+<!-- =========================================================
+     ここから試験的ユーザー情報フォーム
+========================================================= -->
 <?php
 $this->assign('title', 'ユーザー情報の追加');
 $this->Html->css('bootstrap-icons.css', ['block' => true]);
@@ -29,19 +34,21 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                             'class' => 'form-control',
                             'id'    => 'c_login_account'
                         ]) ?>
-                        <!-- 重複エラーメッセージ（JS から制御） -->
                         <div id="login-id-error" class="invalid-feedback" style="display:none;">
                             <?= __('このログインIDは既に使用されています。') ?>
                         </div>
                     </div>
 
-                    <!-- 生年月日（追加） -->
+                    <!-- 生年月日 -->
                     <div class="mb-3">
                         <?= $this->Form->control('birth_date', [
-                            'type'  => 'date',
-                            'label' => ['text' => '生年月日', 'class' => 'form-label'],
-                            'class' => 'form-control',
-                            'id'    => 'birthDate'
+                            'type'        => 'text',                 // ← カレンダーではなく自由入力
+                            'label'       => ['text' => '生年月日', 'class' => 'form-label'],
+                            'class'       => 'form-control',
+                            'id'          => 'birthDate',
+                            'placeholder' => '例: 1990-04-01',
+                            'pattern'     => '\d{4}-\d{2}-\d{2}',
+                            'inputmode'   => 'numeric'
                         ]) ?>
                     </div>
 
@@ -127,7 +134,7 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                         ]) ?>
                     </div>
 
-                    <!-- 職員ID入力フィールド（動的に表示） -->
+                    <!-- 職員ID入力フィールド -->
                     <div id="staff-id-field" class="mb-3" style="display:none;">
                         <?= $this->Form->control('staff_id', [
                             'label'       => ['text' => '職員ID', 'class' => 'form-label'],
@@ -137,7 +144,7 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                         ]) ?>
                     </div>
 
-                    <!-- 部屋情報のチェックボックス -->
+                    <!-- 部屋情報チェックボックス -->
                     <div class="mb-3">
                         <label><?= __('所属する部屋') ?></label>
                         <?php if (!empty($rooms)): ?>
@@ -164,78 +171,44 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
     </div>
 </div>
 
-<!-- JavaScript部分 -->
+<!-- ユーザー情報フォーム用 JavaScript -->
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         /* ==================================================================
-           生年月日を選択したら年齢セレクトを自動設定（タイムゾーン誤差対策済）
+           生年月日選択 → 年齢自動設定
         ================================================================== */
         const birthDateInput = document.getElementById('birthDate');
         const ageSelect      = document.getElementById('ageSelect');
 
-        /**
-         * 年齢を計算する（ローカル時刻で正確に比較）
-         * @param {string} value "YYYY-MM-DD" の日付文字列
-         * @returns {number|null}
-         */
         const calcAge = (value) => {
             if (!value) return null;
-
             const [year, month, day] = value.split('-').map(Number);
-            if (!year || !month || !day) return null;
-
             const today = new Date();
-            const todayYear = today.getFullYear();
-            const todayMonth = today.getMonth() + 1; // getMonth()は0始まり
-            const todayDay = today.getDate();
-
-            console.log('--- 年齢計算ログ ---');
-            console.log('入力値:', value);
-            console.log('誕生日:', year, month, day);
-            console.log('今日:', todayYear, todayMonth, todayDay);
-
-            let age = todayYear - year;
-
-            if (todayMonth < month || (todayMonth === month && todayDay < day)) {
+            let age = today.getFullYear() - year;
+            if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) {
                 age--;
-                console.log('今年の誕生日はまだ来ていない → 1歳引きます');
-            } else {
-                console.log('今年の誕生日はもう来ている → 年齢そのまま');
             }
-
-            console.log('計算された年齢:', age);
             return age;
         };
 
-
-        birthDateInput.addEventListener('change', () => {
-            const inputValue = birthDateInput.value;
-            console.log('生年月日選択:', inputValue);
-
-            const age = calcAge(inputValue);
+        const setAge = () => {
+            const age = calcAge(birthDateInput.value.trim());
             if (Number.isInteger(age) && age >= 1 && age <= 80) {
-                // まず即時設定
                 ageSelect.value = String(age);
-                console.log('セレクトに即時反映:', age);
-
-                // DOM再描画後に再度強制反映（CakePHP自動再描画・他のJS上書き対策）
-                setTimeout(() => {
-                    ageSelect.value = String(age);
-                    console.log('[setTimeout後] セレクトを再設定:', ageSelect.value);
-                }, 10);
+                setTimeout(() => { ageSelect.value = String(age); }, 10);
             } else {
                 ageSelect.value = '';
-                console.log('年齢が不正、セレクトを空に');
             }
-        });
+        };
 
+        ['input', 'change'].forEach(ev => birthDateInput.addEventListener(ev, setAge));
 
         /* ==================================================================
-           ログインIDの重複チェック
+           ログインID重複チェック
         ================================================================== */
-        const loginIdField  = document.getElementById('c_login_account');
-        const loginIdError  = document.getElementById('login-id-error');
-        const submitButton  = document.getElementById('submit-button');
+        const loginIdField = document.getElementById('c_login_account');
+        const loginIdError = document.getElementById('login-id-error');
+        const submitButton = document.getElementById('submit-button');
 
         loginIdField.addEventListener('blur', () => {
             const loginId = loginIdField.value.trim();
@@ -266,20 +239,17 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
         ================================================================== */
         const roleSelect      = document.querySelector('[name="role"]');
         const staffIdFieldDiv = document.getElementById('staff-id-field');
-
-        const toggleStaffIdField = (roleVal) => {
-            staffIdFieldDiv.style.display = (roleVal === '0') ? 'block' : 'none';
+        const toggleStaffIdField = (val) => {
+            staffIdFieldDiv.style.display = (val === '0') ? 'block' : 'none';
         };
-
         toggleStaffIdField(roleSelect.value);
         roleSelect.addEventListener('change', e => toggleStaffIdField(e.target.value));
 
         /* ==================================================================
-           パスワード表示／非表示切替
+           パスワード表示切替
         ================================================================== */
         const eyeIcon       = document.getElementById('eyeIcon');
         const passwordInput = document.getElementById('inputPassword');
-
         eyeIcon.addEventListener('click', () => {
             if (passwordInput.type === 'password') {
                 passwordInput.type = 'text';
@@ -293,49 +263,46 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
         });
 
         /* ==================================================================
-           フロントエンド バリデーション
+           フロントエンドバリデーション
         ================================================================== */
         const form = document.getElementById('reservation-form');
         form.addEventListener('submit', (e) => {
-            const requiredFields = [
+            const required = [
                 { id: 'c_login_account', label: 'ログインID' },
-                { id: 'inputPassword',   label: 'パスワード'  },
-                { name: 'c_user_name',   label: 'ユーザー名'  },
-                { name: 'i_user_gender', label: '性別'       },
-                { name: 'age_group',     label: '年代選択'   },
-                { name: 'role',          label: '役職'       },
+                { id: 'inputPassword',   label: 'パスワード' },
+                { name: 'c_user_name',   label: 'ユーザー名' },
+                { name: 'i_user_gender', label: '性別'      },
+                { name: 'age_group',     label: '年代選択'  },
+                { name: 'role',          label: '役職'      },
             ];
-
-            for (const f of requiredFields) {
-                const field = f.id
-                    ? document.getElementById(f.id)
-                    : document.querySelector(`[name="${f.name}"]`);
-                if (!field || !field.value || field.value.trim() === '') {
-                    alert(`${f.label}は必須入力です。`);
+            for (const r of required) {
+                const field = r.id
+                    ? document.getElementById(r.id)
+                    : document.querySelector(`[name="${r.name}"]`);
+                if (!field || !field.value.trim()) {
+                    alert(`${r.label}は必須入力です。`);
                     field?.focus();
                     e.preventDefault();
                     return;
                 }
             }
-
-            // 役職 = 職員 のとき staff_id 必須
             if (roleSelect.value === '0') {
                 const staffInput = document.querySelector('[name="staff_id"]');
-                if (!staffInput.value || staffInput.value.trim() === '') {
+                if (!staffInput.value.trim()) {
                     alert('職員IDは必須入力です。');
                     staffInput.focus();
                     e.preventDefault();
                     return;
                 }
             }
-
-            // 所属部屋チェック
             const roomCheckboxes = document.querySelectorAll('input[type="checkbox"][name^="MUserGroup"]');
-            const anyChecked     = Array.from(roomCheckboxes).some(cb => cb.checked);
-            if (!anyChecked) {
+            if (!Array.from(roomCheckboxes).some(cb => cb.checked)) {
                 alert('所属する部屋を1つ以上選択してください。');
                 e.preventDefault();
             }
         });
     });
 </script>
+<!-- =========================================================
+     ユーザー情報フォームここまで
+========================================================= -->

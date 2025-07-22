@@ -8,6 +8,12 @@ $user = $this->request->getAttribute('identity');
  * を渡している想定。渡されていない場合は空配列で初期化しておく。
  */
 $myReservationDates = $myReservationDates ?? [];
+
+/**
+ * 予約集計用データ（朝・昼・夜・弁当別件数）
+ * 未定義だと notice になるため空配列で初期化
+ */
+$mealDataArray = $mealDataArray ?? [];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -72,8 +78,15 @@ $myReservationDates = $myReservationDates ?? [];
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        /* ===== CSRF トークン取得 ===== */
+        const csrfToken = document
+            .querySelector('meta[name="csrfToken"]')
+            ?.getAttribute('content') ?? '';
+
         /* ===== HTML 要素取得 ===== */
-        const calendarEl       = document.getElementById('calendar');
+        const calendarEl    = document.getElementById('calendar');
+        const fromDateInput = document.getElementById('fromDate');
+        const toDateInput   = document.getElementById('toDate');
 
         /* ===== 2週間後をデフォルト表示 ===== */
         const defaultDate = (() => {
@@ -99,7 +112,7 @@ $myReservationDates = $myReservationDates ?? [];
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
                 textColor: 'white',
-                displayOrder: -1
+                displayOrder: -2   // ★ 未予約より優先
             },
             <?php endforeach; ?>
 
@@ -129,6 +142,34 @@ $myReservationDates = $myReservationDates ?? [];
             ?>
         ];
 
+        /* =========================================================
+           カレンダー ⇔ 入力欄 同期用ユーティリティ
+        ========================================================= */
+        /**
+         * カレンダー側の表示月が変わったら
+         * 期間開始日＝月初、期間終了日＝月末 を自動設定
+         * @param {FullCalendar.View} view
+         */
+        function updateInputsByCalendar(view) {
+            if (!fromDateInput || !toDateInput) return;
+
+            const start = view.currentStart;               // 当月 1 日
+            const end   = new Date(view.currentEnd);       // 翌月 1 日
+            end.setDate(end.getDate() - 1);                // 当月末日に補正
+
+            fromDateInput.value = start.toISOString().slice(0, 10);
+            toDateInput.value   = end  .toISOString().slice(0, 10);
+        }
+
+        /**
+         * 期間開始日を手入力で変更したら
+         * その日の属する月をカレンダーへジャンプ
+         */
+        function updateCalendarByInput() {
+            if (!fromDateInput?.value) return;
+            calendar.gotoDate(fromDateInput.value);
+        }
+
         /* ===== FullCalendar 初期化 ===== */
         const calendar = new FullCalendar.Calendar(calendarEl, {
             initialDate: defaultDate,
@@ -138,8 +179,8 @@ $myReservationDates = $myReservationDates ?? [];
             contentHeight: 'auto',
             expandRows: true,
             aspectRatio: 1.35,
-            customButtons: {
-                nextMonth: {
+            customButtons:{
+                nextMonth:{
                     text: '次月',
                     click: () => calendar.next()
                 }
@@ -151,6 +192,9 @@ $myReservationDates = $myReservationDates ?? [];
             buttonText: {
                 today: '今日'
             },
+            /* ★ ビュー切替時に入力欄へ反映 */
+            datesSet: (arg) => updateInputsByCalendar(arg.view),
+
             /* ----- 祝日 + 予約済 + 未予約 ----- */
             events: (fetchInfo, successCallback) => {
                 const holidayEvents = [];
@@ -201,7 +245,10 @@ $myReservationDates = $myReservationDates ?? [];
             }
         });
 
+        /* ===== カレンダー描画 & 初期同期 ===== */
         calendar.render();
+        updateInputsByCalendar(calendar.view);          // 初回同期
+        fromDateInput?.addEventListener('change', updateCalendarByInput);
 
         /* ===== 共通: ブック→ダウンロード ===== */
         async function downloadWorkbook(workbook, filename) {
@@ -220,8 +267,6 @@ $myReservationDates = $myReservationDates ?? [];
 
         const excelButton      = document.getElementById('downloadExcel');
         const rankExportButton = document.getElementById('downloadExcelRank');
-        const fromDateInput    = document.getElementById('fromDate');
-        const toDateInput      = document.getElementById('toDate');
 
         /* ===== 食数予定表エクスポート ===== */
         if (excelButton) {
@@ -243,7 +288,11 @@ $myReservationDates = $myReservationDates ?? [];
 
                     /* ========== 2. API 取得 ========== */
                     const response = await fetch(
-                        `/kamaho-shokusu/TReservationInfo/exportJson?from=${fromDate}&to=${toDate}`,
+                        '<?= $this->Url->build('/TReservationInfo/exportJson') ?>' +
+                        `?from=${fromDate}&to=${toDate}`,
+                        {
+                            headers: { 'X-CSRF-Token': csrfToken }
+                        }
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
@@ -270,7 +319,8 @@ $myReservationDates = $myReservationDates ?? [];
                         const header = includeRoomName
                             ? ['日付', '部屋名', '朝食', '昼食', '夕食', '弁当']
                             : ['日付', '朝食', '昼食', '夕食', '弁当'];
-                        sheet.addRow(header).font = { bold: true };
+                        const row = sheet.addRow(header);
+                        row.font = { bold: true };
                     };
 
                     /**
@@ -404,7 +454,11 @@ $myReservationDates = $myReservationDates ?? [];
                 if (fromDate > toDate)    { alert('開始日は終了日以前の日付を指定してください'); return; }
 
                 const res = await fetch(
-                    `/kamaho-shokusu/TReservationInfo/exportJsonrank?from=${fromDate}&to=${toDate}`
+                    '<?= $this->Url->build('/TReservationInfo/exportJsonrank') ?>' +
+                    `?from=${fromDate}&to=${toDate}`,
+                    {
+                        headers: { 'X-CSRF-Token': csrfToken }
+                    }
                 );
                 if (!res.ok) throw new Error(`APIエラー: ${res.status}`);
 
@@ -433,7 +487,8 @@ $myReservationDates = $myReservationDates ?? [];
                 ];
 
                 // ヘッダー行
-                ws.addRow(columns.map(c => c.header)).font = { bold: true };
+                const headerRow = ws.addRow(columns.map(c => c.header));
+                headerRow.font = { bold: true };
 
                 // データ行
                 rows.forEach(r => ws.addRow(columns.map(c => r[c.key] ?? '')));
