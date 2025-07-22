@@ -75,10 +75,10 @@ $myReservationDates = $myReservationDates ?? [];
         /* ===== HTML 要素取得 ===== */
         const calendarEl       = document.getElementById('calendar');
 
-        /* ===== 翌月をデフォルト表示 ===== */
+        /* ===== 2週間後をデフォルト表示 ===== */
         const defaultDate = (() => {
             const d = new Date();
-            d.setMonth(d.getMonth() + 1);
+            d.setDate(d.getDate() + 14);
             return d;
         })();
 
@@ -273,6 +273,36 @@ $myReservationDates = $myReservationDates ?? [];
                         sheet.addRow(header).font = { bold: true };
                     };
 
+                    /**
+                     * 合計行を追加（デフォルトは非表示）
+                     * @param {ExcelJS.Worksheet} sheet
+                     * @param {boolean} includeRoomName 部屋名列を含めるか
+                     */
+                    const addTotalRow = (sheet, includeRoomName = false) => {
+                        // 合計を格納する配列 [朝, 昼, 夜, 弁当]
+                        const totals = [0, 0, 0, 0];
+
+                        // ヘッダー行（1 行目）を除外して数値を加算
+                        sheet.eachRow((row, rowNumber) => {
+                            if (rowNumber === 1) return; // ヘッダーはスキップ
+
+                            const offset = includeRoomName ? 2 : 1; // 日付+部屋名列分をオフセット
+                            for (let i = 0; i < totals.length; i++) {
+                                const value = Number(row.getCell(i + 1 + offset).value ?? 0);
+                                totals[i] += value;
+                            }
+                        });
+
+                        // “合計” 行の作成
+                        const rowValues = includeRoomName
+                            ? ['合計', '', ...totals]
+                            : ['合計', ...totals];
+
+                        const totalRow = sheet.addRow(rowValues);
+                        totalRow.font   = { bold: true };
+                        totalRow.hidden = true;              // 非表示にしておく
+                    };
+
                     /* ----- 3-A. 全体シート（日付・部屋名別） ----- */
                     const overallSheet = workbook.addWorksheet('全体');
                     addHeader(overallSheet, true);
@@ -320,6 +350,9 @@ $myReservationDates = $myReservationDates ?? [];
                             });
                     }
 
+                    // ★ 合計行を追加
+                    addTotalRow(overallSheet, true);
+
                     /* ----- 3-B. 部屋別シート（存在する場合のみ） ----- */
                     if (hasRooms) {
                         Object.keys(data.rooms).forEach(roomNameRaw => {
@@ -342,6 +375,9 @@ $myReservationDates = $myReservationDates ?? [];
                                         m['弁当'] ?? 0,
                                     ]);
                                 });
+
+                            // ★ 各部屋シートにも合計行を追加
+                            addTotalRow(sheet);
                         });
                     }
 
