@@ -1,21 +1,21 @@
 <?php
 // 変数の初期化（コントローラから渡されていない場合の保険）
-$user = $this->request->getAttribute('identity'); // ユーザー情報を取得
-$selectedDate = $selectedDate ?? date('Y-m-d');
-$dates = $dates ?? [];
-$rooms = $rooms ?? [];
-$users = $users ?? [];
+$user          = $this->request->getAttribute('identity'); // ユーザー情報を取得
+$selectedDate  = $selectedDate  ?? date('Y-m-d');
+$dates         = $dates         ?? [];
+$rooms         = $rooms         ?? [];
+$users         = $users         ?? [];
 $dayOfWeekList = ['月', '火', '水', '木', '金', '土', '日'];
 
-// 今日の日付と2月後の日付を取得
-$currentDate = new \DateTime();
-$oneMonthLater = (clone $currentDate)->modify('+14 days');
+// 今日の日付と2週間後の日付を取得
+$currentDate   = new \DateTime();
+$twoWeeksLater = (clone $currentDate)->modify('+14 days'); // ★ 変数名を修正
 
 // 選択された日付
 $selectedDateObj = new \DateTime($selectedDate);
 
-// 予約不可の条件（今日から1ヶ月後まで）
-$isDisabled = ($selectedDateObj < $oneMonthLater);
+// 予約不可の条件（今日から2週間後まで “含む”）
+$isDisabled = ($selectedDateObj <= $twoWeeksLater); // ★ 「<」→「<=」に修正
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -23,7 +23,6 @@ $isDisabled = ($selectedDateObj < $oneMonthLater);
     <meta charset="UTF-8">
     <title>一括予約</title>
     <meta name="csrfToken" content="<?= h($this->request->getAttribute('csrfToken')) ?>">
-    <!-- 必要に応じて他のhead要素 -->
 </head>
 <body>
 <div class="container">
@@ -31,25 +30,38 @@ $isDisabled = ($selectedDateObj < $oneMonthLater);
     <h3>日付: <?= h($selectedDate) ?></h3>
 
     <form action="<?= $this->Url->build(['action' => 'bulkAddSubmit']) ?>" method="post" id="reservation-form">
+        <!-- =========================================================
+             日付選択
+        ========================================================= -->
         <fieldset>
             <legend>一括予約の日付を選択</legend>
             <?php foreach ($dates as $dateObj): ?>
                 <?php
-                $dateStr = is_object($dateObj) ? $dateObj->format('Y-m-d') : $dateObj;
-                $dayOfWeek = $dayOfWeekList[(new \DateTime($dateStr))->format('N') - 1];
-                $isDateDisabled = (new \DateTime($dateStr) < $oneMonthLater);
+                $dateStr         = is_object($dateObj) ? $dateObj->format('Y-m-d') : $dateObj;
+                $dayOfWeek       = $dayOfWeekList[(new \DateTime($dateStr))->format('N') - 1];
+                // ★ 変数名・判定を修正
+                $isDateDisabled  = (new \DateTime($dateStr) <= $twoWeeksLater);
                 ?>
                 <div class="form-group">
                     <label><?= h($dateStr) ?> (<?= $dayOfWeek ?>)</label>
-                    <input type="checkbox" name="dates[<?= h($dateStr) ?>]" value="1" <?= $isDateDisabled ? 'disabled' : '' ?>>
+                    <input type="checkbox"
+                           name="dates[<?= h($dateStr) ?>]"
+                           value="1"
+                        <?= $isDateDisabled ? 'disabled' : '' ?>>
                 </div>
             <?php endforeach; ?>
         </fieldset>
 
+        <!-- =========================================================
+             予約タイプ選択
+        ========================================================= -->
         <fieldset>
             <legend>予約タイプ選択</legend>
             <div class="form-group">
-                <select id="reservation_type" name="reservation_type" class="form-control" required>
+                <select id="reservation_type"
+                        name="reservation_type"
+                        class="form-control"
+                        required>
                     <option value="" selected disabled>-- 予約タイプを選択 --</option>
                     <option value="personal">個人</option>
                     <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
@@ -59,7 +71,9 @@ $isDisabled = ($selectedDateObj < $oneMonthLater);
             </div>
         </fieldset>
 
-        <!-- 個人予約：部屋ごとの食事選択テーブル -->
+        <!-- =========================================================
+             個人予約：部屋単位の食事選択
+        ========================================================= -->
         <div class="form-group" id="room-selection-table" style="display: none;">
             <?= $this->Form->label('rooms', '部屋名と食事選択') ?>
             <div id="room-table-container">
@@ -67,10 +81,11 @@ $isDisabled = ($selectedDateObj < $oneMonthLater);
                     <thead>
                     <tr>
                         <th>部屋名</th>
-                        <th><input type="checkbox" onclick="toggleAllRooms(1, this.checked)">朝</th>
-                        <th><input type="checkbox" onclick="toggleAllRooms(2, this.checked)">昼</th>
-                        <th><input type="checkbox" onclick="toggleAllRooms(3, this.checked)">夜</th>
-                        <th><input type="checkbox" onclick="toggleAllRooms(4, this.checked)">弁当</th>
+                        <!-- ★ id を付与してヘッダ同士の排他制御に利用 -->
+                        <th><input type="checkbox" id="toggle-room-all-1" onclick="toggleAllRooms(1, this.checked)">朝</th>
+                        <th><input type="checkbox" id="toggle-room-all-2" onclick="toggleAllRooms(2, this.checked)">昼</th>
+                        <th><input type="checkbox" id="toggle-room-all-3" onclick="toggleAllRooms(3, this.checked)">夜</th>
+                        <th><input type="checkbox" id="toggle-room-all-4" onclick="toggleAllRooms(4, this.checked)">弁当</th>
                     </tr>
                     </thead>
                     <tbody id="room-checkboxes">
@@ -88,46 +103,53 @@ $isDisabled = ($selectedDateObj < $oneMonthLater);
             </div>
         </div>
 
-        <!-- 集団予約フォーム -->
+        <!-- =========================================================
+             集団予約
+        ========================================================= -->
         <fieldset id="group-reservation-fieldset" style="display: none;">
             <legend>集団予約</legend>
+
             <div class="form-group">
                 <?= $this->Form->label('i_id_room', '部屋を選択') ?>
                 <?= $this->Form->control('i_id_room', [
-                    'type' => 'select',
-                    'label' => false,
-                    'options' => $rooms,
-                    'empty' => '-- 部屋を選択 --',
-                    'class' => 'form-control',
+                    'type'     => 'select',
+                    'label'    => false,
+                    'options'  => $rooms,
+                    'empty'    => '-- 部屋を選択 --',
+                    'class'    => 'form-control',
                     'onchange' => "fetchUsersByRoom(this.value)",
                     'disabled' => $isDisabled,
-                    'id' => 'i-id-room'
+                    'id'       => 'i-id-room'
                 ]) ?>
             </div>
+
             <div id="user-table-container">
                 <table class="table table-bordered">
                     <thead>
                     <tr>
                         <th>利用者名</th>
-                        <th><input type="checkbox" onclick="toggleAllUsers('morning', this.checked)">朝</th>
-                        <th><input type="checkbox" onclick="toggleAllUsers('noon', this.checked)">昼</th>
-                        <th><input type="checkbox" onclick="toggleAllUsers('night', this.checked)">夜</th>
-                        <th><input type="checkbox" onclick="toggleAllUsers('bento', this.checked)">弁当</th>
+                        <!-- ★ id を付与 -->
+                        <th><input type="checkbox" id="toggle-user-all-morning" onclick="toggleAllUsers('morning', this.checked)">朝</th>
+                        <th><input type="checkbox" id="toggle-user-all-noon"    onclick="toggleAllUsers('noon',    this.checked)">昼</th>
+                        <th><input type="checkbox" id="toggle-user-all-night"   onclick="toggleAllUsers('night',   this.checked)">夜</th>
+                        <th><input type="checkbox" id="toggle-user-all-bento"   onclick="toggleAllUsers('bento',   this.checked)">弁当</th>
                     </tr>
                     </thead>
-                    <tbody id="user-checkboxes">
-                    <!-- ユーザー情報はAjaxで動的に表示 -->
-                    </tbody>
+                    <tbody id="user-checkboxes"><!-- Ajax で動的に挿入 --></tbody>
                 </table>
             </div>
         </fieldset>
 
+        <!-- =========================================================
+             送信ボタン
+        ========================================================= -->
         <?php if (!$isDisabled): ?>
             <button class="btn btn-primary" type="submit">一括予約を登録</button>
-            <div id="loading-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; text-align: center;">
-                <div style="position: relative; top: 50%; transform: translateY(-50%);">
+            <div id="loading-overlay"
+                 style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:9999;text-align:center;">
+                <div style="position:relative;top:50%;transform:translateY(-50%);">
                     <div class="spinner-border text-info" role="status"></div>
-                    <p style="color: white; margin-top: 10px;">処理中です。少々お待ちください...</p>
+                    <p style="color:#fff;margin-top:10px;">処理中です。少々お待ちください...</p>
                 </div>
             </div>
         <?php else: ?>
@@ -137,209 +159,236 @@ $isDisabled = ($selectedDateObj < $oneMonthLater);
 </div>
 
 <!-- =========================================================
-     以降の JS は重複を排除し 1 つの <script> ブロックに集約
+     JavaScript
 ========================================================= -->
 <script>
-    /* ========= 汎用ユーティリティ ===================================== */
+    /**
+     * 部屋テーブル：ヘッダ「全選択」チェックボックス
+     */
     function toggleAllRooms(mealType, isChecked) {
-        const cbs = document.querySelectorAll(
-            `input[type="checkbox"][name^="meals[${mealType}]"]`
-        );
-        cbs.forEach(cb => {
+        document.querySelectorAll(`input[name^="meals[${mealType}]"]`).forEach(cb => {
             cb.checked = isChecked;
             cb.dispatchEvent(new Event('change'));
+
+            // 昼⇔弁当 行単位の排他制御
+            const match = cb.name.match(/^meals\[(\d+)]\[(\d+)]$/); // meals[mealType][roomId]
+            if (match && (mealType === 2 || mealType === 4) && isChecked) {
+                const roomId         = match[2];
+                const counterpart    = mealType === 2 ? 4 : 2;
+                const counterpartCb  = document.querySelector(`input[name="meals[${counterpart}][${roomId}]"]`);
+                if (counterpartCb && isChecked) {
+                    counterpartCb.checked = false;
+                    counterpartCb.dispatchEvent(new Event('change'));
+                }
+            }
         });
-    }
-    function toggleAllUsers(mealTime, isChecked) {
-        const cbs = document.querySelectorAll(
-            `#user-table-container input[type="checkbox"][name$="[${mealTime}]"]`
-        );
-        cbs.forEach(cb => {
-            cb.checked = isChecked;
-            cb.dispatchEvent(new Event('change'));
-        });
+
+        // ★ ヘッダ同士の排他制御
+        if ((mealType === 2 || mealType === 4) && isChecked) {
+            const counterpartType   = mealType === 2 ? 4 : 2;
+            const counterpartHeader = document.getElementById(`toggle-room-all-${counterpartType}`);
+            if (counterpartHeader) counterpartHeader.checked = false;
+        }
     }
 
-    /* ========= 昼⇄弁当 排他ペアリング ================================ */
+    /**
+     * ユーザーテーブル：ヘッダ「全選択」チェックボックス
+     */
+    function toggleAllUsers(mealTime, isChecked) {
+        const map      = {morning: 1, noon: 2, night: 3, bento: 4};
+        const mealType = map[mealTime];
+        if (!mealType) return;
+
+        document.querySelectorAll(`#user-table-container input[name$="[${mealTime}]"]`).forEach(cb => {
+            cb.checked = isChecked;
+            cb.dispatchEvent(new Event('change'));
+
+            // 昼⇔弁当 行単位の排他制御
+            const m = cb.name.match(/^users\[(\d+)]\[(.+)]$/); // users[userId][mealTime]
+            if (m && (mealType === 2 || mealType === 4) && isChecked) {
+                const userId              = m[1];
+                const counterpartMealTime = mealType === 2 ? 'bento' : 'noon';
+                const counterpartCb       = document.querySelector(`input[name="users[${userId}][${counterpartMealTime}]"]`);
+                if (counterpartCb) {
+                    counterpartCb.checked = false;
+                    counterpartCb.dispatchEvent(new Event('change'));
+                }
+            }
+        });
+
+        // ★ ヘッダ同士の排他制御
+        if ((mealType === 2 || mealType === 4) && isChecked) {
+            const counterpartHeaderId = mealType === 2 ? 'toggle-user-all-bento' : 'toggle-user-all-noon';
+            const counterpartHeader   = document.getElementById(counterpartHeaderId);
+            if (counterpartHeader) counterpartHeader.checked = false;
+        }
+    }
+
+    /* ------------------------------------------------------------------
+       朝・夜 チェック時にヘッダを同期させるユーティリティ
+    ------------------------------------------------------------------ */
+    function updateRoomHeader(mealType) {
+        const headerCb = document.getElementById(`toggle-room-all-${mealType}`);
+        if (!headerCb) return;
+        const allOn = [...document.querySelectorAll(`input[name^="meals[${mealType}]"]`)].every(c => c.checked);
+        headerCb.checked = allOn;
+    }
+    function updateUserHeader(mealKey) {
+        const headerId = mealKey === 'morning' ? 'toggle-user-all-morning' : 'toggle-user-all-night';
+        const headerCb = document.getElementById(headerId);
+        if (!headerCb) return;
+        const selector = `#user-table-container input[name$="[${mealKey}]"]`;
+        const allOn = [...document.querySelectorAll(selector)].every(c => c.checked);
+        headerCb.checked = allOn;
+    }
+
+    /**
+     * 昼⇔弁当　行単位の排他制御ペアを組む
+     * （ヘッダチェックボックスの状態も随時更新）
+     */
     function setupLunchBentoPair(lunchCb, bentoCb) {
         if (!lunchCb || !bentoCb) return;
         if (lunchCb.dataset._paired || bentoCb.dataset._paired) return;
 
-        const sync = () => {
-            if (lunchCb.checked) bentoCb.checked = false;
-            if (bentoCb.checked) lunchCb.checked = false;
-            bentoCb.disabled = lunchCb.checked;
-            lunchCb.disabled = bentoCb.checked;
+        const updateHeaderCheckbox = (mealTypeKey) => {
+            const selector = `#user-table-container input[name$="[${mealTypeKey}]"]`;
+            const allCbs   = document.querySelectorAll(selector);
+            const allOn    = [...allCbs].length > 0 && [...allCbs].every(c => c.checked);
+
+            const headerId = mealTypeKey === 'noon' ? 'toggle-user-all-noon'
+                : 'toggle-user-all-bento';
+            const headerCb = document.getElementById(headerId);
+            if (headerCb) headerCb.checked = allOn;
         };
-        lunchCb.addEventListener('change', sync);
-        bentoCb.addEventListener('change', sync);
-        sync();
+
+        lunchCb.addEventListener('change', () => {
+            if (lunchCb.checked) {
+                bentoCb.checked = false;
+                bentoCb.dispatchEvent(new Event('change'));
+            }
+            updateHeaderCheckbox('noon');
+            updateHeaderCheckbox('bento');
+        });
+
+        bentoCb.addEventListener('change', () => {
+            if (bentoCb.checked) {
+                lunchCb.checked = false;
+                lunchCb.dispatchEvent(new Event('change'));
+            }
+            updateHeaderCheckbox('noon');
+            updateHeaderCheckbox('bento');
+        });
 
         lunchCb.dataset._paired = '1';
         bentoCb.dataset._paired = '1';
     }
 
-    /* ========= 部屋行（meals[2] ⇄ meals[4]）自動ペアリング ============ */
+    /**
+     * 既存の部屋テーブルについて昼⇔弁当ペアを設定
+     */
     function setupAllRoomPairs() {
-        document
-            .querySelectorAll('input[type="checkbox"][name^="meals[2]["]')
-            .forEach(lunchCb => {
-                const m = lunchCb.name.match(/^meals\[2]\[(.+)]$/);
-                if (!m) return;
-                const roomId = m[1];
-                const bentoCb = document.querySelector(
-                    `input[type="checkbox"][name="meals[4][${roomId}]"]`
-                );
-                setupLunchBentoPair(lunchCb, bentoCb);
-            });
+        document.querySelectorAll('input[name^="meals[2]["]').forEach(lunchCb => {
+            const m = lunchCb.name.match(/^meals\[2]\[(.+)]$/);
+            if (!m) return;
+            const roomId  = m[1];
+            const bentoCb = document.querySelector(`input[name="meals[4][${roomId}]"]`);
+            setupLunchBentoPair(lunchCb, bentoCb);
+        });
     }
 
-    /* ========= 共通ローディング制御 ================================ */
-    const overlay = document.getElementById('loading-overlay');
-    const submitButton = document.querySelector('#reservation-form button[type="submit"]');
+    /* ------------------------------------------------------------------
+       Ajax: 部屋 ID から利用者一覧を取得
+    ------------------------------------------------------------------ */
     function showLoading() {
-        if (overlay) overlay.style.display = 'block';
-        if (submitButton) submitButton.disabled = true;
+        document.getElementById('loading-overlay').style.display = 'block';
+        document.querySelector('#reservation-form button[type="submit"]').disabled = true;
     }
     function hideLoading() {
-        if (overlay) overlay.style.display = 'none';
-        if (submitButton) submitButton.disabled = false;
+        document.getElementById('loading-overlay').style.display = 'none';
+        document.querySelector('#reservation-form button[type="submit"]').disabled = false;
     }
-
-    /* ========= DOMContentLoaded ==================================== */
-    document.addEventListener('DOMContentLoaded', () => {
-        const reservationType = document.getElementById('reservation_type');
-        const roomSelectionTable = document.getElementById('room-selection-table');
-        const groupFieldset = document.getElementById('group-reservation-fieldset');
-        const form = document.getElementById('reservation-form');
-        const iIdRoom = document.getElementById('i-id-room');
-
-        /* 予約タイプ切替 */
-        reservationType.addEventListener('change', function () {
-            if (this.value === 'personal') {
-                roomSelectionTable.style.display = '';
-                groupFieldset.style.display = 'none';
-                if (iIdRoom) iIdRoom.removeAttribute('required');
-            } else if (this.value === 'group') {
-                roomSelectionTable.style.display = 'none';
-                groupFieldset.style.display = '';
-                if (iIdRoom) iIdRoom.setAttribute('required', 'required');
-            } else {
-                roomSelectionTable.style.display = 'none';
-                groupFieldset.style.display = 'none';
-                if (iIdRoom) iIdRoom.removeAttribute('required');
-            }
-        });
-        /* 初期状態 */
-        roomSelectionTable.style.display = 'none';
-        groupFieldset.style.display = 'none';
-        if (iIdRoom) iIdRoom.removeAttribute('required');
-
-        /* ---------- 排他ペアリング設定 ------------------------------- */
-        /* 個人予約：部屋テーブル行内（昼⇄弁当） */
-        document.querySelectorAll('#room-checkboxes tr').forEach(tr => {
-            setupLunchBentoPair(
-                tr.querySelector('input[name^="meals[2]"]'),
-                tr.querySelector('input[name^="meals[4]"]')
-            );
-        });
-        /* 行外に配置される可能性のあるチェックボックスも一括設定 */
-        setupAllRoomPairs();
-
-        /* “全選択” ヘッダチェックボックス同士の排他制御 */
-        setupLunchBentoPair(
-            document.querySelector('#room-table-container thead input[onclick^="toggleAllRooms(2"]'),
-            document.querySelector('#room-table-container thead input[onclick^="toggleAllRooms(4"]')
-        );
-        setupLunchBentoPair(
-            document.querySelector('#user-table-container thead input[onclick^="toggleAllUsers(\'noon\'"]'),
-            document.querySelector('#user-table-container thead input[onclick^="toggleAllUsers(\'bento\'"]')
-        );
-
-        /* 送信処理 */
-        form.addEventListener('submit', e => {
-            e.preventDefault();
-            showLoading();
-            const formData = new FormData(form);
-            const csrfMeta = document.querySelector('meta[name="csrfToken"]');
-            const csrfToken = csrfMeta ? csrfMeta.content : '';
-            fetch(form.action, {
-                method: 'POST',
-                body: formData,
-                headers: {'X-CSRF-Token': csrfToken}
-            })
-                .then(r => r.json())
-                .then(res => {
-                    if (res.status === 'success') {
-                        alert(res.message || '登録が完了しました');
-                        if (res.redirect_url) {
-                            window.location.href = res.redirect_url;
-                        } else {
-                            location.reload();
-                        }
-                    } else {
-                        alert(res.message || 'エラーが発生しました');
-                        hideLoading();
-                    }
-                })
-                .catch(() => {
-                    alert('通信エラーが発生しました');
-                    hideLoading();
-                });
-        });
-    });
-
-    /* ========= Ajax：部屋選択時に利用者取得 ======================= */
     function fetchUsersByRoom(roomId) {
         if (!roomId) return;
         showLoading();
         fetch(`/kamaho-shokusu/TReservationInfo/getUsersByRoomForBulk/${roomId}`)
-            .then(response => {
-                const contentType = response.headers.get('content-type') || '';
-                if (!contentType.includes('application/json')) {
-                    return response.text().then(text => {
-                        console.error('Invalid JSON response:', text);
-                        throw new Error('JSON形式のレスポンスではありません');
-                    });
-                }
-                return response.json();
-            })
-            .then(data => {
-                if (data && Array.isArray(data.users)) {
-                    renderUsers(data.users);
-                } else {
-                    document.getElementById('user-checkboxes').innerHTML =
-                        '<tr><td colspan="5">利用者が見つかりません。</td></tr>';
-                }
-            })
-            .catch(() => {
-                document.getElementById('user-checkboxes').innerHTML =
-                    '<tr><td colspan="5">データを取得できませんでした。</td></tr>';
-            })
+            .then(res   => res.json())
+            .then(data  => renderUsers(data.users))
+            .catch(()   => alert('利用者情報の取得に失敗しました。'))
             .finally(hideLoading);
     }
-
     function renderUsers(users) {
         const tbody = document.getElementById('user-checkboxes');
         tbody.innerHTML = '';
         users.forEach(u => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-            <td>${u.name}</td>
-            <td><input class="form-check-input" type="checkbox" name="users[${u.id}][morning]" value="1"></td>
-            <td><input class="form-check-input" type="checkbox" name="users[${u.id}][noon]" value="1"></td>
-            <td><input class="form-check-input" type="checkbox" name="users[${u.id}][night]" value="1"></td>
-            <td><input class="form-check-input" type="checkbox" name="users[${u.id}][bento]" value="1"></td>
-        `;
+                <td>${u.name}</td>
+                <td><input type="checkbox" name="users[${u.id}][morning]" value="1"></td>
+                <td><input type="checkbox" name="users[${u.id}][noon]"    value="1"></td>
+                <td><input type="checkbox" name="users[${u.id}][night]"   value="1"></td>
+                <td><input type="checkbox" name="users[${u.id}][bento]"   value="1"></td>
+            `;
             tbody.appendChild(tr);
 
-            /* 利用者ごとの昼⇄弁当排他 */
+            // 朝・夜 チェック変更時にヘッダ同期
+            tr.querySelector(`input[name="users[${u.id}][morning]"]`)
+                .addEventListener('change', () => updateUserHeader('morning'));
+            tr.querySelector(`input[name="users[${u.id}][night]"]`)
+                .addEventListener('change', () => updateUserHeader('night'));
+
+            // 昼⇔弁当 ペア設定
             setupLunchBentoPair(
                 tr.querySelector(`input[name="users[${u.id}][noon]"]`),
                 tr.querySelector(`input[name="users[${u.id}][bento]"]`)
             );
         });
+
+        // ヘッダ初期同期
+        updateUserHeader('morning');
+        updateUserHeader('night');
+        updateUserHeader('noon');
+        updateUserHeader('bento');
     }
+
+    /* ------------------------------------------------------------------
+       DOMContentLoaded
+    ------------------------------------------------------------------ */
+    document.addEventListener('DOMContentLoaded', () => {
+        const reservationType = document.getElementById('reservation_type');
+        const roomSelection   = document.getElementById('room-selection-table');
+        const groupFieldset   = document.getElementById('group-reservation-fieldset');
+        const iIdRoom         = document.getElementById('i-id-room');
+
+        reservationType.addEventListener('change', () => {
+            if (reservationType.value === 'personal') {
+                roomSelection.style.display = '';
+                groupFieldset.style.display = 'none';
+                iIdRoom.removeAttribute('required');
+            } else if (reservationType.value === 'group') {
+                roomSelection.style.display = 'none';
+                groupFieldset.style.display = '';
+                iIdRoom.setAttribute('required', 'required');
+            } else {
+                roomSelection.style.display = 'none';
+                groupFieldset.style.display = 'none';
+                iIdRoom.removeAttribute('required');
+            }
+        });
+
+        setupAllRoomPairs(); // 既存行の昼⇔弁当ペア
+
+        /* ----------------------------------------------------------
+           朝・夜（部屋テーブル）ヘッダ同期
+        ---------------------------------------------------------- */
+        document.querySelectorAll('input[name^="meals[1]["], input[name^="meals[3]["]')
+            .forEach(cb => {
+                const mealType = cb.name.match(/^meals\[(\d)]\[/)[1];
+                cb.addEventListener('change', () => updateRoomHeader(mealType));
+            });
+        // 初期状態を反映
+        updateRoomHeader(1);
+        updateRoomHeader(3);
+    });
 </script>
 </body>
 </html>

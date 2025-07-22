@@ -121,67 +121,54 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                             </div>
                         </div>
                     <?php endif; ?>
-
-                    <!-- ======================== Script ======================== -->
                     <script>
-                        /* 既存のユーティリティ関数はそのまま -------------------- */
                         function toggleAllRooms(mealType, isChecked) {
                             const checkboxes = document.querySelectorAll(
                                 `input[type="checkbox"][name^="meals[${mealType}]"]`
                             );
 
+                            checkboxes.forEach(cb => {
+                                cb.checked = isChecked;
+                                cb.dispatchEvent(new Event('change'));
+                            });
+
                             const headerCheckbox = document.querySelector(
                                 `input[type="checkbox"][onclick^="toggleAllRooms(${mealType},"]`
                             );
-
-                            checkboxes.forEach(cb => {
-                                cb.checked = isChecked;
-
-                                // 昼⇔弁当 排他制御
-                                const nameMatch = cb.name.match(/^meals\[(\d+)]\[(\d+)]$/);
-                                if (nameMatch && (mealType === 2 || mealType === 4)) {
-                                    const roomId = nameMatch[2];
-                                    const counterpartType = mealType === 2 ? 4 : 2;
-                                    const counterpartCb = document.querySelector(
-                                        `input[name="meals[${counterpartType}][${roomId}]"]`
-                                    );
-                                    if (counterpartCb && isChecked) {
-                                        counterpartCb.checked = false;
-                                    }
-                                }
-
-                                // イベントの重複登録を防ぐ
-                                cb.removeEventListener('change', cb._onchangeHandler ?? (() => {}));
-                                cb._onchangeHandler = () => {
-                                    const allChecked = [...checkboxes].every(c => c.checked);
-                                    if (headerCheckbox) {
-                                        headerCheckbox.checked = allChecked;
-                                    }
-
-                                    // 排他（変更時）
-                                    const nameMatch = cb.name.match(/^meals\[(\d+)]\[(\d+)]$/);
-                                    if (nameMatch && (mealType === 2 || mealType === 4)) {
-                                        const roomId = nameMatch[2];
-                                        const counterpartType = mealType === 2 ? 4 : 2;
-                                        const counterpartCb = document.querySelector(
-                                            `input[name="meals[${counterpartType}][${roomId}]"]`
-                                        );
-                                        if (counterpartCb && cb.checked) {
-                                            counterpartCb.checked = false;
-                                        }
-                                    }
-                                };
-                                cb.addEventListener('change', cb._onchangeHandler);
-                            });
-
-                            // 最終的な一括チェック状態（初期同期）
-                            const allChecked = [...checkboxes].every(c => c.checked);
                             if (headerCheckbox) {
+                                const allChecked = [...checkboxes].every(cb => cb.checked);
                                 headerCheckbox.checked = allChecked;
                             }
                         }
 
+                        document.addEventListener('DOMContentLoaded', () => {
+                            // 個人予約テーブルの各チェックボックスに change イベントバインド
+                            const mealTypes = [1, 2, 3, 4];
+                            mealTypes.forEach(mealType => {
+                                const checkboxes = document.querySelectorAll(
+                                    `input[type="checkbox"][name^="meals[${mealType}]"]`
+                                );
 
+                                const headerCheckbox = document.querySelector(
+                                    `input[type="checkbox"][onclick^="toggleAllRooms(${mealType},"]`
+                                );
+
+                                checkboxes.forEach(cb => {
+                                    cb.removeEventListener('change', cb._onchangeHandler ?? (() => {}));
+                                    cb._onchangeHandler = () => {
+                                        const allChecked = [...checkboxes].every(c => c.checked);
+                                        if (headerCheckbox) {
+                                            headerCheckbox.checked = allChecked;
+                                        }
+                                    };
+                                    cb.addEventListener('change', cb._onchangeHandler);
+                                });
+                            });
+                        });
+                    </script>
+                    <!-- ======================== Script ======================== -->
+                    <script>
+                        /* 既存のユーティリティ関数はそのまま -------------------- */
                         function toggleAllUsers(mealTime, isChecked) {
                             const map = {morning: 1, noon: 2, night: 3, bento: 4};
                             const mealType = map[mealTime];
@@ -247,12 +234,6 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                                 headerCheckbox.checked = allChecked;
                             }
                         }
-
-
-
-
-
-
 
                         /* ==== 昼⇄弁当ペアリング用ユーティリティ ================= */
                         function setupLunchBentoPair(lunchCb, bentoCb) {
