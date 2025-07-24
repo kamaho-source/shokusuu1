@@ -826,6 +826,16 @@ class TReservationInfoController extends AppController
         $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomId', 'userLevel'));
     }
 
+    private function getMealTypeLabel($mealType): string
+    {
+        return [
+            1 => '朝食',
+            2 => '昼食',
+            3 => '夕食',
+            4 => '弁当',
+        ][$mealType] ?? (string)$mealType;
+    }
+
     /**
      * 個人予約の処理 - ユーザーの個人予約データを処理する
      *
@@ -845,6 +855,22 @@ class TReservationInfoController extends AppController
      * @param string                          $reservationDate 予約日 (Y-m-d)
      * @param string|array<string, mixed>     $jsonData        送信された JSON
      * @param array<int, string>              $rooms           ログインユーザーが操作可能な部屋一覧
+     * @return \Cake\Http\Response
+     */
+    /**
+     * 個人予約登録（更新）処理
+     *
+     * @param string       $reservationDate 対象日付（Y-m-d）
+     * @param string|array $jsonData        POST された JSON 文字列 または 配列
+     * @param array<int>   $rooms           権限を持つ部屋一覧 [roomId => roomName]
+     * @return \Cake\Http\Response
+     */
+    /**
+     * 個人予約登録処理
+     *
+     * @param string              $reservationDate 予約日 (Y-m-d)
+     * @param string|array<mixed> $jsonData        画面から送られて来た JSON
+     * @param array<int,int>      $rooms           権限制御用 (roomId => roomId)
      * @return \Cake\Http\Response
      */
     private function processIndividualReservation($reservationDate, $jsonData, $rooms)
@@ -887,8 +913,9 @@ class TReservationInfoController extends AppController
          * 初期化
          * ───────────────────────────────────── */
         $reservationsToSave   = [];
-        $operationPerformed   = false;                 // 更新が行われたかどうか
-        $selectedRoomPerMeal  = [];                    // 食事区分ごとに選択された部屋
+        $operationPerformed   = false; // 更新／新規登録が行われたか
+        $selectedRoomPerMeal  = [];    // 食事区分ごとの選択部屋
+        $duplicates           = [];    // 既存予約（スキップ対象）
         $userId               = $this->request->getAttribute('identity')->get('i_id_user');
         $userName             = $this->request->getAttribute('identity')->get('c_user_name');
 
@@ -899,7 +926,7 @@ class TReservationInfoController extends AppController
         foreach ($data['meals'] as $mealType => $selectedRooms) {
             foreach ($selectedRooms as $roomId => $value) {
                 if ($value != 1) {
-                    continue; // チェックが付いていない
+                    continue; // チェックなし
                 }
 
                 Log::debug("Processing reservation for Meal Type: {$mealType}, Room ID: {$roomId}");
@@ -948,8 +975,15 @@ class TReservationInfoController extends AppController
                         $operationPerformed = true;
                         continue;
                     }
-                    Log::error('同じ日付と食事タイプの予約が既に存在します。');
-                    return $this->jsonErrorResponse(__('同じ日付と食事タイプの予約が既に存在します。'));
+
+                    // 予約済み（eat_flag = 1）の場合はスキップ対象として記録
+                    $duplicates[] = [
+                        'reservation_date' => $reservationDate,
+                        'meal_type'        => $mealType,
+                        'room_id'          => $roomId,
+                    ];
+                    Log::info('既存予約のためスキップ: ' . json_encode(end($duplicates), JSON_UNESCAPED_UNICODE));
+                    continue;
                 }
 
                 /* 3-4. 新規予約エンティティ作成 */
@@ -972,19 +1006,41 @@ class TReservationInfoController extends AppController
         /* ─────────────────────────────────────
          * ④ 保存処理
          * ───────────────────────────────────── */
-        // 新規予約がある場合
         if (!empty($reservationsToSave)) {
-            if ($this->TIndividualReservationInfo->saveMany($reservationsToSave)) {
-                return $this->jsonSuccessResponse(
-                    __('個人予約が正常に登録されました。'),
-                    [],
-                    $this->request->getAttribute('webroot') . 'TReservationInfo/'
+            // 失敗時に詳細エラーメッセージを収集して返却
+            if (!$this->TIndividualReservationInfo->saveMany($reservationsToSave)) {
+                $errorMessages = [];
+
+                foreach ($reservationsToSave as $entity) {
+                    foreach ($entity->getErrors() as $fieldErrors) {
+                        foreach ($fieldErrors as $message) {
+                            $errorMessages[] = $message; // 既に日本語メッセージを設定済み
+                        }
+                    }
+                }
+
+                if (empty($errorMessages)) {
+                    $errorMessages[] = '原因不明のエラーが発生しました。';
+                }
+
+                return $this->jsonErrorResponse(
+                    __('予約の登録中にエラーが発生しました。詳細: {0}', implode('、', $errorMessages))
                 );
             }
-            return $this->jsonErrorResponse(__('システムエラーが発生しました。'));
+            $operationPerformed = true;
         }
 
-        // 更新のみ行われた場合
+        /* ─────────────────────────────────────
+         * ⑤ レスポンス生成
+         * ───────────────────────────────────── */
+        if (!empty($duplicates)) {
+            return $this->jsonSuccessResponse(
+                __('一部の予約は既に存在するため、スキップされました。'),
+                ['skipped' => $duplicates],
+                $this->request->getAttribute('webroot') . 'TReservationInfo/'
+            );
+        }
+
         if ($operationPerformed) {
             return $this->jsonSuccessResponse(
                 __('個人予約が正常に登録されました。'),
@@ -998,7 +1054,6 @@ class TReservationInfoController extends AppController
          * ───────────────────────────────────── */
         return $this->jsonErrorResponse(__('システムエラーが発生しました。'));
     }
-
 
 
     /**
@@ -1119,10 +1174,30 @@ class TReservationInfoController extends AppController
 
         // 予約登録処理
         if (!empty($reservationsToSave)) {
+            // 失敗した場合は各エンティティのエラーメッセージを日本語で収集して返却
             if (!$this->TIndividualReservationInfo->saveMany($reservationsToSave)) {
-                return $this->jsonErrorResponse(__('予約の登録中にエラーが発生しました。'));
+                $errorMessages = [];
+
+                foreach ($reservationsToSave as $entity) {
+                    // Validation や RulesChecker で発生したエラーを取得
+                    foreach ($entity->getErrors() as $fieldErrors) {
+                        foreach ($fieldErrors as $message) {
+                            $errorMessages[] = $message;      // 既に日本語メッセージを設定済み
+                        }
+                    }
+                }
+
+                // メッセージが取れなかった場合は汎用エラー文を設定
+                if (empty($errorMessages)) {
+                    $errorMessages[] = '原因不明のエラーが発生しました。';
+                }
+
+                return $this->jsonErrorResponse(
+                    __('予約の登録中にエラーが発生しました。詳細: {0}', implode('、', $errorMessages))
+                );
             }
         }
+
 
         // 重複がある場合は警告付きで成功レスポンスを返す
         if (!empty($duplicates)) {
