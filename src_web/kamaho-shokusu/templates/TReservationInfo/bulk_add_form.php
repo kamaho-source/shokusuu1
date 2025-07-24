@@ -13,9 +13,9 @@ $twoWeeksLater = (clone $currentDate)->modify('+14 days'); // ★ 変数名を�
 
 // 選択された日付
 $selectedDateObj = new \DateTime($selectedDate);
-
+$this->Html->script('bulk_add_form.js', ['block' => 'script']);
 // 予約不可の条件（今日から2週間後まで “含む”）
-$isDisabled = ($selectedDateObj <= $twoWeeksLater); // ★ 「<」→「<=」に修正
+$isDisabled = ($selectedDateObj >= $currentDate && $selectedDateObj <= $twoWeeksLater); // ★ 判定を修正
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -30,6 +30,8 @@ $isDisabled = ($selectedDateObj <= $twoWeeksLater); // ★ 「<」→「<=」に
     <h3>日付: <?= h($selectedDate) ?></h3>
 
     <form action="<?= $this->Url->build(['action' => 'bulkAddSubmit']) ?>" method="post" id="reservation-form">
+        <!-- ★ CakePHP CSRF 用 hidden フィールド -->
+        <input type="hidden" name="_csrfToken" value="<?= h($this->request->getAttribute('csrfToken')) ?>">
         <!-- =========================================================
              日付選択
         ========================================================= -->
@@ -37,10 +39,12 @@ $isDisabled = ($selectedDateObj <= $twoWeeksLater); // ★ 「<」→「<=」に
             <legend>一括予約の日付を選択</legend>
             <?php foreach ($dates as $dateObj): ?>
                 <?php
-                $dateStr         = is_object($dateObj) ? $dateObj->format('Y-m-d') : $dateObj;
-                $dayOfWeek       = $dayOfWeekList[(new \DateTime($dateStr))->format('N') - 1];
-                // ★ 変数名・判定を修正
-                $isDateDisabled  = (new \DateTime($dateStr) <= $twoWeeksLater);
+                $dateStr   = is_object($dateObj) ? $dateObj->format('Y-m-d') : $dateObj;
+                $dayOfWeek = $dayOfWeekList[(new \DateTime($dateStr))->format('N') - 1];
+
+                // ★ 判定を修正（今日≦日付≦2週間後）
+                $dateTimeObj    = new \DateTime($dateStr);
+                $isDateDisabled = ($dateTimeObj >= $currentDate && $dateTimeObj <= $twoWeeksLater);
                 ?>
                 <div class="form-group">
                     <label><?= h($dateStr) ?> (<?= $dayOfWeek ?>)</label>
