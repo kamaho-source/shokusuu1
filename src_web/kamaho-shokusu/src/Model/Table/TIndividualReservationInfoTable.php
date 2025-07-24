@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use Cake\ORM\Table;
-use Cake\ORM\RulesChecker;          // 追加
+use Cake\ORM\RulesChecker;
 use Cake\Validation\Validator;
 
 class TIndividualReservationInfoTable extends Table
@@ -86,16 +86,45 @@ class TIndividualReservationInfoTable extends Table
 
                 // 既存のレコードを除外する（編集の場合）
                 if (!empty($context['data']['i_id_room'])) {
-                    $conditions[] = ['i_id_room !=' => $context['data']['i_id_room']];
+                    $conditions['i_id_room !='] = $context['data']['i_id_room'];
                 }
 
-                $count = $this->find()
-                    ->where($conditions)
-                    ->count();
-
-                return $count === 0;
+                return $this->find()->where($conditions)->count() === 0;
             },
             'message' => 'This reservation already exists for the given date and meal type.'
+        ]);
+
+        // ─────────────────────────────────────────────
+        // 「昼(2)」と「弁当(4)」を同一グループと見なした重複チェック
+        // ─────────────────────────────────────────────
+        $validator->add('d_reservation_date', 'uniqueLunchOrBento', [
+            'rule' => function ($value, $context) {
+                $data = $context['data'] ?? [];
+
+                // 必要なキーが未入力なら他のバリデーションに任せる
+                foreach (['i_id_user', 'i_reservation_type'] as $k) {
+                    if (!isset($data[$k])) {
+                        return true;
+                    }
+                }
+
+                $type  = (int)$data['i_reservation_type'];
+                $types = in_array($type, [2, 4], true) ? [2, 4] : [$type];
+
+                $conditions = [
+                    'i_id_user'             => $data['i_id_user'],
+                    'd_reservation_date'    => $value,
+                    'i_reservation_type IN' => $types,
+                ];
+
+                // 既存レコード更新時は自分自身を除外
+                if (!empty($data['i_id_room'])) {
+                    $conditions['i_id_room !='] = $data['i_id_room'];
+                }
+
+                return !$this->exists($conditions);
+            },
+            'message' => '同じ日付で「昼」または「弁当」は重複して登録できません。'
         ]);
 
         return $validator;
@@ -104,25 +133,30 @@ class TIndividualReservationInfoTable extends Table
     /**
      * RulesChecker による一意性保証
      *
-     * 同じユーザーが同じ日付・食事区分で複数の部屋を予約できないよう制限します。
+     * 同じユーザーが同じ日付で「昼／弁当」を 1 部屋しか予約できないよう制限します。
      */
     public function buildRules(RulesChecker $rules): RulesChecker
     {
         $rules->add(
-            function ($entity, $options) {
+            function ($entity) {
                 // 食事を取らない行（eat_flag = 0）は重複チェックの対象外
                 if ((int)$entity->eat_flag === 0) {
                     return true;
                 }
 
+                // 「昼(2)」と「弁当(4)」は同一グループ扱い
+                $types = in_array((int)$entity->i_reservation_type, [2, 4], true)
+                    ? [2, 4]
+                    : [$entity->i_reservation_type];
+
                 $conditions = [
-                    'i_id_user'          => $entity->i_id_user,
-                    'd_reservation_date' => $entity->d_reservation_date,
-                    'i_reservation_type' => $entity->i_reservation_type,
-                    'eat_flag'           => 1,
+                    'i_id_user'             => $entity->i_id_user,
+                    'd_reservation_date'    => $entity->d_reservation_date,
+                    'i_reservation_type IN' => $types,
+                    'eat_flag'              => 1,
                 ];
 
-                // 更新時は自分自身の部屋 ID を除外
+                // 更新時は自分のレコードを除外
                 if (!$entity->isNew()) {
                     $conditions['i_id_room !='] = $entity->i_id_room;
                 }
@@ -132,7 +166,7 @@ class TIndividualReservationInfoTable extends Table
             'uniqueDayMeal',
             [
                 'errorField' => 'i_id_room',
-                'message'    => '同じ日付・食事区分では 1 部屋のみ予約できます。'
+                'message'    => '同じ日付で「昼」または「弁当」は 1 部屋のみ予約できます。'
             ]
         );
 
