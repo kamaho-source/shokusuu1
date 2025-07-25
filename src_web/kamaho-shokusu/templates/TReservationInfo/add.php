@@ -179,7 +179,7 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                             );
 
                             const headerCheckbox = document.querySelector(
-                                `input[type="checkbox"][onclick^="toggleAllUsers('${mealTime}'"]`
+                                `input[type="checkbox"][onclick^="toggleAllUsers('${mealTime}',"]`
                             );
 
                             checkboxes.forEach(cb => {
@@ -190,14 +190,11 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                                 if (match && (mealType === 2 || mealType === 4)) {
                                     const userId = match[1];
                                     const counterpartType = mealType === 2 ? 4 : 2;
-                                    const counterpartMealTime = mealType === 2 ? 'bento' : 'noon';
                                     const counterpartCb = document.querySelector(
                                         `input[name="users[${userId}][${counterpartType}]"]`
                                     );
                                     if (counterpartCb && isChecked) {
                                         counterpartCb.checked = false;
-
-                                        // ✅ 変更イベントを明示的に発火（これが重要）
                                         counterpartCb.dispatchEvent(new Event('change'));
                                     }
                                 }
@@ -215,7 +212,6 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                                     if (match && (mealType === 2 || mealType === 4)) {
                                         const userId = match[1];
                                         const counterpartType = mealType === 2 ? 4 : 2;
-                                        const counterpartMealTime = mealType === 2 ? 'bento' : 'noon';
                                         const counterpartCb = document.querySelector(
                                             `input[name="users[${userId}][${counterpartType}]"]`
                                         );
@@ -240,10 +236,10 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                             if (!lunchCb || !bentoCb) return;
                             if (lunchCb.dataset._paired || bentoCb.dataset._paired) return;
 
-                            const updateHeaderCheckbox = (changedCb, mealType) => {
+                            const updateHeaderCheckbox = (mealType) => {
                                 const allCbs = document.querySelectorAll(`input[name^="users"][name$="[${mealType}]"]`);
                                 const headerCb = document.querySelector(
-                                    `input[type="checkbox"][onclick^="toggleAllUsers('${mealType === 2 ? 'noon' : 'bento'}'"]`
+                                    `input[type="checkbox"][onclick^="toggleAllUsers('${mealType === 2 ? 'noon' : 'bento'}',"]`
                                 );
                                 if (!headerCb) return;
                                 const allChecked = [...allCbs].every(c => c.checked);
@@ -254,9 +250,7 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                                 if (lunchCb.checked) {
                                     bentoCb.checked = false;
                                     bentoCb.dispatchEvent(new Event('change'));
-
-                                    // 昼をチェック → 弁当が外れる → 弁当の一括状態更新
-                                    updateHeaderCheckbox(bentoCb, 4);
+                                    updateHeaderCheckbox(4);
                                 }
                             });
 
@@ -264,9 +258,7 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                                 if (bentoCb.checked) {
                                     lunchCb.checked = false;
                                     lunchCb.dispatchEvent(new Event('change'));
-
-                                    // 弁当をチェック → 昼が外れる → 昼の一括状態更新
-                                    updateHeaderCheckbox(lunchCb, 2);
+                                    updateHeaderCheckbox(2);
                                 }
                             });
 
@@ -375,18 +367,18 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                             /* ヘッダーの “全選択” チェックボックス排他 */
                             setupLunchBentoPair(
                                 document.querySelector(
-                                    '#room-table-container thead input[onclick^="toggleAllRooms(2"]'
+                                    '#room-table-container thead input[onclick^="toggleAllRooms(2,"]'
                                 ),
                                 document.querySelector(
-                                    '#room-table-container thead input[onclick^="toggleAllRooms(4"]'
+                                    '#room-table-container thead input[onclick^="toggleAllRooms(4,"]'
                                 )
                             );
                             setupLunchBentoPair(
                                 document.querySelector(
-                                    '#user-table-container thead input[onclick^="toggleAllUsers(\'noon\'"]'
+                                    '#user-table-container thead input[onclick^="toggleAllUsers(\'noon\',"]'
                                 ),
                                 document.querySelector(
-                                    '#user-table-container thead input[onclick^="toggleAllUsers(\'bento\'"]'
+                                    '#user-table-container thead input[onclick^="toggleAllUsers(\'bento\',"]'
                                 )
                             );
 
@@ -459,7 +451,7 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
         const bentoCbs = document.querySelectorAll('.meal-bento');         // 複数「弁当」
 
         const onLunchChange = () => {
-            if (lunchCb.checked) {
+            if (lunchCb && lunchCb.checked) {
                 // 「昼」がチェックされたら弁当は全てチェックを外す
                 bentoCbs.forEach(cb => { cb.checked = false; });
             }
@@ -468,7 +460,7 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
         const onBentoChange = () => {
             // 弁当が一つでもチェックされたら「昼」を外す
             if ([...bentoCbs].some(cb => cb.checked)) {
-                lunchCb.checked = false;
+                if (lunchCb) lunchCb.checked = false;
             }
         };
 
