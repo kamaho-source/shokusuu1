@@ -54,12 +54,8 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                     <div class="form-group">
                         <label for="c_reservation_type">予約タイプ(個人/集団)</label>
                         <select id="c_reservation_type" name="reservation_type" class="form-control">
-                            <?php if ($user->get('i_user_level') == 1):?>
-                                <option value="1" selected>個人</option>
-                            <?php else: ?>
                                 <option value="" selected disabled>-- 予約タイプを選択 --</option>
                                 <option value="1">個人</option>
-                            <?php endif; ?>
                             <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
                                 <option value="2">集団</option>
                             <?php endif; ?>
