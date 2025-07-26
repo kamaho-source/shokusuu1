@@ -150,16 +150,29 @@ $mealDataArray = $mealDataArray ?? [];
          * 期間開始日＝月初、期間終了日＝月末 を自動設定
          * @param {FullCalendar.View} view
          */
+        function formatYmd(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        /**
+         * カレンダー側の表示月が変わったら
+         * 期間開始日＝月初、期間終了日＝月末 を自動設定
+         * @param {FullCalendar.View} view
+         */
         function updateInputsByCalendar(view) {
             if (!fromDateInput || !toDateInput) return;
 
-            const start = view.currentStart;               // 当月 1 日
-            const end   = new Date(view.currentEnd);       // 翌月 1 日
-            end.setDate(end.getDate() - 1);                // 当月末日に補正
+            const start = view.currentStart;         // 当月 1 日（ローカル）
+            const end   = new Date(view.currentEnd); // 翌月 1 日（ローカル）
+            end.setDate(end.getDate() - 1);          // 当月末日に補正
 
-            fromDateInput.value = start.toISOString().slice(0, 10);
-            toDateInput.value   = end  .toISOString().slice(0, 10);
+            fromDateInput.value = formatYmd(start);
+            toDateInput.value   = formatYmd(end);
         }
+
 
         /**
          * 期間開始日を手入力で変更したら
