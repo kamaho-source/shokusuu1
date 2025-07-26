@@ -600,9 +600,11 @@ class TReservationInfoController extends AppController
             ];
         }
 
+
         // JSON形式で返却
         return $this->response->withType('application/json')
             ->withStringBody(json_encode(['usersByRoom' => $usersByRoom]));
+
     }
 
     /**
@@ -814,6 +816,9 @@ class TReservationInfoController extends AppController
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
+            if (empty($data['d_reservation_date'])) {
+               $data['d_reservation_date'] = $date;
+            }
             $reservationType = $data['reservation_type'] ?? '1';
 
             if ($reservationType == 1) {
@@ -826,24 +831,6 @@ class TReservationInfoController extends AppController
         $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomId', 'userLevel'));
     }
 
-    private function getMealTypeLabel($mealType): string
-    {
-        return [
-            1 => '朝食',
-            2 => '昼食',
-            3 => '夕食',
-            4 => '弁当',
-        ][$mealType] ?? (string)$mealType;
-    }
-
-    /**
-     * 個人予約の処理 - ユーザーの個人予約データを処理する
-     *
-     * @param string $reservationDate 予約日
-     * @param array|string $jsonData 予約データ（JSON文字列または連想配列）
-     * @param array $rooms 予約可能な部屋の連想配列
-     * @return \Cake\Http\Response JSONレスポンスを返す
-     */
     /**
      * 個人予約登録／更新
      *
@@ -855,22 +842,6 @@ class TReservationInfoController extends AppController
      * @param string                          $reservationDate 予約日 (Y-m-d)
      * @param string|array<string, mixed>     $jsonData        送信された JSON
      * @param array<int, string>              $rooms           ログインユーザーが操作可能な部屋一覧
-     * @return \Cake\Http\Response
-     */
-    /**
-     * 個人予約登録（更新）処理
-     *
-     * @param string       $reservationDate 対象日付（Y-m-d）
-     * @param string|array $jsonData        POST された JSON 文字列 または 配列
-     * @param array<int>   $rooms           権限を持つ部屋一覧 [roomId => roomName]
-     * @return \Cake\Http\Response
-     */
-    /**
-     * 個人予約登録処理
-     *
-     * @param string              $reservationDate 予約日 (Y-m-d)
-     * @param string|array<mixed> $jsonData        画面から送られて来た JSON
-     * @param array<int,int>      $rooms           権限制御用 (roomId => roomId)
      * @return \Cake\Http\Response
      */
     private function processIndividualReservation($reservationDate, $jsonData, $rooms)
