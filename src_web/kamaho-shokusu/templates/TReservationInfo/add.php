@@ -11,7 +11,7 @@ use Cake\Form\Schema;
 use Cake\Validation\Validator;
 
 $this->assign('title', '食数予約の追加');
-$this->Html->script('reservation', ['block' => true]);
+$this->Html->script('reservation.js', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
 echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
@@ -54,8 +54,12 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                     <div class="form-group">
                         <label for="c_reservation_type">予約タイプ(個人/集団)</label>
                         <select id="c_reservation_type" name="reservation_type" class="form-control">
-                            <option value="" selected disabled>-- 予約タイプを選択 --</option>
-                            <option value="1">個人</option>
+                            <?php if ($user->get('i_user_level') == 1):?>
+                                <option value="1" selected>個人</option>
+                            <?php else: ?>
+                                <option value="" selected disabled>-- 予約タイプを選択 --</option>
+                                <option value="1">個人</option>
+                            <?php endif; ?>
                             <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
                                 <option value="2">集団</option>
                             <?php endif; ?>
@@ -413,26 +417,27 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
         /* ────────── 予約タイプ・部屋選択表示制御 ────────── */
         const typeSelect   = document.getElementById('c_reservation_type');
         const roomTable    = document.getElementById('room-selection-table');
-        const roomSelectGp = document.getElementById('room-select-group');
-        const userTableGp  = document.getElementById('user-selection-table');
+        const roomSelectGp = document.getElementById('room-select-group');  // ★ null 可
+        const userTableGp  = document.getElementById('user-selection-table'); // ★ null 可
 
         const handleTypeChange = () => {
             const val = typeSelect.value;
-            if (val === '1') {              // 個人予約
-                roomTable.style.display    = '';
-                roomSelectGp.style.display = 'none';
-                userTableGp.style.display  = 'none';
+            if (val === '1') {
+                if (roomTable)    roomTable.style.display    = '';
+                if (roomSelectGp) roomSelectGp.style.display = 'none';
+                if (userTableGp)  userTableGp.style.display  = 'none';
                 fetchPersonalReservationData();
-            } else if (val === '2') {       // 集団予約
-                roomTable.style.display    = 'none';
-                roomSelectGp.style.display = '';
-                userTableGp.style.display  = 'none';
-            } else {                        // 未選択
-                roomTable.style.display    = 'none';
-                roomSelectGp.style.display = 'none';
-                userTableGp.style.display  = 'none';
+            } else if (val === '2') {
+                if (roomTable)    roomTable.style.display    = 'none';
+                if (roomSelectGp) roomSelectGp.style.display = '';
+                if (userTableGp)  userTableGp.style.display  = 'none';
+            } else {
+                if (roomTable)    roomTable.style.display    = 'none';
+                if (roomSelectGp) roomSelectGp.style.display = 'none';
+                if (userTableGp)  userTableGp.style.display  = 'none';
             }
         };
+
 
         const roomSelect = document.getElementById('room-select');
         const handleRoomChange = () => {
