@@ -10,6 +10,12 @@ $user = $this->request->getAttribute('identity');
 $myReservationDates = $myReservationDates ?? [];
 
 /**
+ * 予約詳細（朝・昼・夜・弁当の予約有無）
+ * 未定義だと notice になるため空配列で初期化
+ */
+$myReservationDetails = $myReservationDetails ?? [];
+
+/**
  * 予約集計用データ（朝・昼・夜・弁当別件数）
  * 未定義だと notice になるため空配列で初期化
  */
@@ -101,20 +107,47 @@ $mealDataArray = $mealDataArray ?? [];
             '<?= h($reservedDate) ?>',
             <?php endforeach; ?>
         ];
+        <?php
+        /* ========== 予約済イベント（詳細付き） ========== */
+        $icon = static function ($v) {
+            // ※ 値が null のときだけ未設定扱い
+            if ($v === null) {
+                return '🙅';
+            }
+            // truthy → 予約あり, falsy → 予約なし
+            return $v ? '🙆' : '🙅';
+        };
+
+        ?>
+
 
         /* ===== 既存イベント（予約済・集計済み食数） ===== */
         const existingEvents = [
             <?php foreach ($myReservationDates as $reservedDate): ?>
+            <?php
+            // 指定日の詳細情報を取得（存在しない場合は空配列）
+            $detail = $myReservationDetails[$reservedDate] ?? [];
+
+            // タイトル文字列を組み立て
+            $title = sprintf(
+                '(朝:%s 昼:%s 夜:%s 弁当:%s)',
+                $icon($detail['breakfast'] ?? null),
+                $icon($detail['lunch']     ?? null),
+                $icon($detail['dinner']    ?? null),
+                $icon($detail['bento']     ?? null)
+            );
+            ?>
             {
-                title: '予約済',
+                title: '<?= h($title) ?>',
                 start: '<?= h($reservedDate) ?>',
                 allDay: true,
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
                 textColor: 'white',
-                displayOrder: -2   // ★ 未予約より優先
+                displayOrder: -2 // ★ 未予約イベントより優先表示
             },
             <?php endforeach; ?>
+
 
             <?php if (!empty($mealDataArray)): ?>
             <?php
@@ -146,9 +179,9 @@ $mealDataArray = $mealDataArray ?? [];
            カレンダー ⇔ 入力欄 同期用ユーティリティ
         ========================================================= */
         /**
-         * カレンダー側の表示月が変わったら
-         * 期間開始日＝月初、期間終了日＝月末 を自動設定
-         * @param {FullCalendar.View} view
+         * 指定日付を YYYY-MM-DD 形式にフォーマット
+         * @param {Date} date
+         * @returns {string}
          */
         function formatYmd(date) {
             const y = date.getFullYear();
