@@ -282,12 +282,28 @@ $mealDataArray = $mealDataArray ?? [];
             },
             eventOrder: 'displayOrder',
             dateClick: info => {
-                const d = new Date(info.dateStr);
-                if (d.getDay() === 1 && confirm('週の一括予約を行いますか？')) {
-                    window.location.href = '<?= $this->Url->build('/TReservationInfo/bulkAddForm') ?>?date=' + info.dateStr;
-                    return;
+                const clickedDate = new Date(info.dateStr);           // クリックした日
+                const today       = new Date();                       // 今日
+                today.setHours(0, 0, 0, 0);                           // 時間を 00:00 に固定
+
+                // クリック日 − 今日 の差（日数）
+                const diffDays = (clickedDate - today) / 86_400_000;  // 86 400 000 = 1000*60*60*24
+
+                const isMonday      = clickedDate.getDay() === 1;     // 月曜？
+                const within14Days  = diffDays >= 0 && diffDays <= 14;// 当日を含め 14 日以内？
+
+                // 週の一括予約は「15 日前」より先の月曜のみ許可
+                if (isMonday && !within14Days) {
+                    if (confirm('週の一括予約を行いますか？')) {
+                        window.location.href =
+                            '<?= $this->Url->build("/TReservationInfo/bulkAddForm") ?>?date=' + info.dateStr;
+                    }
+                    return; // 月曜処理で終了
                 }
-                window.location.href = '<?= $this->Url->build('/TReservationInfo/view') ?>?date=' + info.dateStr;
+
+                // それ以外は通常の個別予約一覧へ
+                window.location.href =
+                    '<?= $this->Url->build("/TReservationInfo/view") ?>?date=' + info.dateStr;
             }
         });
 
