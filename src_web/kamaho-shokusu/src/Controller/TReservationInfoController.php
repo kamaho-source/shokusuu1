@@ -2173,6 +2173,116 @@ class TReservationInfoController extends AppController
         }
     }
 
+public function exportJsonChangeFlag()
+    {
+        try {
+            /* =============================================================
+             * 1. パラメータ取得
+             *      - from : 期間開始日 (YYYY-MM-DD)
+             *      - to   : 期間終了日 (YYYY-MM-DD)
+             * ============================================================= */
+            $from = $this->request->getQuery('from'); // 例: 2025-07-01
+            $to   = $this->request->getQuery('to');   // 例: 2025-07-15
+
+            if (!$from || !$to) {
+                throw new \InvalidArgumentException(
+                    '開始日・終了日を指定してください (例: from=2025-07-01&to=2025-07-15)'
+                );
+            }
+
+            try {
+                $startDate = new \DateTimeImmutable($from);
+                $endDate   = new \DateTimeImmutable($to);
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException('日付の形式が正しくありません (YYYY-MM-DD)');
+            }
+
+            if ($startDate > $endDate) {
+                throw new \InvalidArgumentException('開始日は終了日以前の日付を指定してください');
+            }
+
+            /* =============================================================
+             * 2. DB から予約データ取得
+             * ============================================================= */
+            $reservations = $this->TIndividualReservationInfo->find()
+                ->select([
+                    'room_id'      => 'TIndividualReservationInfo.i_id_room',
+                    'room_name'    => 'MRoomInfo.c_room_name',
+                    'd_reservation_date',
+                    'meal_type'    => 'TIndividualReservationInfo.i_reservation_type',
+                    'total_eaters' => $this->TIndividualReservationInfo->find()->func()->count('*'),
+                ])
+                ->join([
+                    'table'      => 'm_room_info',
+                    'alias'      => 'MRoomInfo',
+                    'type'       => 'INNER',
+                    'conditions' => 'MRoomInfo.i_id_room = TIndividualReservationInfo.i_id_room',
+                ])
+                ->where([
+                    'TIndividualReservationInfo.i_change_flag'              => 1,
+                    'TIndividualReservationInfo.d_reservation_date >=' => $startDate->format('Y-m-d'),
+                    'TIndividualReservationInfo.d_reservation_date <=' => $endDate->format('Y-m-d'),
+                ])
+                ->groupBy([
+                    'TIndividualReservationInfo.i_id_room',
+                    'MRoomInfo.c_room_name',
+                    'TIndividualReservationInfo.d_reservation_date',
+                    'TIndividualReservationInfo.i_reservation_type',
+                ])
+                ->enableHydration(false)
+                ->toArray();
+
+            /* =============================================================
+             * 3. データ整形（以下ロジックはそのまま）
+             * ============================================================= */
+            $result      = ['overall' => [], 'rooms' => []];
+            $overallTmp  = [];
+            $mealTypeMap = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
+
+            foreach ($reservations as $reservation) {
+                $roomName    = $reservation['room_name'];
+                $date        = $reservation['d_reservation_date']->format('Y-m-d');
+                $mealLabel   = $mealTypeMap[$reservation['meal_type']];
+                $totalEaters = (int)$reservation['total_eaters'];
+
+                /* ---------- rooms ---------- */
+                if (!isset($result['rooms'][$roomName][$date])) {
+                    $result['rooms'][$roomName][$date] = ['朝' => 0, '昼' => 0, '夜' => 0, '弁当' => 0];
+                }
+                $result['rooms'][$roomName][$date][$mealLabel] += $totalEaters;
+
+                /* ---------- overall ---------- */
+                if (!isset($overallTmp[$roomName][$date])) {
+                    $overallTmp[$roomName][$date] = ['朝' => 0, '昼' => 0, '夜' => 0, '弁当' => 0];
+                }
+                $overallTmp[$roomName][$date][$mealLabel] += $totalEaters;
+            }
+
+            foreach ($overallTmp as $roomName => $dates) {
+                foreach ($dates as $date => $counts) {
+                    $result['overall'][] = array_merge(
+                        ['部屋名' => $roomName, '日付' => $date],
+                        $counts
+                    );
+                }
+            }
+
+            /* =============================================================
+             * 4. JSON で返却
+             * ============================================================= */
+            return $this->response
+                ->withType('application/json')
+                ->withStringBody(json_encode($result, JSON_UNESCAPED_UNICODE));
+        } catch (\Exception $e) {
+            Log::write('error', $e->getMessage());
+            return $this->response
+                ->withStatus(500)
+                ->withType('application/json')
+                ->withStringBody(json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+
     /**
      * JSON形式でランク別の予約情報をエクスポートするメソッド
      * 指定された月のランク別予約情報をJSON形式でエクスポートします。

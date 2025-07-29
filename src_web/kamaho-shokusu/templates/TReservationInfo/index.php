@@ -72,6 +72,9 @@ $mealDataArray = $mealDataArray ?? [];
                 id="downloadExcelRank" style="margin-bottom: 10px;">
             実施食数表をダウンロード
         </button>
+        <button class="btn btn-success float-lg-right mb-3" id="downloadExcelExport" style="margin-bottom: 10px;">
+            実施食数表(部屋)をダウンロード
+        </button>
     <?php endif; ?>
 
     <div id="calendar"></div>
@@ -144,7 +147,7 @@ $mealDataArray = $mealDataArray ?? [];
                 backgroundColor: '#28a745',
                 borderColor: '#28a745',
                 textColor: 'white',
-                displayOrder: -2 // ★ 未予約イベントより優先表示
+                extendedProps: { displayOrder: -2 } // ★ 未予約イベントより優先表示
             },
             <?php endforeach; ?>
 
@@ -165,7 +168,7 @@ $mealDataArray = $mealDataArray ?? [];
                 title: '<?= $name ?>: <?= $meals[$type] ?>人',
                 start: '<?= $date ?>',
                 allDay: true,
-                displayOrder: <?= $type ?>
+                extendedProps: { displayOrder: <?= $type ?> }
             },
             <?php
             endif;
@@ -254,12 +257,13 @@ $mealDataArray = $mealDataArray ?? [];
                             backgroundColor: 'red',
                             borderColor: 'red',
                             textColor: 'white',
-                            displayOrder: 0
+                            extendedProps: { displayOrder: 0 }
                         });
                     });
                 }
 
                 /* 未予約（予約日以外すべて） */
+                // 未予約（予約日以外すべて）
                 const unreservedEvents = [];
                 const cur = new Date(fetchInfo.start);
                 while (cur < fetchInfo.end) {
@@ -272,15 +276,25 @@ $mealDataArray = $mealDataArray ?? [];
                             backgroundColor: '#fd7e14',
                             borderColor: '#fd7e14',
                             textColor: 'white',
-                            displayOrder: -1
+                            extendedProps: { displayOrder: -10 } // ← ★ここを変更
                         });
                     }
                     cur.setDate(cur.getDate() + 1);
                 }
 
+
                 successCallback([...existingEvents, ...holidayEvents, ...unreservedEvents]);
             },
-            eventOrder: 'displayOrder',
+            eventOrder: function (a, b) {
+                const orderA = Number(a.extendedProps?.displayOrder ?? 0);
+                const orderB = Number(b.extendedProps?.displayOrder ?? 0);
+
+                // NaN 対策（念のため）
+                const safeA = isNaN(orderA) ? 0 : orderA;
+                const safeB = isNaN(orderB) ? 0 : orderB;
+
+                return safeA - safeB;
+            }, // ★ 表示優先度キーを変更
             dateClick: info => {
                 const clickedDate = new Date(info.dateStr);           // クリックした日
                 const today       = new Date();                       // 今日
@@ -329,8 +343,8 @@ $mealDataArray = $mealDataArray ?? [];
 
         const excelButton      = document.getElementById('downloadExcel');
         const rankExportButton = document.getElementById('downloadExcelRank');
+        const excelExportButton = document.getElementById('downloadExcelExport');
 
-        /* ===== 食数予定表エクスポート ===== */
         if (excelButton) {
             excelButton.addEventListener('click', async () => {
                 try {
@@ -353,8 +367,8 @@ $mealDataArray = $mealDataArray ?? [];
                         '<?= $this->Url->build('/TReservationInfo/exportJson') ?>' +
                         `?from=${fromDate}&to=${toDate}`,
                         {
-                            headers: { 'X-CSRF-Token': csrfToken }
-                        }
+                            headers: { 'X-CSRF-Token': csrfToken },
+                        },
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
@@ -371,6 +385,9 @@ $mealDataArray = $mealDataArray ?? [];
 
                     /* ========== 3. Excel 生成 ========== */
                     const workbook = new ExcelJS.Workbook();
+                    workbook.creator  = '食数予約システム';
+                    workbook.created  = new Date();
+                    workbook.modified = new Date();
 
                     /**
                      * ヘッダー行を追加
@@ -379,43 +396,53 @@ $mealDataArray = $mealDataArray ?? [];
                      */
                     const addHeader = (sheet, includeRoomName = false) => {
                         const header = includeRoomName
-                            ? ['日付', '部屋名', '朝食', '昼食', '夕食', '弁当']
-                            : ['日付', '朝食', '昼食', '夕食', '弁当'];
+                            ? ['日付', '部屋名', '朝食', '昼食', '夕食', '弁当', '合計']
+                            : ['日付', '朝食', '昼食', '夕食', '弁当', '合計'];
                         const row = sheet.addRow(header);
                         row.font = { bold: true };
+                        // ヘッダーで固定
+                        sheet.views = [{ state: 'frozen', ySplit: 1 }];
                     };
 
                     /**
-                     * 合計行を追加（デフォルトは非表示）
+                     * 合計行を追加（表示したままに変更）
                      * @param {ExcelJS.Worksheet} sheet
                      * @param {boolean} includeRoomName 部屋名列を含めるか
                      */
                     const addTotalRow = (sheet, includeRoomName = false) => {
-                        // 合計を格納する配列 [朝, 昼, 夜, 弁当]
-                        const totals = [0, 0, 0, 0];
+                        // 集計用配列 [朝, 昼, 夜, 弁当]
+                        const mealTotals = [0, 0, 0, 0];
 
                         // ヘッダー行（1 行目）を除外して数値を加算
                         sheet.eachRow((row, rowNumber) => {
                             if (rowNumber === 1) return; // ヘッダーはスキップ
-
-                            const offset = includeRoomName ? 2 : 1; // 日付+部屋名列分をオフセット
-                            for (let i = 0; i < totals.length; i++) {
-                                const value = Number(row.getCell(i + 1 + offset).value ?? 0);
-                                totals[i] += value;
+                            const offset = includeRoomName ? 2 : 1;
+                            for (let i = 0; i < mealTotals.length; i++) {
+                                mealTotals[i] += Number(row.getCell(offset + i + 1).value ?? 0);
                             }
                         });
 
-                        // “合計” 行の作成
+                        // “総計”列
+                        const grandTotal = mealTotals.reduce((a, b) => a + b, 0);
+
+                        // “合計” 行
                         const rowValues = includeRoomName
-                            ? ['合計', '', ...totals]
-                            : ['合計', ...totals];
+                            ? ['合計', '', ...mealTotals, grandTotal]
+                            : ['合計', ...mealTotals, grandTotal];
 
                         const totalRow = sheet.addRow(rowValues);
-                        totalRow.font   = { bold: true };
-                        totalRow.hidden = true;              // 非表示にしておく
+                        totalRow.font = { bold: true };
+
+                        // 目立たせるため罫線を引く
+                        totalRow.eachCell((cell) => {
+                            cell.border = {
+                                top:    { style: 'thin' },
+                                bottom: { style: 'double' },
+                            };
+                        });
                     };
 
-                    /* ----- 3-A. 全体シート（日付・部屋名別） ----- */
+                    /* ----- 3-A. 全体シート（日付 × 部屋名） ----- */
                     const overallSheet = workbook.addWorksheet('全体');
                     addHeader(overallSheet, true);
 
@@ -425,23 +452,29 @@ $mealDataArray = $mealDataArray ?? [];
                         const roomNames = Object.keys(data.rooms).sort();
 
                         // 全日付収集
-                        roomNames.forEach(room => {
-                            Object.keys(data.rooms[room] ?? {})
-                                .forEach(d => allDates.add(d));
+                        roomNames.forEach((room) => {
+                            Object.keys(data.rooms[room] ?? {}).forEach((d) => allDates.add(d));
                         });
                         const sortedDates = [...allDates].sort();
 
                         // 出力
-                        sortedDates.forEach(date => {
-                            roomNames.forEach(room => {
+                        sortedDates.forEach((date) => {
+                            roomNames.forEach((room) => {
                                 const counts = (data.rooms[room] ?? {})[date] ?? {};
+                                const total =
+                                    (counts['朝'] ?? 0) +
+                                    (counts['昼'] ?? 0) +
+                                    (counts['夜'] ?? 0) +
+                                    (counts['弁当'] ?? 0);
+
                                 overallSheet.addRow([
                                     date,
                                     room,
-                                    counts['朝']   ?? 0,
-                                    counts['昼']   ?? 0,
-                                    counts['夜']   ?? 0,
+                                    counts['朝'] ?? 0,
+                                    counts['昼'] ?? 0,
+                                    counts['夜'] ?? 0,
                                     counts['弁当'] ?? 0,
+                                    total,
                                 ]);
                             });
                         });
@@ -449,15 +482,22 @@ $mealDataArray = $mealDataArray ?? [];
                         /* 旧 API フォーマット（集計値のみ） -------------------- */
                         Object.keys(data.overall)
                             .sort()
-                            .forEach(date => {
+                            .forEach((date) => {
                                 const c = data.overall[date] ?? {};
+                                const total =
+                                    (c['朝'] ?? 0) +
+                                    (c['昼'] ?? 0) +
+                                    (c['夜'] ?? 0) +
+                                    (c['弁当'] ?? 0);
+
                                 overallSheet.addRow([
                                     date,
                                     '全体',
-                                    c['朝']   ?? 0,
-                                    c['昼']   ?? 0,
-                                    c['夜']   ?? 0,
+                                    c['朝'] ?? 0,
+                                    c['昼'] ?? 0,
+                                    c['夜'] ?? 0,
                                     c['弁当'] ?? 0,
+                                    total,
                                 ]);
                             });
                     }
@@ -467,7 +507,7 @@ $mealDataArray = $mealDataArray ?? [];
 
                     /* ----- 3-B. 部屋別シート（存在する場合のみ） ----- */
                     if (hasRooms) {
-                        Object.keys(data.rooms).forEach(roomNameRaw => {
+                        Object.keys(data.rooms).forEach((roomNameRaw) => {
                             // Excel のシート名は 31 文字 & 禁止文字除去
                             const sheetName =
                                 roomNameRaw.replace(/[:\\/?*\[\]]/g, '').substring(0, 31) || '部屋';
@@ -477,14 +517,21 @@ $mealDataArray = $mealDataArray ?? [];
                             const roomData = data.rooms[roomNameRaw];
                             Object.keys(roomData)
                                 .sort()
-                                .forEach(date => {
+                                .forEach((date) => {
                                     const m = roomData[date];
+                                    const total =
+                                        (m['朝'] ?? 0) +
+                                        (m['昼'] ?? 0) +
+                                        (m['夜'] ?? 0) +
+                                        (m['弁当'] ?? 0);
+
                                     sheet.addRow([
                                         date,
-                                        m['朝']   ?? 0,
-                                        m['昼']   ?? 0,
-                                        m['夜']   ?? 0,
+                                        m['朝'] ?? 0,
+                                        m['昼'] ?? 0,
+                                        m['夜'] ?? 0,
                                         m['弁当'] ?? 0,
+                                        total,
                                     ]);
                                 });
 
@@ -494,16 +541,217 @@ $mealDataArray = $mealDataArray ?? [];
                     }
 
                     /* ========== 4. ダウンロード ========== */
-                    await downloadWorkbook(
-                        workbook,
-                        `食数予約_${fromDate}〜${toDate}.xlsx`,
-                    );
+                    await downloadWorkbook(workbook, `食数予約_${fromDate}〜${toDate}.xlsx`);
                 } catch (error) {
                     console.error('エクスポート中にエラー発生:', error);
                     alert('エクスポート中にエラーが発生しました。管理者に連絡してください。');
                 }
             });
         }
+        if (excelExportButton) {
+            excelExportButton.addEventListener('click', async () => {
+                try {
+                    /* ========== 1. パラメータチェック ========== */
+                    const fromDate = fromDateInput.value;
+                    const toDate   = toDateInput.value;
+
+                    if (!fromDate || !toDate) {
+                        alert('開始日・終了日を入力してください');
+                        return;
+                    }
+                    if (fromDate > toDate) {
+                        alert('開始日は終了日以前の日付を指定してください');
+                        return;
+                    }
+                    console.info('抽出期間:', fromDate, '〜', toDate);
+
+                    /* ========== 2. API 取得 ========== */
+                    const response = await fetch(
+                        '<?= $this->Url->build('/TReservationInfo/exportJsonChangeFlag') ?>' +
+                        `?from=${fromDate}&to=${toDate}`,
+                        {
+                            headers: { 'X-CSRF-Token': csrfToken },
+                        },
+                    );
+                    if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
+
+                    const data = await response.json();
+                    console.info('取得したデータ:', data);
+
+                    const hasRooms   = data.rooms   && Object.keys(data.rooms).length   > 0;
+                    const hasOverall = data.overall && Object.keys(data.overall).length > 0;
+
+                    if (!hasRooms && !hasOverall) {
+                        alert('データがありません');
+                        return;
+                    }
+
+                    /* ========== 3. Excel 生成 ========== */
+                    const workbook = new ExcelJS.Workbook();
+                    workbook.creator  = '食数予約システム';
+                    workbook.created  = new Date();
+                    workbook.modified = new Date();
+
+                    /**
+                     * ヘッダー行を追加
+                     * @param {ExcelJS.Worksheet} sheet
+                     * @param {boolean} includeRoomName 部屋名列を含めるか
+                     */
+                    const addHeader = (sheet, includeRoomName = false) => {
+                        const header = includeRoomName
+                            ? ['日付', '部屋名', '朝食', '昼食', '夕食', '弁当', '合計']
+                            : ['日付', '朝食', '昼食', '夕食', '弁当', '合計'];
+                        const row = sheet.addRow(header);
+                        row.font = { bold: true };
+                        // ヘッダーで固定
+                        sheet.views = [{ state: 'frozen', ySplit: 1 }];
+                    };
+
+                    /**
+                     * 合計行を追加（表示したままに変更）
+                     * @param {ExcelJS.Worksheet} sheet
+                     * @param {boolean} includeRoomName 部屋名列を含めるか
+                     */
+                    const addTotalRow = (sheet, includeRoomName = false) => {
+                        // 集計用配列 [朝, 昼, 夜, 弁当]
+                        const mealTotals = [0, 0, 0, 0];
+
+                        // ヘッダー行（1 行目）を除外して数値を加算
+                        sheet.eachRow((row, rowNumber) => {
+                            if (rowNumber === 1) return; // ヘッダーはスキップ
+                            const offset = includeRoomName ? 2 : 1;
+                            for (let i = 0; i < mealTotals.length; i++) {
+                                mealTotals[i] += Number(row.getCell(offset + i + 1).value ?? 0);
+                            }
+                        });
+
+                        // “総計”列
+                        const grandTotal = mealTotals.reduce((a, b) => a + b, 0);
+
+                        // “合計” 行
+                        const rowValues = includeRoomName
+                            ? ['合計', '', ...mealTotals, grandTotal]
+                            : ['合計', ...mealTotals, grandTotal];
+
+                        const totalRow = sheet.addRow(rowValues);
+                        totalRow.font = { bold: true };
+
+                        // 目立たせるため罫線を引く
+                        totalRow.eachCell((cell) => {
+                            cell.border = {
+                                top:    { style: 'thin' },
+                                bottom: { style: 'double' },
+                            };
+                        });
+                    };
+
+                    /* ----- 3-A. 全体シート（日付 × 部屋名） ----- */
+                    const overallSheet = workbook.addWorksheet('全体');
+                    addHeader(overallSheet, true);
+
+                    if (hasRooms) {
+                        /* rooms から作成：日付 × 部屋名 ------------------------ */
+                        const allDates  = new Set();
+                        const roomNames = Object.keys(data.rooms).sort();
+
+                        // 全日付収集
+                        roomNames.forEach((room) => {
+                            Object.keys(data.rooms[room] ?? {}).forEach((d) => allDates.add(d));
+                        });
+                        const sortedDates = [...allDates].sort();
+
+                        // 出力
+                        sortedDates.forEach((date) => {
+                            roomNames.forEach((room) => {
+                                const counts = (data.rooms[room] ?? {})[date] ?? {};
+                                const total =
+                                    (counts['朝'] ?? 0) +
+                                    (counts['昼'] ?? 0) +
+                                    (counts['夜'] ?? 0) +
+                                    (counts['弁当'] ?? 0);
+
+                                overallSheet.addRow([
+                                    date,
+                                    room,
+                                    counts['朝'] ?? 0,
+                                    counts['昼'] ?? 0,
+                                    counts['夜'] ?? 0,
+                                    counts['弁当'] ?? 0,
+                                    total,
+                                ]);
+                            });
+                        });
+                    } else if (hasOverall) {
+                        /* 旧 API フォーマット（集計値のみ） -------------------- */
+                        Object.keys(data.overall)
+                            .sort()
+                            .forEach((date) => {
+                                const c = data.overall[date] ?? {};
+                                const total =
+                                    (c['朝'] ?? 0) +
+                                    (c['昼'] ?? 0) +
+                                    (c['夜'] ?? 0) +
+                                    (c['弁当'] ?? 0);
+
+                                overallSheet.addRow([
+                                    date,
+                                    '全体',
+                                    c['朝'] ?? 0,
+                                    c['昼'] ?? 0,
+                                    c['夜'] ?? 0,
+                                    c['弁当'] ?? 0,
+                                    total,
+                                ]);
+                            });
+                    }
+
+                    // ★ 合計行を追加
+                    addTotalRow(overallSheet, true);
+
+                    /* ----- 3-B. 部屋別シート（存在する場合のみ） ----- */
+                    if (hasRooms) {
+                        Object.keys(data.rooms).forEach((roomNameRaw) => {
+                            // Excel のシート名は 31 文字 & 禁止文字除去
+                            const sheetName =
+                                roomNameRaw.replace(/[:\\/?*\[\]]/g, '').substring(0, 31) || '部屋';
+                            const sheet = workbook.addWorksheet(sheetName);
+                            addHeader(sheet);
+
+                            const roomData = data.rooms[roomNameRaw];
+                            Object.keys(roomData)
+                                .sort()
+                                .forEach((date) => {
+                                    const m = roomData[date];
+                                    const total =
+                                        (m['朝'] ?? 0) +
+                                        (m['昼'] ?? 0) +
+                                        (m['夜'] ?? 0) +
+                                        (m['弁当'] ?? 0);
+
+                                    sheet.addRow([
+                                        date,
+                                        m['朝'] ?? 0,
+                                        m['昼'] ?? 0,
+                                        m['夜'] ?? 0,
+                                        m['弁当'] ?? 0,
+                                        total,
+                                    ]);
+                                });
+
+                            // ★ 各部屋シートにも合計行を追加
+                            addTotalRow(sheet);
+                        });
+                    }
+
+                    /* ========== 4. ダウンロード ========== */
+                    await downloadWorkbook(workbook, `食数実施(部屋)_${fromDate}〜${toDate}.xlsx`);
+                } catch (error) {
+                    console.error('エクスポート中にエラー発生:', error);
+                    alert('エクスポート中にエラーが発生しました。管理者に連絡してください。');
+                }
+            });
+        }
+
 
         /* ===== 実施食数表エクスポート ===== */
         if (!rankExportButton) return;
