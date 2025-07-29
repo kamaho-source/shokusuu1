@@ -301,7 +301,8 @@ $mealDataArray = $mealDataArray ?? [];
                 today.setHours(0, 0, 0, 0);                           // 時間を 00:00 に固定
 
                 // クリック日 − 今日 の差（日数）
-                const diffDays = (clickedDate - today) / 86_400_000;  // 86 400 000 = 1000*60*60*24
+                const　MILLISECONDS_IN_DAY = 86_400_000; // 1 日のミリ秒数
+                const diffDays = (clickedDate - today) / MILLISECONDS_IN_DAY;  // 86 400 000 = 1000*60*60*24
 
                 const isMonday      = clickedDate.getDay() === 1;     // 月曜？
                 const within14Days  = diffDays >= 0 && diffDays <= 14;// 当日を含め 14 日以内？
@@ -311,6 +312,9 @@ $mealDataArray = $mealDataArray ?? [];
                     if (confirm('週の一括予約を行いますか？')) {
                         window.location.href =
                             '<?= $this->Url->build("/TReservationInfo/bulkAddForm") ?>?date=' + info.dateStr;
+                    }else{
+                        window.location.href =
+                            '<?= $this->Url->build("/TReservationInfo/view") ?>?date=' + info.dateStr;
                     }
                     return; // 月曜処理で終了
                 }
