@@ -82,7 +82,7 @@ $within14Days = FrozenDate::today()
 
     // ── 通常「編集」ボタン ─────────────────────
     //   * 14 日先までは不可
-    $isDisabled = ($selectedDateTime < $twoWeeksLater);
+    $isDisabled = ($selectedDateTime <= $twoWeeksLater);  // ★ 修正: 「<=」で当日含め 14 日先を禁止
 
     // ── 直前「修正」ボタン ────────────────────
     //   * 過去日   : 表示しない
@@ -185,7 +185,7 @@ $within14Days = FrozenDate::today()
                                     ];
 
                                     // 有効時だけ confirm を追加
-                                    if (!$lastMinuteDisabled) {
+                                    if ($showLastMinuteBtn && !$lastMinuteDisabled) {
                                         $linkOptions['confirm'] =
                                             'すでに食材は発注しています。'
                                             . '食材が無駄になってしまうので極力食べないことがないようにしましょう。'
