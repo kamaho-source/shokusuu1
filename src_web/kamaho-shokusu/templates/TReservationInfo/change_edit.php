@@ -10,6 +10,7 @@
  */
 
 $loginUser = $this->request->getAttribute('identity');   // ログインユーザー
+//$this->Html->script('change_edit.js', ['block' => 'script']); // 直前編集用 JavaScript
 ?>
 <div class="row">
     <div class="col-md-9 offset-md-1">
@@ -34,7 +35,7 @@ $loginUser = $this->request->getAttribute('identity');   // ログインユー�
                     } ?>
                 </tr>
                 </thead>
-                <tbody>
+                <tbody id="c">
                 <?php foreach ($users as $rowUser): ?>
                     <?php
                     /* ──────────────────────────────────────
@@ -48,9 +49,9 @@ $loginUser = $this->request->getAttribute('identity');   // ログインユー�
 
                     /* 対象ユーザー予約情報を取得 */
                     $reservation = $userReservations[$rowUser->m_user_info->i_id_user][$mealType] ?? null;
-                    $checked     = $reservation && $reservation['eat_flag'] == 1;
+                    $checked     = $reservation && (int)$reservation['i_change_flag'] == 1;
                     $existsRoom  = $reservation['room_id']  ?? null;
-                    $existsFlag  = $reservation['eat_flag'] ?? null;
+                    $existsFlag  = $reservation['i_change_flag'] ?? null;
 
                     /* 職員（i_user_level = 0）で eat_flag=1 の場合は「食べない」へ変更禁止 */
                     $isStaffTarget      = ($rowUser->m_user_info->i_user_level === 0);
@@ -117,6 +118,7 @@ $loginUser = $this->request->getAttribute('identity');   // ログインユー�
         <?= $this->Form->end() ?>
     </div>
 </div>
+
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {

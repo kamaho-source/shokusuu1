@@ -1651,7 +1651,7 @@ class TReservationInfoController extends AppController
                 'room_id'     => $r->i_id_room,
                 'eat_flag'    => $r->eat_flag,
                 'room_name'   => $r->m_room_info->c_room_name ?? '不明な部屋',
-                'change_flag' => $r->i_change_flag,
+                'i_change_flag' => $r->i_change_flag,
             ];
         }
 
@@ -1963,8 +1963,6 @@ class TReservationInfoController extends AppController
     public function getUsersByRoomForEdit($roomId)
     {
         $date = $this->request->getQuery('date');
-        $mealType = $this->request->getQuery('mealType');
-
         $this->request->allowMethod(['get', 'ajax']);
         $this->autoRender = false;
 
@@ -1972,37 +1970,56 @@ class TReservationInfoController extends AppController
         $usersByRoom = $this->MUserGroup->find()
             ->select(['i_id_user', 'i_id_room', 'MUserInfo.c_user_name'])
             ->where(['i_id_room' => $roomId])
-            ->contain(['MUserInfo']) // ユーザー情報を結合
+            ->contain(['MUserInfo'])
             ->toArray();
-        //debug($usersByRoom);
+
+        // ユーザーID一覧
+        $userIds = collection($usersByRoom)->extract('i_id_user')->toList();
+
+        // 指定された日付・部屋・ユーザーに対する全予約を一括取得
+        $reservations = $this->TIndividualReservationInfo->find()
+            ->where([
+                'i_id_room' => $roomId,
+                'd_reservation_date' => $date,
+                'i_id_user IN' => $userIds,
+            ])
+            ->all()
+            ->groupBy('i_id_user')
+            ->toArray();
 
         $completeUserInfo = [];
 
         foreach ($usersByRoom as $user) {
-            // 指定された部屋と日付の既存の予約情報を取得
-            $existingReservation = $this->TIndividualReservationInfo->find()
-                ->where([
-                    'i_id_user' => $user->i_id_user,
-                    'i_id_room' => $roomId,
-                    'd_reservation_date' => $date,
-                    'i_reservation_type' => $mealType,
-                ])
-                ->first();
+            $userId = $user->i_id_user;
+            $userReservations = $reservations[$userId] ?? [];
+
+            // 食事種別ごとの予約の有無をチェック
+            $mealMap = [
+                1 => 'morning',
+                2 => 'noon',
+                3 => 'night',
+                4 => 'bento',
+            ];
+            $mealStatus = array_fill_keys(array_values($mealMap), false);
+
+            foreach ($userReservations as $r) {
+                $key = $mealMap[$r->i_reservation_type] ?? null;
+                if ($key) {
+                    $mealStatus[$key] = true;
+                }
+            }
 
             $completeUserInfo[] = [
-                'id' => $user->i_id_user,
+                'id' => $userId,
                 'name' => $user->m_user_info->c_user_name ?? '不明なユーザー',
-                'meals' => [
-                    'morning' => $existingReservation && $mealType == 1,
-                    'noon' => $existingReservation && $mealType == 2,
-                    'night' => $existingReservation && $mealType == 3,
-                ],
+                'meals' => $mealStatus,
             ];
         }
 
         return $this->response->withType('application/json')
             ->withStringBody(json_encode(['usersByRoom' => $completeUserInfo]));
     }
+
 
 
 

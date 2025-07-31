@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. API で利用者データを取得
     //--------------------------------------------------------------------
     function fetchUserData() {
-        fetch(`/kamaho-shokusu/TReservationInfo/getUsersByRoomForEdit/${roomId}?date=${encodeURIComponent(date)}&mealType=${encodeURIComponent(mealType)}`, {
+        fetch(`/kamaho-shokusu/TReservationInfo/getUsersByRoomWithChangeFlag/${roomId}?date=${encodeURIComponent(date)}&mealType=${encodeURIComponent(mealType)}`, {
             headers: { 'X-CSRF-Token': csrfToken },
         })
             .then((response) => {
@@ -71,8 +71,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderUserCheckboxes(users) {
         userTableBody.innerHTML = '';
 
-        // i_change_flag が立っているか判定するヘルパー
-        const hasChangeFlag = (meal) => !!(meal?.i_change_flag);
+        // API が返す boolean 値をそのまま評価
+        const hasChangeFlag = (flag) => Boolean(flag);
 
         users.forEach((user) => {
             const meals = user.meals ?? {};
