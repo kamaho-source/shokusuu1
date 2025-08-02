@@ -8,7 +8,7 @@ use Cake\Http\Exception\NotFoundException;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 use Cake\Log\Log;
-use App\model\Domain\LastMinuteChangeService;
+use App\Model\Domain\LastMinuteChangeService;
 use mysql_xdevapi\Exception;
 
 /**
