@@ -5,6 +5,7 @@ create table t_individual_reservation_info
     i_reservation_type tinyint     not null,
     i_id_room          int         not null,
     eat_flag           tinyint     null,
+    i_change_flag      tinyint     null,
     dt_create          datetime    null,
     c_create_user      varchar(50) null,
     dt_update          datetime    null,

@@ -184,6 +184,7 @@ class MMealPriceInfoController extends AppController
                     'i_id_user' => $user->i_id_user,
                     'YEAR(d_reservation_date)' => $year,
                     'MONTH(d_reservation_date)' => $month,
+                    'i_change_flag' => 1, // 直前変更フラグが立っていないもの
                 ])
                 ->group(['i_reservation_type'])
                 ->toArray();

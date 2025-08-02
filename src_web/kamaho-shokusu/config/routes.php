@@ -80,6 +80,13 @@ return function (RouteBuilder $routes): void {
             'controller' => 'TReservationInfo',
             'action' => 'getPersonalReservation'
         ]);
+        $builder->connect('TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
+        $builder->connect('TReservationInfo/changeEdit/:roomId/:date/:mealType', [
+            'controller' => 'TReservationInfo',
+            'action' => 'changeEdit'
+        ])->setPass(['roomId', 'date', 'mealType'])
+            ->setPatterns(['roomId' => '\d+', 'date' => '\d{4}-\d{2}-\d{2}', 'mealType' => '\d+']);
+
 
 
         $builder->connect('MMealPriceInfo/', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);

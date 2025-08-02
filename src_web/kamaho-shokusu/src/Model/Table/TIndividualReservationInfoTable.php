@@ -58,6 +58,9 @@ class TIndividualReservationInfoTable extends Table
             ->notEmptyString('eat_flag', 'Eat flag is required');
 
         $validator
+            ->notEmptyString('i_change_flag', 'Change flag is required');
+
+        $validator
             ->dateTime('dt_create')
             ->allowEmptyDateTime('dt_create');
 
