@@ -115,10 +115,10 @@ $mealDataArray = $mealDataArray ?? [];
         $icon = static function ($v) {
             // ※ 値が null のときだけ未設定扱い
             if ($v === null) {
-                return '🙅';
+                return '×';
             }
             // truthy → 予約あり, falsy → 予約なし
-            return $v ? '🙆' : '🙅';
+            return $v ? '⚪︎' : '×';
         };
 
         ?>
@@ -133,7 +133,7 @@ $mealDataArray = $mealDataArray ?? [];
 
             // タイトル文字列を組み立て
             $title = sprintf(
-                '(朝:%s 昼:%s 夜:%s 弁当:%s)',
+                '朝:%s 昼:%s 夜:%s 弁当:%s',
                 $icon($detail['breakfast'] ?? null),
                 $icon($detail['lunch']     ?? null),
                 $icon($detail['dinner']    ?? null),
