@@ -332,6 +332,26 @@ $mealDataArray = $mealDataArray ?? [];
 
         /* ===== 共通: ブック→ダウンロード ===== */
         async function downloadWorkbook(workbook, filename) {
+            // セル幅の自動調整（各シートごと）
+            workbook.worksheets.forEach((worksheet) => {
+                worksheet.columns.forEach((column, colIdx) => {
+                    let maxLength = 10; // デフォルトの幅
+                    worksheet.eachRow({ includeEmpty: true }, (row) => {
+                        const cellValue = row.getCell(colIdx + 1).value;
+                        if (cellValue) {
+                            // 文字列として取得（オブジェクト型の場合は文字列化）
+                            let cellText = typeof cellValue === 'object' ? String(cellValue.text || cellValue.richText ? cellValue.richText.map(rt => rt.text).join('') : '') : String(cellValue);
+                            // 幅計算（全角は2倍、半角は1倍）
+                            const length = Array.from(cellText).reduce((sum, ch) => {
+                                return sum + (ch.match(/[ -~]/) ? 1 : 2); // 半角:1, 全角:2
+                            }, 0);
+                            if (length > maxLength) maxLength = length;
+                        }
+                    });
+                    column.width = maxLength + 2; // +2で少し余裕を持たせる
+                });
+            });
+
             const buffer = await workbook.xlsx.writeBuffer();
             const blob = new Blob([buffer], {
                 type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -806,6 +826,22 @@ $mealDataArray = $mealDataArray ?? [];
 
                 // データ行
                 rows.forEach(r => ws.addRow(columns.map(c => r[c.key] ?? '')));
+
+                // ★ セル幅自動調整
+                ws.columns.forEach((column, colIdx) => {
+                    let maxLength = 10;
+                    ws.eachRow({ includeEmpty: true }, (row) => {
+                        const cellValue = row.getCell(colIdx + 1).value;
+                        if (cellValue) {
+                            let cellText = typeof cellValue === 'object' ? String(cellValue.text || cellValue.richText ? cellValue.richText.map(rt => rt.text).join('') : '') : String(cellValue);
+                            const length = Array.from(cellText).reduce((sum, ch) => {
+                                return sum + (ch.match(/[ -~]/) ? 1 : 2); // 半角:1, 全角:2
+                            }, 0);
+                            if (length > maxLength) maxLength = length;
+                        }
+                    });
+                    column.width = maxLength + 2;
+                });
 
                 await downloadWorkbook(wb, `実施食数表_${fromDate}〜${toDate}.xlsx`);
             } catch (e) {

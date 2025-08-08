@@ -48,6 +48,53 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
+
+<!-- ★ 列幅自動調整ユーティリティ -->
+<script>
+    /**
+     * 指定ワークシートの列幅を自動調整します。
+     * ・半角文字  = 幅 1
+     * ・全角文字  = 幅 2
+     * ・数式セル  = 計算結果があれば結果を優先
+     * @param {ExcelJS.Worksheet} worksheet
+     */
+    function autoFitColumns(worksheet) {
+        worksheet.columns.forEach((column, colIdx) => {
+            let max = 10; // 最低幅
+
+            worksheet.eachRow({ includeEmpty: true }, (row) => {
+                const cellValue = row.getCell(colIdx + 1).value;
+                if (cellValue === undefined || cellValue === null) return;
+
+                let text = '';
+                if (typeof cellValue === 'object') {
+                    if (cellValue.richText) {
+                        text = cellValue.richText.map(rt => rt.text).join('');
+                    } else if (cellValue.result !== undefined) {
+                        text = String(cellValue.result);
+                    } else if (cellValue.text !== undefined) {
+                        text = String(cellValue.text);
+                    } else if (cellValue.formula !== undefined) {
+                        text = String(cellValue.formula);
+                    } else {
+                        text = String(cellValue);
+                    }
+                } else {
+                    text = String(cellValue);
+                }
+
+                const displayWidth = Array.from(text).reduce((sum, ch) => {
+                    return sum + (/[\u0020-\u007e]/.test(ch) ? 1 : 2); // 半角:1, 全角:2
+                }, 0);
+
+                if (displayWidth > max) max = displayWidth;
+            });
+
+            column.width = max + 2; // 余白を追加
+        });
+    }
+</script>
+
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const exportWithDeductionsButton = document.getElementById("downloadExcelWithDeductions");
@@ -143,17 +190,8 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     sheet.getRow(1).font = { bold: true }; // ヘッダー
                     sheet.getRow(sheet.lastRow.number).font = { bold: true }; // 合計行を太字にする
 
-                    // **列幅を自動調整**
-                    sheet.columns.forEach((column, index) => {
-                        let maxLength = 0;
-                        column.eachCell({ includeEmpty: true }, (cell) => {
-                            if (cell.value) {
-                                const stringValue = cell.value.toString();
-                                maxLength = Math.max(maxLength, stringValue.length);
-                            }
-                        });
-                        column.width = maxLength ? maxLength + 2 : 10; // 若干のゆとりを設定
-                    });
+                    // ★ 列幅を自動調整
+                    autoFitColumns(sheet);
 
                     // Excel ファイルを生成
                     const buffer = await workbook.xlsx.writeBuffer();
@@ -180,4 +218,3 @@ $this->assign('title', __('食事給与控除データエクスポート'));
         }
     });
 </script>
-
