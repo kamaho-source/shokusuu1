@@ -185,7 +185,7 @@ class MUserInfoController extends AppController
                     'i_user_level'    => $level,
                     'c_login_passwd'  => $passRaw, // beforeSaveでハッシュ化
                     'i_del_flag'      => 0,
-                    'i_enable'        => 0,
+                    'i_enable'        => 1,
                     'i_disp_no'       => $nextDispNo++,
                     'dt_create'       => date('Y-m-d H:i:s'),
                     'c_create_user'   => $this->request->getAttribute('identity')->get('c_user_name') ?? 'インポート',
@@ -439,6 +439,7 @@ class MUserInfoController extends AppController
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
+        $mUserInfo->i_enable = 1;
         $mUserInfo->i_disp_no = $maxDispNo;
         $mUserInfo->i_user_age = (int)$this->request->getData('age');
         $mUserInfo->i_user_level = (int)$this->request->getData('role');
