@@ -12,10 +12,13 @@ $currentUserId = $user->get('i_id_user');
 
 echo $this->Html->css(['bootstrap.min']);
 $this->assign('title', 'ユーザー情報一覧');
+$csrfToken = $this->request->getAttribute('csrfToken');
 ?>
+<meta name="csrfToken" content="<?= h($csrfToken) ?>">
 <div class="mUserInfo index content">
     <?php if($isAdmin || $user->get('i_user_level') === 0): ?>
     <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
+    <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary float-right mb-3 mr-2']) ?>
     <?php endif; ?>
     <h3><?= __('ユーザー一覧') ?></h3>
     <div class="table-responsive">
@@ -80,53 +83,50 @@ $this->assign('title', 'ユーザー情報一覧');
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const adminCheckboxes = document.querySelectorAll('.admin-checkbox');
+        // CSRF: meta優先、なければhidden inputをフォールバック
+        const csrfToken =
+            document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
+            document.querySelector('input[name="_csrfToken"]')?.value ||
+            '';
 
-        adminCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', (event) => {
-                const userId = event.target.getAttribute('data-user-id'); // ユーザーID取得
-                const userName = event.target.getAttribute('data-user-name'); // ユーザー名取得
-                const isAdmin = event.target.checked ? 1 : 0;
+        function handleAdminCheckboxChange(event) {
+            const target = event.target;
+            const userId = target.getAttribute('data-user-id');
+            const userName = target.getAttribute('data-user-name');
+            const isAdmin = target.checked ? 1 : 0;
 
-                // 確認ダイアログを生成
-                const confirmMessage = isAdmin
-                    ? `${userName}に管理者権限を付与しますか？`
-                    : `${userName}から管理者権限を削除しますか？`;
+            const confirmMessage = isAdmin
+                ? `${userName}に管理者権限を付与しますか？`
+                : `${userName}から管理者権限を削除しますか？`;
 
-                // ユーザーによる確認
-                if (!confirm(confirmMessage)) {
-                    // キャンセルの場合、チェック状態を元に戻す
-                    event.target.checked = !event.target.checked;
-                    return;
-                }
+            if (!confirm(confirmMessage)) {
+                target.checked = !target.checked;
+                return;
+            }
 
-                // サーバーに非同期リクエスト送信
-                fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': document.querySelector('input[name="_csrfToken"]').value
-                    },
-                    body: JSON.stringify({
-                        i_id_user: userId,
-                        i_admin: isAdmin
-                    })
+            fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('管理者権限が更新されました。');
+                    } else {
+                        alert(data.message || '管理者権限の更新に失敗しました。再試行してください。');
+                        target.checked = !target.checked;
+                    }
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('管理者権限が更新されました。');
-                        } else {
-                            alert(data.message || '管理者権限の更新に失敗しました。再試行してください。');
-                            // 更新失敗時には元のチェック状態に戻す
-                            event.target.checked = !event.target.checked;
-                        }
-                    })
-                    .catch(() => {
-                        alert('エラーが発生しました。再試行してください。');
-                        // エラー時に元のチェック状態に戻す
-                        event.target.checked = !event.target.checked;
-                    });
-            });
-        });
+                .catch(() => {
+                    alert('エラーが発生しました。再試行してください。');
+                    target.checked = !target.checked;
+                });
+        }
+
+        adminCheckboxes.forEach(cb => cb.addEventListener('change', handleAdminCheckboxChange));
     });
 </script>
