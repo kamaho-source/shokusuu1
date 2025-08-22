@@ -690,7 +690,8 @@ class MUserInfoController extends AppController
         $this->request->allowMethod(['post', 'delete']);
         $mUserInfo = $this->MUserInfo->get($id);
         $mUserInfo->i_del_flag = 1;
-        $mUserInfo->i_enable = 1; // i_enableを1に設定
+        $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
+        $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
         $mUserInfo->dt_update = date('Y-m-d H:i:s');
         $user = $this->request->getAttribute('identity');
         $mUserInfo->c_update_user = $user ? $user->get('c_user_name') : '不明なユーザー';
