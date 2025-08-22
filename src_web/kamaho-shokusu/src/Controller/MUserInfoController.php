@@ -98,19 +98,18 @@ class MUserInfoController extends AppController
         $conn->begin();
 
         try {
-            // パスワードのハッシュはモデルの beforeSave で実施します
             foreach ($records as $rec) {
                 $rowNo    = (int)($rec['_row'] ?? 0);
                 $loginId  = trim((string)($rec['login_id'] ?? ''));
                 $name     = trim((string)($rec['name'] ?? ''));
                 $roleRaw  = (string)($rec['role'] ?? '');
                 $passRaw  = (string)($rec['password'] ?? '');
-                // 追加: 職員ID（任意だが、職員(0)の場合は必須）
                 $staffId  = trim((string)($rec['staff_id'] ?? ''));
-                // 追加: 年齢・性別（任意）
                 $ageRaw         = (string)($rec['age'] ?? '');
                 $genderInput    = (string)($rec['i_user_gender'] ?? ($rec['gender'] ?? ''));
                 $ageGroupInput  = (string)($rec['age_group'] ?? '');
+                $roomName1 = trim((string)($rec['room_name1'] ?? ''));
+                $roomName2 = trim((string)($rec['room_name2'] ?? ''));
 
                 // 必須チェック（role 必須）
                 if ($loginId === '' || $name === '' || $roleRaw === '') {
@@ -199,10 +198,7 @@ class MUserInfoController extends AppController
                 if ($ageGroupCode !== null) {
                     $newData['i_user_rank'] = $ageGroupCode;
                 }
-
-                // 職員IDの反映（職員のときのみセット）
                 if ($level === 0) {
-                    // スキーマが整数なら Cake がよしなにキャストします。文字列IDの可能性がある場合はそのまま格納。
                     $newData['i_id_staff'] = $staffId;
                 }
 
@@ -221,6 +217,26 @@ class MUserInfoController extends AppController
 
                 if ($this->MUserInfo->save($entity)) {
                     $results['created']++;
+                    // 部屋名から部屋IDを検索し、MUserGroupに所属情報を登録（最大2件）
+                    $userId = $entity->i_id_user;
+                    $roomNames = [];
+                    if ($roomName1 !== '') $roomNames[] = $roomName1;
+                    if ($roomName2 !== '') $roomNames[] = $roomName2;
+                    foreach ($roomNames as $roomName) {
+                        $room = $this->MRoomInfo->find()->where(['c_room_name' => $roomName])->first();
+                        if ($room && $userId) {
+                            $userGroup = $this->MUserGroup->newEntity([
+                                'i_id_user' => $userId,
+                                'i_id_room' => $room->i_id_room,
+                                'active_flag' => 0,
+                                'dt_create' => date('Y-m-d H:i:s'),
+                                'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name') ?? 'インポート',
+                            ]);
+                            $this->MUserGroup->save($userGroup);
+                        } else if ($roomName !== '') {
+                            $results['errors'][$rowNo][] = "部屋名 '{$roomName}' が見つかりません";
+                        }
+                    }
                 } else {
                     $results['failed']++;
                     $results['errors'][$rowNo][] = '保存に失敗しました。';
@@ -837,5 +853,69 @@ class MUserInfoController extends AppController
         }
 
         $this->set(compact('users', 'selectedUser'));
+    }
+
+    /**
+     * ユーザーの所属部屋登録API
+     * POST: i_id_user, room_names[]
+     * 既存所属はactive_flag=1に更新し、新規所属をactive_flag=0で登録
+     * 最大2部屋まで
+     */
+    public function addUserRooms()
+    {
+        $this->request->allowMethod(['post']);
+        $this->viewBuilder()->setClassName('Json');
+        $userId = $this->request->getData('i_id_user');
+        $roomNames = $this->request->getData('room_names');
+        if (!is_numeric($userId) || empty($roomNames) || !is_array($roomNames)) {
+            $this->set(['ok' => false, 'message' => 'i_id_userとroom_names[]が必要です', '_serialize' => ['ok','message']]);
+            return;
+        }
+        $userId = (int)$userId;
+        $roomNames = array_slice($roomNames, 0, 2); // 最大2部屋
+        $user = $this->MUserInfo->find()->where(['i_id_user' => $userId, 'i_del_flag' => 0])->first();
+        if (!$user) {
+            $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok','message']]);
+            return;
+        }
+        $conn = $this->MUserInfo->getConnection();
+        $conn->begin();
+        $errors = [];
+        try {
+            // 既存所属（active_flag=0）をactive_flag=1に更新
+            $oldGroups = $this->MUserGroup->find()->where(['i_id_user' => $userId, 'active_flag' => 0])->all();
+            foreach ($oldGroups as $group) {
+                $group->active_flag = 1;
+                $group->dt_update = date('Y-m-d H:i:s');
+                $group->c_update_user = $this->request->getAttribute('identity')->get('c_user_name') ?? 'API';
+                $this->MUserGroup->save($group);
+            }
+            // 新規所属登録
+            $created = 0;
+            foreach ($roomNames as $roomName) {
+                $room = $this->MRoomInfo->find()->where(['c_room_name' => $roomName])->first();
+                if ($room) {
+                    $newGroup = $this->MUserGroup->newEntity([
+                        'i_id_user' => $userId,
+                        'i_id_room' => $room->i_id_room,
+                        'active_flag' => 0,
+                        'dt_create' => date('Y-m-d H:i:s'),
+                        'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name') ?? 'API',
+                    ]);
+                    if ($this->MUserGroup->save($newGroup)) {
+                        $created++;
+                    } else {
+                        $errors[] = "部屋 '{$roomName}' の登録に失敗";
+                    }
+                } else {
+                    $errors[] = "部屋名 '{$roomName}' が見つかりません";
+                }
+            }
+            $conn->commit();
+            $this->set(['ok' => true, 'created' => $created, 'errors' => $errors, '_serialize' => ['ok','created','errors']]);
+        } catch (\Throwable $e) {
+            $conn->rollback();
+            $this->set(['ok' => false, 'message' => $e->getMessage(), '_serialize' => ['ok','message']]);
+        }
     }
 }

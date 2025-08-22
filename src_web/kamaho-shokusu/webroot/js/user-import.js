@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const xlsxLocalSrc = document.querySelector('meta[name="xlsxLocalSrc"]')?.getAttribute('content') || '';
 
   // ====== 状態 ======
-  /** @type {{login_id:string,name:string,role:string,staff_id?:string,password?:string,_row:number,age?:string,age_group?:string,i_user_gender?:string,gender?:string}[]} */
+  /** @type {{login_id:string,name:string,role:string,staff_id?:string,password?:string,_row:number,age?:string,age_group?:string,i_user_gender?:string,gender?:string,room_name1?:string,room_name2?:string,room_name3?:string}[]} */
   let parsed = [];
   /** エラー集計（行番号 -> string[]） */
   let errorsAll = {};
@@ -59,7 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
       age:          ['age','年齢','ねんれい'],
       age_group:    ['age_group','年代','年代選択','どの年代'],
       i_user_gender:['i_user_gender','性別','ジェンダー'],
-      gender:       ['gender']
+      gender:       ['gender'],
+      room_name1:   ['room_name1','部屋名1','部屋１','部屋1','room1','room_name_1','部屋名_1'],
+      room_name2:   ['room_name2','部屋名2','部屋２','部屋2','room2','room_name_2','部屋名_2'],
+      room_name3:   ['room_name3','部屋名3','部屋３','部屋3','room3','room_name_3','部屋名_3']
     };
     for (const key in dict){ if (dict[key].includes(v)) return key; }
     return v;
@@ -185,6 +188,9 @@ document.addEventListener('DOMContentLoaded', () => {
         <td>${escapeHtml(r.age ?? '')}</td>
         <td>${escapeHtml(r.age_group ?? '')}</td>
         <td>${escapeHtml((r.i_user_gender ?? r.gender) || '')}</td>
+        <td>${escapeHtml(r.room_name1 ?? '')}</td>
+        <td>${escapeHtml(r.room_name2 ?? '')}</td>
+        <td>${escapeHtml(r.room_name3 ?? '')}</td>
         <td>${errs.length ? `<span class="badge-lite err">${errs.join(' / ')}</span>` : '<span class="badge-lite ok">OK</span>'}</td>
       `;
       previewTable.appendChild(tr);
@@ -260,6 +266,15 @@ document.addEventListener('DOMContentLoaded', () => {
         rec.i_user_gender = String(arr[indexOf['i_user_gender']] ?? '').trim();
       } else if (indexOf['gender'] !== undefined){
         rec.gender = String(arr[indexOf['gender']] ?? '').trim();
+      }
+      if (indexOf['room_name1'] !== undefined){
+        rec.room_name1 = String(arr[indexOf['room_name1']] ?? '').trim();
+      }
+      if (indexOf['room_name2'] !== undefined){
+        rec.room_name2 = String(arr[indexOf['room_name2']] ?? '').trim();
+      }
+      if (indexOf['room_name3'] !== undefined){
+        rec.room_name3 = String(arr[indexOf['room_name3']] ?? '').trim();
       }
       out.push(rec);
     });
@@ -438,13 +453,13 @@ document.addEventListener('DOMContentLoaded', () => {
   // ▼▼ テンプレートDL（標準: Excel / Alt 押下: CSV）▼▼
   if (downloadTemplate) {
     downloadTemplate.addEventListener('click', async (ev) => {
-      const headers = ['login_id','name','role','staff_id','password','age','age_group','gender'];
+      const headers = ['ログインID','氏名','権限','職員ID','パスワード','年齢','年代','性別','部屋名1','部屋名2','部屋名3'];
       const samples = [
-        ['u0001', '山田 太郎', '職員',  'S-001', '', 30, '大人',   '男性'],
-        ['u0002', '佐藤 花子', '児童',  '',      '', 10, '低学年', '女性'],
-        ['u0003', '鈴木 一郎', 'その他','',      '', 40, '大人',   '男性'],
-        ['u0004', '田中 次郎', '職員',  'S-002', '', 35, '大人',   '男性'],
-        ['u0005', '高橋 美咲', '児童',  '',      '', 12, '中学生', '女性']
+        ['u0001', '山田 太郎', '職員',  'S-001', '', 30, '大人',   '男性', 'A101', 'B201', 'C301'],
+        ['u0002', '佐藤 花子', '児童',  '',      '', 10, '低学年', '女性', 'A101', '',      ''],
+        ['u0003', '鈴木 一郎', 'その他','',      '', 40, '大人',   '男性', '',    '',      ''],
+        ['u0004', '田中 次郎', '職員',  'S-002', '', 35, '大人',   '男性', 'B201', '',      ''],
+        ['u0005', '高橋 美咲', '児童',  '',      '', 12, '中学生', '女性', 'A101', 'B201',  '']
       ];
 
       if (ev && ev.altKey) {
@@ -568,22 +583,26 @@ function buildWorkbook(headers, samples){
   const specAoA = [
     ['取り込み仕様（かんたん版）'],
     ['1. ダウンロードしたテンプレートを開く（Excel推奨、CSVも可）'],
-    ['2. 必須列', 'login_id / name / （role または i_user_level のいずれか）'],
-    ['3. 役割の入力', 'role は 職員/児童/その他 ／ i_user_level は 0/1/3 のいずれか（どちらかを入力）'],
-    ['4. 職員ID', 'i_user_level=0（職員）の場合は staff_id が必須'],
-    ['5. password', '空なら自動生成（12桁）。入力時はその値で登録（サーバ側でハッシュ化）'],
-    ['6. 性別', '男性/女性 または 1/2 のいずれか（推奨は 1/2）'],
+    ['2. 必須列', 'ログインID / 氏名 / 権限'],
+    ['3. 役割の入力', '権限は 職員/児童/その他 のいずれか（または 0/1/3）'],
+    ['4. 職員ID', '権限=職員（または 0）の場合は 職員ID が必須'],
+    ['5. パスワード', '空なら自動生成（12桁）。入力時はその値で登録（サーバ側でハッシュ化）'],
+    ['6. 性別', '男性/女性 のいずれか（推奨は 男性/女性）'],
     ['7. 年齢', '1〜80 から選択（直接入力も可）'],
+    ['8. 部屋名1〜3', '部屋名は最大3つまで入力可能。該当部屋が存在しない場合はエラーになります。'],
     [],
     ['見出しの許容例（自動マッピング）'],
-    ['login_id', 'login_id / ログインID / ユーザーID / c_login_account'],
-    ['name',     'name / 氏名 / 名前 / c_user_name'],
-    ['role',     'role / 権限 / ロール / 役割'],
-    ['i_user_level','i_user_level / レベル / 権限数値 / level / ユーザレベル'],
-    ['staff_id', 'staff_id / 職員ID / i_id_staff / 職員番号 / 社員番号 / 従業員番号'],
-    ['password', 'password / パスワード / c_login_passwd'],
-    ['age',      'age / 年齢 / ねんれい'],
-    ['gender',   'gender / 性別 / i_user_gender'],
+    ['ログインID', 'login_id / ログインID / ユーザーID / c_login_account'],
+    ['氏名',     'name / 氏名 / 名前 / c_user_name'],
+    ['権限',     'role / 権限 / ロール / 役割'],
+    ['職員ID', 'staff_id / 職員ID / i_id_staff / 職員番号 / 社員番号 / 従業員番号'],
+    ['パスワード', 'password / パスワード / c_login_passwd'],
+    ['年齢',      'age / 年齢 / ねんれい'],
+    ['年代',      'age_group / 年代 / 年代選択 / どの年代'],
+    ['性別',   'gender / 性別 / i_user_gender'],
+    ['部屋名1', 'room_name1 / 部屋名1 / 部屋１ / 部屋1'],
+    ['部屋名2', 'room_name2 / 部屋名2 / 部屋２ / 部屋2'],
+    ['部屋名3', 'room_name3 / 部屋名3 / 部屋３ / 部屋3']
   ];
   const wsSpec = XLSX.utils.aoa_to_sheet(specAoA);
   wsSpec['!cols'] = [{ wch: 22 }, { wch: 72 }];

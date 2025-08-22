@@ -140,7 +140,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     </div>
                     <div id="previewWrap" class="mt-2">
                         <table class="preview" id="previewTable">
-                            <thead><tr><th>Row</th><th>login_id</th><th>name</th><th>role</th><th>staff_id</th><th>password</th><th>age</th><th>age_group</th><th>gender</th><th>検査</th></tr></thead>
+                            <thead><tr><th>Row</th><th>login_id</th><th>name</th><th>role</th><th>staff_id</th><th>password</th><th>age</th><th>age_group</th><th>gender</th><th>部屋名1</th><th>部屋名2</th><th>部屋名3</th><th>検査</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
@@ -157,4 +157,3 @@ $csrfToken = $this->request->getAttribute('csrfToken');
         </div>
     </div>
 </div>
-
