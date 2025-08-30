@@ -1,0 +1,197 @@
+/* user-import.css
+   ユーザー一括登録UI 用スタイル（インラインCSSの外出し版）
+   依存: Bootstrap（ユーティリティクラス使用を想定）
+-------------------------------------------------------------- */
+
+/* CSS 変数（テーマ色） */
+:root {
+    --border: #d0d7de;
+    --muted: #666;
+    --primary: #2563eb;
+    --ok: #16a34a;
+    --warn: #ea580c;
+    --err: #dc2626;
+}
+
+/* 視覚的に非表示（スクリーンリーダー用に残す） */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ドロップゾーン（常に白） */
+.dropzone {
+    border: 2px dashed #94a3b8;
+    border-radius: 12px;
+    padding: 28px;
+    text-align: center;
+    transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
+    background: #ffffff;          /* ← 白に固定 */
+    color: #111827;
+}
+.dropzone.dragover {
+    background: #ffffff;          /* ← ドラッグ中も白 */
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+
+/* 説明テキスト */
+.muted {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* ボタン（独自アウトライン） */
+.btn-outline {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    transition: filter .15s ease, transform .05s ease, box-shadow .15s ease;
+}
+.btn-outline.primary {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.btn-outline:disabled {
+    opacity: .6;
+    cursor: not-allowed;
+}
+.btn-outline:not(:disabled):hover {
+    filter: brightness(0.98);
+}
+.btn-outline:not(:disabled):active {
+    transform: translateY(1px);
+}
+.btn-outline:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .24);
+}
+
+/* 進捗バー */
+.progress-lite {
+    height: 10px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+}
+.progress-lite .bar,
+.bar {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, var(--primary), #60a5fa);
+    transition: width .25s ease;
+}
+
+/* バッジ */
+.badge-lite {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: #f8fafc;
+}
+.badge-lite.ok {
+    border-color: #86efac;
+    color: #166534;
+    background: #f0fdf4;
+}
+.badge-lite.warn {
+    border-color: #fdba74;
+    color: #9a3412;
+    background: #fff7ed;
+}
+.badge-lite.err {
+    border-color: #fca5a5;
+    color: #991b1b;
+    background: #fef2f2;
+}
+
+/* ログ領域 */
+.log {
+    white-space: pre-wrap;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    max-height: 220px;
+    overflow: auto;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 10px;
+    background: #fff;
+}
+
+/* プレビューラッパー */
+#previewWrap {
+    overflow: auto;
+    max-height: 360px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    background: #fff;
+}
+
+/* プレビューテーブル */
+table.preview {
+    width: 100%;
+    border-collapse: collapse;
+}
+table.preview th,
+table.preview td {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+table.preview thead th {
+    background: #f9fafb;
+    text-align: left;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+/* details/summary */
+details summary {
+    cursor: pointer;
+    font-weight: 600;
+}
+
+/* アニメーション軽減設定 */
+@media (prefers-reduced-motion: reduce) {
+    .dropzone,
+    .btn-outline,
+    .bar,
+    .progress-lite .bar {
+        transition: none !important;
+    }
+}
+
+/* ダークモード（他要素はダーク、ドロップゾーンは白固定） */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --border: #3a3f45;
+        --muted: #9aa0a6;
+    }
+    .dropzone {
+        background: #ffffff;        /* ← ダーク時も白 */
+        color: #111827;
+        border-color: #2b3440;
+    }
+    .dropzone.dragover {
+        background: #ffffff;        /* ← ダーク時のドラッグ中も白 */
+    }
+    .muted { color: var(--muted); }
+    .btn-outline { background: #0b1020; border-color: var(--border); color: #e5e7eb; }
+    .btn-outline.primary { color: #fff; }
+    .progress-lite { background: #1f2937; }
+    .badge-lite { background: #0b1020; border-color: var(--border); color: #e5e7eb; }
+    .log { background: #0b1020; border-color: var(--border); color: #e5e7eb; }
+    #previewWrap { background: #0b1020; border-color: var(--border); }
+    table.preview th, table.preview td { border-bottom-color: #263040; }
+    table.preview thead th { background: #0b1429; }
+}
+s

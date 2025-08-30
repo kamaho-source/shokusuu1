@@ -3,24 +3,29 @@
  * @var \App\View\AppView $this
  * @var iterable<\App\Model\Entity\MUserInfo> $mUserInfo
  * @var array $userRooms
+ * @var \App\Model\Entity\User $user
  */
 
-// 管理者権限の確認 (例: ログインユーザー情報から取得)
 $isAdmin = $user->get('i_admin') === 1;
-// 現在ログインしているユーザーのID
 $currentUserId = $user->get('i_id_user');
 
 echo $this->Html->css(['bootstrap.min']);
 $this->assign('title', 'ユーザー情報一覧');
 $csrfToken = $this->request->getAttribute('csrfToken');
+$this->Html->css('bootstrap-icons.css', ['block' => true]);
+$this->Html->css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css')
+
 ?>
 <meta name="csrfToken" content="<?= h($csrfToken) ?>">
+
 <div class="mUserInfo index content">
-    <?php if($isAdmin || $user->get('i_user_level') === 0): ?>
-    <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
-    <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary float-right mb-3 mr-2']) ?>
+    <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
+        <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
+        <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary float-right mb-3 mr-2']) ?>
     <?php endif; ?>
+
     <h3><?= __('ユーザー一覧') ?></h3>
+
     <div class="table-responsive">
         <table class="table table-bordered">
             <thead>
@@ -36,30 +41,33 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             </tr>
             </thead>
             <tbody>
-            <?php foreach ($mUserInfo as $user): ?>
+            <?php foreach ($mUserInfo as $userInfo): ?>
                 <tr>
-                    <td><?= h($user->i_id_user) ?></td>
-                    <td><?= h($user->c_user_name) ?></td>
-                    <td><?= $user->i_disp_no !== null ? $this->Number->format($user->i_disp_no) : '' ?></td>
-                    <td><?= !empty($userRooms[$user->i_id_user]) ? h(implode(', ', $userRooms[$user->i_id_user])) : '未所属' ?></td>
+                    <td><?= h($userInfo->i_id_user) ?></td>
+                    <td><?= h($userInfo->c_user_name) ?></td>
+                    <td><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
+                    <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
                     <?php if ($isAdmin): ?>
                         <td>
                             <?= $this->Form->checkbox('i_admin', [
-                                'checked' => $user->i_admin === 1,
-                                'value' => $user->i_admin,
-                                'data-user-id' => $user->i_id_user,
-                                'data-user-name' => h($user->c_user_name), // ユーザー名属性を追加
-                                'class' => 'admin-checkbox'
+                                    'checked' => $userInfo->i_admin === 1,
+                                    'value' => $userInfo->i_admin,
+                                    'data-user-id' => $userInfo->i_id_user,
+                                    'data-user-name' => h($userInfo->c_user_name),
+                                    'class' => 'admin-checkbox'
                             ]) ?>
                         </td>
                     <?php endif; ?>
                     <td class="actions">
-                        <?= $this->Html->link(__('表示'), ['action' => 'view', $user->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
-                        <?php if ($isAdmin || $user->i_id_user === $currentUserId): ?>
-                            <?= $this->Html->link(__('編集'), ['action' => 'edit', $user->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
+                        <?= $this->Html->link(__('表示'), ['action' => 'view', $userInfo->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
+                        <?php if ($isAdmin || $userInfo->i_id_user === $currentUserId): ?>
+                            <?= $this->Html->link(__('編集'), ['action' => 'edit', $userInfo->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
                         <?php endif; ?>
                         <?php if ($isAdmin): ?>
-                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $user->i_id_user], ['confirm' => __(' {0} を削除してもよろしいですか？', $user->c_user_name), 'class' => 'btn btn-danger btn-sm']) ?>
+                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $userInfo->i_id_user], [
+                                    'confirm' => __(' {0} を削除してもよろしいですか？', $userInfo->c_user_name),
+                                    'class' => 'btn btn-danger btn-sm'
+                            ]) ?>
                         <?php endif; ?>
                     </td>
                 </tr>
@@ -67,23 +75,79 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             </tbody>
         </table>
     </div>
-    <div class="paginator">
+
+    <!-- ページネーション（« 1 2 3 » 表示） -->
+    <nav aria-label="Page navigation example">
         <ul class="pagination justify-content-center">
-            <?= $this->Paginator->first('<< 最初', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->prev('< 前', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->numbers(['class' => 'page-item']) ?>
-            <?= $this->Paginator->next('次 >', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->last('最後 >>', ['class' => 'page-item']) ?>
+            <?= $this->Paginator->prev(
+                    '<span aria-hidden="true">«</span>',
+                    [
+                            'escape' => false,           // ← spanをそのまま出力
+                            'tag' => 'li',
+                            'class' => 'page-item',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Previous'
+                            ]
+                    ],
+                    null,
+                    [
+                            'escape' => false,
+                            'tag' => 'li',
+                            'class' => 'page-item disabled',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Previous',
+                                    'tabindex' => '-1',
+                                    'aria-disabled' => 'true'
+                            ]
+                    ]
+            ) ?>
+
+            <?= $this->Paginator->numbers([
+                    'tag' => 'li',
+                    'class' => 'page-item',
+                    'currentTag' => 'li',
+                    'currentClass' => 'page-item active',
+                    'linkAttributes' => ['class' => 'page-link'],
+                    'escape' => false
+            ]) ?>
+
+            <?= $this->Paginator->next(
+                    '<span aria-hidden="true">»</span>',
+                    [
+                            'escape' => false,
+                            'tag' => 'li',
+                            'class' => 'page-item',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Next'
+                            ]
+                    ],
+                    null,
+                    [
+                            'escape' => false,
+                            'tag' => 'li',
+                            'class' => 'page-item disabled',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Next',
+                                    'tabindex' => '-1',
+                                    'aria-disabled' => 'true'
+                            ]
+                    ]
+            ) ?>
         </ul>
-        <p class="text-muted text-center">
-            <?= $this->Paginator->counter('ページ {{page}}/{{pages}} (全{{count}}件中 {{current}}件を表示)') ?>
-        </p>
+    </nav>
+
+    <p class="text-muted text-center">
+        <?= $this->Paginator->counter('ページ {{page}}/{{pages}} (全{{count}}件中 {{current}}件を表示)') ?>
+    </p>
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const adminCheckboxes = document.querySelectorAll('.admin-checkbox');
-        // CSRF: meta優先、なければhidden inputをフォールバック
         const csrfToken =
             document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
             document.querySelector('input[name="_csrfToken"]')?.value ||

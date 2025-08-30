@@ -1,4 +1,4 @@
-// user-import.js
+// user-import.css.js
 // インポート画面の挙動（DOM構築後に実行）
 document.addEventListener('DOMContentLoaded', () => {
   // ====== 要素参照 ======
