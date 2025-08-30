@@ -3,29 +3,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use AllowDynamicProperties;
 use Cake\Event\EventInterface;
-use Cake\Log\Log;
-use Cake\ORM\TableRegistry;
-use InvalidArgumentException;
-use Cake\Datasource\ConnectionManager;
-use Authentication\PasswordHasher\DefaultPasswordHasher;
-
-
+use Cake\Http\Exception\BadRequestException;
 
 class MUserInfoController extends AppController
 {
     protected $MUserGroup;
     protected $MUserInfo;
     protected $MRoomInfo;
-    /**
-     * @var \Cake\Controller\Component|\Cake\ORM\Table|mixed|null
-     */
-
-    /**
-     * @var \Cake\Controller\Component|\Cake\ORM\Table|mixed|null
-     */
-
 
     public function initialize(): void
     {
@@ -42,8 +27,342 @@ class MUserInfoController extends AppController
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
+        // 必要に応じて importForm / importJson を追加してください
         $this->Authentication->addUnauthenticatedActions(['login', 'add']);
+    }
 
+    public function importForm()
+    {
+        $this->viewBuilder()->setLayout('default');
+        $this->viewBuilder()->setOption('serialize', true);
+        $this->set('title','ユーザー一括登録');
+    }
+
+    public function import()
+    {
+        $this->request->allowMethod(['post']);
+
+        $file = $this->request->getData('file');
+        if(!$file || $file->getError() !== UPLOAD_ERR_OK){
+            throw new BadRequestException('ファイルの受け取りに失敗しました。');
+        }
+        $ext = strtolower(pathinfo($file->getClientFilename(), PATHINFO_EXTENSION));
+        if (!in_array($ext,['csv','xlsx','xls'],true)) {
+            throw new BadRequestException('対応拡張子はxlsx/xls/csvのみです。');
+        }
+        $tmpFile = tempnam(sys_get_temp_dir(), 'import_');
+    }
+
+    /**
+     * クライアント（ブラウザ）でパース済みの JSON を受け取り登録します。
+     * 期待payload:
+     * {
+     *   "records": [
+     *     {"login_id":"u001","name":"山田 太郎","role":"職員","password":"(任意)","_row":2},
+     *     ...
+     *   ]
+     * }
+     */
+    public function importJson()
+    {
+        $this->request->allowMethod(['post']);
+        $this->viewBuilder()->setClassName('Json');
+
+        // JSON 取得
+        $payload = $this->request->getData();
+        if (empty($payload)) {
+            $payload = json_decode((string)$this->request->getBody(), true) ?? [];
+        }
+        $records = $payload['records'] ?? null;
+        if (!is_array($records)) {
+            throw new BadRequestException('records 配列が必要です。');
+        }
+
+        // i_disp_no の採番準備
+        $maxDispNoRow = $this->MUserInfo->find()
+            ->select(['max_no' => $this->MUserInfo->find()->func()->max('i_disp_no')])
+            ->first();
+        $nextDispNo = ($maxDispNoRow && $maxDispNoRow->max_no !== null)
+            ? ((int)$maxDispNoRow->max_no + 1)
+            : 1;
+
+        $results = [
+            'processed' => 0,
+            'created'   => 0,
+            'skipped'   => 0,
+            'failed'    => 0,
+            'errors'    => [] // [rowNo => [messages...]]
+        ];
+
+        $conn = $this->MUserInfo->getConnection();
+        $conn->begin();
+
+        try {
+            foreach ($records as $rec) {
+                $rowNo    = (int)($rec['_row'] ?? 0);
+                $loginId  = trim((string)($rec['login_id'] ?? ''));
+                $name     = trim((string)($rec['name'] ?? ''));
+                $roleRaw  = (string)($rec['role'] ?? '');
+                $passRaw  = (string)($rec['password'] ?? '');
+                $staffId  = trim((string)($rec['staff_id'] ?? ''));
+                $ageRaw         = (string)($rec['age'] ?? '');
+                $genderInput    = (string)($rec['i_user_gender'] ?? ($rec['gender'] ?? ''));
+                $ageGroupInput  = (string)($rec['age_group'] ?? '');
+                $roomName1 = trim((string)($rec['room_name1'] ?? ''));
+                $roomName2 = trim((string)($rec['room_name2'] ?? ''));
+
+                // 必須チェック（role 必須）
+                if ($loginId === '' || $name === '' || $roleRaw === '') {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = '必須項目（login_id, name, role）のいずれかが空です。';
+                    continue;
+                }
+
+                // 既存重複（c_login_account）
+                if ($this->MUserInfo->exists(['c_login_account' => $loginId])) {
+                    $results['skipped']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = 'c_login_account が既に存在します。';
+                    continue;
+                }
+
+                // 役割 正規化（0:職員, 1:児童, 3:その他）: role のみ使用
+                $level = $this->normalizeRole($roleRaw);
+                if ($level === null) {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = 'role の値が不正です（職員/児童/その他 または 0/1/3 を指定してください）。';
+                    continue;
+                }
+
+                // 職員(0) の場合は staff_id 必須
+                if ($level === 0 && $staffId === '') {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = 'role=職員 のため staff_id が必須です。';
+                    continue;
+                }
+
+                // パスワード（未指定時は自動生成）→ ハッシュは beforeSave で実施
+                if ($passRaw === '') {
+                    $passRaw = bin2hex(random_bytes(6)); // 12桁
+                }
+
+                // 年齢 正規化（任意）
+                $ageVal = null;
+                if ($ageRaw !== '') {
+                    $ageInt = (int)$ageRaw;
+                    if ($ageInt > 0) {
+                        $ageVal = $ageInt;
+                    }
+                }
+
+                // 性別 正規化（男性=1, 女性=2 ／ 任意）
+                $genderVal = null;
+                if ($genderInput !== '') {
+                    $g = mb_strtolower(trim((string)$genderInput), 'UTF-8');
+                    if (is_numeric($g)) {
+                        $gi = (int)$g;
+                        if (in_array($gi, [1,2], true)) $genderVal = $gi;
+                    } else {
+                        if ($g === '1' || $g === '男' || $g === '男性' || $g === 'male' || $g === 'm') $genderVal = 1;
+                        if ($g === '2' || $g === '女' || $g === '女性' || $g === 'female' || $g === 'f') $genderVal = 2;
+                    }
+                }
+
+                // 年代グループ 正規化（1..7 ／ 任意）
+                $ageGroupCode = null;
+                if ($ageGroupInput !== '') {
+                    $ageGroupCode = $this->normalizeAgeGroup($ageGroupInput);
+                }
+
+                // Entity 作成
+                $newData = [
+                    'c_login_account' => $loginId,
+                    'c_user_name'     => $name,
+                    'i_user_level'    => $level,
+                    'c_login_passwd'  => $passRaw, // beforeSaveでハッシュ化
+                    'i_del_flag'      => 0,
+                    'i_enable'        => 0,
+                    'i_disp_no'       => $nextDispNo++,
+                    'dt_create'       => date('Y-m-d H:i:s'),
+                    'c_create_user'   => $this->request->getAttribute('identity')->get('c_user_name') ?? 'インポート',
+                ];
+                if ($ageVal !== null) {
+                    $newData['i_user_age'] = $ageVal;
+                }
+                if ($genderVal !== null) {
+                    $newData['i_user_gender'] = $genderVal;
+                }
+                if ($ageGroupCode !== null) {
+                    $newData['i_user_rank'] = $ageGroupCode;
+                }
+                if ($level === 0) {
+                    $newData['i_id_staff'] = $staffId;
+                }
+
+                $entity = $this->MUserInfo->newEntity($newData);
+
+                if ($entity->getErrors()) {
+                    $results['failed']++;
+                    foreach ($entity->getErrors() as $field => $msgs) {
+                        foreach ($msgs as $msg) {
+                            $results['errors'][$rowNo][] = "{$field}: {$msg}";
+                        }
+                    }
+                    $results['processed']++;
+                    continue;
+                }
+
+                if ($this->MUserInfo->save($entity)) {
+                    $results['created']++;
+                    // 部屋名から部屋IDを検索し、MUserGroupに所属情報を登録（最大2件）
+                    $userId = $entity->i_id_user;
+                    $roomNames = [];
+                    if ($roomName1 !== '') $roomNames[] = $roomName1;
+                    if ($roomName2 !== '') $roomNames[] = $roomName2;
+                    foreach ($roomNames as $roomName) {
+                        $room = $this->MRoomInfo->find()->where(['c_room_name' => $roomName])->first();
+                        if ($room && $userId) {
+                            $userGroup = $this->MUserGroup->newEntity([
+                                'i_id_user' => $userId,
+                                'i_id_room' => $room->i_id_room,
+                                'active_flag' => 0,
+                                'dt_create' => date('Y-m-d H:i:s'),
+                                'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name') ?? 'インポート',
+                            ]);
+                            $this->MUserGroup->save($userGroup);
+                        } else if ($roomName !== '') {
+                            $results['errors'][$rowNo][] = "部屋名 '{$roomName}' が見つかりません";
+                        }
+                    }
+                } else {
+                    $results['failed']++;
+                    $results['errors'][$rowNo][] = '保存に失敗しました。';
+                }
+
+                $results['processed']++;
+            }
+
+            $conn->commit();
+        } catch (\Throwable $e) {
+            $conn->rollback();
+            throw new BadRequestException('インポート処理でエラー: ' . $e->getMessage());
+        }
+
+        $this->set(['ok' => true, 'summary' => $results, '_serialize' => ['ok', 'summary']]);
+    }
+
+
+    /**
+     * 役割名 → i_user_level（0:職員, 1:児童, 3:その他）へ正規化
+     * 許容:
+     *  - 数値: 0/1/3（全角数字も可）
+     *  - 日本語: 「職員/スタッフ/教職員」→0、「児童/子ども/子供/生徒/利用者/ユーザー」→1、「その他/外部/ゲスト/臨時」→3（部分一致OK）
+     *  - 英語: staff→0, child/user→1, other→3
+     */
+    private function normalizeRole(string $raw): ?int
+    {
+        // 前処理：前後空白除去・全角→半角（英数/スペース）、小文字化
+        $v = trim($raw);
+        if ($v === '') {
+            return null;
+        }
+        if (function_exists('mb_convert_kana')) {
+            // n:数字, a:英字, s:スペース を半角へ
+            $v = mb_convert_kana($v, 'nas', 'UTF-8');
+        }
+        $vLower = mb_strtolower($v, 'UTF-8');
+
+        // 1) 数値（"０"など全角数字にも対応）
+        if (is_numeric($vLower)) {
+            $n = (int)$vLower;
+            return in_array($n, [0, 1, 3], true) ? $n : null;
+        }
+
+        // 2) 完全一致（英語/日本語の代表表記）
+        $exactMap = [
+            // 0: 職員
+            'staff' => 0, '職員' => 0, 'スタッフ' => 0, '教職員' => 0,
+            // 1: 児童/利用者
+            'child' => 1, 'user' => 1, '利用者' => 1, '児童' => 1, 'こども' => 1, '子ども' => 1, '子供' => 1, '生徒' => 1, 'ユーザー' => 1,
+            // 3: その他
+            'other' => 3, 'その他' => 3, '外部' => 3, 'ゲスト' => 3, '臨時' => 3,'ボランティア'=>3
+        ];
+        if (array_key_exists($vLower, $exactMap)) {
+            return $exactMap[$vLower];
+        }
+
+        // 3) 部分一致（表記ゆれ・複合語も拾う）
+        $containsAny = function (string $haystack, array $needles): bool {
+            foreach ($needles as $needle) {
+                if ($needle === '') continue;
+                if (mb_strpos($haystack, $needle, 0, 'UTF-8') !== false) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // 職員系 → 0
+        if ($containsAny($vLower, ['職員', 'スタッフ', '教職員'])) {
+            return 0;
+        }
+        // 児童/利用者系 → 1
+        if ($containsAny($vLower, ['児童', '子ども', '子供', 'こども', '生徒', '利用者', 'ユーザー'])) {
+            return 1;
+        }
+        // その他/外部系 → 3
+        if ($containsAny($vLower, ['その他', '外部', 'ゲスト', '臨時'])) {
+            return 3;
+        }
+
+        // 英語の部分一致フォールバック
+        if ($containsAny($vLower, ['staff'])) return 0;
+        if ($containsAny($vLower, ['child', 'user'])) return 1;
+        if ($containsAny($vLower, ['other'])) return 3;
+
+        return null;
+    }
+
+    /**
+     * 年代（age_group）表記 → コード（1..7）へ正規化
+     * 1:3~5才, 2:低学年, 3:中学年, 4:高学年, 5:中学生, 6:高校生, 7:大人
+     */
+    private function normalizeAgeGroup(string $raw): ?int
+    {
+        $v = trim($raw);
+        if ($v === '') return null;
+
+        // 数値なら1..7のみ許可
+        if (is_numeric($v)) {
+            $n = (int)$v;
+            return ($n >= 1 && $n <= 7) ? $n : null;
+        }
+
+        if (function_exists('mb_convert_kana')) {
+            $v = mb_convert_kana($v, 'as', 'UTF-8');
+        }
+        $v = str_replace(['歳','才','　'], ['','',''], $v);
+        $vLower = mb_strtolower($v, 'UTF-8');
+
+        // マップ（部分一致許容）
+        $pairs = [
+            ['3~5', 1], ['3-5', 1], ['3〜5', 1], ['3～5', 1],
+            ['低学年', 2],
+            ['中学年', 3],
+            ['高学年', 4],
+            ['中学生', 5],
+            ['高校生', 6],
+            ['大人',   7], ['成人', 7],
+        ];
+        foreach ($pairs as [$key, $code]) {
+            if (mb_strpos($vLower, $key, 0, 'UTF-8') !== false) {
+                return $code;
+            }
+        }
+        return null;
     }
 
     public function index()
@@ -82,7 +401,6 @@ class MUserInfoController extends AppController
         $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId'));
     }
 
-
     public function getUserRooms($userId)
     {
         if ($userId === null) {
@@ -114,8 +432,6 @@ class MUserInfoController extends AppController
         return $rooms;
     }
 
-
-
     private function castGroupData(array $groupData): array {
         return array_map(function ($group) {
             return [
@@ -139,6 +455,7 @@ class MUserInfoController extends AppController
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
+        $mUserInfo->i_enable = 1;
         $mUserInfo->i_disp_no = $maxDispNo;
         $mUserInfo->i_user_age = (int)$this->request->getData('age');
         $mUserInfo->i_user_level = (int)$this->request->getData('role');
@@ -237,7 +554,7 @@ class MUserInfoController extends AppController
             $data = $this->request->getData();
             // フィールド名の修正とnullチェック (c_user_nameがnullの場合のデフォルト値を設定)
             $data['c_user_name'] = $data['c_user_name'] ?? 'デフォルトユーザー名';
-	        $user = $this->request->getAttribute('identity');
+            $user = $this->request->getAttribute('identity');
             $data['c_update_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
             $data['dt_update'] = date('Y-m-d H:i:s');
 
@@ -258,7 +575,6 @@ class MUserInfoController extends AppController
                 }
             }
 
-
             // トランザクション開始
             $conn = $this->MUserInfo->getConnection();
             $conn->begin();
@@ -270,7 +586,6 @@ class MUserInfoController extends AppController
                 // パッチを適用して関連付けを設定
                 $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, ['associated' => ['MUserGroup']]);
                 $mUserInfo->m_user_group = $newUserGroups;
-
 
                 // 保存処理
                 if ($this->MUserInfo->save($mUserInfo, ['associated' => ['MUserGroup']])) {
@@ -369,14 +684,14 @@ class MUserInfoController extends AppController
         $this->set(compact('mUserInfo', 'userRooms'));
     }
 
-
     public function delete($id = null)
     {
         date_default_timezone_set('Asia/Tokyo');
         $this->request->allowMethod(['post', 'delete']);
         $mUserInfo = $this->MUserInfo->get($id);
         $mUserInfo->i_del_flag = 1;
-        $mUserInfo->i_enable = 1; // i_enableを1に設定
+        $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
+        $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
         $mUserInfo->dt_update = date('Y-m-d H:i:s');
         $user = $this->request->getAttribute('identity');
         $mUserInfo->c_update_user = $user ? $user->get('c_user_name') : '不明なユーザー';
@@ -427,10 +742,6 @@ class MUserInfoController extends AppController
         return $this->redirect(['action' => 'view', $userId]);
     }
 
-
-
-
-
     public function login()
     {
         $this->request->allowMethod(['get', 'post']);
@@ -470,6 +781,7 @@ class MUserInfoController extends AppController
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
         }
     }
+
     public function logout()
     {
         $result = $this->Authentication->getResult();
@@ -479,8 +791,6 @@ class MUserInfoController extends AppController
         }
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
-
-
 
     public function adminChangePassword()
     {
@@ -524,8 +834,9 @@ class MUserInfoController extends AppController
             // **入力された平文パスワードをログに記録**
             $this->log('入力された平文のパスワード: ' . $newPassword, 'debug');
 
-            // 手動でのハッシュ化を行わず、平文のパスワードをエンティティにセット
-            // → モデル側のbeforeSave()で自動的にハッシュ化される前提
+            // モデルでbeforeSaveハッシュ化する前提の場合は平文をセット
+            // もし beforeSave が無い場合は以下の1行を使用してください:
+            // $selectedUser->c_login_passwd = (new DefaultPasswordHasher())->hash($newPassword);
             $selectedUser->c_login_passwd = $newPassword;
 
             if ($this->fetchTable('MUserInfo')->save($selectedUser)) {
@@ -545,4 +856,67 @@ class MUserInfoController extends AppController
         $this->set(compact('users', 'selectedUser'));
     }
 
+    /**
+     * ユーザーの所属部屋登録API
+     * POST: i_id_user, room_names[]
+     * 既存所属はactive_flag=1に更新し、新規所属をactive_flag=0で登録
+     * 最大2部屋まで
+     */
+    public function addUserRooms()
+    {
+        $this->request->allowMethod(['post']);
+        $this->viewBuilder()->setClassName('Json');
+        $userId = $this->request->getData('i_id_user');
+        $roomNames = $this->request->getData('room_names');
+        if (!is_numeric($userId) || empty($roomNames) || !is_array($roomNames)) {
+            $this->set(['ok' => false, 'message' => 'i_id_userとroom_names[]が必要です', '_serialize' => ['ok','message']]);
+            return;
+        }
+        $userId = (int)$userId;
+        $roomNames = array_slice($roomNames, 0, 2); // 最大2部屋
+        $user = $this->MUserInfo->find()->where(['i_id_user' => $userId, 'i_del_flag' => 0])->first();
+        if (!$user) {
+            $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok','message']]);
+            return;
+        }
+        $conn = $this->MUserInfo->getConnection();
+        $conn->begin();
+        $errors = [];
+        try {
+            // 既存所属（active_flag=0）をactive_flag=1に更新
+            $oldGroups = $this->MUserGroup->find()->where(['i_id_user' => $userId, 'active_flag' => 0])->all();
+            foreach ($oldGroups as $group) {
+                $group->active_flag = 1;
+                $group->dt_update = date('Y-m-d H:i:s');
+                $group->c_update_user = $this->request->getAttribute('identity')->get('c_user_name') ?? 'API';
+                $this->MUserGroup->save($group);
+            }
+            // 新規所属登録
+            $created = 0;
+            foreach ($roomNames as $roomName) {
+                $room = $this->MRoomInfo->find()->where(['c_room_name' => $roomName])->first();
+                if ($room) {
+                    $newGroup = $this->MUserGroup->newEntity([
+                        'i_id_user' => $userId,
+                        'i_id_room' => $room->i_id_room,
+                        'active_flag' => 0,
+                        'dt_create' => date('Y-m-d H:i:s'),
+                        'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name') ?? 'API',
+                    ]);
+                    if ($this->MUserGroup->save($newGroup)) {
+                        $created++;
+                    } else {
+                        $errors[] = "部屋 '{$roomName}' の登録に失敗";
+                    }
+                } else {
+                    $errors[] = "部屋名 '{$roomName}' が見つかりません";
+                }
+            }
+            $conn->commit();
+            $this->set(['ok' => true, 'created' => $created, 'errors' => $errors, '_serialize' => ['ok','created','errors']]);
+        } catch (\Throwable $e) {
+            $conn->rollback();
+            $this->set(['ok' => false, 'message' => $e->getMessage(), '_serialize' => ['ok','message']]);
+        }
+    }
 }

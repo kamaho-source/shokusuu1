@@ -3,21 +3,29 @@
  * @var \App\View\AppView $this
  * @var iterable<\App\Model\Entity\MUserInfo> $mUserInfo
  * @var array $userRooms
+ * @var \App\Model\Entity\User $user
  */
 
-// 管理者権限の確認 (例: ログインユーザー情報から取得)
 $isAdmin = $user->get('i_admin') === 1;
-// 現在ログインしているユーザーのID
 $currentUserId = $user->get('i_id_user');
 
 echo $this->Html->css(['bootstrap.min']);
 $this->assign('title', 'ユーザー情報一覧');
+$csrfToken = $this->request->getAttribute('csrfToken');
+$this->Html->css('bootstrap-icons.css', ['block' => true]);
+$this->Html->css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css')
+
 ?>
+<meta name="csrfToken" content="<?= h($csrfToken) ?>">
+
 <div class="mUserInfo index content">
-    <?php if($isAdmin || $user->get('i_user_level') === 0): ?>
-    <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
+    <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
+        <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
+        <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary float-right mb-3 mr-2']) ?>
     <?php endif; ?>
+
     <h3><?= __('ユーザー一覧') ?></h3>
+
     <div class="table-responsive">
         <table class="table table-bordered">
             <thead>
@@ -33,30 +41,33 @@ $this->assign('title', 'ユーザー情報一覧');
             </tr>
             </thead>
             <tbody>
-            <?php foreach ($mUserInfo as $user): ?>
+            <?php foreach ($mUserInfo as $userInfo): ?>
                 <tr>
-                    <td><?= h($user->i_id_user) ?></td>
-                    <td><?= h($user->c_user_name) ?></td>
-                    <td><?= $user->i_disp_no !== null ? $this->Number->format($user->i_disp_no) : '' ?></td>
-                    <td><?= !empty($userRooms[$user->i_id_user]) ? h(implode(', ', $userRooms[$user->i_id_user])) : '未所属' ?></td>
+                    <td><?= h($userInfo->i_id_user) ?></td>
+                    <td><?= h($userInfo->c_user_name) ?></td>
+                    <td><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
+                    <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
                     <?php if ($isAdmin): ?>
                         <td>
                             <?= $this->Form->checkbox('i_admin', [
-                                'checked' => $user->i_admin === 1,
-                                'value' => $user->i_admin,
-                                'data-user-id' => $user->i_id_user,
-                                'data-user-name' => h($user->c_user_name), // ユーザー名属性を追加
-                                'class' => 'admin-checkbox'
+                                    'checked' => $userInfo->i_admin === 1,
+                                    'value' => $userInfo->i_admin,
+                                    'data-user-id' => $userInfo->i_id_user,
+                                    'data-user-name' => h($userInfo->c_user_name),
+                                    'class' => 'admin-checkbox'
                             ]) ?>
                         </td>
                     <?php endif; ?>
                     <td class="actions">
-                        <?= $this->Html->link(__('表示'), ['action' => 'view', $user->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
-                        <?php if ($isAdmin || $user->i_id_user === $currentUserId): ?>
-                            <?= $this->Html->link(__('編集'), ['action' => 'edit', $user->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
+                        <?= $this->Html->link(__('表示'), ['action' => 'view', $userInfo->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
+                        <?php if ($isAdmin || $userInfo->i_id_user === $currentUserId): ?>
+                            <?= $this->Html->link(__('編集'), ['action' => 'edit', $userInfo->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
                         <?php endif; ?>
                         <?php if ($isAdmin): ?>
-                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $user->i_id_user], ['confirm' => __(' {0} を削除してもよろしいですか？', $user->c_user_name), 'class' => 'btn btn-danger btn-sm']) ?>
+                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $userInfo->i_id_user], [
+                                    'confirm' => __(' {0} を削除してもよろしいですか？', $userInfo->c_user_name),
+                                    'class' => 'btn btn-danger btn-sm'
+                            ]) ?>
                         <?php endif; ?>
                     </td>
                 </tr>
@@ -64,69 +75,122 @@ $this->assign('title', 'ユーザー情報一覧');
             </tbody>
         </table>
     </div>
-    <div class="paginator">
+
+    <!-- ページネーション（« 1 2 3 » 表示） -->
+    <nav aria-label="Page navigation example">
         <ul class="pagination justify-content-center">
-            <?= $this->Paginator->first('<< 最初', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->prev('< 前', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->numbers(['class' => 'page-item']) ?>
-            <?= $this->Paginator->next('次 >', ['class' => 'page-item']) ?>
-            <?= $this->Paginator->last('最後 >>', ['class' => 'page-item']) ?>
+            <?= $this->Paginator->prev(
+                    '<span aria-hidden="true">«</span>',
+                    [
+                            'escape' => false,           // ← spanをそのまま出力
+                            'tag' => 'li',
+                            'class' => 'page-item',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Previous'
+                            ]
+                    ],
+                    null,
+                    [
+                            'escape' => false,
+                            'tag' => 'li',
+                            'class' => 'page-item disabled',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Previous',
+                                    'tabindex' => '-1',
+                                    'aria-disabled' => 'true'
+                            ]
+                    ]
+            ) ?>
+
+            <?= $this->Paginator->numbers([
+                    'tag' => 'li',
+                    'class' => 'page-item',
+                    'currentTag' => 'li',
+                    'currentClass' => 'page-item active',
+                    'linkAttributes' => ['class' => 'page-link'],
+                    'escape' => false
+            ]) ?>
+
+            <?= $this->Paginator->next(
+                    '<span aria-hidden="true">»</span>',
+                    [
+                            'escape' => false,
+                            'tag' => 'li',
+                            'class' => 'page-item',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Next'
+                            ]
+                    ],
+                    null,
+                    [
+                            'escape' => false,
+                            'tag' => 'li',
+                            'class' => 'page-item disabled',
+                            'linkAttributes' => [
+                                    'class' => 'page-link',
+                                    'aria-label' => 'Next',
+                                    'tabindex' => '-1',
+                                    'aria-disabled' => 'true'
+                            ]
+                    ]
+            ) ?>
         </ul>
-        <p class="text-muted text-center">
-            <?= $this->Paginator->counter('ページ {{page}}/{{pages}} (全{{count}}件中 {{current}}件を表示)') ?>
-        </p>
+    </nav>
+
+    <p class="text-muted text-center">
+        <?= $this->Paginator->counter('ページ {{page}}/{{pages}} (全{{count}}件中 {{current}}件を表示)') ?>
+    </p>
 </div>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const adminCheckboxes = document.querySelectorAll('.admin-checkbox');
+        const csrfToken =
+            document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
+            document.querySelector('input[name="_csrfToken"]')?.value ||
+            '';
 
-        adminCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', (event) => {
-                const userId = event.target.getAttribute('data-user-id'); // ユーザーID取得
-                const userName = event.target.getAttribute('data-user-name'); // ユーザー名取得
-                const isAdmin = event.target.checked ? 1 : 0;
+        function handleAdminCheckboxChange(event) {
+            const target = event.target;
+            const userId = target.getAttribute('data-user-id');
+            const userName = target.getAttribute('data-user-name');
+            const isAdmin = target.checked ? 1 : 0;
 
-                // 確認ダイアログを生成
-                const confirmMessage = isAdmin
-                    ? `${userName}に管理者権限を付与しますか？`
-                    : `${userName}から管理者権限を削除しますか？`;
+            const confirmMessage = isAdmin
+                ? `${userName}に管理者権限を付与しますか？`
+                : `${userName}から管理者権限を削除しますか？`;
 
-                // ユーザーによる確認
-                if (!confirm(confirmMessage)) {
-                    // キャンセルの場合、チェック状態を元に戻す
-                    event.target.checked = !event.target.checked;
-                    return;
-                }
+            if (!confirm(confirmMessage)) {
+                target.checked = !target.checked;
+                return;
+            }
 
-                // サーバーに非同期リクエスト送信
-                fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': document.querySelector('input[name="_csrfToken"]').value
-                    },
-                    body: JSON.stringify({
-                        i_id_user: userId,
-                        i_admin: isAdmin
-                    })
+            fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('管理者権限が更新されました。');
+                    } else {
+                        alert(data.message || '管理者権限の更新に失敗しました。再試行してください。');
+                        target.checked = !target.checked;
+                    }
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            alert('管理者権限が更新されました。');
-                        } else {
-                            alert(data.message || '管理者権限の更新に失敗しました。再試行してください。');
-                            // 更新失敗時には元のチェック状態に戻す
-                            event.target.checked = !event.target.checked;
-                        }
-                    })
-                    .catch(() => {
-                        alert('エラーが発生しました。再試行してください。');
-                        // エラー時に元のチェック状態に戻す
-                        event.target.checked = !event.target.checked;
-                    });
-            });
-        });
+                .catch(() => {
+                    alert('エラーが発生しました。再試行してください。');
+                    target.checked = !target.checked;
+                });
+        }
+
+        adminCheckboxes.forEach(cb => cb.addEventListener('change', handleAdminCheckboxChange));
     });
 </script>
