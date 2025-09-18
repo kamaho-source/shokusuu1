@@ -927,9 +927,10 @@ class TReservationInfoController extends AppController
             Log::error('JSONデコードエラー: ' . json_last_error_msg());
             return $this->jsonErrorResponse(__('JSONデータの形式が不正です: ') . json_last_error_msg());
         }
-
+        /*
         Log::debug("processIndividualReservation called by User: {$this->request->getAttribute('identity')->get('i_id_user')}, Date: {$reservationDate}");
         Log::debug('デコード後のデータ: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
+        */
 
         /* ─────────────────────────────────────
          * ② 日付の検証
