@@ -3,14 +3,29 @@
    依存: Bootstrap（ユーティリティクラス使用を想定）
 -------------------------------------------------------------- */
 
-/* CSS 変数（テーマ色） */
+/* CSS 変数（テーマ色） - OS設定に依存しない固定色 */
 :root {
-    --border: #d0d7de;
-    --muted: #666;
-    --primary: #2563eb;
-    --ok: #16a34a;
-    --warn: #ea580c;
-    --err: #dc2626;
+    /* ライトテーマの固定色（OS設定に関係なく一貫） */
+    --border-light: #d1d5db;
+    --muted-light: #6b7280;
+    --primary-light: #3b82f6;
+    --ok-light: #10b981;
+    --warn-light: #f59e0b;
+    --err-light: #ef4444;
+    --background-light: #ffffff;
+    --text-light: #111827;
+    --surface-light: #f9fafb;
+
+    /* 実際に使用する変数（デフォルトはライト） */
+    --border: var(--border-light);
+    --muted: var(--muted-light);
+    --primary: var(--primary-light);
+    --ok: var(--ok-light);
+    --warn: var(--warn-light);
+    --err: var(--err-light);
+    --background: var(--background-light);
+    --text: var(--text-light);
+    --surface: var(--surface-light);
 }
 
 /* 視覚的に非表示（スクリーンリーダー用に残す） */
@@ -21,20 +36,20 @@
     clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
-/* ドロップゾーン（常に白） */
+/* ドロップゾーン（OS設定に関係なく固定色） */
 .dropzone {
-    border: 2px dashed #94a3b8;
+    border: 2px dashed var(--border);
     border-radius: 12px;
     padding: 28px;
     text-align: center;
     transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease;
-    background: #ffffff;          /* ← 白に固定 */
-    color: #111827;
+    background: var(--background);
+    color: var(--text);
 }
 .dropzone.dragover {
-    background: #ffffff;          /* ← ドラッグ中も白 */
+    background: var(--background);
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, .12);
 }
 
 /* 説明テキスト */
@@ -43,18 +58,19 @@
     font-size: 12px;
 }
 
-/* ボタン（独自アウトライン） */
+/* ボタン（OS設定に関係なく固定色） */
 .btn-outline {
     padding: 8px 14px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: #fff;
+    background: var(--background);
+    color: var(--text);
     cursor: pointer;
     transition: filter .15s ease, transform .05s ease, box-shadow .15s ease;
 }
 .btn-outline.primary {
     background: var(--primary);
-    color: #fff;
+    color: var(--background);
     border-color: var(--primary);
 }
 .btn-outline:disabled {
@@ -62,14 +78,14 @@
     cursor: not-allowed;
 }
 .btn-outline:not(:disabled):hover {
-    filter: brightness(0.98);
+    filter: brightness(0.95);
 }
 .btn-outline:not(:disabled):active {
     transform: translateY(1px);
 }
 .btn-outline:focus-visible {
     outline: 0;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, .24);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, .24);
 }
 
 /* 進捗バー */
@@ -87,14 +103,15 @@
     transition: width .25s ease;
 }
 
-/* バッジ */
+/* バッジ（固定色） */
 .badge-lite {
     display: inline-block;
     font-size: 11px;
     padding: 2px 8px;
     border-radius: 999px;
     border: 1px solid var(--border);
-    background: #f8fafc;
+    background: var(--surface);
+    color: var(--text);
 }
 .badge-lite.ok {
     border-color: #86efac;
@@ -120,34 +137,36 @@
     line-height: 1.6;
     max-height: 220px;
     overflow: auto;
-    border: 1px solid #eee;
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px;
-    background: #fff;
+    background: var(--background);
+    color: var(--text);
 }
 
 /* プレビューラッパー */
 #previewWrap {
     overflow: auto;
     max-height: 360px;
-    border: 1px solid #eee;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background: #fff;
+    background: var(--background);
 }
 
 /* プレビューテーブル */
 table.preview {
     width: 100%;
     border-collapse: collapse;
+    color: var(--text);
 }
 table.preview th,
 table.preview td {
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border);
     padding: 8px 10px;
     font-size: 13px;
 }
 table.preview thead th {
-    background: #f9fafb;
+    background: var(--surface);
     text-align: left;
     position: sticky;
     top: 0;
@@ -158,6 +177,7 @@ table.preview thead th {
 details summary {
     cursor: pointer;
     font-weight: 600;
+    color: var(--text);
 }
 
 /* アニメーション軽減設定 */
@@ -170,28 +190,22 @@ details summary {
     }
 }
 
-/* ダークモード（他要素はダーク、ドロップゾーンは白固定） */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --border: #3a3f45;
-        --muted: #9aa0a6;
-    }
-    .dropzone {
-        background: #ffffff;        /* ← ダーク時も白 */
-        color: #111827;
-        border-color: #2b3440;
-    }
-    .dropzone.dragover {
-        background: #ffffff;        /* ← ダーク時のドラッグ中も白 */
-    }
-    .muted { color: var(--muted); }
-    .btn-outline { background: #0b1020; border-color: var(--border); color: #e5e7eb; }
-    .btn-outline.primary { color: #fff; }
-    .progress-lite { background: #1f2937; }
-    .badge-lite { background: #0b1020; border-color: var(--border); color: #e5e7eb; }
-    .log { background: #0b1020; border-color: var(--border); color: #e5e7eb; }
-    #previewWrap { background: #0b1020; border-color: var(--border); }
-    table.preview th, table.preview td { border-bottom-color: #263040; }
-    table.preview thead th { background: #0b1429; }
+/* ダークテーマクラスによる切り替え（OS設定を無視） */
+.theme-dark {
+    --border: #374151;
+    --muted: #9ca3af;
+    --primary: #3b82f6;
+    --ok: #10b981;
+    --warn: #f59e0b;
+    --err: #ef4444;
+    --background: #1f2937;
+    --text: #f9fafb;
+    --surface: #374151;
 }
-s
+
+/* OS のダークモード設定は無効化（コメントアウト） */
+/*
+@media (prefers-color-scheme: dark) {
+    // OS設定に依存しないよう削除
+}
+*/
