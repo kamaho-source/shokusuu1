@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
+use Cake\Log\Log;
 
 class MUserInfoController extends AppController
 {
@@ -381,7 +382,7 @@ class MUserInfoController extends AppController
             $query->where(['i_id_user' => $currentUserId]);
         }
 
-        $mUserInfo = $this->paginate($query);
+        $mUserInfo = $this->paginate($query,['limit' => 200,'maxLimit' => 200]);
 
         // 所属部屋データの整理
         $userRooms = [];
@@ -764,7 +765,6 @@ class MUserInfoController extends AppController
                 'controller' => 'TReservationInfo',
                 'action' => 'index',
             ]);
-
             return $this->redirect($redirect);
         }
 
