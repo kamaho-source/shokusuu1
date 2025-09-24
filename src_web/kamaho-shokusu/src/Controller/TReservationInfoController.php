@@ -102,7 +102,12 @@ class TReservationInfoController extends AppController
         $authUser = $this->Authentication->getIdentity();         // ★ 消さない
         $userId   = $authUser->get('i_id_user');
         $user     = $this->MUserInfo->get($userId);
-
+        //ユーザーの部屋の所属情報を取得
+        $userGroup = $this->MUserGroup->find()
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => $userId])
+            ->first();
+        $userRoomId = $userGroup->i_id_room;
         /* ========== 14 日前境界 ========== */
         $borderDate = \Cake\I18n\FrozenDate::today()->modify('+14 days');
 
@@ -195,7 +200,8 @@ class TReservationInfoController extends AppController
             'mealDataArray',
             'myReservationDates',
             'myReservationDetails',
-            'user'
+            'user',
+            'userRoomId',
         ));
     }
     /**
@@ -1635,7 +1641,7 @@ class TReservationInfoController extends AppController
             ->toArray();
 
         //------------------------------------------------------------------
-        // 対象日の予約を取得（mealType で絞り込み）
+        // 対象日の予約を取得（mealType で絞り込み）→ 画面表示用
         //------------------------------------------------------------------
         $reservations = $this->TIndividualReservationInfo->find()
             ->contain(['MRoomInfo'])
@@ -1648,15 +1654,16 @@ class TReservationInfoController extends AppController
         $userReservations = [];
         foreach ($reservations as $r) {
             $userReservations[$r->i_id_user][$r->i_reservation_type] = [
-                'room_id'     => $r->i_id_room,
-                'eat_flag'    => $r->eat_flag,
-                'room_name'   => $r->m_room_info->c_room_name ?? '不明な部屋',
+                'room_id'       => $r->i_id_room,
+                'eat_flag'      => $r->eat_flag,
+                'room_name'     => $r->m_room_info->c_room_name ?? '不明な部屋',
                 'i_change_flag' => $r->i_change_flag,
             ];
         }
 
         /* ─────────────────────────────────────────────
-         *  昼 ⇔ 弁当 の競合チェックユーザー一覧取得
+         *  昼 ⇔ 弁当 の競合チェックユーザー一覧取得（画面表示などで使用）
+         *  ※ ただし保存時に「スキップ」はしない（i_change_flag を最優先で更新）
          * ──────────────────────────────────────────── */
         $conflictUserIds = [];
         if ($mealType === 2) { // 昼編集中 → 弁当予約の有無確認
@@ -1695,25 +1702,34 @@ class TReservationInfoController extends AppController
         // 保存処理
         //------------------------------------------------------------------
         if ($this->request->is(['post', 'put'])) {
-            $data       = $this->request->getData();
+            $data       = (array)$this->request->getData();
+            $usersData  = isset($data['users']) && is_array($data['users']) ? $data['users'] : [];
+
             $connection = $this->TIndividualReservationInfo->getConnection();
             $connection->begin();
 
             try {
-                foreach ($data['users'] as $userId => $meals) {
-                    foreach ($meals as $type => $value) {
+                foreach ($usersData as $userId => $meals) {
+                    if (!is_array($meals)) {
+                        continue;
+                    }
+                    foreach ($meals as $type => $valueRaw) {
 
                         // mealType 以外は無視
-                        if ((int)$type !== $mealType) {
+                        $type = (int)$type;
+                        if ($type !== $mealType) {
                             continue;
                         }
 
-                        // 昼⇔弁当の衝突がある場合は保存させない
-                        if (in_array($userId, $conflictUserIds, true)) {
-                            continue;
-                        }
+                        // 値の正規化（チェックボックス等の "on"/"1"/true を 1 とみなす）
+                        $valueStr = is_scalar($valueRaw) ? (string)$valueRaw : '';
+                        $toOn = ($valueRaw === 1)
+                            || $valueStr === '1'
+                            || $valueStr === 'on'
+                            || $valueStr === 'true'
+                            || $valueStr === 'yes';
 
-                        // 既存予約の有無を取得
+                        // 現在タイプの既存予約の有無
                         $reservation = $this->TIndividualReservationInfo->find()
                             ->where([
                                 'i_id_user'          => $userId,
@@ -1723,68 +1739,57 @@ class TReservationInfoController extends AppController
                             ->first();
 
                         //------------------------------------------------------------------
-                        // 更新処理
+                        // 既存あり → i_change_flag のみ更新（eat_flag は触らない）
                         //------------------------------------------------------------------
                         if ($reservation) {
-                            // eat_flag = 1 かつ 別部屋 ⇒ 更新禁止
+                            // eat_flag = 1 かつ 別部屋 ⇒ 更新禁止（従来ルールは維持）
                             if ($reservation->eat_flag == 1 && $reservation->i_id_room != $roomId) {
                                 $this->log("直前編集: 部屋跨ぎ更新禁止 UserID={$userId}", 'warning');
                                 continue;
                             }
 
-                            if ((int)$value === 1) {
-                                // 「食べる」に変更 → eat_flag=1 / i_change_flag=1
-                                $this->TIndividualReservationInfo->updateAll(
-                                    [
-                                        'i_id_room'     => $roomId,
-                                        'eat_flag'      => 1,
-                                        'i_change_flag' => 1,
-                                        'c_update_user' => $this->request->getAttribute('identity')->get('c_user_name'),
-                                        'dt_update'     => FrozenTime::now(),
-                                    ],
-                                    [
-                                        'i_id_user'          => $userId,
-                                        'd_reservation_date' => $date,
-                                        'i_id_room'          => $reservation->i_id_room,
-                                        'i_reservation_type' => $type,
-                                    ]
-                                );
-                            } elseif ($reservation->eat_flag == 1) {
-                                // 直前に「食べない」へ変更 → eat_flag は触らず i_change_flag のみ 0
-                                $this->TIndividualReservationInfo->updateAll(
-                                    [
-                                        'i_change_flag' => 0,
-                                        'c_update_user' => $this->request->getAttribute('identity')->get('c_user_name'),
-                                        'dt_update'     => FrozenTime::now(),
-                                    ],
-                                    [
-                                        'i_id_user'          => $userId,
-                                        'd_reservation_date' => $date,
-                                        'i_id_room'          => $reservation->i_id_room,
-                                        'i_reservation_type' => $type,
-                                    ]
-                                );
-                            }
+                            $this->TIndividualReservationInfo->updateAll(
+                                [
+                                    // ★ 最重要要件：i_change_flag を 1/0 にする
+                                    'i_change_flag' => $toOn ? 1 : 0,
+                                    // ルームは必要に応じて付け替えたい場合のみ（eat_flag はいじらない）
+                                    'i_id_room'     => $reservation->i_id_room, // 明示的に現状維持
+                                    'c_update_user' => $this->request->getAttribute('identity')->get('c_user_name'),
+                                    'dt_update'     => FrozenTime::now(),
+                                ],
+                                [
+                                    'i_id_user'          => $userId,
+                                    'd_reservation_date' => $date,
+                                    'i_id_room'          => $reservation->i_id_room,
+                                    'i_reservation_type' => $type,
+                                ]
+                            );
                             continue;
                         }
 
                         //------------------------------------------------------------------
-                        // 新規登録
+                        // 既存なし → 新規
                         //------------------------------------------------------------------
-                        $entity = $this->TIndividualReservationInfo->newEmptyEntity();
-                        $entity = $this->TIndividualReservationInfo->patchEntity($entity, [
-                            'i_id_user'          => $userId,
-                            'd_reservation_date' => $date,
-                            'i_id_room'          => $roomId,
-                            'i_reservation_type' => $type,
-                            'eat_flag'           => 0,   // 新規は常に 0
-                            'i_change_flag'      => 1,   // 新規は常に 1
-                            'c_create_user'      => $this->request->getAttribute('identity')->get('c_user_name'),
-                            'dt_create'          => FrozenTime::now(),
-                        ]);
+                        if ($toOn) {
+                            // ★要件：新規は eat_flag=0, i_change_flag=1 で作成
+                            $entity = $this->TIndividualReservationInfo->newEmptyEntity();
+                            $entity = $this->TIndividualReservationInfo->patchEntity($entity, [
+                                'i_id_user'          => $userId,
+                                'd_reservation_date' => $date,
+                                'i_id_room'          => $roomId,
+                                'i_reservation_type' => $type,
+                                'eat_flag'           => 0, // ここは常に 0
+                                'i_change_flag'      => 1, // ここを 1 にして直前変更の意図を表現
+                                'c_create_user'      => $this->request->getAttribute('identity')->get('c_user_name'),
+                                'dt_create'          => FrozenTime::now(),
+                            ]);
 
-                        if (!$this->TIndividualReservationInfo->save($entity)) {
-                            throw new \RuntimeException("新規予約の保存に失敗しました UserID={$userId}");
+                            if (!$this->TIndividualReservationInfo->save($entity)) {
+                                throw new \RuntimeException("新規予約の保存に失敗しました UserID={$userId}");
+                            }
+                        } else {
+                            // toOn=false で既存なしなら何もしない（新規行は作らない）
+                            continue;
                         }
                     }
                 }
@@ -1806,7 +1811,10 @@ class TReservationInfoController extends AppController
         $this->render('change_edit');
     }
 
-/**
+
+
+
+    /**
      * 編集メソッド
      *
      * @param string|null $id T Reservation Info id.

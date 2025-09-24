@@ -41,21 +41,28 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                     <div class="form-group row">
                         <?= $this->Form->label('d_reservation_date', '予約日', ['class' => 'col-sm-3 col-form-label']) ?>
                         <div class="col-sm-9">
-                            <?= $this->Form->control('d_reservation_date', [
-                                'type' => 'date',
-                                'label' => false,
-                                'class' => 'form-control',
-                                'disabled' => true,
-                                'value' => $date
-                            ]) ?>
+                            <?php
+                            $weekMap = ['日','月','火','水','木','金','土'];
+                            $weekday = $weekMap[(int)date('w', strtotime($date))] ?? '';
+                            ?>
+                            <div class="d-flex align-items-center">
+                                <?= $this->Form->control('d_reservation_date', [
+                                        'type' => 'date',
+                                        'label' => false,
+                                        'class' => 'form-control',
+                                        'disabled' => true,
+                                        'value' => $date
+                                ]) ?>
+                                <span class="ml-2">(<?= h($weekday) ?>)</span>
+                            </div>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label for="c_reservation_type">予約タイプ(個人/集団)</label>
                         <select id="c_reservation_type" name="reservation_type" class="form-control">
-                                <option value="" selected disabled>-- 予約タイプを選択 --</option>
-                                <option value="1">個人</option>
+                            <option value="" selected disabled>-- 予約タイプを選択 --</option>
+                            <option value="1">個人</option>
                             <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
                                 <option value="2">集団</option>
                             <?php endif; ?>
@@ -94,12 +101,12 @@ $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
                         <div class="form-group" id="room-select-group" style="display: none;">
                             <?= $this->Form->label('room-select', '部屋を選択') ?>
                             <?= $this->Form->control('i_id_room', [
-                                'type' => 'select',
-                                'label' => false,
-                                'options' => $rooms,
-                                'empty' => '-- 部屋を選択 --',
-                                'class' => 'form-control',
-                                'id' => 'room-select'
+                                    'type' => 'select',
+                                    'label' => false,
+                                    'options' => $rooms,
+                                    'empty' => '-- 部屋を選択 --',
+                                    'class' => 'form-control',
+                                    'id' => 'room-select'
                             ]) ?>
                         </div>
 
