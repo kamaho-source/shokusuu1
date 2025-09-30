@@ -16,7 +16,7 @@
     <?= $this->fetch('script') ?>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-info shadow-sm py-3">
+<nav class="navbar navbar-expand-lg navbar-dark bg-info shadow-sm py-3 fixed-top" id="mainNav">
     <div class="container">
         <a class="navbar-brand fs-4" href="<?= $this->Url->build('/TReservationInfo') ?>">食数管理システム</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -86,4 +86,29 @@
 <?= $this->Html->script('jquery-3.5.1.min.js') ?>
 <?= $this->Html->script('bootstrap.bundle.min.js') ?>
 </body>
+<script>
+    (() => {
+        const nav = document.getElementById('mainNav');
+        if (!nav) return;
+
+        const applyPad = () => {
+            document.body.style.paddingTop = nav.getBoundingClientRect().height + 'px';
+        };
+
+        // 初回・リサイズで更新
+        window.addEventListener('load', applyPad);
+        window.addEventListener('resize', applyPad);
+
+        // ナビの高さ変化（折りたたみ開閉・フォント読み込み等）にも追従
+        if (window.ResizeObserver) {
+            const ro = new ResizeObserver(applyPad);
+            ro.observe(nav);
+        }
+
+        // Bootstrapの折りたたみイベントでも更新（保険）
+        document.addEventListener('shown.bs.collapse', applyPad);
+        document.addEventListener('hidden.bs.collapse', applyPad);
+    })();
+</script>
+
 </html>

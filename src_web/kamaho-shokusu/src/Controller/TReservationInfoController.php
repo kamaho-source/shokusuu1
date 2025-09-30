@@ -5,11 +5,13 @@ namespace App\Controller;
 
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\NotFoundException;
+use Cake\Http\Exception\UnauthorizedException;
+use Cake\Core\Configure;
 use Cake\I18n\FrozenDate;
 use Cake\I18n\FrozenTime;
 use Cake\Log\Log;
 use App\Model\Domain\LastMinuteChangeService;
-use mysql_xdevapi\Exception;
+use Cake\ORM\Exception\PersistenceFailedException;
 
 /**
  * TReservationInfo コントローラー
@@ -50,6 +52,9 @@ class TReservationInfoController extends AppController
         $this->loadComponent('Flash');
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
+        if (isset($this->FormProtection)) {
+            $this->FormProtection->setConfig('unlockedActions', ['toggle']);
+        }
     }
 
     /**
@@ -99,15 +104,20 @@ class TReservationInfoController extends AppController
     public function index()
     {
         /* ========== 基本情報 ========== */
-        $authUser = $this->Authentication->getIdentity();         // ★ 消さない
+        $authUser = $this->Authentication->getIdentity();
+        if (!$authUser) {
+            throw new UnauthorizedException('ログインが必要です。');
+        }
         $userId   = $authUser->get('i_id_user');
         $user     = $this->MUserInfo->get($userId);
-        //ユーザーの部屋の所属情報を取得
+
+        //ユーザーの部屋の所属情報を取得（所属が無い場合に備えてガード）
         $userGroup = $this->MUserGroup->find()
             ->select(['i_id_room'])
             ->where(['i_id_user' => $userId])
             ->first();
-        $userRoomId = $userGroup->i_id_room;
+        $userRoomId = $userGroup ? $userGroup->i_id_room : null;
+
         /* ========== 14 日前境界 ========== */
         $borderDate = \Cake\I18n\FrozenDate::today()->modify('+14 days');
 
@@ -145,7 +155,6 @@ class TReservationInfoController extends AppController
             }
             $mealDataArray[$dateStr][$type]++;  // 人数加算
         }
-        //debug($mealDataArray);
 
         /* =====================================================
          * ② 自分の予約詳細（朝昼夜弁当）
@@ -213,16 +222,30 @@ class TReservationInfoController extends AppController
         // GETおよびAJAXメソッドのみを許可
         $this->request->allowMethod(['get', 'ajax']);
 
-        // 全ての予約データを取得
-        $reservations = $this->TIndividualReservationInfo->find('all');
+        // 14日前境界を考慮して、実効フラグ(≤14日: i_change_flag, >14日: eat_flag)でカウント
+        $borderDate = FrozenDate::today()->modify('+14 days');
 
-        // 予約データをFullCalendarで使用する形式に変換
+        $rows = $this->TIndividualReservationInfo->find()
+            ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
+            ->toArray();
+
+        $dateCounts = [];
+        foreach ($rows as $r) {
+            $dateStr = $r->d_reservation_date->format('Y-m-d');
+            $effective = ($r->d_reservation_date <= $borderDate)
+                ? (int)$r->i_change_flag
+                : (int)$r->eat_flag;
+            if ($effective === 1) {
+                $dateCounts[$dateStr] = ($dateCounts[$dateStr] ?? 0) + 1;
+            }
+        }
+
         $events = [];
-        foreach ($reservations as $reservation) {
+        foreach ($dateCounts as $date => $count) {
             $events[] = [
-                'title' => '合計食数: ' . $reservation->sum(''),
-                'start' => $reservation->d_reservation_date->format('Y-m-d'),
-                'allDay' => true
+                'title'  => '合計食数: ' . $count,
+                'start'  => $date,
+                'allDay' => true,
             ];
         }
 
@@ -454,7 +477,7 @@ class TReservationInfoController extends AppController
      * @param string $date 日付
      * @param int $mealType 食事タイプ
      * @return \Cake\Http\Response|null|void ビューをレンダリングする
-     * 食べる人と食べない人のリストを表示する→データベースに登録されてない場合は食べない人として表示される
+     * 食べる人と食べない人のリストを表示する→データベースに登録されていない場合は食べない人として表示される
      */
     public function roomDetails($roomId, $date, $mealType)
     {
@@ -891,7 +914,7 @@ class TReservationInfoController extends AppController
         if ($this->request->is('post')) {
             $data = $this->request->getData();
             if (empty($data['d_reservation_date'])) {
-               $data['d_reservation_date'] = $date;
+                $data['d_reservation_date'] = $date;
             }
             $reservationType = $data['reservation_type'] ?? '1';
 
@@ -2051,6 +2074,7 @@ class TReservationInfoController extends AppController
 
         return $this->redirect(['action' => 'index']);
     }
+
     private function saveIndividualReservation($userId, $reservationDate, $roomId, $mealTime, $username): array
     {
         Log::debug("Saving reservation - userId: $userId, reservationDate: $reservationDate, roomId: $roomId, mealTime: $mealTime");
@@ -2333,6 +2357,146 @@ class TReservationInfoController extends AppController
 
         return $this->respondJson($finalOutput);
     }
+
+    /**
+     * 予約トグルAPI（個人が自分の1日1食区分をON/OFF）
+     * 既存の Table 側に toggleMeal(...) が実装済みである前提です。
+     * 14日前ルールやeat/changeの扱いは Table 側の実装に委譲します。
+     */
+    public function toggle(int $roomId)
+    {
+        $this->request->allowMethod(['post']);
+        $this->response = $this->response->withType('application/json');
+
+        // 認証ユーザー
+        $user = $this->request->getAttribute('identity');
+        $userId   = (int)($user?->get('i_id_user') ?? $user?->get('id') ?? 0);
+        $userName = (string)($user?->get('c_login_account') ?? $user?->get('c_user_name') ?? $userId);
+        if ($userId <= 0) {
+            return $this->response->withStatus(401)->withStringBody(json_encode([
+                'ok'=>false,'message'=>'Unauthorized'
+            ], JSON_UNESCAPED_UNICODE));
+        }
+
+        // ペイロード（form→JSON）
+        $payload = (array)$this->request->getData();
+        if (empty($payload)) {
+            $payload = (array)($this->request->input('json_decode', true) ?? []);
+        }
+        if (empty($payload)) {
+            return $this->response->withStatus(400)->withStringBody(json_encode([
+                'ok'=>false,'message'=>'Empty request body.'
+            ], JSON_UNESCAPED_UNICODE));
+        }
+
+        $dateStr = (string)($payload['date'] ?? '');
+        $meal    = isset($payload['meal'])  ? (int)$payload['meal']  : null; // 1..4
+        $value   = isset($payload['value']) ? (int)$payload['value'] : null; // 0/1
+
+        // 入力検証（422）
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+            return $this->response->withStatus(422)->withStringBody(json_encode([
+                'ok'=>false,'message'=>'Invalid date format (Y-m-d).'
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        try { new \Cake\I18n\FrozenDate($dateStr); } catch (\Throwable $e) {
+            return $this->response->withStatus(422)->withStringBody(json_encode([
+                'ok'=>false,'message'=>'Invalid date value.'
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        if (!in_array($meal, [1,2,3,4], true)) {
+            return $this->response->withStatus(422)->withStringBody(json_encode([
+                'ok'=>false,'message'=>'Invalid meal type (1..4).'
+            ], JSON_UNESCAPED_UNICODE));
+        }
+        if (!in_array($value, [0,1], true)) {
+            return $this->response->withStatus(422)->withStringBody(json_encode([
+                'ok'=>false,'message'=>'Invalid value (0 or 1).'
+            ], JSON_UNESCAPED_UNICODE));
+        }
+
+        // ===== 直前(当日〜14日先)かをサーバ側で判定 =====
+        $targetDate   = new \Cake\I18n\FrozenDate($dateStr);
+        $today        = \Cake\I18n\FrozenDate::today();
+        $lastDeadline = $today->addDays(14); // きょう + 14日
+        $isLastMinute = ($targetDate >= $today && $targetDate <= $lastDeadline);
+
+        /** @var \App\Model\Table\TIndividualReservationInfoTable $table */
+        $table = $this->fetchTable('TIndividualReservationInfo');
+
+        // ===== 既存行の有無（★id列を参照しない／実カラム名に合わせる）=====
+        $exists = $table->exists([
+            'i_id_user'          => $userId,
+            'i_id_room'          => $roomId,
+            'd_reservation_date' => $dateStr,
+            'i_reservation_type' => $meal,
+        ]);
+
+        // ===== 保存フラグを決定 =====
+        // 既存行がある場合：ご要望どおり「取消→両方0／再登録→両方1」
+        if ($exists) {
+            $eatFlag    = ($value === 1) ? 1 : 0;
+            $changeFlag = ($value === 1) ? 1 : 0;
+        } else {
+            // 新規：従来仕様（直前ON= eat=0 / 通常ON= eat=1、OFFは両方0）
+            if ($value === 1) {
+                $eatFlag    = $isLastMinute ? 0 : 1;
+                $changeFlag = 1;
+            } else {
+                $eatFlag    = 0;
+                $changeFlag = 0;
+            }
+        }
+
+        try {
+            $result = $table->toggleMeal(
+                userId: $userId,
+                roomId: $roomId,
+                date:   $dateStr,
+                meal:   $meal,
+                on:     $value === 1,
+                actor:  $userName,
+                // ここで確定させたフラグを必ず渡す（nullを渡さない）
+                eatFlag: $eatFlag,
+                changeFlag: $changeFlag,
+            );
+
+            return $this->response->withStringBody(json_encode([
+                'ok'      => true,
+                'value'   => (bool)$result['value'],
+                'details' => $result['details'],
+            ], JSON_UNESCAPED_UNICODE));
+
+        } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
+            $errors = $e->getEntity()?->getErrors() ?? [];
+            $flat   = json_encode($errors, JSON_UNESCAPED_UNICODE);
+
+            $isConflict = (is_string($flat) && preg_match('/(昼|弁|bento|lunch|unique.*bento|unique.*lunch)/ui', $flat));
+            $status = $isConflict ? 409 : 422;
+
+            return $this->response->withStatus($status)->withStringBody(json_encode([
+                'ok'      => false,
+                'message' => $isConflict ? '昼食と弁当は同時に予約できません。' : 'Validation failed.',
+                'errors'  => \Cake\Core\Configure::read('debug') ? $errors : null,
+            ], JSON_UNESCAPED_UNICODE));
+        } catch (\InvalidArgumentException $e) {
+            return $this->response->withStatus(422)->withStringBody(json_encode([
+                'ok'=>false,'message'=>$e->getMessage()
+            ], JSON_UNESCAPED_UNICODE));
+        } catch (\Throwable $e) {
+            return $this->response->withStatus(500)->withStringBody(json_encode([
+                'ok'=>false,
+                'message'=>'Internal Server Error',
+                'debug'=> \Cake\Core\Configure::read('debug') ? ($e->getMessage()) : null,
+            ], JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+
+
+
+
+
 
     /* =============================================================== */
     /*  以下はこのコントローラ内に配置する簡易レスポンスヘルパーメソッド  */

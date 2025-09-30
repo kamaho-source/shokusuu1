@@ -45,12 +45,25 @@ $hasTodayReservation = !empty($todayReservation) && (
         }
 
         /* 中学生向け（学習寄り＋落ち着いたトーン） */
-        .kid-card .h5{font-size:1.15rem;}
-        .kid-meal-btn{font-size:1.1rem; padding-top:.9rem; padding-bottom:.9rem;}
-        .kid-chip{font-size:.95rem;}
+        .kid-card .h5{font-size:1.05rem;}
+        .kid-chip{font-size:.92rem;}
         .kid-head { background:#f5fbff; border:1px solid #e6f2ff; border-radius:.5rem; padding:.75rem 1rem;}
         .kid-help li{margin:.25rem 0;}
         .kid-badge-soft { font-weight:600; }
+
+        /* ---- 4分割の小さなボタン（常に4列） ---- */
+        .kid-meal-btn{
+            padding:.5rem .25rem;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            gap:.25rem;
+            min-height:64px;
+            font-size:.9rem;
+        }
+        .kid-meal-btn .btn-emoji{ font-size:1.2rem; line-height:1; }
+        .kid-meal-btn .btn-cap{ font-size:.75rem; line-height:1.1; white-space:nowrap; }
 
         /* 予約状態の強調表示 */
         .status-flag {
@@ -58,8 +71,8 @@ $hasTodayReservation = !empty($todayReservation) && (
             align-items:center;
             gap:.4rem;
             font-weight:700;
-            font-size:.95rem;
-            padding:.35rem .6rem;
+            font-size:.9rem;
+            padding:.3rem .6rem;
             border-radius:999px;
             border:2px solid transparent;
         }
@@ -93,7 +106,7 @@ $hasTodayReservation = !empty($todayReservation) && (
             border-radius:.375rem;
         }
 
-        /* 日まとめ予約のボタン */
+        /* 日まとめ予約ボタン（ここでは未使用のため記述のみ） */
         .bulk-day-btn { border-style:dashed !important; }
 
         /* ======= 警告感のあるモーダル（共通） ======= */
@@ -105,25 +118,11 @@ $hasTodayReservation = !empty($todayReservation) && (
             background:#dc3545;
             color:#fff;
         }
-        .modal-warning .modal-title i {
-            margin-right:.4rem;
-        }
-        .modal-warning .modal-body .alert {
-            margin-bottom:0;
-        }
-        .modal-warning .btn-primary {
-            background:#dc3545;
-            border-color:#dc3545;
-        }
+        .modal-warning .modal-title i { margin-right:.4rem; }
+        .modal-warning .modal-body .alert { margin-bottom:0; }
+        .modal-warning .btn-primary { background:#dc3545; border-color:#dc3545; }
         .modal-warning .btn-primary:disabled,
-        .modal-warning .btn-primary.disabled {
-            background:#dc3545;
-            border-color:#dc3545;
-            opacity:.65;
-        }
-        .modal-warning .form-check-label strong {
-            text-decoration: underline;
-        }
+        .modal-warning .btn-primary.disabled { background:#dc3545; border-color:#dc3545; opacity:.65; }
 
         /* モード切替の見出し行 */
         .mode-bar {
@@ -134,13 +133,7 @@ $hasTodayReservation = !empty($todayReservation) && (
             padding:.5rem .75rem;
         }
 
-        /* 直前/通常の補助表示パネル */
-        .assistant-panel {
-            background:#fff;
-            border:1px solid #e9ecef;
-            border-radius:.5rem;
-            padding:1rem;
-        }
+        .assistant-panel { background:#fff; border:1px solid #e9ecef; border-radius:.5rem; padding:1rem; }
         .date-badge { margin:.15rem .2rem; }
         .late-select-wrap .form-select { min-width: 220px; }
     </style>
@@ -159,88 +152,50 @@ $hasTodayReservation = !empty($todayReservation) && (
         // 中学生向け UI 設定
         $todayDt    = new DateTimeImmutable('today');
         $day14Dt    = $todayDt->modify('+14 days');   // 当日〜14日先＝直前期間（発注済）
-        $daysToShow = 28;                             // 4週間
+        $daysToShow = 31;                             // 4週間
         $todayKey   = $todayDt->format('Y-m-d');
 
-        // URLヘルパ
+        // URL（トグル用APIを想定）
+        $toggleUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>'toggle',$userRoomId]);
+
+        // ★ $this をクロージャで使わないように URL ヘルパを退避
         $urlHelper = $this->Url;
-        $buildEditUrl = function(string $date, int $mealType) use ($userRoomId, $urlHelper){
-            return $urlHelper->build([
-                    'controller'=>'TReservationInfo',
-                    'action'    =>'edit',
-                    $userRoomId, $date, $mealType
-            ]);
-        };
-        // add（1日まとめ入力）はクエリで date を渡す
-        $buildAddUrl = function(string $date) use ($userRoomId, $urlHelper){
-            $base = $urlHelper->build(['controller'=>'TReservationInfo','action'=>'add',$userRoomId]);
-            return $base . '?' . http_build_query(['date' => $date]);
-        };
-        // 週一括：?date=月曜日（大人と共通のエンドポイント想定）
+
+        // 週一括（参考：そのまま）
         $buildBulkUrl = function(string $mondayYmd) use ($urlHelper){
             return $urlHelper->build('/TReservationInfo/bulkAddForm') . '?date=' . rawurlencode($mondayYmd);
         };
 
         $kidMeals = [
-                1 => ['text'=>'朝ごはん', 'class'=>'btn-success',           'emoji'=>'☀️'],
-                2 => ['text'=>'昼ごはん', 'class'=>'btn-warning text-dark', 'emoji'=>'🌞'],
-                3 => ['text'=>'夜ごはん', 'class'=>'btn-primary',           'emoji'=>'🌙'],
-                4 => ['text'=>'お弁当',   'class'=>'btn-danger',            'emoji'=>'🍱'],
+                1 => ['text'=>'朝', 'class'=>'btn-success',           'emoji'=>'☀️'],
+                2 => ['text'=>'昼', 'class'=>'btn-warning text-dark', 'emoji'=>'🌞'],
+                3 => ['text'=>'夜', 'class'=>'btn-primary',           'emoji'=>'🌙'],
+                4 => ['text'=>'弁', 'class'=>'btn-danger',            'emoji'=>'🍱'],
         ];
-
-        // 直前編集（0〜14日先）用セレクトに出す日付配列
-        $lateDates = [];
-        for ($i=0; $i<=14; $i++) {
-            $d = $todayDt->modify("+{$i} days");
-            $lateDates[] = [
-                    'ymd'  => $d->format('Y-m-d'),
-                    'w'    => ['日','月','火','水','木','金','土'][(int)$d->format('w')],
-            ];
-        }
-        // 通常予約（15日目以降〜表示期間内）の日付配列
-        $normalDates = [];
-        for ($i=15; $i<$daysToShow; $i++) {
-            $d = $todayDt->modify("+{$i} days");
-            $normalDates[] = [
-                    'ymd'  => $d->format('Y-m-d'),
-                    'w'    => ['日','月','火','水','木','金','土'][(int)$d->format('w')],
-            ];
-        }
         ?>
 
         <!-- ★ モード切替（自動 / 直前編集 / 通常予約） -->
         <div class="mode-bar d-flex align-items-center justify-content-between mb-3">
             <div class="small text-muted">
                 <i class="bi bi-sliders"></i>
-                モードを切り替えると、ボタン押下時の遷移先を切り替えられます。ページ遷移は行わず、<u>この画面上の表示のみ切替</u>します。
+                モードを切り替えると、クリック時の挙動を切り替えられます（<u>画面表示のみ切替</u>）。
             </div>
             <div class="d-flex align-items-center gap-2">
                 <span id="kidModeBadge" class="badge text-bg-light">モード：自動判定</span>
                 <label for="kidModeSelect" class="form-label m-0 small fw-bold">モード</label>
                 <select id="kidModeSelect" class="form-select form-select-sm" style="max-width: 220px;">
                     <option value="auto" selected>自動（日付に応じて判定）</option>
-                    <option value="late">直前編集モード（常に編集）</option>
-                    <option value="normal">通常予約モード（追加優先）</option>
+                    <option value="late">直前（常に同意モーダル）</option>
+                    <option value="normal">通常（即時トグル）</option>
                 </select>
             </div>
-        </div>
-        <!-- ★ 直前/通常の補助表示（index 上で確認できるように） -->
-
-        <!-- ヘッダー（要点のみ） -->
-        <div class="kid-head mb-3">
-            <div class="fw-bold mb-1">📌 使い方のポイント</div>
-            <ul class="kid-help mb-0 ps-3">
-                <li>⏰ <strong>きょう〜14日先</strong>は <strong>変更・追加OK</strong>（ただし<strong>発注済</strong>なので注意モーダルが出ます）</li>
-                <li>🗓️ <strong>15日目以降</strong>は <strong>新規登録OK</strong>（<u>add</u>ページで朝/昼/夜/弁当をまとめて入力）</li>
-                <li>🧰 <strong>月曜日</strong>は <span class="week-ribbon">週まとめ予約</span> ボタンが出ます（15日目以降の週のみ有効）</li>
-            </ul>
         </div>
 
         <!-- きょうの状況 -->
         <div class="reservation-status my-3 text-center">
             <?php if ($hasTodayReservation): ?>
                 <div class="alert alert-success py-3">
-                    <div class="fw-bold" style="font-size:1.15rem;">📆 きょう（<?= h($todayKey) ?>）：予約あり</div>
+                    <div class="fw-bold" style="font-size:1.05rem;">📆 きょう（<?= h($todayKey) ?>）：予約あり</div>
                     <div class="mt-2">
                         <span class="badge kid-chip bg-<?= ($todayReservation['breakfast']??false)?'success':'secondary' ?> mx-1">☀️ 朝：<?= ($todayReservation['breakfast']??false)?'○':'－' ?></span>
                         <span class="badge kid-chip bg-<?= ($todayReservation['lunch']??false)?'success':'secondary' ?> mx-1">🌞 昼：<?= ($todayReservation['lunch']??false)?'○':'－' ?></span>
@@ -251,22 +206,22 @@ $hasTodayReservation = !empty($todayReservation) && (
                 </div>
             <?php else: ?>
                 <div class="alert alert-warning py-3">
-                    <div class="fw-bold" style="font-size:1.15rem;">📆 きょう（<?= h($todayKey) ?>）：予約なし</div>
+                    <div class="fw-bold" style="font-size:1.05rem;">📆 きょう（<?= h($todayKey) ?>）：予約なし</div>
                     <div class="mt-1 small">直前（きょう〜14日先）でも<strong>変更・追加OK</strong>ですが、<strong>発注済</strong>です。</div>
                 </div>
             <?php endif; ?>
         </div>
 
         <!-- 28日分のカード（★月曜日に「週まとめ予約」ボタンを表示） -->
-        <?php for ($i=0; $i<$daysToShow; $i++):
+        <?php
+        for ($i=0; $i<$daysToShow; $i++):
             $d        = $todayDt->modify("+{$i} days");
             $dateKey  = $d->format('Y-m-d');
             $wIdx     = (int)$d->format('w');
             $w        = ['日','月','火','水','木','金','土'][$wIdx];
             $isMonday = ($wIdx === 1);
-            $isLastMinute = ($d >= $todayDt && $d <= $day14Dt); // 当日〜14日先：直前（発注済）
+            $isLastMinute = ($d >= $todayDt && $d <= $day14Dt); // 当日〜14日先
             $myDetail     = $myReservationDetails[$dateKey] ?? [];
-
             $hasLunchForDate = (bool)($myDetail['lunch'] ?? false);
             $hasBentoForDate = (bool)($myDetail['bento'] ?? false);
 
@@ -286,84 +241,49 @@ $hasTodayReservation = !empty($todayReservation) && (
                         <div class="h5 m-0">
                             <?= h($dateKey) ?>（<?= $w ?>）
                             <?php if ($isLastMinute): ?>
-                                <span class="badge bg-warning text-dark ms-2 kid-badge-soft">直前（発注済／変更・追加OK）</span>
+                                <span class="badge bg-warning text-dark ms-2 kid-badge-soft">直前（発注済）</span>
                             <?php else: ?>
-                                <span class="badge bg-success ms-2 kid-badge-soft">新規登録OK（1日まとめて追加）</span>
+                                <span class="badge bg-success ms-2 kid-badge-soft">通常（即時トグル）</span>
                             <?php endif; ?>
                         </div>
-
-                        <?php if ($isMonday): ?>
-                            <div>
-                                <?php if ($isLastMinute): ?>
-                                    <a href="javascript:void(0)"
-                                       class="btn btn-outline-secondary btn-sm week-bulk-link disabled"
-                                       aria-disabled="true"
-                                       tabindex="-1"
-                                       title="直前（きょう〜14日先）は週まとめは使えません">
-                                        <i class="bi bi-calendar-week"></i>
-                                        週まとめ予約（<?= h($weekLabel) ?>）
-                                    </a>
-                                <?php else: ?>
-                                    <a href="<?= h($bulkUrl) ?>"
-                                       class="btn btn-outline-primary btn-sm week-bulk-link"
-                                       data-week-start="<?= h($dateKey) ?>"
-                                       data-week-label="<?= h($weekLabel) ?>">
-                                        <i class="bi bi-calendar-week"></i>
-                                        週まとめ予約（<?= h($weekLabel) ?>）
-                                    </a>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
                     </div>
 
+                    <!-- ▼ 4分割の小さなボタン（常に4列=col-3） -->
                     <div class="row g-2 mt-3">
                         <?php foreach ($kidMeals as $type => $info):
                             $mealKey = $mealKeys[$type];
                             $isMine  = (bool)($myDetail[$mealKey] ?? false);
-
-                            if ($isLastMinute) {
-                                $href = $buildEditUrl($dateKey, $type); // 直前は常に edit
-                                $btnText = $isMine
-                                        ? "{$info['emoji']} {$info['text']}：変更する 🔁（直前）"
-                                        : "{$info['emoji']} {$info['text']}：追加する 🆕（直前）";
-                            } else {
-                                $href = $isMine ? $buildEditUrl($dateKey, $type) : $buildAddUrl($dateKey);
-                                $btnText = $isMine
-                                        ? "{$info['emoji']} {$info['text']}：変更する 🔁"
-                                        : "{$info['emoji']} {$info['text']}：まとめページで追加 🆕";
-                            }
+                            $btnCap  = $isLastMinute ? ($isMine ? '変更(直前)' : '追加(直前)') : ($isMine ? '取消' : '追加'); // 視覚的な説明
                             ?>
-                            <div class="col-12 col-md-6 col-lg-3">
+                            <div class="col-3">
                                 <a
-                                        href="<?= $href ?>"
-                                        class="btn kid-meal-btn w-100 <?= $info['class'] ?> <?= $isMine ? '' : 'btn-outline-light border' ?>"
+                                        href="javascript:void(0)"
+                                        class="btn kid-meal-btn w-100 <?= $isMine ? $info['class'] : 'btn-outline-secondary' ?>"
                                         data-date="<?= h($dateKey) ?>"
                                         data-meal="<?= (int)$type ?>"
+                                        data-meal-key="<?= h($mealKey) ?>"
                                         data-has-lunch="<?= $hasLunchForDate ? '1' : '0' ?>"
                                         data-has-bento="<?= $hasBentoForDate ? '1' : '0' ?>"
                                         data-is-last-minute="<?= $isLastMinute ? '1' : '0' ?>"
                                         data-is-mine="<?= $isMine ? '1' : '0' ?>"
-                                ><?= h($btnText) ?></a>
-                                <div class="mt-2">
-                                    <?php if ($isMine): ?>
-                                        <span class="status-flag ok"><i class="bi bi-check-circle-fill"></i>現在：予約あり</span>
-                                    <?php else: ?>
-                                        <span class="status-flag none"><i class="bi bi-dash-circle"></i>現在：未予約</span>
-                                    <?php endif; ?>
-                                </div>
+                                        data-meal-class="<?= h($info['class']) ?>"
+                                        data-neutral-class="btn-outline-secondary"
+                                        aria-label="<?= h($info['emoji'].' '.$info['text'].'：'.$btnCap) ?>"
+                                >
+                                    <span class="btn-emoji"><?= h($info['emoji']) ?></span>
+                                    <span class="btn-cap"><?= h($info['text']) ?><small> <?= h($btnCap) ?></small></span>
+                                </a>
                             </div>
                         <?php endforeach; ?>
                     </div>
 
-                    <?php if (!$isLastMinute): ?>
-                        <div class="mt-3">
-                            <a href="<?= h($buildAddUrl($dateKey)) ?>"
-                               class="btn btn-outline-primary w-100 bulk-day-btn"
-                               data-date="<?= h($dateKey) ?>">
-                                <i class="bi bi-ui-checks-grid"></i> この日をまとめて予約（朝・昼・夜・弁当）
-                            </a>
-                        </div>
-                    <?php else: ?>
+                    <div class="mt-2">
+                        <?php $selfAny = ($myDetail['breakfast']??false)||($myDetail['lunch']??false)||($myDetail['dinner']??false)||($myDetail['bento']??false); ?>
+                        <span class="status-flag ok"  style="display:<?= $selfAny?'inline-flex':'none' ?>"><i class="bi bi-check-circle-fill"></i>現在：予約あり</span>
+                        <span class="status-flag none" style="display:<?= $selfAny?'none':'inline-flex' ?>"><i class="bi bi-dash-circle"></i>現在：未予約</span>
+                    </div>
+
+                    <?php if ($isLastMinute): ?>
                         <div class="mt-2 small text-muted">※直前（発注済）です。変更・追加はできますが、内容をよく確認してください。</div>
                     <?php endif; ?>
                 </div>
@@ -380,7 +300,7 @@ $hasTodayReservation = !empty($todayReservation) && (
                     <div class="modal-body">
                         <ul class="mb-0 ps-3">
                             <li>きょう〜14日先：<strong>発注済</strong>ですが <strong>変更・追加OK</strong>（注意モーダルが出ます）</li>
-                            <li>15日目以降：<strong>新規登録OK</strong>（add ページで1日まとめて追加）</li>
+                            <li>15日目以降：<strong>クリックだけで予約↔取消</strong></li>
                             <li>昼と弁当は同時に予約しないように注意</li>
                             <li><strong>月曜日の「週まとめ予約」</strong>は15日目以降の週で利用できます</li>
                         </ul>
@@ -391,7 +311,7 @@ $hasTodayReservation = !empty($todayReservation) && (
                 </div></div>
         </div>
 
-        <!-- 昼⇔弁当 競合モーダル（警告） -->
+        <!-- 昼⇔弁当 競合モーダル（警告 + 確認） -->
         <div class="modal fade modal-warning" id="conflictModal" tabindex="-1" aria-labelledby="conflictTitle" aria-hidden="true" role="alertdialog" aria-modal="true">
             <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
                     <div class="modal-header">
@@ -399,10 +319,11 @@ $hasTodayReservation = !empty($todayReservation) && (
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="とじる"></button>
                     </div>
                     <div class="modal-body">
-                        <div id="conflictBody" class="alert alert-danger mb-0"></div>
+                        <div id="conflictBody" class="alert alert-danger mb-3"></div>
+                        <div class="small text-muted">「競合先を解除して続行」を押すと、<u>競合している予約を先に取り消し</u>、その後に<strong>目的の予約</strong>を登録します。</div>
                     </div>
                     <div class="modal-footer">
-                        <a id="conflictAction" href="#" class="btn btn-primary">先に別の予約を変更</a>
+                        <a id="conflictAction" href="#" class="btn btn-primary">競合先を解除して続行</a>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">戻る</button>
                     </div>
                 </div></div>
@@ -419,7 +340,6 @@ $hasTodayReservation = !empty($todayReservation) && (
                             <div class="text-muted small">期間を選んで「予定表」または「実施表」を出力できます。</div>
                         </div>
 
-                        <!-- プリセット -->
                         <div class="btn-group" role="group" aria-label="期間プリセット">
                             <button class="btn btn-outline-secondary btn-sm" data-range-preset="this-month"><i class="bi bi-calendar2-week"></i> 今月</button>
                             <button class="btn btn-outline-secondary btn-sm" data-range-preset="next-month"><i class="bi bi-calendar2-plus"></i> 来月</button>
@@ -497,6 +417,60 @@ $lunchReserved  = (bool)($todayReservation['lunch'] ?? false);
 $lunchChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>'edit',$userRoomId,$today,2]);
 $bentoReserved  = (bool)($todayReservation['bento'] ?? false);
 $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>'edit',$userRoomId,$today,4]);
+
+/* ======= JS に渡すための配列をここで完成させてから JSON で一括出力 ======= */
+
+// 1) 自分の予約日（未予約表示の判定に使う）
+$js_reservedDates = array_values($myReservationDates);
+
+// 2) 既存イベント（自分の予約行 + 集計行）
+$events = [];
+$iconFn = function($v){ if ($v===null) return '×'; return $v ? '⚪︎' : '×'; };
+
+// 自分の予約あり行
+foreach ($myReservationDates as $reservedDate) {
+    $detail = $myReservationDetails[$reservedDate] ?? [];
+    $title = sprintf(
+            '朝:%s 昼:%s 夜:%s 弁:%s',
+            $iconFn($detail['breakfast'] ?? null),
+            $iconFn($detail['lunch']     ?? null),
+            $iconFn($detail['dinner']    ?? null),
+            $iconFn($detail['bento']     ?? null)
+    );
+    $events[] = [
+            'title' => $title,
+            'start' => $reservedDate,
+            'allDay' => true,
+            'backgroundColor' => '#28a745',
+            'borderColor' => '#28a745',
+            'textColor' => 'white',
+            'extendedProps' => ['displayOrder' => -2],
+    ];
+}
+
+// 集計行（大人向けのみ）
+if (!$isChild && !empty($mealDataArray)) {
+    $mealTypes = ['1'=>'朝','2'=>'昼','3'=>'夜','4'=>'弁'];
+    foreach ($mealDataArray as $date => $meals) {
+        foreach ($mealTypes as $type => $name) {
+            if (isset($meals[$type]) && $meals[$type] > 0) {
+                $events[] = [
+                        'title' => "{$name}: {$meals[$type]}人",
+                        'start' => $date,
+                        'allDay' => true,
+                        'extendedProps' => ['displayOrder' => (int)$type],
+                ];
+            }
+        }
+    }
+}
+
+// JSON を一括で
+$JS_MY_DETAILS       = json_encode($myReservationDetails, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+$JS_RESERVED_DATES   = json_encode($js_reservedDates, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+$JS_EXISTING_EVENTS  = json_encode($events, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+$JS_TODAY            = json_encode($today, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+$JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 ?>
 
 <!-- 管理側モーダル（既存） -->
@@ -561,97 +535,72 @@ $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>
         const IS_CHILD  = <?= $isChild ? 'true' : 'false' ?>;
 
         // 参考（今日の状態）
-        const TODAY  = '<?= h($today) ?>';
-        const LUNCH_RESERVED_TODAY = <?= $lunchReserved ? 'true' : 'false' ?>;
-        const BENTO_RESERVED_TODAY = <?= $bentoReserved ? 'true' : 'false' ?>;
+        const TODAY  = <?= $JS_TODAY ?>;
+        // ← 更新可能な“今日”の状態（競合チェックで使用）
+        const TODAY_STATE = {
+            lunch: <?= $lunchReserved ? 'true' : 'false' ?>,
+            bento: <?= $bentoReserved ? 'true' : 'false' ?>,
+        };
 
-        // PHP 側の自分の予約詳細を JS に渡す（直前/通常選択の描画に使用）
-        const MY_DETAILS = <?= json_encode($myReservationDetails, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES) ?>;
+        // 自分の予約詳細（frontでトグル後に更新する）
+        const MY_DETAILS = <?= $JS_MY_DETAILS ?>;
 
         if (IS_CHILD) {
-            // ▼ 直前/通常の強制切替に使うベースURL（クリック時にのみ使用）
-            const EDIT_BASE = '<?= h($this->Url->build(["controller"=>"TReservationInfo","action"=>"edit",$userRoomId,])) ?>';
-            const ADD_BASE  = '<?= h($this->Url->build(["controller"=>"TReservationInfo","action"=>"add",$userRoomId])) ?>';
+            // APIエンドポイント（トグル）
+            const TOGGLE_URL = <?= $JS_TOGGLE_URL ?>;
 
             // モード（auto / late / normal）
             let kidMode = document.getElementById('kidModeSelect')?.value || 'auto';
 
-            // 表示だけを切り替える（href はクリック時に決定）
-            const mealNames  = {1:'朝ごはん', 2:'昼ごはん', 3:'夜ごはん', 4:'お弁当'};
-            const mealEmojis = {1:'☀️',      2:'🌞',      3:'🌙',      4:'🍱'};
+            // 表示用マップ
+            const mealNamesShort = {1:'朝', 2:'昼', 3:'夜', 4:'弁'};
+            const mealKeyMap     = {1:'breakfast', 2:'lunch', 3:'dinner', 4:'bento'};
+            const mealJaFull     = {1:'朝食', 2:'昼食', 3:'夕食', 4:'弁当'};
 
             function updateModeBadge() {
                 const badge = document.getElementById('kidModeBadge');
                 if (!badge) return;
                 const label = kidMode === 'auto' ? '自動判定'
-                    : kidMode === 'late' ? '直前編集'
-                        : '通常予約';
+                    : kidMode === 'late' ? '直前'
+                        : '通常';
                 badge.textContent = `モード：${label}`;
             }
 
+            // ラベル（小さく）を書き替え
             function applyKidModeUI() {
                 document.querySelectorAll('.kid-meal-btn').forEach(btn => {
-                    const date  = btn.dataset.date;
-                    const meal  = Number(btn.dataset.meal || 0);
                     const isMine = btn.dataset.isMine === '1';
                     const originalIsLast = btn.dataset.isLastMinute === '1';
-
                     const targetIsLast = (kidMode === 'auto') ? originalIsLast
                         : (kidMode === 'late') ? true
                             : false; // normal
 
-                    const emoji = mealEmojis[meal] || '';
-                    const name  = mealNames[meal]  || '';
+                    const meal  = Number(btn.dataset.meal || 0);
+                    const name  = mealNamesShort[meal] || '';
 
-                    let label = '';
-                    if (targetIsLast) {
-                        label = isMine
-                            ? `${emoji} ${name}：変更する 🔁（直前）`
-                            : `${emoji} ${name}：追加する 🆕（直前）`;
-                    } else {
-                        label = isMine
-                            ? `${emoji} ${name}：変更する 🔁`
-                            : `${emoji} ${name}：まとめページで追加 🆕`;
-                    }
+                    let cap = '';
+                    if (targetIsLast) cap = isMine ? '変更(直前)' : '追加(直前)';
+                    else              cap = isMine ? '取消'       : '追加';
 
-                    btn.textContent = label;
-                    btn.setAttribute('aria-label', label);
                     btn.dataset.targetIsLast = targetIsLast ? '1' : '0';
+                    const capEl = btn.querySelector('.btn-cap');
+                    if (capEl) capEl.innerHTML = `${name}<small> ${cap}</small>`;
+                    btn.setAttribute('aria-label', `${name}：${cap}`);
                 });
-
                 updateModeBadge();
             }
 
-            // === 期間フィルタ（auto:全部, late:直前のみ, normal:通常のみ） ===
+            // 期間フィルタ（auto:全部, late:直前のみ, normal:通常のみ）
             function filterCardsByMode() {
                 const cards = document.querySelectorAll('.kid-card');
-                const latePanel  = document.getElementById('latePanel');
-                const normalPanel= document.getElementById('normalPanel');
-
                 cards.forEach(card => {
                     const isLast = card.dataset.isLastMinute === '1';
                     let show = true;
-                    if (kidMode === 'late')   show =  isLast;     // 直前のみ
-                    if (kidMode === 'normal') show = !isLast;     // 通常のみ
+                    if (kidMode === 'late')   show =  isLast;
+                    if (kidMode === 'normal') show = !isLast;
                     card.style.display = show ? '' : 'none';
                 });
-
-                // 補助パネルの表示切替
-                if (kidMode === 'late') {
-                    latePanel?.classList.remove('d-none');
-                    normalPanel?.classList.add('d-none');
-                } else if (kidMode === 'normal') {
-                    normalPanel?.classList.remove('d-none');
-                    latePanel?.classList.add('d-none');
-                } else {
-                    // auto は従来通り両方表示
-                    normalPanel?.classList.remove('d-none');
-                    latePanel?.classList.remove('d-none');
-                }
-
-                // 先頭可視カードへスクロール（視認性）
-                const firstVisible = Array.from(document.querySelectorAll('.kid-card'))
-                    .find(c => c.style.display !== 'none');
+                const firstVisible = Array.from(document.querySelectorAll('.kid-card')).find(c => c.style.display !== 'none');
                 if (firstVisible) firstVisible.scrollIntoView({ behavior:'smooth', block:'start' });
             }
 
@@ -659,239 +608,115 @@ $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>
             applyKidModeUI();
             filterCardsByMode();
 
-            // ▼ モード選択時：ページ遷移せず、その場で表示更新＆フィルタ
             document.getElementById('kidModeSelect')?.addEventListener('change', (e) => {
                 kidMode = e.target.value || 'auto';
                 applyKidModeUI();
                 filterCardsByMode();
-                // モード切替時、右ペインの選択日を先頭に
-                if (kidMode === 'late') {
-                    const sel = document.getElementById('lateDateSelect');
-                    if (sel) {
-                        renderLateInfo(sel.value);
-                        const card = document.getElementById(`card-${sel.value}`);
-                        if (card && card.style.display !== 'none') {
-                            card.scrollIntoView({ behavior:'smooth', block:'start' });
-                        }
-                    }
-                } else if (kidMode === 'normal') {
-                    const sel = document.getElementById('normalDateSelect');
-                    if (sel) {
-                        renderNormalInfo(sel.value);
-                        const card = document.getElementById(`card-${sel.value}`);
-                        if (card && card.style.display !== 'none') {
-                            card.scrollIntoView({ behavior:'smooth', block:'start' });
-                        }
-                    }
-                }
             });
 
-            // ▼ 直前編集セレクト：選択した日付の情報を index 上に表示
-            const lateSelect = document.getElementById('lateDateSelect');
-            const lateInfo   = document.getElementById('lateDateInfo');
+            // ===== ボタン見た目の更新（成功後） =====
+            function setBtnReserved(btn, reserved){
+                const cls = btn.classList;
 
-            function renderLateInfo(dateStr){
-                if(!lateInfo) return;
-                // 曜日算出
-                const d = new Date(dateStr + 'T00:00:00');
-                const w = ['日','月','火','水','木','金','土'][d.getDay()];
-                const detail = (MY_DETAILS && MY_DETAILS[dateStr]) ? MY_DETAILS[dateStr] : {};
-                const flag = (k)=> (detail && detail[k]) ? 'success' : 'secondary';
-                const mark = (k)=> (detail && detail[k]) ? '○' : '－';
+                // データ属性から色クラスと中立クラスを取得（空白で分割してトークン化）
+                const colorTokens   = (btn.dataset.mealClass    || 'btn-primary').split(/\s+/).filter(Boolean);
+                const neutralTokens = (btn.dataset.neutralClass || 'btn-outline-secondary').split(/\s+/).filter(Boolean);
 
-                const html = `
-                    <div class="alert alert-danger">
-                        <div class="fw-bold mb-2">選択中：${dateStr}（${w}） — 直前（発注済）</div>
-                        <div>
-                            <span class="badge kid-chip bg-${flag('breakfast')} mx-1">☀️ 朝：${mark('breakfast')}</span>
-                            <span class="badge kid-chip bg-${flag('lunch')} mx-1">🌞 昼：${mark('lunch')}</span>
-                            <span class="badge kid-chip bg-${flag('dinner')} mx-1">🌙 夜：${mark('dinner')}</span>
-                            <span class="badge kid-chip bg-${flag('bento')} mx-1">🍱 弁当：${mark('bento')}</span>
-                        </div>
-                        <div class="small mt-2">※この期間は<strong>発注済</strong>です。変更・追加の前に内容をよく確認してください。</div>
-                    </div>
-                `;
-                lateInfo.innerHTML = html;
+                // 念のため旧クラスも除去対象に含める（以前のUIで使っていたもの）
+                const legacyTokens = ['btn-outline-light', 'border'];
 
-                // 直前モード中は、選択日にスクロール
-                if (kidMode === 'late') {
-                    const card = document.getElementById(`card-${dateStr}`);
-                    if (card && card.style.display !== 'none') {
-                        card.scrollIntoView({ behavior:'smooth', block:'start' });
-                    }
+                // いったん両方の集合を外す
+                cls.remove(...colorTokens, ...neutralTokens, ...legacyTokens);
+
+                // 付け直し
+                if (reserved){
+                    colorTokens.forEach(t => cls.add(t));
+                    btn.dataset.isMine = '1';
+                } else {
+                    neutralTokens.forEach(t => cls.add(t));
+                    btn.dataset.isMine = '0';
+                }
+
+                const meal = Number(btn.dataset.meal||0);
+                const name = mealNamesShort[meal] || '';
+                const targetIsLast = btn.dataset.targetIsLast === '1';
+                const capEl = btn.querySelector('.btn-cap');
+                if (capEl){
+                    let cap = '';
+                    if (targetIsLast) cap = reserved ? '変更(直前)' : '追加(直前)';
+                    else              cap = reserved ? '取消'       : '追加';
+                    capEl.innerHTML = `${name}<small> ${cap}</small>`;
+                }
+                btn.setAttribute('aria-label', `${name}：${reserved ? (targetIsLast?'変更(直前)':'取消') : (targetIsLast?'追加(直前)':'追加')}`);
+            }
+
+            function updateDayStatus(dateStr){
+                const card = document.getElementById(`card-${dateStr}`);
+                if (!card) return;
+                const detail = MY_DETAILS[dateStr] || {};
+                const any = !!(detail.breakfast || detail.lunch || detail.bento || detail.dinner);
+                const ok = card.querySelector('.status-flag.ok');
+                const none = card.querySelector('.status-flag.none');
+                if (ok && none){
+                    ok.style.display = any ? 'inline-flex' : 'none';
+                    none.style.display = any ? 'none' : 'inline-flex';
                 }
             }
 
-            if (lateSelect) {
-                renderLateInfo(lateSelect.value);
-                lateSelect.addEventListener('change', ()=> renderLateInfo(lateSelect.value));
-            }
-
-            // ▼ 通常予約セレクト：選択日の情報＋add への導線、さらに表示先頭に
-            const normalSelect = document.getElementById('normalDateSelect');
-            const normalInfo   = document.getElementById('normalDateInfo');
-
-            function renderNormalInfo(dateStr){
-                if(!normalInfo || !dateStr) return;
-                const d = new Date(dateStr + 'T00:00:00');
-                const w = ['日','月','火','水','木','金','土'][d.getDay()];
-                const detail = (MY_DETAILS && MY_DETAILS[dateStr]) ? MY_DETAILS[dateStr] : {};
-                const flag = (k)=> (detail && detail[k]) ? 'success' : 'secondary';
-                const mark = (k)=> (detail && detail[k]) ? '○' : '－';
-
-                const addHref  = ADD_BASE + `?date=${encodeURIComponent(dateStr)}`;
-                const html = `
-                    <div class="alert alert-success">
-                        <div class="fw-bold mb-2">選択中：${dateStr}（${w}） — 通常予約（新規登録OK）</div>
-                        <div>
-                            <span class="badge kid-chip bg-${flag('breakfast')} mx-1">☀️ 朝：${mark('breakfast')}</span>
-                            <span class="badge kid-chip bg-${flag('lunch')} mx-1">🌞 昼：${mark('lunch')}</span>
-                            <span class="badge kid-chip bg-${flag('dinner')} mx-1">🌙 夜：${mark('dinner')}</span>
-                            <span class="badge kid-chip bg-${flag('bento')} mx-1">🍱 弁当：${mark('bento')}</span>
-                        </div>
-                        <div class="mt-2 d-grid">
-                            <a class="btn btn-outline-primary" href="${addHref}">
-                                <i class="bi bi-ui-checks-grid"></i> この日をまとめて予約（add）
-                            </a>
-                        </div>
-                    </div>
-                `;
-                normalInfo.innerHTML = html;
-
-                // 通常モード中は、選択日にスクロール
-                if (kidMode === 'normal') {
-                    const card = document.getElementById(`card-${dateStr}`);
-                    if (card && card.style.display !== 'none') {
-                        card.scrollIntoView({ behavior:'smooth', block:'start' });
-                    }
+            // その日全体を“同期更新”するヘルパ
+            function refreshDayUI(dateStr){
+                const esc = (s)=> (window.CSS && CSS.escape) ? CSS.escape(s) : s;
+                const detail = MY_DETAILS[dateStr] || { breakfast:false, lunch:false, dinner:false, bento:false };
+                // 4ボタンをまとめて再描画
+                document.querySelectorAll(`.kid-meal-btn[data-date="${esc(dateStr)}"]`).forEach(btn=>{
+                    const key = btn.dataset.mealKey;
+                    if (!key) return;
+                    setBtnReserved(btn, !!detail[key]);
+                });
+                // ステータス旗
+                updateDayStatus(dateStr);
+                // 今日なら“今日状態”も更新（次回の競合事前チェック用）
+                if (dateStr === TODAY) {
+                    TODAY_STATE.lunch = !!detail.lunch;
+                    TODAY_STATE.bento = !!detail.bento;
                 }
             }
 
-            if (normalSelect) {
-                renderNormalInfo(normalSelect.value);
-                normalSelect.addEventListener('change', ()=> renderNormalInfo(normalSelect.value));
-            }
-
-            // ▼ 子ども用：各ボタンクリック（遷移はクリック時のみ）
-            document.querySelectorAll('.kid-meal-btn').forEach(btn => {
-                btn.addEventListener('click', (ev) => {
-                    const date  = btn.dataset.date;
-                    const meal  = Number(btn.dataset.meal || 0);
-                    const isMine = btn.dataset.isMine === '1';
-                    const targetIsLast = btn.dataset.targetIsLast === '1';
-                    const origHref   = btn.getAttribute('href') || '#';
-
-                    // 同日の「昼⇔弁当」重複回避
-                    const hasLunch = btn.dataset.hasLunch === '1';
-                    const hasBento = btn.dataset.hasBento === '1';
-                    if (meal === 4 && (hasLunch || (date === TODAY && LUNCH_RESERVED_TODAY))) {
-                        ev.preventDefault();
-                        showConflict(
-                            `この日（${date}）は「昼ごはん」の予約があります。<br>「お弁当」を変更/追加する前に、昼の予約を調整してください。`,
-                            EDIT_BASE + `/${date}/2`
-                        );
-                        return;
-                    }
-                    if (meal === 2 && (hasBento || (date === TODAY && BENTO_RESERVED_TODAY))) {
-                        ev.preventDefault();
-                        showConflict(
-                            `この日（${date}）は「お弁当」の予約があります。<br>「昼ごはん」を変更/追加する前に、弁当の予約を調整してください。`,
-                            EDIT_BASE + `/${date}/4`
-                        );
-                        return;
-                    }
-
-                    // 遷移先を決定
-                    let nextHref;
-                    if (kidMode === 'auto') {
-                        nextHref = origHref;
-                    } else if (targetIsLast) {
-                        nextHref = EDIT_BASE + `/${date}/${meal}`;
-                    } else {
-                        nextHref = isMine
-                            ? (EDIT_BASE + `/${date}/${meal}`)
-                            : (ADD_BASE + `?date=${encodeURIComponent(date)}`);
-                    }
-
-                    // 直前扱いなら注意モーダル
-                    if (targetIsLast) {
-                        ev.preventDefault();
-                        const map = {1:'朝食',2:'昼食',3:'夕食',4:'弁当'};
-                        const actionText = isMine ? '変更' : (kidMode==='late' ? '変更' : '追加');
-                        const bodyHtml = `日付：<strong>${date}</strong><br>対象：<strong>${map[meal] || ''}</strong><br><br><span class="fw-bold">この期間はすでに<strong>発注済</strong>です。</span><br>${actionText}してよいか、内容をよく確認してください。`;
-                        showLateNotice(bodyHtml, nextHref);
-                        return;
-                    }
-
-                    // 通常確認
-                    ev.preventDefault();
-                    const goingToAdd = nextHref.includes('/add/') || nextHref.includes('?date=');
-                    const msg = goingToAdd
-                        ? `日付：${date}\n1日まとめて追加ページ（add）を開きます。よろしいですか？`
-                        : `日付：${date}\n編集ページを開きます。よろしいですか？`;
-                    if (confirm(msg)) window.location.href = nextHref;
-                }, false);
-            });
-
-            // 週まとめ予約ボタン
-            document.querySelectorAll('.week-bulk-link').forEach(link => {
-                link.addEventListener('click', (ev) => {
-                    if (link.classList.contains('disabled')) {
-                        ev.preventDefault();
-                        return;
-                    }
-                    const label = link.dataset.weekLabel || '';
-                    if (!confirm(`「${label}」の週まとめ予約ページを開きます。よろしいですか？`)) {
-                        ev.preventDefault();
-                    }
-                }, false);
-            });
-
-            function showConflict(html, actionHref){
+            // ====== 競合モーダル（確認つき） & 直前モーダル ======
+            function showConflict(html, onResolve){
                 const body = document.getElementById('conflictBody');
                 const act  = document.getElementById('conflictAction');
-                if (body) body.innerHTML = html;
-                if (act)  act.setAttribute('href', actionHref);
-                const el = document.getElementById('conflictModal');
+                const el   = document.getElementById('conflictModal');
+
+                if (body) body.innerHTML = html || 'この操作は競合しています。';
+                if (act) {
+                    act.classList.remove('disabled');
+                    act.setAttribute('aria-disabled','false');
+                    act.onclick = (e)=>{
+                        e.preventDefault();
+                        if (onResolve) onResolve();
+                        if (el && window.bootstrap?.Modal) {
+                            window.bootstrap.Modal.getOrCreateInstance(el).hide();
+                        }
+                        return false;
+                    };
+                }
                 if (el && window.bootstrap?.Modal) {
                     window.bootstrap.Modal.getOrCreateInstance(el).show();
                 } else {
-                    alert('先に反対の予約を調整してください。');
+                    if (onResolve && confirm('競合しています。競合先を解除して続行しますか？')) onResolve();
                 }
             }
 
-            // 直前注意モーダル（警告感強化）
-            function showLateNotice(html, href){
+            function showLateNotice(html, onAgree){
                 const body = document.getElementById('lateNoticeBody');
-                const proceed = document.getElementById('lateProceed');
                 const agree = document.getElementById('lateAgreeCheck');
+                const proceed = document.getElementById('lateProceed');
                 const modalEl = document.getElementById('lateNoticeModal');
 
                 if (body) body.innerHTML = html;
 
-                if (proceed) {
-                    proceed.classList.add('disabled');
-                    proceed.setAttribute('aria-disabled', 'true');
-                    proceed.setAttribute('tabindex', '-1');
-                    proceed.setAttribute('href', href || '#');
-
-                    proceed.onclick = (e) => {
-                        if (proceed.classList.contains('disabled')) {
-                            e.preventDefault();
-                            return false;
-                        }
-                        if (modalEl && window.bootstrap?.Modal) {
-                            const m = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-                            m.hide();
-                            setTimeout(() => { window.location.href = proceed.getAttribute('href') || '#'; }, 120);
-                            e.preventDefault();
-                            return false;
-                        }
-                        return true;
-                    };
-                }
-
-                if (agree) {
+                if (agree){
                     agree.checked = false;
                     agree.onchange = () => {
                         if (agree.checked) {
@@ -906,79 +731,233 @@ $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>
                     };
                 }
 
+                if (proceed){
+                    proceed.onclick = (e) => {
+                        if (proceed.classList.contains('disabled')) { e.preventDefault(); return false; }
+                        if (modalEl && window.bootstrap?.Modal) {
+                            const m = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+                            m.hide();
+                        }
+                        onAgree?.();
+                        e.preventDefault();
+                        return false;
+                    };
+                }
                 if (modalEl && window.bootstrap?.Modal) {
                     window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
                 } else {
-                    const ok = confirm('直前（発注済）です。内容をよく確認してください。続けますか？');
-                    if (ok && href) window.location.href = href;
+                    if (confirm('直前（発注済）です。続けますか？')) onAgree?.();
                 }
             }
 
+            // ====== API呼び出し（override 対応） ======
+            async function callToggle(dateStr, mealNumber, wantValue, override=false){
+                if (!TOGGLE_URL) throw new Error('トグルURLが未設定です。');
+                if (!csrfToken)  throw new Error('CSRFトークンが取得できていません。再読み込みしてください。');
+
+                const res = await fetch(TOGGLE_URL, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json',
+                        'X-CSRF-Token': csrfToken
+                    },
+                    body: JSON.stringify({
+                        date:  dateStr,
+                        meal:  Number(mealNumber),
+                        value: wantValue ? 1 : 0,
+                        override: override ? 1 : 0
+                    })
+                });
+
+                const ct = res.headers.get('content-type') || '';
+                const parse = async () =>
+                    ct.includes('application/json') ? (await res.json())
+                        : { ok:false, message: await res.text() };
+                const data = await parse();
+
+                if (res.status === 409) {
+                    const err = new Error(data?.message || '昼食と弁当は同時に予約できません。');
+                    err.name = 'Conflict';
+                    err.details = data;
+                    throw err;
+                }
+                if (res.status === 422) throw new Error(data?.message || '入力が不正です。');
+                if (res.status === 400) throw new Error(data?.message || '不正なリクエストです。');
+                if (!res.ok || !data || data.ok !== true) {
+                    throw new Error(data?.message || `更新に失敗しました（${res.status}）`);
+                }
+                return data; // { ok:true, value, details }
+            }
+
+            // 競合ペアの相手を取得（昼↔弁当）
+            function conflictPair(mealIdx){
+                if (mealIdx === 2) return 4; // lunch -> bento
+                if (mealIdx === 4) return 2; // bento -> lunch
+                return null;
+            }
+
+            // 成功レスポンスを MY_DETAILS へ反映 & UI同期更新
+            function applyDetailsAndRefresh(date, payload, btn, mealKey){
+                if (payload && typeof payload.details === 'object') {
+                    // detailsに正しい4食分だけが入っているか確認し、なければ既存値を維持
+                    const prev = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
+                    MY_DETAILS[date] = {
+                        breakfast: 'breakfast' in payload.details ? payload.details.breakfast : prev.breakfast,
+                        lunch:     'lunch'     in payload.details ? payload.details.lunch     : prev.lunch,
+                        dinner:    'dinner'    in payload.details ? payload.details.dinner    : prev.dinner,
+                        bento:     'bento'     in payload.details ? payload.details.bento     : prev.bento,
+                    };
+                } else {
+                    const d = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
+                    if (mealKey) d[mealKey] = !!(payload?.value);
+                    MY_DETAILS[date] = d;
+                }
+                refreshDayUI(date);
+            }
+
+            // 競合時：確認して「競合先 OFF → 目的 ON」を連続実行（サーバ override 未実装でも動く）
+            async function resolveConflictSequence(date, targetIdx, targetOn, btn, mealKey){
+                const opponentIdx = conflictPair(targetIdx);
+                if (!opponentIdx) throw new Error('競合先が特定できませんでした。');
+
+                // 1) 競合先 OFF
+                await callToggle(date, opponentIdx, /*off*/ false, /*override*/ false);
+                // 2) 目的を希望状態に
+                const result = await callToggle(date, targetIdx, targetOn, /*override*/ false);
+                applyDetailsAndRefresh(date, result, btn, mealKey);
+            }
+
+            // ====== トグル要求（クリック） ======
+            document.querySelectorAll('.kid-meal-btn').forEach(btn => {
+                btn.addEventListener('click', async (ev) => {
+                    ev.preventDefault();
+                    const date  = btn.dataset.date;
+                    const mealIdx = Number(btn.dataset.meal || 0);
+                    const mealKey = btn.dataset.mealKey;  // breakfast / lunch / dinner / bento
+                    if (!date || !mealIdx || !mealKey) return;
+
+                    // 現在値を取得
+                    const detail = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
+                    const current = !!detail[mealKey];
+                    const nextVal = !current;
+
+                    // 昼⇔弁当の競合（追加時のみ：ここで確認を出してシーケンス実行）
+                    const localConflict =
+                        nextVal &&
+                        ((mealKey === 'lunch'  && (detail.bento || (date === TODAY && TODAY_STATE.bento))) ||
+                            (mealKey === 'bento'  && (detail.lunch || (date === TODAY && TODAY_STATE.lunch))));
+
+                    const isLast = (btn.dataset.targetIsLast || btn.dataset.isLastMinute) === '1';
+
+                    const doToggle = async () => {
+                        try {
+                            btn.disabled = true; btn.style.opacity = .65;
+
+                            // ローカルで競合している場合：まず確認して競合解除→登録
+                            if (localConflict) {
+                                const labelFrom = mealIdx === 2 ? 'お弁当' : '昼ごはん';
+                                const labelTo   = mealIdx === 2 ? '昼ごはん' : 'お弁当';
+
+                                showConflict(
+                                    `この日（${date}）は<strong>${labelFrom}</strong>の予約があります。<br>` +
+                                    `<strong>${labelFrom}</strong>を先に<strong>取り消し</strong>てから、<strong>${labelTo}</strong>を登録してもよろしいですか？`,
+                                    async () => {
+                                        try {
+                                            // 直前期間なら念のため同意もらう
+                                            if (isLast) {
+                                                showLateNotice(
+                                                    `日付：<strong>${date}</strong><br>対象：<strong>${mealJaFull[mealIdx]}</strong><br><br>` +
+                                                    `この期間はすでに<strong>発注済</strong>です。登録内容をよく確認してください。`,
+                                                    async () => {
+                                                        try {
+                                                            await resolveConflictSequence(date, mealIdx, /*on*/ true, btn, mealKey);
+                                                        } catch (ee) {
+                                                            alert(ee?.message || '競合解消に失敗しました。');
+                                                        } finally {
+                                                            btn.disabled = false; btn.style.opacity = 1;
+                                                        }
+                                                    }
+                                                );
+                                            } else {
+                                                await resolveConflictSequence(date, mealIdx, /*on*/ true, btn, mealKey);
+                                                btn.disabled = false; btn.style.opacity = 1;
+                                            }
+                                        } catch (seqErr) {
+                                            alert(seqErr?.message || '競合解消に失敗しました。');
+                                            btn.disabled = false; btn.style.opacity = 1;
+                                        }
+                                    }
+                                );
+                                return; // モーダルで承認後に処理される
+                            }
+
+                            // 通常経路：そのまま POST
+                            const json = await callToggle(date, mealIdx, nextVal);
+                            applyDetailsAndRefresh(date, json, btn, mealKey);
+
+                        } catch (e) {
+                            if (e?.name === 'Conflict') {
+                                // サーバ側で競合判定された場合：override を試し、無理なら手動シーケンス
+                                showConflict(
+                                    (e.message || '昼食と弁当は同時に予約できません。') +
+                                    '<br><small class="text-muted">（競合先の予約を先にOFFしてから目的の予約をONにします）</small>',
+                                    async () => {
+                                        try {
+                                            btn.disabled = true; btn.style.opacity = .65;
+                                            // 1) まず override でサーバ任せ（実装されていれば一発）
+                                            try {
+                                                const over = await callToggle(date, mealIdx, nextVal, /*override*/ true);
+                                                applyDetailsAndRefresh(date, over, btn, mealKey);
+                                            } catch (ovErr) {
+                                                // 2) override が未実装/失敗なら手動シーケンス
+                                                await resolveConflictSequence(date, mealIdx, nextVal, btn, mealKey);
+                                            }
+                                        } catch (ee) {
+                                            alert(ee?.message || '競合解消に失敗しました。');
+                                        } finally {
+                                            btn.disabled = false; btn.style.opacity = 1;
+                                        }
+                                    }
+                                );
+                            } else {
+                                alert(e?.message || '予約の更新に失敗しました');
+                            }
+                        } finally {
+                            // 通常経路の終了ハンドリング（モーダル経路では個別 finally 済）
+                            if (!localConflict) { btn.disabled = false; btn.style.opacity = 1; }
+                        }
+                    };
+
+                    if (isLast) {
+                        const bodyHtml = `日付：<strong>${date}</strong><br>対象：<strong>${mealJaFull[mealIdx]}</strong><br><br>` +
+                            `この期間はすでに<strong>発注済</strong>です。${nextVal ? '追加' : 'キャンセル'}してよいか、内容をよく確認してください。`;
+                        showLateNotice(bodyHtml, doToggle);
+                    } else {
+                        // 即時トグル
+                        doToggle();
+                    }
+                }, false);
+            });
+
+            // 週まとめ予約ボタン
+            document.querySelectorAll('.week-bulk-link').forEach(link => {
+                link.addEventListener('click', (ev) => {
+                    if (link.classList.contains('disabled')) {
+                        ev.preventDefault(); return;
+                    }
+                    const label = link.dataset.weekLabel || '';
+                    if (!confirm(`「${label}」の週まとめ予約ページを開きます。よろしいですか？`)) {
+                        ev.preventDefault();
+                    }
+                }, false);
+            });
+
         } else {
             /* ==================== 大人向け（業務システム調） ==================== */
-            const reservedDates = [
-                <?php foreach ($myReservationDates as $reservedDate): ?>
-                '<?= h($reservedDate) ?>',
-                <?php endforeach; ?>
-            ];
-
-            <?php
-            $icon = static function ($v) { if ($v===null) return '×'; return $v ? '⚪︎' : '×'; };
-            ?>
-            const existingEvents = [
-                <?php foreach ($myReservationDates as $reservedDate): ?>
-                <?php
-                $detail = $myReservationDetails[$reservedDate] ?? [];
-                $title = sprintf('朝:%s 昼:%s 夜:%s 弁当:%s',
-                        $icon($detail['breakfast'] ?? null),
-                        $icon($detail['lunch']     ?? null),
-                        $icon($detail['dinner']    ?? null),
-                        $icon($detail['bento']     ?? null)
-                );
-                ?>
-                {
-                    title: '<?= h($title) ?>',
-                    start: '<?= h($reservedDate) ?>',
-                    allDay: true,
-                    backgroundColor: '#28a745',
-                    borderColor: '#28a745',
-                    textColor: 'white',
-                    extendedProps: { displayOrder: -2 }
-                },
-                <?php endforeach; ?>
-
-                <?php if (!empty($mealDataArray)): ?>
-                <?php
-                $mealTypes = ['1'=>'朝','2'=>'昼','3'=>'夜','4'=>'弁当'];
-                $selfKeys  = ['1'=>'breakfast','2'=>'lunch','3'=>'dinner','4'=>'bento'];
-                foreach ($mealDataArray as $date => $meals):
-                foreach ($mealTypes as $type => $name):
-                if (isset($meals[$type]) && $meals[$type] > 0):
-                if ($isChild) {
-                    $selfKey = $selfKeys[$type] ?? null;
-                    $selfMark = $selfKey ? $icon(($myReservationDetails[$date][$selfKey] ?? null)) : '×';
-                    $userName = $user ? $user->get('c_user_name') : '';
-                    $titleForType = "{$name}: {$selfMark} {$userName}";
-                    $bgColor = ($selfMark === '⚪︎') ? '#28a745' : '#fd7e14';
-                } else {
-                    $titleForType = "{$name}: {$meals[$type]}人";
-                    $bgColor = null;
-                }
-                ?>
-                {
-                    title: '<?= h($titleForType) ?>',
-                    start: '<?= $date ?>',
-                    allDay: true,
-                    extendedProps: { displayOrder: <?= (int)$type ?> }<?php if ($isChild): ?>,
-                    backgroundColor: '<?= $bgColor ?>',
-                    borderColor: '<?= $bgColor ?>',
-                    textColor: 'white'<?php endif; ?>
-                },
-                <?php
-                endif; endforeach; endforeach;
-                endif;
-                ?>
-            ];
+            const reservedDates  = <?= $JS_RESERVED_DATES ?>;
+            const existingEvents = <?= $JS_EXISTING_EVENTS ?>;
 
             const calendarEl    = document.getElementById('calendar');
             const fromDateInput = document.getElementById('fromDate');
@@ -994,7 +973,6 @@ $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>
                 const end=new Date(view.currentEnd); end.setDate(end.getDate()-1);
                 fromDateInput.value = formatYmd(start);
                 toDateInput.value   = formatYmd(end);
-                // チップ更新（管理者カードが表示されている場合）
                 const chip = document.getElementById('rangeChip');
                 if (chip) chip.textContent = `${fromDateInput.value} 〜 ${toDateInput.value}`;
             }
@@ -1072,7 +1050,7 @@ $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>
             calendar.render();
             fromDateInput?.addEventListener('change', ()=>{ if(fromDateInput?.value) calendar.gotoDate(fromDateInput.value); });
 
-            // ======== エクスポートUI（統合版） ========
+            // ======== エクスポートUI（既存のまま） ========
             const exportBtn = document.getElementById('exportNow');
             if (exportBtn) {
                 function setExportLoading(loading) {
@@ -1212,7 +1190,6 @@ $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>
                         if (isEmpty) { showToast('出力対象データがありません。', 'warning'); return; }
 
                         if (isPlan) {
-                            // 予定表
                             const wb = new ExcelJS.Workbook();
                             wb.creator='食数予約システム'; wb.created=new Date(); wb.modified=new Date();
 
@@ -1272,7 +1249,6 @@ $bentoChangeUrl = $this->Url->build(['controller'=>'TReservationInfo','action'=>
 
                             await downloadWorkbook(wb, `食数予定表_${from}〜${to}.xlsx`);
                         } else {
-                            // 実施表
                             const rows = Array.isArray(json) ? json : Object.values(json);
                             const wb=new ExcelJS.Workbook();
                             const ws=wb.addWorksheet('実施食数表');
