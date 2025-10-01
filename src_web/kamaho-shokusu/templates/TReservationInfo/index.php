@@ -136,6 +136,39 @@ $hasTodayReservation = !empty($todayReservation) && (
         .assistant-panel { background:#fff; border:1px solid #e9ecef; border-radius:.5rem; padding:1rem; }
         .date-badge { margin:.15rem .2rem; }
         .late-select-wrap .form-select { min-width: 220px; }
+
+        /* ================= ここから祝日＆土日強調（大人用 FullCalendar） ================= */
+        /* 祝日セルの強調（背景・日付色・左ボーダー） */
+        .fc-daygrid-day.is-holiday {
+            background: #fff0f0 !important;               /* 淡い赤 */
+            position: relative;                            /* バッジを載せるために必要 */
+            border-left: 4px solid #dc3545 !important;     /* 赤のアクセント */
+        }
+        .fc-daygrid-day.is-holiday .fc-daygrid-day-number {
+            color: #c1121f !important;
+            font-weight: 700;
+        }
+        /* セル上部の祝日名バッジ */
+        .fc-holiday-badge {
+            position: absolute;
+            top: 2px; left: 4px;
+            z-index: 2;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #dc3545;
+            color: #fff;
+            font-size: 10px;
+            line-height: 1;
+            pointer-events: none; /* クリック操作の邪魔をしない */
+            box-shadow: 0 0 0.25rem rgba(220,53,69,.35);
+        }
+        /* 土日の見た目（祝日ではない日に限って薄背景） */
+        .fc-daygrid-day.fc-day-sun:not(.is-holiday) { background:#fff7f7; }
+        .fc-daygrid-day.fc-day-sat:not(.is-holiday) { background:#f4f7ff; }
+        /* 土日の日付色（数字部分） */
+        .fc-daygrid-day.fc-day-sun .fc-daygrid-day-number { color:#d63384; font-weight:700; }
+        .fc-daygrid-day.fc-day-sat .fc-daygrid-day-number { color:#0d6efd; font-weight:700; }
+        /* ============================================================================ */
     </style>
 </head>
 <body>
@@ -990,22 +1023,28 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                 customButtons: { nextMonth:{ text:'次月', click:()=>calendar.next() } },
                 headerToolbar: { right:'prev,today,nextMonth,next', center:'' },
                 buttonText: { today:'今日' },
+
+                /* === 祝日バッジ＆セル強調 === */
+                dayCellDidMount: (info) => {
+                    const y = info.date.getFullYear();
+                    const m = info.date.getMonth();      // 0-11
+                    const d = info.date.getDate();
+                    const name = JapaneseHolidays?.isHoliday?.(new Date(y, m, d));
+                    if (name) {
+                        info.el.classList.add('is-holiday');            // セルを強調
+                        if (!info.el.querySelector('.fc-holiday-badge')) {
+                            const badge = document.createElement('div'); // 祝日名をバッジ表示
+                            badge.className = 'fc-holiday-badge';
+                            badge.textContent = name;
+                            info.el.appendChild(badge);
+                        }
+                    }
+                },
+
                 datesSet: (arg)=>updateInputsByCalendar(arg.view),
 
+                /* === イベント生成：祝日は dayCellDidMount で装飾するため、ここでは生成しない === */
                 events: (fetchInfo, successCallback)=>{
-                    const holidayEvents=[];
-                    for(let y=fetchInfo.start.getFullYear(); y<=fetchInfo.end.getFullYear(); y++){
-                        const holidays = JapaneseHolidays.getHolidaysOf(y) ?? [];
-                        holidays.forEach(h=>{
-                            holidayEvents.push({
-                                title: h.name,
-                                start: `${y}-${String(h.month).padStart(2,'0')}-${String(h.date).padStart(2,'0')}`,
-                                allDay: true,
-                                backgroundColor:'#dc3545', borderColor:'#dc3545', textColor:'white',
-                                extendedProps:{displayOrder:0}
-                            });
-                        });
-                    }
                     const unreservedEvents=[];
                     const cur=new Date(fetchInfo.start);
                     while(cur < fetchInfo.end){
@@ -1019,7 +1058,7 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                         }
                         cur.setDate(cur.getDate()+1);
                     }
-                    successCallback([...existingEvents, ...holidayEvents, ...unreservedEvents]);
+                    successCallback([...existingEvents, ...unreservedEvents]);
                 },
 
                 eventOrder: (a,b)=>{
