@@ -871,6 +871,9 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                     const mealKey = btn.dataset.mealKey;  // breakfast / lunch / dinner / bento
                     if (!date || !mealIdx || !mealKey) return;
 
+                    // このクリック処理で一度だけ直前同意を通すためのフラグ
+                    let agreedOnce = false;
+
                     // 現在値を取得
                     const detail = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
                     const current = !!detail[mealKey];
@@ -884,11 +887,23 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
 
                     const isLast = (btn.dataset.targetIsLast || btn.dataset.isLastMinute) === '1';
 
+                    // 直前同意を「必要なら一度だけ」挟んで action を実行するヘルパ
+                    const withLateAgreement = (html, action) => {
+                        if (isLast && !agreedOnce) {
+                            showLateNotice(html, () => {
+                                agreedOnce = true;
+                                action?.();
+                            });
+                        } else {
+                            action?.();
+                        }
+                    };
+
                     const doToggle = async () => {
                         try {
                             btn.disabled = true; btn.style.opacity = .65;
 
-                            // ローカルで競合している場合：まず確認して競合解除→登録
+                            // ローカルで競合している場合：まず競合モーダル →（必要なら）直前同意 → 解消
                             if (localConflict) {
                                 const labelFrom = mealIdx === 2 ? 'お弁当' : '昼ごはん';
                                 const labelTo   = mealIdx === 2 ? '昼ごはん' : 'お弁当';
@@ -897,33 +912,20 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                                     `この日（${date}）は<strong>${labelFrom}</strong>の予約があります。<br>` +
                                     `<strong>${labelFrom}</strong>を先に<strong>取り消し</strong>てから、<strong>${labelTo}</strong>を登録してもよろしいですか？`,
                                     async () => {
-                                        try {
-                                            // 直前期間なら念のため同意もらう
-                                            if (isLast) {
-                                                showLateNotice(
-                                                    `日付：<strong>${date}</strong><br>対象：<strong>${mealJaFull[mealIdx]}</strong><br><br>` +
-                                                    `この期間はすでに<strong>発注済</strong>です。登録内容をよく確認してください。`,
-                                                    async () => {
-                                                        try {
-                                                            await resolveConflictSequence(date, mealIdx, /*on*/ true, btn, mealKey);
-                                                        } catch (ee) {
-                                                            alert(ee?.message || '競合解消に失敗しました。');
-                                                        } finally {
-                                                            btn.disabled = false; btn.style.opacity = 1;
-                                                        }
-                                                    }
-                                                );
-                                            } else {
+                                        const html = `日付：<strong>${date}</strong><br>対象：<strong>${mealJaFull[mealIdx]}</strong><br><br>` +
+                                            `この期間はすでに<strong>発注済</strong>です。登録内容をよく確認してください。`;
+                                        withLateAgreement(html, async () => {
+                                            try {
                                                 await resolveConflictSequence(date, mealIdx, /*on*/ true, btn, mealKey);
+                                            } catch (ee) {
+                                                alert(ee?.message || '競合解消に失敗しました。');
+                                            } finally {
                                                 btn.disabled = false; btn.style.opacity = 1;
                                             }
-                                        } catch (seqErr) {
-                                            alert(seqErr?.message || '競合解消に失敗しました。');
-                                            btn.disabled = false; btn.style.opacity = 1;
-                                        }
+                                        });
                                     }
                                 );
-                                return; // モーダルで承認後に処理される
+                                return; // モーダル経由で継続
                             }
 
                             // 通常経路：そのまま POST
@@ -932,26 +934,30 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
 
                         } catch (e) {
                             if (e?.name === 'Conflict') {
-                                // サーバ側で競合判定された場合：override を試し、無理なら手動シーケンス
+                                // サーバ側で競合判定：競合モーダル →（必要なら）直前同意 → 解消
                                 showConflict(
                                     (e.message || '昼食と弁当は同時に予約できません。') +
                                     '<br><small class="text-muted">（競合先の予約を先にOFFしてから目的の予約をONにします）</small>',
                                     async () => {
-                                        try {
-                                            btn.disabled = true; btn.style.opacity = .65;
-                                            // 1) まず override でサーバ任せ（実装されていれば一発）
+                                        const html = `日付：<strong>${date}</strong><br>対象：<strong>${mealJaFull[mealIdx]}</strong><br><br>` +
+                                            `この期間はすでに<strong>発注済</strong>です。登録内容をよく確認してください。`;
+                                        withLateAgreement(html, async () => {
                                             try {
-                                                const over = await callToggle(date, mealIdx, nextVal, /*override*/ true);
-                                                applyDetailsAndRefresh(date, over, btn, mealKey);
-                                            } catch (ovErr) {
-                                                // 2) override が未実装/失敗なら手動シーケンス
-                                                await resolveConflictSequence(date, mealIdx, nextVal, btn, mealKey);
+                                                btn.disabled = true; btn.style.opacity = .65;
+                                                // 1) override 可能なら試す
+                                                try {
+                                                    const over = await callToggle(date, mealIdx, nextVal, /*override*/ true);
+                                                    applyDetailsAndRefresh(date, over, btn, mealKey);
+                                                } catch (ovErr) {
+                                                    // 2) だめなら手動シーケンス
+                                                    await resolveConflictSequence(date, mealIdx, nextVal, btn, mealKey);
+                                                }
+                                            } catch (ee) {
+                                                alert(ee?.message || '競合解消に失敗しました。');
+                                            } finally {
+                                                btn.disabled = false; btn.style.opacity = 1;
                                             }
-                                        } catch (ee) {
-                                            alert(ee?.message || '競合解消に失敗しました。');
-                                        } finally {
-                                            btn.disabled = false; btn.style.opacity = 1;
-                                        }
+                                        });
                                     }
                                 );
                             } else {
@@ -963,14 +969,10 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                         }
                     };
 
-                    if (isLast) {
-                        const bodyHtml = `日付：<strong>${date}</strong><br>対象：<strong>${mealJaFull[mealIdx]}</strong><br><br>` +
-                            `この期間はすでに<strong>発注済</strong>です。${nextVal ? '追加' : 'キャンセル'}してよいか、内容をよく確認してください。`;
-                        showLateNotice(bodyHtml, doToggle);
-                    } else {
-                        // 即時トグル
-                        doToggle();
-                    }
+                    // 非競合時：必要なら直前同意 → 実行（409時は上の競合モーダル経由へ）
+                    const bodyHtml = `日付：<strong>${date}</strong><br>対象：<strong>${mealJaFull[mealIdx]}</strong><br><br>` +
+                        `この期間はすでに<strong>発注済</strong>です。${nextVal ? '追加' : 'キャンセル'}してよいか、内容をよく確認してください。`;
+                    withLateAgreement(bodyHtml, doToggle);
                 }, false);
             });
 
