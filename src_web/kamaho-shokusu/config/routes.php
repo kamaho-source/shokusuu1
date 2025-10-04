@@ -1,24 +1,6 @@
 <?php
 /**
  * Routes configuration.
- *
- * In this file, you set up routes to your controllers and their actions.
- * Routes are very important mechanism that allows you to freely connect
- * different URLs to chosen controllers and their actions (functions).
- *
- * It's loaded within the context of `Application::routes()` method which
- * receives a `RouteBuilder` instance `$routes` as method argument.
- *
- * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
- * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
- *
- * Licensed under The MIT License
- * For full copyright and license information, please see the LICENSE.txt
- * Redistributions of files must retain the above copyright notice.
- *
- * @copyright     Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
- * @link          https://cakephp.org CakePHP(tm) Project
- * @license       https://opensource.org/licenses/mit-license.php MIT License
  */
 
 use Cake\Routing\Route\DashedRoute;
@@ -30,71 +12,99 @@ return function (RouteBuilder $routes): void {
     $routes->setRouteClass(DashedRoute::class);
 
     $routes->scope('/', function (RouteBuilder $builder): void {
+
+        // JSON 拡張を有効化（このスコープ全体）
         $builder->setExtensions(['json']);
 
+        // ホーム
         $builder->connect('/', ['controller' => 'Pages', 'action' => 'display', 'home']);
+
+        // MRoomInfo
         $builder->connect('/MRoomInfo', ['controller' => 'MRoomInfo', 'action' => 'index']);
         $builder->connect('/MRoomInfo/add', ['controller' => 'MRoomInfo', 'action' => 'add']);
         $builder->connect('/MRoomInfo/edit/*', ['controller' => 'MRoomInfo', 'action' => 'edit']);
         $builder->connect('/MRoomInfo/delete/*', ['controller' => 'MRoomInfo', 'action' => 'delete']);
-        $builder->connect('/TReservationInfo', ['controller' => 'TReservationInfo', 'action' => 'index']);
-        $builder->setExtensions(['json']);
-        $builder->connect('TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
-        $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
-        $builder->connect('TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
 
-        // bulkAddSubmit用 POST専用ルート
+        // TReservationInfo（一覧など）
+        $builder->connect('/TReservationInfo', ['controller' => 'TReservationInfo', 'action' => 'index']);
+        $builder->connect('/TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
+        $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
+        $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
+        $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
+
+        // bulkAddSubmit（POST 専用）
         $builder->connect(
             '/TReservationInfo/bulkAddSubmit',
-            ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit'],
-            ['method' => ['POST']]
-        );
+            ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit']
+        )->setMethods(['POST']);
+
+        // 週一括フォーム・関連 API
+        $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForBulk/:roomId',
-            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForBulk'],
-            ['pass' => ['roomId'], 'method' => ['GET']]
-        );
-
-
-        $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
-        $builder->connect('/TReservation-info/getUsersByRoom/:roomId', ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom'])
+            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForBulk']
+        )
             ->setPass(['roomId'])
-            ->setPatterns(['roomId' => '\d+']);
+            ->setPatterns(['roomId' => '\d+'])
+            ->setMethods(['GET']);
+
+        $builder->connect(
+            '/TReservationInfo/getUsersByRoom/:roomId',
+            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom']
+        )
+            ->setPass(['roomId'])
+            ->setPatterns(['roomId' => '\d+'])
+            ->setMethods(['GET']);
+
         $builder->connect(
             '/TReservationInfo/roomDetails/:roomId/:date/:mealType',
-            ['controller' => 'TReservationInfo', 'action' => 'roomDetails'])
+            ['controller' => 'TReservationInfo', 'action' => 'roomDetails']
+        )
             ->setPass(['roomId', 'date', 'mealType'])
-            ->setPatterns(['roomId' => '\d+', 'date' => '\d{4}-\d{2}-\d{2}', 'mealType' => '\d+'])
+            ->setPatterns([
+                'roomId'   => '\d+',
+                'date'     => '\d{4}-\d{2}-\d{2}',
+                'mealType' => '\d+',
+            ])
             ->setMethods(['GET']);
+
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForEdit/:roomId',
-            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForEdit'],
-            ['pass' => ['roomId'], 'roomId' => '\d+']
-        );
+            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForEdit']
+        )
+            ->setPass(['roomId'])
+            ->setPatterns(['roomId' => '\d+'])
+            ->setMethods(['GET']);
+
         $builder->connect(
             '/TReservationInfo/checkDuplicateReservation',
             ['controller' => 'TReservationInfo', 'action' => 'checkDuplicateReservation']
         )->setMethods(['POST']);
-        $builder->connect('/TReservationInfo/getPersonalReservation', [
-            'controller' => 'TReservationInfo',
-            'action' => 'getPersonalReservation'
-        ]);
-        $builder->connect('TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
-        $builder->connect('TReservationInfo/changeEdit/:roomId/:date/:mealType', [
-            'controller' => 'TReservationInfo',
-            'action' => 'changeEdit'
-        ])->setPass(['roomId', 'date', 'mealType'])
-            ->setPatterns(['roomId' => '\d+', 'date' => '\d{4}-\d{2}-\d{2}', 'mealType' => '\d+']);
 
+        $builder->connect(
+            '/TReservationInfo/getPersonalReservation',
+            ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation']
+        )->setMethods(['GET']);
 
+        $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
+        $builder->connect(
+            '/TReservationInfo/changeEdit/:roomId/:date/:mealType',
+            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+        )
+            ->setPass(['roomId', 'date', 'mealType'])
+            ->setPatterns([
+                'roomId'   => '\d+',
+                'date'     => '\d{4}-\d{2}-\d{2}',
+                'mealType' => '\d+',
+            ]);
 
-        $builder->connect('MMealPriceInfo/', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
-        $builder->connect('MMealPriceInfo/add', ['controller'=>'MMealPriceInfo', 'action'=>'add']);
-        $builder->connect('MMealPriceInfo/GetMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'GetMealSummary']);
+        // MMealPriceInfo
+        $builder->connect('/MMealPriceInfo', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
+        $builder->connect('/MMealPriceInfo/add', ['controller'=>'MMealPriceInfo', 'action'=>'add']);
+        $builder->connect('/MMealPriceInfo/GetMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'GetMealSummary']);
 
-        $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
-        $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
+        // MUserInfo
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
         $builder->connect('/MUserInfo/admin_change_password', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
         $builder->connect('/MUserInfo/changePassword', ['controller' => 'MUserInfo', 'action' => 'changePassword']);
@@ -107,32 +117,31 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
         $builder->connect('/MUserInfo/', ['controller' => 'MUserInfo', 'action' => 'index']);
-        // $builder->connect('/MUserInfo/adminChangePassword', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
 
+        // Pages
         $builder->connect('/pages/*', 'Pages::display');
 
+        // 日付別ビュー
         $builder->connect(
             '/TReservationInfo/view/:date',
-            ['controller' => 'TReservationInfo', 'action' => 'view'],
-            ['pass' => ['date']]
-        );
+            ['controller' => 'TReservationInfo', 'action' => 'view']
+        )->setPass(['date']);
 
+        // === 予約トグル（POST）: roomId あり版 と なし版 の両方を受け付ける ===
+        $builder->connect(
+            '/TReservationInfo/toggle/:roomId',
+            ['controller' => 'TReservationInfo', 'action' => 'toggle']
+        )
+            ->setPatterns(['roomId' => '\d+'])
+            ->setPass(['roomId'])
+            ->setMethods(['POST']);
+
+        $builder->connect(
+            '/TReservationInfo/toggle',
+            ['controller' => 'TReservationInfo', 'action' => 'toggle']
+        )->setMethods(['POST']);
+
+        // フォールバック
         $builder->fallbacks();
     });
-
-    /*
-     * If you need a different set of middleware or none at all,
-     * open new scope and define routes there.
-     *
-     * ```
-     * $routes->scope('/api', function (RouteBuilder $builder): void {
-     *     // No $builder->applyMiddleware() here.
-     *
-     *     // Parse specified extensions from URLs
-     *     // $builder->setExtensions(['json', 'xml']);
-     *
-     *     // Connect API actions here.
-     * });
-     * ```
-     */
 };

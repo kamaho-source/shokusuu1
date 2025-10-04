@@ -856,6 +856,52 @@ class MUserInfoController extends AppController
         $this->set(compact('users', 'selectedUser'));
     }
 
+
+    public function generalPasswordReset(): ?\Cake\Http\Response
+    {
+        $identity = $this->request->getAttribute('identity');
+        if (!$identity) {
+            $this->Flash->error('ログインしてください。');
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+        }
+
+        $userId = $identity->getIdentifier() ?? $identity->get('i_id_user');
+
+        $Users = $this->fetchTable('MUserInfo');
+        $user  = $Users->get($userId);
+
+        if ($this->request->is(['post', 'put', 'patch'])) {
+            $data = (array)$this->request->getData();
+
+            $newPassword     = (string)($data['new_password'] ?? '');
+            $confirmPassword = (string)($data['confirm_password'] ?? '');
+
+            // 入力チェック（4文字以上 & 一致のみ）
+            if ($newPassword !== $confirmPassword) {
+                $this->Flash->error('新しいパスワードが一致しません。');
+                return $this->redirect($this->request->getRequestTarget());
+            }
+            if (mb_strlen($newPassword) < 4) {
+                $this->Flash->error('新しいパスワードは4文字以上にしてください。');
+                return $this->redirect($this->request->getRequestTarget());
+            }
+
+            // ★ beforeSave でハッシュ化される前提：平文を代入
+            $user->c_login_passwd = $newPassword;
+
+            if ($Users->save($user)) {
+                $this->request->getSession()->renew(); // セッション再生成
+                $this->Flash->success('パスワードを変更しました。');
+                return $this->redirect(['controller'=>'TReservationInfo','action' => 'index']);
+            }
+
+            $this->Flash->error('パスワードの変更に失敗しました。');
+        }
+
+        $this->set(compact('user'));
+        return null;
+    }
+
     /**
      * ユーザーの所属部屋登録API
      * POST: i_id_user, room_names[]
