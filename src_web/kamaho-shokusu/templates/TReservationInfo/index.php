@@ -1,4 +1,4 @@
-<?php
+`<?php
 $this->assign('title', '食数予約');
 $user = $this->request->getAttribute('identity');
 $isChild = ($user && (int)$user->get('i_user_level') === 1);
@@ -140,9 +140,9 @@ $hasTodayReservation = !empty($todayReservation) && (
         /* ================= ここから祝日＆土日強調（大人用 FullCalendar） ================= */
         /* 祝日セルの強調（背景・日付色・左ボーダー） */
         .fc-daygrid-day.is-holiday {
-            background: #fff0f0 !important;               /* 淡い赤 */
-            position: relative;                            /* バッジを載せるために必要 */
-            border-left: 4px solid #dc3545 !important;     /* 赤のアクセント */
+            background: #fff0f0 !important;
+            position: relative;
+            border-left: 4px solid #dc3545 !important;
         }
         .fc-daygrid-day.is-holiday .fc-daygrid-day-number {
             color: #c1121f !important;
@@ -159,7 +159,7 @@ $hasTodayReservation = !empty($todayReservation) && (
             color: #fff;
             font-size: 10px;
             line-height: 1;
-            pointer-events: none; /* クリック操作の邪魔をしない */
+            pointer-events: none;
             box-shadow: 0 0 0.25rem rgba(220,53,69,.35);
         }
         /* 土日の見た目（祝日ではない日に限って薄背景） */
@@ -353,7 +353,9 @@ $hasTodayReservation = !empty($todayReservation) && (
                     </div>
                     <div class="modal-body">
                         <div id="conflictBody" class="alert alert-danger mb-3"></div>
-                        <div class="small text-muted">「競合先を解除して続行」を押すと、<u>競合している予約を先に取り消し</u>、その後に<strong>目的の予約</strong>を登録します。</div>
+                        <div class="small text-muted">
+                            下のボタンを押すと、<u>すでに登録されている予約を先に取り消し</u>、その後に<strong>目的の予約</strong>を登録します。
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <a id="conflictAction" href="#" class="btn btn-primary">競合先を解除して続行</a>
@@ -716,7 +718,7 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
             }
 
             // ====== 競合モーダル（確認つき） & 直前モーダル ======
-            function showConflict(html, onResolve){
+            function showConflict(html, onResolve, actionLabel){
                 const body = document.getElementById('conflictBody');
                 const act  = document.getElementById('conflictAction');
                 const el   = document.getElementById('conflictModal');
@@ -725,6 +727,7 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                 if (act) {
                     act.classList.remove('disabled');
                     act.setAttribute('aria-disabled','false');
+                    act.textContent = actionLabel || '競合先を解除して続行';
                     act.onclick = (e)=>{
                         e.preventDefault();
                         if (onResolve) onResolve();
@@ -737,7 +740,7 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                 if (el && window.bootstrap?.Modal) {
                     window.bootstrap.Modal.getOrCreateInstance(el).show();
                 } else {
-                    if (onResolve && confirm('競合しています。競合先を解除して続行しますか？')) onResolve();
+                    if (onResolve && confirm((actionLabel || '競合先を解除して続行') + ' を実行しますか？')) onResolve();
                 }
             }
 
@@ -899,6 +902,12 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                         }
                     };
 
+                    // 競合時のボタンラベルを決定
+                    const conflictActionLabel =
+                        mealIdx === 2 ? 'お弁当からお昼に登録を変更する'
+                            : mealIdx === 4 ? 'お昼からお弁当に登録を変更する'
+                                : '競合先を解除して続行';
+
                     const doToggle = async () => {
                         try {
                             btn.disabled = true; btn.style.opacity = .65;
@@ -923,7 +932,8 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                                                 btn.disabled = false; btn.style.opacity = 1;
                                             }
                                         });
-                                    }
+                                    },
+                                    conflictActionLabel // ★ ここで状況に応じたボタン文言に変更
                                 );
                                 return; // モーダル経由で継続
                             }
@@ -958,7 +968,8 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                                                 btn.disabled = false; btn.style.opacity = 1;
                                             }
                                         });
-                                    }
+                                    },
+                                    conflictActionLabel // ★ サーバ競合時も文言を切替
                                 );
                             } else {
                                 alert(e?.message || '予約の更新に失敗しました');
@@ -976,7 +987,7 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
                 }, false);
             });
 
-            // 週まとめ予約ボタン
+            // 週まとめ予約ボタン（もし配置されている場合）
             document.querySelectorAll('.week-bulk-link').forEach(link => {
                 link.addEventListener('click', (ev) => {
                     if (link.classList.contains('disabled')) {
@@ -1343,3 +1354,4 @@ $JS_TOGGLE_URL       = json_encode($toggleUrl ?? '', JSON_UNESCAPED_UNICODE|JSON
 </script>
 </body>
 </html>
+`
