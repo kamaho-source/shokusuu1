@@ -68,10 +68,11 @@ $user    = $request->getAttribute('identity');    // 既存テンプレ内で使
                             <ul class="dropdown-menu dropdown-menu-end animate__animated animate__fadeIn" aria-labelledby="userMenu">
                                 <li><?= $this->Html->link('👤 プロフィール', ['controller' => 'MUserInfo', 'action' => 'view', $user->i_id_user], ['class' => 'dropdown-item']) ?></li>
                                 <li><?= $this->Html->link('🔒 パスワード変更',['controller'=>'MUserInfo','action'=>'general_password_reset'],['class'=>'dropdown-item']) ?></li>
-                                <li><?= $this->Html->link('🚪 ログアウト', ['controller' => 'MUserInfo', 'action' => 'logout'], ['class' => 'dropdown-item']) ?></li>
                                 <?php if ($user->i_admin === 1): ?>
                                     <li><?= $this->Html->link('🔒 管理者：パスワード変更', ['controller' => 'MUserInfo', 'action' => 'AdminChangePassword'], ['class' => 'dropdown-item']) ?></li>
                                 <?php endif; ?>
+                                <li><?= $this->Html->link('🚪 ログアウト', ['controller' => 'MUserInfo', 'action' => 'logout'], ['class' => 'dropdown-item']) ?></li>
+
                             </ul>
                         </li>
                     <?php else: ?>
