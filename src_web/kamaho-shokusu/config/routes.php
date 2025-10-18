@@ -99,6 +99,34 @@ return function (RouteBuilder $routes): void {
                 'mealType' => '\d+',
             ]);
 
+        // ===== 小文字パス（API） =====
+        // 3セグメント版（従来：{roomId}/{date}/{mealType}）
+        // ※ changeEdit は TReservationInfoController に実装されているため controller を揃える
+        $builder->connect(
+            '/t-individual-reservation-info/change-edit/:roomId/:date/:mealType',
+            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+        )
+            ->setPass(['roomId', 'date', 'mealType'])
+            ->setPatterns([
+                'roomId'   => '\d+',
+                'date'     => '\d{4}-\d{2}-\d{2}',
+                'mealType' => '[1-4]',
+            ])
+            ->setMethods(['GET', 'POST', 'PUT']);
+
+        // ★ 2セグメント版（ALL モード：{roomId}/{date}）
+        // Accept: application/json 付きの GET は JSON を返却。拡張子なしアクセスにも対応。
+        $builder->connect(
+            '/t-individual-reservation-info/change-edit/:roomId/:date',
+            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+        )
+            ->setPass(['roomId', 'date'])
+            ->setPatterns([
+                'roomId' => '\d+',
+                'date'   => '\d{4}-\d{2}-\d{2}',
+            ])
+            ->setMethods(['GET', 'POST']);
+
         // MMealPriceInfo
         $builder->connect('/MMealPriceInfo', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
         $builder->connect('/MMealPriceInfo/add', ['controller'=>'MMealPriceInfo', 'action'=>'add']);
