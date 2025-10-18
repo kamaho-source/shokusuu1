@@ -889,12 +889,8 @@ class TReservationInfoController extends AppController
 
         $data = $this->request->getData();
 
-        // デバッグログ: リクエストデータを確認
-        Log::debug('Request Data: ' . json_encode($data));
-
         // 必須フィールドの検証
         if (empty($data['d_reservation_date']) || empty($data['i_id_room']) || empty($data['reservation_type'])) {
-            Log::debug('必須フィールド不足');
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode([
                     'isDuplicate' => false,
@@ -910,8 +906,6 @@ class TReservationInfoController extends AppController
             ])
             ->first();
 
-        // デバッグログ: 既存の予約を確認
-        Log::debug('Existing Reservation: ' . json_encode($existingReservation));
 
         if ($existingReservation) {
             if (isset($this->Url)) {
@@ -924,8 +918,6 @@ class TReservationInfoController extends AppController
                 ]);
             }
 
-            // デバッグログ: 生成されたURLを確認
-            Log::debug('Edit URL: ' . $editUrl);
 
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode([
@@ -934,8 +926,6 @@ class TReservationInfoController extends AppController
                 ]));
         }
 
-        // デバッグログ: 重複予約なし
-        Log::debug('No duplicate reservation found');
 
         return $this->response->withType('application/json')
             ->withStringBody(json_encode(['isDuplicate' => false]));
@@ -1154,6 +1144,7 @@ class TReservationInfoController extends AppController
         $targetStr = (string)($data['target'] ?? $data['target_start'] ?? '');
         $roomId    = $data['room_id'] ?? null; // null なら全体
         $overwrite = filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $onlyChildren = filter_var($data['only_children'] ?? false, FILTER_VALIDATE_BOOLEAN); // 子供のみ
 
         // バリデーション
         if (!in_array($mode, ['week', 'month'], true)) {
@@ -1186,17 +1177,15 @@ class TReservationInfoController extends AppController
             $dst = new \Cake\I18n\FrozenDate($dst->format('Y-m-01'));
         }
 
-        // （任意）認可: 管理者のみ許可する等
-        // $this->Authorization->authorize($entityOrPolicy, 'copy'); など
-
         // 実行
         try {
             $user     = $this->request->getAttribute('identity') ?: null;
             $service  = new \App\Service\ReservationCopyService();
 
+            // 子供のみの場合は引数で渡す（サービス側で対応が必要）
             $affected = ($mode === 'week')
-                ? $service->copyWeek($src, $dst, $roomId, $overwrite, $user)
-                : $service->copyMonth($src, $dst, $roomId, $overwrite, $user);
+                ? $service->copyWeek($src, $dst, $roomId, $overwrite, $user, $onlyChildren)
+                : $service->copyMonth($src, $dst, $roomId, $overwrite, $user, $onlyChildren);
 
             $msg = ($mode === 'week')
                 ? sprintf('週コピーが完了しました（%d 行）。', $affected)
@@ -1225,8 +1214,6 @@ class TReservationInfoController extends AppController
             return $this->response->withStatus(500)->withStringBody($body);
         }
     }
-
-
 
     /**
      * 個人予約登録／更新（モーダル対応）
@@ -2440,8 +2427,6 @@ class TReservationInfoController extends AppController
 
     private function saveIndividualReservation($userId, $reservationDate, $roomId, $mealTime, $username): array
     {
-        Log::debug("Saving reservation - userId: $userId, reservationDate: $reservationDate, roomId: $roomId, mealTime: $mealTime");
-
         $reservation = $this->TIndividualReservationInfo->newEntity([
             'i_id_user' => $userId,
             'd_reservation_date' => $reservationDate,
