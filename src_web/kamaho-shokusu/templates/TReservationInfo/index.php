@@ -1776,8 +1776,8 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
     }
 
     (function(){
-        var ADD_URL        = '<?= $this->Url->build(['controller'=>'TReservationInfo','action'=>'add'], ['fullBase'=>true]) ?>';
-        var CHANGEEDIT_URL = '<?= $this->Url->build(['controller'=>'TReservationInfo','action'=>'changeEdit'], ['fullBase'=>true]) ?>';
+        var ADD_URL = '<?= preg_replace("#^https?:#", "", $this->Url->build(['controller'=>'TReservationInfo','action'=>'add'], ['fullBase'=>true])) ?>';
+        var CHANGEEDIT_URL = '<?= preg_replace("#^https?:#", "", $this->Url->build(['controller'=>'TReservationInfo','action'=>'changeEdit'], ['fullBase'=>true])) ?>';
         window.__BASE_PATH   = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES) ?>;
         window.__csrfToken   = <?= json_encode($csrfToken) ?>;
         window.SERVER_TODAY  = <?= json_encode($serverToday) ?>;
