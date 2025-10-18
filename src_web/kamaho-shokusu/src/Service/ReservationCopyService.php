@@ -8,16 +8,13 @@ use Cake\Datasource\ConnectionManager;
 
 class ReservationCopyService
 {
-    /**
-     * 週コピー: sourceStart(週の月曜) → targetStart(週の月曜)
-     * PK: (i_id_user, d_reservation_date, i_id_room, i_reservation_type)
-     */
     public function copyWeek(
         FrozenDate $sourceStart,
         FrozenDate $targetStart,
                    $roomId,
         bool $overwrite,
-                   $user
+                   $user,
+        bool $onlyChildren = false // 追加
     ): int {
         $srcFrom = $sourceStart;
         $srcTo   = $sourceStart->addDays(6);
@@ -33,17 +30,21 @@ class ReservationCopyService
                 'src_to'   => $srcTo->format('Y-m-d'),
             ];
             $roomWhere = '';
-            if ($roomId) { // 指定があればその部屋のみコピー
-                $roomWhere = ' AND i_id_room = :room_id';
+            if ($roomId) {
+                $roomWhere = ' AND iri.i_id_room = :room_id';
                 $params['room_id'] = $roomId;
             }
+            $childJoin = '';
+            if ($onlyChildren) {
+                $childJoin = ' INNER JOIN m_user_info mu ON iri.i_id_user = mu.i_id_user AND mu.i_user_level = 1 ';
+            }
 
-            // 1食種=1行ベースの全行を取得
             $rows = $conn->execute(
-                "SELECT i_id_user, d_reservation_date, i_reservation_type, i_id_room,
-                        eat_flag, i_change_flag
-                   FROM t_individual_reservation_info
-                  WHERE d_reservation_date BETWEEN :src_from AND :src_to {$roomWhere}",
+                "SELECT iri.i_id_user, iri.d_reservation_date, iri.i_reservation_type, iri.i_id_room,
+                        iri.eat_flag, iri.i_change_flag
+                   FROM t_individual_reservation_info iri
+                   {$childJoin}
+                  WHERE iri.d_reservation_date BETWEEN :src_from AND :src_to {$roomWhere}",
                 $params
             )->fetchAll('assoc');
 
@@ -51,7 +52,6 @@ class ReservationCopyService
             $actor = $user ? ($user->get('c_login_id') ?? $user->get('i_id_user') ?? 'system') : 'system';
 
             foreach ($rows as $r) {
-                // 元週の月曜からの差分をターゲット週に適用
                 $diffDays = (new FrozenDate($r['d_reservation_date']))->diffInDays($srcFrom);
                 $newDate  = $dstFrom->addDays($diffDays)->format('Y-m-d');
 
@@ -62,7 +62,6 @@ class ReservationCopyService
                     'typ' => $r['i_reservation_type'],
                 ];
 
-                // 既存行確認（i_reservation_type を含める）
                 $exists = $conn->execute(
                     "SELECT eat_flag, i_change_flag
                        FROM t_individual_reservation_info
@@ -74,16 +73,10 @@ class ReservationCopyService
                 )->fetch('assoc');
 
                 if ($exists) {
-                    if (!$overwrite) {
-                        // 上書きしない場合、スキップ
-                        continue;
-                    }
-                    // 値に変化が無ければ更新しない
+                    if (!$overwrite) continue;
                     $same = ((int)$exists['eat_flag'] === (int)$r['eat_flag'])
                         && ((int)$exists['i_change_flag'] === (int)$r['i_change_flag']);
-                    if ($same) {
-                        continue;
-                    }
+                    if ($same) continue;
                     $conn->execute(
                         "UPDATE t_individual_reservation_info
                             SET eat_flag = :eat,
@@ -103,7 +96,6 @@ class ReservationCopyService
                     );
                     $affected++;
                 } else {
-                    // 新規 INSERT
                     $conn->execute(
                         "INSERT INTO t_individual_reservation_info
                            (i_id_user, d_reservation_date, i_reservation_type, i_id_room,
@@ -133,16 +125,13 @@ class ReservationCopyService
         }
     }
 
-    /**
-     * 月コピー: sourceStart(月初) → targetStart(月初)
-     * その月の同じ“日”にコピーします。
-     */
     public function copyMonth(
         FrozenDate $sourceStart,
         FrozenDate $targetStart,
                    $roomId,
         bool $overwrite,
-                   $user
+                   $user,
+        bool $onlyChildren = false // 追加
     ): int {
         $from = new FrozenDate($sourceStart->format('Y-m-01'));
         $to   = $sourceStart->endOfMonth();
@@ -158,15 +147,20 @@ class ReservationCopyService
             ];
             $roomWhere = '';
             if ($roomId) {
-                $roomWhere = ' AND i_id_room = :room_id';
+                $roomWhere = ' AND iri.i_id_room = :room_id';
                 $params['room_id'] = $roomId;
+            }
+            $childJoin = '';
+            if ($onlyChildren) {
+                $childJoin = ' INNER JOIN m_user_info mu ON iri.i_id_user = mu.i_id_user AND mu.i_user_level = 1 ';
             }
 
             $rows = $conn->execute(
-                "SELECT i_id_user, d_reservation_date, i_reservation_type, i_id_room,
-                        eat_flag, i_change_flag
-                   FROM t_individual_reservation_info
-                  WHERE d_reservation_date BETWEEN :src_from AND :src_to {$roomWhere}",
+                "SELECT iri.i_id_user, iri.d_reservation_date, iri.i_reservation_type, iri.i_id_room,
+                        iri.eat_flag, iri.i_change_flag
+                   FROM t_individual_reservation_info iri
+                   {$childJoin}
+                  WHERE iri.d_reservation_date BETWEEN :src_from AND :src_to {$roomWhere}",
                 $params
             )->fetchAll('assoc');
 
@@ -196,14 +190,10 @@ class ReservationCopyService
                 )->fetch('assoc');
 
                 if ($exists) {
-                    if (!$overwrite) {
-                        continue;
-                    }
+                    if (!$overwrite) continue;
                     $same = ((int)$exists['eat_flag'] === (int)$r['eat_flag'])
                         && ((int)$exists['i_change_flag'] === (int)$r['i_change_flag']);
-                    if ($same) {
-                        continue;
-                    }
+                    if ($same) continue;
                     $conn->execute(
                         "UPDATE t_individual_reservation_info
                             SET eat_flag = :eat,

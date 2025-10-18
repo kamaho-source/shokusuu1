@@ -338,8 +338,8 @@ $copyApi = $this->Url->build(['controller'=>'TReservationInfo','action'=>'copy',
     <div class="d-flex align-items-center justify-content-between mt-2 mb-2">
         <h1 class="m-0"><?= $useKidUI ? '🍚 食数予約（中高生向け）' : '食数予約（業務）' ?></h1>
         <!-- ==== UIモード切替トグル ==== -->
-        <?php if (!$useKidUI): ?>
-            <!-- ==== UIモード切替トグル（大人UIのみ表示） ==== -->
+        <?php if (!$useKidUI || ($useKidUI && $isStaff)): ?>
+            <!-- ==== UIモード切替トグル（職員のみ子供UIでも表示） ==== -->
             <div class="d-flex align-items-center gap-2">
                 <span class="text-muted small d-none d-md-inline">表示モード:</span>
                 <div class="btn-group" role="group" aria-label="UIモード切替">
@@ -350,6 +350,7 @@ $copyApi = $this->Url->build(['controller'=>'TReservationInfo','action'=>'copy',
                     <a class="btn btn-sm <?= !$useKidUI ? 'btn-primary' : 'btn-outline-primary' ?>"
                        href="<?= h($mkUrl(['uimode'=>'biz'])) ?>">
                         業務UI
+                    </a>
                     </a>
                 </div>
             </div>
@@ -643,7 +644,9 @@ $copyApi = $this->Url->build(['controller'=>'TReservationInfo','action'=>'copy',
                     <div class="fw-bold">予約コピー</div>
                     <div class="text-muted small">先週→指定週、または月単位で予約をコピーできます。</div>
                 </div>
+                <!--
                 <button class="btn btn-outline-primary btn-sm" id="res-copy-btn-lastweek">先週の予約をこの週へコピー</button>
+                -->
                 <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#res-copy-modal">予約をコピー（週 / 月）</button>
             </div>
         </div>
@@ -702,6 +705,13 @@ $copyApi = $this->Url->build(['controller'=>'TReservationInfo','action'=>'copy',
                                         'class'   => 'form-select',
                                         'id'      => 'res-copy-room',
                                 ]) ?>
+                            </div>
+                            <!-- 子供のみコピーする選択肢を追加 -->
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="copy-only-children" name="only_children" value="1">
+                                <label class="form-check-label" for="copy-only-children">
+                                    子供のみ予約をコピーする
+                                </label>
                             </div>
 
                             <div class="form-check mb-2">
@@ -859,6 +869,86 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
 <?= $this->Html->script('japanese-holidays.min.js') ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script>
+    // 予約チェックボックスのセレクタ
+    const mealSelectors = [
+        'input[type="checkbox"][name*="breakfast"]',
+        'input[type="checkbox"][name*="lunch"]',
+        'input[type="checkbox"][name*="dinner"]',
+        'input[type="checkbox"][name*="bento"]'
+    ];
+
+   function enforceMealLimit(scope) {
+       const root = scope || document;
+       const cbs = mealSelectors.map(sel => Array.from(root.querySelectorAll(sel))).flat();
+       const checked = cbs.filter(cb => cb.checked);
+
+       // 3つ以上チェック済みなら、残りはdisabled
+       if (checked.length >= 3) {
+           cbs.forEach(cb => {
+               if (!cb.checked) {
+                   cb.disabled = true;
+                   cb.title = '最大3つまで選択できます';
+               }
+           });
+       } else {
+           cbs.forEach(cb => {
+               cb.disabled = false;
+               cb.title = '';
+           });
+       }
+
+       // 個人・集団予約の昼食と弁当排他制御
+       const lunchCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name*="lunch"],input[type="checkbox"][name$="[lunch]"]'));
+       const bentoCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name*="bento"],input[type="checkbox"][name$="[bento]"]'));
+
+       lunchCbs.forEach((lunchCb, idx) => {
+           // 対応するbentoCbを探す（同じ親要素内で）
+           let bentoCb = null;
+           // 個人予約
+           if (lunchCb.name && lunchCb.name.includes('reservation')) {
+               bentoCb = root.querySelector(`input[type="checkbox"][name="reservation[弁当]"]`);
+           }
+           // 集団予約
+           else if (lunchCb.name && lunchCb.name.startsWith('users[')) {
+               const userId = lunchCb.name.match(/^users\[(\d+)\]\[lunch\]$/);
+               if (userId) {
+                   bentoCb = root.querySelector(`input[type="checkbox"][name="users[${userId[1]}][bento]"]`);
+               }
+           }
+           // Fallback: indexで対応
+           if (!bentoCb && bentoCbs[idx]) bentoCb = bentoCbs[idx];
+
+           if (lunchCb.checked) {
+               if (bentoCb) {
+                   bentoCb.disabled = true;
+                   bentoCb.title = '昼食と弁当は同時に予約できません';
+               }
+           } else if (bentoCb && bentoCb.checked) {
+               lunchCb.disabled = true;
+               lunchCb.title = '昼食と弁当は同時に予約できません';
+           } else {
+               lunchCb.disabled = false;
+               lunchCb.title = '';
+               if (bentoCb) {
+                   bentoCb.disabled = false;
+                   bentoCb.title = '';
+               }
+           }
+       });
+   }
+
+    // 変更時にバリデーション実行
+    mealSelectors.forEach(sel => {
+        document.querySelectorAll(sel).forEach(cb => {
+            cb.addEventListener('change', () => enforceMealLimit(cb.closest('form')));
+        });
+    });
+
+    // 初期表示時にも実行
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('form').forEach(f => enforceMealLimit(f));
+    });
+
     const exportBtn = document.getElementById('exportNow');
     if (exportBtn) {
         function setExportLoading(loading) {
@@ -1072,7 +1162,7 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                         {key:'total_eaters',     header:'合計'}
                     ];
                     ws.addRow(cols.map(c=>c.header)).font={bold:true};
-                    rows.forEach(r => ws.addRow(cols.map(c => r[c.key] ?? ''));
+                    rows.forEach(r => ws.addRow(cols.map(c => r[c.key] ?? '')));
 
                     ws.columns.forEach((col, idx)=>{
                         let maxLen=10;
@@ -1740,241 +1830,245 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
             }
         }
 
-        function ensureAddModalCompat(root){
-            var scope = root || document;
-            var roomSelect = null;
+       function ensureAddModalCompat(root){
+    var scope = root || document;
+    var roomSelect = null;
 
-            if (!window.GET_USERS_BY_ROOM_TPL) {
-                var basePath = window.__BASE_PATH || '';
-                var baseUrl = basePath + '/TReservationInfo/getUsersByRoom/';
-                window.GET_USERS_BY_ROOM_TPL = baseUrl + '__RID__';
+    if (!window.GET_USERS_BY_ROOM_TPL) {
+        var basePath = window.__BASE_PATH || '';
+        var baseUrl = basePath + '/TReservationInfo/getUsersByRoom/';
+        window.GET_USERS_BY_ROOM_TPL = baseUrl + '__RID__';
+    }
+
+    if (!window.QUERY_DATE) {
+        var urlParams = new URLSearchParams(window.location.search);
+        window.QUERY_DATE = urlParams.get('date') || new Date().toISOString().split('T')[0];
+    }
+
+    if (!window.buildGetUsersByRoomUrl) {
+        window.buildGetUsersByRoomUrl = function(roomId) {
+            if (!roomId) {
+                return '';
             }
-
-            if (!window.QUERY_DATE) {
-                var urlParams = new URLSearchParams(window.location.search);
-                window.QUERY_DATE = urlParams.get('date') || new Date().toISOString().split('T')[0];
+            var url = window.GET_USERS_BY_ROOM_TPL || '';
+            if (url.indexOf('__RID__') !== -1) {
+                url = url.replace('__RID__', encodeURIComponent(roomId));
+            } else {
+                url = (window.__BASE_PATH || '') + '/TReservationInfo/getUsersByRoom/' + encodeURIComponent(roomId);
             }
+            url += (url.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(window.QUERY_DATE);
+            return url;
+        };
+    }
 
-            if (!window.buildGetUsersByRoomUrl) {
-                window.buildGetUsersByRoomUrl = function(roomId) {
-                    if (!roomId) {
-                        return '';
-                    }
-                    var url = window.GET_USERS_BY_ROOM_TPL || '';
-                    if (url.indexOf('__RID__') !== -1) {
-                        url = url.replace('__RID__', encodeURIComponent(roomId));
-                    } else {
-                        url = (window.__BASE_PATH || '') + '/TReservationInfo/getUsersByRoom/' + encodeURIComponent(roomId);
-                    }
-                    url += (url.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(window.QUERY_DATE);
-                    return url;
-                };
-            }
+    if (!window.fetchUserData) {
+        window.fetchUserData = function(roomId) {
+            try {
+                if (!roomId) {
+                    return Promise.resolve();
+                }
+                if (!window.buildGetUsersByRoomUrl) {
+                    return Promise.resolve();
+                }
+                var url = window.buildGetUsersByRoomUrl(roomId);
+                var tbody = document.getElementById('user-checkboxes') ||
+                    scope.querySelector('#user-checkboxes') ||
+                    document.querySelector('#qd-remote-wrap #user-checkboxes');
 
-            if (!window.fetchUserData) {
-                window.fetchUserData = function(roomId) {
-                    try {
-                        if (!roomId) {
-                            return Promise.resolve();
-                        }
-                        if (!window.buildGetUsersByRoomUrl) {
-                            return Promise.resolve();
-                        }
-                        var url = window.buildGetUsersByRoomUrl(roomId);
-                        var tbody = document.getElementById('user-checkboxes') ||
-                            scope.querySelector('#user-checkboxes') ||
+                if (!tbody) {
+                    setTimeout(function() {
+                        var retryTbody = document.getElementById('user-checkboxes') ||
                             document.querySelector('#qd-remote-wrap #user-checkboxes');
-
-                        if (!tbody) {
-                            setTimeout(function() {
-                                var retryTbody = document.getElementById('user-checkboxes') ||
-                                    document.querySelector('#qd-remote-wrap #user-checkboxes');
-                                if (retryTbody) {
-                                    window.fetchUserData(roomId);
-                                }
-                            }, 500);
-                            return Promise.resolve();
+                        if (retryTbody) {
+                            window.fetchUserData(roomId);
                         }
+                    }, 500);
+                    return Promise.resolve();
+                }
 
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center">読み込み中...</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center">読み込み中...</td></tr>';
 
-                        return fetch(url, {
-                            credentials: 'same-origin',
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        })
-                            .then(function(response) {
-                                if (!response.ok) {
-                                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-                                }
-                                return response.text();
-                            })
-                            .then(function(text) {
-                                try {
-                                    var data = JSON.parse(text);
-                                    return data;
-                                } catch (e) {
-                                    throw new Error('レスポンスがJSONではありません: ' + e.message);
-                                }
-                            })
-                            .then(function(d){
-                                var users = d && d.usersByRoom;
-                                if (!Array.isArray(users)) {
-                                    throw new Error('usersByRoom が配列ではありません');
-                                }
-                                tbody.innerHTML = '';
-                                if (users.length === 0) {
-                                    tbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center">この部屋に利用者がいません。</td></tr>';
-                                    return;
-                                }
-                                users.forEach(function(u){
-                                    var tr = document.createElement('tr');
-                                    tr.innerHTML =
-                                        '<td>' + (u.name || 'Unknown') + '</td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][1]" value="1" ' + (Number(u.morning)===1?'checked':'') + '></td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][2]" value="1" ' + (Number(u.noon)===1   ?'checked':'') + '></td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][3]" value="1" ' + (Number(u.night)===1  ?'checked':'') + '></td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][4]" value="1" ' + (Number(u.bento)===1  ?'checked':'') + '></td>';
-                                    tbody.appendChild(tr);
-                                    var lunchCb = tr.querySelector('input[name="users['+u.id+'][2]"]');
-                                    var bentoCb = tr.querySelector('input[name="users['+u.id+'][4]"]');
-                                    if (window.setupLunchBentoPair && lunchCb && bentoCb) {
-                                        window.setupLunchBentoPair(lunchCb, bentoCb);
-                                    }
-                                });
-                                var tableContainer = tbody.closest('.table-responsive, #user-selection-table');
-                                if (tableContainer) {
-                                    tableContainer.style.maxHeight = '400px';
-                                    tableContainer.style.overflowY = 'auto';
-                                }
-                            })
-                            .catch(function(e){
-                                if (tbody) {
-                                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center">利用者一覧の取得に失敗しました: ' + e.message + '</td></tr>';
-                                }
-                            });
-
-                    } catch (error) {
-                        console.error('[fetchUserData] error:', error);
+                return fetch(url, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
                     }
-                };
-            }
-
-            scope.querySelectorAll('form').forEach(function(f){
-                if (f.action && !/^https?:\/\//.test(f.action)) {
-                    try {
-                        var baseAbs = (window.location.origin + (window.__BASE_PATH || '') + '/');
-                        var url = new URL(f.action, baseAbs);
-                        f.action = url.toString();
-                    } catch(e){}
-                }
-            });
-
-            scope.querySelectorAll('a[href]').forEach(function(a){
-                if (a.href && !/^https?:\/\//.test(a.href) && !/^javascript:/.test(a.href) && !/^#/.test(a.href)) {
-                    try {
-                        var baseAbs = (window.location.origin + (window.__BASE_PATH || '') + '/');
-                        var url = new URL(a.getAttribute('href'), baseAbs);
-                        a.href = url.toString();
-                    } catch(e){}
-                }
-            });
-
-            var personalBlocks = scope.querySelectorAll('#room-selection-table, #personal-section, .personal-section, [data-section="personal"], [data-mode="personal"], [data-target="personal"]');
-            var groupBlocks    = scope.querySelectorAll('#room-select-group, #user-selection-table, #group-section, .group-section, [data-section="group"], [data-mode="group"], [data-target="group"]');
-
-            function show(elList, on){
-                elList.forEach(function(el){
-                    el.style.display = on ? '' : 'none';
-                });
-            }
-
-            var select = scope.querySelector('#c_reservation_type');
-            if (select && !select.value && !scope.querySelector('#reserve-type-hint')) {
-                var hint = document.createElement('small');
-                hint.id = 'reserve-type-hint';
-                hint.className = 'text-muted d-block mt-1';
-                hint.textContent = '※ まず予約タイプを選択してください';
-                select.parentNode.appendChild(hint);
-            }
-
-            var table = scope.querySelector('#reservationTable, .reservation-table, table[data-role="reservation"], table#targetTable, table.reservation');
-            var $dt   = (window.jQuery && table && jQuery.fn && jQuery.fn.DataTable && jQuery(table).data('DataTable')) ? jQuery(table).DataTable() : null;
-
-            function toggleTable(scopeValue){
-                if ($dt) {
-                    $dt.search(scopeValue).draw();
-                } else if (table) {
-                    var rows = table.querySelectorAll('tbody tr');
-                    rows.forEach(function(r){
-                        r.style.display = (scopeValue && r.textContent.indexOf(scopeValue) > -1) ? '' : 'none';
-                    });
-                }
-            }
-
-            function clearHiddenInputs(isGroup){
-                var clearTargets = isGroup
-                    ? scope.querySelectorAll('[name^="meals["], input[type="hidden"][name*="room"], input[type="hidden"][name*="user"]')
-                    : scope.querySelectorAll('[name^="users["], input[type="hidden"][name*="i_id_room"]');
-                clearTargets.forEach(function(inp){
-                    if (inp.type === 'checkbox') inp.checked = false;
-                    else inp.value = '';
-                });
-            }
-
-            function applyMode(val){
-                var v = String(val || '').toLowerCase();
-                var isGroup = /group|collect| |^2$/.test(v);
-                show(personalBlocks, !isGroup);
-                show(groupBlocks,    isGroup);
-                toggleTable(v);
-                clearHiddenInputs(isGroup);
-
-                var hint = scope.querySelector('#reserve-type-hint');
-                if (hint) hint.style.display = val ? 'none' : '';
-            }
-
-            if (select) {
-                applyMode(select.value);
-                select.addEventListener('change', function(){ applyMode(select.value); });
-            }
-
-            setTimeout(function() {
-                roomSelect = scope.querySelector('#room-select') ||
-                    scope.querySelector('select[name*="room"]') ||
-                    scope.querySelector('#room_select') ||
-                    scope.querySelector('.room-select');
-
-                if (roomSelect) {
-                    function handleRoomChange() {
-                        var roomId = roomSelect.value;
-                        var tbody = document.getElementById('user-checkboxes');
-                        if (tbody) tbody.innerHTML = '';
-                        if (!roomId) {
-                            var groupContainer = scope.querySelector('#user-selection-table');
-                            if (groupContainer) groupContainer.style.display = 'none';
+                })
+                    .then(function(response) {
+                        if (!response.ok) {
+                            throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                        }
+                        return response.text();
+                    })
+                    .then(function(text) {
+                        try {
+                            var data = JSON.parse(text);
+                            return data;
+                        } catch (e) {
+                            throw new Error('レスポンスがJSONではありません: ' + e.message);
+                        }
+                    })
+                    .then(function(d){
+                        var users = d && d.usersByRoom;
+                        if (!Array.isArray(users)) {
+                            throw new Error('usersByRoom が配列ではありません');
+                        }
+                        tbody.innerHTML = '';
+                        if (users.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center">この部屋に利用者がいません。</td></tr>';
                             return;
                         }
-                        var groupContainer = scope.querySelector('#user-selection-table');
-                        if (groupContainer) groupContainer.style.display = '';
-                        window.fetchUserData(roomId);
-                    }
-                    roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
-                    roomSelect._handleRoomChange = handleRoomChange;
-                    roomSelect.addEventListener('change', handleRoomChange);
-                    if (roomSelect.value) {
-                        setTimeout(function() { handleRoomChange(); }, 100);
-                    }
-                }
-            }, 200);
+                        users.forEach(function(u){
+                            var tr = document.createElement('tr');
+                            tr.innerHTML =
+                                '<td>' + (u.name || 'Unknown') + '</td>' +
+                                '<td class="text-center"><input type="checkbox" name="users['+u.id+'][1]" value="1" ' + (Number(u.morning)===1?'checked':'') + '></td>' +
+                                '<td class="text-center"><input type="checkbox" name="users['+u.id+'][2]" value="1" ' + (Number(u.noon)===1   ?'checked':'') + '></td>' +
+                                '<td class="text-center"><input type="checkbox" name="users['+u.id+'][3]" value="1" ' + (Number(u.night)===1  ?'checked':'') + '></td>' +
+                                '<td class="text-center"><input type="checkbox" name="users['+u.id+'][4]" value="1" ' + (Number(u.bento)===1  ?'checked':'') + '></td>';
+                            tbody.appendChild(tr);
+                            var lunchCb = tr.querySelector('input[name="users['+u.id+'][2]"]');
+                            var bentoCb = tr.querySelector('input[name="users['+u.id+'][4]"]');
+                            if (window.setupLunchBentoPair && lunchCb && bentoCb) {
+                                window.setupLunchBentoPair(lunchCb, bentoCb);
+                            }
+                        });
+                        var tableContainer = tbody.closest('.table-responsive, #user-selection-table');
+                        if (tableContainer) {
+                            tableContainer.style.maxHeight = '400px';
+                            tableContainer.style.overflowY = 'auto';
+                        }
+                    })
+                    .catch(function(e){
+                        if (tbody) {
+                            tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center">利用者一覧の取得に失敗しました: ' + e.message + '</td></tr>';
+                        }
+                    });
 
-            if (typeof window.initReservationForm === 'function') {
-                window.initReservationForm();
+            } catch (error) {
+                console.error('[fetchUserData] error:', error);
+            }
+        };
+    }
+
+    scope.querySelectorAll('form').forEach(function(f){
+        if (f.action && !/^https?:\/\//.test(f.action)) {
+            try {
+                var baseAbs = (window.location.origin + (window.__BASE_PATH || '') + '/');
+                var url = new URL(f.action, baseAbs);
+                f.action = url.toString();
+            } catch(e){}
+        }
+    });
+
+    scope.querySelectorAll('a[href]').forEach(function(a){
+        if (a.href && !/^https?:\/\//.test(a.href) && !/^javascript:/.test(a.href) && !/^#/.test(a.href)) {
+            try {
+                var baseAbs = (window.location.origin + (window.__BASE_PATH || '') + '/');
+                var url = new URL(a.getAttribute('href'), baseAbs);
+                a.href = url.toString();
+            } catch(e){}
+        }
+    });
+
+    var personalBlocks = scope.querySelectorAll('#room-selection-table, #personal-section, .personal-section, [data-section="personal"], [data-mode="personal"], [data-target="personal"]');
+    var groupBlocks    = scope.querySelectorAll('#room-select-group, #user-selection-table, #group-section, .group-section, [data-section="group"], [data-mode="group"], [data-target="group"]');
+
+    function show(elList, on){
+        elList.forEach(function(el){
+            el.style.display = on ? '' : 'none';
+        });
+    }
+
+    var select = scope.querySelector('#c_reservation_type');
+    if (select && !select.value && !scope.querySelector('#reserve-type-hint')) {
+        var hint = document.createElement('small');
+        hint.id = 'reserve-type-hint';
+        hint.className = 'text-muted d-block mt-1';
+        hint.textContent = '※ まず予約タイプを選択してください';
+        select.parentNode.appendChild(hint);
+    }
+
+    var table = scope.querySelector('#reservationTable, .reservation-table, table[data-role="reservation"], table#targetTable, table.reservation');
+    var $dt   = (window.jQuery && table && jQuery.fn && jQuery.fn.DataTable && jQuery(table).data('DataTable')) ? jQuery(table).DataTable() : null;
+
+    function toggleTable(scopeValue){
+        if ($dt) {
+            $dt.search(scopeValue).draw();
+        } else if (table) {
+            var rows = table.querySelectorAll('tbody tr');
+            rows.forEach(function(r){
+                r.style.display = (scopeValue && r.textContent.indexOf(scopeValue) > -1) ? '' : 'none';
+            });
+        }
+    }
+
+    function clearHiddenInputs(isGroup){
+        var clearTargets = isGroup
+            ? scope.querySelectorAll('[name^="meals["], input[type="hidden"][name*="room"], input[type="hidden"][name*="user"]')
+            : scope.querySelectorAll('[name^="users["], input[type="hidden"][name*="i_id_room"]');
+        clearTargets.forEach(function(inp){
+            if (inp.type === 'checkbox') inp.checked = false;
+            else inp.value = '';
+        });
+    }
+
+    function applyMode(val){
+        var v = String(val || '').toLowerCase();
+        var isGroup = /group|collect| |^2$/.test(v);
+        show(personalBlocks, !isGroup);
+        show(groupBlocks,    isGroup);
+        toggleTable(v);
+        clearHiddenInputs(isGroup);
+
+        var hint = scope.querySelector('#reserve-type-hint');
+        if (hint) hint.style.display = val ? 'none' : '';
+    }
+
+    if (select) {
+        applyMode(select.value);
+        select.addEventListener('change', function(){ applyMode(select.value); });
+    }
+
+    setTimeout(function() {
+        roomSelect = scope.querySelector('#room-select') ||
+            scope.querySelector('select[name*="room"]') ||
+            scope.querySelector('#room_select') ||
+            scope.querySelector('.room-select');
+
+        if (roomSelect) {
+            function handleRoomChange() {
+                var roomId = roomSelect.value;
+                var tbody = document.getElementById('user-checkboxes');
+                if (tbody) tbody.innerHTML = '';
+                if (!roomId) {
+                    var groupContainer = scope.querySelector('#user-selection-table');
+                    if (groupContainer) groupContainer.style.display = 'none';
+                    return;
+                }
+                var groupContainer = scope.querySelector('#user-selection-table');
+                if (groupContainer) groupContainer.style.display = '';
+                window.fetchUserData(roomId);
+            }
+            roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
+            roomSelect._handleRoomChange = handleRoomChange;
+            roomSelect.addEventListener('change', handleRoomChange);
+            if (roomSelect.value) {
+                setTimeout(function() { handleRoomChange(); }, 100);
             }
         }
+    }, 200);
 
+    if (typeof window.initReservationForm === 'function') {
+        window.initReservationForm();
+    }
+
+    // ★ 昼食⇔弁当排他制御をモーダル描画直後に適用
+    if (typeof window.applyLunchBentoExclusion === 'function') {
+        window.applyLunchBentoExclusion(scope);
+    }
+}
         function installModalSaveBridge(modal, modalEl){
             if (!modal) return;
             if (modal.dataset.saveBridgeInstalled) return;
@@ -2138,6 +2232,12 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                 // ★★★★★ 修正箇所ここまで ★★★★★
 
                 ensureAddModalCompat(host);
+
+                // ★ 昼食⇔弁当排他制御をAjax描画直後にも適用
+                if (typeof window.applyLunchBentoExclusion === 'function') {
+                    window.applyLunchBentoExclusion(host);
+                }
+
                 installModalSaveBridge(host, modalEl || host);
 
             } catch(err) {
@@ -2716,17 +2816,27 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                 const targetStart  = parseDate(fd.get('target_start'));
                 const roomId       = fd.get('room_id') || '';
                 const overwrite    = !!fd.get('overwrite');
+                const onlyChildren = !!fd.get('only_children');
 
-                if(!sourceStart || !targetStart){ toast('開始日を入力してください。','warning'); return; }
-
+                if(!sourceStart || !targetStart){
+                    toast('開始日を入力してください。','warning');
+                    submitBtn.disabled = false;
+                    return;
+                }
                 if (mode === 'week' && (!isMonday(sourceStart) || !isMonday(targetStart))) {
-                    toast('週コピーは月曜日を開始日に指定してください。','warning'); return;
+                    toast('週コピーは月曜日を開始日に指定してください。','warning');
+                    submitBtn.disabled = false;
+                    return;
                 }
                 if (mode === 'month' && (!isFirst(sourceStart) || !isFirst(targetStart))) {
-                    toast('月コピーは1日を開始日に指定してください。','warning'); return;
+                    toast('月コピーは1日を開始日に指定してください。','warning');
+                    submitBtn.disabled = false;
+                    return;
                 }
                 if (sourceStart.getTime() === targetStart.getTime()) {
-                    toast('コピー元とコピー先が同じです。','warning'); return;
+                    toast('コピー元とコピー先が同じです。','warning');
+                    submitBtn.disabled = false;
+                    return;
                 }
 
                 const payload = {
@@ -2734,11 +2844,13 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                     source_start: ymd(sourceStart),
                     target_start: ymd(targetStart),
                     room_id: roomId || null,
-                    overwrite: overwrite ? 1 : 0
+                    overwrite: overwrite ? 1 : 0,
+                    only_children: onlyChildren ? 1 : 0
                 };
 
-                await postCopy(payload);
-                toast('コピーが完了しました。','success');
+                const res = await postCopy(payload);
+                const affected = res?.affected ?? 0;
+                toast(`コピーが完了しました。\nコピー件数: ${affected}件`,'success');
 
                 if (window.__reservationCalendar?.refetchEvents) {
                     window.__reservationCalendar.refetchEvents();
@@ -2753,6 +2865,7 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                 submitBtn.disabled = false;
             }
         });
+
 
         if (lastWeekQuickBtn) {
             lastWeekQuickBtn.addEventListener('click', async ()=>{
@@ -3025,7 +3138,143 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
             return res;
         };
     })();
+   document.addEventListener('DOMContentLoaded', function() {
+    const modalEl = document.getElementById('res-copy-modal');
+    const form = document.getElementById('res-copy-form');
+    if (!form) return;
 
+    form.addEventListener('submit', function(e){
+        e.preventDefault();
+        const fd = new FormData(form);
+
+        // チェックボックスの値を明示的に取得
+        form.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            fd.set(cb.name, cb.checked ? cb.value : '');
+        });
+
+        const payload = Object.fromEntries(fd.entries());
+        fetch(copyApi, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 成功時の処理
+            console.log('コピー完了', data);
+            // 必要ならリロードやUI更新
+        })
+        .catch(error => {
+            // エラー時の処理
+            console.error('コピー失敗', error);
+            alert('コピーに失敗しました');
+        });
+    });
+
+    // lunch と bento の排他制御
+    function setupLunchBentoPair(lunchSelector, bentoSelector) {
+        const lunchCbs = document.querySelectorAll(lunchSelector);
+        const bentoCbs = document.querySelectorAll(bentoSelector);
+
+        lunchCbs.forEach((lunchCb, idx) => {
+            const bentoCb = bentoCbs[idx];
+            if (!lunchCb || !bentoCb) return;
+            if (lunchCb.dataset._paired || bentoCb.dataset._paired) return;
+
+            // 初期状態反映
+            if (lunchCb.checked) {
+                bentoCb.disabled = true;
+                bentoCb.title = '昼食と弁当は同時に選択できません';
+            } else if (bentoCb.checked) {
+                lunchCb.disabled = true;
+                lunchCb.title = '昼食と弁当は同時に選択できません';
+            }
+
+            lunchCb.addEventListener('change', function() {
+                if (lunchCb.checked) {
+                    bentoCb.checked = false;
+                    bentoCb.disabled = true;
+                    bentoCb.title = '昼食と弁当は同時に選択できません';
+                } else {
+                    bentoCb.disabled = false;
+                    bentoCb.title = '';
+                }
+            });
+
+            bentoCb.addEventListener('change', function() {
+                if (bentoCb.checked) {
+                    lunchCb.checked = false;
+                    lunchCb.disabled = true;
+                    lunchCb.title = '昼食と弁当は同時に選択できません';
+                } else {
+                    lunchCb.disabled = false;
+                    lunchCb.title = '';
+                }
+            });
+
+            lunchCb.dataset._paired = '1';
+            bentoCb.dataset._paired = '1';
+        });
+    }
+
+    // 個人予約: name="reservation[昼食]" / name="reservation[弁当]"
+    setupLunchBentoPair(
+        'input[type="checkbox"][name*="lunch"]',
+        'input[type="checkbox"][name*="bento"]'
+    );
+
+    // 集団予約: name="users[ID][昼食]" / name="users[ID][弁当]"
+    setupLunchBentoPair(
+        'input[type="checkbox"][name$="[lunch]"]',
+        'input[type="checkbox"][name$="[bento]"]'
+    );
+
+    // モーダル描画後に排他制御を適用
+    function applyLunchBentoExclusion(scope){
+        var root = scope || document;
+
+        // 個人予約
+        var lunchCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name*="lunch"]'));
+        var bentoCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name*="bento"]'));
+        lunchCbs.forEach(function(lunchCb, idx){
+            var bentoCb = bentoCbs[idx];
+            if (!bentoCb) return;
+            if (lunchCb.dataset._paired || bentoCb.dataset._paired) return;
+            lunchCb.addEventListener('change', function(){
+                if (lunchCb.checked) bentoCb.checked = false;
+            });
+            bentoCb.addEventListener('change', function(){
+                if (bentoCb.checked) lunchCb.checked = false;
+            });
+            lunchCb.dataset._paired = '1';
+            bentoCb.dataset._paired = '1';
+        });
+
+        // 集団予約（利用者別）
+        var groupRows = root.querySelectorAll('#user-checkboxes tr');
+        groupRows.forEach(function(tr){
+            var lunchCb = tr.querySelector('input[type="checkbox"][name$="[lunch]"]');
+            var bentoCb = tr.querySelector('input[type="checkbox"][name$="[bento]"]');
+            if (lunchCb && bentoCb) {
+                if (lunchCb.dataset._paired || bentoCb.dataset._paired) return;
+                lunchCb.addEventListener('change', function(){
+                    if (lunchCb.checked) bentoCb.checked = false;
+                });
+                bentoCb.addEventListener('change', function(){
+                    if (bentoCb.checked) lunchCb.checked = false;
+                });
+                lunchCb.dataset._paired = '1';
+                bentoCb.dataset._paired = '1';
+            }
+        });
+    }
+
+    // 例：add/changeEditモーダルの内容描画後
+    applyLunchBentoExclusion(modalEl);
+});
 </script>
 </body>
 
