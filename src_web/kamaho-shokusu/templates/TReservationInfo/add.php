@@ -594,6 +594,57 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
         handleTypeChange();
     }
 
+
+    // 利用者ごとの昼⇔弁当排他制御
+    function setupUserLunchBentoExclusion() {
+        document.querySelectorAll('#user-checkboxes tr').forEach(tr => {
+            const lunchCb = tr.querySelector('input[name*="[2]"]');  // 昼
+            const bentoCb = tr.querySelector('input[name*="[4]"]');  // 弁当
+            if (!lunchCb || !bentoCb) return;
+
+            lunchCb.addEventListener('change', () => {
+                if (lunchCb.checked) {
+                    bentoCb.checked = false;
+                    bentoCb.disabled = true;
+                    bentoCb.title = '昼食と弁当は同時に選択できません';
+                } else {
+                    bentoCb.disabled = false;
+                    bentoCb.title = '';
+                }
+            });
+
+            bentoCb.addEventListener('change', () => {
+                if (bentoCb.checked) {
+                    lunchCb.checked = false;
+                    lunchCb.disabled = true;
+                    lunchCb.title = '昼食と弁当は同時に選択できません';
+                } else {
+                    lunchCb.disabled = false;
+                    lunchCb.title = '';
+                }
+            });
+
+            // 初期状態反映
+            if (lunchCb.checked) {
+                bentoCb.disabled = true;
+                bentoCb.title = '昼食と弁当は同時に選択できません';
+            } else if (bentoCb.checked) {
+                lunchCb.disabled = true;
+                lunchCb.title = '昼食と弁当は同時に選択できません';
+            } else {
+                lunchCb.disabled = false;
+                lunchCb.title = '';
+                bentoCb.disabled = false;
+                bentoCb.title = '';
+            }
+        });
+    }
+
+    // 利用者一覧取得後に呼び出す
+    // 例：fetchUserData(roomId) の then 内
+    setupUserLunchBentoExclusion();
+
+
     // ページ直開き時の保険（モーダルでは親が主導）
     document.addEventListener('DOMContentLoaded', initReservationForm);
 </script>
