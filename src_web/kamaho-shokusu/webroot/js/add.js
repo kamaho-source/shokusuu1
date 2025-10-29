@@ -28,6 +28,12 @@
         // 多重初期化防止
         const root = (container && container.querySelector) ? (container.querySelector('#ce-root') || container) : document;
         if (root.__ADD_FORM_BOOTED__) return;
+        
+        // If reservation.js has already initialized, skip our form handling
+        if (window.__reservationFormInited && root.querySelector('#reservation-form')) {
+            return;
+        }
+        
         root.__ADD_FORM_BOOTED__ = true;
 
         // DOM 参照
@@ -41,7 +47,6 @@
         const roomSelect         = root.querySelector('#room-select');
         const overlay            = root.querySelector('#loading-overlay');
         const submitButton       = form ? form.querySelector('button[type="submit"]') : null;
-        const initRoomInput      = root.querySelector('#__init_room_id');       // add.php が出している初期部屋
 
         const csrfToken = document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ?? '';
         const dateInput = root.querySelector('input[name="d_reservation_date"]');
@@ -75,15 +80,22 @@
 
         // 利用者取得＆描画
         async function fetchAndRenderUsers(roomId){
-            if (!roomId) return;
+            if (!roomId) {
+                if (userCheckboxesTbody) userCheckboxesTbody.innerHTML = '';
+                hideEl(userSelectionTable);
+                return;
+            }
+            
             showLoading();
             try{
                 const url = buildGetUsersByRoomUrl(roomId, date);
                 const res = await fetch(url, { credentials: 'same-origin' });
                 if (!res.ok) throw new Error('HTTP ' + res.status);
+                
                 const json = await res.json();
                 const users = Array.isArray(json.usersByRoom) ? json.usersByRoom
                     : (Array.isArray(json.users) ? json.users : []);
+                    
                 if (!userCheckboxesTbody) return;
 
                 userCheckboxesTbody.innerHTML = '';
@@ -92,14 +104,68 @@
                 } else {
                     users.forEach(u => {
                         const tr = document.createElement('tr');
+                        
+                        // 安全にデータを取得
+                        const userId = u.id || u.user_id || '';
+                        const userName = u.name || u.user_name || '名前不明';
+                        
+                        // 予約状態を安全に取得（boolean変換）
+                        const morning = Boolean(u.morning === 1 || u.morning === '1' || u.morning === true);
+                        const noon = Boolean(u.noon === 1 || u.noon === '1' || u.noon === true);
+                        const night = Boolean(u.night === 1 || u.night === '1' || u.night === true);
+                        const bento = Boolean(u.bento === 1 || u.bento === '1' || u.bento === true);
+                        
+                        // 昼食と弁当の排他制御（既存予約がある場合）
+                        const hasNoon = noon && !bento;
+                        const hasBento = bento && !noon;
+                        
                         tr.innerHTML =
-                            `<td>${String(u.name)}</td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${u.id}][1]" value="1" ${Number(u.morning)==1?'checked':''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${u.id}][2]" value="1" ${Number(u.noon)==1?'checked':''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${u.id}][3]" value="1" ${Number(u.night)==1?'checked':''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${u.id}][4]" value="1" ${Number(u.bento)==1?'checked':''}></td>`;
+                            `<td>${String(userName).replace(/[<>&"']/g, function(c) {
+                                return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];
+                            })}</td>` +
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][1]" value="1" ${morning ? 'checked' : ''}></td>` +
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][2]" value="1" ${hasNoon ? 'checked' : ''} ${hasBento ? 'disabled title="弁当と同時選択不可"' : ''}></td>` +
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][3]" value="1" ${night ? 'checked' : ''}></td>` +
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][4]" value="1" ${hasBento ? 'checked' : ''} ${hasNoon ? 'disabled title="昼食と同時選択不可"' : ''}></td>`;
+                        
                         userCheckboxesTbody.appendChild(tr);
                     });
+                    
+                    // 昼食と弁当の排他制御を動的に適用
+                    setTimeout(() => {
+                        if (typeof window.applyLunchBentoExclusion === 'function') {
+                            window.applyLunchBentoExclusion(userSelectionTable);
+                        } else {
+                            // フォールバック: 手動で排他制御を適用
+                            const rows = userCheckboxesTbody.querySelectorAll('tr');
+                            rows.forEach(row => {
+                                const lunchCb = row.querySelector('input[name$="[2]"]');
+                                const bentoCb = row.querySelector('input[name$="[4]"]');
+                                if (lunchCb && bentoCb) {
+                                    lunchCb.addEventListener('change', function() {
+                                        if (lunchCb.checked) {
+                                            bentoCb.checked = false;
+                                            bentoCb.disabled = true;
+                                            bentoCb.title = '昼食と同時選択不可';
+                                        } else {
+                                            bentoCb.disabled = false;
+                                            bentoCb.title = '';
+                                        }
+                                    });
+                                    bentoCb.addEventListener('change', function() {
+                                        if (bentoCb.checked) {
+                                            lunchCb.checked = false;
+                                            lunchCb.disabled = true;
+                                            lunchCb.title = '弁当と同時選択不可';
+                                        } else {
+                                            lunchCb.disabled = false;
+                                            lunchCb.title = '';
+                                        }
+                                    });
+                                }
+                            });
+                        }
+                    }, 100);
                 }
                 // 一覧を可視化（d-none を外す）
                 showEl(userSelectionTable);
@@ -133,7 +199,7 @@
                 toggleReservationTypeDisplay(val);
 
                 if (String(val) === '2') { // 集団
-                    const rid = roomSelect?.value || initRoomInput?.value || '';
+                    const rid = roomSelect?.value || '';
                     if (rid) fetchAndRenderUsers(rid);
                 }
             });
@@ -152,9 +218,156 @@
             });
         }
 
-        if (form) {
+        // Only handle form submission if reservation.js hasn't already initialized it
+        if (form && !window.__reservationFormInited) {
             form.addEventListener('submit', (ev) => {
-                // 同期送信
+                ev.preventDefault();
+                
+                // バリデーション
+                const reservationType = reservationTypeSel?.value;
+                if (reservationType === '2') {
+                    // 集団の場合：利用者のチェックが1つ以上必要
+                    const userChecked = userSelectionTable && userSelectionTable.querySelector('input[type="checkbox"]:checked');
+                    if (!userChecked) {
+                        if (typeof window.pageToast === 'function') {
+                            window.pageToast('エラー: 集団予約は利用者行でいずれかの食事にチェックが必要です。', 'danger');
+                        } else {
+                            alert('エラー: 集団予約は利用者行でいずれかの食事にチェックが必要です。');
+                        }
+                        return;
+                    }
+                }
+                
+                const formData = new FormData(form);
+                if (!date) { 
+                    if (typeof window.pageToast === 'function') {
+                        window.pageToast('日付が選択されていません。', 'danger');
+                    } else {
+                        alert('日付が選択されていません。');
+                    }
+                    return; 
+                }
+                formData.append('d_reservation_date', date);
+                
+                // 集団予約の場合、部屋IDが正しく設定されているかチェック
+                if (reservationType === '2') {
+                    const roomId = formData.get('i_id_room') || roomSelect?.value;
+                    if (!roomId) {
+                        if (typeof window.pageToast === 'function') {
+                            window.pageToast('エラー: 部屋を選択してください。', 'danger');
+                        } else {
+                            alert('エラー: 部屋を選択してください。');
+                        }
+                        return;
+                    }
+                    // 部屋IDが明示的に設定されていない場合は追加
+                    if (!formData.get('i_id_room') && roomSelect?.value) {
+                        formData.append('i_id_room', roomSelect.value);
+                    }
+                    console.log('集団予約 - 選択された部屋ID:', roomId);
+                }
+                
+                showLoading();
+                
+                fetch(form.action, { 
+                    method: 'POST', 
+                    body: formData, 
+                    headers: { 
+                        'X-CSRF-Token': csrfToken, 
+                        'X-Requested-With': 'XMLHttpRequest', 
+                        'Accept': 'application/json' 
+                    }
+                })
+                .then(response => {
+                    const contentType = response.headers.get('Content-Type');
+                    if (contentType && contentType.includes('application/json')) return response.json();
+                    // 通常遷移HTMLが返ってきた場合（非モーダルのときなど）
+                    return response.text().then(html => {
+                        const container = document.createElement('div');
+                        container.innerHTML = html;
+                        document.body.innerHTML = '';
+                        document.body.appendChild(container);
+                        throw new Error('HTMLを表示しました');
+                    });
+                })
+                .then(data => {
+                    if (data.status === 'error') {
+                        if (typeof window.pageToast === 'function') {
+                            window.pageToast(data.message || '不明なエラーが発生しました。', 'danger');
+                        } else {
+                            alert(`エラー: ${data.message || '不明なエラーが発生しました。'}`);
+                        }
+                    } else if (data.status === 'success') {
+                        // 成功メッセージを表示
+                        if (typeof window.pageToast === 'function') {
+                            window.pageToast('登録が完了しました', 'success');
+                        }
+                        
+                        // モーダル要素を取得
+                        const modalEl = form.closest('.modal') || document.getElementById('quickDayModal');
+                        const emitDate = (data.data && data.data.date) || date || '';
+                        
+                        if (modalEl) {
+                            console.log('Modal found, attempting to close:', modalEl.id);
+                            
+                            // 複数の方法でモーダルを閉じる試行
+                            // 1. reservation:savedイベントを発火（既存の仕組み）
+                            modalEl.dispatchEvent(new CustomEvent('reservation:saved', { detail: { date: emitDate } }));
+                            
+                            // 2. Bootstrap Modal APIで即座に閉じる
+                            const modalInstance = window.bootstrap?.Modal.getInstance(modalEl);
+                            if (modalInstance) {
+                                modalInstance.hide();
+                            } else {
+                                try {
+                                    const newInstance = new window.bootstrap.Modal(modalEl);
+                                    newInstance.hide();
+                                } catch (e) {
+                                    // 3. 手動でモーダルを閉じる
+                                    modalEl.classList.remove('show');
+                                    modalEl.style.display = 'none';
+                                    modalEl.setAttribute('aria-hidden', 'true');
+                                    modalEl.removeAttribute('aria-modal');
+                                    modalEl.removeAttribute('role');
+                                    
+                                    // body クラスとバックドロップを削除
+                                    document.body.classList.remove('modal-open');
+                                    document.body.style.removeProperty('overflow');
+                                    document.body.style.removeProperty('padding-right');
+                                    
+                                    const backdrop = document.querySelector('.modal-backdrop');
+                                    if (backdrop) {
+                                        backdrop.remove();
+                                    }
+                                }
+                            }
+                            
+                            // 4. カレンダーの更新
+                            if (window.calendar && typeof window.calendar.refetchEvents === 'function') {
+                                window.calendar.refetchEvents();
+                            }
+                        } else {
+                            // モーダルでない場合（通常ページ）
+                            if (data.redirect) {
+                                window.location.href = data.redirect;
+                            } else {
+                                // ページを更新して結果を反映
+                                window.location.reload();
+                            }
+                        }
+                    }
+                })
+                .catch(error => {
+                    if (error.message !== 'HTMLを表示しました') {
+                        console.error('送信エラー:', error);
+                        if (typeof window.pageToast === 'function') {
+                            window.pageToast(`送信エラー: ${error.message}`, 'danger');
+                        } else {
+                            alert(`送信エラー: ${error.message}`);
+                        }
+                    }
+                })
+                .finally(hideLoading);
             }, { once:false });
         }
 
@@ -167,7 +380,7 @@
 
         // もし初期タイプが集団なら、利用者取得を試みる
         if (String(initialTypeRaw) === '2') {
-            const rid = roomSelect?.value || initRoomInput?.value || '';
+            const rid = roomSelect?.value || '';
             if (rid) fetchAndRenderUsers(rid);
         }
     }
@@ -199,9 +412,16 @@
     document.addEventListener('shown.bs.modal', (ev) => {
         const modal = ev.target;
         if (!modal) return;
-        // ce-rootはchangeEdit用なので、reservation-formの存在で判断
-        if (modal.querySelector?.('#reservation-form')) {
+        // Only handle if reservation.js hasn't already initialized
+        if (modal.querySelector?.('#reservation-form') && !window.__reservationFormInited) {
             window.ADD_RESERVATION.safeInit(modal);
+            
+            // 排他制御を適用
+            setTimeout(() => {
+                if (typeof window.applyLunchBentoExclusion === 'function') {
+                    window.applyLunchBentoExclusion(modal);
+                }
+            }, 200);
         }
     });
 

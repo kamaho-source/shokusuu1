@@ -31,7 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /** 部屋に紐づくユーザー一覧取得 */
     function fetchUsersByRoom(roomId) {
-        fetch(`/kamaho-shokusu/TReservationInfo/getUsersByRoomForBulk/${roomId}`)
+        const basePath = window.__BASE_PATH || '/kamaho-shokusu';
+        fetch(`${basePath}/TReservationInfo/getUsersByRoomForBulk/${roomId}`)
             .then((response) => {
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
@@ -265,7 +266,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const formData = new FormData(this);
 
-            fetch('/kamaho-shokusu/TReservationInfo/bulk-add-submit', {
+            const basePath = window.__BASE_PATH || '/kamaho-shokusu';
+            fetch(`${basePath}/TReservationInfo/bulk-add-submit`, {
                 method:  'POST',
                 body:    formData,
                 headers: { 'X-CSRF-Token': csrfToken },

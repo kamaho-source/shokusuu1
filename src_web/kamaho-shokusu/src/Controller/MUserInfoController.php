@@ -456,7 +456,7 @@ class MUserInfoController extends AppController
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
-        $mUserInfo->i_enable = 1;
+        $mUserInfo->i_enable = 0;
         $mUserInfo->i_disp_no = $maxDispNo;
         $mUserInfo->i_user_age = (int)$this->request->getData('age');
         $mUserInfo->i_user_level = (int)$this->request->getData('role');
@@ -691,7 +691,6 @@ class MUserInfoController extends AppController
         $this->request->allowMethod(['post', 'delete']);
         $mUserInfo = $this->MUserInfo->get($id);
         $mUserInfo->i_del_flag = 1;
-        $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
         $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
         $mUserInfo->dt_update = date('Y-m-d H:i:s');
         $user = $this->request->getAttribute('identity');
