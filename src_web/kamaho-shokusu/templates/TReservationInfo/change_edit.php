@@ -31,7 +31,7 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                     <!-- ★追加：職員制限の注意書き -->
                     <div class="alert alert-info mb-3">
                         <i class="fas fa-info-circle"></i>
-                        <strong>ご注意：</strong>職員は既に「食べる」で登録済みの食事を「食べない」に変更することはできません。
+                        <strong>ご注意：</strong>職員は直前編集で予約の追加はできますが、既に「食べる」で登録済みの食事を「食べない」に変更（キャンセル）することはできません。子供は追加・キャンセル両方可能です。
                     </div>
 
                     <?= $this->Form->create(null, ['id'=>'change-edit-form', 'url'=>['action'=>'changeEdit']]) ?>
@@ -267,9 +267,71 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                 }
             });
         }
+        
+        // ---- 昼食・弁当の排他制御
+        function installLunchBentoExclusion(tbody) {
+            if (!tbody || !(tbody instanceof HTMLElement)) return;
+            
+            console.log('[installLunchBentoExclusion] 開始');
+            
+            // 各行のチェックボックスにイベントリスナーを追加
+            var allCheckboxes = tbody.querySelectorAll('input.meal-checkbox');
+            console.log('[installLunchBentoExclusion] 対象チェックボックス数:', allCheckboxes.length);
+            
+            var pairCount = 0;
+            allCheckboxes.forEach(function(checkbox) {
+                // 既にイベントリスナーが登録されている場合はスキップ
+                if (checkbox.dataset.lunchBentoListenerAdded === '1') {
+                    return;
+                }
+                
+                checkbox.addEventListener('change', function(e) {
+                    var cb = e.target;
+                    var type = cb.getAttribute('data-reservation-type');
+                    var tr = cb.closest('tr');
+                    
+                    console.log('[排他制御] チェックボックス変更: type=' + type + ', checked=' + cb.checked);
+                    
+                    if (!tr) {
+                        console.log('[排他制御] 行が見つかりません');
+                        return;
+                    }
+                    
+                    if (cb.disabled || cb.dataset.locked === '1') {
+                        console.log('[排他制御] チェックボックスがdisabledまたはlockedです');
+                        return;
+                    }
+                    
+                    // 昼食(2)がONになったら弁当(4)をOFF
+                    if (type === '2' && cb.checked) {
+                        var bentoBox = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
+                        if (bentoBox && !bentoBox.disabled && bentoBox.dataset.locked !== '1') {
+                            console.log('[排他制御] 昼食がONになったので弁当をOFFにします');
+                            bentoBox.checked = false;
+                        }
+                    }
+                    
+                    // 弁当(4)がONになったら昼食(2)をOFF
+                    if (type === '4' && cb.checked) {
+                        var lunchBox = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
+                        if (lunchBox && !lunchBox.disabled && lunchBox.dataset.locked !== '1') {
+                            console.log('[排他制御] 弁当がONになったので昼食をOFFにします');
+                            lunchBox.checked = false;
+                        }
+                    }
+                });
+                
+                checkbox.dataset.lunchBentoListenerAdded = '1';
+                pairCount++;
+            });
+            
+            console.log('[installLunchBentoExclusion] イベントリスナーを登録したチェックボックス数:', pairCount);
+        }
 
         // ---- 一覧取得＆描画
         function fetchAndRender(container){
+            console.log('[fetchAndRender] 開始');
+            
             var root       = container.querySelector('#ce-root') || container;
             var base       = root.getAttribute('data-base') || '/';
             var form       = container.querySelector('#change-edit-form');
@@ -278,11 +340,16 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
             var tbody      = container.querySelector('#ce-tbody');
             var dateHidden = container.querySelector('#ce-date-hidden');
 
-            if (!tbody) return;
+            if (!tbody) {
+                console.log('[fetchAndRender] tbody要素が見つかりません');
+                return;
+            }
 
             var roomId = (roomSelect && roomSelect.value) || (roomHidden && roomHidden.value);
             var date   = (dateHidden && dateHidden.value);
             var meal   = resolveMealType(container);
+
+            console.log('[fetchAndRender] パラメータ: roomId=', roomId, ', date=', date, ', meal=', meal);
 
             if (!roomId) { showMsg(tbody, '部屋が選択されていません。', true); return; }
             if (!date)   { showMsg(tbody, '日付が不正です。', true); return; }
@@ -321,8 +388,14 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                     });
                     tbody.innerHTML = html;
 
+                    console.log('[fetchAndRender] テーブル描画完了。行数:', users.length);
+
                     // UIガード（職員の予約解除をブロック）
                     installUncheckGuards(tbody);
+                    
+                    // 昼食・弁当の排他制御をインストール
+                    console.log('[fetchAndRender] installLunchBentoExclusionを呼び出します');
+                    installLunchBentoExclusion(tbody);
 
                     // ヘッダ全選択/解除
                     bindHeaderChecks(container);
@@ -343,10 +416,20 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                             if (!m)         { alert('食種(mealType)が不正です。'); return; }
 
                             var usersPayload = {};
+                            var validationErrors = [];
                             var trs = tbody.querySelectorAll('tr[data-user-id]');
                             Array.prototype.forEach.call(trs, function(tr){
                                 var uid = tr.getAttribute('data-user-id');
                                 if (!uid) return;
+                                
+                                // 昼食と弁当の排他チェック
+                                var lunchCb = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
+                                var bentoCb = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
+                                if (lunchCb && bentoCb && lunchCb.checked && bentoCb.checked) {
+                                    var userName = tr.querySelector('td:first-child');
+                                    validationErrors.push((userName ? userName.textContent : 'ユーザーID:' + uid) + ' の昼食と弁当が両方選択されています。');
+                                }
+                                
                                 var obj = {};
                                 var hasChange = false;
                                 for (var t=1; t<=4; t++){
@@ -372,6 +455,11 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                                     usersPayload[String(uid)] = obj;
                                 }
                             });
+                            
+                            if (validationErrors.length > 0) {
+                                alert('エラー:\n' + validationErrors.join('\n'));
+                                return;
+                            }
 
                             if (Object.keys(usersPayload).length === 0) {
                                 alert('変更された項目がありません。');
@@ -429,8 +517,19 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
             var form = container.querySelector('#change-edit-form');
             if (!form || form.dataset.ceBooted === '1') return;
 
+            console.log('[CE init] 初期化開始');
+            
             var sel = container.querySelector('#ce-room-select');
-            if (sel && !sel.value && sel.options.length > 0) sel.value = sel.options[0].value;
+            if (sel && !sel.value && sel.options.length > 0) {
+                sel.value = sel.options[0].value;
+                console.log('[CE init] 最初の部屋を自動選択:', sel.value);
+            }
+
+            var roomId = (sel && sel.value) || container.querySelector('#ce-room-hidden')?.value;
+            var dateInput = container.querySelector('#ce-date-hidden');
+            var date = dateInput ? dateInput.value : null;
+            
+            console.log('[CE init] roomId:', roomId, ', date:', date);
 
             form.dataset.ceBooted = '1';
             fetchAndRender(container);

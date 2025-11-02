@@ -13,6 +13,9 @@ services:
     volumes:
       - "../src_web:/var/www/html"
       - "../datasource/phpini/php.ini:/usr/local/etc/php/php.ini:cached"
+
+    env_file:
+      - ../src_web/kamaho-shokusu/.env
     # timezone を Asia/Tokyo に設定
     environment:
       TZ: Asia/Tokyo

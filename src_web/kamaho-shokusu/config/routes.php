@@ -169,6 +169,32 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'toggle']
         )->setMethods(['POST']);
 
+        // 部屋別食数取得API（職員用）
+        $builder->connect(
+            '/TReservationInfo/getRoomMealCounts/:roomId',
+            ['controller' => 'TReservationInfo', 'action' => 'getRoomMealCounts']
+        )
+            ->setPatterns(['roomId' => '\d+'])
+            ->setPass(['roomId'])
+            ->setMethods(['GET']);
+
+        $builder->connect(
+            '/TReservationInfo/getRoomMealCounts',
+            ['controller' => 'TReservationInfo', 'action' => 'getRoomMealCounts']
+        )->setMethods(['GET']);
+
+        // 全部屋食数取得API（管理者用）
+        $builder->connect(
+            '/TReservationInfo/getAllRoomsMealCounts',
+            ['controller' => 'TReservationInfo', 'action' => 'getAllRoomsMealCounts']
+        )->setMethods(['GET']);
+
+        // 予約コピープレビューAPI
+        $builder->connect(
+            '/TReservationInfo/copyPreview',
+            ['controller' => 'TReservationInfo', 'action' => 'copyPreview']
+        )->setMethods(['GET', 'POST']);
+
         // フォールバック
         $builder->fallbacks();
     });
