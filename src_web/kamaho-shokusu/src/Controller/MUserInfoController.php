@@ -989,17 +989,43 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
         }
 
-        $user->i_del_flag = 0;
-        $user->dt_update = date('Y-m-d H:i:s');
-        $user->c_update_user = $identity->get('c_user_name') ?? 'admin';
+        $conn = $this->MUserInfo->getConnection();
+        $conn->begin();
 
-        if ($this->MUserInfo->save($user)) {
+        try {
+            // ユーザーの削除フラグを解除
+            $user->i_del_flag = 0;
+            $user->dt_update = date('Y-m-d H:i:s');
+            $user->c_update_user = $identity->get('c_user_name') ?? 'admin';
+
+            if (!$this->MUserInfo->save($user)) {
+                throw new \Exception('ユーザー情報の更新に失敗しました。');
+            }
+
+            // MUserGroupのactive_flagを0（有効）に変更
+            $userGroups = $this->MUserGroup->find()
+                ->where(['i_id_user' => $id])
+                ->all();
+
+            foreach ($userGroups as $group) {
+                $group->active_flag = 0;
+                $group->dt_update = date('Y-m-d H:i:s');
+                $group->c_update_user = $identity->get('c_user_name') ?? 'admin';
+                
+                if (!$this->MUserGroup->save($group)) {
+                    throw new \Exception('グループ情報の更新に失敗しました。');
+                }
+            }
+
+            $conn->commit();
             $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->c_user_name));
             return $this->redirect(['action' => 'index']);
-        }
 
-        $this->Flash->error(__('ユーザーの復元に失敗しました。'));
-        return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
+        } catch (\Exception $e) {
+            $conn->rollback();
+            $this->Flash->error(__('ユーザーの復元に失敗しました: {0}', $e->getMessage()));
+            return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
+        }
     }
 
 
