@@ -142,9 +142,9 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
         $builder->connect('/MUserInfo/delete/*', ['controller' => 'MUserInfo', 'action' => 'delete']);
+        $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
-        $builder->connect('/MUserInfo/', ['controller' => 'MUserInfo', 'action' => 'index']);
 
         // Pages
         $builder->connect('/pages/*', 'Pages::display');

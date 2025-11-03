@@ -12,19 +12,43 @@ $currentUserId = $user->get('i_id_user');
 echo $this->Html->css(['bootstrap.min']);
 $this->assign('title', 'ユーザー情報一覧');
 $csrfToken = $this->request->getAttribute('csrfToken');
-$this->Html->css('bootstrap-icons.css', ['block' => true]);
-$this->Html->css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css')
 
 ?>
 <meta name="csrfToken" content="<?= h($csrfToken) ?>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <div class="mUserInfo index content">
     <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
         <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
         <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary float-right mb-3 mr-2']) ?>
     <?php endif; ?>
+    
+    <?php if ($isAdmin): ?>
+        <div class="float-right mb-3 mr-2">
+            <div class="user-view-toggle-container">
+                <button type="button" class="toggle-btn toggle-btn-left <?= !isset($showDeleted) || !$showDeleted ? 'active' : '' ?>" id="toggleNormal">
+                    <i class="bi bi-people-fill"></i>
+                    <span>通常ユーザー</span>
+                </button>
+                <button type="button" class="toggle-btn toggle-btn-right <?= isset($showDeleted) && $showDeleted ? 'active' : '' ?>" id="toggleDeleted">
+                    <i class="bi bi-trash-fill"></i>
+                    <span>削除済み</span>
+                </button>
+            </div>
+        </div>
+    <?php endif; ?>
 
-    <h3><?= __('ユーザー一覧') ?></h3>
+    <h3 id="userListTitle" class="mb-4">
+        <?php if (isset($showDeleted) && $showDeleted): ?>
+            <span class="badge badge-danger badge-lg">
+                <i class="bi bi-trash"></i> 削除済みユーザー一覧
+            </span>
+        <?php else: ?>
+            <span class="badge badge-primary badge-lg">
+                <i class="bi bi-people"></i> ユーザー一覧
+            </span>
+        <?php endif; ?>
+    </h3>
 
     <div class="table-responsive">
         <table class="table table-bordered">
@@ -59,15 +83,24 @@ $this->Html->css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/boots
                         </td>
                     <?php endif; ?>
                     <td class="actions">
-                        <?= $this->Html->link(__('表示'), ['action' => 'view', $userInfo->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
-                        <?php if ($isAdmin || $userInfo->i_id_user === $currentUserId): ?>
-                            <?= $this->Html->link(__('編集'), ['action' => 'edit', $userInfo->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
-                        <?php endif; ?>
-                        <?php if ($isAdmin): ?>
-                            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $userInfo->i_id_user], [
-                                    'confirm' => __(' {0} を削除してもよろしいですか？', $userInfo->c_user_name),
-                                    'class' => 'btn btn-danger btn-sm'
-                            ]) ?>
+                        <?php if (isset($showDeleted) && $showDeleted): ?>
+                            <?php if ($isAdmin): ?>
+                                <?= $this->Form->postLink(__('復元'), ['action' => 'restore', $userInfo->i_id_user], [
+                                        'confirm' => __('「{0}」を復元してもよろしいですか？', $userInfo->c_user_name),
+                                        'class' => 'btn btn-success btn-sm'
+                                ]) ?>
+                            <?php endif; ?>
+                        <?php else: ?>
+                            <?= $this->Html->link(__('表示'), ['action' => 'view', $userInfo->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
+                            <?php if ($isAdmin || $userInfo->i_id_user === $currentUserId): ?>
+                                <?= $this->Html->link(__('編集'), ['action' => 'edit', $userInfo->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
+                            <?php endif; ?>
+                            <?php if ($isAdmin): ?>
+                                <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $userInfo->i_id_user], [
+                                        'confirm' => __(' {0} を削除してもよろしいですか？', $userInfo->c_user_name),
+                                        'class' => 'btn btn-danger btn-sm'
+                                ]) ?>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </td>
                 </tr>
@@ -148,11 +181,14 @@ $this->Html->css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/boots
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const adminCheckboxes = document.querySelectorAll('.admin-checkbox');
+        const toggleNormal = document.getElementById('toggleNormal');
+        const toggleDeleted = document.getElementById('toggleDeleted');
         const csrfToken =
             document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
             document.querySelector('input[name="_csrfToken"]')?.value ||
             '';
 
+        // 管理者権限チェックボックスの変更処理
         function handleAdminCheckboxChange(event) {
             const target = event.target;
             const userId = target.getAttribute('data-user-id');
@@ -192,5 +228,100 @@ $this->Html->css('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/boots
         }
 
         adminCheckboxes.forEach(cb => cb.addEventListener('change', handleAdminCheckboxChange));
+
+        // トグルボタンのクリック処理
+        if (toggleNormal) {
+            toggleNormal.addEventListener('click', () => {
+                if (!toggleNormal.classList.contains('active')) {
+                    window.location.href = '/kamaho-shokusu/MUserInfo/';
+                }
+            });
+        }
+
+        if (toggleDeleted) {
+            toggleDeleted.addEventListener('click', () => {
+                if (!toggleDeleted.classList.contains('active')) {
+                    window.location.href = '/kamaho-shokusu/MUserInfo?show_deleted=1';
+                }
+            });
+        }
     });
 </script>
+
+<style>
+    /* トグルボタンコンテナ */
+    .user-view-toggle-container {
+        display: inline-flex;
+        background: #fff;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* トグルボタン共通スタイル */
+    .toggle-btn {
+        padding: 10px 20px;
+        border: none;
+        background: #fff;
+        color: #6c757d;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        outline: none;
+        border-right: 1px solid #dee2e6;
+    }
+    
+    .toggle-btn:last-child {
+        border-right: none;
+    }
+    
+    .toggle-btn i {
+        font-size: 16px;
+    }
+    
+    /* ホバー時 */
+    .toggle-btn:hover:not(.active) {
+        background: #f8f9fa;
+    }
+    
+    /* 左ボタン（通常ユーザー） */
+    .toggle-btn-left.active {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: #fff;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* 右ボタン（削除済み） */
+    .toggle-btn-right.active {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: #fff;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* アクティブボタンのアイコン */
+    .toggle-btn.active i {
+        animation: iconPulse 0.3s ease;
+    }
+    
+    @keyframes iconPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+    }
+    
+    /* タイトルバッジ */
+    .badge-lg {
+        font-size: 18px;
+        padding: 10px 20px;
+        font-weight: 500;
+        border-radius: 6px;
+    }
+    
+    .badge-lg i {
+        margin-right: 8px;
+    }
+</style>

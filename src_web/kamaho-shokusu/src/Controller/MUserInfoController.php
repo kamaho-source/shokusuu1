@@ -373,9 +373,12 @@ class MUserInfoController extends AppController
         $isAdmin = $user->i_admin === 1;
         $currentUserId = $user->i_id_user;
 
+        // 削除済みユーザー表示フラグ（管理者のみ）
+        $showDeleted = $isAdmin && $this->request->getQuery('show_deleted') === '1';
+
         // 管理者は全件、一般ユーザーは自分だけを取得
         $query = $this->MUserInfo->find()
-            ->where(['i_del_flag' => 0])
+            ->where(['i_del_flag' => $showDeleted ? 1 : 0])
             ->contain(['MUserGroup' => ['MRoomInfo']]);
 
         if (!$isAdmin) {
@@ -399,7 +402,7 @@ class MUserInfoController extends AppController
         }
 
         // ビューに必要なデータを渡す
-        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId'));
+        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId', 'showDeleted'));
     }
 
     public function getUserRooms($userId)
@@ -964,4 +967,40 @@ class MUserInfoController extends AppController
             $this->set(['ok' => false, 'message' => $e->getMessage(), '_serialize' => ['ok','message']]);
         }
     }
+
+    /**
+     * 削除済みユーザーを復元する（管理者のみ）
+     */
+    public function restore($id = null)
+    {
+        $this->request->allowMethod(['post', 'put']);
+        
+        // 管理者チェック
+        $identity = $this->request->getAttribute('identity');
+        if (!$identity || $identity->get('i_admin') !== 1) {
+            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $user = $this->MUserInfo->get($id);
+        
+        if ($user->i_del_flag !== 1) {
+            $this->Flash->error(__('このユーザーは削除されていません。'));
+            return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
+        }
+
+        $user->i_del_flag = 0;
+        $user->dt_update = date('Y-m-d H:i:s');
+        $user->c_update_user = $identity->get('c_user_name') ?? 'admin';
+
+        if ($this->MUserInfo->save($user)) {
+            $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->c_user_name));
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $this->Flash->error(__('ユーザーの復元に失敗しました。'));
+        return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
+    }
+
+
 }
