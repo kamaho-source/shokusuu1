@@ -2875,6 +2875,7 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
         const modeMonth = document.getElementById('res-copy-mode-month');
         const sourceValidation = document.getElementById('source-validation');
         const refreshSourceBtn = document.getElementById('refresh-source');
+        const refreshTargetBtn = document.getElementById('refresh-target');
 
         // 選択されたコピー先日付を管理する配列
         let targetDates = [];
