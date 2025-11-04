@@ -25,50 +25,38 @@ jobs:
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ubuntu          # 22番ポートで ubuntu ユーザー
+          username: ubuntu
           port: 22
-          key: ${{ secrets.SSH_PRIVATE_KEY }}   # OpenSSH形式の秘密鍵（複数行のまま）
-          # passphrase: ${{ secrets.SSH_PASSPHRASE }}   # ある場合のみ
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
           command_timeout: 20m
           script: |
             set -euo pipefail
 
-            DEPLOY_PATH="${{ secrets.DEPLOY_PATH }}"   # 例: /var/www/kamakura-shokusu
-            REPO_URL="${{ secrets.REPO_URL }}"         # 例: git@github.com:oohashikazuyuki/shokusuu1.git
+            DEPLOY_PATH="/home/ubuntu/shokusuu1"
+            REPO_URL="${{ secrets.REPO_URL }}"   # 例: git@github.com:oohashikazuyuki/shokusuu1.git
             BRANCH="${BRANCH:-main}"
 
-            # 1) ディレクトリ作成（未作成時）＆ 所有権付与（/var/www 直下など root 所有の場合を想定）
-            if [ ! -d "$DEPLOY_PATH" ]; then
-              sudo mkdir -p "$DEPLOY_PATH"
-            fi
-            sudo chown -R "$USER":"$USER" "$DEPLOY_PATH"
-
+            # デプロイ先へ移動（初回は空ディレクトリ想定）
+            mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
 
-            # 2) 初回 or 既存の判定
+            # 初回 clone or 既存更新
             if [ ! -d .git ]; then
               if [ -z "$REPO_URL" ]; then
-                echo "ERROR: REPO_URL secret is empty. Set secrets.REPO_URL to your Git repository URL (SSH recommended)." >&2
+                echo "ERROR: secrets.REPO_URL が未設定です（例: git@github.com:oohashikazuyuki/shokusuu1.git）。" >&2
                 exit 1
               fi
-              # 初回 clone
+              echo "[INIT] cloning $REPO_URL (branch: $BRANCH)"
               git clone --branch "$BRANCH" "$REPO_URL" .
             else
-              # 既存: fetch & hard reset
+              echo "[UPDATE] fetching & resetting to origin/$BRANCH"
               git fetch origin --prune
               git checkout "$BRANCH" || git checkout -b "$BRANCH"
               git reset --hard "origin/$BRANCH"
             fi
 
-            # 3) （必要に応じて）ビルド/コンテナ再起動
-            # if [ -f composer.json ]; then
-            #   composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
-            # fi
-            # if [ -f package.json ]; then
-            #   npm ci --no-audit --no-fund
-            #   npm run build
-            # fi
+            # 必要に応じて有効化（例）
             # if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
             #   docker compose pull
             #   docker compose up -d --remove-orphans
@@ -77,9 +65,5 @@ jobs:
             # if [ -f bin/cake ]; then
             #   php bin/cake cache clear_all || true
             # fi
-            # if [ -f artisan ]; then
-            #   php artisan config:cache || true
-            #   php artisan route:cache || true
-            # fi
 
-            echo "Deployed: $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "✅ Deployed: $(git rev-parse --short HEAD) @ $(date -u +%Y-%m-%dT%H:%M:%SZ)"
