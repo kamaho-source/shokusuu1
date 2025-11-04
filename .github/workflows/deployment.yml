@@ -1,51 +1,77 @@
-# yaml
+
 name: Deploy to Sakura VPS
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+
+# 同時実行の競合を防止（最新のみ実行）
+concurrency:
+  group: deploy-to-vps
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-      - name: Start SSH agent and add private key
-        uses: webfactory/ssh-agent@v0.5.3
+      - name: Checkout (for metadata)
+        uses: actions/checkout@v4
+
+      # SSH で直接 VPS 上の作業ディレクトリへ入り、git 同期や Docker 再起動を行う
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.2
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.VPS_HOST }}        # 例: 203.0.113.10
+          username: ${{ secrets.VPS_USER }}    # 例: ubuntu
+          port: ${{ secrets.VPS_PORT }}        # 例: 22（省略可）
+          key: ${{ secrets.SSH_PRIVATE_KEY }}  # OpenSSH 形式の秘密鍵（複数行のまま Secrets に保存）
+          # 鍵にパスフレーズがある場合のみ有効化
+          # passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
 
-      - name: Ensure SSH known hosts (disable strict checking for simplicity)
-        run: |
-          mkdir -p ~/.ssh
-          echo "StrictHostKeyChecking no" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
+            # デプロイ先へ移動
+            cd "${{ secrets.DEPLOY_PATH }}"  # 例: /var/www/kamakura-shokusu
 
-      - name: Pull latest code on VPS
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_PORT: ${{ secrets.VPS_PORT }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-        run: |
-          PORT_ARG=""
-          if [ -n "$VPS_PORT" ]; then
-            PORT_ARG="-p $VPS_PORT"
-          fi
-          ssh $PORT_ARG $VPS_USER@$VPS_HOST << 'EOF'
-            set -e
-            if [ -z "$DEPLOY_PATH" ]; then
-              echo "DEPLOY_PATH is not set on action environment"
-              exit 1
-            fi
-            cd "$DEPLOY_PATH"
-            # 安全に origin/main を取得して強制同期
+            # Git を最新化（ローカル変更は破棄）
             git fetch origin --prune
-            # checkout が失敗しても続けるための保険
             git checkout main || true
             git reset --hard origin/main
-            # 必要ならビルドや composer 等をここで実行
-            # composer install --no-dev --no-interaction --optimize-autoloader || true
-            echo "Deployed: $(git rev-parse --short HEAD)"
-          EOF
+
+            # --- 必要に応じて有効化してください（CakePHP/Laravel/Node/Docker） ---
+            # Composer（PHP依存関係）
+            # if [ -f composer.json ]; then
+            #   composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+            # fi
+
+            # Node ビルド（フロント）
+            # if [ -f package.json ]; then
+            #   npm ci --no-audit --no-fund
+            #   npm run build
+            # fi
+
+            # Docker Compose（該当プロジェクトの場合）
+            # if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
+            #   docker compose pull
+            #   docker compose up -d --remove-orphans
+            #   docker image prune -f
+            # fi
+
+            # CakePHP / Laravel のキャッシュ類（該当時のみ）
+            # if [ -f bin/cake ]; then
+            #   php bin/cake cache clear_all || true
+            # fi
+            # if [ -f artisan ]; then
+            #   php artisan config:cache || true
+            #   php artisan route:cache || true
+            # fi
+
+            echo "Deployed: $(git rev-parse --short HEAD) on $(date -u +%Y-%m-%dT%H:%M:%SZ)"
