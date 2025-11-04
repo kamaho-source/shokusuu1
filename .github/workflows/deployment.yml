@@ -1,11 +1,9 @@
-
 name: Deploy to Sakura VPS
 
 on:
   push:
     branches: [ main ]
 
-# 同時実行の競合を防止（最新のみ実行）
 concurrency:
   group: deploy-to-vps
   cancel-in-progress: true
@@ -23,49 +21,64 @@ jobs:
       - name: Checkout (for metadata)
         uses: actions/checkout@v4
 
-      # SSH で直接 VPS 上の作業ディレクトリへ入り、git 同期や Docker 再起動を行う
+      # 事前診断: 秘密鍵の整形とフィンガープリント確認（秘密鍵そのものは出力しない）
+      - name: Diagnose and normalize SSH private key
+        id: diag_key
+        env:
+          RAW_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          # CR 除去
+          CLEANED="$(printf '%s' "$RAW_KEY" | tr -d '\r')"
+          # 1行化（リテラル "\n"）を実際の改行に戻す
+          printf '%b' "$CLEANED" > ~/.ssh/id_ci
+          chmod 600 ~/.ssh/id_ci
+
+          # 形式検証（壊れていればここでエラー）
+          ssh-keygen -l -f ~/.ssh/id_ci >/dev/null
+
+          # 公開鍵のフィンガープリント出力（照合用）
+          FPR=$(ssh-keygen -lf ~/.ssh/id_ci | awk '{print $2}')
+          echo "Key fingerprint: $FPR"
+          echo "fingerprint=$FPR" >> $GITHUB_OUTPUT
+
+      # appleboy/ssh-action で直接 SSH 実行（script_stop は未サポートなので指定しない）
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}        # 例: 203.0.113.10
           username: ${{ secrets.VPS_USER }}    # 例: ubuntu
-          port: ${{ secrets.VPS_PORT }}        # 例: 22（省略可）
+          port: ${{ secrets.VPS_PORT }}        # 例: 22（未設定ならデフォルト22）
           key: ${{ secrets.SSH_PRIVATE_KEY }}  # OpenSSH 形式の秘密鍵（複数行のまま Secrets に保存）
-          # 鍵にパスフレーズがある場合のみ有効化
+          # パスフレーズがある場合のみ有効化（無ければ削除）
           # passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          script_stop: true
+          timeout: 60s
           command_timeout: 20m
           script: |
             set -euo pipefail
 
             # デプロイ先へ移動
-            cd "${{ secrets.DEPLOY_PATH }}"  # 例: /var/www/kamakura-shokusu
+            cd "${{ secrets.DEPLOY_PATH }}"
 
             # Git を最新化（ローカル変更は破棄）
             git fetch origin --prune
             git checkout main || true
             git reset --hard origin/main
 
-            # --- 必要に応じて有効化してください（CakePHP/Laravel/Node/Docker） ---
-            # Composer（PHP依存関係）
+            # --- 必要に応じて有効化（CakePHP/Laravel/Node/Docker） ---
             # if [ -f composer.json ]; then
             #   composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
             # fi
-
-            # Node ビルド（フロント）
             # if [ -f package.json ]; then
             #   npm ci --no-audit --no-fund
             #   npm run build
             # fi
-
-            # Docker Compose（該当プロジェクトの場合）
             # if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
             #   docker compose pull
             #   docker compose up -d --remove-orphans
             #   docker image prune -f
             # fi
-
-            # CakePHP / Laravel のキャッシュ類（該当時のみ）
             # if [ -f bin/cake ]; then
             #   php bin/cake cache clear_all || true
             # fi
