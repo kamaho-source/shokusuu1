@@ -48,4 +48,4 @@ jobs:
             # 必要ならビルドや composer 等をここで実行
             # composer install --no-dev --no-interaction --optimize-autoloader || true
             echo "Deployed: $(git rev-parse --short HEAD)"
-            EOF
+          EOF
