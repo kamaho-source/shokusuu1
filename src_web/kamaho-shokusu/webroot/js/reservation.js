@@ -30,7 +30,8 @@
     }
 
     function initReservationForm(){
-        if (window.__reservationFormInited) return;
+        if (window.__reservationFormInited && document.getElementById('reservation-form')) return;
+        if (!document.getElementById('reservation-form')) return;
         window.__reservationFormInited = true;
 
         const reservationTypeSelect = document.getElementById('c_reservation_type');
@@ -115,7 +116,7 @@
         function validateForm(reservationType){
             if (reservationType === 2) {
                 // 集団: 部屋行のいずれかチェック必須
-                if (roomSelectionTable && roomSelectionTable.querySelector('tbody input[type="checkbox"]:checked')) {
+                if (userSelectionTable && userSelectionTable.querySelector('tbody input[type="checkbox"]:checked')) {
                     return true;
                 }
                 return false;
@@ -179,14 +180,14 @@
                 const reservationType   = parseInt(reservationTypeSelect?.value, 10);
                 const validationSuccess = validateForm(reservationType);
                 if (!validationSuccess) {
-                    alert('エラー: 必須項目を確認してください。（集団予約は部屋行でいずれかの食事にチェックが必要です）');
+                    alert('エラー: 必須項目を確認してください。（集団予約は利用者行でいずれかの食事にチェックが必要です）');
                     return;
                 }
                 const formData = new FormData(form);
                 if (!date) { alert('日付が選択されていません。'); return; }
                 formData.append('d_reservation_date', date);
                 showLoading();
-                fetch(form.action, { method: 'POST', body: formData, headers: { 'X-CSRF-Token': csrfToken }})
+                fetch(form.action, { method: 'POST', body: formData, headers: { 'X-CSRF-Token': csrfToken, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }})
                     .then(response => {
                         const contentType = response.headers.get('Content-Type');
                         if (contentType && contentType.includes('application/json')) return response.json();
@@ -203,8 +204,14 @@
                         if (data.status === 'error') {
                             alert(`エラー: ${data.message || '不明なエラーが発生しました。'}`);
                         } else if (data.status === 'success') {
-                            alert(`成功: ${data.message}`);
-                            if (data.redirect) window.location.href = data.redirect;
+                            const modalEl = document.getElementById('quickDayModal');
+                            const emitDate = (data.data && data.data.date) || date || '';
+                            if (modalEl) {
+                                modalEl.dispatchEvent(new CustomEvent('reservation:saved', { detail: { date: emitDate } }));
+                            } else {
+                                alert(`成功: ${data.message}`);
+                                if (data.redirect) window.location.href = data.redirect;
+                            }
                         }
                     })
                     .catch(error => {
@@ -237,7 +244,13 @@
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initReservationForm);
     } else {
-        // モーダルなど、DOM 構築後に script が挿入される場合にも即時初期化
         initReservationForm();
     }
+    // モーダル表示時にもフォームが挿入されたら再初期化
+    document.addEventListener('shown.bs.modal', function(ev){
+        const m = ev.target;
+        if (m && m.querySelector && m.querySelector('#reservation-form')) {
+            try { initReservationForm(); } catch(e){}
+        }
+    });
 })();

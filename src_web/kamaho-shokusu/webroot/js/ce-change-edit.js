@@ -94,7 +94,7 @@
         return '<tr data-user-id="'+uId+'"' + staffAttr + '><td>'+uName+'</td>' + cells + '</tr>';
     }
 
-    // ---- 列一括切替
+    // ---- 列一括切替（昼食⇔弁当排他制御強化）
     function toggleColumn(container, reservationType, checked){
         var tbody = container.querySelector('#ce-tbody');
         if (!tbody) return;
@@ -105,14 +105,24 @@
 
             var tr = cb.closest('tr');
             if (!tr) return;
+            
+            // 昼食(2)と弁当(4)の排他制御
             if (reservationType === 2 && checked) {
                 var bento = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
-                if (bento && !bento.disabled && bento.dataset.locked !== '1') bento.checked = false;
+                if (bento && !bento.disabled && bento.dataset.locked !== '1') {
+                    bento.checked = false;
+                    bento.dispatchEvent(new Event('change'));
+                }
             }
             if (reservationType === 4 && checked) {
                 var lunch = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
-                if (lunch && !lunch.disabled && lunch.dataset.locked !== '1') lunch.checked = false;
+                if (lunch && !lunch.disabled && lunch.dataset.locked !== '1') {
+                    lunch.checked = false;
+                    lunch.dispatchEvent(new Event('change'));
+                }
             }
+            
+            cb.dispatchEvent(new Event('change'));
         });
     }
 
@@ -221,6 +231,28 @@
 
                 // UIガード（職員の予約解除をブロック）
                 installUncheckGuards(tbody);
+
+                // 行レベルの昼食⇔弁当排他制御
+                tbody.querySelectorAll('tr[data-user-id]').forEach(function(tr){
+                    var lunchCb = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
+                    var bentoCb = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
+                    if (lunchCb && bentoCb) {
+                        lunchCb.addEventListener('change', function(){
+                            if (lunchCb.checked && !lunchCb.disabled && lunchCb.dataset.locked !== '1') {
+                                if (bentoCb && !bentoCb.disabled && bentoCb.dataset.locked !== '1') {
+                                    bentoCb.checked = false;
+                                }
+                            }
+                        });
+                        bentoCb.addEventListener('change', function(){
+                            if (bentoCb.checked && !bentoCb.disabled && bentoCb.dataset.locked !== '1') {
+                                if (lunchCb && !lunchCb.disabled && lunchCb.dataset.locked !== '1') {
+                                    lunchCb.checked = false;
+                                }
+                            }
+                        });
+                    }
+                });
 
                 // ヘッダ全選択/解除
                 bindHeaderChecks(container);

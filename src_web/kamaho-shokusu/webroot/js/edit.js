@@ -22,7 +22,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function fetchUserData() {
-        fetch(`/kamaho-shokusu/TReservationInfo/getUsersByRoomForEdit/${roomId}?date=${date}&mealType=${mealType}`, {
+        const basePath = window.__BASE_PATH || '/kamaho-shokusu';
+        fetch(`${basePath}/TReservationInfo/getUsersByRoomForEdit/${roomId}?date=${date}&mealType=${mealType}`, {
             headers: { 'X-CSRF-Token': csrfToken }
         })
             .then(response => {

@@ -1,0 +1,51 @@
+# yaml
+name: Deploy to Sakura VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start SSH agent and add private key
+        uses: webfactory/ssh-agent@v0.5.3
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Ensure SSH known hosts (disable strict checking for simplicity)
+        run: |
+          mkdir -p ~/.ssh
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+
+      - name: Pull latest code on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          PORT_ARG=""
+          if [ -n "$VPS_PORT" ]; then
+            PORT_ARG="-p $VPS_PORT"
+          fi
+          ssh $PORT_ARG $VPS_USER@$VPS_HOST << 'EOF'
+            set -e
+            if [ -z "$DEPLOY_PATH" ]; then
+              echo "DEPLOY_PATH is not set on action environment"
+              exit 1
+            fi
+            cd "$DEPLOY_PATH"
+            # 安全に origin/main を取得して強制同期
+            git fetch origin --prune
+            # checkout が失敗しても続けるための保険
+            git checkout main || true
+            git reset --hard origin/main
+            # 必要ならビルドや composer 等をここで実行
+            # composer install --no-dev --no-interaction --optimize-autoloader || true
+            echo "Deployed: $(git rev-parse --short HEAD)"
+            EOF

@@ -189,7 +189,7 @@ class TIndividualReservationInfoTable extends Table
                 $entity->eat_flag      = (int)($entity->eat_flag ?? 0);   // 既存NULLを0に
             } else {
                 $entity->eat_flag      = (int)$eatFlag;                   // 0/1
-                $entity->i_change_flag = 0;                               // 直前痕跡をクリア
+                $entity->i_change_flag = (int)$changeFlag;                // 通常予約でも1にする
             }
 
             // 監査: 新規か更新かで分岐

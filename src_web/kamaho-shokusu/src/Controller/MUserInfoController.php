@@ -373,9 +373,12 @@ class MUserInfoController extends AppController
         $isAdmin = $user->i_admin === 1;
         $currentUserId = $user->i_id_user;
 
+        // 削除済みユーザー表示フラグ（管理者のみ）
+        $showDeleted = $isAdmin && $this->request->getQuery('show_deleted') === '1';
+
         // 管理者は全件、一般ユーザーは自分だけを取得
         $query = $this->MUserInfo->find()
-            ->where(['i_del_flag' => 0])
+            ->where(['i_del_flag' => $showDeleted ? 1 : 0])
             ->contain(['MUserGroup' => ['MRoomInfo']]);
 
         if (!$isAdmin) {
@@ -399,7 +402,7 @@ class MUserInfoController extends AppController
         }
 
         // ビューに必要なデータを渡す
-        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId'));
+        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId', 'showDeleted'));
     }
 
     public function getUserRooms($userId)
@@ -456,7 +459,7 @@ class MUserInfoController extends AppController
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
-        $mUserInfo->i_enable = 1;
+        $mUserInfo->i_enable = 0;
         $mUserInfo->i_disp_no = $maxDispNo;
         $mUserInfo->i_user_age = (int)$this->request->getData('age');
         $mUserInfo->i_user_level = (int)$this->request->getData('role');
@@ -691,7 +694,6 @@ class MUserInfoController extends AppController
         $this->request->allowMethod(['post', 'delete']);
         $mUserInfo = $this->MUserInfo->get($id);
         $mUserInfo->i_del_flag = 1;
-        $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
         $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
         $mUserInfo->dt_update = date('Y-m-d H:i:s');
         $user = $this->request->getAttribute('identity');
@@ -965,4 +967,66 @@ class MUserInfoController extends AppController
             $this->set(['ok' => false, 'message' => $e->getMessage(), '_serialize' => ['ok','message']]);
         }
     }
+
+    /**
+     * 削除済みユーザーを復元する（管理者のみ）
+     */
+    public function restore($id = null)
+    {
+        $this->request->allowMethod(['post', 'put']);
+        
+        // 管理者チェック
+        $identity = $this->request->getAttribute('identity');
+        if (!$identity || $identity->get('i_admin') !== 1) {
+            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $user = $this->MUserInfo->get($id);
+        
+        if ($user->i_del_flag !== 1) {
+            $this->Flash->error(__('このユーザーは削除されていません。'));
+            return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
+        }
+
+        $conn = $this->MUserInfo->getConnection();
+        $conn->begin();
+
+        try {
+            // ユーザーの削除フラグを解除
+            $user->i_del_flag = 0;
+            $user->dt_update = date('Y-m-d H:i:s');
+            $user->c_update_user = $identity->get('c_user_name') ?? 'admin';
+
+            if (!$this->MUserInfo->save($user)) {
+                throw new \Exception('ユーザー情報の更新に失敗しました。');
+            }
+
+            // MUserGroupのactive_flagを0（有効）に変更
+            $userGroups = $this->MUserGroup->find()
+                ->where(['i_id_user' => $id])
+                ->all();
+
+            foreach ($userGroups as $group) {
+                $group->active_flag = 0;
+                $group->dt_update = date('Y-m-d H:i:s');
+                $group->c_update_user = $identity->get('c_user_name') ?? 'admin';
+                
+                if (!$this->MUserGroup->save($group)) {
+                    throw new \Exception('グループ情報の更新に失敗しました。');
+                }
+            }
+
+            $conn->commit();
+            $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->c_user_name));
+            return $this->redirect(['action' => 'index']);
+
+        } catch (\Exception $e) {
+            $conn->rollback();
+            $this->Flash->error(__('ユーザーの復元に失敗しました: {0}', $e->getMessage()));
+            return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
+        }
+    }
+
+
 }

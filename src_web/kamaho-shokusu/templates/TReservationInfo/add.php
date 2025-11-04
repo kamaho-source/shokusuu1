@@ -146,14 +146,8 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                         'empty' => '-- 部屋を選択 --',
                                         'class' => 'form-select',
                                         'id' => 'room-select',
-                                    // ★★★ ここがポイント：モーダルでも初期選択を入れておく
-                                        'value' => $defaultRoomId,
+                                        'value' => '', // デフォルト選択なし
                                 ]) ?>
-                                <?php if ($isModal && $defaultRoomId): ?>
-                                    <!-- 親側の ensureAddModalCompat は「初期値があれば即時 fetch」するので、
-                                         ここで hidden を付けておくと可読。実際の起動は親JS側で行われます。 -->
-                                    <input type="hidden" id="__init_room_id" value="<?= h($defaultRoomId) ?>">
-                                <?php endif; ?>
                             </div>
 
                             <!-- 集団：利用者×食事 -->

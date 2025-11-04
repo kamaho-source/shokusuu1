@@ -142,9 +142,9 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
         $builder->connect('/MUserInfo/delete/*', ['controller' => 'MUserInfo', 'action' => 'delete']);
+        $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
-        $builder->connect('/MUserInfo/', ['controller' => 'MUserInfo', 'action' => 'index']);
 
         // Pages
         $builder->connect('/pages/*', 'Pages::display');
@@ -168,6 +168,32 @@ return function (RouteBuilder $routes): void {
             '/TReservationInfo/toggle',
             ['controller' => 'TReservationInfo', 'action' => 'toggle']
         )->setMethods(['POST']);
+
+        // 部屋別食数取得API（職員用）
+        $builder->connect(
+            '/TReservationInfo/getRoomMealCounts/:roomId',
+            ['controller' => 'TReservationInfo', 'action' => 'getRoomMealCounts']
+        )
+            ->setPatterns(['roomId' => '\d+'])
+            ->setPass(['roomId'])
+            ->setMethods(['GET']);
+
+        $builder->connect(
+            '/TReservationInfo/getRoomMealCounts',
+            ['controller' => 'TReservationInfo', 'action' => 'getRoomMealCounts']
+        )->setMethods(['GET']);
+
+        // 全部屋食数取得API（管理者用）
+        $builder->connect(
+            '/TReservationInfo/getAllRoomsMealCounts',
+            ['controller' => 'TReservationInfo', 'action' => 'getAllRoomsMealCounts']
+        )->setMethods(['GET']);
+
+        // 予約コピープレビューAPI
+        $builder->connect(
+            '/TReservationInfo/copyPreview',
+            ['controller' => 'TReservationInfo', 'action' => 'copyPreview']
+        )->setMethods(['GET', 'POST']);
 
         // フォールバック
         $builder->fallbacks();

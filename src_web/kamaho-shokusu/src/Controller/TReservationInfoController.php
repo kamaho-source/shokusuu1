@@ -123,12 +123,22 @@ class TReservationInfoController extends AppController
         $user     = $this->MUserInfo->get($userId);
         $today = FrozenDate::today();
 
-        //ユーザーの部屋の所属情報を取得（所属が無い場合に備えてガード）
-        $userGroup = $this->MUserGroup->find()
+        //ユーザーの部屋の所属情報を取得（複数部屋の場合も考慮）
+        $userGroups = $this->MUserGroup->find()
             ->select(['i_id_room'])
             ->where(['i_id_user' => $userId])
-            ->first();
-        $userRoomId = $userGroup ? $userGroup->i_id_room : null;
+            ->toArray();
+        
+        // 所属部屋IDリストを作成
+        $userRoomIds = [];
+        foreach ($userGroups as $group) {
+            if ($group->i_id_room) {
+                $userRoomIds[] = $group->i_id_room;
+            }
+        }
+        
+        // 後方互換性のため、最初の部屋IDを$userRoomIdに設定
+        $userRoomId = !empty($userRoomIds) ? $userRoomIds[0] : null;
 
         /* ========== ここから: 部屋セレクト用の $rooms を必ず用意 ========== */
         $rooms = [];
@@ -180,16 +190,24 @@ class TReservationInfoController extends AppController
 
         /* =====================================================
          * ① 全利用者の食数集計（朝昼夜弁当）
+         *    管理者：全部屋、管理者以外の職員：所属部屋のみ
          *    15 日より先 → eat_flag、14 日前以内 → i_change_flag
          * ===================================================== */
-        $rows = $this->TIndividualReservationInfo->find()
+        $query = $this->TIndividualReservationInfo->find()
             ->select([
                 'd_reservation_date',
                 'i_reservation_type',
                 'eat_flag',
                 'i_change_flag'
-            ])
-            ->toArray();
+            ]);
+
+        // 管理者以外の職員は所属部屋のみに制限（複数部屋対応）
+        $isAdmin = (int)($user->i_admin ?? 0) === 1;
+        if (!$isAdmin && !empty($userRoomIds)) {
+            $query->where(['i_id_room IN' => $userRoomIds]);
+        }
+
+        $rows = $query->toArray();
 
         // [yyyy-mm-dd][1|2|3|4] = 人数
         $mealDataArray = [];
@@ -1122,7 +1140,6 @@ class TReservationInfoController extends AppController
         $this->viewBuilder()->disableAutoLayout();
         $this->response = $this->response->withType('application/json');
 
-        // JSON / form 両対応
         $data = (array)$this->request->getData();
         if (empty($data)) {
             try {
@@ -1134,19 +1151,24 @@ class TReservationInfoController extends AppController
                     }
                 }
             } catch (\Throwable $e) {
-                // noop
             }
         }
 
-        // 受け取りキーの互換（source_start/target_start も許容）
-        $mode      = strtolower((string)($data['mode'] ?? ''));
+        $mode = strtolower((string)($data['mode'] ?? ''));
         $sourceStr = (string)($data['source'] ?? $data['source_start'] ?? '');
         $targetStr = (string)($data['target'] ?? $data['target_start'] ?? '');
-        $roomId    = $data['room_id'] ?? null; // null なら全体
-        $overwrite = filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
-        $onlyChildren = filter_var($data['only_children'] ?? false, FILTER_VALIDATE_BOOLEAN); // 子供のみ
+        $roomIdRaw = $data['room_id'] ?? null;
+        
+        Log::debug('[copy] Received data: mode=' . $mode . ', sourceStr=' . $sourceStr . ', targetStr=' . $targetStr . ', roomId=' . $roomIdRaw);
+        
+        // room_id を適切な型に変換（空文字列や'0'はnullとして扱う）
+        $roomId = null;
+        if ($roomIdRaw !== null && $roomIdRaw !== '' && $roomIdRaw !== '0') {
+            $roomId = (int)$roomIdRaw;
+        }
+        
+        $onlyChildren = filter_var($data['only_children'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        // バリデーション
         if (!in_array($mode, ['week', 'month'], true)) {
             $body = json_encode(['status' => 'error', 'message' => 'mode は "week" か "month" を指定してください。'], JSON_UNESCAPED_UNICODE);
             return $this->response->withStatus(422)->withStringBody($body);
@@ -1164,51 +1186,161 @@ class TReservationInfoController extends AppController
             return $this->response->withStatus(422)->withStringBody($body);
         }
 
-        // 週初(月曜)/月初(1日)へ正規化
         $toMonday = function (\Cake\I18n\FrozenDate $d): \Cake\I18n\FrozenDate {
-            $n = (int)$d->format('N'); // 1..7 (Mon..Sun)
+            $n = (int)$d->format('N'); // 1..7
             return $n > 1 ? $d->subDays($n - 1) : $d;
         };
         if ($mode === 'week') {
             $src = $toMonday($src);
             $dst = $toMonday($dst);
-        } else { // month
+            Log::debug('[copy] After toMonday adjustment: src=' . $src->format('Y-m-d') . ', dst=' . $dst->format('Y-m-d'));
+        } else {
             $src = new \Cake\I18n\FrozenDate($src->format('Y-m-01'));
             $dst = new \Cake\I18n\FrozenDate($dst->format('Y-m-01'));
+            Log::debug('[copy] After month adjustment: src=' . $src->format('Y-m-d') . ', dst=' . $dst->format('Y-m-d'));
         }
 
-        // 実行
         try {
-            $user     = $this->request->getAttribute('identity') ?: null;
-            $service  = new \App\Service\ReservationCopyService();
+            $user = $this->request->getAttribute('identity') ?: null;
+            $service = new \App\Service\ReservationCopyService();
 
-            // 子供のみの場合は引数で渡す（サービス側で対応が必要）
-            $affected = ($mode === 'week')
+            // 上書きは常に無効化（サーバ強制）
+            $overwrite = false;
+
+            // 引数の順序: $src, $dst, $roomId, $overwrite, $actor, $onlyChildren
+            $result = ($mode === 'week')
                 ? $service->copyWeek($src, $dst, $roomId, $overwrite, $user, $onlyChildren)
                 : $service->copyMonth($src, $dst, $roomId, $overwrite, $user, $onlyChildren);
 
-            $msg = ($mode === 'week')
-                ? sprintf('週コピーが完了しました（%d 行）。', $affected)
-                : sprintf('月コピーが完了しました（%d 行）。', $affected);
+            $total = $result['total'] ?? 0;
+            $copied = $result['copied'] ?? 0;
+            $skipped = $result['skipped'] ?? 0;
+            $invalidDate = $result['invalid_date'] ?? 0;
 
-            $body = json_encode([
-                'status'   => 'success',
-                'mode'     => $mode,
-                'affected' => $affected,
-                'message'  => $msg,
-            ], JSON_UNESCAPED_UNICODE);
+            $msg = ($mode === 'week')
+                ? sprintf('週コピーが完了しました。', $copied)
+                : sprintf('月コピーが完了しました。', $copied);
+
+            $responseData = [
+                'status' => 'success',
+                'mode' => $mode,
+                'total' => $total,
+                'copied' => $copied,
+                'skipped' => $skipped,
+                'invalid_date' => $invalidDate,
+                'affected' => $copied, // 後方互換性のため
+                'message' => $msg,
+            ];
+            
+            Log::debug('[copy] Response data: ' . json_encode($responseData));
+            
+            $body = json_encode($responseData, JSON_UNESCAPED_UNICODE);
 
             return $this->response->withStringBody($body);
-
         } catch (\Throwable $e) {
             \Cake\Log\Log::error(sprintf(
                 'Reservation copy failed: %s in %s:%d',
                 $e->getMessage(), $e->getFile(), $e->getLine()
             ));
             $body = json_encode([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'コピー処理中にエラーが発生しました。',
-                'detail'  => \Cake\Core\Configure::read('debug') ? $e->getMessage() : null,
+                'detail' => \Cake\Core\Configure::read('debug') ? $e->getMessage() : null,
+            ], JSON_UNESCAPED_UNICODE);
+
+            return $this->response->withStatus(500)->withStringBody($body);
+        }
+    }
+
+    /**
+     * 予約コピーのプレビュー（件数のみ取得）
+     */
+    public function copyPreview()
+    {
+        $this->request->allowMethod(['post', 'get']);
+        $this->viewBuilder()->disableAutoLayout();
+        $this->response = $this->response->withType('application/json');
+
+        $data = (array)$this->request->getData();
+        if (empty($data) && $this->request->is('get')) {
+            $data = (array)$this->request->getQueryParams();
+        }
+        if (empty($data)) {
+            try {
+                $raw = (string)$this->request->getBody();
+                if ($raw !== '') {
+                    $json = json_decode($raw, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+                        $data = $json;
+                    }
+                }
+            } catch (\Throwable $e) {
+            }
+        }
+
+        $mode = strtolower((string)($data['mode'] ?? ''));
+        $sourceStr = (string)($data['source'] ?? $data['source_start'] ?? '');
+        $targetStr = (string)($data['target'] ?? $data['target_start'] ?? '');
+        $roomIdRaw = $data['room_id'] ?? null;
+        
+        $roomId = null;
+        if ($roomIdRaw !== null && $roomIdRaw !== '' && $roomIdRaw !== '0') {
+            $roomId = (int)$roomIdRaw;
+        }
+        
+        $onlyChildren = filter_var($data['only_children'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (!in_array($mode, ['week', 'month'], true)) {
+            $body = json_encode(['status' => 'error', 'message' => 'mode は "week" か "month" を指定してください。'], JSON_UNESCAPED_UNICODE);
+            return $this->response->withStatus(422)->withStringBody($body);
+        }
+        if ($sourceStr === '' || $targetStr === '') {
+            $body = json_encode(['status' => 'error', 'message' => 'source / target を YYYY-MM-DD 形式で指定してください。'], JSON_UNESCAPED_UNICODE);
+            return $this->response->withStatus(422)->withStringBody($body);
+        }
+
+        try {
+            $src = new \Cake\I18n\FrozenDate($sourceStr);
+            $dst = new \Cake\I18n\FrozenDate($targetStr);
+        } catch (\Throwable $e) {
+            $body = json_encode(['status' => 'error', 'message' => 'source / target は YYYY-MM-DD 形式で指定してください。'], JSON_UNESCAPED_UNICODE);
+            return $this->response->withStatus(422)->withStringBody($body);
+        }
+
+        $toMonday = function (\Cake\I18n\FrozenDate $d): \Cake\I18n\FrozenDate {
+            $n = (int)$d->format('N');
+            return $n > 1 ? $d->subDays($n - 1) : $d;
+        };
+        if ($mode === 'week') {
+            $src = $toMonday($src);
+            $dst = $toMonday($dst);
+        } else {
+            $src = new \Cake\I18n\FrozenDate($src->format('Y-m-01'));
+            $dst = new \Cake\I18n\FrozenDate($dst->format('Y-m-01'));
+        }
+
+        try {
+            $service = new \App\Service\ReservationCopyService();
+
+            $preview = ($mode === 'week')
+                ? $service->previewWeek($src, $dst, $roomId, $onlyChildren)
+                : $service->previewMonth($src, $dst, $roomId, $onlyChildren);
+
+            $body = json_encode([
+                'status' => 'success',
+                'preview' => $preview,
+            ], JSON_UNESCAPED_UNICODE);
+
+            return $this->response->withStringBody($body);
+        } catch (\Throwable $e) {
+            \Cake\Log\Log::error(sprintf(
+                'Reservation copy preview failed: %s in %s:%d',
+                $e->getMessage(), $e->getFile(), $e->getLine()
+            ));
+            $body = json_encode([
+                'status' => 'error',
+                'message' => 'プレビュー取得中にエラーが発生しました。',
+                'detail' => \Cake\Core\Configure::read('debug') ? $e->getMessage() : null,
             ], JSON_UNESCAPED_UNICODE);
 
             return $this->response->withStatus(500)->withStringBody($body);
@@ -1300,8 +1432,8 @@ class TReservationInfoController extends AppController
                             'i_id_room'     => $roomId,
                             'eat_flag'      => 1,
                             'i_change_flag' => 1,
-                            'c_create_user' => $userName,
-                            'dt_create'     => FrozenTime::now(),
+                            'c_update_user' => $userName,
+                            'dt_update'     => FrozenTime::now(),
                         ];
                         $this->TIndividualReservationInfo->updateAll(
                             $updateFields,
@@ -1485,6 +1617,23 @@ class TReservationInfoController extends AppController
                     ->first();
 
                 if ($existingReservation) {
+                    // eat_flag = 0 (キャンセル済み) の場合のみ更新可能
+                    if ((int)$existingReservation->eat_flag === 0) {
+                        $this->TIndividualReservationInfo->patchEntity($existingReservation, [
+                            'i_id_room'     => $roomId,
+                            'eat_flag'      => 1,
+                            'i_change_flag' => 1,
+                            'c_update_user' => $creatorName,
+                            'dt_update'     => FrozenTime::now(),
+                        ]);
+                        if ($this->TIndividualReservationInfo->save($existingReservation)) {
+                            continue;
+                        } else {
+                            Log::error('既存予約の更新に失敗しました。UserId: ' . $targetUserId . ', MealType: ' . $mealType);
+                        }
+                    }
+                    
+                    // eat_flag = 1 (予約済み) の場合は重複としてスキップ
                     $reservedUserName = $existingReservation->MUserInfo->c_user_name ?? null;
                     if (!$reservedUserName) {
                         $userInfo = $this->MUserInfo->find()->where(['i_id_user' => $targetUserId])->first();
@@ -2108,6 +2257,13 @@ class TReservationInfoController extends AppController
                         $skipped[] = "利用者ID {$userId} はこの部屋の所属ではないためスキップされました。";
                         continue;
                     }
+                    
+                    // 対象ユーザーの情報を取得（i_user_levelチェック用）
+                    $targetUser = $this->MUserInfo->find()
+                        ->select(['i_user_level'])
+                        ->where(['i_id_user' => $userId])
+                        ->first();
+                    $targetUserLevel = $targetUser ? (int)$targetUser->i_user_level : null;
 
                     foreach ($meals as $mealTypeRaw=>$flags) {
                         $mealType = (int)$mealTypeRaw;
@@ -2124,8 +2280,18 @@ class TReservationInfoController extends AppController
                             ])->first();
 
                         if ($existing) {
+                            // 職員(i_user_level=0)は直前編集でのキャンセル(i_change_flag=0)不可
+                            if ($targetUserLevel === 0 && $changeFlag === 0) {
+                                $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
+                                continue;
+                            }
+                            
                             if ((int)$existing->i_change_flag !== $changeFlag) {
-                                $this->TIndividualReservationInfo->patchEntity($existing, ['i_change_flag' => $changeFlag]);
+                                $this->TIndividualReservationInfo->patchEntity($existing, [
+                                    'i_change_flag' => $changeFlag,
+                                    'c_update_user' => $loginUser?->get('c_user_name') ?? 'system',
+                                    'dt_update'     => FrozenTime::now('Asia/Tokyo'),
+                                ]);
                                 if ($this->TIndividualReservationInfo->save($existing)) {
                                     $updated[] = "{$userId}:{$mealType}";
                                 } else {
@@ -2133,6 +2299,7 @@ class TReservationInfoController extends AppController
                                 }
                             }
                         } else {
+                            // 新規作成（追加）は職員・子供ともに可能
                             $new = $this->TIndividualReservationInfo->newEntity([
                                 'i_id_user'          => $userId,
                                 'd_reservation_date' => $date,
@@ -2744,6 +2911,13 @@ class TReservationInfoController extends AppController
         $dateStr = (string)($payload['date'] ?? '');
         $meal    = isset($payload['meal'])  ? (int)$payload['meal']  : null; // 1..4
         $value   = isset($payload['value']) ? (int)$payload['value'] : null; // 0/1
+        
+        // 対象ユーザーの情報を取得（i_user_levelチェック用）
+        $targetUser = $this->MUserInfo->find()
+            ->select(['i_user_level'])
+            ->where(['i_id_user' => $targetUserId])
+            ->first();
+        $targetUserLevel = $targetUser ? (int)$targetUser->i_user_level : null;
 
         // 入力検証（422）
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
@@ -2783,18 +2957,65 @@ class TReservationInfoController extends AppController
             'd_reservation_date' => $dateStr,
             'i_reservation_type' => $meal,
         ]);
+        
+        // ===== 職員の直前編集キャンセル制限 =====
+        // 職員(i_user_level=0)は直前期間中のキャンセル(OFF)不可、子供(i_user_level=1)は可
+        if ($isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
+            return $this->response->withStatus(403)->withStringBody(json_encode([
+                'ok'=>false,'message'=>'職員は直前編集でのキャンセルはできません。'
+            ], JSON_UNESCAPED_UNICODE));
+        }
 
         // ===== 保存フラグを決定 =====
-        // 既存行がある場合：ご要望どおり「取消→両方0／再登録→両方1」
         if ($exists) {
-            $eatFlag    = ($value === 1) ? 1 : 0;
-            $changeFlag = ($value === 1) ? 1 : 0;
-        } else {
-            // 新規：従来仕様（直前ON= eat=0 / 通常ON= eat=1、OFFは両方0）
+            // 既存行がある場合
             if ($value === 1) {
+                // ONにする場合：通常予約は両方1、直前編集での予約はeat_flag維持でi_change_flag=1
+                if ($isLastMinute) {
+                    // 直前編集：既存のeat_flagを確認
+                    $existingEntity = $table->find()
+                        ->select(['eat_flag'])
+                        ->where([
+                            'i_id_user'          => $targetUserId,
+                            'i_id_room'          => $roomId,
+                            'd_reservation_date' => $dateStr,
+                            'i_reservation_type' => $meal,
+                        ])
+                        ->first();
+                    $eatFlag = $existingEntity ? (int)$existingEntity->eat_flag : 0;
+                    $changeFlag = 1;
+                } else {
+                    // 通常予約：両方1
+                    $eatFlag = 1;
+                    $changeFlag = 1;
+                }
+            } else {
+                // OFFにする場合：直前編集ではi_change_flag=0、通常予約では両方0
+                if ($isLastMinute) {
+                    $existingEntity = $table->find()
+                        ->select(['eat_flag'])
+                        ->where([
+                            'i_id_user'          => $targetUserId,
+                            'i_id_room'          => $roomId,
+                            'd_reservation_date' => $dateStr,
+                            'i_reservation_type' => $meal,
+                        ])
+                        ->first();
+                    $eatFlag = $existingEntity ? (int)$existingEntity->eat_flag : 0;
+                    $changeFlag = 0;
+                } else {
+                    $eatFlag = 0;
+                    $changeFlag = 0;
+                }
+            }
+        } else {
+            // 新規行の場合
+            if ($value === 1) {
+                // ONにする場合：通常予約は両方1、直前編集での予約はeat_flag=0/i_change_flag=1
                 $eatFlag    = $isLastMinute ? 0 : 1;
                 $changeFlag = 1;
             } else {
+                // OFFにする場合：両方0
                 $eatFlag    = 0;
                 $changeFlag = 0;
             }
@@ -2841,6 +3062,255 @@ class TReservationInfoController extends AppController
                 'message'=>'Internal Server Error',
                 'debug'=> \Cake\Core\Configure::read('debug') ? ($e->getMessage()) : null,
             ], JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+    /**
+     * 全部屋食数取得API（管理者用）
+     * 管理者が全部屋の食数をカレンダーに表示するために使用
+     * 
+     * @return \Cake\Http\Response JSONレスポンス
+     */
+    public function getAllRoomsMealCounts()
+    {
+        $this->request->allowMethod(['get']);
+        $this->autoRender = false;
+
+        $user = $this->request->getAttribute('identity');
+        if (!$user) {
+            return $this->response
+                ->withType('application/json')
+                ->withStatus(401)
+                ->withStringBody(json_encode(['error' => 'ログインが必要です。'], JSON_UNESCAPED_UNICODE));
+        }
+
+        $userLevel = (int)$user->get('i_user_level');
+        $isAdmin = (int)$user->get('i_admin') === 1;
+
+        // 管理者のみ許可
+        if ($userLevel !== 0 || !$isAdmin) {
+            return $this->response
+                ->withType('application/json')
+                ->withStatus(403)
+                ->withStringBody(json_encode(['error' => '権限がありません。管理者のみアクセス可能です。'], JSON_UNESCAPED_UNICODE));
+        }
+
+        // 日付範囲を取得
+        $fromDate = $this->request->getQuery('from');
+        $toDate = $this->request->getQuery('to');
+        
+        if (!$fromDate || !$toDate) {
+            // デフォルトで現在の月の前後1ヶ月のデータを取得
+            $fromDate = date('Y-m-01', strtotime('-1 month'));
+            $toDate = date('Y-m-t', strtotime('+1 month'));
+        }
+
+        try {
+            // 全部屋の食数集計を取得
+            $mealCounts = $this->TIndividualReservationInfo->find()
+                ->select([
+                    'date' => 'd_reservation_date',
+                    'meal_type' => 'i_reservation_type',
+                    'count' => $this->TIndividualReservationInfo->find()->func()->count('*')
+                ])
+                ->where([
+                    'd_reservation_date >=' => $fromDate,
+                    'd_reservation_date <=' => $toDate,
+                    'eat_flag' => 1 // 有効な予約のみ
+                ])
+                ->groupBy(['d_reservation_date', 'i_reservation_type'])
+                ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC'])
+                ->toArray();
+
+            // 日付別にデータを整理
+            $result = [];
+            foreach ($mealCounts as $row) {
+                $date = $row->date->format('Y-m-d');
+                $mealType = (int)$row->meal_type;
+                $count = (int)$row->count;
+
+                if (!isset($result[$date])) {
+                    $result[$date] = [
+                        'date' => $date,
+                        'morning' => 0,    // 朝食
+                        'lunch' => 0,      // 昼食
+                        'dinner' => 0,     // 夕食
+                        'bento' => 0,      // 弁当
+                        'total' => 0
+                    ];
+                }
+
+                switch ($mealType) {
+                    case 1:
+                        $result[$date]['morning'] = $count;
+                        break;
+                    case 2:
+                        $result[$date]['lunch'] = $count;
+                        break;
+                    case 3:
+                        $result[$date]['dinner'] = $count;
+                        break;
+                    case 4:
+                        $result[$date]['bento'] = $count;
+                        break;
+                }
+
+                $result[$date]['total'] += $count;
+            }
+
+            return $this->response
+                ->withType('application/json')
+                ->withStringBody(json_encode(array_values($result), JSON_UNESCAPED_UNICODE));
+
+        } catch (\Exception $e) {
+            return $this->response
+                ->withType('application/json')
+                ->withStatus(500)
+                ->withStringBody(json_encode(['error' => 'データ取得に失敗しました。'], JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+    /**
+     * 部屋別食数取得API（職員用）
+     * 職員が自分の所属部屋の食数をカレンダーに表示するために使用
+     * 
+     * @param string $roomId 部屋ID
+     * @return \Cake\Http\Response JSONレスポンス
+     */
+    public function getRoomMealCounts($roomId = null)
+    {
+        $this->request->allowMethod(['get']);
+        $this->autoRender = false;
+
+        $user = $this->request->getAttribute('identity');
+        if (!$user) {
+            return $this->response
+                ->withType('application/json')
+                ->withStatus(401)
+                ->withStringBody(json_encode(['error' => 'ログインが必要です。'], JSON_UNESCAPED_UNICODE));
+        }
+
+        $userLevel = (int)$user->get('i_user_level');
+        $userId = $user->get('i_id_user');
+        $isAdmin = (int)$user->get('i_admin') === 1;
+
+        // 管理者以外の職員のみ許可
+        if ($userLevel !== 0 || $isAdmin) {
+            return $this->response
+                ->withType('application/json')
+                ->withStatus(403)
+                ->withStringBody(json_encode(['error' => '権限がありません。管理者以外の職員のみアクセス可能です。'], JSON_UNESCAPED_UNICODE));
+        }
+
+        // ユーザーの所属部屋を全て取得（複数部屋対応）
+        $userGroups = $this->MUserGroup->find()
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => $userId])
+            ->toArray();
+        
+        $userRoomIds = [];
+        foreach ($userGroups as $group) {
+            if ($group->i_id_room) {
+                $userRoomIds[] = $group->i_id_room;
+            }
+        }
+
+        // 部屋IDが指定されている場合は、所属部屋に含まれているかチェック
+        if ($roomId) {
+            if (!in_array($roomId, $userRoomIds)) {
+                return $this->response
+                    ->withType('application/json')
+                    ->withStatus(403)
+                    ->withStringBody(json_encode(['error' => '指定された部屋への権限がありません。'], JSON_UNESCAPED_UNICODE));
+            }
+            $targetRoomIds = [$roomId];
+        } else {
+            // 部屋IDが指定されていない場合は、所属する全部屋
+            $targetRoomIds = $userRoomIds;
+        }
+
+        if (empty($targetRoomIds)) {
+            return $this->response
+                ->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode(['error' => '所属部屋が見つかりません。'], JSON_UNESCAPED_UNICODE));
+        }
+
+        // 日付範囲を取得
+        $fromDate = $this->request->getQuery('from');
+        $toDate = $this->request->getQuery('to');
+        
+        if (!$fromDate || !$toDate) {
+            // デフォルトで現在の月の前後1ヶ月のデータを取得
+            $fromDate = date('Y-m-01', strtotime('-1 month'));
+            $toDate = date('Y-m-t', strtotime('+1 month'));
+        }
+
+        try {
+            // 部屋IDリストに基づく食数集計を取得
+            $query = $this->TIndividualReservationInfo->find()
+                ->select([
+                    'date' => 'd_reservation_date',
+                    'meal_type' => 'i_reservation_type',
+                    'count' => $this->TIndividualReservationInfo->find()->func()->count('*')
+                ])
+                ->where([
+                    'i_id_room IN' => $targetRoomIds,
+                    'd_reservation_date >=' => $fromDate,
+                    'd_reservation_date <=' => $toDate,
+                    'eat_flag' => 1 // 有効な予約のみ
+                ]);
+
+            $mealCounts = $query
+                ->groupBy(['d_reservation_date', 'i_reservation_type'])
+                ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC'])
+                ->toArray();
+
+            // 日付別にデータを整理
+            $result = [];
+            foreach ($mealCounts as $row) {
+                $date = $row->date->format('Y-m-d');
+                $mealType = (int)$row->meal_type;
+                $count = (int)$row->count;
+
+                if (!isset($result[$date])) {
+                    $result[$date] = [
+                        'date' => $date,
+                        'morning' => 0,    // 朝食
+                        'lunch' => 0,      // 昼食
+                        'dinner' => 0,     // 夕食
+                        'bento' => 0,      // 弁当
+                        'total' => 0
+                    ];
+                }
+
+                switch ($mealType) {
+                    case 1:
+                        $result[$date]['morning'] = $count;
+                        break;
+                    case 2:
+                        $result[$date]['lunch'] = $count;
+                        break;
+                    case 3:
+                        $result[$date]['dinner'] = $count;
+                        break;
+                    case 4:
+                        $result[$date]['bento'] = $count;
+                        break;
+                }
+
+                $result[$date]['total'] += $count;
+            }
+
+            return $this->response
+                ->withType('application/json')
+                ->withStringBody(json_encode(array_values($result), JSON_UNESCAPED_UNICODE));
+
+        } catch (\Exception $e) {
+            return $this->response
+                ->withType('application/json')
+                ->withStatus(500)
+                ->withStringBody(json_encode(['error' => 'データ取得に失敗しました。'], JSON_UNESCAPED_UNICODE));
         }
     }
 
