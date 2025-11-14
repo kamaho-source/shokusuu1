@@ -33,6 +33,7 @@ class TReservationInfoController extends AppController
     protected $MUserInfo;
     protected $MRoomInfo;
     protected $TIndividualReservationInfo;
+    protected $TReservationInfo;
     private LastMinuteChangeService $lastMinuteChangeService;
 
 
@@ -2351,144 +2352,6 @@ class TReservationInfoController extends AppController
         return $this->render('change_edit');
     }
 
-
-
-
-    /**
-     * 編集メソッド
-     *
-     * @param string|null $id T Reservation Info id.
-     * @return \Cake\Http\Response|null|void 成功時にはリダイレクト、ビューをレンダリング
-     */
-    public function edit($roomId = null, $date = null, $mealType = null)
-    {
-        if (!$roomId || !$date || !$mealType) {
-            throw new \InvalidArgumentException('部屋ID、日付、または食事タイプが指定されていません。');
-        }
-
-        // 部屋情報を取得
-        $room = $this->MRoomInfo->find()
-            ->select(['i_id_room', 'c_room_name'])
-            ->where(['i_id_room' => $roomId])
-            ->first();
-
-        if (!$room) {
-            throw new NotFoundException(__('部屋が見つかりません。'));
-        }
-
-        // 利用者情報を取得
-        $users = $this->MUserGroup->find()
-            ->contain(['MUserInfo'])
-            ->where(['MUserGroup.i_id_room' => $roomId, 'MUserGroup.active_flag' => 0, 'MUserInfo.i_del_flag' => 0])
-            ->toArray();
-
-        // 全ての予約情報を取得
-        $reservations = $this->TIndividualReservationInfo->find()
-            ->contain(['MRoomInfo']) // 部屋名取得のために関連付け
-            ->where(['d_reservation_date' => $date])
-            ->all();
-
-        // 各ユーザーごとに予約情報をマッピング
-        $userReservations = [];
-        foreach ($reservations as $reservation) {
-            $userReservations[$reservation->i_id_user][$reservation->i_reservation_type] = [
-                'room_id' => $reservation->i_id_room,
-                'eat_flag' => $reservation->eat_flag,
-                'room_name' => $reservation->m_room_info->c_room_name ?? '不明な部屋',
-            ];
-        }
-
-        // POSTまたはPUTリクエストの処理
-        if ($this->request->is(['post', 'put'])) {
-            $data = $this->request->getData();
-            $connection = $this->TIndividualReservationInfo->getConnection();
-            $connection->begin();
-
-            try {
-                foreach ($data['users'] as $userId => $meals) {
-                    foreach ($meals as $type => $value) {
-
-                        // 既存の予約データを取得
-                        $reservation = $this->TIndividualReservationInfo->find()
-                            ->where([
-                                'i_id_user' => $userId,
-                                'd_reservation_date' => $date,
-                                'i_reservation_type' => $type,
-                            ])
-                            ->first();
-
-                        // **** 前の部屋IDを収集 ****
-                        $originalRoomId = $reservation ? $reservation->i_id_room : null;
-
-                        // 更新処理：データが既に存在している場合
-                        if ($reservation) {
-                            // eat_flag == 1 で部屋変更制限
-                            if ($reservation->eat_flag == 1 && $reservation->i_id_room != $roomId) {
-                                $this->log("更新禁止（eat_flag=1) UserID={$userId}", 'warning');
-                                continue; // 処理スキップ
-                            }
-
-                            // **** 部屋変更処理: 元の部屋と異なる時に処理 ****
-                            $this->TIndividualReservationInfo->updateAll(
-                                [
-                                    'i_id_room' => $roomId,
-                                    'eat_flag' => ($value == 1) ? 1 : 0,
-                                    'i_change_flag' => ($value == 1) ? 1 : 0,
-                                    'c_update_user' => $this->request->getAttribute('identity')->get('c_user_name'),
-                                    'dt_update' => FrozenTime::now(),
-                                ],
-                                [
-                                    'i_id_user' => $userId,
-                                    'd_reservation_date' => $date,
-                                    'i_id_room' => $originalRoomId,
-                                    'i_reservation_type' => $type,
-                                ]
-                            );
-
-                            $this->log("予約データ更新中: OldRoomId={$originalRoomId}, NewRoomId={$roomId}, UserID={$userId}", 'debug');
-                        }else {
-                            // 予約データが存在しない場合、新規登録
-                            if ($value == 1) {
-                                $newReservation = $this->TIndividualReservationInfo->newEmptyEntity();
-                                $newReservation = $this->TIndividualReservationInfo->patchEntity($newReservation, [
-                                    'i_id_user' => $userId,
-                                    'd_reservation_date' => $date,
-                                    'i_id_room' => $roomId,
-                                    'i_reservation_type' => $mealType,
-                                    'eat_flag' => 1,
-                                    'i_change_flag' => 1,
-                                    'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name'),
-                                    'dt_create' => FrozenTime::now(),
-                                ]);
-
-                                if (!$this->TIndividualReservationInfo->save($newReservation)) {
-                                    throw new \Exception("新規予約の保存に失敗しました: UserID={$userId}");
-                                }
-
-                                $this->log("新規予約登録: UserID={$userId}, RoomID={$roomId}, MealType={$mealType}", 'debug');
-                            }
-                        }
-
-                    }
-                }
-
-                // トランザクションをコミット
-                $connection->commit();
-                $this->Flash->success(__('予約情報を更新しました。'));
-                return $this->redirect(['action' => 'index']);
-            } catch (\Exception $exception) {
-                // トランザクションをロールバック
-                $connection->rollback();
-                $this->log('予約情報の更新中にエラー: ' . $exception->getMessage(), 'error');
-                $this->Flash->error(__('予約情報の更新中にエラーが発生しました: ' . $exception->getMessage()));
-            }
-        }
-
-        // ビューにデータをセット
-        $this->set(compact('room', 'users', 'userReservations', 'date', 'mealType'));
-    }
-
-
     public function getMealCounts($date)
     {
         $mealCounts = $this->TIndividualReservationInfo->find()
@@ -2566,30 +2429,6 @@ class TReservationInfoController extends AppController
 
         return $this->response->withType('application/json')
             ->withStringBody(json_encode(['usersByRoom' => $completeUserInfo]));
-    }
-
-
-
-
-
-    /**
-     * 削除メソッド
-     *
-     * @param string|null $id T Reservation Info id.
-     * @return \Cake\Http\Response|null 成功時にはインデックスにリダイレクト
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException 記録が見つからない場合
-     */
-    public function delete($id = null)
-    {
-        $this->request->allowMethod(['post', 'delete']);
-        $tReservationInfo = $this->TReservationInfo->get($id);
-        if ($this->TReservationInfo->delete($tReservationInfo)) {
-            $this->Flash->success(__('予約情報が削除されました。'));
-        } else {
-            $this->Flash->error(__('予約情報を削除できませんでした。'));
-        }
-
-        return $this->redirect(['action' => 'index']);
     }
 
     private function saveIndividualReservation($userId, $reservationDate, $roomId, $mealTime, $username): array
@@ -3313,13 +3152,6 @@ class TReservationInfoController extends AppController
                 ->withStringBody(json_encode(['error' => 'データ取得に失敗しました。'], JSON_UNESCAPED_UNICODE));
         }
     }
-
-
-
-
-
-
-
     /* =============================================================== */
     /*  以下はこのコントローラ内に配置する簡易レスポンスヘルパーメソッド  */
     /* =============================================================== */
