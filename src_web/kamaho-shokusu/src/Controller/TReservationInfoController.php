@@ -2055,9 +2055,9 @@ class TReservationInfoController extends AppController
     public function changeEdit($roomId = null, $date = null, $mealType = null)
     {
         try {
-            // ---- パラメータ補完（route/query 両対応）----
-            $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId');
-            $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date');
+            // ---- パラメータ補完（route/query/POST 両対応）----
+            $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId')   ?? $this->request->getData('i_id_room');
+            $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date')     ?? $this->request->getData('d_reservation_date');
             // ALL モード固定（モーダルで 4 食種まとめ）
 
             // 応答種別
