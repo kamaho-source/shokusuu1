@@ -380,10 +380,20 @@
         if (!form || form.dataset.ceBooted === '1') return;
 
         var sel = container.querySelector('#ce-room-select');
-        if (sel && !sel.value && sel.options.length > 0) sel.value = sel.options[0].value;
+        var hid = container.querySelector('#ce-room-hidden');
+        
+        if (sel) {
+            // セレクトボックスがある場合：値が未設定なら最初のオプションを選択
+            if (!sel.value && sel.options.length > 0) {
+                sel.value = sel.options[0].value;
+            }
+        } else if (hid && !hid.value) {
+            // hiddenフィールドのみの場合：値が空なら警告
+            console.warn('部屋IDが設定されていません');
+        }
 
         form.dataset.ceBooted = '1';
-        fetchAndRender(container);
+        setTimeout(function(){ fetchAndRender(container); }, 100);
     }
 
     // グローバル公開

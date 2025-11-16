@@ -2076,7 +2076,7 @@ class TReservationInfoController extends AppController
 
             // ---- 選択可能な部屋を「ログインユーザーの所属部屋のみに制限」----
             // 管理者であっても"全部屋"は出しません。
-            $allowedRooms = $this->MUserGroup->find()
+            $allowedRoomsQuery = $this->MUserGroup->find()
                 ->select(['MUserGroup.i_id_room', 'MRoomInfo.c_room_name'])
                 ->contain(['MRoomInfo'])
                 ->where([
@@ -2084,20 +2084,42 @@ class TReservationInfoController extends AppController
                     'MUserGroup.active_flag' => 0,
                 ])
                 ->enableHydration(false)
-                ->all()
-                ->combine('i_id_room', fn($r) => $r['m_room_info']['c_room_name'] ?? '不明な部屋')
-                ->toArray();
+                ->all();
+            
+            $allowedRooms = [];
+            foreach ($allowedRoomsQuery as $row) {
+                if (isset($row['m_room_info']['c_room_name'])) {
+                    $allowedRooms[(int)$row['i_id_room']] = (string)$row['m_room_info']['c_room_name'];
+                }
+            }
+            
+            // デバッグログ追加
+            $this->log('changeEdit: loginUid=' . $loginUid . ', allowedRooms count=' . count($allowedRooms), 'debug');
 
-            // 所属が1件も無いが roomId が指定されている場合は、その roomId が実在すれば単一選択肢として許可
-            if (empty($allowedRooms) && $roomId) {
-                $roomExists = $this->MRoomInfo->exists(['i_id_room' => $roomId]);
-                if ($roomExists) {
-                    $one = $this->MRoomInfo->find()
-                        ->select(['i_id_room','c_room_name'])
-                        ->where(['i_id_room' => $roomId])
-                        ->first();
-                    if ($one) {
-                        $allowedRooms = [(int)$one->i_id_room => (string)$one->c_room_name];
+            // 所属が1件も無い場合の処理
+            if (empty($allowedRooms)) {
+                // 管理者の場合は全部屋を表示
+                $isAdmin = ($loginUser && ($loginUser->get('i_admin') === 1 || (int)$loginUser->get('i_user_level') === 0));
+                if ($isAdmin) {
+                    $this->log('changeEdit: Admin user, loading all rooms', 'debug');
+                    $allRooms = $this->MRoomInfo->find()
+                        ->select(['i_id_room', 'c_room_name'])
+                        ->where(['i_del_flag' => 0])
+                        ->all();
+                    foreach ($allRooms as $r) {
+                        $allowedRooms[(int)$r->i_id_room] = (string)$r->c_room_name;
+                    }
+                } elseif ($roomId) {
+                    // 一般ユーザーでroomIdが指定されている場合は、その部屋のみ許可
+                    $roomExists = $this->MRoomInfo->exists(['i_id_room' => $roomId]);
+                    if ($roomExists) {
+                        $one = $this->MRoomInfo->find()
+                            ->select(['i_id_room','c_room_name'])
+                            ->where(['i_id_room' => $roomId])
+                            ->first();
+                        if ($one) {
+                            $allowedRooms = [(int)$one->i_id_room => (string)$one->c_room_name];
+                        }
                     }
                 }
             }
@@ -2111,6 +2133,10 @@ class TReservationInfoController extends AppController
                         ->select(['i_id_room', 'c_room_name'])
                         ->where(['i_id_room' => $roomId])
                         ->first();
+                }
+                // 部屋が空の場合は警告ログ
+                if (empty($rooms)) {
+                    $this->log('changeEdit modal: No rooms available for user ' . $loginUid, 'warning');
                 }
                 $users = new \Cake\Collection\Collection([]);
                 $userReservations = [];

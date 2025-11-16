@@ -3,8 +3,18 @@
  * 直前編集ビュー（モーダル対応・当日〜14日）
  */
 
-$selectedRoomId   = $room->i_id_room ?? (is_array($rooms) && $rooms ? array_key_first($rooms) : null);
-$selectedRoomName = $room->c_room_name ?? ($rooms[$selectedRoomId] ?? '');
+// 部屋の選択状態を確認
+$selectedRoomId = null;
+$selectedRoomName = '';
+
+if (isset($room) && is_object($room)) {
+    $selectedRoomId = $room->i_id_room;
+    $selectedRoomName = $room->c_room_name ?? '';
+} elseif (is_array($rooms) && !empty($rooms)) {
+    $selectedRoomId = array_key_first($rooms);
+    $selectedRoomName = $rooms[$selectedRoomId] ?? '';
+}
+
 $basePath = $this->Url->build('/', ['fullBase' => false]);
 $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('mealType') ?? 2;
 ?>
@@ -30,21 +40,27 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                     <div class="row g-3 mb-3">
                         <div class="col-12 col-md-6">
                             <label class="form-label">部屋</label>
-                            <?php if (!empty($rooms) && count($rooms) > 1): ?>
-                                <?= $this->Form->control('i_id_room', [
-                                        'type'      => 'select',
-                                        'label'     => false,
-                                        'options'   => $rooms,
-                                        'empty'     => false,
-                                        'value'     => $selectedRoomId,
-                                        'class'     => 'form-select',
-                                        'required'  => true,
-                                        'id'        => 'ce-room-select',
-                                        'data-date' => $date,
-                                ]) ?>
+                            <?php if (!empty($rooms)): ?>
+                                <?php if (count($rooms) > 1): ?>
+                                    <?= $this->Form->control('i_id_room', [
+                                            'type'      => 'select',
+                                            'label'     => false,
+                                            'options'   => $rooms,
+                                            'empty'     => false,
+                                            'value'     => $selectedRoomId,
+                                            'class'     => 'form-select',
+                                            'required'  => true,
+                                            'id'        => 'ce-room-select',
+                                            'data-date' => $date,
+                                    ]) ?>
+                                <?php else: ?>
+                                    <div class="form-control-plaintext"><?= h($selectedRoomName ?: '（部屋未設定）') ?></div>
+                                    <?= $this->Form->hidden('i_id_room', ['value'=>$selectedRoomId, 'id'=>'ce-room-hidden']) ?>
+                                <?php endif; ?>
                             <?php else: ?>
-                                <div><?= h($selectedRoomName ?: '（部屋未設定）') ?></div>
-                                <?= $this->Form->hidden('i_id_room', ['value'=>$selectedRoomId, 'id'=>'ce-room-hidden']) ?>
+                                <div class="alert alert-warning mb-0">
+                                    部屋が設定されていません。管理者に部屋の設定を依頼してください。
+                                </div>
                             <?php endif; ?>
                         </div>
 
@@ -116,10 +132,12 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
         function apiUrl(base, roomId, dateStr, mealType){
             base = base || '/';
             if (base.slice(-1) !== '/') base += '/';
-            return base + 'TReservationInfo/change-edit/' +
+            var url = base + 'TReservationInfo/change-edit/' +
                 encodeURIComponent(roomId) + '/' +
                 encodeURIComponent(dateStr) + '/' +
                 encodeURIComponent(mealType);
+            console.log('API URL:', url);
+            return url;
         }
 
         function showLoading(tbody){
@@ -263,7 +281,12 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
             var date = (dateHidden && dateHidden.value);
             var meal = resolveMealType(container);
 
-            if (!roomId) { showMsg(tbody, '部屋が選択されていません。', true); return; }
+            console.log('fetchAndRender called:', {roomId, date, meal, hasRoomSelect: !!roomSelect, hasRoomHidden: !!roomHidden});
+
+            if (!roomId) { 
+                showMsg(tbody, '部屋が選択されていません。管理画面で部屋を設定してください。', true); 
+                return; 
+            }
             if (!date)   { showMsg(tbody, '日付が不正です。', true); return; }
             if (!meal)   { showMsg(tbody, '食種(mealType)が不正です。', true); return; }
 
@@ -283,14 +306,30 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                         var json;
                         try { json = JSON.parse(text); }
                         catch(e) {
-                            console.error('JSON解析失敗:', text.slice(0,200));
-                            throw new Error('JSON解析失敗');
+                            console.error('JSON解析失敗:', text.slice(0,500));
+                            console.error('Response status:', res.status);
+                            throw new Error('JSON解析失敗: ' + text.slice(0, 100));
                         }
-                        return { ok: res.ok, json: json };
+                        return { ok: res.ok, json: json, status: res.status };
                     });
                 })
                 .then(function(pair){
                     var json = pair.json;
+                    
+                    console.log('API Response:', {
+                        ok: pair.ok,
+                        status: pair.status,
+                        jsonStatus: json ? json.status : null,
+                        hasData: json && json.data ? true : false
+                    });
+
+                    // エラーレスポンスのチェック
+                    if (!pair.ok) {
+                        var errMsg = (json && json.message) || 'サーバーエラー (HTTP ' + pair.status + ')';
+                        console.error('Server error:', errMsg);
+                        showMsg(tbody, errMsg, true);
+                        return;
+                    }
 
                     // ★ 構造正規化: usersByRoom, data.users, users 全対応
                     var users = [];
@@ -448,7 +487,12 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                 })
                 .catch(function(err){
                     console.error('一覧取得エラー:', err);
-                    showMsg(tbody, '一覧取得に失敗しました。', true);
+                    console.error('Error details:', {
+                        name: err.name,
+                        message: err.message,
+                        stack: err.stack
+                    });
+                    showMsg(tbody, '一覧取得に失敗しました: ' + err.message, true);
                 })
                 .finally(function(){ clearTimeout(to); });
         }
@@ -460,10 +504,23 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
 
             form.dataset.ceBooted = '1';
 
-            // 初期部屋選択
+            // 初期部屋選択の確認
             var sel = container.querySelector('#ce-room-select');
-            if (sel && !sel.value && sel.options.length > 0) {
-                sel.value = sel.options[0].value;
+            var hidden = container.querySelector('#ce-room-hidden');
+            
+            console.log('CE init:', {
+                hasSelect: !!sel,
+                hasHidden: !!hidden,
+                selectValue: sel ? sel.value : null,
+                hiddenValue: hidden ? hidden.value : null,
+                selectOptions: sel ? sel.options.length : 0
+            });
+            
+            if (sel) {
+                if (!sel.value && sel.options.length > 0) {
+                    sel.value = sel.options[0].value;
+                    console.log('Auto-selected first room:', sel.value);
+                }
             }
 
             // 初回描画
