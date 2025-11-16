@@ -37,12 +37,21 @@
         return ''; // 未取得
     }
 
-    // ---- API URL（ご指定のパス形式）
+    // ---- API URL
     //   TReservationInfo/change-edit/{roomId}/{date}/{mealType}
     function apiUrl(base, roomId, dateStr, mealType){
-        base = base || '/';
-        if (base.slice(-1) !== '/') base += '/';
-        return base
+        // 1) __BASE_PATH を最優先で利用（例: "/kamaho-shokusu"）
+        var rootBase = (typeof window.__BASE_PATH === 'string' && window.__BASE_PATH)
+            ? window.__BASE_PATH
+            : (base || '/');
+
+        // 2) 末尾スラッシュ調整
+        if (rootBase.slice(-1) !== '/') {
+            rootBase += '/';
+        }
+
+        // 3) 既存ルートに合わせて CamelCase + "change-edit" のままにする
+        return rootBase
             + 'TReservationInfo/change-edit/'
             + encodeURIComponent(roomId) + '/'
             + encodeURIComponent(dateStr) + '/'
@@ -105,7 +114,7 @@
 
             var tr = cb.closest('tr');
             if (!tr) return;
-            
+
             // 昼食(2)と弁当(4)の排他制御
             if (reservationType === 2 && checked) {
                 var bento = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
@@ -121,7 +130,7 @@
                     lunch.dispatchEvent(new Event('change'));
                 }
             }
-            
+
             cb.dispatchEvent(new Event('change'));
         });
     }
@@ -198,15 +207,24 @@
 
         showLoading(tbody);
 
-        // タイムアウト付きフェッチ
-        var ctrl = new AbortController();
-        var to = setTimeout(function(){ try{ ctrl.abort(); }catch(_e){} }, 12000);
+        // タイムアウト付きフェッチ（AbortController 非対応ブラウザ対策付き）
+        var ctrl = null;
+        var signal = undefined;
+        var to = null;
+
+        if (typeof AbortController !== 'undefined') {
+            ctrl = new AbortController();
+            signal = ctrl.signal;
+            to = setTimeout(function(){
+                try { ctrl.abort(); } catch(_e){}
+            }, 12000);
+        }
 
         fetch(apiUrl(base, roomId, date, meal), {
             method: 'GET',
             headers: { 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' },
             credentials: 'same-origin',
-            signal: ctrl.signal
+            signal: signal
         })
             .then(function(res){
                 return res.json().then(function(j){ return { ok: res.ok, j:j }; });
@@ -351,7 +369,9 @@
                 console.error('一覧取得エラー:', err);
                 showMsg(tbody, '一覧取得に失敗しました。', true);
             })
-            .finally(function(){ clearTimeout(to); });
+            .finally(function(){
+                if (to) clearTimeout(to);
+            });
     }
 
     function init(scope){
