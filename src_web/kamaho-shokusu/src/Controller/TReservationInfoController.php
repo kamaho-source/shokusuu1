@@ -2054,303 +2054,339 @@ class TReservationInfoController extends AppController
      */
     public function changeEdit($roomId = null, $date = null, $mealType = null)
     {
-        // ---- パラメータ補完（route/query 両対応）----
-        $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId');
-        $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date');
-        // ALL モード固定（モーダルで 4 食種まとめ）
+        try {
+            // ---- パラメータ補完（route/query 両対応）----
+            $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId');
+            $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date');
+            // ALL モード固定（モーダルで 4 食種まとめ）
 
-        // 応答種別
-        $wantsJson =
-            $this->request->is('ajax') ||
-            $this->request->accepts('application/json') ||
-            $this->request->getParam('_ext') === 'json';
+            // 応答種別
+            $wantsJson =
+                $this->request->is('ajax') ||
+                $this->request->getQuery('ajax') === '1' || // ★ クエリで強制的に JSON を要求
+                $this->request->accepts('application/json') ||
+                $this->request->getParam('_ext') === 'json';
 
-        // "モーダルの殻"GET（/TReservationInfo/changeEdit?modal=1 ...）を許容
-        $isModalShell = $this->request->is('get') && ((string)$this->request->getQuery('modal') === '1');
+            // "モーダルの殻"GET（/TReservationInfo/changeEdit?modal=1 ...）を許容
+            $isModalShell = $this->request->is('get') && ((string)$this->request->getQuery('modal') === '1');
 
-        // ログインユーザー
-        $loginUser = $this->request->getAttribute('identity');
-        $loginUid  = $loginUser?->get('i_id_user');
+            // ログインユーザー
+            $loginUser = $this->request->getAttribute('identity');
+            $loginUid  = $loginUser?->get('i_id_user');
 
-        // ---- 選択可能な部屋を「ログインユーザーの所属部屋のみに制限」----
-        // 管理者であっても"全部屋"は出しません。
-        $allowedRooms = $this->MUserGroup->find()
-            ->select(['MUserGroup.i_id_room', 'MRoomInfo.c_room_name'])
-            ->contain(['MRoomInfo'])
-            ->where([
-                'MUserGroup.i_id_user'   => $loginUid,
-                'MUserGroup.active_flag' => 0,
-            ])
-            ->enableHydration(false)
-            ->all()
-            ->combine('i_id_room', fn($r) => $r['m_room_info']['c_room_name'] ?? '不明な部屋')
-            ->toArray();
+            // ---- 選択可能な部屋を「ログインユーザーの所属部屋のみに制限」----
+            // 管理者であっても"全部屋"は出しません。
+            $allowedRooms = $this->MUserGroup->find()
+                ->select(['MUserGroup.i_id_room', 'MRoomInfo.c_room_name'])
+                ->contain(['MRoomInfo'])
+                ->where([
+                    'MUserGroup.i_id_user'   => $loginUid,
+                    'MUserGroup.active_flag' => 0,
+                ])
+                ->enableHydration(false)
+                ->all()
+                ->combine('i_id_room', fn($r) => $r['m_room_info']['c_room_name'] ?? '不明な部屋')
+                ->toArray();
 
-        // 所属が1件も無いが roomId が指定されている場合は、その roomId が実在すれば単一選択肢として許可
-        if (empty($allowedRooms) && $roomId) {
-            $roomExists = $this->MRoomInfo->exists(['i_id_room' => $roomId]);
-            if ($roomExists) {
-                $one = $this->MRoomInfo->find()
-                    ->select(['i_id_room','c_room_name'])
-                    ->where(['i_id_room' => $roomId])
-                    ->first();
-                if ($one) {
-                    $allowedRooms = [(int)$one->i_id_room => (string)$one->c_room_name];
-                }
-            }
-        }
-
-        // ---- 殻 GET（modal=1）: roomId/date 未指定でもレンダリング ----
-        if ($isModalShell) {
-            $rooms = $allowedRooms; // ★所属部屋のみ
-            $room  = null;
-            if ($roomId && isset($rooms[(int)$roomId])) {
-                $room = $this->MRoomInfo->find()
-                    ->select(['i_id_room', 'c_room_name'])
-                    ->where(['i_id_room' => $roomId])
-                    ->first();
-            }
-            $users = new \Cake\Collection\Collection([]);
-            $userReservations = [];
-            $this->set(compact('room','rooms','date','users','userReservations'));
-            return $this->render('change_edit');
-        }
-
-        // ---- バリデーション（通常/JSON）----
-        if (!$roomId || !$date) {
-            throw new \InvalidArgumentException('部屋IDまたは日付が指定されていません。');
-        }
-
-        // roomId が"所属外"なら拒否（管理者も同様の制限）
-        if (!isset($allowedRooms[(int)$roomId])) {
-            if ($wantsJson) {
-                return $this->response->withStatus(403)->withType('application/json')
-                    ->withStringBody(json_encode(['status'=>'error','message'=>'この部屋を操作する権限がありません。']));
-            }
-            $this->Flash->error(__('この部屋を操作する権限がありません。'));
-            return $this->redirect(['action' => 'index']);
-        }
-
-        // 18:00 制限（当日のみ）
-        $now = FrozenTime::now('Asia/Tokyo');
-        if ($date === $now->format('Y-m-d') && (int)$now->format('H') >= 18) {
-            $msg = '18:00 を過ぎたため直前編集はできません。';
-            if ($wantsJson) {
-                return $this->response->withType('application/json')
-                    ->withStringBody(json_encode(['status'=>'error','message'=>$msg]));
-            }
-            $this->Flash->error(__($msg));
-            return $this->redirect(['action' => 'index']);
-        }
-
-        // 対象部屋取得（存在チェック）
-        $room = $this->MRoomInfo->find()
-            ->select(['i_id_room','c_room_name'])
-            ->where(['i_id_room'=>$roomId])
-            ->first();
-        if (!$room) {
-            throw new NotFoundException(__('部屋が見つかりません。'));
-        }
-
-        // この部屋に所属する利用者（氏名）だけを取得
-        $baseUserIds = $this->MUserGroup->find()
-            ->select(['i_id_user'])
-            ->contain(['MUserInfo'])
-            ->where([
-                'MUserGroup.i_id_room'   => $roomId,
-                'MUserGroup.active_flag' => 0,
-                'MUserInfo.i_del_flag'   => 0,
-            ])
-            ->enableHydration(false)->all()->extract('i_id_user')->toList();
-        if (empty($baseUserIds)) { $baseUserIds = [-1]; }
-
-        // ★i_user_level を含めて取得
-        $userEntities = $this->MUserInfo->find()
-            ->select(['i_id_user', 'c_user_name', 'i_user_level'])
-            ->where(['i_id_user IN' => $baseUserIds, 'i_del_flag' => 0])
-            ->all();
-
-        $users = [];
-        foreach ($userEntities as $userEntity) {
-            $users[] = [
-                'id'          => (int)$userEntity->i_id_user,
-                'name'        => (string)$userEntity->c_user_name,
-                'i_user_level' => (int)$userEntity->i_user_level,
-            ];
-        }
-        usort($users, fn($a,$b) => strcmp($a['name'], $b['name']));
-        $userIdList = array_map(fn($u) => $u['id'], $users);
-
-        // 対象日の既存予約（ALL: 1..4）
-        $reservations = $this->TIndividualReservationInfo->find()
-            ->contain(['MRoomInfo'])
-            ->where([
-                'd_reservation_date'    => $date,
-                'i_reservation_type IN' => [1,2,3,4],
-                'i_id_user IN'          => $userIdList ?: [-1],
-            ])->all();
-
-        $userReservations = []; // [uid][type] => flags
-        foreach ($reservations as $r) {
-            $userReservations[(int)$r->i_id_user][(int)$r->i_reservation_type] = [
-                'room_id'       => (int)$r->i_id_room,
-                'eat_flag'      => (int)$r->eat_flag,
-                'room_name'     => (string)($r->m_room_info->c_room_name ?? '不明な部屋'),
-                'i_change_flag' => (int)$r->i_change_flag,
-            ];
-        }
-
-        // ---- GET: JSON/HTML ----
-        if ($this->request->is('get')) {
-            if ($wantsJson) {
-                $isAdmin  = ($loginUser && ($loginUser->get('i_admin') === 1 || (int)$loginUser->get('i_user_level') === 0));
-                $loginUid = $loginUser?->get('i_id_user');
-
-                // ★isStaff, allowEdit, i_user_level を付与
-                $usersForJson = [];
-                foreach ($users as $u) {
-                    $allowEdit = $isAdmin || ($loginUid && (int)$loginUid === (int)$u['id']);
-                    $usersForJson[] = [
-                        'id'           => $u['id'],
-                        'name'         => $u['name'],
-                        'i_user_level' => $u['i_user_level'],
-                        'userLevel'    => $u['i_user_level'], // ★ JS 互換用
-                        'isStaff'      => ($u['i_user_level'] === 0), // ★ boolean で isStaff を追加
-                        'allowEdit'    => $allowEdit,
-                    ];
-                }
-
-                return $this->response->withType('application/json')
-                    ->withStringBody(json_encode([
-                        'status' => 'success',
-                        'data'   => [
-                            'contextRoom'      => ['id' => (int)$room->i_id_room, 'name' => (string)$room->c_room_name],
-                            'date'             => $date,
-                            'users'            => $usersForJson,
-                            'userReservations' => $userReservations,
-                        ]
-                    ], JSON_UNESCAPED_UNICODE));
-            }
-
-            $rooms = $allowedRooms;
-            $this->set(compact('room','rooms','date','users','userReservations'));
-            return $this->render('change_edit');
-        }
-
-        // ---- POST/PUT: 保存（4 食種まとめ・URL の roomId 固定）----
-        if ($this->request->is(['post','put'])) {
-            $data = $this->request->getData();
-            if (empty($data)) {
-                $parsed = $this->request->input('json_decode', true);
-                if (is_array($parsed)) $data = $parsed;
-            }
-            $usersData = (isset($data['users']) && is_array($data['users'])) ? $data['users'] : [];
-
-            $connection = $this->TIndividualReservationInfo->getConnection();
-            $connection->begin();
-
-            $updated=[]; $created=[]; $skipped=[];
-
-            try {
-                foreach ($usersData as $userIdRaw=>$meals) {
-                    $userId = (int)$userIdRaw;
-                    if (!in_array($userId, $userIdList, true)) {
-                        $skipped[] = "利用者ID {$userId} はこの部屋の所属ではないためスキップされました。";
-                        continue;
-                    }
-                    
-                    // 対象ユーザーの情報を取得（i_user_levelチェック用）
-                    $targetUser = $this->MUserInfo->find()
-                        ->select(['i_user_level'])
-                        ->where(['i_id_user' => $userId])
+            // 所属が1件も無いが roomId が指定されている場合は、その roomId が実在すれば単一選択肢として許可
+            if (empty($allowedRooms) && $roomId) {
+                $roomExists = $this->MRoomInfo->exists(['i_id_room' => $roomId]);
+                if ($roomExists) {
+                    $one = $this->MRoomInfo->find()
+                        ->select(['i_id_room','c_room_name'])
+                        ->where(['i_id_room' => $roomId])
                         ->first();
-                    $targetUserLevel = $targetUser ? (int)$targetUser->i_user_level : null;
+                    if ($one) {
+                        $allowedRooms = [(int)$one->i_id_room => (string)$one->c_room_name];
+                    }
+                }
+            }
 
-                    foreach ($meals as $mealTypeRaw=>$flags) {
-                        $mealType = (int)$mealTypeRaw;
-                        if (!in_array($mealType, [1,2,3,4], true)) continue;
+            // ---- 殻 GET（modal=1）: roomId/date 未指定でもレンダリング ----
+            if ($isModalShell) {
+                $rooms = $allowedRooms; // ★所属部屋のみ
+                $room  = null;
+                if ($roomId && isset($rooms[(int)$roomId])) {
+                    $room = $this->MRoomInfo->find()
+                        ->select(['i_id_room', 'c_room_name'])
+                        ->where(['i_id_room' => $roomId])
+                        ->first();
+                }
+                $users = new \Cake\Collection\Collection([]);
+                $userReservations = [];
+                $this->set(compact('room','rooms','date','users','userReservations'));
+                return $this->render('change_edit');
+            }
 
-                        $changeFlag = isset($flags['i_change_flag']) ? (int)$flags['i_change_flag'] : null;
-                        if ($changeFlag === null) continue; // 変更なし
+            // ---- バリデーション（通常/JSON）----
+            if (!$roomId || !$date) {
+                throw new \InvalidArgumentException('部屋IDまたは日付が指定されていません。');
+            }
 
-                        $existing = $this->TIndividualReservationInfo->find()
-                            ->where([
-                                'i_id_user' => $userId,
-                                'd_reservation_date' => $date,
-                                'i_reservation_type' => $mealType,
-                            ])->first();
+            // roomId が"所属外"なら拒否（管理者も同様の制限）
+            if (!isset($allowedRooms[(int)$roomId])) {
+                if ($wantsJson) {
+                    return $this->response->withStatus(403)->withType('application/json')
+                        ->withStringBody(json_encode(['status'=>'error','message'=>'この部屋を操作する権限がありません。']));
+                }
+                $this->Flash->error(__('この部屋を操作する権限がありません。'));
+                return $this->redirect(['action' => 'index']);
+            }
 
-                        if ($existing) {
-                            // 職員(i_user_level=0)は直前編集でのキャンセル(i_change_flag=0)不可
-                            if ($targetUserLevel === 0 && $changeFlag === 0) {
-                                $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
-                                continue;
-                            }
-                            
-                            if ((int)$existing->i_change_flag !== $changeFlag) {
-                                $this->TIndividualReservationInfo->patchEntity($existing, [
-                                    'i_change_flag' => $changeFlag,
-                                    'c_update_user' => $loginUser?->get('c_user_name') ?? 'system',
-                                    'dt_update'     => FrozenTime::now('Asia/Tokyo'),
-                                ]);
-                                if ($this->TIndividualReservationInfo->save($existing)) {
-                                    $updated[] = "{$userId}:{$mealType}";
-                                } else {
-                                    throw new \Exception("利用者ID {$userId} の予約更新に失敗しました。");
+            // 18:00 制限（当日のみ）
+            $now = FrozenTime::now('Asia/Tokyo');
+            if ($date === $now->format('Y-m-d') && (int)$now->format('H') >= 18) {
+                $msg = '18:00 を過ぎたため直前編集はできません。';
+                if ($wantsJson) {
+                    return $this->response->withType('application/json')
+                        ->withStringBody(json_encode(['status'=>'error','message'=>$msg]));
+                }
+                $this->Flash->error(__($msg));
+                return $this->redirect(['action' => 'index']);
+            }
+
+            // 対象部屋取得（存在チェック）
+            $room = $this->MRoomInfo->find()
+                ->select(['i_id_room','c_room_name'])
+                ->where(['i_id_room'=>$roomId])
+                ->first();
+            if (!$room) {
+                throw new NotFoundException(__('部屋が見つかりません。'));
+            }
+
+            // この部屋に所属する利用者（氏名）だけを取得
+            $baseUserIds = $this->MUserGroup->find()
+                ->select(['i_id_user'])
+                ->contain(['MUserInfo'])
+                ->where([
+                    'MUserGroup.i_id_room'   => $roomId,
+                    'MUserGroup.active_flag' => 0,
+                    'MUserInfo.i_del_flag'   => 0,
+                ])
+                ->enableHydration(false)->all()->extract('i_id_user')->toList();
+            if (empty($baseUserIds)) { $baseUserIds = [-1]; }
+
+            // ★i_user_level を含めて取得
+            $userEntities = $this->MUserInfo->find()
+                ->select(['i_id_user', 'c_user_name', 'i_user_level'])
+                ->where(['i_id_user IN' => $baseUserIds, 'i_del_flag' => 0])
+                ->all();
+
+            $users = [];
+            foreach ($userEntities as $userEntity) {
+                $users[] = [
+                    'id'           => (int)$userEntity->i_id_user,
+                    'name'         => (string)$userEntity->c_user_name,
+                    'i_user_level' => (int)$userEntity->i_user_level,
+                ];
+            }
+            usort($users, fn($a,$b) => strcmp($a['name'], $b['name']));
+            $userIdList = array_map(fn($u) => $u['id'], $users);
+
+            // 対象日の既存予約（ALL: 1..4）
+            $reservations = $this->TIndividualReservationInfo->find()
+                ->contain(['MRoomInfo'])
+                ->where([
+                    'd_reservation_date'    => $date,
+                    'i_reservation_type IN' => [1,2,3,4],
+                    'i_id_user IN'          => $userIdList ?: [-1],
+                ])->all();
+
+            $userReservations = []; // [uid][type] => flags
+            foreach ($reservations as $r) {
+                $userReservations[(int)$r->i_id_user][(int)$r->i_reservation_type] = [
+                    'room_id'       => (int)$r->i_id_room,
+                    'eat_flag'      => (int)$r->eat_flag,
+                    'room_name'     => (string)($r->m_room_info->c_room_name ?? '不明な部屋'),
+                    'i_change_flag' => (int)$r->i_change_flag,
+                ];
+            }
+
+            // ---- GET: JSON/HTML ----
+            if ($this->request->is('get')) {
+                if ($wantsJson) {
+                    $isAdmin  = ($loginUser && ($loginUser->get('i_admin') === 1 || (int)$loginUser->get('i_user_level') === 0));
+                    $loginUid = $loginUser?->get('i_id_user');
+
+                    // ★isStaff, allowEdit, i_user_level を付与
+                    $usersForJson = [];
+                    foreach ($users as $u) {
+                        $allowEdit = $isAdmin || ($loginUid && (int)$loginUid === (int)$u['id']);
+                        $usersForJson[] = [
+                            'id'           => $u['id'],
+                            'name'         => $u['name'],
+                            'i_user_level' => $u['i_user_level'],
+                            'userLevel'    => $u['i_user_level'], // ★ JS 互換用
+                            'isStaff'      => ($u['i_user_level'] === 0), // ★ boolean で isStaff を追加
+                            'allowEdit'    => $allowEdit,
+                        ];
+                    }
+
+                    return $this->response->withType('application/json')
+                        ->withStringBody(json_encode([
+                            'status' => 'success',
+                            'data'   => [
+                                'contextRoom'      => ['id' => (int)$room->i_id_room, 'name' => (string)$room->c_room_name],
+                                'date'             => $date,
+                                'users'            => $usersForJson,
+                                'userReservations' => $userReservations,
+                            ]
+                        ], JSON_UNESCAPED_UNICODE));
+                }
+
+                $rooms = $allowedRooms;
+                $this->set(compact('room','rooms','date','users','userReservations'));
+                return $this->render('change_edit');
+            }
+
+            // ---- POST/PUT: 保存（4 食種まとめ・URL の roomId 固定）----
+            if ($this->request->is(['post','put'])) {
+                $data = $this->request->getData();
+                if (empty($data)) {
+                    $parsed = $this->request->input('json_decode', true);
+                    if (is_array($parsed)) $data = $parsed;
+                }
+                $usersData = (isset($data['users']) && is_array($data['users'])) ? $data['users'] : [];
+
+                $connection = $this->TIndividualReservationInfo->getConnection();
+                $connection->begin();
+
+                $updated=[]; $created=[]; $skipped=[];
+
+                try {
+                    foreach ($usersData as $userIdRaw=>$meals) {
+                        $userId = (int)$userIdRaw;
+                        if (!in_array($userId, $userIdList, true)) {
+                            $skipped[] = "利用者ID {$userId} はこの部屋の所属ではないためスキップされました。";
+                            continue;
+                        }
+
+                        // 対象ユーザーの情報を取得（i_user_levelチェック用）
+                        $targetUser = $this->MUserInfo->find()
+                            ->select(['i_user_level'])
+                            ->where(['i_id_user' => $userId])
+                            ->first();
+                        $targetUserLevel = $targetUser ? (int)$targetUser->i_user_level : null;
+
+                        foreach ($meals as $mealTypeRaw=>$flags) {
+                            $mealType = (int)$mealTypeRaw;
+                            if (!in_array($mealType, [1,2,3,4], true)) continue;
+
+                            $changeFlag = isset($flags['i_change_flag']) ? (int)$flags['i_change_flag'] : null;
+                            if ($changeFlag === null) continue; // 変更なし
+
+                            $existing = $this->TIndividualReservationInfo->find()
+                                ->where([
+                                    'i_id_user' => $userId,
+                                    'd_reservation_date' => $date,
+                                    'i_reservation_type' => $mealType,
+                                ])->first();
+
+                            if ($existing) {
+                                // 職員(i_user_level=0)は直前編集でのキャンセル(i_change_flag=0)不可
+                                if ($targetUserLevel === 0 && $changeFlag === 0) {
+                                    $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
+                                    continue;
                                 }
-                            }
-                        } else {
-                            // 新規作成（追加）は職員・子供ともに可能
-                            $new = $this->TIndividualReservationInfo->newEntity([
-                                'i_id_user'          => $userId,
-                                'd_reservation_date' => $date,
-                                'i_reservation_type' => $mealType,
-                                'i_id_room'          => $roomId,
-                                'eat_flag'           => 0, // 直前変更は通常予約フラグ OFF
-                                'i_change_flag'      => $changeFlag,
-                                'c_create_user'      => $loginUser?->get('c_user_name') ?? 'system',
-                                'dt_create'          => FrozenTime::now('Asia/Tokyo'),
-                            ]);
-                            if ($this->TIndividualReservationInfo->save($new)) {
-                                $created[] = "{$userId}:{$mealType}";
+
+                                if ((int)$existing->i_change_flag !== $changeFlag) {
+                                    $this->TIndividualReservationInfo->patchEntity($existing, [
+                                        'i_change_flag' => $changeFlag,
+                                        'c_update_user' => $loginUser?->get('c_user_name') ?? 'system',
+                                        'dt_update'     => FrozenTime::now('Asia/Tokyo'),
+                                    ]);
+                                    if ($this->TIndividualReservationInfo->save($existing)) {
+                                        $updated[] = "{$userId}:{$mealType}";
+                                    } else {
+                                        throw new \Exception("利用者ID {$userId} の予約更新に失敗しました。");
+                                    }
+                                }
                             } else {
-                                throw new \Exception("利用者ID {$userId} の新規予約作成に失敗しました。");
+                                // 新規作成（追加）は職員・子供ともに可能
+                                $new = $this->TIndividualReservationInfo->newEntity([
+                                    'i_id_user'          => $userId,
+                                    'd_reservation_date' => $date,
+                                    'i_reservation_type' => $mealType,
+                                    'i_id_room'          => $roomId,
+                                    'eat_flag'           => 0, // 直前変更は通常予約フラグ OFF
+                                    'i_change_flag'      => $changeFlag,
+                                    'c_create_user'      => $loginUser?->get('c_user_name') ?? 'system',
+                                    'dt_create'          => FrozenTime::now('Asia/Tokyo'),
+                                ]);
+                                if ($this->TIndividualReservationInfo->save($new)) {
+                                    $created[] = "{$userId}:{$mealType}";
+                                } else {
+                                    throw new \Exception("利用者ID {$userId} の新規予約作成に失敗しました。");
+                                }
                             }
                         }
                     }
-                }
 
-                $connection->commit();
+                    $connection->commit();
 
-                $payload = [
-                    'status'  => 'success',
-                    'message' => '直前予約を更新しました。',
-                    'data'    => ['updated' => $updated, 'created' => $created, 'skipped' => $skipped]
-                ];
-                if ($wantsJson) {
-                    return $this->response->withType('application/json')->withStringBody(json_encode($payload));
-                }
-                $this->Flash->success(__($payload['message']));
-                return $this->redirect(['action' => 'index']);
+                    $payload = [
+                        'status'  => 'success',
+                        'message' => '直前予約を更新しました。',
+                        'data'    => ['updated' => $updated, 'created' => $created, 'skipped' => $skipped]
+                    ];
+                    if ($wantsJson) {
+                        return $this->response->withType('application/json')->withStringBody(json_encode($payload));
+                    }
+                    $this->Flash->success(__($payload['message']));
+                    return $this->redirect(['action' => 'index']);
 
-            } catch (\Throwable $e) {
-                $connection->rollback();
-                $this->log('直前編集エラー: '.$e->getMessage(), 'error');
-                if ($wantsJson) {
-                    return $this->response->withStatus(500)->withType('application/json')
-                        ->withStringBody(json_encode(['status'=>'error','message'=>'直前予約の更新中にエラーが発生しました。']));
+                } catch (\Throwable $e) {
+                    $connection->rollback();
+                    $this->log('直前編集エラー: '.$e->getMessage(), 'error');
+                    if ($wantsJson) {
+                        return $this->response->withStatus(500)->withType('application/json')
+                            ->withStringBody(json_encode(['status'=>'error','message'=>'直前予約の更新中にエラーが発生しました。']));
+                    }
+                    $this->Flash->error(__('直前予約の更新中にエラーが発生しました。'));
                 }
-                $this->Flash->error(__('直前予約の更新中にエラーが発生しました。'));
             }
-        }
 
-        // HTML フォールバック
-        $rooms = $allowedRooms;
-        if (!isset($users)) $users = [];
-        if (!isset($userReservations)) $userReservations = [];
-        $this->set(compact('room','rooms','date','users','userReservations'));
-        return $this->render('change_edit');
+            // HTML フォールバック
+            $rooms = $allowedRooms;
+            if (!isset($users)) $users = [];
+            if (!isset($userReservations)) $userReservations = [];
+            $this->set(compact('room','rooms','date','users','userReservations'));
+            return $this->render('change_edit');
+
+        } catch (\Throwable $e) {
+            // ここで「AJAX っぽいかどうか」を再判定して、JSON を返す
+            $wantsJson =
+                $this->request->is('ajax') ||
+                $this->request->getQuery('ajax') === '1' ||
+                $this->request->accepts('application/json') ||
+                $this->request->getParam('_ext') === 'json';
+
+            $this->log('changeEdit error: ' . $e->getMessage(), 'error');
+
+            if ($wantsJson) {
+                // ざっくりエラー種別でステータスを分ける
+                if ($e instanceof \InvalidArgumentException) {
+                    $status = 400;
+                } elseif ($e instanceof NotFoundException) {
+                    $status = 404;
+                } else {
+                    $status = 500;
+                }
+
+                return $this->response
+                    ->withStatus($status)
+                    ->withType('application/json')
+                    ->withStringBody(json_encode([
+                        'status'  => 'error',
+                        'message' => $e->getMessage() ?: '直前予約の取得中にエラーが発生しました。',
+                    ], JSON_UNESCAPED_UNICODE));
+            }
+
+            // 通常アクセスなら今まで通り Cake に投げる
+            throw $e;
+        }
     }
+
 
     public function getMealCounts($date)
     {
