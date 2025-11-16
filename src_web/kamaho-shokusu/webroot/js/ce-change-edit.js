@@ -402,3 +402,107 @@
         if (modal.querySelector && modal.querySelector('#ce-root')) window.CE_CHANGE_EDIT.init(modal);
     });
 })();
+
+
+// 食数予約: 利用者一覧取得と描画（本番互換版）
+(function(){
+    if (!window.GET_USERS_BY_ROOM_TPL) return;
+
+    function buildUsersUrl(roomId){
+        const tpl = window.GET_USERS_BY_ROOM_TPL;
+        if (!tpl) return '';
+        if (tpl.includes('__RID__')) return tpl.replace('__RID__', encodeURIComponent(roomId));
+        return tpl;
+    }
+
+    function normalizeUser(u){
+        return {
+            id: u.id,
+            name: u.name || '',
+            breakfast: (u.breakfast ?? u.morning) || false,
+            lunch: (u.lunch ?? u.noon) || false,
+            dinner: (u.dinner ?? u.night) || false,
+            bento: u.bento || false,
+            room_name: u.room_name || u.roomName || ''
+        };
+    }
+
+    async function safeFetchJson(url){
+        const res = await fetch(url, {
+            headers: {
+                'Accept':'application/json',
+                'X-Requested-With':'XMLHttpRequest'
+            },
+            credentials:'same-origin'
+        });
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch(e){
+            if (/Warning|Notice|Fatal/i.test(text)) {
+                console.error('JSON破損（PHP警告混入の可能性）', text.slice(0,200));
+            } else {
+                console.error('JSON parse失敗', text.slice(0,200));
+            }
+            return null;
+        }
+    }
+
+    async function fetchUsers(roomId){
+        const url = buildUsersUrl(roomId);
+        if (!url) return [];
+        const json = await safeFetchJson(url);
+        if (!json) return [];
+
+        let arr = [];
+        if (Array.isArray(json.users)) {
+            arr = json.users;
+        } else if (json.data && Array.isArray(json.data.users)) {
+            arr = json.data.users;
+        } else if (Array.isArray(json.usersByRoom)) {
+            arr = json.usersByRoom;
+        } else {
+            console.warn('ユーザ配列未検出', json);
+            return [];
+        }
+        return arr.map(normalizeUser);
+    }
+
+    function renderUsers(users){
+        const tbody = document.getElementById('user-checkboxes');
+        if (!tbody) return;
+        if (users.length === 0){
+            tbody.innerHTML = '<tr><td colspan="6">利用者が取得できませんでした。</td></tr>';
+            return;
+        }
+        tbody.innerHTML = users.map(u => `
+      <tr data-user-id="${u.id}">
+        <td>${escapeHtml(u.name)}</td>
+        <td>${escapeHtml(u.room_name)}</td>
+        <td class="text-center"><input type="checkbox" ${u.breakfast ? 'checked':''} disabled></td>
+        <td class="text-center"><input type="checkbox" ${u.lunch ? 'checked':''} disabled></td>
+        <td class="text-center"><input type="checkbox" ${u.dinner ? 'checked':''} disabled></td>
+        <td class="text-center"><input type="checkbox" ${u.bento ? 'checked':''} disabled></td>
+      </tr>
+    `).join('');
+    }
+
+    function escapeHtml(s){
+        return String(s||'').replace(/[&<>"']/g, m => ({
+            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+        }[m]));
+    }
+
+    async function init(){
+        const rid = window.__PRIMARY_ROOM_ID || (window.__USER_INFO && window.__USER_INFO.roomId) || 1;
+        const users = await fetchUsers(rid);
+        renderUsers(users);
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+    window.refreshUsersByRoom = async function(roomId){
+        const users = await fetchUsers(roomId);
+        renderUsers(users);
+    };
+})();
+

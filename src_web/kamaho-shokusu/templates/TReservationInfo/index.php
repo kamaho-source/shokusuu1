@@ -128,6 +128,16 @@ $copyPreviewApi = $this->Url->build(['controller' => 'TReservationInfo', 'action
         </script>
     <?php endif; ?>
 
+    <script>
+        (function(){
+            if (typeof window.__BASE_PATH === 'undefined') {
+                window.__BASE_PATH = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
+            }
+            window.GET_USERS_BY_ROOM_TPL = <?= json_encode($getUsersByRoomTpl, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
+            window.__PRIMARY_ROOM_ID = <?= (int)$userRoomId ?>;
+        })();
+    </script>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 
