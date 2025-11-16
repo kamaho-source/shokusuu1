@@ -1,4 +1,5 @@
 <?php
+
 $this->assign('title', '食数予約');
 $this->Html->script('reservation.js', ['block' => true]);
 $this->Html->script('ce-change-edit.js', ['block' => true]);
@@ -11,46 +12,50 @@ $today = date('Y-m-d');
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 $serverToday = $today;
 $date = $this->request->getQuery('date', $today);
+
 // ==== UIモード（kid/biz）トグル対応 ====
-// パラメータが無ければ従来どおり、子は kid、大人は biz をデフォルトにします。
 $uimodeQuery = strtolower((string)$this->request->getQuery('uimode', ''));
-$forceKid = in_array($uimodeQuery, ['kid','child'], true);
-$forceBiz = in_array($uimodeQuery, ['biz','adult'], true);
+$forceKid = in_array($uimodeQuery, ['kid', 'child'], true);
+$forceBiz = in_array($uimodeQuery, ['biz', 'adult'], true);
 
 if ($isChild) {
-    // 子供アカウントの場合、UIモードを子供用 (true) に固定し、強制切り替えを無効化
     $useKidUI = true;
 } elseif ($forceKid) {
-    // 業務アカウントで ?uimode=kid が指定された場合
     $useKidUI = true;
 } elseif ($forceBiz) {
-    // 業務アカウントで ?uimode=biz が指定された場合
     $useKidUI = false;
 } else {
-    // 従来の自動判定（$isChild が false のため $useKidUI は false になる）
     $useKidUI = $isChild;
 }
+
 // URL作成用
 $here = $this->request->getPath();
-$qs   = $this->request->getQueryParams();
-// ★ 修正: CakePHPのベースパス（プロジェクト名）を常に先頭へ付与する
+$qs = $this->request->getQueryParams();
+// CakePHPのベースパス（プロジェクト名）を常に先頭へ付与する
 $basePath = $this->request->getAttribute('base') ?? $this->request->getAttribute('webroot') ?? '';
-$mkUrl = function(array $merge) use ($here, $qs, $basePath) {
+$mkUrl = function (array $merge) use ($here, $qs, $basePath) {
     $q = array_merge($qs, $merge);
-    // 空にしたいキーを null 指定で除去
-    foreach ($q as $k=>$v) if ($v===null) unset($q[$k]);
-    // ★ 修正: 先頭に $basePath を必ず付与
-    return $basePath . $here . (empty($q) ? '' : ('?'.http_build_query($q)));
+    foreach ($q as $k => $v) if ($v === null) unset($q[$k]);
+    return $basePath . $here . (empty($q) ? '' : ('?' . http_build_query($q)));
 };
 
-// 所属部屋 ID はコントローラで $userRoomId 渡し済み想定
-$myReservationDates   = $myReservationDates   ?? [];
-$myReservationDetails = $myReservationDetails ?? [];
-$mealDataArray        = $mealDataArray        ?? [];
+// --- 防御的初期化: 本番で未定義になっている可能性がある変数を必ず準備 ---
+$userRoomIds = $userRoomIds ?? [];                             // 所属部屋の配列（空配列でフォールバック）
+$userRoomId = $userRoomId ?? ($userRoomIds[0] ?? null);      // 所属部屋ID（未設定なら配列先頭 or null）
+
+// GET_USERS_BY_ROOM 用テンプレート（JS側で "__RID__" を置換）
+$getUsersByRoomTpl = $getUsersByRoomTpl ?? $this->Url->build(
+        ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom', '__RID__'],
+        ['fullBase' => false]
+);
 
 // 今日
 $today = date('Y-m-d');
 // 今日の予約情報（参考用）
+$myReservationDates = $myReservationDates ?? [];
+$myReservationDetails = $myReservationDetails ?? [];
+$mealDataArray = $mealDataArray ?? [];
+
 $todayReservation = $myReservationDetails[$today] ?? [];
 $hasTodayReservation = !empty($todayReservation) && (
                 ($todayReservation['breakfast'] ?? false) ||
@@ -60,8 +65,8 @@ $hasTodayReservation = !empty($todayReservation) && (
         );
 
 // 予約コピーAPI（JSON）
-$copyApi = $this->Url->build(['controller'=>'TReservationInfo','action'=>'copy','_ext'=>'json'], ['fullBase'=>false]);
-$copyPreviewApi = $this->Url->build(['controller'=>'TReservationInfo','action'=>'copyPreview','_ext'=>'json'], ['fullBase'=>false]);
+$copyApi = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'copy', '_ext' => 'json'], ['fullBase' => false]);
+$copyPreviewApi = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'copyPreview', '_ext' => 'json'], ['fullBase' => false]);
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -69,19 +74,22 @@ $copyPreviewApi = $this->Url->build(['controller'=>'TReservationInfo','action'=>
     <meta charset="UTF-8">
     <title>食数予約</title>
     <meta name="csrfToken" content="<?= h($this->request->getAttribute('csrfToken')) ?>">
-    <!-- ★ 修正: JSからベースパスを参照できるように埋め込み -->
+    <!-- サーバ側の値を JS に安全に出力（本番で未定義でも必ず存在するように） -->
     <script>
-        window.__BASE_PATH = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES) ?>;
+        window.__BASE_PATH = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+        window.GET_USERS_BY_ROOM_TPL = <?= json_encode($getUsersByRoomTpl, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+        window.QUERY_DATE = <?= json_encode($date ?? $today, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__USER_INFO = {
             isStaff: <?= $isStaff ? 'true' : 'false' ?>,
             isChild: <?= $isChild ? 'true' : 'false' ?>,
             isAdmin: <?= $isAdmin ? 'true' : 'false' ?>,
             userLevel: <?= $user ? (int)$user->get('i_user_level') : 'null' ?>,
-            roomId: <?= $user && $userRoomId ? (int)$userRoomId : 'null' ?>,
-            roomIds: <?= !empty($userRoomIds) ? json_encode($userRoomIds) : '[]' ?>,
+            roomId: <?= $userRoomId !== null ? (int)$userRoomId : 'null' ?>,
+            roomIds: <?= json_encode(array_values($userRoomIds ?? []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
             roomCount: <?= count($userRoomIds ?? []) ?>
         };
     </script>
+
     <?php if (!$useKidUI): ?>
         <script>
             (function(){
