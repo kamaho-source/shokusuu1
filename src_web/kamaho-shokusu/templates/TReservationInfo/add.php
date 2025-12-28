@@ -410,10 +410,10 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                             const tr = document.createElement('tr');
                                             tr.innerHTML = `
     <td>${u.name}</td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][1]" value="1" ${Number(u.morning) === 1 ? 'checked' : ''}></td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][2]" value="1" ${Number(u.noon) === 1 ? 'checked' : ''}></td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][3]" value="1" ${Number(u.night) === 1 ? 'checked' : ''}></td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][4]" value="1" ${Number(u.bento) === 1 ? 'checked' : ''}></td>
+    <td class="text-center"><input type="checkbox" name="users[${u.id}][1]" value="1" ${Number(u.morning) === 1 ? 'checked data-existing="1"' : ''}></td>
+    <td class="text-center"><input type="checkbox" name="users[${u.id}][2]" value="1" ${Number(u.noon) === 1 ? 'checked data-existing="1"' : ''}></td>
+    <td class="text-center"><input type="checkbox" name="users[${u.id}][3]" value="1" ${Number(u.night) === 1 ? 'checked data-existing="1"' : ''}></td>
+    <td class="text-center"><input type="checkbox" name="users[${u.id}][4]" value="1" ${Number(u.bento) === 1 ? 'checked data-existing="1"' : ''}></td>
 `;
                                             tbody.appendChild(tr);
 
@@ -494,6 +494,7 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                     </fieldset>
 
                     <!-- 送信ボタン & ローディング -->
+                    <div class="form-text text-muted mb-2">チェックを外して登録すると予約をキャンセルできます。</div>
                     <?= $this->Form->button(__('登録'), ['class' => 'btn btn-primary']) ?>
                     <div id="loading-overlay"
                          style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; text-align: center;">

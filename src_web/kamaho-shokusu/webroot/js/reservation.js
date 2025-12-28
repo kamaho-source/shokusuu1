@@ -94,10 +94,10 @@
                         const bento   = Number(u.bento || 0) === 1;
                         tr.innerHTML =
                             '<td>' + String(u.name) + '</td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][1]" value="1" ' + (morning ? 'checked' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][2]" value="1" ' + (noon ? 'checked' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][3]" value="1" ' + (night ? 'checked' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][4]" value="1" ' + (bento ? 'checked' : '') + '></td>';
+                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][2]" value="1" ' + (noon ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][4]" value="1" ' + (bento ? 'checked data-existing="1"' : '') + '></td>';
                         userCheckboxes.appendChild(tr);
                     });
                 }
@@ -112,11 +112,14 @@
         }
         window.fetchUserData = fetchUserData;
 
-        // バリデーション（集団=部屋行のチェックが1つ以上必須 / 個人=必須なし）
+        // バリデーション（集団=新規追加はチェック必須 / 個人=必須なし）
         function validateForm(reservationType){
             if (reservationType === 2) {
-                // 集団: 部屋行のいずれかチェック必須
+                // 集団: 既存予約のキャンセルのみでも送信可能
                 if (userSelectionTable && userSelectionTable.querySelector('tbody input[type="checkbox"]:checked')) {
+                    return true;
+                }
+                if (userSelectionTable && userSelectionTable.querySelector('tbody input[type="checkbox"][data-existing="1"]')) {
                     return true;
                 }
                 return false;
@@ -184,6 +187,9 @@
                     return;
                 }
                 const formData = new FormData(form);
+                form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => {
+                    formData.set(cb.name, cb.checked ? (cb.value || '1') : '0');
+                });
                 if (!date) { alert('日付が選択されていません。'); return; }
                 formData.append('d_reservation_date', date);
                 showLoading();
