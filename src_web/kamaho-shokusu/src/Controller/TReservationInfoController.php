@@ -2387,8 +2387,14 @@ class TReservationInfoController extends AppController
                             $mealType = (int)$mealTypeRaw;
                             if (!in_array($mealType, [1,2,3,4], true)) continue;
 
-                            $changeFlag = isset($flags['i_change_flag']) ? (int)$flags['i_change_flag'] : null;
-                            if ($changeFlag === null) continue; // 変更なし
+                            $changeFlagRaw = isset($flags['i_change_flag']) ? (int)$flags['i_change_flag'] : null;
+                            if ($changeFlagRaw === null) continue; // 変更なし
+                            // UIでは 2=キャンセル を送るので、サーバ側で 0/1 に正規化
+                            $changeFlag = ($changeFlagRaw === 2) ? 0 : $changeFlagRaw;
+                            if (!in_array($changeFlag, [0, 1], true)) {
+                                $skipped[] = "利用者ID {$userId} の変更フラグが不正なためスキップされました。";
+                                continue;
+                            }
 
                             $existing = $this->TIndividualReservationInfo->find()
                                 ->where([
@@ -2417,6 +2423,10 @@ class TReservationInfoController extends AppController
                                     }
                                 }
                             } else {
+                                // 既存なしのキャンセルは無視
+                                if ($changeFlag === 0) {
+                                    continue;
+                                }
                                 // 新規作成（追加）は職員・子供ともに可能
                                 $new = $this->TIndividualReservationInfo->newEntity([
                                     'i_id_user'          => $userId,

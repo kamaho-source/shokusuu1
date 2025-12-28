@@ -2442,6 +2442,10 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
 
             function applyStaffLock() {
                 wrap.querySelectorAll('input[type="checkbox"][name^="users"]').forEach(function (cb) {
+                    var isStaffTarget = (typeof window.isStaffTargetCheckbox === 'function')
+                        ? window.isStaffTargetCheckbox(cb)
+                        : !!window.__IS_STAFF;
+                    if (!isStaffTarget) return;
                     if (cb.checked) {
                         cb.disabled = true;
                         cb.dataset.locked = '1';
@@ -2455,8 +2459,8 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                     notice.className = 'alert alert-info staff-last-minute-notice mb-3';
                     notice.innerHTML =
                         '<i class="bi bi-info-circle"></i> ' +
-                        '<strong>直前期間（当日〜14日以内）</strong>のため、既存の ON は変更できません。' +
-                        '未チェック項目の<strong>追加のみ</strong>可能です。';
+                        '<strong>直前期間（当日〜14日以内）</strong>のため、職員の既存予約は変更できません。' +
+                        '子供は追加・キャンセルが可能です。';
                     var anchor = wrap.querySelector('.card, form, #ce-root') || wrap.firstElementChild;
                     if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(notice, anchor);
                     else wrap.prepend(notice);
@@ -3444,6 +3448,17 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
         });
     })();
 
+    function isStaffTargetCheckbox(cb){
+        if (!cb) return false;
+        var tr = cb.closest('tr');
+        if (tr && tr.getAttribute('data-is-staff') === '1') return true;
+        var userLevel = cb.dataset.userLevel || cb.getAttribute('data-user-level');
+        if (!userLevel && tr) userLevel = tr.dataset.userLevel || tr.getAttribute('data-user-level');
+        if (userLevel != null && userLevel !== '') return String(userLevel) === '0';
+        // 判別不能な場合はログインユーザーに合わせる
+        return !!window.__IS_STAFF;
+    }
+
     function enforceLastMinuteNoUncheck(scope){
         if (!window.__IS_STAFF) return;
 
@@ -3462,8 +3477,8 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
 
         checkboxes.forEach(function(cb) {
             if (cb.checked) {
-                var userLevel = cb.dataset.userLevel || cb.getAttribute('data-user-level');
-                var isStaffUser = (userLevel === '0');
+                var isStaffUser = isStaffTargetCheckbox(cb);
+                if (!isStaffUser) return;
 
                 cb.addEventListener('click', function(e) {
                     if (!cb.checked) {
@@ -3471,9 +3486,7 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                         e.stopPropagation();
                         cb.checked = true;
 
-                        var message = isStaffUser
-                            ? '職員の直前期間での予約キャンセルは禁止されています。'
-                            : '直前期間のため、既存予約の削除はできません。';
+                        var message = '職員の直前期間での予約キャンセルは禁止されています。';
 
                         showInlineHint(cb, message);
 
@@ -3497,7 +3510,7 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                         var label = document.createElement('small');
                         label.className = 'text-muted deletion-blocked';
                         label.style.cssText = 'font-size: 0.75rem; display: block; margin-top: 0.25rem;';
-                        label.textContent = isStaffUser ? '（職員：削除不可）' : '（削除不可）';
+                        label.textContent = '（職員：削除不可）';
                         container.appendChild(label);
                     }
                 }
@@ -3564,6 +3577,9 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                 if (cb.dataset._staffGuardApplied === '1') {
                     return;
                 }
+                if (!isStaffTargetCheckbox(cb)) {
+                    return;
+                }
                 var initialState = cb.checked;
                 cb.dataset._initialChecked = initialState ? '1' : '0';
                 cb.dataset._staffGuardApplied = '1';
@@ -3616,7 +3632,7 @@ $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|
                     var toOn = !!e.target.checked;
                     root.querySelectorAll('input.meal-checkbox[data-reservation-type="'+pair[1]+'"]').forEach(function(cb){
                         if (cb.disabled) return;
-                        if (!toOn && cb.dataset._initialChecked === '1' && isStaffCancelProhibited(dateStr, false)) return;
+                        if (!toOn && cb.dataset._initialChecked === '1' && isStaffCancelProhibited(dateStr, false) && isStaffTargetCheckbox(cb)) return;
                         cb.checked = toOn;
                     });
                     if (toOn && pair[1] === 2) root.querySelector('#select-all-4') && (root.querySelector('#select-all-4').checked = false);
