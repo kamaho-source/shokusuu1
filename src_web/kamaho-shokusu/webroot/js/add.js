@@ -123,10 +123,10 @@
                             `<td>${String(userName).replace(/[<>&"']/g, function(c) {
                                 return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];
                             })}</td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][1]" value="1" ${morning ? 'checked' : ''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][2]" value="1" ${hasNoon ? 'checked' : ''} ${hasBento ? 'disabled title="弁当と同時選択不可"' : ''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][3]" value="1" ${night ? 'checked' : ''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][4]" value="1" ${hasBento ? 'checked' : ''} ${hasNoon ? 'disabled title="昼食と同時選択不可"' : ''}></td>`;
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][1]" value="1" ${morning ? 'checked data-existing="1"' : ''}></td>` +
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][2]" value="1" ${hasNoon ? 'checked data-existing="1"' : ''} ${hasBento ? 'disabled title="弁当と同時選択不可"' : ''}></td>` +
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][3]" value="1" ${night ? 'checked data-existing="1"' : ''}></td>` +
+                            `<td class="text-center"><input type="checkbox" name="users[${userId}][4]" value="1" ${hasBento ? 'checked data-existing="1"' : ''} ${hasNoon ? 'disabled title="昼食と同時選択不可"' : ''}></td>`;
                         
                         userCheckboxesTbody.appendChild(tr);
                     });
@@ -228,7 +228,8 @@
                 if (reservationType === '2') {
                     // 集団の場合：利用者のチェックが1つ以上必要
                     const userChecked = userSelectionTable && userSelectionTable.querySelector('input[type="checkbox"]:checked');
-                    if (!userChecked) {
+                    const hasExisting = userSelectionTable && userSelectionTable.querySelector('input[type="checkbox"][data-existing="1"]');
+                    if (!userChecked && !hasExisting) {
                         if (typeof window.pageToast === 'function') {
                             window.pageToast('エラー: 集団予約は利用者行でいずれかの食事にチェックが必要です。', 'danger');
                         } else {
@@ -239,6 +240,9 @@
                 }
                 
                 const formData = new FormData(form);
+                form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => {
+                    formData.set(cb.name, cb.checked ? (cb.value || '1') : '0');
+                });
                 if (!date) { 
                     if (typeof window.pageToast === 'function') {
                         window.pageToast('日付が選択されていません。', 'danger');

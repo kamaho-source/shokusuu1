@@ -77,6 +77,7 @@
         var uName = esc(user.name);
         var allow = !!user.allowEdit;
         var isStaff = isStaffUser(user);
+        var userLevel = (user && (user.i_user_level != null ? user.i_user_level : user.userLevel));
 
         var cells = '';
         for (var t=1; t<=4; t++){
@@ -100,7 +101,8 @@
                 '</td>';
         }
         var staffAttr = isStaff ? ' data-is-staff="1"' : '';
-        return '<tr data-user-id="'+uId+'"' + staffAttr + '><td>'+uName+'</td>' + cells + '</tr>';
+        var levelAttr = (userLevel != null && userLevel !== '') ? ' data-user-level="'+esc(userLevel)+'"' : '';
+        return '<tr data-user-id="'+uId+'"' + staffAttr + levelAttr + '><td>'+uName+'</td>' + cells + '</tr>';
     }
 
     // ---- 列一括切替（昼食⇔弁当排他制御強化）
@@ -515,4 +517,3 @@
         renderUsers(users);
     };
 })();
-
