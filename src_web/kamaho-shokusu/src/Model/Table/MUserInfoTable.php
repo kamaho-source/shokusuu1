@@ -7,6 +7,7 @@ use ArrayObject;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\Event\EventInterface;
 use Cake\ORM\Query;
+use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -37,7 +38,6 @@ class MUserInfoTable extends Table
         if (!empty($entity->c_login_passwd) && $entity->isDirty('c_login_passwd')) {
             $hasher = new DefaultPasswordHasher();
             $entity->c_login_passwd = $hasher->hash($entity->c_login_passwd);
-            \Cake\Log\Log::debug('password hashed'.$entity->c_login_passwd);
         }
     }
 
@@ -61,25 +61,33 @@ class MUserInfoTable extends Table
                 ]
             ]);
 
+        // ログインID（c_login_account）のバリデーション
+        $validator
+            ->scalar('c_login_account')
+            ->maxLength('c_login_account', 50)
+            ->requirePresence('c_login_account', 'create')
+            ->notEmptyString('c_login_account', 'ログインIDを入力してください。')
+            ->add('c_login_account', [
+                'unique' => [
+                    'rule' => ['validateUnique', ['scope' => null]],
+                    'provider' => 'table',
+                    'message' => 'このログインIDは既に使用されています。'
+                ]
+            ]);
+
         // パスワード（c_login_passwd）のバリデーション
         $validator
             ->scalar('c_login_passwd')
             ->maxLength('c_login_passwd', 255)
             ->requirePresence('c_login_passwd', 'create')
-            ->notEmptyString('c_login_passwd', 'パスワードを入力してください。')
-            ->add('c_login_passwd', [
-                'unique' => [
-                    'rule' => ['validateUnique', ['scope' => null]],
-                    'provider' => 'table',
-                    'message' => 'このパスワードは既に使用されています。'
-                ]
-            ]);
+            ->notEmptyString('c_login_passwd', 'パスワードを入力してください。');
 
         // ユーザー年齢（i_user_age）のバリデーション
         $validator
             ->integer('i_user_age')
             ->allowEmptyString('i_user_age', 'create')
-            ->range('i_user_age', [0, 80], '年齢は0から80の範囲で指定してください。');
+            ->greaterThanOrEqual('i_user_age', 0, '年齢は0以上で指定してください。')
+            ->lessThanOrEqual('i_user_age', 80, '年齢は80以下で指定してください。');
 
         // ユーザーレベル（i_user_level）のバリデーション
         $validator
@@ -90,10 +98,6 @@ class MUserInfoTable extends Table
             ->integer('i_user_gender')
             ->allowEmptyString('i_user_gender', 'create');
 
-        $validator
-            ->integer('i_user_age')
-            ->allowEmptyString('i_user_age', 'create')
-            ->notEmptyString('i_user_age', '年齢を選択してください。');
         $validator
             ->integer('i_user_rank')
             ->allowEmptyString('i_user_rank', 'create')
@@ -117,6 +121,16 @@ class MUserInfoTable extends Table
             ->allowEmptyString('c_update_user');
 
         return $validator;
+    }
+
+    public function buildRules(RulesChecker $rules): RulesChecker
+    {
+        $rules->add($rules->isUnique(
+            ['c_login_account'],
+            'このログインIDは既に使用されています。'
+        ));
+
+        return $rules;
     }
 
     public function findAuth(Query $query, array $options)

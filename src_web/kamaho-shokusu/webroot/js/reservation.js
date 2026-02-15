@@ -75,34 +75,80 @@
         }
         window.toggleReservationTypeDisplay = toggleReservationTypeDisplay;
 
-        async function fetchUserData(roomId){
-            try {
-                const url = buildGetUsersByRoomUrl(roomId, date);
-                const res = await fetch(url, { credentials: 'same-origin' });
+    function getUsersCache(){
+        if (!window.__usersByRoomCache) {
+            window.__usersByRoomCache = new Map();
+        }
+        if (!window.__usersByRoomInFlight) {
+            window.__usersByRoomInFlight = new Map();
+        }
+        return {
+            cache: window.__usersByRoomCache,
+            inFlight: window.__usersByRoomInFlight
+        };
+    }
+
+    async function fetchUsersByRoom(roomId, date){
+        const key = String(roomId) + '|' + String(date || '');
+        const now = Date.now();
+        const { cache, inFlight } = getUsersCache();
+
+        const cached = cache.get(key);
+        if (cached && (now - cached.ts) < 30000) {
+            return cached.data;
+        }
+        const inflight = inFlight.get(key);
+        if (inflight) {
+            return inflight;
+        }
+
+        const url = buildGetUsersByRoomUrl(roomId, date);
+        const req = fetch(url, { credentials: 'same-origin' })
+            .then(res => {
                 if (!res.ok) throw new Error('通信に失敗しました');
-                const data = await res.json();
-                const users = Array.isArray(data.usersByRoom) ? data.usersByRoom
-                    : (Array.isArray(data.users) ? data.users : []);
-                if (!Array.isArray(users)) throw new Error('データ形式が不正です');
-                if (userCheckboxes) {
-                    userCheckboxes.innerHTML = '';
-                    users.forEach(function(u){
-                        const tr = document.createElement('tr');
+                return res.json();
+            })
+            .then(data => {
+                cache.set(key, { ts: Date.now(), data });
+                return data;
+            })
+            .finally(() => {
+                inFlight.delete(key);
+            });
+
+        inFlight.set(key, req);
+        return req;
+    }
+
+    async function fetchUserData(roomId){
+        try {
+            const data = await fetchUsersByRoom(roomId, date);
+            const users = Array.isArray(data.usersByRoom) ? data.usersByRoom
+                : (Array.isArray(data.users) ? data.users : []);
+            if (!Array.isArray(users)) throw new Error('データ形式が不正です');
+            if (userCheckboxes) {
+                if (users.length === 0) {
+                    userCheckboxes.innerHTML = '<tr><td colspan="5" class="text-muted text-center">この部屋に利用者がいません。</td></tr>';
+                } else {
+                    const rows = users.map(function(u){
                         const morning = Number(u.morning || 0) === 1;
                         const noon    = Number(u.noon || 0) === 1;
                         const night   = Number(u.night || 0) === 1;
                         const bento   = Number(u.bento || 0) === 1;
-                        tr.innerHTML =
-                            '<td>' + String(u.name) + '</td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][2]" value="1" ' + (noon ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + u.id + '][4]" value="1" ' + (bento ? 'checked data-existing="1"' : '') + '></td>';
-                        userCheckboxes.appendChild(tr);
-                    });
+                        return '' +
+                            '<tr>' +
+                            '<td>' + String(u.name || 'Unknown') + '</td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][2]" value="1" ' + (noon ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][4]" value="1" ' + (bento ? 'checked data-existing="1"' : '') + '></td>' +
+                            '</tr>';
+                    }).join('');
+                    userCheckboxes.innerHTML = rows;
                 }
-                // 利用者リストが描画できたら表を見せる
-                if (userSelectionTable) userSelectionTable.style.display = 'block';
+            }
+            // 利用者リストが描画できたら表を見せる
+            if (userSelectionTable) userSelectionTable.style.display = 'block';
             } catch (e) {
                 console.error(e);
                 alert('利用者の取得に失敗しました。');
@@ -207,16 +253,17 @@
                         });
                     })
                     .then(data => {
-                        if (data.status === 'error') {
-                            alert(`エラー: ${data.message || '不明なエラーが発生しました。'}`);
-                        } else if (data.status === 'success') {
+                        const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
+                        if (payload.status === 'error' || payload.ok === false) {
+                            alert(`エラー: ${payload.message || '不明なエラーが発生しました。'}`);
+                        } else if (payload.status === 'success' || payload.ok === true) {
                             const modalEl = document.getElementById('quickDayModal');
-                            const emitDate = (data.data && data.data.date) || date || '';
+                            const emitDate = payload.date || date || '';
                             if (modalEl) {
                                 modalEl.dispatchEvent(new CustomEvent('reservation:saved', { detail: { date: emitDate } }));
                             } else {
-                                alert(`成功: ${data.message}`);
-                                if (data.redirect) window.location.href = data.redirect;
+                                alert(`成功: ${payload.message}`);
+                                if (payload.redirect) window.location.href = payload.redirect;
                             }
                         }
                     })

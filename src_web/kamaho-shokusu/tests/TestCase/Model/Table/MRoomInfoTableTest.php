@@ -59,6 +59,15 @@ class MRoomInfoTableTest extends TestCase
      */
     public function testValidationDefault(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $valid = $this->MRoomInfo->newEntity([
+            'c_room_name' => 'テスト部屋',
+            'i_disp_no' => 1,
+        ]);
+        $this->assertEmpty($valid->getErrors());
+
+        $invalid = $this->MRoomInfo->newEntity([
+            'c_room_name' => str_repeat('a', 51),
+        ]);
+        $this->assertArrayHasKey('c_room_name', $invalid->getErrors());
     }
 }

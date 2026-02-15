@@ -40,6 +40,8 @@ return function (RouteBuilder $routes): void {
 
         // 週一括フォーム・関連 API
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
+        $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'TReservationInfo', 'action' => 'bulkChangeEditForm']);
+        $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'TReservationInfo', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForBulk/:roomId',

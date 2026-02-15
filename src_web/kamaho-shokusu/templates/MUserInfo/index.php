@@ -214,10 +214,11 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.success) {
+                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
+                    if (payload.ok === true || payload.success) {
                         alert('管理者権限が更新されました。');
                     } else {
-                        alert(data.message || '管理者権限の更新に失敗しました。再試行してください。');
+                        alert(payload.message || '管理者権限の更新に失敗しました。再試行してください。');
                         target.checked = !target.checked;
                     }
                 })

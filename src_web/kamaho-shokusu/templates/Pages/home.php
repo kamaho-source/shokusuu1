@@ -1,239 +1,159 @@
 <?php
 /**
- * CakePHP(tm) : Rapid Development Framework (https://cakephp.org)
- * Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
+ * 新ホーム（ダッシュボード）
  *
- * Licensed under The MIT License
- * For full copyright and license information, please see the LICENSE.txt
- * Redistributions of files must retain the above copyright notice.
- *
- * @copyright Copyright (c) Cake Software Foundation, Inc. (https://cakefoundation.org)
- * @link      https://cakephp.org CakePHP(tm) Project
- * @since     0.10.0
- * @license   https://opensource.org/licenses/mit-license.php MIT License
  * @var \App\View\AppView $this
  */
-use Cake\Cache\Cache;
 use Cake\Core\Configure;
-use Cake\Core\Plugin;
-use Cake\Datasource\ConnectionManager;
-use Cake\Error\Debugger;
-use Cake\Http\Exception\NotFoundException;
 
-$this->disableAutoLayout();
-
-$checkConnection = function (string $name) {
-    $error = null;
-    $connected = false;
-    try {
-        ConnectionManager::get($name)->getDriver()->connect();
-        // No exception means success
-        $connected = true;
-    } catch (Exception $connectionError) {
-        $error = $connectionError->getMessage();
-        if (method_exists($connectionError, 'getAttributes')) {
-            $attributes = $connectionError->getAttributes();
-            if (isset($attributes['message'])) {
-                $error .= '<br />' . $attributes['message'];
-            }
-        }
-        if ($name === 'debug_kit') {
-            $error = 'Try adding your current <b>top level domain</b> to the
-                <a href="https://book.cakephp.org/debugkit/5/en/index.html#configuration" target="_blank">DebugKit.safeTld</a>
-            config and reload.';
-            if (!in_array('sqlite', \PDO::getAvailableDrivers())) {
-                $error .= '<br />You need to install the PHP extension <code>pdo_sqlite</code> so DebugKit can work properly.';
-            }
-        }
-    }
-
-    return compact('connected', 'error');
-};
-
-if (!Configure::read('debug')) :
-    throw new NotFoundException(
-        'Please replace templates/Pages/home.php with your own version or re-enable debug mode.'
-    );
-endif;
-
+$this->assign('title', 'ダッシュボード');
+$pastDateUnavailableMessage = (string)Configure::read(
+    'App.messages.pastDateUnavailable',
+    '過去日の内容はこの画面では表示できません。修正が必要な場合は管理者にお問い合わせください。'
+);
+$user = $this->request->getAttribute('identity');
+$isLoggedIn = (bool)$user;
+$isAdmin = ($user && (int)$user->get('i_admin') === 1);
+$todayLabel = $dashboard['todayLabel'] ?? '';
+$todayParam = $dashboard['todayParam'] ?? '';
+$thisWeekMonday = $dashboard['thisWeekMonday'] ?? null;
+$nextWeekMonday = $dashboard['nextWeekMonday'] ?? null;
+$nextNextWeekMonday = $dashboard['nextNextWeekMonday'] ?? null;
+$firstNormalWeekMonday = $dashboard['firstNormalWeekMonday'] ?? null;
+$secondNormalWeekMonday = $dashboard['secondNormalWeekMonday'] ?? null;
+$thirdNormalWeekMonday = $dashboard['thirdNormalWeekMonday'] ?? null;
+$fmtWeekRange = $dashboard['fmtWeekRange'] ?? null;
 ?>
-<!DOCTYPE html>
-<html>
-<head>
-    <?= $this->Html->charset() ?>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>
-        CakePHP: the rapid development PHP framework:
-        <?= $this->fetch('title') ?>
-    </title>
-    <?= $this->Html->meta('icon') ?>
 
-    <?= $this->Html->css(['normalize.min', 'milligram.min', 'fonts', 'cake', 'home']) ?>
+<?= $this->Html->css('pages/home.pc.css') ?>
+<?= $this->Html->css('pages/home.mobile.css') ?>
 
-    <?= $this->fetch('meta') ?>
-    <?= $this->fetch('css') ?>
-    <?= $this->fetch('script') ?>
-</head>
-<body>
-<header>
-    <div class="container text-center">
-        <a href="https://cakephp.org/" target="_blank" rel="noopener">
-            <img alt="CakePHP" src="https://cakephp.org/v2/img/logos/CakePHP_Logo.svg" width="350" />
-        </a>
-        <h1>
-            Welcome to CakePHP <?= h(Configure::version()) ?> Chiffon (🍰)
-        </h1>
+<?php if (!$isLoggedIn): ?>
+    <div class="p-4">
+        <div class="alert alert-warning">利用するにはログインが必要です。</div>
+        <a class="btn btn-primary" href="<?= $this->Url->build('/MUserInfo/login') ?>">ログイン</a>
     </div>
-</header>
-<main class="main">
-    <div class="container">
-        <div class="content">
-            <div class="row">
-                <div class="column">
-                    <div class="message default text-center">
-                        <small>Please be aware that this page will not be shown if you turn off debug mode unless you replace templates/Pages/home.php with your own version.</small>
-                    </div>
-                    <div id="url-rewriting-warning" style="padding: 1rem; background: #fcebea; color: #cc1f1a; border-color: #ef5753;">
-                        <ul>
-                            <li class="bullet problem">
-                                URL rewriting is not properly configured on your server.<br />
-                                1) <a target="_blank" rel="noopener" href="https://book.cakephp.org/5/en/installation.html#url-rewriting">Help me configure it</a><br />
-                                2) <a target="_blank" rel="noopener" href="https://book.cakephp.org/5/en/development/configuration.html#general-configuration">I don't / can't use URL rewriting</a>
-                            </li>
-                        </ul>
-                    </div>
-                    <?php Debugger::checkSecurityKeys(); ?>
+<?php else: ?>
+    <div class="dash-shell mobile-sidebar-collapsed">
+        <?= $this->element('Pages/home_sidebar', [
+            'user' => $user,
+            'isAdmin' => $isAdmin,
+            'activeKey' => 'dashboard'
+        ]) ?>
+
+        <main class="dash-main">
+            <div class="dash-header">
+                <div class="dash-title">ダッシュボード</div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="mobile-menu-btn" id="mobile-menu-btn" type="button">メニュー</button>
+                    <div class="date-pill"><?= h($todayLabel) ?></div>
+                    <div class="bell">🔔</div>
                 </div>
             </div>
-            <div class="row">
-                <div class="column">
-                    <h4>Environment</h4>
-                    <ul>
-                        <?php if (version_compare(PHP_VERSION, '8.1.0', '>=')) : ?>
-                            <li class="bullet success">Your version of PHP is 8.1.0 or higher (detected <?= PHP_VERSION ?>).</li>
-                        <?php else : ?>
-                            <li class="bullet problem">Your version of PHP is too low. You need PHP 8.1.0 or higher to use CakePHP (detected <?= PHP_VERSION ?>).</li>
-                        <?php endif; ?>
 
-                        <?php if (extension_loaded('mbstring')) : ?>
-                            <li class="bullet success">Your version of PHP has the mbstring extension loaded.</li>
-                        <?php else : ?>
-                            <li class="bullet problem">Your version of PHP does NOT have the mbstring extension loaded.</li>
-                        <?php endif; ?>
-
-                        <?php if (extension_loaded('openssl')) : ?>
-                            <li class="bullet success">Your version of PHP has the openssl extension loaded.</li>
-                        <?php elseif (extension_loaded('mcrypt')) : ?>
-                            <li class="bullet success">Your version of PHP has the mcrypt extension loaded.</li>
-                        <?php else : ?>
-                            <li class="bullet problem">Your version of PHP does NOT have the openssl or mcrypt extension loaded.</li>
-                        <?php endif; ?>
-
-                        <?php if (extension_loaded('intl')) : ?>
-                            <li class="bullet success">Your version of PHP has the intl extension loaded.</li>
-                        <?php else : ?>
-                            <li class="bullet problem">Your version of PHP does NOT have the intl extension loaded.</li>
-                        <?php endif; ?>
-                    </ul>
-                </div>
-                <div class="column">
-                    <h4>Filesystem</h4>
-                    <ul>
-                        <?php if (is_writable(TMP)) : ?>
-                            <li class="bullet success">Your tmp directory is writable.</li>
-                        <?php else : ?>
-                            <li class="bullet problem">Your tmp directory is NOT writable.</li>
-                        <?php endif; ?>
-
-                        <?php if (is_writable(LOGS)) : ?>
-                            <li class="bullet success">Your logs directory is writable.</li>
-                        <?php else : ?>
-                            <li class="bullet problem">Your logs directory is NOT writable.</li>
-                        <?php endif; ?>
-
-                        <?php $settings = Cache::getConfig('_cake_core_'); ?>
-                        <?php if (!empty($settings)) : ?>
-                            <li class="bullet success">The <em><?= h($settings['className']) ?></em> is being used for core caching. To change the config edit config/app.php</li>
-                        <?php else : ?>
-                            <li class="bullet problem">Your cache is NOT working. Please check the settings in config/app.php</li>
-                        <?php endif; ?>
-                    </ul>
-                </div>
-            </div>
-            <hr>
-            <div class="row">
-                <div class="column">
-                    <h4>Database</h4>
-                    <?php
-                    $result = $checkConnection('default');
-                    ?>
-                    <ul>
-                        <?php if ($result['connected']) : ?>
-                            <li class="bullet success">CakePHP is able to connect to the database.</li>
-                        <?php else : ?>
-                            <li class="bullet problem">CakePHP is NOT able to connect to the database.<br /><?= h($result['error']) ?></li>
-                        <?php endif; ?>
-                    </ul>
-                </div>
-                <div class="column">
-                    <h4>DebugKit</h4>
-                    <ul>
-                        <?php if (Plugin::isLoaded('DebugKit')) : ?>
-                            <li class="bullet success">DebugKit is loaded.</li>
-                            <?php
-                            $result = $checkConnection('debug_kit');
-                            ?>
-                            <?php if ($result['connected']) : ?>
-                                <li class="bullet success">DebugKit can connect to the database.</li>
-                            <?php else : ?>
-                                <li class="bullet problem">There are configuration problems present which need to be fixed:<br /><?= $result['error'] ?></li>
+            <div class="alert-card" style="margin-top:12px;">
+                <div class="alert-left">
+                    <div class="alert-icon">👤</div>
+                    <div>
+                        <div class="alert-title">プロフィール</div>
+                        <div class="alert-sub">
+                            <?= h($user->get('c_user_name') ?? '') ?>
+                            <?php if (!empty($user->get('i_id_staff'))): ?>
+                                ／ 職員ID: <?= h($user->get('i_id_staff')) ?>
                             <?php endif; ?>
-                        <?php else : ?>
-                            <li class="bullet problem">DebugKit is <strong>not</strong> loaded.</li>
-                        <?php endif; ?>
-                    </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert-actions">
+                    <a class="btn-soft" href="<?= $this->Url->build('/MUserInfo/view/' . (int)$user->get('i_id_user')) ?>">詳細を見る</a>
                 </div>
             </div>
-            <hr>
-            <div class="row">
-                <div class="column links">
-                    <h3>Getting Started</h3>
-                    <a target="_blank" rel="noopener" href="https://book.cakephp.org/5/en/">CakePHP Documentation</a>
-                    <a target="_blank" rel="noopener" href="https://book.cakephp.org/5/en/tutorials-and-examples/cms/installation.html">The 20 min CMS Tutorial</a>
+
+            <?php if (empty($hasTodayReport)): ?>
+                <div class="alert-card" id="daily-report-card">
+                    <div class="alert-left">
+                        <div class="alert-icon">i</div>
+                        <div>
+                            <div class="alert-title">本日の食数報告が未完了です</div>
+                            <div class="alert-sub"><?= h($user->get('c_user_name') ?? '') ?>さんの本日の食事利用について回答してください。</div>
+                        </div>
+                    </div>
+                    <div class="alert-actions">
+                        <button class="btn-soft" id="daily-report-noeat" type="button"
+                                data-url="<?= h($this->Url->build('/TReservationInfo/reportNoMeal')) ?>">
+                            食べない
+                        </button>
+                        <a class="btn-teal" id="daily-report-eat" data-date="<?= h($todayParam) ?>"
+                           href="<?= $this->Url->build('/TReservationInfo?date=' . $todayParam) ?>">食べる</a>
+                    </div>
                 </div>
+            <?php endif; ?>
+
+            <div class="section-title">各種メニュー</div>
+            <div class="card-grid">
+                <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/view/' . $todayParam) ?>">
+                    <div class="menu-icon" style="background:#eef2ff;color:#5b5fe0;">📄</div>
+                    <div class="menu-title-text">食数状況確認</div>
+                    <div class="menu-desc">当日のフロア別利用状況を確認する</div>
+                </a>
+                <button class="menu-card border-0" type="button" data-bs-toggle="modal" data-bs-target="#reservationChoiceModal">
+                    <div class="menu-icon" style="background:#e9f7ef;color:#30a46c;">📅</div>
+                    <div class="menu-title-text">食数予約</div>
+                    <div class="menu-desc">将来の食事予定を一括登録する</div>
+                </button>
             </div>
-            <hr>
-            <div class="row">
-                <div class="column links">
-                    <h3>Help and Bug Reports</h3>
-                    <a target="_blank" rel="noopener" href="https://slack-invite.cakephp.org/">Slack</a>
-                    <a target="_blank" rel="noopener" href="https://github.com/cakephp/cakephp/issues">CakePHP Issues</a>
-                    <a target="_blank" rel="noopener" href="https://discourse.cakephp.org/">CakePHP Forum</a>
+
+            <?php if ($isAdmin): ?>
+                <div class="section-title">管理者機能</div>
+                <div class="card-grid">
+                    <a class="menu-card" href="<?= $this->Url->build('/MUserInfo') ?>">
+                        <div class="menu-icon" style="background:#fff4e5;color:#d08c3d;">👥</div>
+                        <div class="menu-title-text">ユーザ一覧</div>
+                        <div class="menu-desc">職員・利用者の管理</div>
+                    </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/MMealPriceInfo') ?>">
+                        <div class="menu-icon" style="background:#e8f7ff;color:#2b7bb9;">💰</div>
+                        <div class="menu-title-text">食数単価一覧</div>
+                        <div class="menu-desc">単価マスタの確認</div>
+                    </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/MMealPriceInfo/GetMealSummary') ?>">
+                        <div class="menu-icon" style="background:#f1f5f9;color:#475569;">⬇️</div>
+                        <div class="menu-title-text">食事控除表ダウンロード</div>
+                        <div class="menu-desc">集計帳票の出力</div>
+                    </a>
                 </div>
-            </div>
-            <hr>
-            <div class="row">
-                <div class="column links">
-                    <h3>Docs and Downloads</h3>
-                    <a target="_blank" rel="noopener" href="https://api.cakephp.org/">CakePHP API</a>
-                    <a target="_blank" rel="noopener" href="https://bakery.cakephp.org">The Bakery</a>
-                    <a target="_blank" rel="noopener" href="https://book.cakephp.org/5/en/">CakePHP Documentation</a>
-                    <a target="_blank" rel="noopener" href="https://plugins.cakephp.org">CakePHP plugins repo</a>
-                    <a target="_blank" rel="noopener" href="https://github.com/cakephp/">CakePHP Code</a>
-                    <a target="_blank" rel="noopener" href="https://github.com/FriendsOfCake/awesome-cakephp">CakePHP Awesome List</a>
-                    <a target="_blank" rel="noopener" href="https://www.cakephp.org">CakePHP</a>
+            <?php endif; ?>
+        </main>
+    </div>
+    <div class="mobile-overlay" id="mobile-overlay"></div>
+
+    <!-- 予約方法選択モーダル -->
+    <div class="modal fade" id="reservationChoiceModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title fw-bold">食数予約の方法を選択</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-            </div>
-            <hr>
-            <div class="row">
-                <div class="column links">
-                    <h3>Training and Certification</h3>
-                    <a target="_blank" rel="noopener" href="https://cakefoundation.org/">Cake Software Foundation</a>
-                    <a target="_blank" rel="noopener" href="https://training.cakephp.org/">CakePHP Training</a>
+                <div class="modal-body pt-0">
+                    <div class="text-muted small mb-3">
+                        目的に合わせて選んでください。<strong>通常予約</strong>は15日以上先、<strong>直前編集</strong>は今週以降の変更に使います。
+                    </div>
+                    <div class="alert alert-warning py-2 px-3 small mb-3" role="alert">
+                        <?= h($pastDateUnavailableMessage) ?>
+                    </div>
+                    <div class="d-grid gap-3">
+                        <a class="btn btn-primary btn-lg" href="<?= $this->Url->build('/TReservationInfo/bulk-add-form?date=' . $firstNormalWeekMonday->format('Y-m-d')) ?>">
+                            通常予約（新規）
+                        </a>
+                        <a class="btn btn-outline-primary btn-lg" href="<?= $this->Url->build('/TReservationInfo/bulk-change-edit-form?date=' . $thisWeekMonday->format('Y-m-d')) ?>">
+                            直前編集（変更）
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</main>
-</body>
-</html>
+
+    <?= $this->Html->script('pages/home.js') ?>
+<?php endif; ?>

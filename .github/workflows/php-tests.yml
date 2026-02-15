@@ -1,0 +1,99 @@
+name: PHP Quality Checks
+
+on:
+  push:
+    paths:
+      - 'src_web/kamaho-shokusu/**'
+      - '.github/workflows/php-tests.yml'
+  pull_request:
+    paths:
+      - 'src_web/kamaho-shokusu/**'
+      - '.github/workflows/php-tests.yml'
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src_web/kamaho-shokusu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_sqlite
+          coverage: none
+
+      - name: Validate composer files
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Coding standards
+        run: composer cs-check
+
+      - name: Run test suite
+        run: composer test
+
+  deprecations:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src_web/kamaho-shokusu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_sqlite
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run tests and collect deprecations
+        run: |
+          set -o pipefail
+          composer test-deprecations-strict 2>&1 | tee phpunit.log
+          count=$(grep -Ei 'deprecated:' phpunit.log | grep -E '/src_web/kamaho-shokusu/src/' | wc -l | tr -d ' ' || true)
+          echo "deprecation_count=${count}" >> "$GITHUB_ENV"
+          grep -Eio '/[^ ]*src_web/kamaho-shokusu/src/[^ ]+\.php' phpunit.log | sort | uniq -c | sort -rn | head -n 10 > deprecation-top-files.txt || true
+
+      - name: Add deprecation summary
+        run: |
+          {
+            echo "### Deprecation Report"
+            echo ""
+            echo "- `deprecated` occurrences: ${deprecation_count}"
+            echo ""
+            echo "Top files:"
+            echo '```text'
+            cat deprecation-top-files.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce deprecation budget
+        env:
+          DEPRECATION_BUDGET: "0"
+        run: |
+          if [ "${deprecation_count}" -gt "${DEPRECATION_BUDGET}" ]; then
+            echo "Deprecation budget exceeded: ${deprecation_count} > ${DEPRECATION_BUDGET}"
+            exit 1
+          fi
+
+      - name: Upload deprecation log
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpunit-deprecations-log
+          path: |
+            src_web/kamaho-shokusu/phpunit.log
+            src_web/kamaho-shokusu/deprecation-top-files.txt

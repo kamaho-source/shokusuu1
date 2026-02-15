@@ -9,6 +9,11 @@ use Authentication\AuthenticationServiceProviderInterface;
 use Authentication\Identifier\AbstractIdentifier;
 use Authentication\Middleware\AuthenticationMiddleware;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
+use Authorization\AuthorizationService;
+use Authorization\AuthorizationServiceInterface;
+use Authorization\AuthorizationServiceProviderInterface;
+use Authorization\Middleware\AuthorizationMiddleware;
+use Authorization\Policy\OrmResolver;
 use Cake\Routing\Router;
 use Psr\Http\Message\ServerRequestInterface;
 use Cake\Core\Configure;
@@ -23,7 +28,7 @@ use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 
-class Application extends BaseApplication implements AuthenticationServiceProviderInterface
+class Application extends BaseApplication implements AuthenticationServiceProviderInterface, AuthorizationServiceProviderInterface
 {
     public function bootstrap(): void
     {
@@ -54,6 +59,9 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
         // AuthenticationMiddleware はオプションなしで登録
         $middlewareQueue->add(new AuthenticationMiddleware($this));
+        $middlewareQueue->add(new AuthorizationMiddleware($this, [
+            'requireAuthorizationCheck' => true,
+        ]));
 
         return $middlewareQueue;
     }
@@ -71,7 +79,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             'resolver' => [
                 'className' => 'Authentication.Orm',
                 'userModel' => 'MUserInfo',
-                'fields'    => ['i_id_user', 'c_login_account', 'i_admin'],
+                'fields'    => ['i_id_user', 'c_login_account', 'i_admin', 'i_user_level'],
             ],
             'fields' => [
                 'username' => 'c_login_account',
@@ -98,6 +106,13 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
     public function services(ContainerInterface $container): void
     {
         // 必要に応じて DI サービスを登録
+    }
+
+    public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
+    {
+        $resolver = new OrmResolver();
+
+        return new AuthorizationService($resolver);
     }
 
     protected function bootstrapCli(): void

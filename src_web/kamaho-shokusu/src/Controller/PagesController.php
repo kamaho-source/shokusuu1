@@ -16,7 +16,9 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Service\DashboardService;
 use Cake\Core\Configure;
+use Cake\Event\EventInterface;
 use Cake\Http\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
@@ -31,6 +33,12 @@ use Cake\View\Exception\MissingTemplateException;
  */
 class PagesController extends AppController
 {
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+        $this->Authentication->allowUnauthenticated(['display']);
+    }
+
     /**
      * Displays a view
      *
@@ -45,6 +53,8 @@ class PagesController extends AppController
      */
     public function display(string ...$path): ?Response
     {
+        $this->Authorization->skipAuthorization();
+
         if (!$path) {
             return $this->redirect('/');
         }
@@ -59,7 +69,23 @@ class PagesController extends AppController
         if (!empty($path[1])) {
             $subpage = $path[1];
         }
-        $this->set(compact('page', 'subpage'));
+        $hasTodayReport = false;
+        $dashboard = [];
+        if ($page === 'home') {
+            $user = $this->Authentication->getIdentity();
+            if ($user) {
+                $userId = (int)$user->get('i_id_user');
+                $dashboardService = new DashboardService();
+                $hasTodayReport = $dashboardService->hasTodayReport(
+                    $userId,
+                    $this->fetchTable('TIndividualReservationInfo')
+                );
+                $dashboard = $dashboardService->buildHomeContext($user);
+            } else {
+                $dashboard = (new DashboardService())->buildHomeContext(null);
+            }
+        }
+        $this->set(compact('page', 'subpage', 'hasTodayReport', 'dashboard'));
 
         try {
             return $this->render(implode('/', $path));

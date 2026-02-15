@@ -33,8 +33,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 return response.json();
             })
             .then(data => {
-                if (data.usersByRoom && data.usersByRoom.length > 0) {
-                    renderUserCheckboxes(data.usersByRoom);
+                const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
+                const users = payload?.usersByRoom;
+                if (Array.isArray(users) && users.length > 0) {
+                    renderUserCheckboxes(users);
                 } else {
                     userTableBody.innerHTML = '<tr><td colspan="4">該当する利用者がいません。</td></tr>';
                 }

@@ -4,8 +4,9 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use Cake\Datasource\EntityInterface;
-use Cake\I18n\FrozenDate;
-use Cake\I18n\FrozenTime;
+use Cake\I18n\Date;
+use Cake\I18n\DateTime;
+use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -38,7 +39,8 @@ class TIndividualReservationInfoTable extends Table
         // フラグ
         $validator
             ->integer('eat_flag')->allowEmptyString('eat_flag')
-            ->integer('i_change_flag')->allowEmptyString('i_change_flag');
+            ->integer('i_change_flag')->allowEmptyString('i_change_flag')
+            ->integer('i_version')->greaterThanOrEqual('i_version', 1)->allowEmptyString('i_version');
 
         // 監査
         $validator
@@ -59,10 +61,10 @@ class TIndividualReservationInfoTable extends Table
                 return true;
             }
             $date = $entity->d_reservation_date instanceof \DateTimeInterface
-                ? FrozenDate::parseDate($entity->d_reservation_date->format('Y-m-d'), 'yyyy-MM-dd')
-                : new FrozenDate((string)$entity->d_reservation_date);
+                ? Date::parseDate($entity->d_reservation_date->format('Y-m-d'), 'yyyy-MM-dd')
+                : new Date((string)$entity->d_reservation_date);
 
-            $today = FrozenDate::today();
+            $today = Date::today();
             $isLastMinute = ($date >= $today && $date <= $today->addDays(14));
 
             $effective = static function ($row) use ($isLastMinute): int {
@@ -137,8 +139,8 @@ class TIndividualReservationInfoTable extends Table
             throw new \InvalidArgumentException('meal は 1(朝)/2(昼)/3(夜)/4(弁) のみ');
         }
 
-        $today = FrozenDate::today();
-        $d     = new FrozenDate($date);
+        $today = Date::today();
+        $d     = new Date($date);
         $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
 
         // コントローラから明示があればそれを、無ければ規定ロジックで
@@ -149,7 +151,7 @@ class TIndividualReservationInfoTable extends Table
             $changeFlag = $changeFlag ?? $chg;
         }
 
-        $now = FrozenTime::now();
+        $now = DateTime::now();
 
         return $this->getConnection()->transactional(function () use (
             $userId, $roomId, $date, $meal, $on, $actor, $now, $isLastMinute, $eatFlag, $changeFlag
@@ -160,7 +162,7 @@ class TIndividualReservationInfoTable extends Table
                 ->enableAutoFields(false)
                 ->select([
                     'i_id_user','d_reservation_date','i_id_room','i_reservation_type',
-                    'eat_flag','i_change_flag','dt_create','c_create_user','dt_update','c_update_user'
+                    'eat_flag','i_change_flag','i_version','dt_create','c_create_user','dt_update','c_update_user'
                 ])
                 ->where([
                     'i_id_user'          => $userId,
@@ -180,6 +182,7 @@ class TIndividualReservationInfoTable extends Table
                 // 新規: 作成情報のみ設定（更新情報は設定しない）
                 $entity->dt_create     = $now;
                 $entity->c_create_user = $actor;
+                $entity->i_version     = 1;
                 $isNew = true;
             }
 
@@ -195,15 +198,30 @@ class TIndividualReservationInfoTable extends Table
             // 監査: 新規か更新かで分岐
             if ($isNew) {
                 // 既に上で dt_create/c_create_user を設定済み。dt_update は触らない（NULLのまま）
+                $this->saveOrFail($entity);
             } else {
                 // 既存行: 更新情報のみ
-                $entity->dt_update     = $now;
-                $entity->c_update_user = $actor;
-                // dt_create/c_create_user は上書きしない
+                $expectedVersion = (int)($entity->i_version ?? 1);
+                $nextVersion = $expectedVersion + 1;
+                $affected = $this->updateAll([
+                    'eat_flag'      => (int)$entity->eat_flag,
+                    'i_change_flag' => (int)$entity->i_change_flag,
+                    'dt_update'     => $now,
+                    'c_update_user' => $actor,
+                    'i_version'     => $nextVersion,
+                ], [
+                    'i_id_user'          => $userId,
+                    'd_reservation_date' => $date,
+                    'i_id_room'          => $roomId,
+                    'i_reservation_type' => $meal,
+                    'i_version'          => $expectedVersion,
+                ]);
+                if ($affected !== 1) {
+                    $entity->setError('conflict', '予約が更新されています。画面を再読み込みしてください。');
+                    throw new PersistenceFailedException($entity, 'Optimistic lock conflict.');
+                }
+                $entity->i_version = $nextVersion;
             }
-
-            // 保存（排他ルールチェックあり）
-            $this->saveOrFail($entity);
 
             // 昼/弁の相互排他：ON にしたら相手は OFF
             if ($on && in_array($meal, [2, 4], true)) {
@@ -213,7 +231,7 @@ class TIndividualReservationInfoTable extends Table
                     ->enableAutoFields(false)
                     ->select([
                         'i_id_user','d_reservation_date','i_id_room','i_reservation_type',
-                        'eat_flag','i_change_flag','dt_create','c_create_user','dt_update','c_update_user'
+                        'eat_flag','i_change_flag','i_version','dt_create','c_create_user','dt_update','c_update_user'
                     ])
                     ->where([
                         'i_id_user'          => $userId,
@@ -233,6 +251,7 @@ class TIndividualReservationInfoTable extends Table
                     // 新規: 作成情報のみ
                     $opponent->dt_create     = $now;
                     $opponent->c_create_user = $actor;
+                    $opponent->i_version     = 1;
                     $oppIsNew = true;
                 }
 
@@ -247,12 +266,29 @@ class TIndividualReservationInfoTable extends Table
                 // 監査: 新規か更新かで分岐
                 if ($oppIsNew) {
                     // dt_update は触らない
+                    $this->saveOrFail($opponent);
                 } else {
-                    $opponent->dt_update     = $now;
-                    $opponent->c_update_user = $actor;
+                    $oppExpectedVersion = (int)($opponent->i_version ?? 1);
+                    $oppNextVersion = $oppExpectedVersion + 1;
+                    $affected = $this->updateAll([
+                        'eat_flag'      => (int)$opponent->eat_flag,
+                        'i_change_flag' => (int)$opponent->i_change_flag,
+                        'dt_update'     => $now,
+                        'c_update_user' => $actor,
+                        'i_version'     => $oppNextVersion,
+                    ], [
+                        'i_id_user'          => $userId,
+                        'd_reservation_date' => $date,
+                        'i_id_room'          => $roomId,
+                        'i_reservation_type' => $opponentMeal,
+                        'i_version'          => $oppExpectedVersion,
+                    ]);
+                    if ($affected !== 1) {
+                        $opponent->setError('conflict', '予約が更新されています。画面を再読み込みしてください。');
+                        throw new PersistenceFailedException($opponent, 'Optimistic lock conflict.');
+                    }
+                    $opponent->i_version = $oppNextVersion;
                 }
-
-                $this->saveOrFail($opponent);
             }
 
             // “有効値”詳細
@@ -277,8 +313,8 @@ class TIndividualReservationInfoTable extends Table
     public function getDayDetailsEffective(int $userId, int $roomId, string $date, ?bool $isLastMinute = null): array
     {
         if ($isLastMinute === null) {
-            $today = FrozenDate::today();
-            $d     = new FrozenDate($date);
+            $today = Date::today();
+            $d     = new Date($date);
             $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
         }
 

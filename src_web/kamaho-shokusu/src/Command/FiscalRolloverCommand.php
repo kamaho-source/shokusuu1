@@ -6,7 +6,7 @@ use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
 use Cake\Datasource\ConnectionManager;
-use Cake\I18n\FrozenTime;
+use Cake\I18n\DateTime;
 
 class FiscalRolloverCommand extends Command
 {
@@ -57,8 +57,8 @@ class FiscalRolloverCommand extends Command
         // 基準日（JST）
         $dateOpt = $args->getOption('date');
         $today   = $dateOpt
-            ? new FrozenTime($dateOpt . ' 00:00:00', 'Asia/Tokyo')
-            : FrozenTime::now('Asia/Tokyo');
+            ? new DateTime($dateOpt . ' 00:00:00', 'Asia/Tokyo')
+            : DateTime::now('Asia/Tokyo');
 
         // 4/1判定（forceが無ければ当日4/1のみ実行）
         if (!$force) {

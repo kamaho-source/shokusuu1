@@ -18,6 +18,12 @@ class MMenuInfoController extends AppController
         $this->viewBuilder()->setLayout('default');
     }
 
+    public function beforeFilter(EventInterface $event)
+    {
+        parent::beforeFilter($event);
+        $this->Authorization->skipAuthorization();
+    }
+
     public function index()
     {
 

@@ -30,6 +30,8 @@ class TIndividualReservationInfoFixture extends TestFixture
                 'i_reservation_type' => 1,
                 'i_id_room' => 1,
                 'eat_flag' => 1,
+                'i_change_flag' => 1,
+                'i_version' => 1,
                 'dt_create' => '2024-09-07 16:00:30',
                 'c_create_user' => 'Lorem ipsum dolor sit amet',
                 'dt_update' => '2024-09-07 16:00:30',

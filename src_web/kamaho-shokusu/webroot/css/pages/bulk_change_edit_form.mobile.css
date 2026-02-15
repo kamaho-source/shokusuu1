@@ -1,0 +1,12 @@
+@media (max-width: 576px) {
+    .excel-header { flex-direction: column; align-items: stretch; }
+    .excel-header > div { width: 100%; }
+    .excel-header input[type="search"] { max-width: 100% !important; }
+    #copy-day-btn { width: 100%; }
+    .header-actions { width: 100%; }
+    .room-select-wrap { width: 100%; min-width: 0; }
+    .room-select { width: 100%; max-width: 100%; }
+    #save-btn { width: 100%; }
+    .dirty-badge { align-self: flex-start; }
+    .help-link { align-self: flex-start; }
+}

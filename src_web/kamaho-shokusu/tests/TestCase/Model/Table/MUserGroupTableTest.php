@@ -59,6 +59,19 @@ class MUserGroupTableTest extends TestCase
      */
     public function testValidationDefault(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $valid = $this->MUserGroup->newEntity([
+            'i_id_user' => 2,
+            'i_id_room' => 1,
+            'active_flag' => 0,
+            'dt_create' => '2024-07-01 10:00:00',
+            'c_create_user' => 'テストユーザー',
+        ]);
+        $this->assertEmpty($valid->getErrors());
+
+        $invalid = $this->MUserGroup->newEntity([
+            'i_id_room' => 1,
+            'active_flag' => 0,
+        ]);
+        $this->assertArrayHasKey('i_id_user', $invalid->getErrors());
     }
 }

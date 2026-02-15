@@ -3,8 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\ApiResponseService;
+use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
+use Cake\Http\Exception\GoneException;
 use Cake\Log\Log;
 
 class MUserInfoController extends AppController
@@ -29,11 +32,19 @@ class MUserInfoController extends AppController
     {
         parent::beforeFilter($event);
         // 必要に応じて importForm / importJson を追加してください
-        $this->Authentication->addUnauthenticatedActions(['login', 'add']);
+        $this->Authentication->addUnauthenticatedActions(['login']);
     }
 
     public function importForm()
     {
+        $resource = $this->MUserInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($resource, 'importForm');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
         $this->viewBuilder()->setLayout('default');
         $this->viewBuilder()->setOption('serialize', true);
         $this->set('title','ユーザー一括登録');
@@ -42,16 +53,7 @@ class MUserInfoController extends AppController
     public function import()
     {
         $this->request->allowMethod(['post']);
-
-        $file = $this->request->getData('file');
-        if(!$file || $file->getError() !== UPLOAD_ERR_OK){
-            throw new BadRequestException('ファイルの受け取りに失敗しました。');
-        }
-        $ext = strtolower(pathinfo($file->getClientFilename(), PATHINFO_EXTENSION));
-        if (!in_array($ext,['csv','xlsx','xls'],true)) {
-            throw new BadRequestException('対応拡張子はxlsx/xls/csvのみです。');
-        }
-        $tmpFile = tempnam(sys_get_temp_dir(), 'import_');
+        throw new GoneException('このエンドポイントは廃止されました。importJson を利用してください。');
     }
 
     /**
@@ -68,6 +70,8 @@ class MUserInfoController extends AppController
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
+        $resource = $this->MUserInfo->newEmptyEntity();
+        $this->Authorization->authorize($resource, 'importJson');
 
         // JSON 取得
         $payload = $this->request->getData();
@@ -94,6 +98,8 @@ class MUserInfoController extends AppController
             'failed'    => 0,
             'errors'    => [] // [rowNo => [messages...]]
         ];
+        $identity = $this->request->getAttribute('identity');
+        $createUser = $identity ? $identity->get('c_user_name') : 'インポート';
 
         $conn = $this->MUserInfo->getConnection();
         $conn->begin();
@@ -188,7 +194,7 @@ class MUserInfoController extends AppController
                     'i_enable'        => 0,
                     'i_disp_no'       => $nextDispNo++,
                     'dt_create'       => date('Y-m-d H:i:s'),
-                    'c_create_user'   => $this->request->getAttribute('identity')->get('c_user_name') ?? 'インポート',
+                    'c_create_user'   => $createUser,
                 ];
                 if ($ageVal !== null) {
                     $newData['i_user_age'] = $ageVal;
@@ -231,7 +237,7 @@ class MUserInfoController extends AppController
                                 'i_id_room' => $room->i_id_room,
                                 'active_flag' => 0,
                                 'dt_create' => date('Y-m-d H:i:s'),
-                                'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name') ?? 'インポート',
+                                'c_create_user' => $createUser,
                             ]);
                             $this->MUserGroup->save($userGroup);
                         } else if ($roomName !== '') {
@@ -368,6 +374,14 @@ class MUserInfoController extends AppController
 
     public function index()
     {
+        $resource = $this->MUserInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($resource, 'index');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは閲覧権限がありません。'));
+            return $this->redirect(['action' => 'login']);
+        }
+
         // ログインユーザー情報取得
         $user = $this->request->getAttribute('identity');
         $isAdmin = $user->i_admin === 1;
@@ -405,7 +419,7 @@ class MUserInfoController extends AppController
         $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId', 'showDeleted'));
     }
 
-    public function getUserRooms($userId)
+    private function getUserRooms($userId)
     {
         if ($userId === null) {
             return ['未所属'];
@@ -448,7 +462,7 @@ class MUserInfoController extends AppController
 
     public function add()
     {
-        date_default_timezone_set('Asia/Tokyo');
+        $this->request->allowMethod(['get', 'post']);
 
         // i_disp_noフィールドの最大値取得
         $maxDispNoQuery = $this->MUserInfo->find()
@@ -457,6 +471,12 @@ class MUserInfoController extends AppController
         $maxDispNo = $maxDispNoQuery ? $maxDispNoQuery->max_disp_no + 1 : 1;
 
         $mUserInfo = $this->MUserInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($mUserInfo, 'add');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは追加権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
         $mUserInfo->i_del_flag = 0;
         $mUserInfo->dt_create = date('Y-m-d H:i:s');
         $mUserInfo->i_enable = 0;
@@ -548,11 +568,18 @@ class MUserInfoController extends AppController
 
     public function edit($id = null)
     {
-        date_default_timezone_set('Asia/Tokyo');
+        $this->request->allowMethod(['get', 'post', 'put', 'patch']);
 
         $mUserInfo = $this->MUserInfo->get($id, [
             'contain' => ['MUserGroup']
         ]);
+
+        try {
+            $this->Authorization->authorize($mUserInfo, 'edit');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは編集権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
 
         if ($this->request->is(['patch', 'post', 'put'])) {
             $data = $this->request->getData();
@@ -625,6 +652,7 @@ class MUserInfoController extends AppController
     {
         // POSTメソッドのみを許可
         $this->request->allowMethod(['post']);
+        $apiResponse = new ApiResponseService();
 
         // リクエストデータを取得
         $data = $this->request->getData(); // JSONデータから取得
@@ -633,48 +661,48 @@ class MUserInfoController extends AppController
 
         // 必須データがない場合、BadRequestを返す
         if (is_null($userId) || is_null($isAdmin)) {
-            return $this->response->withType('application/json')
-                ->withStatus(400)
-                ->withStringBody(json_encode(['success' => false, 'message' => 'ユーザーIDまたは管理者権限が指定されていません。']));
+            return $apiResponse->error($this->response, 'ユーザーIDまたは管理者権限が指定されていません。', 400);
         }
 
         // ユーザーデータを取得し更新処理を実行
         $this->fetchTable('MUserInfo');
-        $user = $this->MUserInfo->get($userId); // 対象ユーザーを取得
+        $user = $this->MUserInfo->find()
+            ->where(['i_id_user' => (int)$userId])
+            ->first();
 
         if (!$user) {
-            return $this->response->withType('application/json')
-                ->withStringBody(json_encode(['success' => false, 'message' => '対象ユーザーが見つかりません。']));
+            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
+        }
+
+        try {
+            $this->Authorization->authorize($user, 'updateAdminStatus');
+        } catch (ForbiddenException $e) {
+            return $apiResponse->error($this->response, 'この操作は管理者のみ実行できます。', 403);
         }
 
         // 権限を更新
         $user->i_admin = (int)$isAdmin;
         $user->dt_update = date('Y-m-d H:i:s');
-        $user->c_update_user = $this->request->getAttribute('identity')->get('c_user_name') ?? '不明なユーザー';
+        $identity = $this->request->getAttribute('identity');
+        $user->c_update_user = $identity ? $identity->get('c_user_name') : '不明なユーザー';
         if ($this->MUserInfo->save($user)) {
-            return $this->response->withType('application/json')
-                ->withStringBody(json_encode(['success' => true, 'message' => '管理者権限が正常に更新されました。']));
+            return $apiResponse->success($this->response, [], '管理者権限が正常に更新されました。');
         } else {
-            return $this->response->withType('application/json')
-                ->withStringBody(json_encode(['success' => false, 'message' => '管理者権限の更新に失敗しました。']));
+            return $apiResponse->error($this->response, '管理者権限の更新に失敗しました。', 500);
         }
     }
 
     public function view($id = null)
     {
-        $user = $this->request->getAttribute('identity');
-        $isAdmin = $user->i_admin === 1;
-        $currentUserId = $user->i_id_user;
-
-        // 管理者か、自分自身でない場合は拒否
-        if (!$isAdmin && (int)$id !== (int)$currentUserId) {
-            $this->Flash->error(__('あなたは閲覧権限がありません。'));
-            return $this->redirect(['action' => 'index']);
-        }
-
         $mUserInfo = $this->MUserInfo->get($id, [
             'contain' => ['MUserGroup' => ['MRoomInfo']]
         ]);
+        try {
+            $this->Authorization->authorize($mUserInfo, 'view');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは閲覧権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
 
         $userRooms = [];
         if (!empty($mUserInfo->m_user_group)) {
@@ -690,9 +718,16 @@ class MUserInfoController extends AppController
 
     public function delete($id = null)
     {
-        date_default_timezone_set('Asia/Tokyo');
         $this->request->allowMethod(['post', 'delete']);
         $mUserInfo = $this->MUserInfo->get($id);
+
+        try {
+            $this->Authorization->authorize($mUserInfo, 'delete');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは削除権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
         $mUserInfo->i_del_flag = 1;
         $mUserInfo->i_enable = 1; // i_enableを1(無効)に設定
         $mUserInfo->dt_update = date('Y-m-d H:i:s');
@@ -720,6 +755,15 @@ class MUserInfoController extends AppController
 
     public function addRoomToUser($userId)
     {
+        $this->request->allowMethod(['post']);
+        $targetUser = $this->MUserInfo->get($userId);
+        try {
+            $this->Authorization->authorize($targetUser, 'addRoomToUser');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは部屋追加権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
         $user = $this->request->getAttribute('identity');
         $createUser = $user ? $user->get('c_user_name') : '不明なユーザー';
 
@@ -736,6 +780,15 @@ class MUserInfoController extends AppController
 
     public function removeRoomFromUser($userId, $roomId)
     {
+        $this->request->allowMethod(['post', 'delete']);
+        $targetUser = $this->MUserInfo->get($userId);
+        try {
+            $this->Authorization->authorize($targetUser, 'removeRoomFromUser');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは部屋削除権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
         if ($this->MUserInfo->deleteUserRoom($userId, $roomId)) {
             $this->Flash->success(__('部屋の関連が削除されました。'));
         } else {
@@ -747,6 +800,7 @@ class MUserInfoController extends AppController
 
     public function login()
     {
+        $this->Authorization->skipAuthorization();
         $this->request->allowMethod(['get', 'post']);
         $result = $this->Authentication->getResult();
 
@@ -763,22 +817,24 @@ class MUserInfoController extends AppController
             }
 
             // 削除されていない場合は通常のリダイレクト処理
-            $redirect = $this->request->getQuery('redirect', [
-                'controller' => 'TReservationInfo',
-                'action' => 'index',
-            ]);
+            if ((int)$user->i_admin === 1) {
+                $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
+            } elseif ((int)$user->i_user_level === 1) {
+                // 子供(児童)は予約画面へ
+                $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
+            } else {
+                $defaultRedirect = ['controller' => 'Pages', 'action' => 'display', 'home'];
+            }
+            $redirect = $this->request->getQuery('redirect', $defaultRedirect);
             return $this->redirect($redirect);
         }
 
         if ($this->request->is('post') && !$result->isValid()) {
             // デバッグのため値を取得
             $status = $result ? $result->getStatus() : 'Result is null';
-            $data = $result ? (array)$result->getData() : ['Result is null'];
 
             // デバッグログに文字列変換して出力
             $this->log(print_r($status, true), 'debug');
-            $this->log(print_r($data, true), 'debug');
-            $this->log(print_r($this->request->getData(), true), 'debug');
 
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
         }
@@ -786,6 +842,7 @@ class MUserInfoController extends AppController
 
     public function logout()
     {
+        $this->Authorization->skipAuthorization();
         $result = $this->Authentication->getResult();
         if ($result->isValid()) {
             $this->Authentication->logout();
@@ -796,6 +853,15 @@ class MUserInfoController extends AppController
 
     public function adminChangePassword()
     {
+        $this->request->allowMethod(['get', 'post', 'put']);
+        $resource = $this->MUserInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($resource, 'adminChangePassword');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+            return $this->redirect(['action' => 'index']);
+        }
+
         // すべてのユーザーを取得（リスト表示用）
         $users = $this->fetchTable('MUserInfo')->find('list', [
             'keyField' => 'i_id_user',
@@ -806,7 +872,6 @@ class MUserInfoController extends AppController
 
         if ($this->request->is(['post', 'put'])) {
             $data = $this->request->getData();
-            $this->log('受信データ: ' . json_encode($data, JSON_UNESCAPED_UNICODE), 'debug');
 
             $userId = $data['user_id'] ?? null;
             $newPassword = $data['new_password'] ?? '';
@@ -830,24 +895,12 @@ class MUserInfoController extends AppController
                 return $this->redirect(['action' => 'adminChangePassword']);
             }
 
-            // **現在のパスワードをログに記録**
-            $this->log('現在のデータベースのパスワード: ' . $selectedUser->c_login_passwd, 'debug');
-
-            // **入力された平文パスワードをログに記録**
-            $this->log('入力された平文のパスワード: ' . $newPassword, 'debug');
-
             // モデルでbeforeSaveハッシュ化する前提の場合は平文をセット
             // もし beforeSave が無い場合は以下の1行を使用してください:
             // $selectedUser->c_login_passwd = (new DefaultPasswordHasher())->hash($newPassword);
             $selectedUser->c_login_passwd = $newPassword;
 
             if ($this->fetchTable('MUserInfo')->save($selectedUser)) {
-                $this->log('パスワード変更完了: ユーザーID ' . $selectedUser->i_id_user, 'debug');
-
-                // **保存後のデータベースのパスワードをログに記録**
-                $savedUser = $this->fetchTable('MUserInfo')->get($userId);
-                $this->log('保存後のデータベースのパスワード: ' . $savedUser->c_login_passwd, 'debug');
-
                 $this->Flash->success(__('パスワードを変更しました。'));
                 return $this->redirect(['action' => 'index']);
             }
@@ -861,6 +914,7 @@ class MUserInfoController extends AppController
 
     public function generalPasswordReset(): ?\Cake\Http\Response
     {
+        $this->request->allowMethod(['get', 'post', 'put', 'patch']);
         $identity = $this->request->getAttribute('identity');
         if (!$identity) {
             $this->Flash->error('ログインしてください。');
@@ -871,6 +925,12 @@ class MUserInfoController extends AppController
 
         $Users = $this->fetchTable('MUserInfo');
         $user  = $Users->get($userId);
+        try {
+            $this->Authorization->authorize($user, 'generalPasswordReset');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error('この操作は許可されていません。');
+            return $this->redirect(['action' => 'index']);
+        }
 
         if ($this->request->is(['post', 'put', 'patch'])) {
             $data = (array)$this->request->getData();
@@ -927,16 +987,24 @@ class MUserInfoController extends AppController
             $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok','message']]);
             return;
         }
+        try {
+            $this->Authorization->authorize($user, 'addUserRooms');
+        } catch (ForbiddenException $e) {
+            $this->set(['ok' => false, 'message' => '権限がありません', '_serialize' => ['ok', 'message']]);
+            return;
+        }
         $conn = $this->MUserInfo->getConnection();
         $conn->begin();
         $errors = [];
+        $identity = $this->request->getAttribute('identity');
+        $actor = $identity ? $identity->get('c_user_name') : 'API';
         try {
             // 既存所属（active_flag=0）をactive_flag=1に更新
             $oldGroups = $this->MUserGroup->find()->where(['i_id_user' => $userId, 'active_flag' => 0])->all();
             foreach ($oldGroups as $group) {
                 $group->active_flag = 1;
                 $group->dt_update = date('Y-m-d H:i:s');
-                $group->c_update_user = $this->request->getAttribute('identity')->get('c_user_name') ?? 'API';
+                $group->c_update_user = $actor;
                 $this->MUserGroup->save($group);
             }
             // 新規所属登録
@@ -949,7 +1017,7 @@ class MUserInfoController extends AppController
                         'i_id_room' => $room->i_id_room,
                         'active_flag' => 0,
                         'dt_create' => date('Y-m-d H:i:s'),
-                        'c_create_user' => $this->request->getAttribute('identity')->get('c_user_name') ?? 'API',
+                        'c_create_user' => $actor,
                     ]);
                     if ($this->MUserGroup->save($newGroup)) {
                         $created++;
@@ -974,15 +1042,15 @@ class MUserInfoController extends AppController
     public function restore($id = null)
     {
         $this->request->allowMethod(['post', 'put']);
-        
-        // 管理者チェック
+        $user = $this->MUserInfo->get($id);
         $identity = $this->request->getAttribute('identity');
-        if (!$identity || $identity->get('i_admin') !== 1) {
+
+        try {
+            $this->Authorization->authorize($user, 'restore');
+        } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能は管理者のみ利用できます。'));
             return $this->redirect(['action' => 'index']);
         }
-
-        $user = $this->MUserInfo->get($id);
         
         if ($user->i_del_flag !== 1) {
             $this->Flash->error(__('このユーザーは削除されていません。'));
