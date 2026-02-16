@@ -410,6 +410,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function goToConflictDate(dateStr) {
         if (!dateStr) return;
+        const inWeekBtn = dayButtons.find((b) => b.dataset.date === dateStr && b.dataset.disabled !== '1');
+        if (inWeekBtn) {
+            setActiveDate(dateStr, inWeekBtn.textContent?.trim() || activeLabel);
+            saveUiState();
+            currentPage = 1;
+            const roomId = getRoomId();
+            if (roomId) {
+                fetchUsers(roomId, dateStr);
+            } else {
+                renderTable();
+                applySearchFilter();
+            }
+            showNotice(`対象日 ${dateStr} を表示しました。`, 'info');
+            return;
+        }
         const params = new URLSearchParams(window.location.search);
         params.set('date', dateStr);
         if (window.__BASE_WEEK) {

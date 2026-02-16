@@ -57,11 +57,6 @@ window.__BASE_PATH = window.__TRESP.basePath;
                     }
                 }
 
-                // 大人UIのみでネイティブ alert をトースト化
-                window.alert = function(msg){
-                    pageToast(msg, 'warning');
-                };
-
                 // 参照用に公開
                 window.pageToast = pageToast;
             })();

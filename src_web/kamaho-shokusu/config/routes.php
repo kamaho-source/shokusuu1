@@ -16,8 +16,8 @@ return function (RouteBuilder $routes): void {
         // JSON 拡張を有効化（このスコープ全体）
         $builder->setExtensions(['json']);
 
-        // ホーム
-        $builder->connect('/', ['controller' => 'Pages', 'action' => 'display', 'home']);
+        // ホーム（専用アクション）
+        $builder->connect('/', ['controller' => 'Pages', 'action' => 'dashboard']);
 
         // MRoomInfo
         $builder->connect('/MRoomInfo', ['controller' => 'MRoomInfo', 'action' => 'index']);
