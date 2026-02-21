@@ -70,6 +70,6 @@ class ReservationDatePolicy
 
     private function today(?string $timezone = null): Date
     {
-        return $timezone !== null ? Date::today($timezone) : Date::today();
+        return Date::today($timezone ?? 'Asia/Tokyo');
     }
 }

@@ -11,7 +11,7 @@ class DashboardService
 {
     public function buildHomeContext($user): array
     {
-        $today = new \DateTimeImmutable('now');
+        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
         $dow = ['日', '月', '火', '水', '木', '金', '土'];
         $todayLabel = $today->format('Y年n月j日') . '(' . $dow[(int)$today->format('w')] . ')';
         $todayParam = $today->format('Y-m-d');
@@ -20,7 +20,9 @@ class DashboardService
         $nextWeekMonday = $thisWeekMonday->modify('+7 days');
         $nextNextWeekMonday = $thisWeekMonday->modify('+14 days');
         $minNormalDate = $today->modify('+15 days');
-        $firstNormalWeekMonday = $minNormalDate->modify('monday this week');
+        $firstNormalWeekMonday = (int)$minNormalDate->format('N') === 1
+            ? $minNormalDate
+            : $minNormalDate->modify('next monday');
         $secondNormalWeekMonday = $firstNormalWeekMonday->modify('+7 days');
         $thirdNormalWeekMonday = $firstNormalWeekMonday->modify('+14 days');
 
@@ -45,7 +47,7 @@ class DashboardService
 
     public function hasTodayReport(int $userId, Table $reservationTable): bool
     {
-        $today = Date::today();
+        $today = Date::today('Asia/Tokyo');
         $cacheKey = sprintf('today_report:%d:%s', $userId, $today->format('Y-m-d'));
         $cached = Cache::read($cacheKey, 'default');
         if ($cached !== false) {
