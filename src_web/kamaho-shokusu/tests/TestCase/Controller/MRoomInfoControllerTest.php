@@ -33,7 +33,9 @@ class MRoomInfoControllerTest extends TestCase
      */
     public function testIndex(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->setAuthenticatedSession();
+        $this->get('/m-room-info');
+        $this->assertResponseOk();
     }
 
     /**
@@ -44,7 +46,9 @@ class MRoomInfoControllerTest extends TestCase
      */
     public function testView(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->setAuthenticatedSession();
+        $this->get('/m-room-info/view/1');
+        $this->assertResponseOk();
     }
 
     /**
@@ -55,7 +59,14 @@ class MRoomInfoControllerTest extends TestCase
      */
     public function testAdd(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->setAuthenticatedSession();
+        $this->enableCsrfToken();
+        $this->post('/m-room-info/add', [
+            'c_room_name' => 'テスト部屋',
+            'i_enable' => 1,
+        ]);
+        $this->assertResponseSuccess();
+        $this->assertRedirect(['action' => 'index']);
     }
 
     /**
@@ -66,7 +77,14 @@ class MRoomInfoControllerTest extends TestCase
      */
     public function testEdit(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->setAuthenticatedSession();
+        $this->enableCsrfToken();
+        $this->post('/m-room-info/edit/1', [
+            'c_room_name' => '編集済み部屋',
+            'i_enable' => 1,
+        ]);
+        $this->assertResponseSuccess();
+        $this->assertRedirect(['action' => 'index']);
     }
 
     /**
@@ -77,6 +95,27 @@ class MRoomInfoControllerTest extends TestCase
      */
     public function testDelete(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->setAuthenticatedSession();
+        $this->enableCsrfToken();
+        $this->post('/m-room-info/delete/1');
+        $this->assertResponseSuccess();
+        $this->assertRedirect(['action' => 'index']);
+
+        $table = $this->getTableLocator()->get('MRoomInfo');
+        $room = $table->get(1);
+        $this->assertSame(1, (int)$room->i_del_flg);
+    }
+
+    private function setAuthenticatedSession(): void
+    {
+        $this->session([
+            'Auth' => [
+                'i_id_user' => 1,
+                'c_user_name' => 'テストユーザー',
+                'i_admin' => 1,
+                'i_user_level' => 0,
+                'i_id_room' => 1,
+            ],
+        ]);
     }
 }

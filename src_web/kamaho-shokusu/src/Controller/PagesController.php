@@ -16,7 +16,9 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Service\DashboardService;
 use Cake\Core\Configure;
+use Cake\Event\EventInterface;
 use Cake\Http\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
@@ -31,6 +33,20 @@ use Cake\View\Exception\MissingTemplateException;
  */
 class PagesController extends AppController
 {
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+        $this->Authentication->allowUnauthenticated(['display', 'dashboard']);
+    }
+
+    public function dashboard(): ?Response
+    {
+        $this->Authorization->skipAuthorization();
+        $this->set($this->buildDashboardViewVars());
+
+        return $this->render('dashboard');
+    }
+
     /**
      * Displays a view
      *
@@ -45,6 +61,8 @@ class PagesController extends AppController
      */
     public function display(string ...$path): ?Response
     {
+        $this->Authorization->skipAuthorization();
+
         if (!$path) {
             return $this->redirect('/');
         }
@@ -59,7 +77,11 @@ class PagesController extends AppController
         if (!empty($path[1])) {
             $subpage = $path[1];
         }
-        $this->set(compact('page', 'subpage'));
+        $viewVars = compact('page', 'subpage');
+        if ($page === 'home' || $page === 'dashboard') {
+            $viewVars += $this->buildDashboardViewVars();
+        }
+        $this->set($viewVars);
 
         try {
             return $this->render(implode('/', $path));
@@ -69,5 +91,27 @@ class PagesController extends AppController
             }
             throw new NotFoundException();
         }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildDashboardViewVars(): array
+    {
+        $user = $this->Authentication->getIdentity();
+        if ($user) {
+            $userId = (int)$user->get('i_id_user');
+            $dashboardService = new DashboardService();
+            $hasTodayReport = $dashboardService->hasTodayReport(
+                $userId,
+                $this->fetchTable('TIndividualReservationInfo')
+            );
+            $dashboard = $dashboardService->buildHomeContext($user);
+        } else {
+            $hasTodayReport = false;
+            $dashboard = (new DashboardService())->buildHomeContext(null);
+        }
+
+        return compact('hasTodayReport', 'dashboard');
     }
 }

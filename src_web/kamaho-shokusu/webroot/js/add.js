@@ -78,6 +78,50 @@
             }
         }
 
+        function getUsersCache(){
+            if (!window.__usersByRoomCache) {
+                window.__usersByRoomCache = new Map();
+            }
+            if (!window.__usersByRoomInFlight) {
+                window.__usersByRoomInFlight = new Map();
+            }
+            return {
+                cache: window.__usersByRoomCache,
+                inFlight: window.__usersByRoomInFlight
+            };
+        }
+
+        async function fetchUsersByRoom(roomId, date){
+            const key = String(roomId) + '|' + String(date || '');
+            const now = Date.now();
+            const { cache, inFlight } = getUsersCache();
+            const cached = cache.get(key);
+            if (cached && (now - cached.ts) < 30000) {
+                return cached.data;
+            }
+            const inflight = inFlight.get(key);
+            if (inflight) {
+                return inflight;
+            }
+
+            const url = buildGetUsersByRoomUrl(roomId, date);
+            const req = fetch(url, { credentials: 'same-origin' })
+                .then(res => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then(json => {
+                    cache.set(key, { ts: Date.now(), data: json });
+                    return json;
+                })
+                .finally(() => {
+                    inFlight.delete(key);
+                });
+
+            inFlight.set(key, req);
+            return req;
+        }
+
         // 利用者取得＆描画
         async function fetchAndRenderUsers(roomId){
             if (!roomId) {
@@ -88,11 +132,7 @@
             
             showLoading();
             try{
-                const url = buildGetUsersByRoomUrl(roomId, date);
-                const res = await fetch(url, { credentials: 'same-origin' });
-                if (!res.ok) throw new Error('HTTP ' + res.status);
-                
-                const json = await res.json();
+                const json = await fetchUsersByRoom(roomId, date);
                 const users = Array.isArray(json.usersByRoom) ? json.usersByRoom
                     : (Array.isArray(json.users) ? json.users : []);
                     
@@ -102,34 +142,32 @@
                 if (users.length === 0) {
                     userCheckboxesTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">該当する利用者がいません。</td></tr>';
                 } else {
-                    users.forEach(u => {
-                        const tr = document.createElement('tr');
-                        
-                        // 安全にデータを取得
+                    const rows = users.map(u => {
                         const userId = u.id || u.user_id || '';
                         const userName = u.name || u.user_name || '名前不明';
-                        
-                        // 予約状態を安全に取得（boolean変換）
+
                         const morning = Boolean(u.morning === 1 || u.morning === '1' || u.morning === true);
                         const noon = Boolean(u.noon === 1 || u.noon === '1' || u.noon === true);
                         const night = Boolean(u.night === 1 || u.night === '1' || u.night === true);
                         const bento = Boolean(u.bento === 1 || u.bento === '1' || u.bento === true);
-                        
-                        // 昼食と弁当の排他制御（既存予約がある場合）
+
                         const hasNoon = noon && !bento;
                         const hasBento = bento && !noon;
-                        
-                        tr.innerHTML =
-                            `<td>${String(userName).replace(/[<>&"']/g, function(c) {
-                                return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];
-                            })}</td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][1]" value="1" ${morning ? 'checked data-existing="1"' : ''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][2]" value="1" ${hasNoon ? 'checked data-existing="1"' : ''} ${hasBento ? 'disabled title="弁当と同時選択不可"' : ''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][3]" value="1" ${night ? 'checked data-existing="1"' : ''}></td>` +
-                            `<td class="text-center"><input type="checkbox" name="users[${userId}][4]" value="1" ${hasBento ? 'checked data-existing="1"' : ''} ${hasNoon ? 'disabled title="昼食と同時選択不可"' : ''}></td>`;
-                        
-                        userCheckboxesTbody.appendChild(tr);
-                    });
+
+                        const safeName = String(userName).replace(/[<>&"']/g, function(c) {
+                            return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];
+                        });
+
+                        return '' +
+                            '<tr>' +
+                            '<td>' + safeName + '</td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][2]" value="1" ' + (hasNoon ? 'checked data-existing="1"' : '') + (hasBento ? ' disabled title="弁当と同時選択不可"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][4]" value="1" ' + (hasBento ? 'checked data-existing="1"' : '') + (hasNoon ? ' disabled title="昼食と同時選択不可"' : '') + '></td>' +
+                            '</tr>';
+                    }).join('');
+                    userCheckboxesTbody.innerHTML = rows;
                     
                     // 昼食と弁当の排他制御を動的に適用
                     setTimeout(() => {
@@ -295,13 +333,14 @@
                     });
                 })
                 .then(data => {
-                    if (data.status === 'error') {
+                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
+                    if (payload.status === 'error' || payload.ok === false) {
                         if (typeof window.pageToast === 'function') {
-                            window.pageToast(data.message || '不明なエラーが発生しました。', 'danger');
+                            window.pageToast(payload.message || '不明なエラーが発生しました。', 'danger');
                         } else {
-                            alert(`エラー: ${data.message || '不明なエラーが発生しました。'}`);
+                            alert(`エラー: ${payload.message || '不明なエラーが発生しました。'}`);
                         }
-                    } else if (data.status === 'success') {
+                    } else if (payload.status === 'success' || payload.ok === true) {
                         // 成功メッセージを表示
                         if (typeof window.pageToast === 'function') {
                             window.pageToast('登録が完了しました', 'success');
@@ -309,7 +348,7 @@
                         
                         // モーダル要素を取得
                         const modalEl = form.closest('.modal') || document.getElementById('quickDayModal');
-                        const emitDate = (data.data && data.data.date) || date || '';
+                        const emitDate = payload.date || date || '';
                         
                         if (modalEl) {
                             console.log('Modal found, attempting to close:', modalEl.id);

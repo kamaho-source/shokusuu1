@@ -65,6 +65,9 @@ return [
             'templates' => [ROOT . DS . 'templates' . DS],
             'locales' => [RESOURCES . 'locales' . DS],
         ],
+        'messages' => [
+            'pastDateUnavailable' => '過去日の内容はこの画面では表示できません。修正が必要な場合は管理者にお問い合わせください。',
+        ],
     ],
 
     /*
@@ -170,12 +173,12 @@ return [
      *   your application that still emit deprecations.
      */
     'Error' => [
-        'errorLevel' => E_ALL & ~E_USER_DEPRECATED,  // 非推奨警告を無効にする
+        'errorLevel' => E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED,
         'skipLog' => [],
         'log' => true,
         'trace' => true,
         'ignoredDeprecationPaths' => [
-            'vendor/cakephp/cakephp/src/ORM/Table.php',  // このファイルの非推奨警告を無視
+            'vendor/*',
         ],
     ],
 

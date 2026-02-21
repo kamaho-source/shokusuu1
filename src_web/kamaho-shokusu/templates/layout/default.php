@@ -10,6 +10,7 @@
     <?= $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken')) ?>
     <?= $this->Html->css('animate.min.css') ?>
     <?= $this->Html->css('custom.css') ?>
+    <?= $this->Html->script('api_response.js') ?>
     <?= $this->fetch('meta') ?>
     <?= $this->fetch('css') ?>
 
@@ -22,12 +23,14 @@
 $request = $this->getRequest();
 $isModal = ($request->getQuery('modal') === '1'); // ?modal=1 のときはモーダル
 $user    = $request->getAttribute('identity');    // 既存テンプレ内で使用している $user を補完
+$isStaff = $user && ((int)$user->i_admin === 1 || (int)$user->i_user_level === 0);
+$isChild = $user && (int)$user->i_user_level === 1;
 ?>
 
 <?php if (!$isModal): ?>
     <nav class="navbar navbar-expand-lg navbar-dark bg-info shadow-sm py-3 fixed-top" id="mainNav">
         <div class="container">
-            <a class="navbar-brand fs-4" href="<?= $this->Url->build('/TReservationInfo') ?>">食数管理システム</a>
+            <a class="navbar-brand fs-4" href="<?= $this->Url->build($isChild ? '/TReservationInfo' : '/') ?>">食数管理システム</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -35,6 +38,14 @@ $user    = $request->getAttribute('identity');    // 既存テンプレ内で使
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <?php if ($user): ?>
+                        <?php if ($isStaff): ?>
+                            <li class="nav-item">
+                                <a class="nav-link" href="<?= $this->Url->build('/') ?>">🏠 ダッシュボード</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" href="<?= $this->Url->build('/TReservationInfo') ?>">🗓 予約（従来）</a>
+                            </li>
+                        <?php endif; ?>
                         <li class="nav-item">
                             <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">🏠 部屋情報</a>
                         </li>

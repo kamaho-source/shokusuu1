@@ -2,7 +2,7 @@ create table m_user_info
 (
     i_id_staff      int          null,
     i_id_user       int auto_increment
-        primary key,
+          primary key,
     c_login_account varchar(50)  null,
     c_login_passwd  varchar(255) null,
     c_user_name     varchar(50)  null,
@@ -17,6 +17,6 @@ create table m_user_info
     dt_create       datetime     null,
     c_create_user   varchar(50)  null,
     dt_update       datetime     null,
-    c_update_user   varchar(50)  null
+    c_update_user   varchar(50)  null,
+    constraint uq_m_user_info_login_account unique (c_login_account)
 );
-

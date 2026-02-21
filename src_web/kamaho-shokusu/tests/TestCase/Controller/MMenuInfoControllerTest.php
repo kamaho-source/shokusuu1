@@ -33,7 +33,8 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testIndex(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->get('/m-menu-info');
+        $this->assertRedirectContains('/MUserInfo/login');
     }
 
     /**
@@ -44,7 +45,8 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testView(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->get('/m-menu-info/view/1');
+        $this->assertRedirectContains('/MUserInfo/login');
     }
 
     /**
@@ -55,7 +57,8 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testAdd(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->get('/m-menu-info/add');
+        $this->assertRedirectContains('/MUserInfo/login');
     }
 
     /**
@@ -66,7 +69,8 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testEdit(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->get('/m-menu-info/edit/1');
+        $this->assertRedirectContains('/MUserInfo/login');
     }
 
     /**
@@ -77,6 +81,8 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testDelete(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $this->enableCsrfToken();
+        $this->post('/m-menu-info/delete/1');
+        $this->assertRedirectContains('/MUserInfo/login');
     }
 }

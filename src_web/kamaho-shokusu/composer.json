@@ -47,7 +47,8 @@
         "cs-check": "phpcs --colors -p",
         "cs-fix": "phpcbf --colors -p",
         "stan": "phpstan analyse",
-        "test": "phpunit --colors=always"
+        "test": "php -d error_reporting=24575 vendor/bin/phpunit --colors=always",
+        "test-deprecations-strict": "php -d error_reporting=32767 vendor/bin/phpunit --colors=always"
     },
     "prefer-stable": true,
     "config": {

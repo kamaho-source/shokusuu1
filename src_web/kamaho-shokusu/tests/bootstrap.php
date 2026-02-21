@@ -17,7 +17,10 @@ declare(strict_types=1);
 
 use Cake\Core\Configure;
 use Cake\Datasource\ConnectionManager;
-use Migrations\TestSuite\Migrator;
+use Cake\TestSuite\Fixture\SchemaLoader;
+
+// Keep test output actionable on newer runtimes (PHP 8.4+ deprecations in vendors).
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 
 /**
  * Test runner bootstrap.
@@ -28,6 +31,12 @@ use Migrations\TestSuite\Migrator;
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 require dirname(__DIR__) . '/config/bootstrap.php';
+
+Configure::write('Error.errorLevel', E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
+Configure::write('Error.ignoredDeprecationPaths', [
+    'vendor/*',
+]);
+Configure::write('debug', false);
 
 if (empty($_SERVER['HTTP_HOST']) && !Configure::read('App.fullBaseUrl')) {
     Configure::write('App.fullBaseUrl', 'http://localhost');
@@ -47,11 +56,6 @@ ConnectionManager::setConfig('test_debug_kit', [
 
 ConnectionManager::alias('test_debug_kit', 'debug_kit');
 
-// Fixate sessionid early on, as php7.2+
-// does not allow the sessionid to be set after stdout
-// has been written to.
-session_id('cli');
-
 // Use migrations to build test database schema.
 //
 // Will rebuild the database if the migration state differs
@@ -63,4 +67,4 @@ session_id('cli');
 // use Cake\TestSuite\Fixture\SchemaLoader;
 // (new SchemaLoader())->loadSqlFiles('./tests/schema.sql', 'test');
 
-(new Migrator())->run();
+(new SchemaLoader())->loadInternalFile(__DIR__ . '/schema.php');

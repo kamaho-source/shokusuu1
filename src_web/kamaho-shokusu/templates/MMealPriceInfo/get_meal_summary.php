@@ -127,7 +127,11 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
-                    const data = await response.json();
+                    const raw = await response.json();
+                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
+                    const data = (raw && typeof raw === 'object' && raw.ok !== undefined)
+                        ? (Array.isArray(raw.data?.rows) ? raw.data.rows : (Array.isArray(raw.data) ? raw.data : []))
+                        : (Array.isArray(payload) ? payload : []);
                     console.info("取得したデータ（控除付き）:", data);
 
                     // データが空の場合の処理

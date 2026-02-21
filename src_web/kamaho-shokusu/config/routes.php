@@ -16,8 +16,8 @@ return function (RouteBuilder $routes): void {
         // JSON 拡張を有効化（このスコープ全体）
         $builder->setExtensions(['json']);
 
-        // ホーム
-        $builder->connect('/', ['controller' => 'Pages', 'action' => 'display', 'home']);
+        // ホーム（専用アクション）
+        $builder->connect('/', ['controller' => 'Pages', 'action' => 'dashboard']);
 
         // MRoomInfo
         $builder->connect('/MRoomInfo', ['controller' => 'MRoomInfo', 'action' => 'index']);
@@ -40,6 +40,8 @@ return function (RouteBuilder $routes): void {
 
         // 週一括フォーム・関連 API
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
+        $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'TReservationInfo', 'action' => 'bulkChangeEditForm']);
+        $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'TReservationInfo', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForBulk/:roomId',

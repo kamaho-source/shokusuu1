@@ -59,6 +59,15 @@ class TReservationInfoTableTest extends TestCase
      */
     public function testValidationDefault(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $valid = $this->TReservationInfo->newEntity([
+            'i_taberu_ninzuu' => 3,
+            'i_tabenai_ninzuu' => 0,
+        ]);
+        $this->assertEmpty($valid->getErrors());
+
+        $invalid = $this->TReservationInfo->newEntity([
+            'i_taberu_ninzuu' => 'abc',
+        ]);
+        $this->assertArrayHasKey('i_taberu_ninzuu', $invalid->getErrors());
     }
 }

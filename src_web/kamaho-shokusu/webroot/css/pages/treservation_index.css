@@ -1,0 +1,266 @@
+#calendar { max-width:130%; margin:0 auto; }
+        @media (max-width: 768px){
+            .fc-toolbar button{font-size:12px;}
+            .fc-toolbar-title{font-size:14px;}
+            #calendar{font-size:12px;}
+        }
+        @media (min-width:769px) and (max-width:1024px){
+            .fc-toolbar button{font-size:14px;}
+            .fc-toolbar-title{font-size:16px;}
+            #calendar{font-size:14px;}
+        }
+        @media (min-width:1025px){
+            #calendar{font-size:16px;}
+        }
+
+        /* 中学生向け（学習寄り＋落ち着いたトーン） */
+        .kid-card .h5{font-size:1.05rem;}
+        .kid-chip{font-size:.92rem;}
+        .kid-head { background:#f5fbff; border:1px solid #e6f2ff; border-radius:.5rem; padding:.75rem 1rem;}
+        .kid-help li{margin:.25rem 0;}
+        .kid-badge-soft { font-weight:600; }
+
+        /* ---- 4分割の小さなボタン（常に4列） ---- */
+        .kid-meal-btn{
+            padding:.5rem .25rem;
+            display:flex;
+            flex-direction:column;
+            align-items:center;
+            justify-content:center;
+            gap:.25rem;
+            min-height:64px;
+            font-size:.9rem;
+        }
+        .kid-meal-btn .btn-emoji{ font-size:1.2rem; line-height:1; }
+        .kid-meal-btn .btn-cap{ font-size:.75rem; line-height:1.1; white-space:nowrap; }
+
+        /* 予約状態の強調表示 */
+        .status-flag {
+            display:inline-flex;
+            align-items:center;
+            gap:.4rem;
+            font-weight:700;
+            font-size:.9rem;
+            padding:.3rem .6rem;
+            border-radius:999px;
+            border:1px solid transparent;
+        }
+        .status-flag.ok {
+            color:#155724;
+            background:#d4edda;
+            border-color:#28a745;
+        }
+        .status-flag.none {
+            color:#383d41;
+            background:#e2e3e5;
+            border-color:#6c757d;
+        }
+
+        /* 大人向け（業務システム調） */
+        .biz-panel { background:#f8f9fa; border:1px solid #e9ecef; border-radius:.5rem; padding:1rem; }
+        .legend-dot { display:inline-block; width:.8rem; height:.8rem; border-radius:50%; margin-right:.4rem; vertical-align:middle; }
+        .legend-green { background:#28a745; }
+        .legend-orange{ background:#fd7e14; }
+        .legend-red   { background:#dc3545; }
+        .legend-gray  { background:#6c757d; }
+        .biz-note { color:#6c757d; font-size:.9rem; }
+
+        /* 週まとめ予約の小さなリボン */
+        .week-ribbon {
+            font-size:.85rem;
+            background:#eef6ff;
+            border:1px solid #cfe5ff;
+            color:#0b5ed7;
+            padding:.25rem .5rem;
+            border-radius:.375rem;
+        }
+
+        /* ======= 警告感のあるモーダル（共通） ======= */
+        .modal-warning .modal-content {
+            border:2px solid #dc3545;
+            box-shadow: 0 0 0.5rem rgba(220,53,69,.5);
+        }
+        .modal-warning .modal-header {
+            background:#dc3545;
+            color:#fff;
+        }
+        .modal-warning .modal-title i { margin-right:.4rem; }
+        .modal-warning .modal-body .alert { margin-bottom:0; }
+        .modal-warning .btn-primary { background:#dc3545; border-color:#dc3545; }
+        .modal-warning .btn-primary:disabled,
+        .modal-warning .btn-primary.disabled { background:#dc3545; border-color:#dc3545; opacity:.65; }
+
+        /* モード切替の見出し行（子画面） */
+        .mode-bar {
+            background:#fff;
+            border:1px solid #e6f2ff;
+            border-left:4px solid #0d6efd;
+            border-radius:.5rem;
+            padding:.5rem .75rem;
+        }
+
+        /* ================= 祝日＆土日強調（FullCalendar） ================= */
+        .fc-daygrid-day.is-holiday {
+            background: #fff0f0 !important;
+            position: relative;
+            border-left: 4px solid #dc3545 !important;
+        }
+        .fc-daygrid-day.is-holiday .fc-daygrid-day-number {
+            color: #c1121f !important;
+            font-weight: 700;
+        }
+        .fc-holiday-badge {
+            position: absolute;
+            top: 2px; left: 4px;
+            z-index: 2;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: #dc3545;
+            color: #fff;
+            font-size: 10px;
+            line-height: 1;
+            pointer-events: none;
+            box-shadow: 0 0 0.25rem rgba(220,53,69,.35);
+        }
+        .fc-daygrid-day.fc-day-sun:not(.is-holiday) { background:#ffdada !important; }
+        .fc-daygrid-day.fc-day-sat:not(.is-holiday) { background:#e3ecff !important; }
+
+        /* 食数表示用スタイル */
+        .fc-event.meal-count-event {
+            font-size: 11px;
+            border-radius: 3px;
+            margin-bottom: 1px;
+        }
+        .fc-event.meal-count-event .fc-event-title {
+            font-weight: 500;
+        }
+
+
+        /* ======== モーダル内スクロール等 ======== */
+        #quickDayModal .modal-body {
+            max-height: 70vh;
+            overflow: auto;
+            background:#f8f9fa;
+        }
+
+        /* モーダル内でのテーブルスクロール対応 */
+        #qd-remote-wrap .table-responsive {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+
+        #qd-remote-wrap #user-selection-table {
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        #qd-remote-wrap table {
+            margin-bottom: 0;
+        }
+
+        /* モーダル本体のスクロール調整 */
+        #quickDayModal .modal-body {
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        /* 集団予約テーブルの見た目調整 */
+        #qd-remote-wrap #user-checkboxes tr {
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        #qd-remote-wrap #user-checkboxes td {
+            padding: 0.5rem;
+            vertical-align: middle;
+        }
+
+        #qd-remote-wrap .container,
+        #qd-remote-wrap .row { width: 100%; margin: 0; padding: 0; }
+        #qd-remote-wrap .card:has(#change-edit-form),
+        #qd-remote-wrap .card:has(#reservation-form) {
+            margin-bottom: 0;
+        }
+        #qd-remote-loading { padding: 2rem; }
+        /* 「Actions」サイドバーはモーダルでは非表示 */
+        #qd-remote-wrap aside.col-md-3 { display:none !important; }
+        /* 右側コンテンツをフル幅に（ベース） */
+        #qd-remote-wrap .col-md-9 { width: 100%; flex: 0 0 100%; max-width: 100%; }
+
+        /* ---- 右寄り対策：モーダル内の本体を中央寄せに整列 ---- */
+        #qd-remote-wrap .row { justify-content: center; }
+        #qd-remote-wrap .col-md-9,
+        #qd-remote-wrap #ce-root,
+        #qd-remote-wrap form#change-edit-form,
+        #qd-remote-wrap form#reservation-form,
+        #qd-remote-wrap .card:has(#change-edit-form),
+        #qd-remote-wrap .card:has(#reservation-form) {
+            margin-left: auto !important;
+            margin-right: auto !important;
+            float: none !important;
+            max-width: 960px;
+        }
+        #qd-remote-wrap .container { padding-left: 0 !important; padding-right: 0 !important; }
+
+        /* もしモーダルが狭い場合に拡張（XXL） */
+        #quickDayModal .modal-dialog.modal-xxl { max-width: min(1280px, 95vw); }
+
+        /* 直前期間での削除不可表示 */
+        .deletion-blocked {
+            color: #6c757d !important;
+            font-style: italic;
+        }
+
+        .staff-last-minute-notice {
+            border-left: 4px solid #0dcaf0;
+        }
+
+        .past-date-panel {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            padding: 16px;
+            border: 1px solid #f1b7bd;
+            border-left: 6px solid #dc3545;
+            border-radius: 10px;
+            background: #fff5f6;
+            color: #5a2028;
+        }
+
+        .past-date-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #dc3545;
+            color: #fff;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            flex: 0 0 28px;
+        }
+
+        .past-date-content { min-width: 0; }
+        .past-date-title { margin: 0 0 6px; font-size: 1.02rem; font-weight: 700; }
+        .past-date-date { margin: 0 0 6px; font-size: .92rem; }
+        .past-date-text { margin: 0; font-size: .92rem; }
+
+        .last-minute-warning {
+            animation: fadeInOut 3s ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(-10px); }
+            20% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-10px); }
+        }
+        
+        /* 自動入力のアニメーション */
+        .border-success {
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+        }

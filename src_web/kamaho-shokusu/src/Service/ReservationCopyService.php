@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use Cake\I18n\FrozenDate;
+use Cake\I18n\Date;
 use Cake\Log\Log;
 use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
@@ -21,9 +21,71 @@ class ReservationCopyService
         $this->MUserInfo                  = TableRegistry::getTableLocator()->get('MUserInfo');
     }
 
+    public function normalizeCopyParams(array $data): array
+    {
+        $mode = strtolower((string)($data['mode'] ?? ''));
+        $sourceStr = (string)($data['source'] ?? $data['source_start'] ?? '');
+        $targetStr = (string)($data['target'] ?? $data['target_start'] ?? '');
+        $roomIdRaw = $data['room_id'] ?? null;
+
+        $roomId = null;
+        if ($roomIdRaw !== null && $roomIdRaw !== '' && $roomIdRaw !== '0') {
+            $roomId = (int)$roomIdRaw;
+        }
+
+        $onlyChildren = filter_var($data['only_children'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+        if (!in_array($mode, ['week', 'month'], true)) {
+            return [
+                'ok' => false,
+                'status' => 422,
+                'message' => 'mode は "week" か "month" を指定してください。',
+            ];
+        }
+        if ($sourceStr === '' || $targetStr === '') {
+            return [
+                'ok' => false,
+                'status' => 422,
+                'message' => 'source / target（または source_start / target_start）を YYYY-MM-DD 形式で指定してください。',
+            ];
+        }
+
+        try {
+            $src = new Date($sourceStr);
+            $dst = new Date($targetStr);
+        } catch (\Throwable $e) {
+            return [
+                'ok' => false,
+                'status' => 422,
+                'message' => 'source / target は YYYY-MM-DD 形式で指定してください。',
+            ];
+        }
+
+        $toMonday = function (Date $d): Date {
+            $n = (int)$d->format('N');
+            return $n > 1 ? $d->subDays($n - 1) : $d;
+        };
+        if ($mode === 'week') {
+            $src = $toMonday($src);
+            $dst = $toMonday($dst);
+        } else {
+            $src = new Date($src->format('Y-m-01'));
+            $dst = new Date($dst->format('Y-m-01'));
+        }
+
+        return [
+            'ok' => true,
+            'mode' => $mode,
+            'src' => $src,
+            'dst' => $dst,
+            'roomId' => $roomId,
+            'onlyChildren' => (bool)$onlyChildren,
+        ];
+    }
+
     public function copyWeek(
-        FrozenDate $srcMonday,
-        FrozenDate $dstMonday,
+        Date $srcMonday,
+        Date $dstMonday,
         ?int $roomId,
         bool $overwrite,
                    $actor,
@@ -38,8 +100,8 @@ class ReservationCopyService
     }
 
     public function copyMonth(
-        FrozenDate $srcMonthFirst,
-        FrozenDate $dstMonthFirst,
+        Date $srcMonthFirst,
+        Date $dstMonthFirst,
         ?int $roomId,
         bool $overwrite,
                    $actor,
@@ -47,14 +109,14 @@ class ReservationCopyService
         bool $onlyChildren
     ): array {
         // 月内の日付を同じ「日」にマップ（存在しない日はスキップ）
-        $srcStart = new FrozenDate($srcMonthFirst->format('Y-m-01'));
-        $srcEnd   = new FrozenDate($srcStart->format('Y-m-t')); // 月末
+        $srcStart = new Date($srcMonthFirst->format('Y-m-01'));
+        $srcEnd   = new Date($srcStart->format('Y-m-t')); // 月末
         return $this->copyMonthSameDay($srcStart, $dstMonthFirst, $roomId, $onlyChildren, $actor);
     }
 
     private function copyRangeByOffset(
-        FrozenDate $srcStart,
-        FrozenDate $srcEnd,
+        Date $srcStart,
+        Date $srcEnd,
         int $offsetDays,
         ?int $roomId,
         bool $onlyChildren,
@@ -106,23 +168,49 @@ class ReservationCopyService
 
         $affected = 0;
         $skipped = 0;
+        $actorName = ($actor !== null && method_exists($actor, 'get') && $actor->get('c_user_name'))
+            ? (string)$actor->get('c_user_name')
+            : 'system';
         $conn = $this->TIndividualReservationInfo->getConnection();
         $conn->begin();
         try {
             foreach ($rows as $r) {
-                $srcDate = new FrozenDate($r['d_reservation_date']);
+                $srcDate = new Date($r['d_reservation_date']);
                 $dstDate = $srcDate->addDays($offsetDays);
 
-                // 「既存は上書きしない」をサーバで強制
-                $exists = $this->TIndividualReservationInfo->exists([
-                    'i_id_user'           => (int)$r['i_id_user'],
-                    'i_id_room'           => (int)$r['i_id_room'],
-                    'd_reservation_date'  => $dstDate->format('Y-m-d'),
-                    'i_reservation_type'  => (int)$r['i_reservation_type'],
-                ]);
-                if ($exists) {
-                    $skipped++;
-                    continue; // スキップ
+                $existing = $this->TIndividualReservationInfo->find()
+                    ->enableAutoFields(false)
+                    ->select([
+                        'i_id_user',
+                        'd_reservation_date',
+                        'i_reservation_type',
+                        'i_id_room',
+                        'eat_flag',
+                        'i_version',
+                    ])
+                    ->where([
+                        'i_id_user'          => (int)$r['i_id_user'],
+                        'i_id_room'          => (int)$r['i_id_room'],
+                        'd_reservation_date' => $dstDate->format('Y-m-d'),
+                        'i_reservation_type' => (int)$r['i_reservation_type'],
+                    ])
+                    ->first();
+                if ($existing) {
+                    if ((int)$existing->eat_flag === 1) {
+                        $skipped++;
+                        continue;
+                    }
+                    $ok = $this->updateReservationRowWithVersion($existing, [
+                        'eat_flag'      => (int)($r['eat_flag'] ?? 1),
+                        'i_change_flag' => (int)($r['i_change_flag'] ?? 1),
+                        'c_update_user' => $actorName,
+                        'dt_update'     => new \Cake\I18n\DateTime(),
+                    ]);
+                    if (!$ok) {
+                        throw new \RuntimeException('optimistic_conflict');
+                    }
+                    $affected++;
+                    continue;
                 }
 
                 $data = [
@@ -133,21 +221,13 @@ class ReservationCopyService
                     // フラグは元データを踏襲（将来要件に応じて調整可）
                     'eat_flag'            => (int)($r['eat_flag'] ?? 1),
                     'i_change_flag'       => (int)($r['i_change_flag'] ?? 1),
-                    'dt_create'           => new \Cake\I18n\FrozenTime(),
+                    'i_version'           => 1,
+                    'dt_create'           => new \Cake\I18n\DateTime(),
                 ];
-                if ($actor !== null && method_exists($actor, 'get')) {
-                    $userName = $actor->get('c_user_name');
-                    if ($userName) {
-                        $data['c_create_user'] = (string)$userName;
-                    }
-                }
+                $data['c_create_user'] = $actorName;
                 $entity = $this->TIndividualReservationInfo->newEntity($data);
-
-                if ($this->TIndividualReservationInfo->save($entity)) {
-                    $affected++;
-                } else {
-                    Log::error('[copyRangeByOffset] 保存失敗: ' . json_encode($entity->getErrors()));
-                }
+                $this->TIndividualReservationInfo->saveOrFail($entity);
+                $affected++;
             }
             $conn->commit();
             Log::debug('[copyRangeByOffset] 完了: total=' . $total . ', copied=' . $affected . ', skipped=' . $skipped);
@@ -161,8 +241,8 @@ class ReservationCopyService
     }
 
     private function copyMonthSameDay(
-        FrozenDate $srcMonthFirst,
-        FrozenDate $dstMonthFirst,
+        Date $srcMonthFirst,
+        Date $dstMonthFirst,
         ?int $roomId,
         bool $onlyChildren,
         $actor = null
@@ -170,9 +250,9 @@ class ReservationCopyService
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
 
         // 月の初日と末日を確実に設定
-        $srcStart = new FrozenDate($srcMonthFirst->format('Y-m-01'));
-        $srcEnd   = new FrozenDate($srcMonthFirst->format('Y-m-t'));
-        $dstStart = new FrozenDate($dstMonthFirst->format('Y-m-01'));
+        $srcStart = new Date($srcMonthFirst->format('Y-m-01'));
+        $srcEnd   = new Date($srcMonthFirst->format('Y-m-t'));
+        $dstStart = new Date($dstMonthFirst->format('Y-m-01'));
 
         Log::debug('[copyMonthSameDay] srcStart=' . $srcStart->format('Y-m-d') . ', srcEnd=' . $srcEnd->format('Y-m-d') . ', dstStart=' . $dstStart->format('Y-m-d') . ', roomId=' . ($roomId ?? 'null') . ', onlyChildren=' . ($onlyChildren ? 'true' : 'false'));
 
@@ -215,17 +295,20 @@ class ReservationCopyService
         $affected = 0;
         $skipped = 0;
         $invalidDate = 0;
+        $actorName = ($actor !== null && method_exists($actor, 'get') && $actor->get('c_user_name'))
+            ? (string)$actor->get('c_user_name')
+            : 'system';
         $conn = $this->TIndividualReservationInfo->getConnection();
         $conn->begin();
         try {
             foreach ($rows as $r) {
-                $srcDate = new FrozenDate($r['d_reservation_date']);
+                $srcDate = new Date($r['d_reservation_date']);
                 $day     = (int)$srcDate->format('d');
 
                 // 変換先に同一日付が存在するか確認（例: 31日が無い月はスキップ）
                 $dstStr = sprintf('%s-%02d', $dstMonthFirst->format('Y-m'), $day);
                 try {
-                    $dstDate = new FrozenDate($dstStr);
+                    $dstDate = new Date($dstStr);
                     if ($dstDate->format('Y-m') !== $dstMonthFirst->format('Y-m')) {
                         $invalidDate++;
                         continue; // 月がずれた場合は無効
@@ -235,15 +318,38 @@ class ReservationCopyService
                     continue; // 不正日付はスキップ
                 }
 
-                // 既存は上書きしない（強制）
-                $exists = $this->TIndividualReservationInfo->exists([
-                    'i_id_user'           => (int)$r['i_id_user'],
-                    'i_id_room'           => (int)$r['i_id_room'],
-                    'd_reservation_date'  => $dstDate->format('Y-m-d'),
-                    'i_reservation_type'  => (int)$r['i_reservation_type'],
-                ]);
-                if ($exists) {
-                    $skipped++;
+                $existing = $this->TIndividualReservationInfo->find()
+                    ->enableAutoFields(false)
+                    ->select([
+                        'i_id_user',
+                        'd_reservation_date',
+                        'i_reservation_type',
+                        'i_id_room',
+                        'eat_flag',
+                        'i_version',
+                    ])
+                    ->where([
+                        'i_id_user'          => (int)$r['i_id_user'],
+                        'i_id_room'          => (int)$r['i_id_room'],
+                        'd_reservation_date' => $dstDate->format('Y-m-d'),
+                        'i_reservation_type' => (int)$r['i_reservation_type'],
+                    ])
+                    ->first();
+                if ($existing) {
+                    if ((int)$existing->eat_flag === 1) {
+                        $skipped++;
+                        continue;
+                    }
+                    $ok = $this->updateReservationRowWithVersion($existing, [
+                        'eat_flag'      => (int)($r['eat_flag'] ?? 1),
+                        'i_change_flag' => (int)($r['i_change_flag'] ?? 1),
+                        'c_update_user' => $actorName,
+                        'dt_update'     => new \Cake\I18n\DateTime(),
+                    ]);
+                    if (!$ok) {
+                        throw new \RuntimeException('optimistic_conflict');
+                    }
+                    $affected++;
                     continue;
                 }
 
@@ -254,21 +360,13 @@ class ReservationCopyService
                     'i_reservation_type'  => (int)$r['i_reservation_type'],
                     'eat_flag'            => (int)($r['eat_flag'] ?? 1),
                     'i_change_flag'       => (int)($r['i_change_flag'] ?? 1),
-                    'dt_create'           => new \Cake\I18n\FrozenTime(),
+                    'i_version'           => 1,
+                    'dt_create'           => new \Cake\I18n\DateTime(),
                 ];
-                if ($actor !== null && method_exists($actor, 'get')) {
-                    $userName = $actor->get('c_user_name');
-                    if ($userName) {
-                        $data['c_create_user'] = (string)$userName;
-                    }
-                }
+                $data['c_create_user'] = $actorName;
                 $entity = $this->TIndividualReservationInfo->newEntity($data);
-
-                if ($this->TIndividualReservationInfo->save($entity)) {
-                    $affected++;
-                } else {
-                    Log::error('[copyMonthSameDay] 保存失敗: ' . json_encode($entity->getErrors()));
-                }
+                $this->TIndividualReservationInfo->saveOrFail($entity);
+                $affected++;
             }
             $conn->commit();
             Log::debug('[copyMonthSameDay] 完了: total=' . $total . ', copied=' . $affected . ', skipped=' . $skipped . ', invalidDate=' . $invalidDate);
@@ -298,12 +396,39 @@ class ReservationCopyService
             ->toList();
     }
 
+    private function updateReservationRowWithVersion(object $row, array $updateFields): bool
+    {
+        $expectedVersion = (int)($row->i_version ?? 1);
+        $set = $updateFields;
+        $set['i_version'] = $expectedVersion + 1;
+
+        $dateValue = $row->d_reservation_date;
+        if ($dateValue instanceof \DateTimeInterface) {
+            $dateValue = $dateValue->format('Y-m-d');
+        } else {
+            $dateValue = (string)$dateValue;
+        }
+
+        $affected = $this->TIndividualReservationInfo->updateAll(
+            $set,
+            [
+                'i_id_user' => (int)$row->i_id_user,
+                'd_reservation_date' => $dateValue,
+                'i_reservation_type' => (int)$row->i_reservation_type,
+                'i_id_room' => (int)$row->i_id_room,
+                'i_version' => $expectedVersion,
+            ]
+        );
+
+        return $affected === 1;
+    }
+
     /**
      * 週コピーの件数をプレビュー（実際にコピーせず件数だけカウント）
      */
     public function previewWeek(
-        FrozenDate $srcMonday,
-        FrozenDate $dstMonday,
+        Date $srcMonday,
+        Date $dstMonday,
         ?int $roomId,
         bool $onlyChildren
     ): array {
@@ -318,13 +443,13 @@ class ReservationCopyService
      * 月コピーの件数をプレビュー（実際にコピーせず件数だけカウント）
      */
     public function previewMonth(
-        FrozenDate $srcMonthFirst,
-        FrozenDate $dstMonthFirst,
+        Date $srcMonthFirst,
+        Date $dstMonthFirst,
         ?int $roomId,
         bool $onlyChildren
     ): array {
-        $srcStart = new FrozenDate($srcMonthFirst->format('Y-m-01'));
-        $srcEnd   = new FrozenDate($srcStart->format('Y-m-t'));
+        $srcStart = new Date($srcMonthFirst->format('Y-m-01'));
+        $srcEnd   = new Date($srcStart->format('Y-m-t'));
         return $this->previewMonthSameDay($srcStart, $dstMonthFirst, $roomId, $onlyChildren);
     }
 
@@ -332,8 +457,8 @@ class ReservationCopyService
      * 週コピーのプレビュー内部処理（オフセットベース）
      */
     private function previewRangeByOffset(
-        FrozenDate $srcStart,
-        FrozenDate $srcEnd,
+        Date $srcStart,
+        Date $srcEnd,
         int $offsetDays,
         ?int $roomId,
         bool $onlyChildren
@@ -365,7 +490,7 @@ class ReservationCopyService
         $willSkip = 0;
 
         foreach ($rows as $r) {
-            $srcDate = new FrozenDate($r['d_reservation_date']);
+            $srcDate = new Date($r['d_reservation_date']);
             $dstDate = $srcDate->addDays($offsetDays);
 
             $exists = $this->TIndividualReservationInfo->exists([
@@ -393,16 +518,16 @@ class ReservationCopyService
      * 月コピーのプレビュー内部処理（同じ日ベース）
      */
     private function previewMonthSameDay(
-        FrozenDate $srcMonthFirst,
-        FrozenDate $dstMonthFirst,
+        Date $srcMonthFirst,
+        Date $dstMonthFirst,
         ?int $roomId,
         bool $onlyChildren
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
 
-        $srcStart = new FrozenDate($srcMonthFirst->format('Y-m-01'));
-        $srcEnd   = new FrozenDate($srcMonthFirst->format('Y-m-t'));
-        $dstStart = new FrozenDate($dstMonthFirst->format('Y-m-01'));
+        $srcStart = new Date($srcMonthFirst->format('Y-m-01'));
+        $srcEnd   = new Date($srcMonthFirst->format('Y-m-t'));
+        $dstStart = new Date($dstMonthFirst->format('Y-m-01'));
 
         $conditions = [
             'd_reservation_date >=' => $srcStart->format('Y-m-d'),
@@ -430,12 +555,12 @@ class ReservationCopyService
         $invalidDate = 0;
 
         foreach ($rows as $r) {
-            $srcDate = new FrozenDate($r['d_reservation_date']);
+            $srcDate = new Date($r['d_reservation_date']);
             $day = (int)$srcDate->format('d');
             
             $dstDateStr = $dstStart->format('Y-m-') . str_pad((string)$day, 2, '0', STR_PAD_LEFT);
             try {
-                $dstDate = new FrozenDate($dstDateStr);
+                $dstDate = new Date($dstDateStr);
                 if ((int)$dstDate->format('m') !== (int)$dstStart->format('m')) {
                     $invalidDate++;
                     continue;

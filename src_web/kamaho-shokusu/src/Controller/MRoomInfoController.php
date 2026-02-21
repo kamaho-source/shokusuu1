@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 
 /**
@@ -33,6 +34,14 @@ class MRoomInfoController extends AppController
      */
     public function index()
     {
+        $resource = $this->MRoomInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($resource, 'index');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは閲覧権限がありません。'));
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+        }
+
         $query = $this->MRoomInfo->find()->where(['i_del_flg' => 0]);
         $mRoomInfo = $this->paginate($query);
 
@@ -50,6 +59,12 @@ class MRoomInfoController extends AppController
     {
         // ネームドアーギュメントを使用して部屋情報を取得しつつ、関連するユーザーグループを結合して取得
         $mRoomInfo = $this->MRoomInfo->get($id, ['contain' => ['MUserGroup']]);
+        try {
+            $this->Authorization->authorize($mRoomInfo, 'view');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは閲覧権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
 
         // MUserGroupが存在するかどうかをチェックし、存在しない場合は空の配列を使用
         $userGroups = $mRoomInfo->m_user_group ? $mRoomInfo->m_user_group : [];
@@ -77,8 +92,14 @@ class MRoomInfoController extends AppController
      */
     public function add()
     {
-        date_default_timezone_set('Asia/Tokyo');
+        $this->request->allowMethod(['get', 'post']);
         $mRoomInfo = $this->MRoomInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($mRoomInfo, 'add');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは追加権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
@@ -88,7 +109,11 @@ class MRoomInfoController extends AppController
                 $mRoomInfo->c_create_user = $user->get('c_user_name');
             }
             $mRoomInfo->i_del_flg = 0;
-            $mRoomInfo->i_disp_no = $this->MRoomInfo->find()->select(['max_disp_no' => 'MAX(i_disp_no)'])->first()->max_disp_no + 1;
+            $maxDispNo = (int)($this->MRoomInfo->find()
+                ->select(['max_disp_no' => 'MAX(i_disp_no)'])
+                ->first()
+                ?->max_disp_no ?? 0);
+            $mRoomInfo->i_disp_no = $maxDispNo + 1;
 
             $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data);
 
@@ -110,10 +135,16 @@ class MRoomInfoController extends AppController
      */
     public function edit($id = null)
     {
-        date_default_timezone_set('Asia/Tokyo');
+        $this->request->allowMethod(['get', 'post', 'put', 'patch']);
         $mRoomInfo = $this->MRoomInfo->get($id);
+        try {
+            $this->Authorization->authorize($mRoomInfo, 'edit');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは編集権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
 
-        if ($this->request->is(['post', 'put'])) {
+        if ($this->request->is(['post', 'put', 'patch'])) {
             $data = $this->request->getData();
             $mRoomInfo->dt_update = date('Y-m-d H:i:s');
             $user = $this->request->getAttribute('identity');
@@ -141,15 +172,22 @@ class MRoomInfoController extends AppController
      */
     public function delete($id = null)
     {
-        date_default_timezone_set('Asia/Tokyo');
         $this->request->allowMethod(['post', 'delete']);
         $mRoomInfo = $this->MRoomInfo->get($id);
-        $mRoomInfo->i_del_flag = 1;
+        try {
+            $this->Authorization->authorize($mRoomInfo, 'delete');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは削除権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
+        $mRoomInfo->i_del_flg = 1;
         $user = $this->request->getAttribute('identity');
         if($user) {
             $mRoomInfo->c_update_user = $user->get('c_user_name');
         }
-        if ($this->MRoomInfo->delete($mRoomInfo)) {
+        $mRoomInfo->dt_update = date('Y-m-d H:i:s');
+
+        if ($this->MRoomInfo->save($mRoomInfo)) {
             $this->Flash->success(__('部屋情報を削除しました。'));
         } else {
             $this->Flash->error(__('部屋情報を削除できませんでした。もう一度お試しください。'));

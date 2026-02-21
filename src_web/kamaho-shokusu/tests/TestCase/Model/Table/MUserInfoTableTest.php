@@ -59,6 +59,22 @@ class MUserInfoTableTest extends TestCase
      */
     public function testValidationDefault(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $valid = $this->MUserInfo->newEntity([
+            'c_login_account' => 'new_user_login',
+            'c_user_name' => '新規ユーザー',
+            'c_login_passwd' => 'password123',
+            'i_user_level' => 1,
+            'i_user_age' => 12,
+            'i_user_rank' => 1,
+            'i_user_gender' => 1,
+        ]);
+        $this->assertEmpty($valid->getErrors());
+
+        $invalid = $this->MUserInfo->newEntity([
+            'c_login_passwd' => 'password123',
+            'i_user_level' => 1,
+        ]);
+        $this->assertArrayHasKey('c_user_name', $invalid->getErrors());
+        $this->assertArrayHasKey('c_login_account', $invalid->getErrors());
     }
 }

@@ -3,9 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Entity;
 
-use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\ORM\Entity;
-use Cake\I18n\DateTime;
 
 /**
  * MUserInfo Entity
@@ -54,33 +52,4 @@ class MUserInfo extends Entity
         'c_update_user' => true,
     ];
 
-    /**
-     * @param string $password
-     * @return string|null
-     */
-    protected function _setCLoginPasswd(?string $password): ?string
-    {
-        if ($password && password_get_info($password)['algo'] === 0) {
-            // すでにハッシュ化されていない場合のみハッシュ化する
-            return (new DefaultPasswordHasher())->hash($password);
-        }
-        return $password;
-    }
-
-    /**
-     * Get user rooms by user ID.
-     *
-     * @param int $userId
-     * @return array
-     */
-    public function getUserRooms(int $userId): array
-    {
-        // プロパティ`getConnection`がエンティティに定義されていないので、使用できません。
-        // 代わりに、テーブルクラスからクエリを実行してください。
-        $query = $this->getTableLocator()->get('MUserGroup')->find()
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId]);
-
-        return $query->all()->toArray();
-    }
 }

@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\ApiResponseService;
+use Authorization\Exception\ForbiddenException;
+
 /**
  * MMealPriceInfo Controller
  *
@@ -31,6 +34,14 @@ class MMealPriceInfoController extends AppController
      */
     public function index()
     {
+        $resource = $this->MMealPriceInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($resource, 'index');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは閲覧権限がありません。'));
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+        }
+
         $query = $this->MMealPriceInfo->find();
         $mMealPriceInfo = $this->paginate($query);
 
@@ -47,6 +58,12 @@ class MMealPriceInfoController extends AppController
     public function view($id = null)
     {
         $mMealPriceInfo = $this->MMealPriceInfo->get($id, contain: []);
+        try {
+            $this->Authorization->authorize($mMealPriceInfo, 'view');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは閲覧権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
         $this->set(compact('mMealPriceInfo'));
     }
 
@@ -57,12 +74,19 @@ class MMealPriceInfoController extends AppController
      */
     public function add()
     {
+        $this->request->allowMethod(['get', 'post']);
         $mMealPriceInfo = $this->MMealPriceInfo->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($mMealPriceInfo, 'add');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは追加権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
         $user = $this->request->getAttribute('identity');
         if ($this->request->is('post')) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
-            $this->MMealPriceInfo->dt_created = date('Y-m-d H:i:s');
-            $this->MMealPriceInfo->c_create_user = $user->get('c_user_name');
+            $mMealPriceInfo->dt_create = date('Y-m-d H:i:s');
+            $mMealPriceInfo->c_create_user = $user ? $user->get('c_user_name') : null;
 
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
@@ -83,12 +107,19 @@ class MMealPriceInfoController extends AppController
      */
     public function edit($id = null)
     {
+        $this->request->allowMethod(['get', 'post', 'put', 'patch']);
         $mMealPriceInfo = $this->MMealPriceInfo->get($id, contain: []);
+        try {
+            $this->Authorization->authorize($mMealPriceInfo, 'edit');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは編集権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
         $user = $this->request->getAttribute('identity');
         if ($this->request->is(['patch', 'post', 'put'])) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
             $mMealPriceInfo->dt_update = date('Y-m-d H:i:s');
-            $mMealPriceInfo->c_update_user = $user->get('c_user_name');
+            $mMealPriceInfo->c_update_user = $user ? $user->get('c_user_name') : null;
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
                 $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
@@ -110,6 +141,12 @@ class MMealPriceInfoController extends AppController
     {
         $this->request->allowMethod(['post', 'delete']);
         $mMealPriceInfo = $this->MMealPriceInfo->get($id);
+        try {
+            $this->Authorization->authorize($mMealPriceInfo, 'delete');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('あなたは削除権限がありません。'));
+            return $this->redirect(['action' => 'index']);
+        }
         if ($this->MMealPriceInfo->delete($mMealPriceInfo)) {
 
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
@@ -122,6 +159,8 @@ class MMealPriceInfoController extends AppController
 
     public function getMealSummary()
     {
+        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'index');
+
         // 年度と月をリクエストから取得 (デフォルト値は今年と現在の月)
         $Year = $this->request->getQuery('year', date('Y'));
         $month = $this->request->getQuery('month', date('n')); // 月は1月から12月で選択
@@ -140,7 +179,10 @@ class MMealPriceInfoController extends AppController
 
     public function exportMealSummary()
     {
+        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'index');
+
         $this->autoRender = false;
+        $apiResponse = new ApiResponseService();
 
         // リクエストから年度と月を取得
         $year = $this->request->getQuery('year', date('Y'));
@@ -219,10 +261,6 @@ class MMealPriceInfoController extends AppController
             ];
         }
 
-        // JSON形式で該当月のデータのみをレスポンスとして返す
-        $this->response = $this->response
-            ->withType('application/json')
-            ->withStringBody(json_encode($monthlyData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-        return $this->response;
+        return $apiResponse->success($this->response, ['rows' => $monthlyData]);
     }
 }
