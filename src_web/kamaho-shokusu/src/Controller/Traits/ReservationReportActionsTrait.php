@@ -86,7 +86,9 @@ trait ReservationReportActionsTrait
         $isMonth = static fn($m) => (bool)preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $m);
 
         if ($from !== null || $to !== null) {
-            if (!$from || !$to || !$isDate($from) || !$isDate($to) || strtotime($from) > strtotime($to)) {
+            $tsFrom = $from ? strtotime($from) : false;
+            $tsTo   = $to   ? strtotime($to)   : false;
+            if (!$from || !$to || !$isDate($from) || !$isDate($to) || $tsFrom === false || $tsTo === false || $tsFrom > $tsTo) {
                 return $this->apiResponseService->error($this->response, '無効な期間が指定されました。', 400);
             }
             $startDate = $from;

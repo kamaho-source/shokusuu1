@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
+use Cake\I18n\DateTime;
 
 /**
  * MRoomInfo Controller
@@ -103,7 +104,7 @@ class MRoomInfoController extends AppController
 
         if ($this->request->is('post')) {
             $data = $this->request->getData();
-            $mRoomInfo->dt_create = date('Y-m-d H:i:s');
+            $mRoomInfo->dt_create = DateTime::now('Asia/Tokyo');
             $user = $this->request->getAttribute('identity');
             if ($user) {
                 $mRoomInfo->c_create_user = $user->get('c_user_name');
@@ -146,7 +147,7 @@ class MRoomInfoController extends AppController
 
         if ($this->request->is(['post', 'put', 'patch'])) {
             $data = $this->request->getData();
-            $mRoomInfo->dt_update = date('Y-m-d H:i:s');
+            $mRoomInfo->dt_update = DateTime::now('Asia/Tokyo');
             $user = $this->request->getAttribute('identity');
             if ($user) {
                 $mRoomInfo->c_update_user = $user->get('c_user_name');
@@ -185,7 +186,7 @@ class MRoomInfoController extends AppController
         if($user) {
             $mRoomInfo->c_update_user = $user->get('c_user_name');
         }
-        $mRoomInfo->dt_update = date('Y-m-d H:i:s');
+        $mRoomInfo->dt_update = DateTime::now('Asia/Tokyo');
 
         if ($this->MRoomInfo->save($mRoomInfo)) {
             $this->Flash->success(__('部屋情報を削除しました。'));

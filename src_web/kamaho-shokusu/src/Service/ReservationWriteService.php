@@ -6,6 +6,7 @@ namespace App\Service;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
+use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\Table;
 
@@ -34,7 +35,7 @@ class ReservationWriteService
         $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
         if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
             Log::error('JSONデコードエラー: ' . json_last_error_msg());
-            return $this->err('JSONデータの形式が不正です: ' . json_last_error_msg(), 400);
+            return $this->err('データの形式が不正です。', 400);
         }
 
         $dateValidation = $dateValidator($reservationDate);
@@ -181,17 +182,9 @@ class ReservationWriteService
                     $this->reservationTable->saveManyOrFail($reservationsToSave);
                 } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
                     $connection->rollback();
-                    $errors = $e->getEntity()?->getErrors() ?? [];
-                    $errorMessages = [];
-                    foreach ($errors as $fieldErrors) {
-                        foreach ($fieldErrors as $message) {
-                            $errorMessages[] = $message;
-                        }
-                    }
-                    if (empty($errorMessages)) {
-                        $errorMessages[] = '原因不明のエラーが発生しました。';
-                    }
-                    return $this->err('予約の登録中にエラーが発生しました。詳細: ' . implode('、', $errorMessages), 500);
+                    Log::error('個人予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
+                    $detail = Configure::read('debug') ? ' 詳細: ' . implode('、', array_merge(...array_values(array_map('array_values', $e->getEntity()?->getErrors() ?? [[]])))) : '';
+                    return $this->err('予約の登録中にエラーが発生しました。' . $detail, 500);
                 }
                 $operationPerformed = true;
             }
@@ -273,7 +266,7 @@ class ReservationWriteService
         $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
         if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
             Log::error('JSON デコードエラー: ' . json_last_error_msg());
-            return $this->err('JSON データの形式が不正です: ' . json_last_error_msg(), 400);
+            return $this->err('データの形式が不正です。', 400);
         }
 
         $dateValidation = $dateValidator($reservationDate);
@@ -446,18 +439,9 @@ class ReservationWriteService
                     $this->reservationTable->saveManyOrFail($reservationsToSave);
                 } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
                     $connection->rollback();
-                    $errors = $e->getEntity()?->getErrors() ?? [];
-                    $errorMessages = [];
-                    foreach ($errors as $fieldErrors) {
-                        foreach ($fieldErrors as $message) {
-                            $errorMessages[] = $message;
-                        }
-                    }
-                    if (empty($errorMessages)) {
-                        $errorMessages[] = '原因不明のエラーが発生しました。';
-                    }
-
-                    return $this->err('予約の登録中にエラーが発生しました。詳細: ' . implode('、', $errorMessages), 500);
+                    Log::error('グループ予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
+                    $detail = Configure::read('debug') ? ' 詳細: ' . implode('、', array_merge(...array_values(array_map('array_values', $e->getEntity()?->getErrors() ?? [[]])))) : '';
+                    return $this->err('予約の登録中にエラーが発生しました。' . $detail, 500);
                 }
             }
             $connection->commit();

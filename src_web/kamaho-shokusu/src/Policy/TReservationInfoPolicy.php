@@ -144,6 +144,11 @@ class TReservationInfoPolicy
         return $this->isAuthenticated($user);
     }
 
+    public function canReportEat(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
     public function canGetAllRoomsMealCounts(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAdmin($user);
