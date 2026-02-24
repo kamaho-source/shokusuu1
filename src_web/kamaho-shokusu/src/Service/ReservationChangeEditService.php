@@ -24,8 +24,13 @@ class ReservationChangeEditService
 
         $allowedRooms = [];
         foreach ($allowedRoomsQuery as $row) {
-            if (isset($row['m_room_info']['c_room_name'])) {
-                $allowedRooms[(int)$row['i_id_room']] = (string)$row['m_room_info']['c_room_name'];
+            // enableHydration(false) + contain では m_room_info が null になる場合があるため
+            // is_array() で配列であることを確認してからアクセスする
+            $roomName = is_array($row['m_room_info'] ?? null)
+                ? ($row['m_room_info']['c_room_name'] ?? null)
+                : null;
+            if ($roomName !== null) {
+                $allowedRooms[(int)$row['i_id_room']] = (string)$roomName;
             }
         }
 

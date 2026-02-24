@@ -113,7 +113,7 @@ class TReservationInfoController extends AppController
      *
      * @return Response|null|void ビューをレンダリングする
      */
-    public function index()
+    public function index(): ?Response
     {
         $this->authorizeReservation('index');
 
@@ -184,7 +184,7 @@ class TReservationInfoController extends AppController
      * イベントメソッド - FullCalendarで使用するイベントデータを提供する
      * @return Response|null|void JSONレスポンスを返す
      */
-    public function events()
+    public function events(): ?Response
     {
         if ($denied = $this->authorizeReservation('events', [], true)) {
             return $denied;
@@ -204,7 +204,7 @@ class TReservationInfoController extends AppController
      *
      * @return Response JSONレスポンス
      */
-    public function calendarEvents()
+    public function calendarEvents(): ?Response
     {
         if ($denied = $this->authorizeReservation('calendarEvents', [], true)) {
             return $denied;
@@ -267,7 +267,7 @@ class TReservationInfoController extends AppController
      * @throws \Cake\Datasource\Exception\RecordNotFoundException 記録が見つからない場合
      * 管理者および所属部屋のみ詳細閲覧と修正可能
      */
-    public function view()
+    public function view(): ?Response
     {
         $this->authorizeReservation('view');
 
@@ -299,7 +299,7 @@ class TReservationInfoController extends AppController
      * @return Response|null|void ビューをレンダリングする
      * 食べる人と食べない人のリストを表示する→データベースに登録されていない場合は食べない人として表示される
      */
-    public function roomDetails($roomId, $date, $mealType)
+    public function roomDetails($roomId, $date, $mealType): ?Response
     {
         $this->authorizeReservation('roomDetails', ['i_id_room' => (int)$roomId]);
 
@@ -351,7 +351,7 @@ class TReservationInfoController extends AppController
      *
      */
 
-    public function getUsersByRoom($roomId = null)
+    public function getUsersByRoom($roomId = null): ?Response
     {
         if ($denied = $this->authorizeReservation('getUsersByRoom', ['i_id_room' => (int)$roomId], true)) {
             return $denied;
@@ -385,7 +385,7 @@ class TReservationInfoController extends AppController
      * @return Response JSON形式で予約情報を返す
      *
      */
-    public function getPersonalReservation()
+    public function getPersonalReservation(): ?Response
     {
         if ($denied = $this->authorizeReservation('getPersonalReservation', [], true)) {
             return $denied;
@@ -440,7 +440,7 @@ class TReservationInfoController extends AppController
      * @return Response JSON形式で重複予約の有無を返す
      * このメソッドは、指定された日付、部屋ID、および予約タイプに基づいて、既存の予約と重複するかどうかを確認します。
      */
-    public function checkDuplicateReservation()
+    public function checkDuplicateReservation(): ?Response
     {
         $roomId = (int)($this->request->getData('i_id_room') ?? 0);
         if ($denied = $this->authorizeReservation('checkDuplicateReservation', ['i_id_room' => $roomId], true)) {
@@ -499,7 +499,7 @@ class TReservationInfoController extends AppController
      * ユーザーの権限に基づいて、個人予約またはグループ予約を処理します。
      */
 
-    public function add()
+    public function add(): ?Response
     {
         $this->authorizeReservation('add');
 
@@ -675,7 +675,7 @@ class TReservationInfoController extends AppController
      * 失敗時:
      * { status: "error", message }
      */
-    public function copy()
+    public function copy(): ?Response
     {
         return $this->runCopy();
     }
@@ -683,7 +683,7 @@ class TReservationInfoController extends AppController
     /**
      * 予約コピーのプレビュー（件数のみ取得）
      */
-    public function copyPreview()
+    public function copyPreview(): ?Response
     {
         return $this->runCopyPreview();
     }
@@ -719,7 +719,7 @@ class TReservationInfoController extends AppController
     }
 
 
-    public function getUsersByRoomForBulk($roomId)
+    public function getUsersByRoomForBulk($roomId): ?Response
     {
         if ($denied = $this->authorizeReservation('getUsersByRoomForBulk', ['i_id_room' => (int)$roomId], true)) {
             return $denied;
@@ -728,7 +728,7 @@ class TReservationInfoController extends AppController
         return $this->runGetUsersByRoomForBulk($roomId);
     }
 
-    public function getReservationSnapshots()
+    public function getReservationSnapshots(): ?Response
     {
         $roomId = (int)($this->request->getData('room_id') ?? 0);
         if ($denied = $this->authorizeReservation('getReservationSnapshots', ['i_id_room' => $roomId], true)) {
@@ -748,7 +748,7 @@ class TReservationInfoController extends AppController
      * @return Response|void|null リダイレクトまたはビューのレンダリング
      * @throws \DateMalformedStringException 無効な日付形式の場合
      */
-    public function bulkAddForm()
+    public function bulkAddForm(): ?Response
     {
         $this->authorizeReservation('bulkAddForm');
 
@@ -760,7 +760,7 @@ class TReservationInfoController extends AppController
      *
      * @return Response|void|null
      */
-    public function bulkChangeEditForm()
+    public function bulkChangeEditForm(): ?Response
     {
         $this->authorizeReservation('bulkChangeEditForm');
 
@@ -772,7 +772,7 @@ class TReservationInfoController extends AppController
      *
      * day_users[date][userId][mealType] = 1 を受け取り i_change_flag を更新する
      */
-    public function bulkChangeEditSubmit()
+    public function bulkChangeEditSubmit(): ?Response
     {
         return $this->runBulkChangeEditSubmit();
     }
@@ -785,7 +785,7 @@ class TReservationInfoController extends AppController
      * 集団予約の場合は、日付ごとにユーザーと食事タイプを選択し、登録済みの予約がないか確認します。→登録済みの場合は登録をスキップします
      *
      */
-    public function bulkAddSubmit()
+    public function bulkAddSubmit(): ?Response
     {
         return $this->runBulkAddSubmit();
     }
@@ -854,7 +854,7 @@ class TReservationInfoController extends AppController
      * @param string|null $date (YYYY-MM-DD)
      * @param int|null $mealType (1=朝,2=昼,3=夜,4=弁当)
      */
-    public function changeEdit($roomId = null, $date = null, $mealType = null)
+    public function changeEdit($roomId = null, $date = null, $mealType = null): ?Response
     {
         $this->authorizeReservation('changeEdit');
 
@@ -1055,13 +1055,13 @@ class TReservationInfoController extends AppController
     }
 
 
-    public function getMealCounts($date)
+    public function getMealCounts($date): ?Response
     {
         return $this->runGetMealCounts($date);
     }
 
 
-    public function getUsersByRoomForEdit($roomId)
+    public function getUsersByRoomForEdit($roomId): ?Response
     {
         if ($denied = $this->authorizeReservation('getUsersByRoomForEdit', ['i_id_room' => (int)$roomId], true)) {
             return $denied;
@@ -1126,7 +1126,7 @@ class TReservationInfoController extends AppController
      * 既存の Table 側に toggleMeal(...) が実装済みである前提です。
      * 14日前ルールやeat/changeの扱いは Table 側の実装に委譲します。
      */
-    public function toggle(?int $roomId = null)
+    public function toggle(?int $roomId = null): ?Response
     {
         $this->request->allowMethod(['post']);
         $this->response = $this->response->withType('application/json');
@@ -1185,7 +1185,7 @@ class TReservationInfoController extends AppController
         );
     }
 
-    public function reportNoMeal()
+    public function reportNoMeal(): ?Response
     {
         if ($denied = $this->authorizeReservation('reportNoMeal', [], true)) {
             return $denied;
@@ -1194,7 +1194,7 @@ class TReservationInfoController extends AppController
         return $this->runReportNoMeal();
     }
 
-    public function reportEat()
+    public function reportEat(): ?Response
     {
         if ($denied = $this->authorizeReservation('reportEat', [], true)) {
             return $denied;
@@ -1209,7 +1209,7 @@ class TReservationInfoController extends AppController
      * 
      * @return Response JSONレスポンス
      */
-    public function getAllRoomsMealCounts()
+    public function getAllRoomsMealCounts(): ?Response
     {
         if ($denied = $this->authorizeReservation('getAllRoomsMealCounts', [], true)) {
             return $denied;
@@ -1225,7 +1225,7 @@ class TReservationInfoController extends AppController
      * @param string $roomId 部屋ID
      * @return Response JSONレスポンス
      */
-    public function getRoomMealCounts($roomId = null)
+    public function getRoomMealCounts($roomId = null): ?Response
     {
         if ($denied = $this->authorizeReservation('getRoomMealCounts', ['i_id_room' => (int)$roomId], true)) {
             return $denied;

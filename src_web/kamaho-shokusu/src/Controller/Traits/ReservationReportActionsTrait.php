@@ -169,9 +169,7 @@ trait ReservationReportActionsTrait
             }
         }
 
-        \Cake\Cache\Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
-        \Cake\Cache\Cache::delete('meal_counts:' . $today, 'default');
-        \Cake\Cache\Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $today), 'default');
+        $this->invalidateReportCaches($userId, $roomId, $today);
 
         return $this->apiResponseService->success($this->response, [], '食べないで報告しました。');
     }
@@ -231,9 +229,9 @@ trait ReservationReportActionsTrait
             }
         }
 
+        $this->invalidateReportCaches($userId, $roomId, $today);
+        // 食べる報告後は「報告済み」として即時キャッシュに書き込む
         \Cake\Cache\Cache::write(sprintf('today_report:%d:%s', $userId, $today), 1, 'default');
-        \Cake\Cache\Cache::delete('meal_counts:' . $today, 'default');
-        \Cake\Cache\Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $today), 'default');
 
         return $this->apiResponseService->success($this->response, [], '食べるで報告しました。');
     }
@@ -263,6 +261,17 @@ trait ReservationReportActionsTrait
         } catch (\Exception $e) {
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
+    }
+
+    /**
+     * 食数報告後に関連キャッシュをまとめて削除する共通処理。
+     * runReportNoMeal / runReportEat の両メソッドから呼ばれる。
+     */
+    private function invalidateReportCaches(int $userId, int $roomId, string $today): void
+    {
+        \Cake\Cache\Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
+        \Cake\Cache\Cache::delete('meal_counts:' . $today, 'default');
+        \Cake\Cache\Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $today), 'default');
     }
 
     protected function runGetRoomMealCounts($roomId = null)
