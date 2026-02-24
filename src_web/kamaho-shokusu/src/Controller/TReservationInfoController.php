@@ -10,6 +10,7 @@ use Authorization\Exception\ForbiddenException;
 use App\Service\BulkReservationFormService;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
+use Cake\Http\Response;
 use Cake\I18n\Date;
 use App\Service\ReservationCopyService;
 use App\Service\ReservationCalendarService;
@@ -23,6 +24,7 @@ use App\Service\ReservationViewService;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
 use App\Service\ApiResponseService;
+use Cake\Routing\Router;
 
 /**
  * TReservationInfo コントローラー
@@ -109,7 +111,7 @@ class TReservationInfoController extends AppController
     /**
      * インデックスメソッド
      *
-     * @return \Cake\Http\Response|null|void ビューをレンダリングする
+     * @return Response|null|void ビューをレンダリングする
      */
     public function index()
     {
@@ -180,7 +182,7 @@ class TReservationInfoController extends AppController
     }
     /**
      * イベントメソッド - FullCalendarで使用するイベントデータを提供する
-     * @return \Cake\Http\Response|null|void JSONレスポンスを返す
+     * @return Response|null|void JSONレスポンスを返す
      */
     public function events()
     {
@@ -200,7 +202,7 @@ class TReservationInfoController extends AppController
     /**
      * カレンダー表示用イベント（食数 + 自分の予約 + 未予約）
      *
-     * @return \Cake\Http\Response JSONレスポンス
+     * @return Response JSONレスポンス
      */
     public function calendarEvents()
     {
@@ -261,7 +263,7 @@ class TReservationInfoController extends AppController
      * ビューメソッド
      *
      * @param string|null $id T Reservation Info id.
-     * @return \Cake\Http\Response|null|void ビューをレンダリングする
+     * @return Response|null|void ビューをレンダリングする
      * @throws \Cake\Datasource\Exception\RecordNotFoundException 記録が見つからない場合
      * 管理者および所属部屋のみ詳細閲覧と修正可能
      */
@@ -294,7 +296,7 @@ class TReservationInfoController extends AppController
      * @param int $roomId 部屋ID
      * @param string $date 日付
      * @param int $mealType 食事タイプ
-     * @return \Cake\Http\Response|null|void ビューをレンダリングする
+     * @return Response|null|void ビューをレンダリングする
      * 食べる人と食べない人のリストを表示する→データベースに登録されていない場合は食べない人として表示される
      */
     public function roomDetails($roomId, $date, $mealType)
@@ -380,7 +382,7 @@ class TReservationInfoController extends AppController
     /**
      * 個人予約情報を取得するメソッド
      * このメソッドは、ログイン中のユーザーの個人予約情報を取得し、指定された日付に基づいて食事タイプごとの予約状況を返します。
-     * @return \Cake\Http\Response JSON形式で予約情報を返す
+     * @return Response JSON形式で予約情報を返す
      *
      */
     public function getPersonalReservation()
@@ -435,7 +437,7 @@ class TReservationInfoController extends AppController
 
     /**
      * 重複予約のチェックを行うメソッド
-     * @return \Cake\Http\Response JSON形式で重複予約の有無を返す
+     * @return Response JSON形式で重複予約の有無を返す
      * このメソッドは、指定された日付、部屋ID、および予約タイプに基づいて、既存の予約と重複するかどうかを確認します。
      */
     public function checkDuplicateReservation()
@@ -469,16 +471,13 @@ class TReservationInfoController extends AppController
         );
 
         if ($isDuplicate) {
-            $editUrl = null;
-            if (isset($this->Url)) {
-                $editUrl = $this->Url->build([
-                    'controller' => 'TReservationInfo',
-                    'action' => 'edit',
-                    'roomId' => $data['i_id_room'],
-                    'date' => $data['d_reservation_date'],
-                    'mealType' => $data['reservation_type'],
-                ]);
-            }
+            $editUrl = Router::url([
+                'controller' => 'TReservationInfo',
+                'action' => 'edit',
+                'roomId' => $data['i_id_room'],
+                'date' => $data['d_reservation_date'],
+                'mealType' => $data['reservation_type'],
+            ]);
 
 
             return $this->apiResponseService->success($this->response, [
@@ -495,7 +494,7 @@ class TReservationInfoController extends AppController
     /**
      * 予約の追加メソッド(日付ごとの個人予約またはグループ予約を追加)
      *
-     * @return \Cake\Http\Response|null|void ビューをレンダリングする
+     * @return Response|null|void ビューをレンダリングする
      * ユーザーが新しい予約を追加するためのメソッドです。
      * ユーザーの権限に基づいて、個人予約またはグループ予約を処理します。
      */
@@ -613,13 +612,13 @@ class TReservationInfoController extends AppController
 
             // ★ ここからが重要：非AJAXでは「常にサーバ側で配列ルート→redirect()」に集約
             if ($this->request->is('ajax')) {
-                return $resultResponse instanceof \Cake\Http\Response ? $resultResponse : $this->response;
+                return $resultResponse instanceof Response ? $resultResponse : $this->response;
             }
 
             // 成功時の既定遷移先（配列ルートのみを使う）
             $defaultRedirect = ['action' => 'index', '?' => ['date' => $data['d_reservation_date']]];
 
-            if ($resultResponse instanceof \Cake\Http\Response) {
+            if ($resultResponse instanceof Response) {
                 $ctype = $resultResponse->getType() ?? '';
                 if (stripos($ctype, 'application/json') !== false) {
                     // JSON を返してくる実装でも、非AJAXでは必ずここで食べてサーバリダイレクトに変換する
@@ -694,7 +693,7 @@ class TReservationInfoController extends AppController
      *
      * @param string $message エラーメッセージ
      * @param array $data 追加データ
-     * @return \Cake\Http\Response JSONレスポンス
+     * @return Response JSONレスポンス
      */
 
 
@@ -704,7 +703,7 @@ class TReservationInfoController extends AppController
      * @param string $message 成功メッセージ
      * @param array $data 追加データ
      * @param string|null $redirect リダイレクト先URL
-     * @return \Cake\Http\Response JSONレスポンス
+     * @return Response JSONレスポンス
      */
     protected function jsonErrorResponse(string $message, int $status = 400, array $data = [])
     {
@@ -746,7 +745,7 @@ class TReservationInfoController extends AppController
      * 日付をクエリパラメータから取得し、週の月曜日から金曜日までの日付を生成します。
      * 自分が所属している部屋しか表示できないように設計されている。
      *
-     * @return \Cake\Http\Response|void|null リダイレクトまたはビューのレンダリング
+     * @return Response|void|null リダイレクトまたはビューのレンダリング
      * @throws \DateMalformedStringException 無効な日付形式の場合
      */
     public function bulkAddForm()
@@ -759,7 +758,7 @@ class TReservationInfoController extends AppController
     /**
      * 直前編集の一括画面（ExcelライクUI）
      *
-     * @return \Cake\Http\Response|void|null
+     * @return Response|void|null
      */
     public function bulkChangeEditForm()
     {
@@ -779,7 +778,7 @@ class TReservationInfoController extends AppController
     }
 
     /**
-     * @return \Cake\Http\Response
+     * @return Response
      * 一括登録のフォームから送信されたデータを処理するメソッド
      * 予約タイプ（個人予約 or 集団予約）を選択し、各日付と食事タイプに対して登録を行います。
      * 個人予約の場合は、ユーザーごとに日付と食事タイプを選択し、登録済みの予約がないか確認します。→登録済みの場合は登録をスキップします
@@ -859,18 +858,18 @@ class TReservationInfoController extends AppController
     {
         $this->authorizeReservation('changeEdit');
 
+        // 応答種別（try/catch の両スコープで参照するため外側で定義する）
+        $wantsJson =
+            $this->request->is('ajax') ||
+            $this->request->getQuery('ajax') === '1' || // ★ クエリで強制的に JSON を要求
+            $this->request->accepts('application/json') ||
+            $this->request->getParam('_ext') === 'json';
+
         try {
             // ---- パラメータ補完（route/query/POST 両対応）----
             $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId')   ?? $this->request->getData('i_id_room');
             $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date')     ?? $this->request->getData('d_reservation_date');
             // ALL モード固定（モーダルで 4 食種まとめ）
-
-            // 応答種別
-            $wantsJson =
-                $this->request->is('ajax') ||
-                $this->request->getQuery('ajax') === '1' || // ★ クエリで強制的に JSON を要求
-                $this->request->accepts('application/json') ||
-                $this->request->getParam('_ext') === 'json';
 
             // "モーダルの殻"GET（/TReservationInfo/changeEdit?modal=1 ...）を許容
             $isModalShell = $this->request->is('get') && ((string)$this->request->getQuery('modal') === '1');
@@ -1027,13 +1026,6 @@ class TReservationInfoController extends AppController
             return $this->render('change_edit');
 
         } catch (\Throwable $e) {
-            // ここで「AJAX っぽいかどうか」を再判定して、JSON を返す
-            $wantsJson =
-                $this->request->is('ajax') ||
-                $this->request->getQuery('ajax') === '1' ||
-                $this->request->accepts('application/json') ||
-                $this->request->getParam('_ext') === 'json';
-
             $this->log('changeEdit error: ' . $e->getMessage(), 'error');
 
             if ($wantsJson) {
@@ -1081,7 +1073,7 @@ class TReservationInfoController extends AppController
     /**
      * JSON形式で予約情報をエクスポートするメソッド
      * Json形式で指定された月の予約情報をエクスポートします。
-     * @return \Cake\Http\Response JSONレスポンス
+     * @return Response JSONレスポンス
      */
     /**
      * 月次予約データを JSON で返却
@@ -1092,7 +1084,7 @@ class TReservationInfoController extends AppController
      *  data.overall            // 全体シート
      *  data.rooms['101号室']   // 各部屋シート
      */
-    public function exportJson()
+    public function exportJson(): Response
     {
         if ($denied = $this->authorizeReservation('exportJson', [], true)) {
             return $denied;
@@ -1105,7 +1097,7 @@ class TReservationInfoController extends AppController
      * JSON形式でランク別の予約情報をエクスポートするメソッド
      * 指定された月のランク別予約情報をJSON形式でエクスポートします。
      *
-     * @return \Cake\Http\Response JSONレスポンス
+     * @return Response JSONレスポンス
      */
 
     /**
@@ -1120,7 +1112,7 @@ class TReservationInfoController extends AppController
      *   /export-jsonrank?from=2025-06-01&to=2025-06-10
      *   /export-jsonrank?month=2025-06
      */
-    public function exportJsonrank()
+    public function exportJsonrank(): Response
     {
         if ($denied = $this->authorizeReservation('exportJsonrank', [], true)) {
             return $denied;
@@ -1202,11 +1194,20 @@ class TReservationInfoController extends AppController
         return $this->runReportNoMeal();
     }
 
+    public function reportEat()
+    {
+        if ($denied = $this->authorizeReservation('reportEat', [], true)) {
+            return $denied;
+        }
+
+        return $this->runReportEat();
+    }
+
     /**
      * 全部屋食数取得API（管理者用）
      * 管理者が全部屋の食数をカレンダーに表示するために使用
      * 
-     * @return \Cake\Http\Response JSONレスポンス
+     * @return Response JSONレスポンス
      */
     public function getAllRoomsMealCounts()
     {
@@ -1222,7 +1223,7 @@ class TReservationInfoController extends AppController
      * 職員が自分の所属部屋の食数をカレンダーに表示するために使用
      * 
      * @param string $roomId 部屋ID
-     * @return \Cake\Http\Response JSONレスポンス
+     * @return Response JSONレスポンス
      */
     public function getRoomMealCounts($roomId = null)
     {
@@ -1236,7 +1237,7 @@ class TReservationInfoController extends AppController
     /*  以下はこのコントローラ内に配置する簡易レスポンスヘルパーメソッド  */
     /* =============================================================== */
 
-    private function authorizeReservation(string $action, array $context = [], bool $asJson = false): ?\Cake\Http\Response
+    private function authorizeReservation(string $action, array $context = [], bool $asJson = false): ?Response
     {
         $resource = $this->TReservationInfo->newEmptyEntity();
         if ($context) {
