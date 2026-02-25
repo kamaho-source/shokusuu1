@@ -25,26 +25,11 @@
 })();
 
 (() => {
-    const btn = document.getElementById('daily-report-noeat');
-    const card = document.getElementById('daily-report-card');
-    const eatLink = document.getElementById('daily-report-eat');
+    const noeatBtn = document.getElementById('daily-report-noeat');
+    const eatBtn   = document.getElementById('daily-report-eat');
+    const card     = document.getElementById('daily-report-card');
 
-    if (card && eatLink?.dataset?.date) {
-        const hideKey = `daily_report_hide:${eatLink.dataset.date}`;
-        if (sessionStorage.getItem(hideKey)) {
-            card.remove();
-        }
-    }
-
-    if (eatLink?.dataset?.date) {
-        eatLink.addEventListener('click', () => {
-            const hideKey = `daily_report_hide:${eatLink.dataset.date}`;
-            sessionStorage.setItem(hideKey, '1');
-        });
-    }
-
-    if (!btn) return;
-    btn.addEventListener('click', async () => {
+    async function postReport(btn, onSuccess) {
         const url = btn.dataset.url;
         if (!url) return;
         btn.disabled = true;
@@ -56,6 +41,7 @@
             const data = await res.json();
             if (data && data.ok) {
                 if (card) card.remove();
+                onSuccess();
             } else {
                 alert(data?.message || '処理に失敗しました。');
                 btn.disabled = false;
@@ -64,5 +50,22 @@
             alert('通信に失敗しました。');
             btn.disabled = false;
         }
-    });
+    }
+
+    if (noeatBtn) {
+        noeatBtn.addEventListener('click', () => {
+            postReport(noeatBtn, () => {});
+        });
+    }
+
+    if (eatBtn) {
+        eatBtn.addEventListener('click', () => {
+            postReport(eatBtn, () => {
+                const redirect = eatBtn.dataset.redirect;
+                if (redirect) {
+                    window.location.href = redirect;
+                }
+            });
+        });
+    }
 })();

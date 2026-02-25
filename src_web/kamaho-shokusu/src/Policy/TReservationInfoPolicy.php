@@ -53,6 +53,8 @@ class TReservationInfoPolicy
 
         $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
         if ($requestedUserId <= 0) {
+            // i_id_user が未指定（0）の場合は「全員向けトグル」として許可する。
+            // 部屋アクセスチェックは上で通過済みのため、認証さえ通っていれば操作可能とする。
             return true;
         }
 
@@ -140,6 +142,11 @@ class TReservationInfoPolicy
     }
 
     public function canReportNoMeal(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
+    public function canReportEat(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
     }
