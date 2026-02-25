@@ -179,6 +179,7 @@ class TReservationInfoController extends AppController
             'today',
             'staff_user'
         ));
+        return null;
     }
     /**
      * イベントメソッド - FullCalendarで使用するイベントデータを提供する
@@ -288,6 +289,7 @@ class TReservationInfoController extends AppController
          * ⑤ ビューにデータをセット
          * ─────────────────────────────────────── */
         $this->set($context);
+        return null;
     }
 
     /**
@@ -341,6 +343,7 @@ class TReservationInfoController extends AppController
             'otherRoomEaters',
             'useChangeFlag'   // ビュー側で判定を表示したい場合用
         ));
+        return null;
     }
 
 
@@ -523,7 +526,7 @@ class TReservationInfoController extends AppController
             $this->set('roomList', []);
             $this->set('userLevel', null);
             $this->set('tReservationInfo', $this->TReservationInfo->newEmptyEntity());
-            return;
+            return null;
         }
 
         $userLevel = $user->i_user_level;
@@ -548,7 +551,7 @@ class TReservationInfoController extends AppController
                 $this->set('errorMessage', __('部屋が見つかりません。'));
             }
 
-            return;
+            return null;
         }
 
         $validation = $addService->validateDate((string)$date, $this->datePolicy);
