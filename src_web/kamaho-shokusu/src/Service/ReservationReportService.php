@@ -4,14 +4,19 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\Cache\Cache;
+use Cake\I18n\Date;
 use Cake\ORM\Table;
 
 class ReservationReportService
 {
+    private const REPORT_CACHE_SCHEMA_VERSION = 2;
+
     private function getReportCacheVersion(): int
     {
         $v = Cache::read('reservation_version', 'default');
-        return (is_int($v) && $v > 0) ? $v : 1;
+        $base = (is_int($v) && $v > 0) ? $v : 1;
+
+        return ($base * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
     }
 
     public function getMealCounts(Table $reservationTable, string $date): array
@@ -108,31 +113,33 @@ class ReservationReportService
         if (is_array($cached)) {
             return $cached;
         }
+        $alias = $reservationTable->getAlias();
+        $datePolicy = new ReservationDatePolicy();
+        $useChangeFlagCache = [];
+
         $reservations = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
-                'room_id'      => 'TIndividualReservationInfo.i_id_room',
+                'room_id'      => $alias . '.i_id_room',
                 'room_name'    => 'MRoomInfo.c_room_name',
-                'd_reservation_date',
-                'meal_type'    => 'TIndividualReservationInfo.i_reservation_type',
+                'd_reservation_date' => $alias . '.d_reservation_date',
+                'meal_type'    => $alias . '.i_reservation_type',
+                'eat_flag'     => $alias . '.eat_flag',
+                'i_change_flag'=> $alias . '.i_change_flag',
                 'total_eaters' => $reservationTable->find()->func()->count('*'),
             ])
-            ->join([
-                'table'      => 'm_room_info',
-                'alias'      => 'MRoomInfo',
-                'type'       => 'INNER',
-                'conditions' => 'MRoomInfo.i_id_room = TIndividualReservationInfo.i_id_room',
-            ])
+            ->innerJoinWith('MRoomInfo')
             ->where([
-                'TIndividualReservationInfo.eat_flag' => 1,
-                'TIndividualReservationInfo.d_reservation_date >=' => $from,
-                'TIndividualReservationInfo.d_reservation_date <=' => $to,
+                $alias . '.d_reservation_date >=' => $from,
+                $alias . '.d_reservation_date <=' => $to,
             ])
             ->groupBy([
-                'TIndividualReservationInfo.i_id_room',
+                $alias . '.i_id_room',
                 'MRoomInfo.c_room_name',
-                'TIndividualReservationInfo.d_reservation_date',
-                'TIndividualReservationInfo.i_reservation_type',
+                $alias . '.d_reservation_date',
+                $alias . '.i_reservation_type',
+                $alias . '.eat_flag',
+                $alias . '.i_change_flag',
             ])
             ->enableHydration(false)
             ->toArray();
@@ -145,6 +152,13 @@ class ReservationReportService
             $roomName    = $reservation['room_name'];
             $date        = $this->normalizeDateString($reservation['d_reservation_date'] ?? null);
             if ($date === null) {
+                continue;
+            }
+            $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
+            $effectiveFlag = $useChangeFlagCache[$date]
+                ? (int)($reservation['i_change_flag'] ?? 0)
+                : (int)($reservation['eat_flag'] ?? 0);
+            if ($effectiveFlag !== 1) {
                 continue;
             }
             $mealType = (int)($reservation['meal_type'] ?? 0);
@@ -189,6 +203,10 @@ class ReservationReportService
         if (is_array($cached)) {
             return $cached;
         }
+        $alias = $reservationTable->getAlias();
+        $datePolicy = new ReservationDatePolicy();
+        $useChangeFlagCache = [];
+
         $rankNames = [
             1 => '3~5歳',
             2 => '低学年',
@@ -204,28 +222,24 @@ class ReservationReportService
             ->select([
                 'user_rank'        => 'MUserInfo.i_user_rank',
                 'gender'           => 'MUserInfo.i_user_gender',
-                'reservation_date' => 'TIndividualReservationInfo.d_reservation_date',
-                'meal_type'        => 'TIndividualReservationInfo.i_reservation_type',
+                'reservation_date' => $alias . '.d_reservation_date',
+                'meal_type'        => $alias . '.i_reservation_type',
+                'eat_flag'         => $alias . '.eat_flag',
+                'i_change_flag'    => $alias . '.i_change_flag',
                 'total_eaters'     => $reservationTable->find()->func()->count('*'),
             ])
-            ->join([
-                [
-                    'table'      => 'm_user_info',
-                    'alias'      => 'MUserInfo',
-                    'type'       => 'INNER',
-                    'conditions' => 'MUserInfo.i_id_user = TIndividualReservationInfo.i_id_user',
-                ],
-            ])
+            ->innerJoinWith('MUserInfo')
             ->where([
-                'TIndividualReservationInfo.i_change_flag' => 1,
-                'TIndividualReservationInfo.d_reservation_date >=' => $startDate,
-                'TIndividualReservationInfo.d_reservation_date <'  => $endDateExclusive,
+                $alias . '.d_reservation_date >=' => $startDate,
+                $alias . '.d_reservation_date <'  => $endDateExclusive,
             ])
             ->groupBy([
                 'MUserInfo.i_user_rank',
                 'MUserInfo.i_user_gender',
-                'TIndividualReservationInfo.d_reservation_date',
-                'TIndividualReservationInfo.i_reservation_type',
+                $alias . '.d_reservation_date',
+                $alias . '.i_reservation_type',
+                $alias . '.eat_flag',
+                $alias . '.i_change_flag',
             ])
             ->enableHydration(false)
             ->toArray();
@@ -239,6 +253,13 @@ class ReservationReportService
 
             $dateKey = $this->normalizeDateString($reservation['reservation_date'] ?? null);
             if ($dateKey === null) {
+                continue;
+            }
+            $useChangeFlagCache[$dateKey] ??= $datePolicy->shouldUseChangeFlag(new Date($dateKey));
+            $effectiveFlag = $useChangeFlagCache[$dateKey]
+                ? (int)($reservation['i_change_flag'] ?? 0)
+                : (int)($reservation['eat_flag'] ?? 0);
+            if ($effectiveFlag !== 1) {
                 continue;
             }
             $key     = $rankId . '_' . $gender . '_' . $dateKey;
@@ -410,6 +431,14 @@ class ReservationReportService
     {
         if ($value instanceof \DateTimeInterface) {
             return $value->format('Y-m-d');
+        }
+
+        if (is_object($value) && method_exists($value, 'format')) {
+            try {
+                return (string)$value->format('Y-m-d');
+            } catch (\Throwable) {
+                // fall through
+            }
         }
 
         if (is_string($value) && $value !== '') {
