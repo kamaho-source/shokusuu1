@@ -83,7 +83,7 @@ class ReservationBulkService
                     ])
                     ->all();
                 foreach ($existingRows as $row) {
-                    $dateKey = (string)$row->d_reservation_date;
+                    $dateKey = is_object($row->d_reservation_date) ? $row->d_reservation_date->format('Y-m-d') : (string)$row->d_reservation_date;
                     $existingMap[$dateKey][(int)$row->i_id_user][(int)$row->i_reservation_type] = $row;
                 }
             }
@@ -301,7 +301,7 @@ class ReservationBulkService
                     ])
                     ->all();
                 foreach ($existingRows as $row) {
-                    $dateKey = (string)$row->d_reservation_date;
+                    $dateKey = is_object($row->d_reservation_date) ? $row->d_reservation_date->format('Y-m-d') : (string)$row->d_reservation_date;
                     $mealTypeKey = (int)$row->i_reservation_type;
                     $roomKey = (int)$row->i_id_room;
                     $existingRoomMap[$dateKey][$mealTypeKey][$roomKey] = $row;
@@ -418,7 +418,7 @@ class ReservationBulkService
                 if (!empty($dates) && !empty($userIds)) {
                     $rows = $reservationTable->find()
                         ->enableAutoFields(false)
-                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_version'])
+                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
                         ->where([
                             'd_reservation_date IN' => $dates,
                             'i_id_user IN' => $userIds,
@@ -426,7 +426,7 @@ class ReservationBulkService
                         ])
                         ->all();
                     foreach ($rows as $row) {
-                        $dateKey = (string)$row->d_reservation_date;
+                        $dateKey = is_object($row->d_reservation_date) ? $row->d_reservation_date->format('Y-m-d') : (string)$row->d_reservation_date;
                         $uid = (int)$row->i_id_user;
                         $mealTypeKey = (int)$row->i_reservation_type;
                         $roomKey = (int)$row->i_id_room;
@@ -458,10 +458,28 @@ class ReservationBulkService
                             continue;
                         }
                         foreach ($mealData as $mealType => $checked) {
-                            if (!(int)$checked) {
+                            $mealType = (int)$mealType;
+                            if (!in_array($mealType, [1, 2, 3, 4], true)) {
                                 continue;
                             }
-                            $mealType = (int)$mealType;
+
+                            // チェックOFF: 既存の有効予約を非活性化（eat_flag=0, i_change_flag=0）
+                            if (!(int)$checked) {
+                                $activeRow = $existingActiveMap[$date][(int)$targetUserId][$mealType] ?? null;
+                                if ($activeRow !== null) {
+                                    $ok = $this->updateReservationRowWithVersion($reservationTable, $activeRow, [
+                                        'eat_flag'       => 0,
+                                        'i_change_flag'  => 0,
+                                        'c_update_user'  => $userName,
+                                        'dt_update'      => DateTime::now('Asia/Tokyo'),
+                                    ]);
+                                    if (!$ok) {
+                                        throw new \RuntimeException('optimistic_conflict');
+                                    }
+                                }
+                                continue;
+                            }
+
                             $disp = $mealTimeDisplayNames[$mealTimeMap[$mealType] ?? ''] ?? '食事';
 
                             $activeRow = $existingActiveMap[$date][(int)$targetUserId][$mealType] ?? null;
@@ -518,7 +536,7 @@ class ReservationBulkService
                         ])
                         ->all();
                     foreach ($rows as $row) {
-                        $dateKey = (string)$row->d_reservation_date;
+                        $dateKey = is_object($row->d_reservation_date) ? $row->d_reservation_date->format('Y-m-d') : (string)$row->d_reservation_date;
                         $uid = (int)$row->i_id_user;
                         $mealTypeKey = (int)$row->i_reservation_type;
                         $roomKey = (int)$row->i_id_room;
@@ -789,7 +807,7 @@ class ReservationBulkService
 
         $serverMap = [];
         foreach ($rows as $row) {
-            $dateKey = (string)$row->d_reservation_date;
+            $dateKey = is_object($row->d_reservation_date) ? $row->d_reservation_date->format('Y-m-d') : (string)$row->d_reservation_date;
             $serverMap[$dateKey] = $row->max_dt ? (string)$row->max_dt : null;
         }
 
@@ -813,7 +831,7 @@ class ReservationBulkService
         $set['i_version'] = $expectedVersion + 1;
 
         $dateValue = $row->d_reservation_date;
-        if ($dateValue instanceof \DateTimeInterface) {
+        if (is_object($dateValue)) {
             $dateValue = $dateValue->format('Y-m-d');
         } else {
             $dateValue = (string)$dateValue;

@@ -310,16 +310,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const isLocked = !!(locked[activeDate]?.[uid]?.[type]);
         const isOtherRoomLocked = !!(otherRoomLocked[activeDate]?.[uid]?.[type]);
         const disabledByDate = isActiveDisabled();
+
+        // 直前編集・大人: 昼↔弁当は排他（片方がロック済みなら相手を予約不可）
+        const isStaff = userLevels[uid] === 0;
+        const bentoBlocksNoon = isStaff && (type === 2) && !!(locked[activeDate]?.[uid]?.[4]);
+        const noonBlocksBento = isStaff && (type === 4) && !!(locked[activeDate]?.[uid]?.[2]);
+
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';
         let disabledReason = '';
         if (isOtherRoomLocked) disabledReason = '他の部屋で予約されています。';
         if (!disabledReason && isLocked) disabledReason = '大人の予約に関しては予約取り消しができません。';
         if (!disabledReason && disabledByDate) disabledReason = '過去日付のため編集できません。';
+        if (!disabledReason && bentoBlocksNoon) disabledReason = 'お弁当が予約済みのためお昼は予約できません。';
+        if (!disabledReason && noonBlocksBento) disabledReason = 'お昼が予約済みのためお弁当は予約できません。';
+        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || bentoBlocksNoon || noonBlocksBento;
         return `
             <label class="d-inline-flex align-items-center justify-content-center">
                 <input class="meal-toggle" type="checkbox" id="${id}" data-uid="${uid}" data-type="${type}"
-                       ${isChecked ? 'checked' : ''} ${(isLocked || isOtherRoomLocked || disabledByDate) ? 'disabled' : ''}>
+                       ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
                 <span class="meal-btn ${lockedClass} ${disabledReason ? 'has-tooltip' : ''}" ${disabledReason ? `data-tooltip="${disabledReason}"` : ''}>✓</span>
             </label>
         `;

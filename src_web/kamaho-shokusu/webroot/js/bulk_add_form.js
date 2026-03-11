@@ -319,30 +319,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const isOtherRoomLocked = !!(otherRoomLockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const disabledByDate = isActiveDisabled();
 
-        // 弁当(4)と朝昼夜(1,2,3)の排他：
-        // 「既存予約済み」または「UIでチェック済み」のどちらかがあれば相手を無効化
-        const reservedForUser  = serverReservedByRoom[roomId]?.[activeDate]?.[uid] || {};
-        const selectedForUser  = selectionsByRoom[roomId]?.[activeDate]?.[uid]    || {};
-
-        const hasMealReserved  = !!(reservedForUser[1]  || reservedForUser[2]  || reservedForUser[3]);
-        const hasMealSelected  = !!(selectedForUser[1]  || selectedForUser[2]  || selectedForUser[3]);
-        const hasBentoReserved = !!(reservedForUser[4]);
-        const hasBentoSelected = !!(selectedForUser[4]);
-
-        // 弁当セル: 朝/昼/夜が予約済み or 選択済みなら無効
-        const mealBlocksBento  = (type === 4) && (hasMealReserved || hasMealSelected);
-        // 朝/昼/夜セル: 弁当が予約済み or 選択済みなら無効
-        const bentoBlocksMeal  = (type !== 4) && (hasBentoReserved || hasBentoSelected);
-        const isExcluded = mealBlocksBento || bentoBlocksMeal;
-
+        // 弁当↔朝昼夜の排他はチェック変更イベントで自動解除するため、ここでは disabled にしない
         let disabledReason = '';
-        if (isOtherRoomLocked)   disabledReason = '他の部屋で予約されています。';
-        if (!disabledReason && mealBlocksBento)   disabledReason = '朝・昼・夜が登録（選択）済みのため弁当は予約できません。';
-        if (!disabledReason && bentoBlocksMeal)   disabledReason = '弁当が登録（選択）済みのためこの食事は予約できません。';
+        if (isOtherRoomLocked) disabledReason = '他の部屋で予約されています。';
 
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';
-        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || isExcluded;
+        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate;
         return `
             <label class="d-inline-flex align-items-center justify-content-center">
                 <input class="meal-toggle" type="checkbox" id="${id}" data-uid="${uid}" data-type="${type}"
@@ -401,20 +384,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             delete selectionsByRoom[roomId][activeDate][uid][counterpart];
                         }
                     }
-                    // 朝(1)/夜(3)を選んだとき弁当の選択状態も削除
-                    if (type === 1 || type === 3) {
-                        if (!lockedByRoom[roomId]?.[activeDate]?.[uid]?.[4]) {
-                            delete selectionsByRoom[roomId][activeDate][uid][4];
-                        }
-                    }
-                    // 弁当(4)を選んだとき朝(1)/夜(3)の選択状態も削除
-                    if (type === 4) {
-                        [1, 3].forEach((mt) => {
-                            if (!lockedByRoom[roomId]?.[activeDate]?.[uid]?.[mt]) {
-                                delete selectionsByRoom[roomId][activeDate][uid][mt];
-                            }
-                        });
-                    }
                 } else {
                     if (serverReservedByRoom[roomId]?.[activeDate]?.[uid]?.[type]) {
                         selectionsByRoom[roomId][activeDate][uid][type] = false;
@@ -422,7 +391,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         delete selectionsByRoom[roomId][activeDate][uid][type];
                     }
                 }
-                // テーブル再描画で排他セルを即座にdisabled化
                 renderTable();
                 applySearchFilter();
                 scheduleUpdateCounts();
@@ -798,6 +766,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             input.type = 'hidden';
                             input.name = `day_users[${date}][${uid}][${type}]`;
                             input.value = '1';
+                            selectionInputs.appendChild(input);
+                        } else if (meals[type] === false) {
+                            // 既存予約をチェックOFFにした場合（false = 明示的にキャンセル）
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = `day_users[${date}][${uid}][${type}]`;
+                            input.value = '0';
                             selectionInputs.appendChild(input);
                         }
                     });
