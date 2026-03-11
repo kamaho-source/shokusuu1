@@ -1,4 +1,27 @@
 <!-- ================= 大人向け（業務システム調・エクスポートUI改善） ================= -->
+<?php
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var mixed|null $user */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var array<int|string, mixed> $rooms */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var bool $isAdmin */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var bool $canViewAllRooms */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var int|string|null $calRoomId */
+$user = isset($user) ? $user : null;
+$rooms = isset($rooms) ? $rooms : [];
+$isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
+$canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : $isAdmin;
+$calRoomId = isset($calRoomId) ? $calRoomId : null;
+$copyModalVars = [
+    'rooms' => $rooms,
+    'isAdmin' => $isAdmin,
+    'canViewAllRooms' => $canViewAllRooms,
+    'calRoomId' => $calRoomId,
+];
+?>
 <?php if ($user && $user->get('i_admin') === 1): ?>
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-header bg-white py-3">
@@ -65,4 +88,4 @@
     </div>
 <?php endif; ?>
 
-<?= $this->element('TReservationInfo/copy_modal') ?>
+<?= $this->element('TReservationInfo/copy_modal', $copyModalVars) ?>

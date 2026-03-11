@@ -112,7 +112,11 @@ if (!$useKidUI && !empty($mealDataArray)) {
                         'title' => "{$name}: {$meals[$type]}人",
                         'start' => $date,
                         'allDay' => true,
-                        'extendedProps' => ['displayOrder' => (int)$type],
+                        'extendedProps' => [
+                            'displayOrder' => (int)$type,
+                            'isMealCount'  => true,
+                            'mealType'     => (int)$type,
+                        ],
                 ];
             }
         }
@@ -171,11 +175,22 @@ $kidSectionVars = compact(
     'mealKeys',
     'mealLabels'
 );
-$bizSectionVars = compact('user');
+/** @noinspection PhpUndefinedVariableInspection */
+$calRoomId = isset($calRoomId) ? $calRoomId : null;
+/** @noinspection PhpUndefinedVariableInspection */
+$canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : $isAdmin;
+$bizSectionVars = [
+    'user' => $user,
+    'rooms' => $rooms ?? [],
+    'isAdmin' => $isAdmin,
+    'canViewAllRooms' => $canViewAllRooms,
+    'calRoomId' => $calRoomId,
+];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <title><?= h((string)$this->fetch('title')) ?></title>
     <?= $this->element('TReservationInfo/head_assets', ['jsConfigVars' => $jsConfigVars]) ?>
 </head>
 <body>
@@ -191,6 +206,12 @@ $bizSectionVars = compact('user');
 </div>
 
 <?= $this->element('TReservationInfo/modals', $modalVars) ?>
-<?= $this->element('TReservationInfo/script_includes') ?>
+<script src="https://code.jquery.com/jquery-3.5.1.min.js"
+        integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
+        crossorigin="anonymous"></script>
+<?= $this->Html->script('index.global.min.js') ?>
+<?= $this->Html->script('japanese-holidays.min.js') ?>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<?= $this->Html->script('pages/treservation_index.inline.js') ?>
 </body>
 </html>

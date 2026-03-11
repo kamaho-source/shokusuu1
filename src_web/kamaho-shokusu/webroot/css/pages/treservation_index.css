@@ -264,3 +264,42 @@
             transition: border-color 0.3s ease, box-shadow 0.3s ease;
             box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
         }
+
+        /* ========== FullCalendar ツールバー内の部屋セレクタ ========== */
+        #calRoomSelectorWrap {
+            margin-right: 6px;
+        }
+        .cal-room-select {
+            height: 2.15em;          /* FullCalendar ボタンと高さを揃える */
+            font-size: .85em;
+            padding-top: 0;
+            padding-bottom: 0;
+            border-color: #adadad;   /* FC ボタン枠色に近似 */
+            border-radius: 4px;
+            min-width: 90px;
+            max-width: 160px;
+        }
+
+        /* ================= 食数イベントモーダル ================= */
+        /* モーダル内の食数一覧 */
+        .meal-cal-modal-section { margin-bottom: 1rem; }
+        .meal-cal-modal-section-title {
+            font-weight: 700;
+            font-size: .9rem;
+            border-left: 4px solid;
+            padding-left: .5rem;
+            margin-bottom: .5rem;
+        }
+        .meal-cal-user-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .35rem;
+        }
+        .meal-cal-user-chip {
+            font-size: .82rem;
+            padding: .2rem .55rem;
+            border-radius: 999px;
+            background: #f0f4ff;
+            border: 1px solid #c7d2fe;
+            color: #3730a3;
+        }

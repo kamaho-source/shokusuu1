@@ -131,17 +131,36 @@ class TReservationInfoController extends AppController
 
         /* ========== ここから: 部屋セレクト用の $rooms を必ず用意 ========== */
         $isAdmin = (int)($user->i_admin ?? 0) === 1;
-        $rooms = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin);
+        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
+        $canViewAllRooms = $isAdmin || $isOfficeUser;
+        $rooms = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser);
         /* ========== ここまで: $rooms 準備 ========== */
 
         /* =====================================================
-         * ① 全利用者の食数集計（朝昼夜弁当）
-         *    管理者：全部屋、管理者以外の職員：所属部屋のみ
+         * ① 部屋フィルタ確定（cal_room_id クエリパラメータ対応）
+         * ===================================================== */
+        $calRoomIdQuery = $this->request->getQuery('cal_room_id');
+        $calRoomId = null;
+        if ($calRoomIdQuery !== null && $calRoomIdQuery !== '') {
+            $requestedCalRoomId = (int)$calRoomIdQuery;
+            if (isset($rooms[$requestedCalRoomId])) {
+                $calRoomId = $requestedCalRoomId;
+            }
+        } elseif (!$canViewAllRooms && $userRoomId !== null && isset($rooms[(int)$userRoomId])) {
+            $calRoomId = (int)$userRoomId;
+        }
+        $calRoomFilter = $calRoomId !== null
+            ? [$calRoomId]
+            : ((!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null);
+
+        /* =====================================================
+         * ② 全利用者の食数集計（朝昼夜弁当）
+         *    部屋フィルタ対応・日付範囲なし（全期間）
          *    15 日より先 → eat_flag、14 日前以内 → i_change_flag
          * ===================================================== */
         $mealDataArray = $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,
-            (!$isAdmin && !empty($userRoomIds)) ? $userRoomIds : null
+            $calRoomFilter
         );
 
         /* =====================================================
@@ -177,7 +196,10 @@ class TReservationInfoController extends AppController
             'userRoomId',
             'rooms',
             'today',
-            'staff_user'
+            'staff_user',
+            'isAdmin',
+            'canViewAllRooms',
+            'calRoomId'
         ));
         return null;
     }
@@ -205,12 +227,10 @@ class TReservationInfoController extends AppController
      *
      * @return Response JSONレスポンス
      */
-    public function calendarEvents(): ?Response
+    public function calendarEvents(): Response
     {
-        if ($denied = $this->authorizeReservation('calendarEvents', [], true)) {
-            return $denied;
-        }
-
+        $resource = $this->TReservationInfo->newEmptyEntity();
+        $this->Authorization->authorize($resource, 'calendarEvents');
         $this->request->allowMethod(['get']);
 
         $authUser = $this->Authentication->getIdentity();
@@ -232,12 +252,13 @@ class TReservationInfoController extends AppController
         }
 
         $isAdmin = (int)($user->i_admin ?? 0) === 1;
+        $canViewAllRooms = $isAdmin || $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
 
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
 
         $mealDataArray = $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,
-            (!$isAdmin && !empty($userRoomIds)) ? $userRoomIds : null,
+            (!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null,
             $startDate->format('Y-m-d'),
             $endDate->format('Y-m-d')
         );
@@ -1236,6 +1257,170 @@ class TReservationInfoController extends AppController
 
         return $this->runGetRoomMealCounts($roomId);
     }
+    /* =============================================================== */
+    /*  実食確認管理（大人限定）                                         */
+    /* =============================================================== */
+
+    /**
+     * 実食確認管理画面を表示する（大人限定）。
+     *
+     * 対象: i_id_staff を保持する大人ユーザーのみ。
+     * 表示: 週単位グリッド（朝・昼・夜 × ユーザー × 7日間）。
+     * 管理者: 過去2ヶ月まで遡って編集可能。
+     *
+     * @return Response|null
+     */
+    public function actualMealManagement(): ?Response
+    {
+        $this->authorizeReservation('actualMealManagement');
+
+        $authUser = $this->Authentication->getIdentity();
+        if (!$authUser) {
+            throw new \Cake\Http\Exception\UnauthorizedException('ログインが必要です。');
+        }
+
+        $userId  = (int)$authUser->get('i_id_user');
+        $isAdmin = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
+        $canViewAllRooms = $isAdmin || $isOfficeUser;
+
+        // 部屋リスト
+        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
+        $rooms       = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser);
+
+        // 選択部屋
+        $selectedRoomId = $this->request->getQuery('room_id')
+            ? (int)$this->request->getQuery('room_id')
+            : (!empty($rooms) ? (int)array_key_first($rooms) : null);
+        if ($selectedRoomId !== null && !isset($rooms[$selectedRoomId])) {
+            $selectedRoomId = !empty($rooms) ? (int)array_key_first($rooms) : null;
+        }
+
+        // 週パラメータ: デフォルトは今週月曜
+        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $defaultMonday = $today->modify('monday this week')->format('Y-m-d');
+        $weekParam = $this->request->getQuery('week') ?? $defaultMonday;
+
+        try {
+            $weekDate = new \DateTimeImmutable($weekParam, new \DateTimeZone('Asia/Tokyo'));
+        } catch (\Throwable $e) {
+            $weekDate = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
+        }
+        // 常に月曜日に正規化する
+        $weekMonday = (int)$weekDate->format('N') === 1
+            ? $weekDate
+            : $weekDate->modify('monday this week');
+
+        // 管理者の編集可能最古週
+        $service = new \App\Service\ActualMealManagementService();
+        $oldestMonday = $isAdmin ? $service->getAdminOldestAllowedMonday() : $today->modify('monday this week');
+
+        // 週の範囲チェック（管理者以外は現在週のみ）
+        $futureMonday = $today->modify('monday this week')->modify('+4 weeks');
+        if (!$isAdmin && $weekMonday < $today->modify('monday this week')) {
+            $weekMonday = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
+        }
+        if ($weekMonday < $oldestMonday) {
+            $weekMonday = $oldestMonday;
+        }
+        if ($weekMonday > $futureMonday) {
+            $weekMonday = $futureMonday;
+        }
+
+        $weekMondayStr = $weekMonday->format('Y-m-d');
+
+        // 大人ユーザーリストとグリッドデータ
+        $adultUsers = [];
+        $gridData   = ['dates' => [], 'meals' => [], 'grid' => [], 'versions' => []];
+
+        if ($selectedRoomId) {
+            $adultUsers = $service->getAdultUsers($this->MUserGroup, $this->MUserInfo, $selectedRoomId);
+            $gridData   = $service->buildWeekGrid($this->TIndividualReservationInfo, $adultUsers, $weekMondayStr);
+        }
+
+        // 前週・次週の月曜日
+        $prevMonday = $weekMonday->modify('-7 days');
+        $nextMonday = $weekMonday->modify('+7 days');
+
+        // 前週ナビが使えるか（最古週より前はNG）
+        $canGoPrev = $isAdmin && $prevMonday >= $oldestMonday;
+        $canGoNext = $nextMonday <= $futureMonday;
+
+        $this->set(compact(
+            'rooms',
+            'selectedRoomId',
+            'adultUsers',
+            'gridData',
+            'weekMondayStr',
+            'prevMonday',
+            'nextMonday',
+            'canGoPrev',
+            'canGoNext',
+            'isAdmin'
+        ));
+
+        return null;
+    }
+
+    /**
+     * 実食実績を保存する（POST）。
+     *
+     * リクエストボディ:
+     *   - room_id     : int
+     *   - date        : YYYY-MM-DD
+     *   - meal_type   : 1|2|3
+     *   - user_id     : int
+     *   - checked     : 1|0
+     *   - version     : int （楽観的ロック）
+     *
+     * @return Response JSON
+     */
+    public function actualMealSave(): ?Response
+    {
+        if ($denied = $this->authorizeReservation('actualMealSave', [], true)) {
+            return $denied;
+        }
+
+        $this->request->allowMethod(['post']);
+
+        $data       = $this->request->getData();
+        $roomId     = (int)($data['room_id']   ?? 0);
+        $date       = (string)($data['date']       ?? '');
+        $mealType   = (int)($data['meal_type'] ?? 0);
+        $targetUid  = (int)($data['user_id']   ?? 0);
+        $checked    = (bool)((int)($data['checked'] ?? 0));
+        $version    = (int)($data['version']   ?? 1);
+
+        if (!$roomId || !$date || !$mealType || !$targetUid) {
+            return $this->apiResponseService->error($this->response, '必要なパラメータが不足しています。', 400);
+        }
+
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return $this->apiResponseService->error($this->response, '日付の形式が正しくありません。', 400);
+        }
+
+        $authUser = $this->Authentication->getIdentity();
+        $actor    = (string)($authUser?->get('c_user_name') ?? 'system');
+
+        $service = new \App\Service\ActualMealManagementService();
+        $result  = $service->saveActualMeal(
+            $this->TIndividualReservationInfo,
+            $targetUid,
+            $roomId,
+            $date,
+            $mealType,
+            $checked,
+            $version,
+            $actor
+        );
+
+        if (!$result['ok']) {
+            return $this->apiResponseService->error($this->response, $result['message'], 409);
+        }
+
+        return $this->apiResponseService->success($this->response, [], $result['message']);
+    }
+
     /* =============================================================== */
     /*  以下はこのコントローラ内に配置する簡易レスポンスヘルパーメソッド  */
     /* =============================================================== */

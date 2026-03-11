@@ -45,6 +45,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const uiStateKey = `bulk_change_edit_form_ui_v1:${userKey}`;
     let isDirty = false;
     let isSubmitting = false;
+    // 職員/子供フィルタ: 'all' | 'staff' | 'child'
+    let userFilter = 'all';
+
+    // フィルタセレクトボックスのイベント登録
+    const userFilterSelect = document.getElementById('user-filter-select');
+    if (userFilterSelect) {
+        userFilterSelect.addEventListener('change', () => {
+            userFilter = userFilterSelect.value || 'all';
+            applySearchFilter();
+        });
+    }
 
     function ensureState(date) {
         selections[date] = selections[date] || {};
@@ -180,6 +191,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     setActiveDate(data.activeDate, exists.textContent.trim());
                 }
             }
+            // 検索テキストを復元
+            if (data.searchText != null) {
+                const searchInp = document.querySelector('.excel-header input[type="search"]');
+                if (searchInp) searchInp.value = data.searchText;
+            }
+            // 職員/子供フィルタを復元
+            if (data.userFilter && userFilterSelect) {
+                userFilterSelect.value = data.userFilter;
+                userFilter = data.userFilter;
+            }
         } catch (e) {
             console.warn('failed to load ui state', e);
         }
@@ -187,10 +208,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveUiState() {
         try {
+            const searchInp = document.querySelector('.excel-header input[type="search"]');
             const payload = JSON.stringify({
                 baseWeek: baseWeekKey,
                 roomId: roomSelect?.value || '',
                 activeDate,
+                searchText: searchInp?.value ?? '',
+                userFilter,
             });
             sessionStorage.setItem(uiStateKey, payload);
             localStorage.setItem(uiStateKey, payload);
@@ -313,8 +337,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const rows = currentUsers.map((u, idx) => {
             const uid = u.id;
+            const isStaff = u.is_staff ? '1' : '0';
             return `
-                <tr>
+                <tr data-is-staff="${isStaff}">
                     <td>${idx + 1}</td>
                     <td><strong>${u.name}</strong></td>
                     <td class="text-center">${buildMealCell(uid, 1)}</td>
@@ -478,23 +503,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applySearchFilter() {
+        if (!userRows) return;
         const input = document.querySelector('.excel-header input[type="search"]');
-        if (!input || !userRows) return;
-        const q = input.value.trim().toLowerCase();
+        const q = input ? input.value.trim().toLowerCase() : '';
         let visible = 0;
         userRows.querySelectorAll('tr').forEach((tr) => {
+            if (tr.dataset.empty === '1') return;
             const nameCell = tr.querySelector('td:nth-child(2)');
             const text = nameCell?.textContent?.toLowerCase() || '';
-            const show = !q || text.includes(q);
+            const isStaffRow = tr.dataset.isStaff === '1';
+            const passSearch = !q || text.includes(q);
+            const passFilter =
+                userFilter === 'all' ||
+                (userFilter === 'staff' && isStaffRow) ||
+                (userFilter === 'child' && !isStaffRow);
+            const show = passSearch && passFilter;
             tr.style.display = show ? '' : 'none';
             if (show) visible += 1;
         });
-        let emptyRow = userRows.querySelector('tr[data-empty=\"1\"]');
+        let emptyRow = userRows.querySelector('tr[data-empty="1"]');
         if (!visible) {
             if (!emptyRow) {
                 emptyRow = document.createElement('tr');
                 emptyRow.dataset.empty = '1';
-                emptyRow.innerHTML = '<td colspan=\"6\" class=\"text-center text-muted\">該当する利用者がいません。</td>';
+                emptyRow.innerHTML = '<td colspan="6" class="text-center text-muted">該当する利用者がいません。</td>';
                 userRows.appendChild(emptyRow);
             }
         } else if (emptyRow) {
@@ -595,6 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         renderTable();
+        applySearchFilter();
         markDirty();
         scheduleSaveState();
     }
@@ -653,6 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             scheduleUpdateCounts();
             renderTable();
+            applySearchFilter();
             markDirty();
             scheduleSaveState();
         });
@@ -809,14 +843,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 週切替はドラフト保存して移動（破棄させない）
+    // 週切替：同期的に保存してから移動（scheduleSaveState では遷移前に保存されないため）
     weekTabLinks.forEach((a) => {
         a.addEventListener('click', (e) => {
-            scheduleSaveState();
+            saveState();
             saveUiState();
         });
     });
-    // ページ離脱時の警告は出さない（自動保持のため）
 
     if (pagerPrev && pagerNext) {
         pagerPrev.addEventListener('click', () => {

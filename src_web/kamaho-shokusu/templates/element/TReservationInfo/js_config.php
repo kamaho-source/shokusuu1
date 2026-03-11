@@ -38,7 +38,8 @@ $pastDateUnavailableMessage = (string)Configure::read(
         exportJsonUrl: <?= json_encode($this->Url->build('/TReservationInfo/exportJson'), JSON_UNESCAPED_SLASHES) ?>,
         exportJsonRankUrl: <?= json_encode($this->Url->build('/TReservationInfo/exportJsonrank'), JSON_UNESCAPED_SLASHES) ?>,
         reservedDates: <?= $JS_RESERVED_DATES ?>,
-        existingEvents: <?= $JS_EXISTING_EVENTS ?>
-        ,pastDateUnavailableMessage: <?= json_encode($pastDateUnavailableMessage, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
+        existingEvents: <?= $JS_EXISTING_EVENTS ?>,
+        calRoomId: <?= json_encode($calRoomId ?? null) ?>,
+        pastDateUnavailableMessage: <?= json_encode($pastDateUnavailableMessage, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
     };
 </script>

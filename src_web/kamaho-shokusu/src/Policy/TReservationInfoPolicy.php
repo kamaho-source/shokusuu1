@@ -161,6 +161,16 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user) && $this->canAccessRoom($user, $resource);
     }
 
+    public function canActualMealManagement(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isStaffOrAdmin($user);
+    }
+
+    public function canActualMealSave(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isStaffOrAdmin($user);
+    }
+
     private function isAuthenticated(?IdentityInterface $user): bool
     {
         return $this->getOriginalIdentity($user) !== null;
@@ -231,8 +241,7 @@ class TReservationInfoPolicy
             return false;
         }
 
-        $roomIds = $this->roomAccessService->getUserRoomIds($userId);
-        return in_array($requestedRoomId, $roomIds, true);
+        return $this->roomAccessService->userCanAccessRoom($userId, $requestedRoomId);
     }
 
     private function getUserId(?IdentityInterface $user): int

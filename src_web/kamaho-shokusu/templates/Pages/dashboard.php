@@ -115,17 +115,11 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                                 data-url="<?= h($this->Url->build('/TReservationInfo/reportNoMeal')) ?>">
                             食べない
                         </button>
-                        <?php /*
-                            「食べる」ボタン: JS (home.js) が data-url を使って
-                            /TReservationInfo/reportEat へ非同期 POST する。
-                            完了後 data-redirect 先(当日予約一覧)へ遷移する。
-                        */ ?>
-                        <button class="btn-teal" id="daily-report-eat" type="button"
-                                data-url="<?= h($this->Url->build('/TReservationInfo/reportEat')) ?>"
-                                data-redirect="<?= h($this->Url->build('/TReservationInfo?date=' . $todayParam)) ?>">
+                        <a class="btn-teal"
+                           href="<?= h($this->Url->build('/TReservationInfo/bulk-change-edit-form?date=' . $todayParam)) ?>">
                             食べる
-                        </button>
-                    </div>
+                        </a>
+                    </div>a
                 </div>
             <?php endif; ?>
 
@@ -147,6 +141,12 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                     <div class="menu-title-text">食数予約</div>
                     <div class="menu-desc">将来の食事予定を一括登録する</div>
                 </button>
+                <?php /* 実食報告: 実食確認管理（大人限定）画面へ遷移する */ ?>
+                <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/actual-meal-management') ?>">
+                    <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
+                    <div class="menu-title-text">実食報告</div>
+                    <div class="menu-desc">実食確認管理（大人限定）</div>
+                </a>
             </div>
 
             <?php /* ---- 管理者専用メニュー ---- */ ?>

@@ -115,20 +115,14 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                                 data-url="<?= h($this->Url->build('/TReservationInfo/reportNoMeal')) ?>">
                             食べない
                         </button>
-                        <?php /*
-                            「食べる」ボタン: 当日の予約一覧画面へ遷移する
-                            data-date は JS から参照するためのデータ属性
-                        */ ?>
-                        <?php /*
-                            「食べる」ボタン: JS (home.js) が data-url を使って
-                            /TReservationInfo/reportEat へ非同期 POST する。
-                            完了後 data-redirect 先(当日予約一覧)へ遷移する。
-                        */ ?>
-                        <button class="btn-teal" id="daily-report-eat" type="button"
-                                data-url="<?= h($this->Url->build('/TReservationInfo/reportEat')) ?>"
-                                data-redirect="<?= h($this->Url->build('/TReservationInfo?date=' . $todayParam)) ?>">
-                            食べる
+                        <button class="btn-soft" id="daily-report-noeat" type="button"
+                                data-url="<?= h($this->Url->build('/TReservationInfo/reportNoMeal')) ?>">
+                            食べない
                         </button>
+                        <a class="btn-teal"
+                           href="<?= h($this->Url->build('/TReservationInfo?date=' . $todayParam)) ?>">
+                            食べる
+                        </a>
                     </div>
                 </div>
             <?php endif; ?>
