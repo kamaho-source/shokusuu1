@@ -119,7 +119,7 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                            href="<?= h($this->Url->build('/TReservationInfo/bulk-change-edit-form?date=' . $todayParam)) ?>">
                             食べる
                         </a>
-                    </div>a
+                    </div>
                 </div>
             <?php endif; ?>
 
