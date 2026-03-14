@@ -103,23 +103,22 @@ class DashboardService
     }
 
     /**
-     * 指定ユーザーが「本日分の食数報告」を既に登録済みかどうかを判定する。
+     * 指定ユーザーの「所属部屋のいずれかで本日の予約が存在するか」を判定する。
      *
      * 判定ロジック:
      *   1. キャッシュキー「today_report:{userId}:{YYYY-MM-DD}」を参照し、
      *      キャッシュヒットした場合はその値(1 or 0)を bool にキャストして返す。
-     *   2. キャッシュミス時は TIndividualReservationInfo テーブルを検索し、
-     *      同一ユーザー・同一日付のレコードが存在するか確認する。
-     *   3. 結果をキャッシュに書き込んでから返す。
-     *
-     * キャッシュを使うことで、同一リクエスト内や短時間の再アクセス時に
-     * 不要な DB クエリを発行しないようにしている。
+     *   2. キャッシュミス時は m_user_group からユーザーの所属部屋IDを取得する。
+     *   3. 所属部屋のいずれかに当日の予約レコードが存在するか確認する。
+     *      どこか1部屋でも予約があれば「報告済み(true)」と判定する。
+     *   4. 結果をキャッシュに書き込んでから返す。
      *
      * @param int   $userId           ログイン中ユーザーの i_id_user
      * @param Table $reservationTable TIndividualReservationInfo テーブルオブジェクト
-     * @return bool true = 本日分の報告済み / false = 未報告
+     * @param Table $userGroupTable   MUserGroup テーブルオブジェクト
+     * @return bool true = 所属部屋のどこかに本日の予約あり / false = いずれの部屋にも予約なし
      */
-    public function hasTodayReport(int $userId, Table $reservationTable): bool
+    public function hasTodayReport(int $userId, Table $reservationTable, Table $userGroupTable): bool
     {
         // アジア/東京タイムゾーンで「今日」の Date オブジェクトを取得する
         $today = Date::today('Asia/Tokyo');
@@ -135,20 +134,34 @@ class DashboardService
             return (bool)$cached;
         }
 
-        // キャッシュミス: DB から当該ユーザー・当日のレコードを1件だけ取得する
-        // enableAutoFields(false) + select(['i_id_user']) で SELECT を最小限に絞る
+        // ユーザーが所属する部屋IDの一覧を取得する
+        $roomIds = $userGroupTable->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => $userId, 'active_flag' => 0])
+            ->enableHydration(false)
+            ->all()
+            ->extract('i_id_room')
+            ->toArray();
+
+        // 所属部屋がない場合は未報告として扱う
+        if (empty($roomIds)) {
+            return false;
+        }
+
+        // 所属部屋のいずれかに当日の予約レコードが1件でも存在するか確認する
         $row = $reservationTable
             ->find()
             ->enableAutoFields(false)
             ->select(['i_id_user'])
             ->where([
-                'i_id_user'           => $userId,
+                'i_id_room IN'        => $roomIds,
                 'd_reservation_date'  => $today,
             ])
             ->limit(1)
             ->first();
 
-        // レコードが存在すれば「報告済み」
+        // いずれかの部屋に予約レコードが存在すれば「報告済み」
         $has = $row !== null;
 
         // 報告済みの場合のみキャッシュに書き込む。

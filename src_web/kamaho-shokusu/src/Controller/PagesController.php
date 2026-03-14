@@ -190,9 +190,11 @@ class PagesController extends AppController
             $userId = (int)$user->get('i_id_user');
 
             // 当日の食数報告が完了しているかを DB + キャッシュで判定する
+            // 所属部屋のいずれかに本日の予約が存在すれば「報告済み」と判定する
             $hasTodayReport = $dashboardService->hasTodayReport(
                 $userId,
-                $this->fetchTable('TIndividualReservationInfo')
+                $this->fetchTable('TIndividualReservationInfo'),
+                $this->fetchTable('MUserGroup')
             );
 
             // ダッシュボード画面の日付データ・週データを組み立てる
