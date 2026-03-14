@@ -9,35 +9,17 @@ use Cake\ORM\Table;
 class ReservationQueryService
 {
     private ReservationDatePolicy $datePolicy;
+    private RoomAccessService $roomAccessService;
 
-    public function __construct(?ReservationDatePolicy $datePolicy = null)
+    public function __construct(?ReservationDatePolicy $datePolicy = null, ?RoomAccessService $roomAccessService = null)
     {
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
+        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
     }
 
     public function getAuthorizedRooms(Table $roomTable, Table $userGroupTable, int $userId): array
     {
-        $rows = $roomTable->find()
-            ->enableAutoFields(false)
-            ->select([
-                'room_id' => 'MRoomInfo.i_id_room',
-                'room_name' => 'MRoomInfo.c_room_name',
-            ])
-            ->innerJoin(
-                ['MUserGroup' => 'm_user_group'],
-                ['MUserGroup.i_id_room = MRoomInfo.i_id_room']
-            )
-            ->where(['MUserGroup.i_id_user' => $userId])
-            ->distinct(['MRoomInfo.i_id_room', 'MRoomInfo.c_room_name'])
-            ->enableHydration(false)
-            ->toArray();
-
-        $rooms = [];
-        foreach ($rows as $row) {
-            $rooms[(int)$row['room_id']] = (string)$row['room_name'];
-        }
-
-        return $rooms;
+        return $this->roomAccessService->getAccessibleRooms($roomTable, $userId);
     }
 
     public function getUsersByRoom(Table $userGroupTable, Table $reservationTable, int $roomId, ?string $date): array
@@ -134,6 +116,7 @@ class ReservationQueryService
                 'MUserGroup.i_id_room',
                 'user_name' => 'MUserInfo.c_user_name',
                 'user_level' => 'MUserInfo.i_user_level',
+                'staff_id' => 'MUserInfo.i_id_staff',
             ])
             ->innerJoin(
                 ['MUserInfo' => 'm_user_info'],
@@ -148,10 +131,12 @@ class ReservationQueryService
 
         $userData = [];
         foreach ($users as $user) {
+            $staffId = $user['staff_id'] ?? null;
             $userData[] = [
                 'id' => (int)$user['i_id_user'],
                 'name' => (string)$user['user_name'],
                 'i_user_level' => (int)($user['user_level'] ?? 0),
+                'is_staff' => ($staffId !== null && $staffId !== ''),
             ];
         }
 

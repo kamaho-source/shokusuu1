@@ -236,8 +236,22 @@ main.container { max-width: 100%; padding: 0; }
     justify-items: center;
     text-align: center;
     line-height: 1.45;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s;
 }
-.menu-card:hover { box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
+.menu-card:hover {
+    background: #f0f4ff;
+    border-color: #a5b4fc;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, .14);
+    transform: translateY(-2px);
+    color: inherit;
+    text-decoration: none;
+}
+.menu-card:active {
+    transform: translateY(0);
+    background: #e0e7ff;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, .12);
+}
 .menu-icon {
     width: 56px;
     height: 56px;

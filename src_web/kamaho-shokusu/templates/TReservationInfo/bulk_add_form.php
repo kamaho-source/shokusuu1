@@ -49,6 +49,14 @@ $canGroup = $canGroup ?? false;
                 </select>
                 <div id="room-select-help" class="invalid-feedback">部屋を選択してください。</div>
             </div>
+            <div class="user-filter-wrap d-flex align-items-center gap-1">
+                <label class="form-label mb-0 small text-nowrap" for="user-filter-select">表示：</label>
+                <select class="form-select form-select-sm" id="user-filter-select" style="max-width:120px;">
+                    <option value="all">すべて</option>
+                    <option value="staff">職員のみ</option>
+                    <option value="child">子供のみ</option>
+                </select>
+            </div>
             <button class="btn btn-success btn-sm" id="save-btn">確定・保存</button>
             <span class="dirty-badge" id="dirty-badge">未保存</span>
             <a class="help-link" href="#" data-bs-toggle="modal" data-bs-target="#uxHelpModal">使い方</a>

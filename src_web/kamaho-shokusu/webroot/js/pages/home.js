@@ -26,13 +26,14 @@
 
 (() => {
     const noeatBtn = document.getElementById('daily-report-noeat');
-    const eatBtn   = document.getElementById('daily-report-eat');
     const card     = document.getElementById('daily-report-card');
 
-    async function postReport(btn, onSuccess) {
-        const url = btn.dataset.url;
+    if (!noeatBtn) return;
+
+    noeatBtn.addEventListener('click', async () => {
+        const url = noeatBtn.dataset.url;
         if (!url) return;
-        btn.disabled = true;
+        noeatBtn.disabled = true;
         try {
             const res = await fetch(url, {
                 method: 'POST',
@@ -40,32 +41,14 @@
             });
             const data = await res.json();
             if (data && data.ok) {
-                if (card) card.remove();
-                onSuccess();
+                if (card) card.style.display = 'none';
             } else {
                 alert(data?.message || '処理に失敗しました。');
-                btn.disabled = false;
+                noeatBtn.disabled = false;
             }
         } catch (e) {
             alert('通信に失敗しました。');
-            btn.disabled = false;
+            noeatBtn.disabled = false;
         }
-    }
-
-    if (noeatBtn) {
-        noeatBtn.addEventListener('click', () => {
-            postReport(noeatBtn, () => {});
-        });
-    }
-
-    if (eatBtn) {
-        eatBtn.addEventListener('click', () => {
-            postReport(eatBtn, () => {
-                const redirect = eatBtn.dataset.redirect;
-                if (redirect) {
-                    window.location.href = redirect;
-                }
-            });
-        });
-    }
+    });
 })();

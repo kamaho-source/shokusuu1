@@ -19,7 +19,7 @@ class ReservationCalendarService
     {
         $userGroups = $userGroupTable->find()
             ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId])
+            ->where(['i_id_user' => $userId, 'active_flag' => 0])
             ->toArray();
 
         $roomIds = [];
@@ -29,7 +29,7 @@ class ReservationCalendarService
             }
         }
 
-        return $roomIds;
+        return array_values(array_unique($roomIds));
     }
 
     public function getPrimaryRoomId(array $roomIds): ?int
@@ -37,7 +37,26 @@ class ReservationCalendarService
         return !empty($roomIds) ? (int)$roomIds[0] : null;
     }
 
-    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin): array
+    public function isOfficeUser(Table $userGroupTable, Table $roomTable, int $userId): bool
+    {
+        if ($userId <= 0) {
+            return false;
+        }
+
+        return $userGroupTable->find()
+            ->innerJoin(
+                ['MRoomInfo' => $roomTable->getTable()],
+                ['MRoomInfo.i_id_room = MUserGroup.i_id_room']
+            )
+            ->where([
+                'MUserGroup.i_id_user' => $userId,
+                'MUserGroup.active_flag' => 0,
+                'MRoomInfo.c_room_name LIKE' => '%事務所%',
+            ])
+            ->count() > 0;
+    }
+
+    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false): array
     {
         if ($isAdmin) {
             $roomOrder = ['i_id_room' => 'ASC'];
@@ -48,6 +67,8 @@ class ReservationCalendarService
                         $roomOrder = ['i_sort' => 'ASC', 'i_id_room' => 'ASC'];
                     } elseif ($schema->hasColumn('display_order')) {
                         $roomOrder = ['display_order' => 'ASC', 'i_id_room' => 'ASC'];
+                    } elseif ($schema->hasColumn('i_disp_no')) {
+                        $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
                     } elseif ($schema->hasColumn('c_room_name')) {
                         $roomOrder = ['c_room_name' => 'ASC', 'i_id_room' => 'ASC'];
                     }
@@ -61,6 +82,23 @@ class ReservationCalendarService
                 'valueField' => 'c_room_name',
             ])
                 ->orderBy($roomOrder)
+                ->toArray();
+        }
+
+        if ($isOfficeUser) {
+            if (empty($userRoomIds)) {
+                return [];
+            }
+
+            return $roomTable->find('list', [
+                'keyField' => 'i_id_room',
+                'valueField' => 'c_room_name',
+            ])
+                ->where([
+                    'i_id_room IN' => $userRoomIds,
+                    'c_room_name LIKE' => '%事務所%',
+                ])
+                ->orderBy(['c_room_name' => 'ASC', 'i_id_room' => 'ASC'])
                 ->toArray();
         }
 

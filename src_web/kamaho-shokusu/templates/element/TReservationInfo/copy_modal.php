@@ -1,3 +1,4 @@
+<?php $rooms ??= []; $isAdmin ??= false; $canViewAllRooms ??= $isAdmin; $calRoomId ??= null; ?>
 <!-- === 予約コピー（週／月）: 大人向けのみ表示 === -->
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body d-flex flex-wrap align-items-center gap-2">
@@ -11,6 +12,26 @@
         <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#res-copy-modal">予約をコピー（週 / 月）</button>
     </div>
 </div>
+
+<!-- 部屋別食数フィルタ（JS により FullCalendar ツールバーへ移動） -->
+<?php if (!empty($rooms)): ?>
+<div id="calRoomSelectorWrap" style="display:none; align-items:center; gap:6px;">
+    <form method="get" id="calRoomFilterForm" style="display:inline-flex; align-items:center; gap:4px; margin:0;">
+        <?php foreach ($this->request->getQueryParams() as $qk => $qv):
+            if ($qk === 'cal_room_id') continue; ?>
+        <input type="hidden" name="<?= h($qk) ?>" value="<?= h($qv) ?>">
+        <?php endforeach; ?>
+        <select name="cal_room_id" class="form-select form-select-sm cal-room-select" onchange="this.form.submit()">
+            <?php if ($canViewAllRooms): ?>
+            <option value="" <?= ($calRoomId === null) ? 'selected' : '' ?>>全部屋</option>
+            <?php endif; ?>
+            <?php foreach ($rooms as $rid => $rname): ?>
+            <option value="<?= h($rid) ?>" <?= ((int)$calRoomId === (int)$rid) ? 'selected' : '' ?>><?= h($rname) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </form>
+</div>
+<?php endif; ?>
 
 <!-- カレンダー -->
 <div id="calendar" aria-label="食数予約カレンダー（業務）"></div>

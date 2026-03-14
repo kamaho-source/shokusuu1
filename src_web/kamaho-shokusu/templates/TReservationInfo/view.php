@@ -291,10 +291,70 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
         border: none;
     }
 
+    /* 部屋別サマリーテーブル */
+    .summary-card { margin-bottom: 20px; }
+    .summary-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .92rem;
+    }
+    .summary-table th {
+        background: #f0f4f8;
+        color: #52606d;
+        font-weight: 700;
+        padding: 10px 12px;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+        white-space: nowrap;
+    }
+    .summary-table th.room-col {
+        text-align: left;
+        min-width: 120px;
+    }
+    .summary-table td {
+        padding: 10px 12px;
+        border: 1px solid #e8edf3;
+        text-align: center;
+        vertical-align: middle;
+    }
+    .summary-table td.room-name-cell {
+        text-align: left;
+        font-weight: 600;
+        color: #374151;
+        white-space: nowrap;
+    }
+    .eat-count {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background: #e8fff2;
+        color: #15803d;
+        border: 1px solid #c9f5dd;
+        border-radius: 8px;
+        padding: 3px 10px;
+        font-weight: 700;
+        font-size: .9rem;
+    }
+    .eat-count .sub {
+        font-size: .78rem;
+        color: #64748b;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 2px 6px;
+        font-weight: 500;
+    }
+    .zero-count {
+        color: #94a3b8;
+        font-size: .88rem;
+    }
+
     @media (max-width: 992px) {
         .page-shell { grid-template-columns: 1fr; }
         .side { position: static; height: auto; border-right: none; border-bottom: 1px solid #e8edf3; }
         .table-row { grid-template-columns: 60px 1fr 80px 80px 80px 80px; }
+        .summary-table { font-size: .82rem; }
+        .summary-table th, .summary-table td { padding: 7px 8px; }
     }
 </style>
 
@@ -330,10 +390,11 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
                 <div class="bell">🔔</div>
             </div>
         </div>
+        
 
         <div class="card">
             <div class="subhead">
-                <span>本日の食数詳細</span>
+                <span>利用者別食数詳細</span>
             </div>
             <div class="subtext"><?= h($dateLabel) ?>・<?= h($activeRoomName) ?></div>
 

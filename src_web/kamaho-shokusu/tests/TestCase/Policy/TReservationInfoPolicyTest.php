@@ -68,6 +68,36 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertFalse($policy->canGetUsersByRoom($identity, $resource));
     }
 
+    public function testCanGetUsersByRoomOfficeUserAllowedForOfficeRoom(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]], [10 => true]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 0,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_room', 1, ['guard' => false]);
+
+        $this->assertTrue($policy->canGetUsersByRoom($identity, $resource));
+    }
+
+    public function testCanGetUsersByRoomOfficeUserOtherRoomDenied(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]], [10 => true]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 0,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_room', 999, ['guard' => false]);
+
+        $this->assertFalse($policy->canGetUsersByRoom($identity, $resource));
+    }
+
     public function testCanCopyAdminAllowedNonAdminDenied(): void
     {
         $policy = new TReservationInfoPolicy(new TestRoomAccessService([]));
@@ -92,14 +122,26 @@ class TestRoomAccessService extends RoomAccessService
 {
     /**
      * @param array<int, array<int>> $map
+     * @param array<int, bool> $officeUsers
      */
-    public function __construct(private array $map)
+    public function __construct(private array $map, private array $officeUsers = [])
     {
     }
 
     public function getUserRoomIds(int $userId): array
     {
         return $this->map[$userId] ?? [];
+    }
+
+    public function isOfficeUser(int $userId): bool
+    {
+        return $this->officeUsers[$userId] ?? false;
+    }
+
+    public function userCanAccessRoom(int $userId, int $roomId): bool
+    {
+
+        return in_array($roomId, $this->getUserRoomIds($userId), true);
     }
 }
 

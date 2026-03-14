@@ -4,6 +4,8 @@
     .card-grid { grid-template-columns: 1fr; }
     .alert-card { grid-template-columns: 1fr; }
     .alert-actions { justify-content: flex-start; }
+    .menu-card:hover { transform: none; }
+    .menu-card:active { background: #e0e7ff; border-color: #a5b4fc; transform: none; }
 
     .dash-shell.mobile-sidebar-collapsed .dash-sidebar {
         transform: translateX(-100%);

@@ -977,12 +977,35 @@ function openModalById(id){
                     } catch (e) {
                         console.warn('quickOpenDayModal error:', e);
                     }
+                },
+
+                eventClick: function(info){
+                    var ep = info.event.extendedProps || {};
+                    if (!ep.isMealCount) return; // 食数イベント以外は無視
+                    info.jsEvent.stopPropagation();
+                    var date   = info.event.startStr ? info.event.startStr.slice(0, 10) : '';
+                    var roomId = (window.__TRESP && window.__TRESP.calRoomId != null)
+                        ? window.__TRESP.calRoomId : null;
+                    if (window.openMealCalUserModal) {
+                        window.openMealCalUserModal(date, roomId);
+                    }
                 }
             });
 
             calendar.render();
             window.calendar = calendar;
             window.__reservationCalendar = calendar;
+
+            // 部屋セレクタを FullCalendar ツールバー右端の先頭（「前月」ボタンの左）へ移動
+            (function() {
+                var wrap = document.getElementById('calRoomSelectorWrap');
+                if (!wrap) return;
+                // FullCalendar の右ツールバーチャンク（prev/today/next が入っている塊）
+                var toolbarRight = calendarEl.querySelector('.fc-header-toolbar .fc-toolbar-chunk:last-child');
+                if (!toolbarRight) return;
+                wrap.style.display = 'inline-flex';
+                toolbarRight.insertBefore(wrap, toolbarRight.firstChild);
+            })();
 
             if (fromDateInput) {
                 fromDateInput.addEventListener('change', function(){
@@ -3120,7 +3143,7 @@ function isWithin14(dateStr){
         
         // ページロード時に全体に適用
         applyLunchBentoExclusion(document);
-        
+
         // モーダル表示時にも適用
         document.addEventListener('shown.bs.modal', function(ev) {
             var modal = ev.target;
@@ -3131,3 +3154,97 @@ function isWithin14(dateStr){
             }
         });
     });
+
+// ================= 食数イベントクリック → ユーザー一覧モーダル =================
+(function () {
+    'use strict';
+
+    var MEAL_LABELS = { 1: '朝食', 2: '昼食', 3: '夕食', 4: '弁当' };
+    var MEAL_COLORS = { 1: '#17a2b8', 2: '#28a745', 3: '#6610f2', 4: '#fd7e14' };
+
+    function getUsersByRoomUrl(roomId, date) {
+        var tpl = window.GET_USERS_BY_ROOM_TPL || '';
+        if (!tpl) return null;
+        var url = tpl.replace('__RID__', encodeURIComponent(roomId));
+        return url + '?date=' + encodeURIComponent(date);
+    }
+
+    function escHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function buildModalContent(usersByRoom) {
+        var html = '';
+        var mealKeys = { 1: 'morning', 2: 'noon', 3: 'night', 4: 'bento' };
+        [1, 2, 3, 4].forEach(function (mt) {
+            var key = mealKeys[mt];
+            var users = usersByRoom.filter(function (u) { return !!u[key]; });
+            var color = MEAL_COLORS[mt];
+            html += '<div class="meal-cal-modal-section">';
+            html += '<div class="meal-cal-modal-section-title" style="border-color:' + color + ';color:' + color + ';">'
+                + escHtml(MEAL_LABELS[mt]) + '（' + users.length + '名）</div>';
+            if (users.length === 0) {
+                html += '<p class="text-muted small mb-0">なし</p>';
+            } else {
+                html += '<div class="meal-cal-user-list">';
+                users.forEach(function (u) {
+                    html += '<span class="meal-cal-user-chip">' + escHtml(u.name || '') + '</span>';
+                });
+                html += '</div>';
+            }
+            html += '</div>';
+        });
+        return html;
+    }
+
+    function openMealCalUserModal(date, roomId) {
+        var modalEl   = document.getElementById('mealCalUserModal');
+        if (!modalEl) return;
+        var labelEl   = document.getElementById('mealCalModalDateLabel');
+        var loadingEl = document.getElementById('mealCalModalLoading');
+        var contentEl = document.getElementById('mealCalModalContent');
+        if (labelEl)   labelEl.textContent = date + ' の食数詳細';
+        if (loadingEl) loadingEl.classList.remove('d-none');
+        if (contentEl) { contentEl.classList.add('d-none'); contentEl.innerHTML = ''; }
+
+        var bsModal = window.bootstrap && window.bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (bsModal) bsModal.show();
+
+        if (roomId == null || roomId === '') {
+            if (loadingEl) loadingEl.classList.add('d-none');
+            if (contentEl) {
+                contentEl.innerHTML = '<p class="text-muted"><i class="bi bi-info-circle"></i> 部屋フィルタを選択すると利用者一覧を確認できます。</p>';
+                contentEl.classList.remove('d-none');
+            }
+            return;
+        }
+
+        var url = getUsersByRoomUrl(roomId, date);
+        if (!url) return;
+
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (res) { return res.json(); })
+            .then(function (json) {
+                var data = (json && json.ok && json.data) ? json.data : json;
+                var usersByRoom = data.usersByRoom || data.users || [];
+                var html = buildModalContent(usersByRoom);
+                if (contentEl) { contentEl.innerHTML = html; contentEl.classList.remove('d-none'); }
+                if (loadingEl) loadingEl.classList.add('d-none');
+            })
+            .catch(function (err) {
+                if (loadingEl) loadingEl.classList.add('d-none');
+                if (contentEl) {
+                    contentEl.innerHTML = '<p class="text-danger small">データの取得に失敗しました。</p>';
+                    contentEl.classList.remove('d-none');
+                }
+                console.error('[mealCal] fetch error', err);
+            });
+    }
+
+    // FullCalendar の eventClick から呼べるよう公開
+    window.openMealCalUserModal = openMealCalUserModal;
+})();

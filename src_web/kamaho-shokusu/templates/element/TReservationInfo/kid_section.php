@@ -1,23 +1,49 @@
 <?php
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var array<int|string,string> $authorizedRooms */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var int|string $currentRoomId */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var string $toggleBase */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var bool $isChild */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var bool $hasTodayReservation */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var array<string,mixed> $todayReservation */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var array<string,mixed> $myReservationDetails */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var array<int,string> $mealKeys */
+
 // === 子供用UI: 部屋選択追加（この部屋IDで toggle を行う） ===
-$authorizedRooms = $authorizedRooms ?? ($rooms ?? []);
-$currentRoomId = $currentRoomId ?? ($this->request->getQuery('room') ?: ($userRoomId ?? (array_key_first($authorizedRooms) ?: '')));
+$authorizedRooms  = $authorizedRooms ?? ($rooms ?? []);
+$currentRoomId    = $currentRoomId ?? ($this->request->getQuery('room') ?: ($userRoomId ?? (array_key_first($authorizedRooms) ?: '')));
+$hasTodayReservation = isset($hasTodayReservation) && (bool)$hasTodayReservation;
+$todayReservation    = $todayReservation ?? [];
+$myReservationDetails = $myReservationDetails ?? [];
+$mealKeys = $mealKeys ?? [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
 
 // 子供用: トグルURLテンプレート（__ROOM__ をJSで置換）
-$toggleBase = $toggleBase ?? $this->Url->build(['controller'=>'TReservationInfo','action'=>'toggle','__ROOM__']);
+$toggleBase = $toggleBase ?? $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'toggle', '__ROOM__']);
 
 // 中学生向け UI 設定
-$todayDt    = new DateTimeImmutable('today');
-$day14Dt    = $todayDt->modify('+14 days'); // 当日〜14日先＝直前期間（発注済）
-$daysToShow = 31;                           // 4週間
+$isChild = isset($isChild) && (bool)$isChild;
+$todayDt  = new DateTimeImmutable('today', new DateTimeZone('Asia/Tokyo'));
+$day14Dt  = $todayDt->modify('+14 days'); // 当日〜14日先＝直前期間（発注済）
+
+if ($isChild) {
+    // 子ども：今日から1か月後の前日まで（直前＋通常を含む全日）
+    $startDt     = $todayDt;
+    $showUntilDt = $todayDt->modify('+1 month')->modify('-1 day');
+} else {
+    // 大人：通常予約の開始日（今日+15日目）から1か月分
+    $startDt     = $todayDt->modify('+15 days');
+    $showUntilDt = $startDt->modify('+1 month')->modify('-1 day');
+}
+
+$daysToShow = (int)$startDt->diff($showUntilDt)->days + 1; // 両端含む
 $todayKey   = $todayDt->format('Y-m-d');
-
-// （旧）固定トグルURLは使わない
-$urlHelper = $this->Url;
-
-$buildBulkUrl = function(string $mondayYmd) use ($urlHelper){
-    return $urlHelper->build('/TReservationInfo/bulkAddForm') . '?date=' . rawurlencode($mondayYmd);
-};
 
 $kidMeals = [
     1 => ['text'=>'朝', 'class'=>'btn-success',           'emoji'=>'☀️'],
@@ -26,11 +52,13 @@ $kidMeals = [
     4 => ['text'=>'弁', 'class'=>'btn-danger',            'emoji'=>'🍱'],
 ];
 ?>
+
+
 <div class="card mb-3">
     <div class="card-body d-flex flex-wrap align-items-center gap-2">
         <div class="fw-bold"><i class="bi bi-door-open"></i> 利用する部屋</div>
         <div class="ms-2">
-            <select id="kid-room-select" class="form-select form-select-sm" style="min-width: 220px;">
+            <select id="kid-room-select" class="form-select form-select-sm" style="min-width: 220px;" title="利用する部屋を選択">
                 <option value="">部屋を選択してください</option>
                 <?php foreach (($authorizedRooms) as $rid => $rname): ?>
                     <option value="<?= h($rid) ?>" <?= (string)$currentRoomId === (string)$rid ? 'selected' : '' ?>>
@@ -65,7 +93,8 @@ $kidMeals = [
     </div>
 </div>
 
-<!-- きょうの状況 -->
+<!-- きょうの状況（子どものみ表示） -->
+<?php if ($isChild): ?>
 <div class="reservation-status my-3 text-center">
     <?php if ($hasTodayReservation): ?>
         <div class="alert alert-success py-3">
@@ -85,26 +114,19 @@ $kidMeals = [
         </div>
     <?php endif; ?>
 </div>
+<?php endif; ?>
 
-<!-- 28日分のカード -->
+<!-- 1か月分のカード -->
 <?php
 for ($i=0; $i<$daysToShow; $i++):
-    $d        = $todayDt->modify("+{$i} days");
+    $d        = $startDt->modify("+{$i} days");
     $dateKey  = $d->format('Y-m-d');
     $wIdx     = (int)$d->format('w');
     $w        = ['日','月','火','水','木','金','土'][$wIdx];
-    $isMonday = ($wIdx === 1);
-    $isLastMinute = ($d >= $todayDt && $d <= $day14Dt);
+    $isLastMinute = $isChild && ($d >= $todayDt && $d <= $day14Dt);
     $myDetail     = $myReservationDetails[$dateKey] ?? [];
     $hasLunchForDate = (bool)($myDetail['lunch'] ?? false);
     $hasBentoForDate = (bool)($myDetail['bento'] ?? false);
-
-    if ($isMonday) {
-        $weekStart = $d;
-        $weekEnd   = $d->modify('+6 days');
-        $weekLabel = $weekStart->format('n/j') . '〜' . $weekEnd->format('n/j');
-        $bulkUrl   = $buildBulkUrl($dateKey);
-    }
     ?>
     <div class="card mb-3 kid-card"
          id="card-<?= h($dateKey) ?>"

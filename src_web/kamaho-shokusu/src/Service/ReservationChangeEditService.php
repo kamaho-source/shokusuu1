@@ -8,53 +8,34 @@ use Cake\ORM\Table;
 
 class ReservationChangeEditService
 {
+    private RoomAccessService $roomAccessService;
+
+    public function __construct(?RoomAccessService $roomAccessService = null)
+    {
+        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+    }
+
     public function getAllowedRooms($loginUser, ?int $roomId, Table $userGroupTable, Table $roomTable): array
     {
-        $loginUid  = $loginUser?->get('i_id_user');
+        $loginUid = (int)($loginUser?->get('i_id_user') ?? 0);
+        $isAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 1;
 
-        $allowedRoomsQuery = $userGroupTable->find()
-            ->select(['MUserGroup.i_id_room', 'MRoomInfo.c_room_name'])
-            ->contain(['MRoomInfo'])
-            ->where([
-                'MUserGroup.i_id_user'   => $loginUid,
-                'MUserGroup.active_flag' => 0,
-            ])
-            ->enableHydration(false)
-            ->all();
-
-        $allowedRooms = [];
-        foreach ($allowedRoomsQuery as $row) {
-            // enableHydration(false) + contain では m_room_info が null になる場合があるため
-            // is_array() で配列であることを確認してからアクセスする
-            $roomName = is_array($row['m_room_info'] ?? null)
-                ? ($row['m_room_info']['c_room_name'] ?? null)
-                : null;
-            if ($roomName !== null) {
-                $allowedRooms[(int)$row['i_id_room']] = (string)$roomName;
-            }
+        if ($isAdmin) {
+            return $roomTable->find('list', [
+                'keyField' => 'i_id_room',
+                'valueField' => 'c_room_name',
+            ])->toArray();
         }
 
-        if (empty($allowedRooms)) {
-            $isAdmin = ($loginUser && ($loginUser->get('i_admin') === 1 || (int)$loginUser->get('i_user_level') === 0));
-            if ($isAdmin) {
-                $allRooms = $roomTable->find()
-                    ->select(['i_id_room', 'c_room_name'])
-                    ->where(['i_del_flag' => 0])
-                    ->all();
-                foreach ($allRooms as $r) {
-                    $allowedRooms[(int)$r->i_id_room] = (string)$r->c_room_name;
-                }
-            } elseif ($roomId) {
-                $roomExists = $roomTable->exists(['i_id_room' => $roomId]);
-                if ($roomExists) {
-                    $one = $roomTable->find()
-                        ->select(['i_id_room','c_room_name'])
-                        ->where(['i_id_room' => $roomId])
-                        ->first();
-                    if ($one) {
-                        $allowedRooms = [(int)$one->i_id_room => (string)$one->c_room_name];
-                    }
-                }
+        $allowedRooms = $this->roomAccessService->getAccessibleRooms($roomTable, $loginUid);
+
+        if (empty($allowedRooms) && $roomId && $this->roomAccessService->userCanAccessRoom($loginUid, $roomId)) {
+            $one = $roomTable->find()
+                ->select(['i_id_room', 'c_room_name'])
+                ->where(['i_id_room' => $roomId])
+                ->first();
+            if ($one) {
+                $allowedRooms = [(int)$one->i_id_room => (string)$one->c_room_name];
             }
         }
 

@@ -54,6 +54,30 @@ $pastDateUnavailableMessage = (string)Configure::read(
         </div></div>
 </div>
 
+<div class="modal fade" id="mealCalUserModal" tabindex="-1" aria-labelledby="mealCalUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="mealCalUserModalLabel">
+                    <i class="bi bi-people-fill me-1"></i>
+                    <span id="mealCalModalDateLabel">食数詳細</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body" id="mealCalModalBody">
+                <div class="text-center py-4" id="mealCalModalLoading">
+                    <div class="spinner-border text-secondary" role="status" aria-hidden="true"></div>
+                    <div class="mt-2 text-muted">読み込み中...</div>
+                </div>
+                <div id="mealCalModalContent" class="d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="quickDayModal" tabindex="-1" aria-labelledby="quickDayModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xxl">
         <div class="modal-content">

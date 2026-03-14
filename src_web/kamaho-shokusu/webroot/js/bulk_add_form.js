@@ -46,6 +46,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const uiStateKey = `bulk_add_form_ui_v1:${userKey}`;
     let isDirty = false;
     let isSubmitting = false;
+    // 職員/子供フィルタ: 'all' | 'staff' | 'child'
+    let userFilter = 'all';
+
+    // フィルタセレクトボックスのイベント登録
+    const userFilterSelect = document.getElementById('user-filter-select');
+    if (userFilterSelect) {
+        userFilterSelect.addEventListener('change', () => {
+            userFilter = userFilterSelect.value || 'all';
+            applySearchFilter();
+        });
+    }
 
     function getRoomId() {
         return roomSelect?.value || '';
@@ -189,6 +200,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     setActiveDate(data.activeDate, exists.textContent.trim());
                 }
             }
+            // 検索テキストを復元
+            if (data.searchText != null) {
+                const searchInp = document.querySelector('.excel-header input[type="search"]');
+                if (searchInp) searchInp.value = data.searchText;
+            }
+            // 職員/子供フィルタを復元
+            if (data.userFilter && userFilterSelect) {
+                userFilterSelect.value = data.userFilter;
+                userFilter = data.userFilter;
+            }
         } catch (e) {
             console.warn('failed to load ui state', e);
         }
@@ -196,10 +217,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveUiState() {
         try {
+            const searchInp = document.querySelector('.excel-header input[type="search"]');
             const payload = JSON.stringify({
                 baseWeek: baseWeekKey,
                 roomId: getRoomId(),
                 activeDate,
+                searchText: searchInp?.value ?? '',
+                userFilter,
             });
             sessionStorage.setItem(uiStateKey, payload);
             localStorage.setItem(uiStateKey, payload);
@@ -293,18 +317,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const isChecked = !!(selectionsByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const isLocked = !!(lockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const isOtherRoomLocked = !!(otherRoomLockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
-        const isReserved = !!(serverReservedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const disabledByDate = isActiveDisabled();
-        const isBentoReserved = (type === 4) && isReserved;
+
+        // 弁当↔朝昼夜の排他はチェック変更イベントで自動解除するため、ここでは disabled にしない
         let disabledReason = '';
         if (isOtherRoomLocked) disabledReason = '他の部屋で予約されています。';
-        if (!disabledReason && isBentoReserved) disabledReason = '登録されているため予約できません。';
+
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';
+        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate;
         return `
             <label class="d-inline-flex align-items-center justify-content-center">
                 <input class="meal-toggle" type="checkbox" id="${id}" data-uid="${uid}" data-type="${type}"
-                       ${isChecked ? 'checked' : ''} ${(isLocked || isOtherRoomLocked || disabledByDate || isBentoReserved) ? 'disabled' : ''}>
+                       ${isChecked ? 'checked' : ''} ${isDisabled ? 'disabled' : ''}>
                 <span class="meal-btn ${lockedClass} ${disabledReason ? 'has-tooltip' : ''}" ${disabledReason ? `data-tooltip="${disabledReason}"` : ''}>✓</span>
             </label>
         `;
@@ -324,9 +349,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const rows = currentUsers.map((u, idx) => {
             const uid = u.id;
+            const isStaff = u.is_staff ? '1' : '0';
             const fullMeal = mealTypes.every((t) => selectionsByRoom[roomId]?.[activeDate]?.[uid]?.[t]);
             return `
-                <tr>
+                <tr data-is-staff="${isStaff}">
                     <td>${idx + 1}</td>
                     <td><strong>${u.name}</strong></td>
                     <td class="text-center">${buildMealCell(roomId, uid, 1)}</td>
@@ -351,14 +377,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectionsByRoom[roomId][activeDate][uid] = selectionsByRoom[roomId][activeDate][uid] || {};
                 if (e.target.checked) {
                     selectionsByRoom[roomId][activeDate][uid][type] = true;
-                    // 昼(2)と弁当(4)は排他
+                    // 昼(2)と弁当(4)は排他（選択状態を削除）
                     if (type === 2 || type === 4) {
                         const counterpart = type === 2 ? 4 : 2;
-                        const counterpartCb = userRows.querySelector(
-                            `.meal-toggle[data-uid="${uid}"][data-type="${counterpart}"]`,
-                        );
-                        if (counterpartCb && !counterpartCb.disabled) {
-                            counterpartCb.checked = false;
+                        if (!lockedByRoom[roomId]?.[activeDate]?.[uid]?.[counterpart]) {
                             delete selectionsByRoom[roomId][activeDate][uid][counterpart];
                         }
                     }
@@ -369,6 +391,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         delete selectionsByRoom[roomId][activeDate][uid][type];
                     }
                 }
+                renderTable();
+                applySearchFilter();
                 scheduleUpdateCounts();
                 updateBulkToggleState();
                 markDirty();
@@ -488,14 +512,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function applySearchFilter() {
+        if (!userRows) return;
         const input = document.querySelector('.excel-header input[type="search"]');
-        if (!input || !userRows) return;
-        const q = input.value.trim().toLowerCase();
+        const q = input ? input.value.trim().toLowerCase() : '';
         let visible = 0;
         userRows.querySelectorAll('tr').forEach((tr) => {
+            if (tr.dataset.empty === '1') return;
             const nameCell = tr.querySelector('td:nth-child(2)');
             const text = nameCell?.textContent?.toLowerCase() || '';
-            const show = !q || text.includes(q);
+            const isStaff = tr.dataset.isStaff === '1';
+            const passSearch = !q || text.includes(q);
+            const passFilter =
+                userFilter === 'all' ||
+                (userFilter === 'staff' && isStaff) ||
+                (userFilter === 'child' && !isStaff);
+            const show = passSearch && passFilter;
             tr.style.display = show ? '' : 'none';
             if (show) visible += 1;
         });
@@ -606,6 +637,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         renderTable();
+        applySearchFilter();
         markDirty();
         scheduleSaveState();
     }
@@ -671,6 +703,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             scheduleUpdateCounts();
             renderTable();
+            applySearchFilter();
             markDirty();
             scheduleSaveState();
         });
@@ -733,6 +766,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             input.type = 'hidden';
                             input.name = `day_users[${date}][${uid}][${type}]`;
                             input.value = '1';
+                            selectionInputs.appendChild(input);
+                        } else if (meals[type] === false) {
+                            // 既存予約をチェックOFFにした場合（false = 明示的にキャンセル）
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = `day_users[${date}][${uid}][${type}]`;
+                            input.value = '0';
                             selectionInputs.appendChild(input);
                         }
                     });
@@ -843,14 +883,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 週切替はドラフト保存して移動（破棄させない）
+    // 週切替：同期的に保存してから移動（scheduleSaveState では遷移前に保存されないため）
     weekTabLinks.forEach((a) => {
         a.addEventListener('click', (e) => {
-            scheduleSaveState();
+            saveState();
             saveUiState();
         });
     });
-    // ページ離脱時の警告は出さない（自動保持のため）
 
     if (pagerPrev && pagerNext) {
         pagerPrev.addEventListener('click', () => {

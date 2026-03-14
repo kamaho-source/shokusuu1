@@ -191,6 +191,17 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'getAllRoomsMealCounts']
         )->setMethods(['GET']);
 
+        // 実食確認管理（大人限定）
+        $builder->connect(
+            '/TReservationInfo/actual-meal-management',
+            ['controller' => 'TReservationInfo', 'action' => 'actualMealManagement']
+        )->setMethods(['GET']);
+
+        $builder->connect(
+            '/TReservationInfo/actual-meal-save',
+            ['controller' => 'TReservationInfo', 'action' => 'actualMealSave']
+        )->setMethods(['POST']);
+
         // 予約コピープレビューAPI
         $builder->connect(
             '/TReservationInfo/copyPreview',
