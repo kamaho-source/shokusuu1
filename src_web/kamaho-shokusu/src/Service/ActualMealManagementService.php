@@ -152,8 +152,6 @@ class ActualMealManagementService
             $versions[$uid] = [];
 
             foreach ($dates as $date) {
-                $d     = new Date($date);
-                $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
                 $grid[$uid][$date]     = [];
                 $versions[$uid][$date] = [];
 
@@ -163,8 +161,8 @@ class ActualMealManagementService
                         $grid[$uid][$date][$mealType]     = false;
                         $versions[$uid][$date][$mealType] = 1;
                     } else {
-                        // 実効値の判定: 14日以内は i_change_flag 優先
-                        if ($isLastMinute && $row['i_change_flag'] !== null) {
+                        // 実効値の判定: i_change_flag が設定済みなら日付に関わらず優先
+                        if ($row['i_change_flag'] !== null) {
                             $effective = (int)$row['i_change_flag'] === 1;
                         } else {
                             $effective = (int)($row['eat_flag'] ?? 0) === 1;
@@ -248,7 +246,7 @@ class ActualMealManagementService
             if (!$reservationTable->save($newEntity)) {
                 return ['ok' => false, 'message' => '保存に失敗しました。'];
             }
-            return ['ok' => true, 'message' => '保存しました。'];
+            return ['ok' => true, 'message' => '保存しました。', 'version' => 1];
         }
 
         // 楽観的ロック付き更新
@@ -273,7 +271,7 @@ class ActualMealManagementService
             return ['ok' => false, 'message' => '他のユーザーによって更新されています。画面を再読み込みしてください。'];
         }
 
-        return ['ok' => true, 'message' => '保存しました。'];
+        return ['ok' => true, 'message' => '保存しました。', 'version' => $nextVersion];
     }
 
     /**

@@ -211,8 +211,12 @@ if (!empty($dates)) {
             </div>
         </div>
 
-        <div class="mt-2 small text-muted">
-            ※ チェックを変更すると即時保存されます。競合が発生した場合は画面を再読み込みしてください。
+        <div class="mt-3 d-flex align-items-center gap-3 flex-wrap">
+            <button id="confirm-btn" class="btn btn-primary" disabled>確定</button>
+            <span id="pending-count" class="text-muted small"></span>
+        </div>
+        <div class="mt-1 small text-muted">
+            ※ チェックを変更後、「確定」ボタンを押すと保存されます。競合が発生した場合は画面を再読み込みしてください。
         </div>
 
     <?php endif; ?>
@@ -234,6 +238,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const csrfToken  = window.__CSRF_TOKEN;
     const overlay    = document.getElementById('saving-overlay');
     const noticeArea = document.getElementById('notice-area');
+    const confirmBtn = document.getElementById('confirm-btn');
+    const pendingCount = document.getElementById('pending-count');
+
+    // key: "uid-date-meal", value: {el, checked}
+    const pendingChanges = new Map();
 
     function showNotice(msg, type) {
         const toast = document.createElement('div');
@@ -247,56 +256,111 @@ document.addEventListener('DOMContentLoaded', () => {
         if (overlay) overlay.classList.toggle('active', on);
     }
 
+    function updatePendingUI() {
+        const count = pendingChanges.size;
+        if (confirmBtn) confirmBtn.disabled = count === 0;
+        if (pendingCount) {
+            pendingCount.textContent = count > 0 ? `${count} 件の変更があります` : '';
+        }
+    }
+
     document.querySelectorAll('.actual-cb').forEach((cb) => {
-        cb.addEventListener('change', async (e) => {
-            const el      = e.target;
-            const uid     = parseInt(el.dataset.uid,     10);
-            const date    = el.dataset.date;
-            const meal    = parseInt(el.dataset.meal,    10);
-            const version = parseInt(el.dataset.version, 10);
-            const roomId  = parseInt(el.dataset.room,    10);
-            const checked = el.checked ? 1 : 0;
+        // 初期値を記憶する
+        cb.dataset.originalChecked = cb.checked ? '1' : '0';
 
-            el.disabled = true;
-            setOverlay(true);
+        cb.addEventListener('change', (e) => {
+            const el  = e.target;
+            const uid  = el.dataset.uid;
+            const date = el.dataset.date;
+            const meal = el.dataset.meal;
+            const key  = `${uid}-${date}-${meal}`;
+            const isOriginal = (el.checked ? '1' : '0') === el.dataset.originalChecked;
 
-            try {
-                const res  = await fetch(saveUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': csrfToken,
-                    },
-                    body: JSON.stringify({
-                        _csrfToken: csrfToken,
-                        user_id:    uid,
-                        date:       date,
-                        meal_type:  meal,
-                        checked:    checked,
-                        version:    version,
-                        room_id:    roomId,
-                    }),
-                });
-                const data = await res.json();
-
-                if (res.ok && data.ok) {
-                    // バージョンを更新する
-                    el.dataset.version = String(version + 1);
-                    showNotice('保存しました。', 'success');
-                } else {
-                    el.checked = !el.checked; // ロールバック
-                    showNotice(data.message || '保存に失敗しました。', 'error');
-                }
-            } catch (err) {
-                el.checked = !el.checked; // ロールバック
-                showNotice('通信エラーが発生しました。', 'error');
-                console.error(err);
-            } finally {
-                el.disabled = false;
-                setOverlay(false);
+            if (isOriginal) {
+                // 元の状態に戻ったので保留から削除
+                pendingChanges.delete(key);
+                el.classList.remove('border', 'border-warning');
+            } else {
+                pendingChanges.set(key, { el });
+                el.classList.add('border', 'border-warning');
             }
+            updatePendingUI();
         });
     });
+
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            if (pendingChanges.size === 0) return;
+
+            confirmBtn.disabled = true;
+            setOverlay(true);
+
+            const entries = Array.from(pendingChanges.entries());
+            let successCount = 0;
+            let errorMessages = [];
+
+            for (const [key, { el }] of entries) {
+                const uid     = parseInt(el.dataset.uid,     10);
+                const date    = el.dataset.date;
+                const meal    = parseInt(el.dataset.meal,    10);
+                const version = parseInt(el.dataset.version, 10);
+                const roomId  = parseInt(el.dataset.room,    10);
+                const checked = el.checked ? 1 : 0;
+
+                try {
+                    const res  = await fetch(saveUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            _csrfToken: csrfToken,
+                            user_id:    uid,
+                            date:       date,
+                            meal_type:  meal,
+                            checked:    checked,
+                            version:    version,
+                            room_id:    roomId,
+                        }),
+                    });
+                    const data = await res.json();
+
+                    if (res.ok && data.ok) {
+                        // サーバーから返却されたバージョンで更新する
+                        el.dataset.version = String(data.data?.version ?? version + 1);
+                        el.dataset.originalChecked = checked ? '1' : '0';
+                        el.classList.remove('border', 'border-warning');
+                        pendingChanges.delete(key);
+                        successCount++;
+                    } else {
+                        errorMessages.push(data.message || '保存に失敗しました。');
+                        // ロールバック
+                        el.checked = el.dataset.originalChecked === '1';
+                        el.classList.remove('border', 'border-warning');
+                        pendingChanges.delete(key);
+                    }
+                } catch (err) {
+                    errorMessages.push('通信エラーが発生しました。');
+                    // ロールバック
+                    el.checked = el.dataset.originalChecked === '1';
+                    el.classList.remove('border', 'border-warning');
+                    pendingChanges.delete(key);
+                    console.error(err);
+                }
+            }
+
+            setOverlay(false);
+            updatePendingUI();
+
+            if (successCount > 0) {
+                showNotice(`${successCount} 件保存しました。`, 'success');
+            }
+            if (errorMessages.length > 0) {
+                errorMessages.forEach(msg => showNotice(msg, 'error'));
+            }
+        });
+    }
 });
 </script>
 

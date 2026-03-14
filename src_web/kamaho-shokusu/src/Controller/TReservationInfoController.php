@@ -1418,7 +1418,7 @@ class TReservationInfoController extends AppController
             return $this->apiResponseService->error($this->response, $result['message'], 409);
         }
 
-        return $this->apiResponseService->success($this->response, [], $result['message']);
+        return $this->apiResponseService->success($this->response, ['version' => $result['version'] ?? 1], $result['message']);
     }
 
     /* =============================================================== */
