@@ -4,9 +4,9 @@ set -e
 DATE=$(date +%y%m%d)
 CONTAINER_NAME="kamakura-shokusu_web_db"
 BACKUP_DIR="./backup"
-DB_NAME="shokusu"
-DB_USER="kamakuraadm1n"
-DB_PASS="hata220424"
+DB_NAME="${DB_NAME:-shokusu}"
+DB_USER="${DB_USER}"
+DB_PASS="${DB_PASS}"
 
 # コンテナ内でダンプ（上書き）
 docker exec "$CONTAINER_NAME" \
