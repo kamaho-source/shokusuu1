@@ -10,7 +10,7 @@ DB_PASS="${DB_PASS}"
 
 # コンテナ内でダンプ（上書き）
 docker exec "$CONTAINER_NAME" \
-  mysqldump -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" > /tmp/dump.sql
+  mysqldump -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" --result-file=/tmp/dump.sql
 
 # コンテナ外へコピー
 mkdir -p "$BACKUP_DIR"
