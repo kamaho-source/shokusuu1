@@ -1,0 +1,27 @@
+name: Age Update
+
+on:
+  schedule:
+    - cron: '0 15 31 3 *'   # JST 4月1日 0:00 に相当（UTC 3月31日 15:00）
+  workflow_dispatch:          # 手動実行も可能
+
+jobs:
+  age-update:
+    name: Annual Age Update
+    runs-on: ubuntu-latest
+    # 本番サーバー専用: main ブランチのみ実行
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: SSH into production server and run age update
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_SERVER_HOST }}
+          username: ${{ secrets.PROD_SERVER_USER }}
+          key: ${{ secrets.PROD_SERVER_SSH_KEY }}
+          port: ${{ secrets.PROD_SERVER_PORT || 22 }}
+          script: |
+            cd ${{ secrets.PROD_PROJECT_DIR }}
+            DB_USER=${{ secrets.DB_USER }} \
+            DB_PASS=${{ secrets.DB_PASS }} \
+            bash scripts/age_update.sh
