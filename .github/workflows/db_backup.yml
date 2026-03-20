@@ -24,4 +24,5 @@ jobs:
             cd ${{ secrets.PROD_PROJECT_DIR }}
             DB_USER=${{ secrets.DB_USER }} \
             DB_PASS=${{ secrets.DB_PASS }} \
+            BACKUP_DIR=${{ secrets.BACKUP_DIR || '/home/ubuntu/backups/shokusu' }} \
             bash scripts/db_backup.sh

@@ -3,7 +3,7 @@ set -e
 
 DATE=$(date +%y%m%d)
 CONTAINER_NAME="kamakura-shokusu_web_db"
-BACKUP_DIR="./backup"
+BACKUP_DIR="${BACKUP_DIR:-/home/ubuntu/backups/shokusu}"
 DB_NAME="${DB_NAME:-shokusu}"
 DB_USER="${DB_USER}"
 DB_PASS="${DB_PASS}"
