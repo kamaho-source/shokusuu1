@@ -1,0 +1,28 @@
+name: DB Backup
+
+on:
+  schedule:
+    - cron: '0 19 * * *'   # JST 4:00 に相当（UTC 19:00）
+  workflow_dispatch:        # 手動実行も可能
+
+jobs:
+  backup:
+    name: DB Dump & Backup
+    runs-on: ubuntu-latest
+    # 本番サーバー専用: main ブランチのみ実行
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: SSH into production server and run backup
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            DB_USER=${{ secrets.DB_USER }} \
+            DB_PASS=${{ secrets.DB_PASS }} \
+            BACKUP_DIR=${{ secrets.BACKUP_DIR || '/home/ubuntu/backups/shokusu' }} \
+            bash scripts/db_backup.sh
