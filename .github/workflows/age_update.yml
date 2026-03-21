@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: SSH into production server and run age update
-        uses: appleboy/ssh-action@v1.2.0
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ubuntu
