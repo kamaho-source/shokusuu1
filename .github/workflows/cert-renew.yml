@@ -1,0 +1,26 @@
+name: Renew TLS Certificate
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  renew:
+    name: Renew cert on production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run certbot renew on production host
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            sudo certbot renew --quiet \
+              --deploy-hook "docker exec network-reverse nginx -s reload"
