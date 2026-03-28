@@ -18,9 +18,9 @@ jobs:
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
-          key: ${{ secrets.PROD_SSH_KEY }}
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
           script_stop: true
           script: |
             set -euo pipefail
-            sudo certbot renew --quiet \
+            echo "${{ secrets.PROD_SUDO_PASSWORD }}" | sudo -S certbot renew --quiet \
               --deploy-hook "docker exec network-reverse nginx -s reload"
