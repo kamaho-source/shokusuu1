@@ -86,4 +86,4 @@ jobs:
         env:
           SLACK_TITLE: Deploy / Failure
           SLACK_COLOR: danger
-          SLACK_MESSAGE: デプロイ失敗しました😢
+          SLACK_MESSAGE: "<@U09CWRH7W5S> デプロイ失敗しました😢"
