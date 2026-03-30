@@ -44,4 +44,4 @@ jobs:
         env:
           SLACK_TITLE: Age Update / Failure
           SLACK_COLOR: danger
-          SLACK_MESSAGE: "<@U09CWRH7W5S> 年齢更新失敗しました😢"
+          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> 年齢更新失敗しました😢"

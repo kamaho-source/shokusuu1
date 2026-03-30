@@ -22,11 +22,11 @@ jobs:
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
-          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script_stop: true
           script: |
             set -euo pipefail
-            echo "${{ secrets.PROD_SUDO_PASSWORD }}" | sudo -S certbot renew --quiet \
+            sudo certbot renew --quiet \
               --deploy-hook "docker exec network-reverse nginx -s reload"
 
       - name: Slack Notification on Success

@@ -45,4 +45,4 @@ jobs:
         env:
           SLACK_TITLE: DB Backup / Failure
           SLACK_COLOR: danger
-          SLACK_MESSAGE: "<@U09CWRH7W5S> DBバックアップ失敗しました😢"
+          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> DBバックアップ失敗しました😢"
