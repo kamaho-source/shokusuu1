@@ -59,7 +59,8 @@ jobs:
           script: |
             set -euo pipefail
             echo "$SUDO_PASS" | sudo -S certbot renew --quiet \
-              --deploy-hook "docker exec network-reverse nginx -s reload"
+              --pre-hook "docker stop network-reverse" \
+              --post-hook "docker start network-reverse"
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2
