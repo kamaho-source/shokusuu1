@@ -48,14 +48,17 @@ jobs:
     steps:
       - name: Run certbot renew on production host
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          SUDO_PASS: ${{ secrets.PROD_SUDO_PASSWORD }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: SUDO_PASS
           script_stop: true
           script: |
             set -euo pipefail
-            sudo certbot renew --quiet \
+            echo "$SUDO_PASS" | sudo -S certbot renew --quiet \
               --deploy-hook "docker exec network-reverse nginx -s reload"
 
       - name: Slack Notification on Success
