@@ -9,8 +9,37 @@ permissions:
   contents: read
 
 jobs:
+  check-expiry:
+    name: Check certificate expiry
+    runs-on: ubuntu-latest
+    outputs:
+      needs_renewal: ${{ steps.check.outputs.needs_renewal }}
+    steps:
+      - name: Check TLS certificate expiry
+        id: check
+        run: |
+          HOST="${{ secrets.PROD_HOST }}"
+          EXPIRY=$(echo | timeout 10 openssl s_client -connect "${HOST}:443" -servername "${HOST}" 2>/dev/null \
+            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
+          if [ -z "$EXPIRY" ]; then
+            echo "Could not retrieve certificate, assuming renewal needed"
+            echo "needs_renewal=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
+          NOW_EPOCH=$(date +%s)
+          DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+          echo "Certificate expires in ${DAYS_LEFT} days"
+          if [ "$DAYS_LEFT" -le 30 ]; then
+            echo "needs_renewal=true" >> $GITHUB_OUTPUT
+          else
+            echo "needs_renewal=false" >> $GITHUB_OUTPUT
+          fi
+
   renew:
     name: Renew cert on production
+    needs: check-expiry
+    if: needs.check-expiry.outputs.needs_renewal == 'true'
     runs-on: ubuntu-latest
     env:
       SLACK_USERNAME: DeployBot
@@ -19,14 +48,17 @@ jobs:
     steps:
       - name: Run certbot renew on production host
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          SUDO_PASS: ${{ secrets.PROD_SUDO_PASSWORD }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: SUDO_PASS
           script_stop: true
           script: |
             set -euo pipefail
-            sudo certbot renew --quiet \
+            echo "$SUDO_PASS" | sudo -S certbot renew --quiet \
               --deploy-hook "docker exec network-reverse nginx -s reload"
 
       - name: Slack Notification on Success
@@ -43,4 +75,4 @@ jobs:
         env:
           SLACK_TITLE: Cert Renew / Failure
           SLACK_COLOR: danger
-          SLACK_MESSAGE: TLS証明書の更新失敗しました😢
+          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> TLS証明書の更新失敗しました😢"
