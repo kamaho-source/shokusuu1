@@ -2,7 +2,7 @@ name: Renew TLS Certificate
 
 on:
   schedule:
-    - cron: "17 3 * * 1"
+    - cron: "0 3 30 */2 *"
   workflow_dispatch:
 
 permissions:
