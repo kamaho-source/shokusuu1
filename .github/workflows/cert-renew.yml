@@ -18,7 +18,7 @@ jobs:
       - name: Check TLS certificate expiry
         id: check
         run: |
-          HOST="${{ secrets.PROD_HOST }}"
+          HOST=$(echo "${{ secrets.PROD_HOST }}" | tr -d '[:space:]')
           EXPIRY=$(echo | timeout 10 openssl s_client -connect "${HOST}:443" -servername "${HOST}" 2>/dev/null \
             | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
           if [ -z "$EXPIRY" ]; then
