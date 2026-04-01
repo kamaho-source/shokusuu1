@@ -187,108 +187,149 @@ $csrfToken = $this->request->getAttribute('csrfToken');
     </p>
 </div>
 
+<!-- 確認モーダル -->
+<div class="modal fade" id="confirmModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalTitle">確認</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="confirmModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="confirmCancelBtn">キャンセル</button>
+                <button type="button" class="btn btn-primary" id="confirmOkBtn">確定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 完了モーダル -->
+<div class="modal fade" id="resultModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div id="resultModalIcon" style="font-size:2.2rem;"></div>
+                <div id="resultModalMessage" class="fs-6 fw-bold mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const adminCheckboxes = document.querySelectorAll('.admin-checkbox');
-        const toggleNormal = document.getElementById('toggleNormal');
+        const toggleNormal  = document.getElementById('toggleNormal');
         const toggleDeleted = document.getElementById('toggleDeleted');
         const csrfToken =
             document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
             document.querySelector('input[name="_csrfToken"]')?.value ||
             '';
 
-        // 管理者権限チェックボックスの変更処理
-        function handleAdminCheckboxChange(event) {
-            const target = event.target;
-            const userId = target.getAttribute('data-user-id');
-            const userName = target.getAttribute('data-user-name');
-            const isAdmin = target.checked ? 1 : 0;
+        // ---- モーダルユーティリティ ----
+        const confirmModal  = new bootstrap.Modal(document.getElementById('confirmModal'));
+        const resultModal   = new bootstrap.Modal(document.getElementById('resultModal'));
 
-            const confirmMessage = isAdmin
-                ? `${userName}に管理者権限を付与しますか？`
-                : `${userName}から管理者権限を削除しますか？`;
+        /** 確認モーダルを表示し、OKが押されたら resolve(true)、キャンセルなら resolve(false) */
+        function showConfirm(message) {
+            return new Promise(resolve => {
+                document.getElementById('confirmModalBody').textContent = message;
+                confirmModal.show();
 
-            if (!confirm(confirmMessage)) {
-                target.checked = !target.checked;
-                return;
-            }
+                const okBtn     = document.getElementById('confirmOkBtn');
+                const cancelBtn = document.getElementById('confirmCancelBtn');
 
-            fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
-            })
-                .then(response => response.json())
+                function cleanup() {
+                    okBtn.removeEventListener('click', onOk);
+                    cancelBtn.removeEventListener('click', onCancel);
+                    document.getElementById('confirmModal')
+                            .removeEventListener('hide.bs.modal', onCancel);
+                }
+                function onOk()     { cleanup(); confirmModal.hide(); resolve(true);  }
+                function onCancel() { cleanup(); resolve(false); }
+
+                okBtn.addEventListener('click', onOk);
+                cancelBtn.addEventListener('click', onCancel);
+                document.getElementById('confirmModal')
+                        .addEventListener('hide.bs.modal', onCancel, { once: true });
+            });
+        }
+
+        /** 完了モーダルを表示（1.5秒後に自動クローズ） */
+        function showResult(message, success = true) {
+            document.getElementById('resultModalIcon').textContent    = success ? '✅' : '❌';
+            document.getElementById('resultModalMessage').textContent = message;
+            resultModal.show();
+            setTimeout(() => resultModal.hide(), 1500);
+        }
+
+        // ---- 管理者トグル ----
+        document.querySelectorAll('.admin-checkbox').forEach(cb => {
+            cb.addEventListener('change', async function () {
+                const userId   = this.getAttribute('data-user-id');
+                const userName = this.getAttribute('data-user-name');
+                const isAdmin  = this.checked ? 1 : 0;
+                const message  = isAdmin
+                    ? `${userName} に管理者権限を付与しますか？`
+                    : `${userName} から管理者権限を削除しますか？`;
+
+                const ok = await showConfirm(message);
+                if (!ok) { this.checked = !this.checked; return; }
+
+                fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
+                })
+                .then(r => r.json())
                 .then(data => {
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.ok === true || payload.success) {
-                        alert('管理者権限が更新されました。');
+                        showResult('管理者権限を更新しました。');
                     } else {
-                        alert(payload.message || '管理者権限の更新に失敗しました。再試行してください。');
-                        target.checked = !target.checked;
+                        showResult(payload.message || '管理者権限の更新に失敗しました。', false);
+                        this.checked = !this.checked;
                     }
                 })
-                .catch(() => {
-                    alert('エラーが発生しました。再試行してください。');
-                    target.checked = !target.checked;
-                });
-        }
+                .catch(() => { showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+            });
+        });
 
-        adminCheckboxes.forEach(cb => cb.addEventListener('change', handleAdminCheckboxChange));
+        // ---- ブロック長トグル ----
+        document.querySelectorAll('.block-leader-checkbox').forEach(cb => {
+            cb.addEventListener('change', async function () {
+                const userId       = this.getAttribute('data-user-id');
+                const userName     = this.getAttribute('data-user-name');
+                const currentLevel = parseInt(this.getAttribute('data-current-level'), 10);
+                const isBlock      = this.checked;
+                const newLevel     = isBlock ? 2 : (currentLevel === 2 ? 0 : currentLevel);
+                const message      = isBlock
+                    ? `${userName} をブロック長に設定しますか？`
+                    : `${userName} からブロック長権限を削除しますか？`;
 
-        // ブロック長チェックボックスの変更処理
-        const blockLeaderCheckboxes = document.querySelectorAll('.block-leader-checkbox');
+                const ok = await showConfirm(message);
+                if (!ok) { this.checked = !this.checked; return; }
 
-        function handleBlockLeaderCheckboxChange(event) {
-            const target   = event.target;
-            const userId   = target.getAttribute('data-user-id');
-            const userName = target.getAttribute('data-user-name');
-            const currentLevel = parseInt(target.getAttribute('data-current-level'), 10);
-            const isBlock  = target.checked;
-
-            // ブロック長にする場合は level=2、外す場合は元のlevelが2なら0に戻す
-            const newLevel = isBlock ? 2 : (currentLevel === 2 ? 0 : currentLevel);
-
-            const confirmMessage = isBlock
-                ? `${userName}をブロック長に設定しますか？`
-                : `${userName}からブロック長権限を削除しますか？`;
-
-            if (!confirm(confirmMessage)) {
-                target.checked = !target.checked;
-                return;
-            }
-
-            fetch('/kamaho-shokusu/MUserInfo/update-user-level', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                body: JSON.stringify({ i_id_user: userId, i_user_level: newLevel })
-            })
-                .then(response => response.json())
+                fetch('/kamaho-shokusu/MUserInfo/update-user-level', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    body: JSON.stringify({ i_id_user: userId, i_user_level: newLevel })
+                })
+                .then(r => r.json())
                 .then(data => {
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.ok === true || payload.success) {
-                        target.setAttribute('data-current-level', newLevel);
-                        alert('ブロック長権限が更新されました。');
+                        this.setAttribute('data-current-level', newLevel);
+                        showResult('ブロック長権限を更新しました。');
                     } else {
-                        alert(payload.message || 'ブロック長権限の更新に失敗しました。再試行してください。');
-                        target.checked = !target.checked;
+                        showResult(payload.message || 'ブロック長権限の更新に失敗しました。', false);
+                        this.checked = !this.checked;
                     }
                 })
-                .catch(() => {
-                    alert('エラーが発生しました。再試行してください。');
-                    target.checked = !target.checked;
-                });
-        }
+                .catch(() => { showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+            });
+        });
 
-        blockLeaderCheckboxes.forEach(cb => cb.addEventListener('change', handleBlockLeaderCheckboxChange));
-
-        // トグルボタンのクリック処理
+        // ---- 通常/削除済みトグル ----
         if (toggleNormal) {
             toggleNormal.addEventListener('click', () => {
                 if (!toggleNormal.classList.contains('active')) {
@@ -296,7 +337,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 }
             });
         }
-
         if (toggleDeleted) {
             toggleDeleted.addEventListener('click', () => {
                 if (!toggleDeleted.classList.contains('active')) {
