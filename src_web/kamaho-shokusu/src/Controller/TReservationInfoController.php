@@ -1335,7 +1335,25 @@ class TReservationInfoController extends AppController
 
         if ($selectedRoomId) {
             $adultUsers = $service->getAdultUsers($this->MUserGroup, $this->MUserInfo, $selectedRoomId);
-            $gridData   = $service->buildWeekGrid($this->TIndividualReservationInfo, $adultUsers, $weekMondayStr);
+
+            // 管理者自身がリストにいない場合、選択部屋に所属していれば先頭に追加する
+            if ($isAdmin) {
+                $alreadyIn = array_filter($adultUsers, fn($u) => (int)$u['id'] === $userId);
+                if (empty($alreadyIn)) {
+                    $inRoom = $this->MUserGroup->find()
+                        ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, 'active_flag' => 0])
+                        ->count() > 0;
+                    if ($inRoom) {
+                        array_unshift($adultUsers, [
+                            'id'       => $userId,
+                            'name'     => (string)($authUser->get('c_user_name') ?? ''),
+                            'staff_id' => (string)($authUser->get('i_id_staff') ?? ''),
+                        ]);
+                    }
+                }
+            }
+
+            $gridData = $service->buildWeekGrid($this->TIndividualReservationInfo, $adultUsers, $weekMondayStr);
         }
 
         // 前週・次週の月曜日
