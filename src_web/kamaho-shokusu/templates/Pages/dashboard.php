@@ -31,6 +31,9 @@ $isLoggedIn = (bool)$user;
 // 管理者かどうかを判定する (i_admin === 1 の場合に管理者メニューを表示する)
 $isAdmin = ($user && (int)$user->get('i_admin') === 1);
 
+// ブロック長かどうかを判定する (i_user_level === 2)
+$isBlockLeader = ($user && (int)$user->get('i_user_level') === 2);
+
 // DashboardService から渡されたダッシュボード用データを展開する
 $todayLabel             = $dashboard['todayLabel']             ?? '';  // 例: 「2026年2月21日(土)」
 $todayParam             = $dashboard['todayParam']             ?? '';  // 例: 「2026-02-21」(URLパラメータ用)
@@ -147,6 +150,14 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                     <div class="menu-title-text">実食報告</div>
                     <div class="menu-desc">実食確認管理（大人限定）</div>
                 </a>
+                <?php /* ブロック長用承認一覧: ブロック長または管理者に表示する */ ?>
+                <?php if ($isBlockLeader || $isAdmin): ?>
+                <a class="menu-card" href="<?= $this->Url->build('/Approval/blockLeaderIndex') ?>">
+                    <div class="menu-icon" style="background:#ede9fe;color:#7c3aed;">📋</div>
+                    <div class="menu-title-text">承認一覧</div>
+                    <div class="menu-desc">職員入力の承認・差し戻しを行う</div>
+                </a>
+                <?php endif; ?>
             </div>
 
             <?php /* ---- 管理者専用メニュー ---- */ ?>
@@ -171,6 +182,12 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                         <div class="menu-icon" style="background:#f1f5f9;color:#475569;">⬇️</div>
                         <div class="menu-title-text">食事控除表ダウンロード</div>
                         <div class="menu-desc">集計帳票の出力</div>
+                    </a>
+                    <?php /* 管理者用最終承認・集計: 管理者のみ表示する */ ?>
+                    <a class="menu-card" href="<?= $this->Url->build('/Approval/adminIndex') ?>">
+                        <div class="menu-icon" style="background:#ecfdf5;color:#059669;">✔️</div>
+                        <div class="menu-title-text">承認管理</div>
+                        <div class="menu-desc">全ブロックの承認・食数反映</div>
                     </a>
                 </div>
             <?php endif; ?>
