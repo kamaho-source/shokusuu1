@@ -145,7 +145,7 @@ foreach ($summary as $row) {
                         $statusInfo = $statusLabels[(int)$rec->i_approval_status] ?? ['label' => '不明', 'class' => 'bg-secondary text-white'];
                         $dataKey = json_encode([
                             'i_id_user'          => $rec->i_id_user,
-                            'd_reservation_date' => (string)$rec->d_reservation_date,
+                            'd_reservation_date' => $rec->d_reservation_date->format('Y-m-d'),
                             'i_id_room'          => $rec->i_id_room,
                             'i_reservation_type' => $rec->i_reservation_type,
                         ], JSON_UNESCAPED_UNICODE);
