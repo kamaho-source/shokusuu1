@@ -27,9 +27,17 @@ $basePath = $this->request->getAttribute('base') ?? '';
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .badge-status { font-size: .75rem; padding: .3em .6em; border-radius: .4rem; }
+        #toast-container { position: fixed; top: 1.2rem; right: 1.2rem; z-index: 9999; display: flex; flex-direction: column; gap: .5rem; }
+        .app-toast { min-width: 260px; border-radius: .6rem; padding: .9rem 1.2rem; font-size: .9rem; font-weight: 500;
+                     box-shadow: 0 4px 16px rgba(0,0,0,.15); display: flex; align-items: center; gap: .6rem;
+                     animation: toast-in .2s ease; }
+        .app-toast.success { background: #d1fae5; color: #065f46; border-left: 4px solid #10b981; }
+        .app-toast.error   { background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444; }
+        @keyframes toast-in { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: translateX(0); } }
     </style>
 </head>
 <body>
+<div id="toast-container"></div>
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4 class="mb-0">承認一覧（ブロック長）</h4>
@@ -150,6 +158,15 @@ $basePath = $this->request->getAttribute('base') ?? '';
     const BASE_PATH   = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES) ?>;
     const CSRF_TOKEN  = document.querySelector('meta[name="csrfToken"]').getAttribute('content');
 
+    function showToast(message, type = 'success') {
+        const icon = type === 'success' ? '✅' : '❌';
+        const el = document.createElement('div');
+        el.className = `app-toast ${type}`;
+        el.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+        document.getElementById('toast-container').appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
     // フィルタ自動送信
     document.querySelectorAll('#filter-form .auto-submit').forEach(el => {
         el.addEventListener('change', () => document.getElementById('filter-form').submit());
@@ -184,19 +201,20 @@ $basePath = $this->request->getAttribute('base') ?? '';
     // 承認
     document.getElementById('approve-btn').addEventListener('click', async () => {
         const keys = getSelectedKeys();
-        if (keys.length === 0) { alert('対象を選択してください'); return; }
+        if (keys.length === 0) { showToast('対象を選択してください', 'error'); return; }
         const result = await postApproval('/Approval/blockLeaderApprove', { keys });
         if (result.success) {
-            location.reload();
+            showToast('承認が完了しました');
+            setTimeout(() => location.reload(), 1200);
         } else {
-            alert('承認に失敗しました\n' + (result.error ?? ''));
+            showToast('承認に失敗しました: ' + (result.error ?? ''), 'error');
         }
     });
 
     // 差し戻しモーダル表示
     const rejectModal = new bootstrap.Modal(document.getElementById('rejectModal'));
     document.getElementById('reject-btn').addEventListener('click', () => {
-        if (getSelectedKeys().length === 0) { alert('対象を選択してください'); return; }
+        if (getSelectedKeys().length === 0) { showToast('対象を選択してください', 'error'); return; }
         rejectModal.show();
     });
 
@@ -207,9 +225,10 @@ $basePath = $this->request->getAttribute('base') ?? '';
         const result = await postApproval('/Approval/blockLeaderReject', { keys, reason });
         rejectModal.hide();
         if (result.success) {
-            location.reload();
+            showToast('差し戻しが完了しました');
+            setTimeout(() => location.reload(), 1200);
         } else {
-            alert('差し戻しに失敗しました\n' + (result.error ?? ''));
+            showToast('差し戻しに失敗しました: ' + (result.error ?? ''), 'error');
         }
     });
 </script>
