@@ -172,7 +172,13 @@ $basePath = $this->request->getAttribute('base') ?? '';
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
             body: JSON.stringify(body),
         });
-        return res.json();
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (_) {
+            console.error('Non-JSON response:', text);
+            return { success: false, error: `HTTP ${res.status}` };
+        }
     }
 
     // 承認
@@ -180,7 +186,11 @@ $basePath = $this->request->getAttribute('base') ?? '';
         const keys = getSelectedKeys();
         if (keys.length === 0) { alert('対象を選択してください'); return; }
         const result = await postApproval('/Approval/blockLeaderApprove', { keys });
-        if (result.success) { location.reload(); } else { alert('承認に失敗しました'); }
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('承認に失敗しました\n' + (result.error ?? ''));
+        }
     });
 
     // 差し戻しモーダル表示
@@ -196,7 +206,11 @@ $basePath = $this->request->getAttribute('base') ?? '';
         const reason = document.getElementById('reject-reason').value.trim();
         const result = await postApproval('/Approval/blockLeaderReject', { keys, reason });
         rejectModal.hide();
-        if (result.success) { location.reload(); } else { alert('差し戻しに失敗しました'); }
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('差し戻しに失敗しました\n' + (result.error ?? ''));
+        }
     });
 </script>
 </body>
