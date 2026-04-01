@@ -144,12 +144,14 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                     <div class="menu-title-text">食数予約</div>
                     <div class="menu-desc">将来の食事予定を一括登録する</div>
                 </button>
-                <?php /* 実食入力: 全ユーザーが自分の実食を入力する */ ?>
+                <?php /* 実食入力: 管理者は全職員管理画面から入力するため非表示 */ ?>
+                <?php if (!$isAdmin): ?>
                 <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/my-actual-meal') ?>">
                     <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
                     <div class="menu-title-text">実食入力</div>
                     <div class="menu-desc">自分の実食を入力する</div>
                 </a>
+                <?php endif; ?>
                 <?php /* ブロック長用承認一覧: ブロック長または管理者に表示する */ ?>
                 <?php if ($isBlockLeader || $isAdmin): ?>
                 <a class="menu-card" href="<?= $this->Url->build('/Approval/blockLeaderIndex') ?>">
