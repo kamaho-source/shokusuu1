@@ -37,11 +37,11 @@ $basePath = $this->request->getAttribute('base') ?? '';
     </div>
 
     <!-- フィルタ -->
-    <form method="get" action="" class="row g-2 mb-3 align-items-end">
+    <form method="get" action="" id="filter-form" class="row g-2 mb-3 align-items-end">
         <div class="col-auto">
-            <label class="form-label mb-1 small">ブロック</label>
-            <select name="room_id" class="form-select form-select-sm">
-                <option value="">全担当ブロック</option>
+            <label class="form-label mb-1 small">部屋名</label>
+            <select name="room_id" class="form-select form-select-sm auto-submit">
+                <option value="">全部屋</option>
                 <?php foreach ($rooms as $rid => $rname): ?>
                     <option value="<?= h($rid) ?>" <?= (string)$rid === (string)$filterRoomId ? 'selected' : '' ?>>
                         <?= h($rname) ?>
@@ -51,15 +51,15 @@ $basePath = $this->request->getAttribute('base') ?? '';
         </div>
         <div class="col-auto">
             <label class="form-label mb-1 small">開始日</label>
-            <input type="date" name="date_from" value="<?= h($dateFrom) ?>" class="form-control form-control-sm">
+            <input type="date" name="date_from" value="<?= h($dateFrom) ?>" class="form-control form-control-sm auto-submit">
         </div>
         <div class="col-auto">
             <label class="form-label mb-1 small">終了日</label>
-            <input type="date" name="date_to" value="<?= h($dateTo) ?>" class="form-control form-control-sm">
+            <input type="date" name="date_to" value="<?= h($dateTo) ?>" class="form-control form-control-sm auto-submit">
         </div>
         <div class="col-auto">
             <label class="form-label mb-1 small">ステータス</label>
-            <select name="status" class="form-select form-select-sm">
+            <select name="status" class="form-select form-select-sm auto-submit">
                 <option value="">全ステータス</option>
                 <?php foreach ($statusLabels as $val => $info): ?>
                     <option value="<?= $val ?>" <?= (string)$val === (string)$filterStatus ? 'selected' : '' ?>>
@@ -67,9 +67,6 @@ $basePath = $this->request->getAttribute('base') ?? '';
                     </option>
                 <?php endforeach; ?>
             </select>
-        </div>
-        <div class="col-auto">
-            <button type="submit" class="btn btn-primary btn-sm">検索</button>
         </div>
     </form>
 
@@ -80,7 +77,7 @@ $basePath = $this->request->getAttribute('base') ?? '';
             <tr>
                 <th style="width:40px;"><input type="checkbox" id="check-all"></th>
                 <th>予約日</th>
-                <th>ブロック</th>
+                <th>部屋名</th>
                 <th>利用者名</th>
                 <th>食種</th>
                 <th>食べる</th>
@@ -152,6 +149,11 @@ $basePath = $this->request->getAttribute('base') ?? '';
 <script>
     const BASE_PATH   = <?= json_encode($basePath, JSON_UNESCAPED_SLASHES) ?>;
     const CSRF_TOKEN  = document.querySelector('meta[name="csrfToken"]').getAttribute('content');
+
+    // フィルタ自動送信
+    document.querySelectorAll('#filter-form .auto-submit').forEach(el => {
+        el.addEventListener('change', () => document.getElementById('filter-form').submit());
+    });
 
     // 全選択
     ['check-all', 'check-all-bottom'].forEach(id => {

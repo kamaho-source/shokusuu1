@@ -47,11 +47,11 @@ foreach ($summary as $row) {
     </div>
 
     <!-- フィルタ -->
-    <form method="get" action="" class="row g-2 mb-3 align-items-end">
+    <form method="get" action="" id="filter-form" class="row g-2 mb-3 align-items-end">
         <div class="col-auto">
-            <label class="form-label mb-1 small">ブロック</label>
-            <select name="room_id" class="form-select form-select-sm">
-                <option value="">全ブロック</option>
+            <label class="form-label mb-1 small">部屋名</label>
+            <select name="room_id" class="form-select form-select-sm auto-submit">
+                <option value="">全部屋</option>
                 <?php foreach ($rooms as $rid => $rname): ?>
                     <option value="<?= h($rid) ?>" <?= (string)$rid === (string)$filterRoomId ? 'selected' : '' ?>>
                         <?= h($rname) ?>
@@ -61,15 +61,15 @@ foreach ($summary as $row) {
         </div>
         <div class="col-auto">
             <label class="form-label mb-1 small">開始日</label>
-            <input type="date" name="date_from" value="<?= h($dateFrom) ?>" class="form-control form-control-sm">
+            <input type="date" name="date_from" value="<?= h($dateFrom) ?>" class="form-control form-control-sm auto-submit">
         </div>
         <div class="col-auto">
             <label class="form-label mb-1 small">終了日</label>
-            <input type="date" name="date_to" value="<?= h($dateTo) ?>" class="form-control form-control-sm">
+            <input type="date" name="date_to" value="<?= h($dateTo) ?>" class="form-control form-control-sm auto-submit">
         </div>
         <div class="col-auto">
             <label class="form-label mb-1 small">ステータス</label>
-            <select name="status" class="form-select form-select-sm">
+            <select name="status" class="form-select form-select-sm auto-submit">
                 <option value="">全ステータス</option>
                 <?php foreach ($statusLabels as $val => $info): ?>
                     <option value="<?= $val ?>" <?= (string)$val === (string)$filterStatus ? 'selected' : '' ?>>
@@ -77,9 +77,6 @@ foreach ($summary as $row) {
                     </option>
                 <?php endforeach; ?>
             </select>
-        </div>
-        <div class="col-auto">
-            <button type="submit" class="btn btn-primary btn-sm">検索</button>
         </div>
     </form>
 
@@ -93,7 +90,7 @@ foreach ($summary as $row) {
             <table class="table table-sm table-bordered summary-table mb-0">
                 <thead class="table-light">
                 <tr>
-                    <th>ブロック</th>
+                    <th>部屋名</th>
                     <th>朝</th>
                     <th>昼</th>
                     <th>夕</th>
@@ -132,7 +129,7 @@ foreach ($summary as $row) {
             <tr>
                 <th style="width:40px;"><input type="checkbox" id="check-all"></th>
                 <th>予約日</th>
-                <th>ブロック</th>
+                <th>部屋名</th>
                 <th>利用者名</th>
                 <th>食種</th>
                 <th>食べる</th>
@@ -208,7 +205,7 @@ foreach ($summary as $row) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                現在フィルタ中の日付・ブロックで管理者承認済みのレコードを<br>
+                現在フィルタ中の日付・部屋名で管理者承認済みのレコードを<br>
                 食数テーブルへ反映します。よろしいですか？
             </div>
             <div class="modal-footer">
@@ -226,6 +223,11 @@ foreach ($summary as $row) {
     const FILTER_ROOM_ID = <?= json_encode($filterRoomId ?: null) ?>;
     const FILTER_DATE_FROM = <?= json_encode($dateFrom) ?>;
     const FILTER_DATE_TO   = <?= json_encode($dateTo) ?>;
+
+    // フィルタ自動送信
+    document.querySelectorAll('#filter-form .auto-submit').forEach(el => {
+        el.addEventListener('change', () => document.getElementById('filter-form').submit());
+    });
 
     // 全選択
     ['check-all', 'check-all-bottom'].forEach(id => {
