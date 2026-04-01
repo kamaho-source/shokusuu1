@@ -1481,8 +1481,16 @@ class TReservationInfoController extends AppController
             return $this->apiResponseService->error($this->response, '日付の形式が正しくありません。', 400);
         }
 
-        $authUser = $this->Authentication->getIdentity();
-        $actor    = (string)($authUser?->get('c_user_name') ?? 'system');
+        $authUser  = $this->Authentication->getIdentity();
+        $actor     = (string)($authUser?->get('c_user_name') ?? 'system');
+        $loginUid  = (int)($authUser?->get('i_id_user') ?? 0);
+        $isAdmin   = (int)($authUser?->get('i_admin') ?? 0) === 1;
+        $isBlockLeader = (int)($authUser?->get('i_user_level') ?? -1) === 2;
+
+        // 管理者・ブロック長以外は自分のデータしか保存できない
+        if (!$isAdmin && !$isBlockLeader && $targetUid !== $loginUid) {
+            return $this->apiResponseService->error($this->response, '他のユーザーのデータは保存できません。', 403);
+        }
 
         $service = new \App\Service\ActualMealManagementService();
         $result  = $service->saveActualMeal(
