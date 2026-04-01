@@ -185,6 +185,18 @@ foreach ($summary as $row) {
     </form>
 </div>
 
+<!-- 完了モーダル -->
+<div class="modal fade" id="successModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div style="font-size:2.5rem;">✅</div>
+                <div id="success-modal-message" class="fs-5 fw-bold mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 差し戻しモーダル -->
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog">
@@ -241,6 +253,13 @@ foreach ($summary as $row) {
         setTimeout(() => el.remove(), 3500);
     }
 
+    const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+    function showSuccessModal(message) {
+        document.getElementById('success-modal-message').textContent = message;
+        successModal.show();
+        setTimeout(() => { successModal.hide(); location.reload(); }, 1500);
+    }
+
     // フィルタ自動送信
     document.querySelectorAll('#filter-form .auto-submit').forEach(el => {
         el.addEventListener('change', () => document.getElementById('filter-form').submit());
@@ -284,8 +303,7 @@ foreach ($summary as $row) {
         if (keys.length === 0) { showToast('対象を選択してください', 'error'); return; }
         const result = await postApproval('/Approval/adminApprove', { keys });
         if (result.success) {
-            showToast('承認が完了しました');
-            setTimeout(() => location.reload(), 1200);
+            showSuccessModal('承認しました。');
         } else {
             showToast('承認に失敗しました: ' + (result.error ?? ''), 'error');
         }
@@ -303,8 +321,7 @@ foreach ($summary as $row) {
         const result = await postApproval('/Approval/adminReject', { keys, reason });
         rejectModal.hide();
         if (result.success) {
-            showToast('差し戻しが完了しました');
-            setTimeout(() => location.reload(), 1200);
+            showSuccessModal('差し戻しました。');
         } else {
             showToast('差し戻しに失敗しました: ' + (result.error ?? ''), 'error');
         }
@@ -318,8 +335,7 @@ foreach ($summary as $row) {
         const result = await postApproval('/Approval/adminReflect', body);
         reflectModal.hide();
         if (result.success) {
-            showToast(result.count + ' 件を食数に反映しました');
-            setTimeout(() => location.reload(), 1200);
+            showSuccessModal(result.count + ' 件を食数に反映しました。');
         } else {
             showToast('反映に失敗しました: ' + (result.error ?? ''), 'error');
         }
