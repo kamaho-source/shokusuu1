@@ -1402,7 +1402,7 @@ class TReservationInfoController extends AppController
         $rooms = [];
         if (!empty($userRoomIds)) {
             $rooms = $this->MRoomInfo->find()
-                ->where(['i_id_room IN' => $userRoomIds, 'i_enable' => 1, 'i_del_flg' => 0])
+                ->where(['i_id_room IN' => $userRoomIds, 'i_del_flg' => 0])
                 ->orderAsc('i_disp_no')
                 ->all()
                 ->combine('i_id_room', 'c_room_name')

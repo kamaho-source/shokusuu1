@@ -59,7 +59,7 @@ class ApprovalController extends AppController
 
         $roomTable = $this->fetchTable('MRoomInfo');
         $rooms = $roomTable->find()
-            ->where(['i_id_room IN' => empty($roomIds) ? [0] : $roomIds, 'i_enable' => 1, 'i_del_flg' => 0])
+            ->where(['i_id_room IN' => empty($roomIds) ? [0] : $roomIds, 'i_del_flg' => 0])
             ->order(['i_disp_no' => 'ASC'])
             ->all()
             ->combine('i_id_room', 'c_room_name')
@@ -155,7 +155,7 @@ class ApprovalController extends AppController
 
         $roomTable = $this->fetchTable('MRoomInfo');
         $rooms = $roomTable->find()
-            ->where(['i_enable' => 1, 'i_del_flg' => 0])
+            ->where(['i_del_flg' => 0])
             ->order(['i_disp_no' => 'ASC'])
             ->all()
             ->combine('i_id_room', 'c_room_name')
