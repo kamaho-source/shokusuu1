@@ -187,33 +187,27 @@ $csrfToken = $this->request->getAttribute('csrfToken');
     </p>
 </div>
 
-<!-- 確認モーダル -->
-<div class="modal fade" id="confirmModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="confirmModalTitle">確認</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="confirmModalBody"></div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" id="confirmCancelBtn">キャンセル</button>
-                <button type="button" class="btn btn-primary" id="confirmOkBtn">確定</button>
-            </div>
-        </div>
+<!-- 確認ポップアップ -->
+<div id="popup-overlay"></div>
+<div id="confirm-popup" role="dialog" aria-modal="true" aria-labelledby="popup-message">
+    <div class="popup-icon-wrap">
+        <svg class="popup-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <circle cx="12" cy="16" r=".5" fill="currentColor"/>
+        </svg>
+    </div>
+    <p id="popup-message"></p>
+    <div class="popup-actions">
+        <button id="popup-cancel" type="button">キャンセル</button>
+        <button id="popup-ok"     type="button">確定</button>
     </div>
 </div>
 
-<!-- 完了モーダル -->
-<div class="modal fade" id="resultModal" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-body text-center py-4">
-                <div id="resultModalIcon" style="font-size:2.2rem;"></div>
-                <div id="resultModalMessage" class="fs-6 fw-bold mt-2"></div>
-            </div>
-        </div>
-    </div>
+<!-- 完了ポップアップ -->
+<div id="result-popup" role="status">
+    <span id="result-popup-icon"></span>
+    <span id="result-popup-msg"></span>
 </div>
 
 <script>
@@ -225,41 +219,42 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             document.querySelector('input[name="_csrfToken"]')?.value ||
             '';
 
-        // ---- モーダルユーティリティ ----
-        const confirmModal  = new bootstrap.Modal(document.getElementById('confirmModal'));
-        const resultModal   = new bootstrap.Modal(document.getElementById('resultModal'));
+        // ---- ポップアップユーティリティ ----
+        const overlay      = document.getElementById('popup-overlay');
+        const confirmPopup = document.getElementById('confirm-popup');
+        const resultPopup  = document.getElementById('result-popup');
 
-        /** 確認モーダルを表示し、OKが押されたら resolve(true)、キャンセルなら resolve(false) */
         function showConfirm(message) {
             return new Promise(resolve => {
-                document.getElementById('confirmModalBody').textContent = message;
-                confirmModal.show();
+                document.getElementById('popup-message').textContent = message;
+                overlay.classList.add('show');
+                confirmPopup.classList.add('show');
 
-                const okBtn     = document.getElementById('confirmOkBtn');
-                const cancelBtn = document.getElementById('confirmCancelBtn');
+                const okBtn     = document.getElementById('popup-ok');
+                const cancelBtn = document.getElementById('popup-cancel');
 
                 function cleanup() {
                     okBtn.removeEventListener('click', onOk);
                     cancelBtn.removeEventListener('click', onCancel);
-                    document.getElementById('confirmModal')
-                            .removeEventListener('hide.bs.modal', onCancel);
+                    overlay.removeEventListener('click', onCancel);
                 }
-                function onOk()     { cleanup(); confirmModal.hide(); resolve(true);  }
-                function onCancel() { cleanup(); resolve(false); }
+                function hide()     { overlay.classList.remove('show'); confirmPopup.classList.remove('show'); }
+                function onOk()     { cleanup(); hide(); resolve(true);  }
+                function onCancel() { cleanup(); hide(); resolve(false); }
 
                 okBtn.addEventListener('click', onOk);
                 cancelBtn.addEventListener('click', onCancel);
-                document.getElementById('confirmModal')
-                        .addEventListener('hide.bs.modal', onCancel, { once: true });
+                overlay.addEventListener('click', onCancel);
             });
         }
 
-        /** 完了モーダルを表示（1.5秒後に自動クローズ） */
+        let resultTimer = null;
         function showResult(message, success = true) {
-            document.getElementById('resultModalIcon').textContent    = success ? '✅' : '❌';
-            document.getElementById('resultModalMessage').textContent = message;
-            resultModal.show();
-            setTimeout(() => resultModal.hide(), 1500);
+            document.getElementById('result-popup-icon').textContent = success ? '✅' : '❌';
+            document.getElementById('result-popup-msg').textContent  = message;
+            resultPopup.className = success ? 'show success' : 'show error';
+            clearTimeout(resultTimer);
+            resultTimer = setTimeout(() => { resultPopup.className = ''; }, 2000);
         }
 
         // ---- 管理者トグル ----
@@ -348,6 +343,106 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 </script>
 
 <style>
+    /* ---- 確認ポップアップ ---- */
+    #popup-overlay {
+        display: none;
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,.35);
+        backdrop-filter: blur(2px);
+        z-index: 1040;
+        animation: overlay-in .15s ease;
+    }
+    #popup-overlay.show { display: block; }
+
+    #confirm-popup {
+        display: none;
+        position: fixed;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -60%) scale(.92);
+        background: #fff;
+        border-radius: 16px;
+        padding: 28px 28px 22px;
+        width: min(360px, 92vw);
+        box-shadow: 0 20px 60px rgba(0,0,0,.22);
+        z-index: 1050;
+        text-align: center;
+        transition: transform .18s cubic-bezier(.34,1.56,.64,1), opacity .15s ease;
+        opacity: 0;
+    }
+    #confirm-popup.show {
+        display: block;
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+    .popup-icon-wrap {
+        width: 52px; height: 52px;
+        margin: 0 auto 14px;
+        background: #fffbeb;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .popup-icon-svg {
+        width: 28px; height: 28px;
+        stroke: #f59e0b;
+    }
+    #popup-message {
+        font-size: .95rem;
+        font-weight: 500;
+        color: #374151;
+        margin: 0 0 20px;
+        line-height: 1.6;
+    }
+    .popup-actions {
+        display: flex; gap: 10px; justify-content: center;
+    }
+    .popup-actions button {
+        flex: 1;
+        padding: 9px 0;
+        border: none;
+        border-radius: 10px;
+        font-size: .88rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: filter .15s;
+    }
+    .popup-actions button:hover { filter: brightness(.93); }
+    #popup-cancel {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+    #popup-ok {
+        background: #6366f1;
+        color: #fff;
+    }
+
+    /* ---- 完了ポップアップ ---- */
+    #result-popup {
+        position: fixed;
+        bottom: 28px; right: 28px;
+        display: flex; align-items: center; gap: 10px;
+        background: #fff;
+        border-radius: 14px;
+        padding: 14px 20px;
+        font-size: .9rem;
+        font-weight: 600;
+        box-shadow: 0 8px 32px rgba(0,0,0,.16);
+        z-index: 1060;
+        transform: translateY(20px);
+        opacity: 0;
+        pointer-events: none;
+        transition: transform .22s cubic-bezier(.34,1.56,.64,1), opacity .18s ease;
+    }
+    #result-popup.show {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+    }
+    #result-popup.success { border-left: 4px solid #10b981; color: #065f46; }
+    #result-popup.error   { border-left: 4px solid #ef4444; color: #991b1b; }
+    #result-popup-icon { font-size: 1.3rem; }
+
+    @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
+
     /* トグルボタンコンテナ */
     .user-view-toggle-container {
         display: inline-flex;
