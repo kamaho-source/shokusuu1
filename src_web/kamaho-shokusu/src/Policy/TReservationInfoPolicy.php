@@ -171,6 +171,11 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user);
     }
 
+    public function canMyActualMeal(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
     private function isAuthenticated(?IdentityInterface $user): bool
     {
         return $this->getOriginalIdentity($user) !== null;

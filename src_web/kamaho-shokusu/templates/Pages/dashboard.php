@@ -144,12 +144,20 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                     <div class="menu-title-text">食数予約</div>
                     <div class="menu-desc">将来の食事予定を一括登録する</div>
                 </button>
-                <?php /* 実食報告: 実食確認管理（大人限定）画面へ遷移する */ ?>
+                <?php /* 実食入力: 職員は個人入力画面へ、ブロック長・管理者は全体管理画面へ */ ?>
+                <?php if ($isAdmin || $isBlockLeader): ?>
                 <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/actual-meal-management') ?>">
                     <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
-                    <div class="menu-title-text">実食報告</div>
-                    <div class="menu-desc">実食確認管理（大人限定）</div>
+                    <div class="menu-title-text">実食管理</div>
+                    <div class="menu-desc">全職員の実食確認・入力</div>
                 </a>
+                <?php else: ?>
+                <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/my-actual-meal') ?>">
+                    <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
+                    <div class="menu-title-text">実食入力</div>
+                    <div class="menu-desc">自分の実食を入力する</div>
+                </a>
+                <?php endif; ?>
                 <?php /* ブロック長用承認一覧: ブロック長または管理者に表示する */ ?>
                 <?php if ($isBlockLeader || $isAdmin): ?>
                 <a class="menu-card" href="<?= $this->Url->build('/Approval/blockLeaderIndex') ?>">

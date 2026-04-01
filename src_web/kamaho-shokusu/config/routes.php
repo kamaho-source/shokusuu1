@@ -203,6 +203,11 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'actualMealSave']
         )->setMethods(['POST']);
 
+        $builder->connect(
+            '/TReservationInfo/my-actual-meal',
+            ['controller' => 'TReservationInfo', 'action' => 'myActualMeal']
+        )->setMethods(['GET']);
+
         // 予約コピープレビューAPI
         $builder->connect(
             '/TReservationInfo/copyPreview',

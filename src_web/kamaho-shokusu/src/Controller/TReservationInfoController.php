@@ -1363,6 +1363,88 @@ class TReservationInfoController extends AppController
     }
 
     /**
+     * 個人向け実食入力画面（職員が自分の実食を入力する）。
+     *
+     * @return Response|null
+     */
+    public function myActualMeal(): ?Response
+    {
+        $this->authorizeReservation('myActualMeal');
+
+        $authUser = $this->Authentication->getIdentity();
+        if (!$authUser) {
+            throw new \Cake\Http\Exception\UnauthorizedException('ログインが必要です。');
+        }
+
+        $userId  = (int)$authUser->get('i_id_user');
+        $isAdmin = (int)($authUser->get('i_admin') ?? 0) === 1;
+
+        // ユーザーの所属部屋
+        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
+        $rooms = [];
+        if (!empty($userRoomIds)) {
+            $rooms = $this->MRoomInfo->find()
+                ->where(['i_id_room IN' => $userRoomIds, 'i_enable' => 1, 'i_del_flg' => 0])
+                ->orderAsc('i_disp_no')
+                ->all()
+                ->combine('i_id_room', 'c_room_name')
+                ->toArray();
+        }
+
+        $selectedRoomId = $this->request->getQuery('room_id')
+            ? (int)$this->request->getQuery('room_id')
+            : (!empty($rooms) ? (int)array_key_first($rooms) : null);
+        if ($selectedRoomId !== null && !isset($rooms[$selectedRoomId])) {
+            $selectedRoomId = !empty($rooms) ? (int)array_key_first($rooms) : null;
+        }
+
+        // 週パラメータ（管理者は2ヶ月前まで遡れる、一般は今週のみ）
+        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $defaultMonday = $today->modify('monday this week')->format('Y-m-d');
+        $weekParam = $this->request->getQuery('week') ?? $defaultMonday;
+
+        try {
+            $weekDate = new \DateTimeImmutable($weekParam, new \DateTimeZone('Asia/Tokyo'));
+        } catch (\Throwable $e) {
+            $weekDate = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
+        }
+        $weekMonday = (int)$weekDate->format('N') === 1
+            ? $weekDate
+            : $weekDate->modify('monday this week');
+
+        $service = new \App\Service\ActualMealManagementService();
+        $oldestMonday  = $isAdmin ? $service->getAdminOldestAllowedMonday() : new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
+        $futureMonday  = $today->modify('monday this week')->modify('+4 weeks');
+
+        if (!$isAdmin && $weekMonday < new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'))) {
+            $weekMonday = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
+        }
+        if ($weekMonday < $oldestMonday) $weekMonday = $oldestMonday;
+        if ($weekMonday > $futureMonday) $weekMonday = $futureMonday;
+
+        $weekMondayStr = $weekMonday->format('Y-m-d');
+        $prevMonday    = $weekMonday->modify('-7 days');
+        $nextMonday    = $weekMonday->modify('+7 days');
+        $canGoPrev     = $isAdmin && $prevMonday >= $oldestMonday;
+        $canGoNext     = $nextMonday <= $futureMonday;
+
+        // 自分だけのグリッドデータ
+        $myUser   = [['id' => $userId, 'name' => $authUser->get('c_user_name'), 'staff_id' => $authUser->get('i_id_staff') ?? '']];
+        $gridData = ['dates' => [], 'meals' => [], 'grid' => [], 'versions' => []];
+
+        if ($selectedRoomId) {
+            $gridData = $service->buildWeekGrid($this->TIndividualReservationInfo, $myUser, $weekMondayStr);
+        }
+
+        $this->set(compact(
+            'rooms', 'selectedRoomId', 'gridData',
+            'weekMondayStr', 'prevMonday', 'nextMonday',
+            'canGoPrev', 'canGoNext', 'isAdmin'
+        ));
+        return null;
+    }
+
+    /**
      * 実食実績を保存する（POST）。
      *
      * リクエストボディ:
