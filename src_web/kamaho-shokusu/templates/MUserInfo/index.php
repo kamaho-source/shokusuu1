@@ -59,6 +59,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 <th><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
                 <th><?= __('所属部屋') ?></th>
                 <?php if ($isAdmin): ?>
+                    <th><?= __('ブロック長') ?></th>
                     <th><?= __('管理者権限') ?></th>
                 <?php endif; ?>
                 <th class="actions"><?= __('操作') ?></th>
@@ -72,6 +73,15 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     <td><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
                     <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
                     <?php if ($isAdmin): ?>
+                        <td>
+                            <?= $this->Form->checkbox('i_user_level_block', [
+                                    'checked' => (int)$userInfo->i_user_level === 2,
+                                    'data-user-id' => $userInfo->i_id_user,
+                                    'data-user-name' => h($userInfo->c_user_name),
+                                    'data-current-level' => (int)$userInfo->i_user_level,
+                                    'class' => 'block-leader-checkbox'
+                            ]) ?>
+                        </td>
                         <td>
                             <?= $this->Form->checkbox('i_admin', [
                                     'checked' => $userInfo->i_admin === 1,
@@ -229,6 +239,55 @@ $csrfToken = $this->request->getAttribute('csrfToken');
         }
 
         adminCheckboxes.forEach(cb => cb.addEventListener('change', handleAdminCheckboxChange));
+
+        // ブロック長チェックボックスの変更処理
+        const blockLeaderCheckboxes = document.querySelectorAll('.block-leader-checkbox');
+
+        function handleBlockLeaderCheckboxChange(event) {
+            const target   = event.target;
+            const userId   = target.getAttribute('data-user-id');
+            const userName = target.getAttribute('data-user-name');
+            const currentLevel = parseInt(target.getAttribute('data-current-level'), 10);
+            const isBlock  = target.checked;
+
+            // ブロック長にする場合は level=2、外す場合は元のlevelが2なら0に戻す
+            const newLevel = isBlock ? 2 : (currentLevel === 2 ? 0 : currentLevel);
+
+            const confirmMessage = isBlock
+                ? `${userName}をブロック長に設定しますか？`
+                : `${userName}からブロック長権限を削除しますか？`;
+
+            if (!confirm(confirmMessage)) {
+                target.checked = !target.checked;
+                return;
+            }
+
+            fetch('/kamaho-shokusu/MUserInfo/update-user-level', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ i_id_user: userId, i_user_level: newLevel })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
+                    if (payload.ok === true || payload.success) {
+                        target.setAttribute('data-current-level', newLevel);
+                        alert('ブロック長権限が更新されました。');
+                    } else {
+                        alert(payload.message || 'ブロック長権限の更新に失敗しました。再試行してください。');
+                        target.checked = !target.checked;
+                    }
+                })
+                .catch(() => {
+                    alert('エラーが発生しました。再試行してください。');
+                    target.checked = !target.checked;
+                });
+        }
+
+        blockLeaderCheckboxes.forEach(cb => cb.addEventListener('change', handleBlockLeaderCheckboxChange));
 
         // トグルボタンのクリック処理
         if (toggleNormal) {
