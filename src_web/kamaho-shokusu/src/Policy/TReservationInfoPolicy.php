@@ -220,9 +220,36 @@ class TReservationInfoPolicy
         return false;
     }
 
+    public function isBlockLeader(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return (int)$identity->get('i_user_level') === 2;
+        }
+
+        if (is_array($identity)) {
+            return (int)($identity['i_user_level'] ?? -1) === 2;
+        }
+
+        if ($identity instanceof \ArrayAccess) {
+            return (int)($identity['i_user_level'] ?? -1) === 2;
+        }
+
+        return false;
+    }
+
     private function isStaffOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isStaff($user);
+    }
+
+    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
+    {
+        return $this->isAdmin($user) || $this->isBlockLeader($user);
     }
 
     private function canAccessRoom(?IdentityInterface $user, TReservationInfo $resource): bool

@@ -208,6 +208,51 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'copyPreview']
         )->setMethods(['GET', 'POST']);
 
+        // ------------------------------------------------------------------
+        // Approval（承認フロー）
+        // ------------------------------------------------------------------
+        // ブロック長用 承認一覧（GET）
+        $builder->connect(
+            '/Approval/blockLeaderIndex',
+            ['controller' => 'Approval', 'action' => 'blockLeaderIndex']
+        )->setMethods(['GET']);
+
+        // ブロック長による承認（POST/JSON）
+        $builder->connect(
+            '/Approval/blockLeaderApprove',
+            ['controller' => 'Approval', 'action' => 'blockLeaderApprove']
+        )->setMethods(['POST']);
+
+        // ブロック長による差し戻し（POST/JSON）
+        $builder->connect(
+            '/Approval/blockLeaderReject',
+            ['controller' => 'Approval', 'action' => 'blockLeaderReject']
+        )->setMethods(['POST']);
+
+        // 管理者用 承認一覧（GET）
+        $builder->connect(
+            '/Approval/adminIndex',
+            ['controller' => 'Approval', 'action' => 'adminIndex']
+        )->setMethods(['GET']);
+
+        // 管理者による最終承認（POST/JSON）
+        $builder->connect(
+            '/Approval/adminApprove',
+            ['controller' => 'Approval', 'action' => 'adminApprove']
+        )->setMethods(['POST']);
+
+        // 管理者による差し戻し（POST/JSON）
+        $builder->connect(
+            '/Approval/adminReject',
+            ['controller' => 'Approval', 'action' => 'adminReject']
+        )->setMethods(['POST']);
+
+        // 承認済みを食数テーブルへ反映（POST/JSON）
+        $builder->connect(
+            '/Approval/adminReflect',
+            ['controller' => 'Approval', 'action' => 'adminReflect']
+        )->setMethods(['POST']);
+
         // フォールバック
         $builder->fallbacks();
     });
