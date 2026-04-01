@@ -197,6 +197,12 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
                         <div class="menu-title-text">承認管理</div>
                         <div class="menu-desc">全ブロックの承認・食数反映</div>
                     </a>
+                    <?php /* 実食管理: 全職員の実食確認・入力 */ ?>
+                    <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/actual-meal-management') ?>">
+                        <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
+                        <div class="menu-title-text">実食管理</div>
+                        <div class="menu-desc">全職員の実食確認・入力</div>
+                    </a>
                 </div>
             <?php endif; ?>
         </main>
