@@ -73,23 +73,22 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     <td><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
                     <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
                     <?php if ($isAdmin): ?>
-                        <td>
-                            <?= $this->Form->checkbox('i_user_level_block', [
-                                    'checked' => (int)$userInfo->i_user_level === 2,
-                                    'data-user-id' => $userInfo->i_id_user,
-                                    'data-user-name' => h($userInfo->c_user_name),
-                                    'data-current-level' => (int)$userInfo->i_user_level,
-                                    'class' => 'block-leader-checkbox'
-                            ]) ?>
+                        <td class="text-center">
+                            <div class="form-check form-switch d-inline-block">
+                                <input class="form-check-input block-leader-checkbox" type="checkbox" role="switch"
+                                       <?= (int)$userInfo->i_user_level === 2 ? 'checked' : '' ?>
+                                       data-user-id="<?= h($userInfo->i_id_user) ?>"
+                                       data-user-name="<?= h($userInfo->c_user_name) ?>"
+                                       data-current-level="<?= (int)$userInfo->i_user_level ?>">
+                            </div>
                         </td>
-                        <td>
-                            <?= $this->Form->checkbox('i_admin', [
-                                    'checked' => $userInfo->i_admin === 1,
-                                    'value' => $userInfo->i_admin,
-                                    'data-user-id' => $userInfo->i_id_user,
-                                    'data-user-name' => h($userInfo->c_user_name),
-                                    'class' => 'admin-checkbox'
-                            ]) ?>
+                        <td class="text-center">
+                            <div class="form-check form-switch d-inline-block">
+                                <input class="form-check-input admin-checkbox" type="checkbox" role="switch"
+                                       <?= $userInfo->i_admin === 1 ? 'checked' : '' ?>
+                                       data-user-id="<?= h($userInfo->i_id_user) ?>"
+                                       data-user-name="<?= h($userInfo->c_user_name) ?>">
+                            </div>
                         </td>
                     <?php endif; ?>
                     <td class="actions">
