@@ -67,36 +67,18 @@ jobs:
             fi
 
             # ── .env 生成 (アプリ用) ────────────────────────────────────────
-            cat > src_web/kamaho-shokusu/.env <<ENV
-OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-ENV
+            printf 'OPENROUTER_API_KEY=%s\n' "${OPENROUTER_API_KEY}" \
+              > src_web/kamaho-shokusu/.env
 
             # ── docker/.env.staging 生成 (Docker Compose 用) ───────────────
-            cat > docker/.env.staging <<ENV
-STG_DB_NAME=${DB_NAME}
-STG_DB_USER=${DB_USER}
-STG_DB_PASS=${DB_PASS}
-STG_DB_ROOT_PASS=${DB_ROOT_PASS}
-ENV
+            printf 'STG_DB_NAME=%s\nSTG_DB_USER=%s\nSTG_DB_PASS=%s\nSTG_DB_ROOT_PASS=%s\n' \
+              "${DB_NAME}" "${DB_USER}" "${DB_PASS}" "${DB_ROOT_PASS}" \
+              > docker/.env.staging
 
             # ── app_local.php 生成 ─────────────────────────────────────────
-            cat > src_web/kamaho-shokusu/config/app_local.php <<PHP
-            <?php
-            return [
-                'debug' => true,
-                'Security' => [
-                    'salt' => '${APP_SALT}',
-                ],
-                'Datasources' => [
-                    'default' => [
-                        'host'     => 'stg_db',
-                        'database' => '${DB_NAME}',
-                        'username' => '${DB_USER}',
-                        'password' => '${DB_PASS}',
-                    ],
-                ],
-            ];
-            PHP
+            printf '<?php\nreturn [\n    '"'"'debug'"'"' => true,\n    '"'"'Security'"'"' => ['"'"'salt'"'"' => '"'"'%s'"'"'],\n    '"'"'Datasources'"'"' => ['"'"'default'"'"' => ['"'"'host'"'"' => '"'"'stg_db'"'"', '"'"'database'"'"' => '"'"'%s'"'"', '"'"'username'"'"' => '"'"'%s'"'"', '"'"'password'"'"' => '"'"'%s'"'"']],\n];\n' \
+              "${APP_SALT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}" \
+              > src_web/kamaho-shokusu/config/app_local.php
 
             # ── Docker Compose でビルド & 起動 ─────────────────────────────
             cd docker
