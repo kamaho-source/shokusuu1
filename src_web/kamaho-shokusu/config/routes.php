@@ -204,6 +204,11 @@ return function (RouteBuilder $routes): void {
         )->setMethods(['POST']);
 
         $builder->connect(
+            '/TReservationInfo/actual-meal-request-approval',
+            ['controller' => 'TReservationInfo', 'action' => 'actualMealRequestApproval']
+        )->setMethods(['POST']);
+
+        $builder->connect(
             '/TReservationInfo/my-actual-meal',
             ['controller' => 'TReservationInfo', 'action' => 'myActualMeal']
         )->setMethods(['GET']);
@@ -251,6 +256,24 @@ return function (RouteBuilder $routes): void {
         $builder->connect(
             '/Approval/adminReject',
             ['controller' => 'Approval', 'action' => 'adminReject']
+        )->setMethods(['POST']);
+
+        // 通知一覧（GET）
+        $builder->connect(
+            '/Notifications',
+            ['controller' => 'Notifications', 'action' => 'index']
+        )->setMethods(['GET']);
+
+        // 通知既読化（POST/JSON）
+        $builder->connect(
+            '/Notifications/markRead',
+            ['controller' => 'Notifications', 'action' => 'markRead']
+        )->setMethods(['POST']);
+
+        // 通知一括既読化（POST/JSON）
+        $builder->connect(
+            '/Notifications/markAllRead',
+            ['controller' => 'Notifications', 'action' => 'markAllRead']
         )->setMethods(['POST']);
 
         // 承認済みを食数テーブルへ反映（POST/JSON）

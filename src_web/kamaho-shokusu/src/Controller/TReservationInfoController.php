@@ -1281,6 +1281,7 @@ class TReservationInfoController extends AppController
 
         $userId  = (int)$authUser->get('i_id_user');
         $isAdmin = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $canProxyActualMeal = $isAdmin || (int)($authUser->get('i_admin') ?? 0) === 2;
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
 
@@ -1396,6 +1397,8 @@ class TReservationInfoController extends AppController
 
         $userId  = (int)$authUser->get('i_id_user');
         $isAdmin = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isBlockLeader = (int)($authUser->get('i_admin') ?? 0) === 2;
+        $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
         // ユーザーの所属部屋
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
@@ -1446,18 +1449,55 @@ class TReservationInfoController extends AppController
         $canGoPrev     = $isAdmin && $prevMonday >= $oldestMonday;
         $canGoNext     = $nextMonday <= $futureMonday;
 
-        // 自分だけのグリッドデータ
-        $myUser   = [['id' => $userId, 'name' => $authUser->get('c_user_name'), 'staff_id' => $authUser->get('i_id_staff') ?? '']];
+        $targetUsers = [[
+            'id' => $userId,
+            'name' => (string)$authUser->get('c_user_name'),
+            'staff_id' => (string)($authUser->get('i_id_staff') ?? ''),
+        ]];
+        if ($canProxyActualMeal && $selectedRoomId) {
+            $targetUsers = $service->getAdultUsers($this->MUserGroup, $this->MUserInfo, $selectedRoomId);
+            $hasSelf = array_filter($targetUsers, fn($targetUser) => (int)$targetUser['id'] === $userId);
+            if (empty($hasSelf) && $selectedRoomId !== null) {
+                $belongsToRoom = $isAdmin || $this->MUserGroup->find()
+                    ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, 'active_flag' => 0])
+                    ->count() > 0;
+                if ($belongsToRoom) {
+                    array_unshift($targetUsers, [
+                        'id' => $userId,
+                        'name' => (string)$authUser->get('c_user_name'),
+                        'staff_id' => (string)($authUser->get('i_id_staff') ?? ''),
+                    ]);
+                }
+            }
+        }
+
+        $selectedUserId = $this->request->getQuery('user_id')
+            ? (int)$this->request->getQuery('user_id')
+            : $userId;
+        $targetUserIds = array_map(static fn(array $targetUser): int => (int)$targetUser['id'], $targetUsers);
+        if (!in_array($selectedUserId, $targetUserIds, true)) {
+            $selectedUserId = !empty($targetUsers) ? (int)$targetUsers[0]['id'] : $userId;
+        }
+        $selectedTargetUser = null;
+        foreach ($targetUsers as $targetUser) {
+            if ((int)$targetUser['id'] === $selectedUserId) {
+                $selectedTargetUser = $targetUser;
+                break;
+            }
+        }
+
+        // 対象者1名分のグリッドデータ
+        $selectedUsers = $selectedTargetUser ? [$selectedTargetUser] : [];
         $gridData = ['dates' => [], 'meals' => [], 'grid' => [], 'versions' => []];
 
-        if ($selectedRoomId) {
-            $gridData = $service->buildWeekGrid($this->TIndividualReservationInfo, $myUser, $weekMondayStr);
+        if ($selectedRoomId && !empty($selectedUsers)) {
+            $gridData = $service->buildWeekGrid($this->TIndividualReservationInfo, $selectedUsers, $weekMondayStr);
         }
 
         $this->set(compact(
-            'rooms', 'selectedRoomId', 'gridData',
+            'rooms', 'selectedRoomId', 'gridData', 'targetUsers', 'selectedUserId', 'selectedTargetUser',
             'weekMondayStr', 'prevMonday', 'nextMonday',
-            'canGoPrev', 'canGoNext', 'isAdmin'
+            'canGoPrev', 'canGoNext', 'isAdmin', 'isBlockLeader', 'canProxyActualMeal'
         ));
         return null;
     }
@@ -1501,13 +1541,10 @@ class TReservationInfoController extends AppController
 
         $authUser  = $this->Authentication->getIdentity();
         $actor     = (string)($authUser?->get('c_user_name') ?? 'system');
-        $loginUid  = (int)($authUser?->get('i_id_user') ?? 0);
-        $isAdmin   = (int)($authUser?->get('i_admin') ?? 0) === 1;
-        $isBlockLeader = (int)($authUser?->get('i_user_level') ?? -1) === 2;
 
-        // 管理者・ブロック長以外は自分のデータしか保存できない
-        if (!$isAdmin && !$isBlockLeader && $targetUid !== $loginUid) {
-            return $this->apiResponseService->error($this->response, '他のユーザーのデータは保存できません。', 403);
+        $permissionError = $this->validateActualMealTarget($authUser, $targetUid, $roomId);
+        if ($permissionError !== null) {
+            return $this->apiResponseService->error($this->response, $permissionError, 403);
         }
 
         $service = new \App\Service\ActualMealManagementService();
@@ -1529,6 +1566,63 @@ class TReservationInfoController extends AppController
         return $this->apiResponseService->success($this->response, ['version' => $result['version'] ?? 1], $result['message']);
     }
 
+    public function actualMealRequestApproval(): ?Response
+    {
+        if ($denied = $this->authorizeReservation('actualMealRequestApproval', [], true)) {
+            return $denied;
+        }
+
+        $this->request->allowMethod(['post']);
+
+        $keys = (array)($this->request->getData('keys') ?? []);
+        if (empty($keys)) {
+            return $this->apiResponseService->error($this->response, '申請対象が指定されていません。', 400);
+        }
+
+        $authUser = $this->Authentication->getIdentity();
+        $actor = (string)($authUser?->get('c_user_name') ?? 'system');
+        $now = \Cake\I18n\DateTime::now('Asia/Tokyo');
+
+        foreach ($keys as $key) {
+            $targetUid = (int)($key['user_id'] ?? 0);
+            $roomId = (int)($key['room_id'] ?? 0);
+            $date = (string)($key['date'] ?? '');
+            $mealType = (int)($key['meal_type'] ?? 0);
+
+            if (!$targetUid || !$roomId || !$mealType || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+                return $this->apiResponseService->error($this->response, '申請対象の形式が正しくありません。', 400);
+            }
+
+            $permissionError = $this->validateActualMealTarget($authUser, $targetUid, $roomId);
+            if ($permissionError !== null) {
+                return $this->apiResponseService->error($this->response, $permissionError, 403);
+            }
+        }
+
+        $affectedTotal = 0;
+        foreach ($keys as $key) {
+            $affectedTotal += $this->TIndividualReservationInfo->updateAll(
+                [
+                    'i_approval_status' => 0,
+                    'dt_update' => $now,
+                    'c_update_user' => $actor,
+                ],
+                [
+                    'i_id_user' => (int)$key['user_id'],
+                    'i_id_room' => (int)$key['room_id'],
+                    'd_reservation_date' => (string)$key['date'],
+                    'i_reservation_type' => (int)$key['meal_type'],
+                ]
+            );
+        }
+
+        return $this->apiResponseService->success(
+            $this->response,
+            ['count' => $affectedTotal],
+            '承認申請しました。'
+        );
+    }
+
     /* =============================================================== */
     /*  以下はこのコントローラ内に配置する簡易レスポンスヘルパーメソッド  */
     /* =============================================================== */
@@ -1546,8 +1640,46 @@ class TReservationInfoController extends AppController
             if (!$asJson) {
                 throw $e;
             }
+
+            return $this->apiResponseService->forbidden($this->response);
+        }
+    }
+
+    private function validateActualMealTarget($authUser, int $targetUid, int $roomId): ?string
+    {
+        $loginUid  = (int)($authUser?->get('i_id_user') ?? 0);
+        $isAdmin = (int)($authUser?->get('i_admin') ?? 0) === 1;
+        $isBlockLeader = (int)($authUser?->get('i_admin') ?? 0) === 2;
+
+        if ($isAdmin) {
+            return null;
         }
 
-        return $this->apiResponseService->forbidden($this->response);
+        if ($isBlockLeader) {
+            $accessibleRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUid);
+            if (!in_array($roomId, $accessibleRoomIds, true)) {
+                return '担当外の部屋データは保存できません。';
+            }
+
+            $targetBelongsToRoom = $this->MUserGroup->find()
+                ->where([
+                    'i_id_user' => $targetUid,
+                    'i_id_room' => $roomId,
+                    'active_flag' => 0,
+                ])
+                ->count() > 0;
+
+            if (!$targetBelongsToRoom) {
+                return '対象利用者は選択中の部屋に所属していません。';
+            }
+
+            return null;
+        }
+
+        if ($targetUid !== $loginUid) {
+            return '本人以外の実食データは保存できません。';
+        }
+
+        return null;
     }
 }

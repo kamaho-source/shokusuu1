@@ -699,10 +699,10 @@ class MUserInfoController extends AppController
 
         $data   = $this->request->getData();
         $userId = $data['i_id_user'] ?? null;
-        $level  = $data['i_user_level'] ?? null;
+        $level  = $data['i_admin'] ?? null;
 
         if (is_null($userId) || is_null($level)) {
-            return $apiResponse->error($this->response, 'ユーザーIDまたはユーザーレベルが指定されていません。', 400);
+            return $apiResponse->error($this->response, 'ユーザーIDまたは権限レベルが指定されていません。', 400);
         }
 
         $user = $this->MUserInfo->find()
@@ -719,15 +719,15 @@ class MUserInfoController extends AppController
             return $apiResponse->error($this->response, 'この操作は管理者のみ実行できます。', 403);
         }
 
-        $user->i_user_level = (int)$level;
-        $user->dt_update    = date('Y-m-d H:i:s');
+        $user->i_admin    = (int)$level;
+        $user->dt_update  = date('Y-m-d H:i:s');
         $identity = $this->request->getAttribute('identity');
         $user->c_update_user = $identity ? $identity->get('c_user_name') : '不明なユーザー';
 
         if ($this->MUserInfo->save($user)) {
-            return $apiResponse->success($this->response, [], 'ユーザーレベルが正常に更新されました。');
+            return $apiResponse->success($this->response, [], 'ブロック長権限が正常に更新されました。');
         } else {
-            return $apiResponse->error($this->response, 'ユーザーレベルの更新に失敗しました。', 500);
+            return $apiResponse->error($this->response, 'ブロック長権限の更新に失敗しました。', 500);
         }
     }
 

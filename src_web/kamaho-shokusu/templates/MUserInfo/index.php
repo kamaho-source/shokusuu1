@@ -76,10 +76,10 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                         <td class="text-center">
                             <div class="form-check form-switch d-inline-block">
                                 <input class="form-check-input block-leader-checkbox" type="checkbox" role="switch"
-                                       <?= (int)$userInfo->i_user_level === 2 ? 'checked' : '' ?>
+                                       <?= (int)$userInfo->i_admin === 2 ? 'checked' : '' ?>
                                        data-user-id="<?= h($userInfo->i_id_user) ?>"
                                        data-user-name="<?= h($userInfo->c_user_name) ?>"
-                                       data-current-level="<?= (int)$userInfo->i_user_level ?>">
+                                       data-current-admin="<?= (int)($userInfo->i_admin ?? 0) ?>">
                             </div>
                         </td>
                         <td class="text-center">
@@ -294,9 +294,9 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             cb.addEventListener('change', async function () {
                 const userId       = this.getAttribute('data-user-id');
                 const userName     = this.getAttribute('data-user-name');
-                const currentLevel = parseInt(this.getAttribute('data-current-level'), 10);
+                const currentAdmin = parseInt(this.getAttribute('data-current-admin'), 10);
                 const isBlock      = this.checked;
-                const newLevel     = isBlock ? 2 : (currentLevel === 2 ? 0 : currentLevel);
+                const newAdmin     = isBlock ? 2 : (currentAdmin === 2 ? 0 : currentAdmin);
                 const message      = isBlock
                     ? `${userName} をブロック長に設定しますか？`
                     : `${userName} からブロック長権限を削除しますか？`;
@@ -307,13 +307,13 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 fetch('/kamaho-shokusu/MUserInfo/update-user-level', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_user_level: newLevel })
+                    body: JSON.stringify({ i_id_user: userId, i_admin: newAdmin })
                 })
                 .then(r => r.json())
                 .then(data => {
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.ok === true || payload.success) {
-                        this.setAttribute('data-current-level', newLevel);
+                        this.setAttribute('data-current-admin', newAdmin);
                         showResult('ブロック長権限を更新しました。');
                     } else {
                         showResult(payload.message || 'ブロック長権限の更新に失敗しました。', false);

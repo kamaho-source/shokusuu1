@@ -9,7 +9,7 @@ use Authorization\IdentityInterface;
 /**
  * 承認画面のアクセス制御ポリシー
  *
- * ブロック長（i_user_level = 2）と管理者（i_admin = 1）のみアクセス可能。
+ * ブロック長（i_admin = 2）と管理者（i_admin = 1）のみアクセス可能。
  */
 class ApprovalPolicy
 {
@@ -96,15 +96,15 @@ class ApprovalPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_user_level') === 2;
+            return (int)$identity->get('i_admin') === 2;
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_user_level'] ?? -1) === 2;
+            return (int)($identity['i_admin'] ?? 0) === 2;
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_user_level'] ?? -1) === 2;
+            return (int)($identity['i_admin'] ?? 0) === 2;
         }
 
         return false;

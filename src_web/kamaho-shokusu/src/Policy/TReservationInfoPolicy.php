@@ -163,12 +163,17 @@ class TReservationInfoPolicy
 
     public function canActualMealManagement(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isBlockLeaderOrAdmin($user);
     }
 
     public function canActualMealSave(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isAuthenticated($user);
+    }
+
+    public function canActualMealRequestApproval(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
     }
 
     public function canMyActualMeal(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -233,15 +238,15 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_user_level') === 2;
+            return (int)$identity->get('i_admin') === 2;
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_user_level'] ?? -1) === 2;
+            return (int)($identity['i_admin'] ?? 0) === 2;
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_user_level'] ?? -1) === 2;
+            return (int)($identity['i_admin'] ?? 0) === 2;
         }
 
         return false;

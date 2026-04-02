@@ -30,10 +30,15 @@ class ApprovalService
     public const int STATUS_REJECTED         = 3;
 
     private RoomAccessService $roomAccessService;
+    private NotificationService $notificationService;
 
-    public function __construct(?RoomAccessService $roomAccessService = null)
+    public function __construct(
+        ?RoomAccessService $roomAccessService = null,
+        ?NotificationService $notificationService = null
+    )
     {
         $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+        $this->notificationService = $notificationService ?? new NotificationService();
     }
 
     /**
@@ -132,11 +137,11 @@ class ApprovalService
     }
 
     /**
-     * 管理者用：ブロック別・食種別の集計サマリを取得
+     * 管理者用：日付別・ブロック別・食種別の集計サマリを取得
      *
      * @param string|null $dateFrom
      * @param string|null $dateTo
-     * @return array  [ ['room_name' => '...', 'breakfast' => n, 'lunch' => n, ...], ... ]
+     * @return array  [ ['reservation_date' => 'YYYY-MM-DD', 'room_name' => '...', 'breakfast' => n, ...], ... ]
      */
     public function getAdminSummary(?string $dateFrom = null, ?string $dateTo = null): array
     {
@@ -156,22 +161,89 @@ class ApprovalService
 
         $summary = [];
         foreach ($rows as $row) {
+            $reservationDate = $row->d_reservation_date instanceof \DateTimeInterface
+                ? $row->d_reservation_date->format('Y-m-d')
+                : (string)$row->d_reservation_date;
             $roomName = $row->m_room_info->c_room_name ?? '不明';
-            if (!isset($summary[$roomName])) {
-                $summary[$roomName] = ['room_name' => $roomName, 'breakfast' => 0, 'lunch' => 0, 'dinner' => 0, 'bento' => 0];
+            $groupKey = $reservationDate . '|' . $roomName;
+            if (!isset($summary[$groupKey])) {
+                $summary[$groupKey] = [
+                    'reservation_date' => $reservationDate,
+                    'room_name' => $roomName,
+                    'breakfast' => 0,
+                    'lunch' => 0,
+                    'dinner' => 0,
+                    'bento' => 0,
+                ];
             }
             if ((int)$row->eat_flag !== 1) {
                 continue;
             }
             switch ((int)$row->i_reservation_type) {
-                case 1: $summary[$roomName]['breakfast']++; break;
-                case 2: $summary[$roomName]['lunch']++;     break;
-                case 3: $summary[$roomName]['dinner']++;    break;
-                case 4: $summary[$roomName]['bento']++;     break;
+                case 1: $summary[$groupKey]['breakfast']++; break;
+                case 2: $summary[$groupKey]['lunch']++;     break;
+                case 3: $summary[$groupKey]['dinner']++;    break;
+                case 4: $summary[$groupKey]['bento']++;     break;
             }
         }
 
+        uasort($summary, static function (array $a, array $b): int {
+            if ($a['reservation_date'] === $b['reservation_date']) {
+                return strcmp((string)$a['room_name'], (string)$b['room_name']);
+            }
+
+            return strcmp((string)$a['reservation_date'], (string)$b['reservation_date']);
+        });
+
         return array_values($summary);
+    }
+
+    /**
+     * ブロック長向けの未承認件数を返す。
+     */
+    public function countBlockLeaderPending(int $userId, ?string $dateFrom = null, ?string $dateTo = null): int
+    {
+        $roomIds = $this->roomAccessService->getUserRoomIds($userId);
+        if (empty($roomIds)) {
+            return 0;
+        }
+
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $query = $table->find()
+            ->where([
+                'TIndividualReservationInfo.i_id_room IN' => $roomIds,
+                'TIndividualReservationInfo.i_approval_status' => self::STATUS_PENDING,
+            ]);
+
+        if ($dateFrom !== null) {
+            $query->where(['TIndividualReservationInfo.d_reservation_date >=' => $dateFrom]);
+        }
+        if ($dateTo !== null) {
+            $query->where(['TIndividualReservationInfo.d_reservation_date <=' => $dateTo]);
+        }
+
+        return $query->count();
+    }
+
+    /**
+     * 管理者向けの最終承認待ち件数を返す。
+     */
+    public function countAdminPending(?string $dateFrom = null, ?string $dateTo = null): int
+    {
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $query = $table->find()
+            ->where([
+                'TIndividualReservationInfo.i_approval_status' => self::STATUS_BLOCK_LEADER,
+            ]);
+
+        if ($dateFrom !== null) {
+            $query->where(['TIndividualReservationInfo.d_reservation_date >=' => $dateFrom]);
+        }
+        if ($dateTo !== null) {
+            $query->where(['TIndividualReservationInfo.d_reservation_date <=' => $dateTo]);
+        }
+
+        return $query->count();
     }
 
     /**
@@ -336,6 +408,10 @@ class ApprovalService
                         'dt_create'          => $now,
                     ]);
                     $logTable->saveOrFail($log);
+                }
+
+                if ($newStatus === self::STATUS_REJECTED) {
+                    $this->notificationService->createRejectionNotifications($keys, $approverId, $reason, $now);
                 }
 
                 return true;

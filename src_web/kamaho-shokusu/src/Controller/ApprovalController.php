@@ -11,7 +11,7 @@ use Cake\Http\Response;
 /**
  * 承認フロー コントローラー
  *
- * ブロック長（i_user_level = 2）と管理者（i_admin = 1）向けの承認画面を提供する。
+ * ブロック長（i_admin = 2）と管理者（i_admin = 1）向けの承認画面を提供する。
  * Authorization は skipAuthorization() + ApprovalPolicy の直接呼び出しで制御する。
  */
 class ApprovalController extends AppController
@@ -49,7 +49,8 @@ class ApprovalController extends AppController
 
         $filterRoomId = $this->request->getQuery('room_id') ? (int)$this->request->getQuery('room_id') : null;
         $filterStatus = $this->request->getQuery('status') !== null && $this->request->getQuery('status') !== ''
-            ? (int)$this->request->getQuery('status') : null;
+            ? (int)$this->request->getQuery('status')
+            : ApprovalService::STATUS_BLOCK_LEADER;
         $dateFrom = $this->request->getQuery('date_from') ?? date('Y-m-d', strtotime('monday this week'));
         $dateTo   = $this->request->getQuery('date_to')   ?? date('Y-m-d', strtotime('sunday this week'));
 
@@ -146,7 +147,8 @@ class ApprovalController extends AppController
 
         $filterRoomId = $this->request->getQuery('room_id') ? (int)$this->request->getQuery('room_id') : null;
         $filterStatus = $this->request->getQuery('status') !== null && $this->request->getQuery('status') !== ''
-            ? (int)$this->request->getQuery('status') : null;
+            ? (int)$this->request->getQuery('status')
+            : ApprovalService::STATUS_BLOCK_LEADER;
         $dateFrom = $this->request->getQuery('date_from') ?? date('Y-m-d', strtotime('monday this week'));
         $dateTo   = $this->request->getQuery('date_to')   ?? date('Y-m-d', strtotime('sunday this week'));
 

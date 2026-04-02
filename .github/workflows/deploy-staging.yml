@@ -1,0 +1,124 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'develop'
+      - 'staging'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-to-staging
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Staging (stg.kamaho-shokusu.jp)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SLACK_USERNAME: DeployBot
+      SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          APP_SALT:         ${{ secrets.STG_APP_SALT }}
+          DB_NAME:          ${{ secrets.STG_DB_NAME }}
+          DB_USER:          ${{ secrets.STG_DB_USER }}
+          DB_PASS:          ${{ secrets.STG_DB_PASS }}
+          DB_ROOT_PASS:     ${{ secrets.STG_DB_ROOT_PASS }}
+          REPO_URL:         ${{ secrets.REPO_URL }}
+          BRANCH:           ${{ github.ref_name }}
+        with:
+          host:     ${{ secrets.STG_HOST }}
+          username: ubuntu
+          key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
+          port:     22
+          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,REPO_URL,BRANCH
+          timeout:  60s
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+
+            DEPLOY_PATH="/home/ubuntu/shokusuu1"
+            mkdir -p "$DEPLOY_PATH"
+            cd "$DEPLOY_PATH"
+
+            # ── リポジトリ取得 ─────────────────────────────────────────────
+            if [ ! -d .git ]; then
+              echo "[INIT] cloning $REPO_URL (branch: $BRANCH)"
+              git clone --branch "$BRANCH" "$REPO_URL" .
+            else
+              echo "[UPDATE] fetching & resetting to origin/$BRANCH"
+              git fetch origin --prune
+              git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" "origin/$BRANCH"
+              git reset --hard "origin/$BRANCH"
+            fi
+
+            # ── .env 生成 (Docker Compose 用の DB 環境変数) ────────────────
+            cat > docker/.env.staging <<ENV
+            STG_DB_NAME=${DB_NAME}
+            STG_DB_USER=${DB_USER}
+            STG_DB_PASS=${DB_PASS}
+            STG_DB_ROOT_PASS=${DB_ROOT_PASS}
+            ENV
+
+            # ── app_local.php 生成 ─────────────────────────────────────────
+            cat > src_web/kamaho-shokusu/config/app_local.php <<PHP
+            <?php
+            return [
+                'debug' => true,
+                'Security' => [
+                    'salt' => '${APP_SALT}',
+                ],
+                'Datasources' => [
+                    'default' => [
+                        'host'     => 'stg_db',
+                        'database' => '${DB_NAME}',
+                        'username' => '${DB_USER}',
+                        'password' => '${DB_PASS}',
+                    ],
+                ],
+            ];
+            PHP
+
+            # ── Docker Compose でビルド & 起動 ─────────────────────────────
+            cd docker
+            docker compose -f docker-compose.staging.yml --env-file .env.staging pull --quiet || true
+            docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build --remove-orphans
+            docker image prune -f
+
+            # ── マイグレーション ────────────────────────────────────────────
+            sleep 5  # DB起動待ち
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate --no-interaction || true
+
+            # ── キャッシュクリア ────────────────────────────────────────────
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake cache clear_all || true
+
+            echo "✅ Staging deployed: $(git rev-parse --short HEAD) @ $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: Slack Notification on Success
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ success() }}
+        env:
+          SLACK_TITLE: Staging Deploy / Success
+          SLACK_COLOR: good
+          SLACK_MESSAGE: "ステージングへのデプロイ完了🚀 branch: ${{ github.ref_name }}"
+
+      - name: Slack Notification on Failure
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ failure() }}
+        env:
+          SLACK_TITLE: Staging Deploy / Failure
+          SLACK_COLOR: danger
+          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> ステージングデプロイ失敗しました😢 branch: ${{ github.ref_name }}"
