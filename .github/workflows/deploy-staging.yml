@@ -86,6 +86,9 @@ jobs:
             docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build --remove-orphans
             docker image prune -f
 
+            # ── Composer install ───────────────────────────────────────────
+            docker exec stg_web composer install --no-dev --optimize-autoloader --working-dir=/var/www/html/kamaho-shokusu
+
             # ── マイグレーション ────────────────────────────────────────────
             sleep 5  # DB起動待ち
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate --no-interaction || true
