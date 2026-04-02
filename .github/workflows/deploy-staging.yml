@@ -32,19 +32,20 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.2
         env:
-          APP_SALT:         ${{ secrets.STG_APP_SALT }}
-          DB_NAME:          ${{ secrets.STG_DB_NAME }}
-          DB_USER:          ${{ secrets.STG_DB_USER }}
-          DB_PASS:          ${{ secrets.STG_DB_PASS }}
-          DB_ROOT_PASS:     ${{ secrets.STG_DB_ROOT_PASS }}
-          REPO_URL:         ${{ secrets.REPO_URL }}
-          BRANCH:           ${{ github.ref_name }}
+          APP_SALT:           ${{ secrets.STG_APP_SALT }}
+          DB_NAME:            ${{ secrets.STG_DB_NAME }}
+          DB_USER:            ${{ secrets.STG_DB_USER }}
+          DB_PASS:            ${{ secrets.STG_DB_PASS }}
+          DB_ROOT_PASS:       ${{ secrets.STG_DB_ROOT_PASS }}
+          OPENROUTER_API_KEY: ${{ secrets.STG_OPENROUTER_API_KEY }}
+          REPO_URL:           ${{ secrets.REPO_URL }}
+          BRANCH:             ${{ github.ref_name }}
         with:
           host:     ${{ secrets.STG_HOST }}
           username: ubuntu
           key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
           port:     22
-          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,REPO_URL,BRANCH
+          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,REPO_URL,BRANCH
           timeout:  60s
           command_timeout: 20m
           script: |
@@ -65,13 +66,18 @@ jobs:
               git reset --hard "origin/$BRANCH"
             fi
 
-            # ── .env 生成 (Docker Compose 用の DB 環境変数) ────────────────
+            # ── .env 生成 (アプリ用) ────────────────────────────────────────
+            cat > src_web/kamaho-shokusu/.env <<ENV
+OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+ENV
+
+            # ── docker/.env.staging 生成 (Docker Compose 用) ───────────────
             cat > docker/.env.staging <<ENV
-            STG_DB_NAME=${DB_NAME}
-            STG_DB_USER=${DB_USER}
-            STG_DB_PASS=${DB_PASS}
-            STG_DB_ROOT_PASS=${DB_ROOT_PASS}
-            ENV
+STG_DB_NAME=${DB_NAME}
+STG_DB_USER=${DB_USER}
+STG_DB_PASS=${DB_PASS}
+STG_DB_ROOT_PASS=${DB_ROOT_PASS}
+ENV
 
             # ── app_local.php 生成 ─────────────────────────────────────────
             cat > src_web/kamaho-shokusu/config/app_local.php <<PHP
