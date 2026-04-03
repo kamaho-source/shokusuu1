@@ -59,7 +59,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 <th><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
                 <th><?= __('所属部屋') ?></th>
                 <?php if ($isAdmin): ?>
-                    <th><?= __('ブロック長') ?></th>
                     <th><?= __('管理者権限') ?></th>
                 <?php endif; ?>
                 <th class="actions"><?= __('操作') ?></th>
@@ -73,22 +72,14 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     <td><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
                     <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
                     <?php if ($isAdmin): ?>
-                        <td class="text-center">
-                            <div class="form-check form-switch d-inline-block">
-                                <input class="form-check-input block-leader-checkbox" type="checkbox" role="switch"
-                                       <?= (int)$userInfo->i_admin === 2 ? 'checked' : '' ?>
-                                       data-user-id="<?= h($userInfo->i_id_user) ?>"
-                                       data-user-name="<?= h($userInfo->c_user_name) ?>"
-                                       data-current-admin="<?= (int)($userInfo->i_admin ?? 0) ?>">
-                            </div>
-                        </td>
-                        <td class="text-center">
-                            <div class="form-check form-switch d-inline-block">
-                                <input class="form-check-input admin-checkbox" type="checkbox" role="switch"
-                                       <?= $userInfo->i_admin === 1 ? 'checked' : '' ?>
-                                       data-user-id="<?= h($userInfo->i_id_user) ?>"
-                                       data-user-name="<?= h($userInfo->c_user_name) ?>">
-                            </div>
+                        <td>
+                            <?= $this->Form->checkbox('i_admin', [
+                                    'checked' => $userInfo->i_admin === 1,
+                                    'value' => $userInfo->i_admin,
+                                    'data-user-id' => $userInfo->i_id_user,
+                                    'data-user-name' => h($userInfo->c_user_name),
+                                    'class' => 'admin-checkbox'
+                            ]) ?>
                         </td>
                     <?php endif; ?>
                     <td class="actions">
@@ -187,144 +178,59 @@ $csrfToken = $this->request->getAttribute('csrfToken');
     </p>
 </div>
 
-<!-- 確認ポップアップ -->
-<div id="popup-overlay"></div>
-<div id="confirm-popup" role="dialog" aria-modal="true" aria-labelledby="popup-message">
-    <div class="popup-icon-wrap">
-        <svg class="popup-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <circle cx="12" cy="16" r=".5" fill="currentColor"/>
-        </svg>
-    </div>
-    <p id="popup-message"></p>
-    <div class="popup-actions">
-        <button id="popup-cancel" type="button">キャンセル</button>
-        <button id="popup-ok"     type="button">確定</button>
-    </div>
-</div>
-
-<!-- 完了ポップアップ -->
-<div id="result-popup" role="status">
-    <span id="result-popup-icon"></span>
-    <span id="result-popup-msg"></span>
-</div>
-
 <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const toggleNormal  = document.getElementById('toggleNormal');
+        const adminCheckboxes = document.querySelectorAll('.admin-checkbox');
+        const toggleNormal = document.getElementById('toggleNormal');
         const toggleDeleted = document.getElementById('toggleDeleted');
         const csrfToken =
             document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
             document.querySelector('input[name="_csrfToken"]')?.value ||
             '';
 
-        // ---- ポップアップユーティリティ ----
-        const overlay      = document.getElementById('popup-overlay');
-        const confirmPopup = document.getElementById('confirm-popup');
-        const resultPopup  = document.getElementById('result-popup');
+        // 管理者権限チェックボックスの変更処理
+        function handleAdminCheckboxChange(event) {
+            const target = event.target;
+            const userId = target.getAttribute('data-user-id');
+            const userName = target.getAttribute('data-user-name');
+            const isAdmin = target.checked ? 1 : 0;
 
-        function showConfirm(message) {
-            return new Promise(resolve => {
-                document.getElementById('popup-message').textContent = message;
-                overlay.classList.add('show');
-                confirmPopup.classList.add('show');
+            const confirmMessage = isAdmin
+                ? `${userName}に管理者権限を付与しますか？`
+                : `${userName}から管理者権限を削除しますか？`;
 
-                const okBtn     = document.getElementById('popup-ok');
-                const cancelBtn = document.getElementById('popup-cancel');
+            if (!confirm(confirmMessage)) {
+                target.checked = !target.checked;
+                return;
+            }
 
-                function cleanup() {
-                    okBtn.removeEventListener('click', onOk);
-                    cancelBtn.removeEventListener('click', onCancel);
-                    overlay.removeEventListener('click', onCancel);
-                }
-                function hide()     { overlay.classList.remove('show'); confirmPopup.classList.remove('show'); }
-                function onOk()     { cleanup(); hide(); resolve(true);  }
-                function onCancel() { cleanup(); hide(); resolve(false); }
-
-                okBtn.addEventListener('click', onOk);
-                cancelBtn.addEventListener('click', onCancel);
-                overlay.addEventListener('click', onCancel);
-            });
-        }
-
-        let resultTimer = null;
-        function showResult(message, success = true) {
-            document.getElementById('result-popup-icon').textContent = success ? '✅' : '❌';
-            document.getElementById('result-popup-msg').textContent  = message;
-            resultPopup.className = success ? 'show success' : 'show error';
-            clearTimeout(resultTimer);
-            resultTimer = setTimeout(() => { resultPopup.className = ''; }, 2000);
-        }
-
-        // ---- 管理者トグル ----
-        document.querySelectorAll('.admin-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId   = this.getAttribute('data-user-id');
-                const userName = this.getAttribute('data-user-name');
-                const isAdmin  = this.checked ? 1 : 0;
-                const message  = isAdmin
-                    ? `${userName} に管理者権限を付与しますか？`
-                    : `${userName} から管理者権限を削除しますか？`;
-
-                const ok = await showConfirm(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
-                })
-                .then(r => r.json())
+            fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrfToken
+                },
+                body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
+            })
+                .then(response => response.json())
                 .then(data => {
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.ok === true || payload.success) {
-                        showResult('管理者権限を更新しました。');
+                        alert('管理者権限が更新されました。');
                     } else {
-                        showResult(payload.message || '管理者権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
+                        alert(payload.message || '管理者権限の更新に失敗しました。再試行してください。');
+                        target.checked = !target.checked;
                     }
                 })
-                .catch(() => { showResult('エラーが発生しました。', false); this.checked = !this.checked; });
-            });
-        });
+                .catch(() => {
+                    alert('エラーが発生しました。再試行してください。');
+                    target.checked = !target.checked;
+                });
+        }
 
-        // ---- ブロック長トグル ----
-        document.querySelectorAll('.block-leader-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId       = this.getAttribute('data-user-id');
-                const userName     = this.getAttribute('data-user-name');
-                const currentAdmin = parseInt(this.getAttribute('data-current-admin'), 10);
-                const isBlock      = this.checked;
-                const newAdmin     = isBlock ? 2 : (currentAdmin === 2 ? 0 : currentAdmin);
-                const message      = isBlock
-                    ? `${userName} をブロック長に設定しますか？`
-                    : `${userName} からブロック長権限を削除しますか？`;
+        adminCheckboxes.forEach(cb => cb.addEventListener('change', handleAdminCheckboxChange));
 
-                const ok = await showConfirm(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch('/kamaho-shokusu/MUserInfo/update-user-level', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_admin: newAdmin })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        this.setAttribute('data-current-admin', newAdmin);
-                        showResult('ブロック長権限を更新しました。');
-                    } else {
-                        showResult(payload.message || 'ブロック長権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
-                    }
-                })
-                .catch(() => { showResult('エラーが発生しました。', false); this.checked = !this.checked; });
-            });
-        });
-
-        // ---- 通常/削除済みトグル ----
+        // トグルボタンのクリック処理
         if (toggleNormal) {
             toggleNormal.addEventListener('click', () => {
                 if (!toggleNormal.classList.contains('active')) {
@@ -332,6 +238,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 }
             });
         }
+
         if (toggleDeleted) {
             toggleDeleted.addEventListener('click', () => {
                 if (!toggleDeleted.classList.contains('active')) {
@@ -343,106 +250,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 </script>
 
 <style>
-    /* ---- 確認ポップアップ ---- */
-    #popup-overlay {
-        display: none;
-        position: fixed; inset: 0;
-        background: rgba(0,0,0,.35);
-        backdrop-filter: blur(2px);
-        z-index: 1040;
-        animation: overlay-in .15s ease;
-    }
-    #popup-overlay.show { display: block; }
-
-    #confirm-popup {
-        display: none;
-        position: fixed;
-        top: 50%; left: 50%;
-        transform: translate(-50%, -60%) scale(.92);
-        background: #fff;
-        border-radius: 16px;
-        padding: 28px 28px 22px;
-        width: min(360px, 92vw);
-        box-shadow: 0 20px 60px rgba(0,0,0,.22);
-        z-index: 1050;
-        text-align: center;
-        transition: transform .18s cubic-bezier(.34,1.56,.64,1), opacity .15s ease;
-        opacity: 0;
-    }
-    #confirm-popup.show {
-        display: block;
-        transform: translate(-50%, -50%) scale(1);
-        opacity: 1;
-    }
-    .popup-icon-wrap {
-        width: 52px; height: 52px;
-        margin: 0 auto 14px;
-        background: #fffbeb;
-        border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-    }
-    .popup-icon-svg {
-        width: 28px; height: 28px;
-        stroke: #f59e0b;
-    }
-    #popup-message {
-        font-size: .95rem;
-        font-weight: 500;
-        color: #374151;
-        margin: 0 0 20px;
-        line-height: 1.6;
-    }
-    .popup-actions {
-        display: flex; gap: 10px; justify-content: center;
-    }
-    .popup-actions button {
-        flex: 1;
-        padding: 9px 0;
-        border: none;
-        border-radius: 10px;
-        font-size: .88rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: filter .15s;
-    }
-    .popup-actions button:hover { filter: brightness(.93); }
-    #popup-cancel {
-        background: #f3f4f6;
-        color: #6b7280;
-    }
-    #popup-ok {
-        background: #6366f1;
-        color: #fff;
-    }
-
-    /* ---- 完了ポップアップ ---- */
-    #result-popup {
-        position: fixed;
-        bottom: 28px; right: 28px;
-        display: flex; align-items: center; gap: 10px;
-        background: #fff;
-        border-radius: 14px;
-        padding: 14px 20px;
-        font-size: .9rem;
-        font-weight: 600;
-        box-shadow: 0 8px 32px rgba(0,0,0,.16);
-        z-index: 1060;
-        transform: translateY(20px);
-        opacity: 0;
-        pointer-events: none;
-        transition: transform .22s cubic-bezier(.34,1.56,.64,1), opacity .18s ease;
-    }
-    #result-popup.show {
-        transform: translateY(0);
-        opacity: 1;
-        pointer-events: auto;
-    }
-    #result-popup.success { border-left: 4px solid #10b981; color: #065f46; }
-    #result-popup.error   { border-left: 4px solid #ef4444; color: #991b1b; }
-    #result-popup-icon { font-size: 1.3rem; }
-
-    @keyframes overlay-in { from { opacity: 0; } to { opacity: 1; } }
-
     /* トグルボタンコンテナ */
     .user-view-toggle-container {
         display: inline-flex;

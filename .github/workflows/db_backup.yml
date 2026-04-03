@@ -21,8 +21,8 @@ jobs:
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.PROD_USER }}
-          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
             cd ${{ secrets.DEPLOY_PATH }}

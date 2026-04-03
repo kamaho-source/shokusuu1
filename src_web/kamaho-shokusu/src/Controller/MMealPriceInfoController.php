@@ -220,32 +220,27 @@ class MMealPriceInfoController extends AppController
             ];
 
             // 該当ユーザーの食事の回数を集計
-            $reservationRows = $this->TIndividualReservationInfo->find()
-                ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
+            $reservationData = $this->TIndividualReservationInfo->find()
+                ->select(['i_reservation_type', 'count' => 'COUNT(*)'])
                 ->where([
                     'i_id_user' => $user->i_id_user,
                     'YEAR(d_reservation_date)' => $year,
                     'MONTH(d_reservation_date)' => $month,
-                    'i_approval_status' => 2,
+                    'i_change_flag' => 1, // 直前変更フラグが立っていないもの
                 ])
+                ->group(['i_reservation_type'])
                 ->toArray();
 
-            foreach ($reservationRows as $row) {
-                $effectiveFlag = $row->i_change_flag !== null
-                    ? (int)$row->i_change_flag
-                    : (int)($row->eat_flag ?? 0);
-                if ($effectiveFlag !== 1) {
-                    continue;
-                }
-
-                if ((int)$row->i_reservation_type === 4) {
-                    $mealCounts['bento']++;
-                } elseif ((int)$row->i_reservation_type === 1) {
-                    $mealCounts['morning']++;
-                } elseif ((int)$row->i_reservation_type === 2) {
-                    $mealCounts['lunch']++;
-                } elseif ((int)$row->i_reservation_type === 3) {
-                    $mealCounts['dinner']++;
+            foreach ($reservationData as $data) {
+                // 各タイプの食事数を設定
+                if ($data->i_reservation_type === 4) {
+                    $mealCounts['bento'] = $data->count;
+                } elseif ($data->i_reservation_type === 1) {
+                    $mealCounts['morning'] = $data->count;
+                } elseif ($data->i_reservation_type === 2) {
+                    $mealCounts['lunch'] = $data->count;
+                } elseif ($data->i_reservation_type === 3) {
+                    $mealCounts['dinner'] = $data->count;
                 }
             }
 
