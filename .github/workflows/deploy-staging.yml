@@ -17,7 +17,7 @@ jobs:
   deploy:
     name: Deploy to Staging (stg.kamaho-shokusu.jp)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       SLACK_USERNAME: DeployBot
       SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
@@ -45,7 +45,7 @@ jobs:
           port:     22
           envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,REPO_URL,BRANCH
           timeout:  60s
-          command_timeout: 20m
+          command_timeout: 40m
           script: |
             set -euo pipefail
 
