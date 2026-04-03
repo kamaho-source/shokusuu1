@@ -143,9 +143,10 @@ jobs:
             docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
             docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
 
-            # ── マイグレーション ────────────────────────────────────────────
+            # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
             sleep 5
-            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate --no-interaction || true
+            cd /home/ubuntu/shokusuu1
+            ./scripts/apply_sql_updates.sh stg_db "${DB_NAME}" root "${DB_ROOT_PASS}" sql/updates
 
             # ── キャッシュクリア ────────────────────────────────────────────
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake cache clear_all || true
