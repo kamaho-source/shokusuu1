@@ -49,6 +49,10 @@ jobs:
           script: |
             set -euo pipefail
 
+            # ── GitHub ホスト鍵を登録 ──────────────────────────────────────
+            mkdir -p ~/.ssh
+            ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
             DEPLOY_PATH="/home/ubuntu/shokusuu1"
             mkdir -p "$DEPLOY_PATH"
             cd "$DEPLOY_PATH"
