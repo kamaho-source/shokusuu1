@@ -52,10 +52,16 @@ jobs:
 
             # ── GitHub デプロイキー & ホスト鍵を設定 ───────────────────────
             mkdir -p ~/.ssh
-            echo "${DEPLOY_KEY}" > ~/.ssh/github_deploy_key
+            chmod 700 ~/.ssh
+            printf '%s\n' "${DEPLOY_KEY}" > ~/.ssh/github_deploy_key
             chmod 600 ~/.ssh/github_deploy_key
             ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
-            export GIT_SSH_COMMAND="ssh -i ~/.ssh/github_deploy_key -o StrictHostKeyChecking=no"
+            cat > ~/.ssh/config << 'SSHCONF'
+Host github.com
+    IdentityFile ~/.ssh/github_deploy_key
+    StrictHostKeyChecking no
+SSHCONF
+            chmod 600 ~/.ssh/config
 
             DEPLOY_PATH="/home/ubuntu/shokusuu1"
             mkdir -p "$DEPLOY_PATH"
