@@ -38,20 +38,24 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.STG_OPENROUTER_API_KEY }}
           REPO_URL:           ${{ secrets.REPO_URL }}
           BRANCH:             ${{ github.ref_name }}
+          DEPLOY_KEY:         ${{ secrets.STG_SSH_PRIVATE_KEY }}
         with:
           host:     ${{ secrets.STG_HOST }}
           username: ubuntu
           key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
           port:     22
-          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,REPO_URL,BRANCH
+          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,REPO_URL,BRANCH,DEPLOY_KEY
           timeout:  60s
           command_timeout: 40m
           script: |
             set -euo pipefail
 
-            # ── GitHub ホスト鍵を登録 ──────────────────────────────────────
+            # ── GitHub デプロイキー & ホスト鍵を設定 ───────────────────────
             mkdir -p ~/.ssh
+            echo "${DEPLOY_KEY}" > ~/.ssh/github_deploy_key
+            chmod 600 ~/.ssh/github_deploy_key
             ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+            export GIT_SSH_COMMAND="ssh -i ~/.ssh/github_deploy_key -o StrictHostKeyChecking=no"
 
             DEPLOY_PATH="/home/ubuntu/shokusuu1"
             mkdir -p "$DEPLOY_PATH"
