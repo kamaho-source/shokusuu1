@@ -5,8 +5,8 @@ RUN apt-get update \
      unzip \
      libicu-dev \
   && docker-php-ext-install intl pdo_mysql \
-  # ビルド用ヘッダーを削除してイメージを軽量化
-  && apt-get purge -y --auto-remove libicu-dev \
+  # libicu-dev（ヘッダー）のみ削除、ランタイム（libicuio.so）は残す
+  && apt-get purge -y libicu-dev \
   && rm -rf /var/lib/apt/lists/* \
   && a2enmod rewrite
 
