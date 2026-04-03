@@ -29,14 +29,19 @@ CREATE TABLE IF NOT EXISTS schema_sql_history (
 ) ENGINE=InnoDB;
 "
 
-mapfile -t files < <(find "${SQL_DIR}" -maxdepth 1 -type f -name '*.sql' | sort)
+set +f
+sql_glob=("${SQL_DIR}"/*.sql)
+set -f
 
-if [ "${#files[@]}" -eq 0 ]; then
+if [ "${#sql_glob[@]}" -eq 0 ] || [ "${sql_glob[0]}" = "${SQL_DIR}/*.sql" ]; then
   echo "No SQL update files found under ${SQL_DIR}."
   exit 0
 fi
 
-for file in "${files[@]}"; do
+IFS=$'\n' sorted_files=($(printf '%s\n' "${sql_glob[@]}" | sort))
+unset IFS
+
+for file in "${sorted_files[@]}"; do
   base_name="$(basename "${file}")"
   checksum="$(sha256sum "${file}" | awk '{print $1}')"
   escaped_name="${base_name//\'/\'\'}"
