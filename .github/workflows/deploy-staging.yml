@@ -80,7 +80,6 @@ jobs:
 
             # ── Docker Compose でビルド & 起動 ─────────────────────────────
             cd docker
-            export DOCKER_BUILDKIT=1
             docker compose -f docker-compose.staging.yml --env-file .env.staging pull --quiet || true
             docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build --remove-orphans
             docker image prune -f
