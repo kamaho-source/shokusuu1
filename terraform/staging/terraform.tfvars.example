@@ -1,0 +1,13 @@
+# このファイルをコピーして terraform.tfvars を作成してください
+# cp terraform.tfvars.example terraform.tfvars
+
+tenancy_ocid     = "ocid1.tenancy.oc1..xxxxx"
+user_ocid        = "ocid1.user.oc1..xxxxx"
+fingerprint      = "xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx:xx"
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "ap-tokyo-1"
+
+compartment_ocid = "ocid1.tenancy.oc1..xxxxx" # ルートテナンシーを使う場合はtenancy_ocidと同じ値
+
+# SSH公開鍵 (ssh-keygen -t ed25519 -f ~/.ssh/staging_key で生成)
+ssh_public_key = "ssh-ed25519 AAAA..."
