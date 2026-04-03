@@ -95,7 +95,11 @@ jobs:
             docker image prune -f
 
             # ── Composer install ───────────────────────────────────────────
-            docker exec stg_web composer install --no-dev --optimize-autoloader --working-dir=/var/www/html/kamaho-shokusu
+            docker exec stg_web composer install --optimize-autoloader --working-dir=/var/www/html/kamaho-shokusu
+
+            # ── tmp ディレクトリのパーミッション修正 ────────────────────────
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
 
             # ── マイグレーション ────────────────────────────────────────────
             sleep 5  # DB起動待ち
