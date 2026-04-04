@@ -2,7 +2,7 @@ name: Renew TLS Certificate
 
 on:
   schedule:
-    - cron: "17 3 * * 1"
+    - cron: "0 3 30 */2 *"
   workflow_dispatch:
 
 permissions:
@@ -59,7 +59,8 @@ jobs:
           script: |
             set -euo pipefail
             echo "$SUDO_PASS" | sudo -S certbot renew --quiet \
-              --deploy-hook "docker exec network-reverse nginx -s reload"
+              --pre-hook "docker stop docker-network-reverse-1" \
+              --post-hook "docker start docker-network-reverse-1"
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2
