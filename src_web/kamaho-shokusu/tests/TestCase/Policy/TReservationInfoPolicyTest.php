@@ -116,6 +116,27 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canCopy($admin, $resource));
         $this->assertFalse($policy->canCopy($nonAdmin, $resource));
     }
+
+    public function testApprovalActionsStaffAllowedChildDenied(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([]));
+        $staff = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 0,
+        ]);
+        $child = new TestIdentity([
+            'i_id_user' => 11,
+            'i_admin' => 0,
+            'i_user_level' => 1,
+        ]);
+        $resource = new TReservationInfo();
+
+        $this->assertTrue($policy->canPendingApprovals($staff, $resource));
+        $this->assertTrue($policy->canReviewApproval($staff, $resource));
+        $this->assertFalse($policy->canPendingApprovals($child, $resource));
+        $this->assertFalse($policy->canReviewApproval($child, $resource));
+    }
 }
 
 class TestRoomAccessService extends RoomAccessService

@@ -8,6 +8,7 @@ use App\Controller\Traits\ReservationCopyActionsTrait;
 use App\Controller\Traits\ReservationReportActionsTrait;
 use Authorization\Exception\ForbiddenException;
 use App\Service\BulkReservationFormService;
+use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
@@ -23,6 +24,7 @@ use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
+use App\Service\ReservationApprovalService;
 use App\Service\ApiResponseService;
 use Cake\Routing\Router;
 
@@ -47,6 +49,7 @@ class TReservationInfoController extends AppController
     protected $MUserInfo;
     protected $MRoomInfo;
     protected $TIndividualReservationInfo;
+    protected $TReservationApproval;
     protected $TReservationInfo;
     private ReservationCalendarService $calendarService;
     private ReservationQueryService $queryService;
@@ -60,7 +63,14 @@ class TReservationInfoController extends AppController
     private ReservationWriteService $writeService;
     private ReservationCopyService $copyService;
     private ReservationDatePolicy $datePolicy;
+    private ReservationApprovalService $approvalService;
     protected ApiResponseService $apiResponseService;
+
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+        $this->Authentication->addUnauthenticatedActions(['pendingApprovals', 'reviewApproval']);
+    }
     /**
      * initialize メソッド
      *
@@ -77,6 +87,7 @@ class TReservationInfoController extends AppController
         $this->MUserInfo                  = $this->fetchTable('MUserInfo');
         $this->MUserGroup                 = $this->fetchTable('MUserGroup');
         $this->TIndividualReservationInfo = $this->fetchTable('TIndividualReservationInfo');
+        $this->TReservationApproval       = $this->fetchTable('TReservationApproval');
 
         $this->calendarService = new ReservationCalendarService();
         $this->datePolicy = new ReservationDatePolicy();
@@ -95,6 +106,7 @@ class TReservationInfoController extends AppController
             (string)($this->request->getAttribute('webroot') ?? '')
         );
         $this->copyService = new ReservationCopyService();
+        $this->approvalService = new ReservationApprovalService();
         $this->apiResponseService = new ApiResponseService();
         $this->loadComponent('Flash');
 
@@ -1256,6 +1268,226 @@ class TReservationInfoController extends AppController
         }
 
         return $this->runGetRoomMealCounts($roomId);
+    }
+
+    public function pendingApprovals(): ?Response
+    {
+        $auth = $this->resolveApprovalApiActor();
+        if ($auth['denied'] instanceof Response) {
+            return $auth['denied'];
+        }
+        if (!$auth['external']) {
+            if ($denied = $this->authorizeReservation('pendingApprovals', [], true)) {
+                return $denied;
+            }
+        }
+
+        $this->request->allowMethod(['get']);
+        $from = (string)$this->request->getQuery('from', '');
+        $to = (string)$this->request->getQuery('to', '');
+
+        try {
+            $rows = $this->approvalService->pendingList(
+                $this->TReservationApproval,
+                $from !== '' ? $from : null,
+                $to !== '' ? $to : null
+            );
+        } catch (\Throwable $e) {
+            return $this->apiResponseService->error($this->response, '承認待ち一覧の取得に失敗しました。', 500);
+        }
+
+        return $this->apiResponseService->success($this->response, ['items' => $rows]);
+    }
+
+    public function reviewApproval(): ?Response
+    {
+        $auth = $this->resolveApprovalApiActor();
+        if ($auth['denied'] instanceof Response) {
+            return $auth['denied'];
+        }
+        if (!$auth['external']) {
+            if ($denied = $this->authorizeReservation('reviewApproval', [], true)) {
+                return $denied;
+            }
+        }
+
+        $this->request->allowMethod(['post']);
+
+        $payload = (array)$this->request->getData();
+        if ($payload === []) {
+            $payload = (array)($this->request->input('json_decode', true) ?? []);
+        }
+
+        $userId = (int)($payload['i_id_user'] ?? 0);
+        $roomId = (int)($payload['i_id_room'] ?? 0);
+        $mealType = (int)($payload['i_reservation_type'] ?? 0);
+        $date = (string)($payload['d_reservation_date'] ?? '');
+        $action = (string)($payload['action'] ?? '');
+        $reason = isset($payload['reason']) ? (string)$payload['reason'] : null;
+
+        if ($userId <= 0 || $roomId <= 0 || !in_array($mealType, [1, 2, 3, 4], true) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return $this->apiResponseService->error($this->response, 'パラメータが不正です。', 422);
+        }
+        if (!in_array($action, ['approve', 'reject'], true)) {
+            return $this->apiResponseService->error($this->response, 'action は approve または reject を指定してください。', 422);
+        }
+
+        $reviewerId = (int)$auth['user_id'];
+        $reviewerName = (string)$auth['user_name'];
+        if ($reviewerId <= 0) {
+            return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
+        }
+
+        $approvalRow = $this->TReservationApproval->find()
+            ->where([
+                'i_id_user' => $userId,
+                'i_id_room' => $roomId,
+                'i_reservation_type' => $mealType,
+                'd_reservation_date' => $date,
+            ])
+            ->first();
+        if (!$approvalRow) {
+            return $this->apiResponseService->error($this->response, '承認対象が見つかりません。', 404);
+        }
+
+        try {
+            if ($action === 'approve') {
+                $ok = $this->approvalService->approve(
+                    $this->TReservationApproval,
+                    $userId,
+                    $date,
+                    $roomId,
+                    $mealType,
+                    $reviewerId,
+                    $reviewerName,
+                    $reason
+                );
+            } else {
+                $ok = $this->approvalService->reject(
+                    $this->TReservationApproval,
+                    $userId,
+                    $date,
+                    $roomId,
+                    $mealType,
+                    $reviewerId,
+                    $reviewerName,
+                    $reason
+                );
+                if ($ok) {
+                    $requestedFlag = (int)($approvalRow->i_requested_flag ?? 0);
+                    $revertValue = $requestedFlag === 1 ? 0 : 1;
+                    $this->writeService->processToggle(
+                        roomId: $roomId,
+                        payload: [
+                            'userId' => $userId,
+                            'date' => $date,
+                            'meal' => $mealType,
+                            'value' => $revertValue,
+                        ],
+                        loginUserId: $reviewerId,
+                        loginUserName: $reviewerName,
+                        syncApproval: false
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+            return $this->apiResponseService->error($this->response, '承認処理に失敗しました。', 500);
+        }
+
+        if (!$ok) {
+            return $this->apiResponseService->error($this->response, '承認対象が見つかりません。', 404);
+        }
+
+        return $this->apiResponseService->success($this->response, [
+            'reviewed' => true,
+            'action' => $action,
+        ], $action === 'approve' ? '承認しました。' : '却下しました。');
+    }
+
+    /**
+     * 承認API専用の認証解決。
+     * - セッションログインがあればそれを使用
+     * - 未ログイン時は APIキー + EXTERNAL_API_USER_ID で代理実行
+     *
+     * @return array{external: bool, user_id: int, user_name: string, denied: ?Response}
+     */
+    private function resolveApprovalApiActor(): array
+    {
+        $identity = $this->Authentication->getIdentity();
+        if ($identity) {
+            return [
+                'external' => false,
+                'user_id' => (int)($identity->get('i_id_user') ?? 0),
+                'user_name' => (string)($identity->get('c_user_name') ?? $identity->get('c_login_account') ?? 'reviewer'),
+                'denied' => null,
+            ];
+        }
+
+        $providedKey = $this->extractApiKeyFromRequest();
+        $expectedKey = (string)env('EXTERNAL_API_KEY', '');
+        if ($expectedKey === '' || $providedKey === '' || !hash_equals($expectedKey, $providedKey)) {
+            return [
+                'external' => true,
+                'user_id' => 0,
+                'user_name' => '',
+                'denied' => $this->apiResponseService->error($this->response, 'APIキー認証に失敗しました。', 401),
+            ];
+        }
+
+        $proxyUserId = (int)env('EXTERNAL_API_USER_ID', 0);
+        if ($proxyUserId <= 0) {
+            return [
+                'external' => true,
+                'user_id' => 0,
+                'user_name' => '',
+                'denied' => $this->apiResponseService->error($this->response, 'EXTERNAL_API_USER_ID が未設定です。', 500),
+            ];
+        }
+
+        $proxyUser = $this->MUserInfo->find()
+            ->select(['i_id_user', 'c_user_name', 'c_login_account', 'i_admin', 'i_user_level'])
+            ->where(['i_id_user' => $proxyUserId])
+            ->first();
+        if (!$proxyUser) {
+            return [
+                'external' => true,
+                'user_id' => 0,
+                'user_name' => '',
+                'denied' => $this->apiResponseService->error($this->response, 'EXTERNAL_API_USER_ID のユーザーが存在しません。', 500),
+            ];
+        }
+
+        $isAllowed = ((int)($proxyUser->i_admin ?? 0) === 1) || ((int)($proxyUser->i_user_level ?? -1) === 0);
+        if (!$isAllowed) {
+            return [
+                'external' => true,
+                'user_id' => 0,
+                'user_name' => '',
+                'denied' => $this->apiResponseService->error($this->response, '外部API実行ユーザーに承認権限がありません。', 403),
+            ];
+        }
+
+        return [
+            'external' => true,
+            'user_id' => (int)$proxyUser->i_id_user,
+            'user_name' => (string)($proxyUser->c_user_name ?? $proxyUser->c_login_account ?? 'external-api'),
+            'denied' => null,
+        ];
+    }
+
+    private function extractApiKeyFromRequest(): string
+    {
+        $key = (string)$this->request->getHeaderLine('X-API-Key');
+        if ($key !== '') {
+            return trim($key);
+        }
+
+        $authorization = (string)$this->request->getHeaderLine('Authorization');
+        if (preg_match('/^Bearer\s+(.+)$/i', $authorization, $m)) {
+            return trim((string)$m[1]);
+        }
+
+        return '';
     }
     /* =============================================================== */
     /*  実食確認管理（大人限定）                                         */

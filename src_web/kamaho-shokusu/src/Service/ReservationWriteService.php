@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Table\TReservationApprovalTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
 
 class ReservationWriteService
 {
@@ -16,7 +18,9 @@ class ReservationWriteService
         private Table $reservationTable,
         private Table $userTable,
         private Table $roomTable,
-        private string $webroot
+        private string $webroot,
+        private ?Table $approvalTable = null,
+        private ?ReservationApprovalService $approvalService = null
     ) {}
 
     public function processIndividualReservation(
@@ -473,7 +477,8 @@ class ReservationWriteService
         int $roomId,
         array $payload,
         int $loginUserId,
-        string $loginUserName
+        string $loginUserName,
+        bool $syncApproval = true
     ): array {
         if (empty($payload)) {
             return [
@@ -603,6 +608,33 @@ class ReservationWriteService
                 eatFlag: $eatFlag,
                 changeFlag: $changeFlag,
             );
+            $requiresApproval = !$isAdmin && !$isStaff && $targetUserId === $loginUserId;
+            if ($syncApproval) {
+                $approvalTable = $this->approvalTable ?? TableRegistry::getTableLocator()->get('TReservationApproval');
+                $approvalService = $this->approvalService ?? new ReservationApprovalService();
+                if ($requiresApproval) {
+                    $approvalService->upsertPending(
+                        $approvalTable,
+                        $targetUserId,
+                        $dateStr,
+                        $roomId,
+                        (int)$meal,
+                        (int)$value,
+                        $actorName
+                    );
+                } else {
+                    $approvalService->upsertApproved(
+                        $approvalTable,
+                        $targetUserId,
+                        $dateStr,
+                        $roomId,
+                        (int)$meal,
+                        (int)$value,
+                        $loginUserId,
+                        $actorName
+                    );
+                }
+            }
             $this->invalidateCachesForDateRooms($dateStr, [$roomId], [$targetUserId]);
 
             return [
@@ -611,6 +643,10 @@ class ReservationWriteService
                     'ok'      => true,
                     'value'   => (bool)($result['value'] ?? false),
                     'details' => $result['details'] ?? [],
+                    'approval_required' => $syncApproval ? $requiresApproval : false,
+                    'approval_status' => $syncApproval
+                        ? ($requiresApproval ? TReservationApprovalTable::STATUS_PENDING : TReservationApprovalTable::STATUS_APPROVED)
+                        : null,
                 ],
             ];
         } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {

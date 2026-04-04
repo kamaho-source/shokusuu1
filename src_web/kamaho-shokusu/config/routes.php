@@ -185,6 +185,26 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'getRoomMealCounts']
         )->setMethods(['GET']);
 
+        $builder->connect(
+            '/TReservationInfo/pending-approvals',
+            ['controller' => 'TReservationInfo', 'action' => 'pendingApprovals']
+        )->setMethods(['GET']);
+
+        $builder->connect(
+            '/TReservationInfo/review-approval',
+            ['controller' => 'TReservationInfo', 'action' => 'reviewApproval']
+        )->setMethods(['POST']);
+
+        $builder->connect(
+            '/api/external/reservation-approvals/pending',
+            ['controller' => 'TReservationInfo', 'action' => 'pendingApprovals']
+        )->setMethods(['GET']);
+
+        $builder->connect(
+            '/api/external/reservation-approvals/review',
+            ['controller' => 'TReservationInfo', 'action' => 'reviewApproval']
+        )->setMethods(['POST']);
+
         // 全部屋食数取得API（管理者用）
         $builder->connect(
             '/TReservationInfo/getAllRoomsMealCounts',

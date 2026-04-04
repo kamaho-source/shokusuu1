@@ -63,3 +63,31 @@
    ```
 2. SQLを記述（`ALTER TABLE ...` など）
 3. `develop` へマージしてステージングデプロイを実行
+
+## 🔌 外部API連携（承認データ連携）
+
+外部ソフト連携向けに、承認APIをAPIキー認証で利用できます。
+
+### 必須環境変数
+
+- `EXTERNAL_API_KEY`: 外部API用の共有キー
+- `EXTERNAL_API_USER_ID`: 代理実行するユーザーID（職員または管理者）
+
+### エンドポイント
+
+- `GET /api/external/reservation-approvals/pending`
+  - クエリ任意: `from=YYYY-MM-DD`, `to=YYYY-MM-DD`
+- `POST /api/external/reservation-approvals/review`
+  - JSON:
+    - `i_id_user` (int)
+    - `d_reservation_date` (YYYY-MM-DD)
+    - `i_id_room` (int)
+    - `i_reservation_type` (1..4)
+    - `action` (`approve` or `reject`)
+    - `reason` (optional)
+
+### 認証ヘッダ
+
+- `X-API-Key: <EXTERNAL_API_KEY>`
+  または
+- `Authorization: Bearer <EXTERNAL_API_KEY>`
