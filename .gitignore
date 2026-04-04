@@ -2,12 +2,13 @@
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/runConfigurations/.xml
 /.idea/php-test-framework.xml
+/.idea/db-forest-config.xml
+/.idea/material_theme_project_new.xml
 .DS_Store
 /.phpunit.result.cache
 
 # Terraform
-terraform/staging/terraform.tfvars
 terraform/staging/.terraform/
-terraform/staging/.terraform.lock.hcl
 terraform/staging/terraform.tfstate
 terraform/staging/terraform.tfstate.backup
+terraform/staging/terraform.tfvars
