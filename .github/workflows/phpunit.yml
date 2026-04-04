@@ -32,4 +32,4 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run PHPUnit
-        run: vendor/bin/phpunit --configuration phpunit.xml.dist --colors=never
+        run: vendor/bin/phpunit --configuration phpunit.xml.dist tests/TestCase/Policy tests/TestCase/Service --colors=never

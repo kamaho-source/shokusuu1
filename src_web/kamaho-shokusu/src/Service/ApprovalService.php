@@ -24,10 +24,10 @@ use Cake\ORM\TableRegistry;
 class ApprovalService
 {
     // 承認ステータス定数
-    public const int STATUS_PENDING          = 0;
-    public const int STATUS_BLOCK_LEADER     = 1;
-    public const int STATUS_ADMIN            = 2;
-    public const int STATUS_REJECTED         = 3;
+    public const STATUS_PENDING          = 0;
+    public const STATUS_BLOCK_LEADER     = 1;
+    public const STATUS_ADMIN            = 2;
+    public const STATUS_REJECTED         = 3;
 
     private RoomAccessService $roomAccessService;
     private NotificationService $notificationService;
