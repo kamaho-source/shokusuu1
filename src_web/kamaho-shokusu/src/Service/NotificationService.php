@@ -8,7 +8,7 @@ use Cake\ORM\TableRegistry;
 
 class NotificationService
 {
-    public const string TYPE_APPROVAL_REJECTED = 'approval_rejected';
+    public const TYPE_APPROVAL_REJECTED = 'approval_rejected';
 
     public function createRejectionNotifications(
         array $keys,
