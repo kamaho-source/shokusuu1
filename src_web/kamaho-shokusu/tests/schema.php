@@ -89,6 +89,22 @@ return [
             'uq_m_user_info_login_account' => ['type' => 'unique', 'columns' => ['c_login_account']],
         ],
     ],
+    't_approval_log' => [
+        'columns' => [
+            'i_id_approval' => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user' => ['type' => 'integer', 'null' => false],
+            'd_reservation_date' => ['type' => 'date', 'null' => false],
+            'i_id_room' => ['type' => 'integer', 'null' => false],
+            'i_reservation_type' => ['type' => 'integer', 'null' => false],
+            'i_approval_status' => ['type' => 'integer', 'null' => false],
+            'i_approver_id' => ['type' => 'integer', 'null' => false],
+            'c_reject_reason' => ['type' => 'string', 'length' => 255, 'null' => true],
+            'dt_create' => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_approval']],
+        ],
+    ],
     't_individual_reservation_info' => [
         'columns' => [
             'i_id_user' => ['type' => 'integer', 'null' => false],
@@ -98,6 +114,7 @@ return [
             'eat_flag' => ['type' => 'integer', 'null' => true],
             'i_change_flag' => ['type' => 'integer', 'null' => true],
             'i_version' => ['type' => 'integer', 'null' => false, 'default' => 1],
+            'i_approval_status' => ['type' => 'integer', 'null' => true, 'default' => 0],
             'dt_create' => ['type' => 'datetime', 'null' => true],
             'c_create_user' => ['type' => 'string', 'length' => 50, 'null' => true],
             'dt_update' => ['type' => 'datetime', 'null' => true],
@@ -108,6 +125,22 @@ return [
                 'type' => 'primary',
                 'columns' => ['i_id_user', 'd_reservation_date', 'i_id_room', 'i_reservation_type'],
             ],
+        ],
+    ],
+    't_notification' => [
+        'columns' => [
+            'i_id_notification' => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user' => ['type' => 'integer', 'null' => false],
+            'c_notification_type' => ['type' => 'string', 'length' => 50, 'null' => false],
+            'c_title' => ['type' => 'string', 'length' => 100, 'null' => false],
+            'c_message' => ['type' => 'string', 'length' => 255, 'null' => false],
+            'c_link' => ['type' => 'string', 'length' => 255, 'null' => true],
+            'i_is_read' => ['type' => 'integer', 'null' => false, 'default' => 0],
+            'dt_read' => ['type' => 'datetime', 'null' => true],
+            'dt_create' => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_notification']],
         ],
     ],
     't_reservation_info' => [
