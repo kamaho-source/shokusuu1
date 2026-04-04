@@ -107,7 +107,6 @@ class ActualMealManagementService
                 'meals'    => $meals,
                 'grid'     => [],
                 'versions' => [],
-                'statuses' => [],
             ];
         }
 
@@ -122,7 +121,6 @@ class ActualMealManagementService
                 'i_reservation_type',
                 'eat_flag',
                 'i_change_flag',
-                'i_approval_status',
                 'i_version',
             ])
             ->where([
@@ -148,24 +146,20 @@ class ActualMealManagementService
         // グリッドと版数を組み立てる
         $grid     = [];
         $versions = [];
-        $statuses = [];
         foreach ($users as $u) {
             $uid = (int)$u['id'];
             $grid[$uid]     = [];
             $versions[$uid] = [];
-            $statuses[$uid] = [];
 
             foreach ($dates as $date) {
                 $grid[$uid][$date]     = [];
                 $versions[$uid][$date] = [];
-                $statuses[$uid][$date] = [];
 
                 foreach (array_keys($meals) as $mealType) {
                     $row = $map[$uid][$date][$mealType] ?? null;
                     if ($row === null) {
                         $grid[$uid][$date][$mealType]     = false;
                         $versions[$uid][$date][$mealType] = 1;
-                        $statuses[$uid][$date][$mealType] = 0;
                     } else {
                         // 実効値の判定: i_change_flag が設定済みなら日付に関わらず優先
                         if ($row['i_change_flag'] !== null) {
@@ -175,7 +169,6 @@ class ActualMealManagementService
                         }
                         $grid[$uid][$date][$mealType]     = $effective;
                         $versions[$uid][$date][$mealType] = (int)($row['i_version'] ?? 1);
-                        $statuses[$uid][$date][$mealType] = (int)($row['i_approval_status'] ?? 0);
                     }
                 }
             }
@@ -186,7 +179,6 @@ class ActualMealManagementService
             'meals'    => $meals,
             'grid'     => $grid,
             'versions' => $versions,
-            'statuses' => $statuses,
         ];
     }
 
@@ -245,7 +237,7 @@ class ActualMealManagementService
             $newEntity->d_reservation_date = $date;
             $newEntity->i_id_room          = $roomId;
             $newEntity->i_reservation_type = $mealType;
-            $newEntity->eat_flag           = $flagValue;
+            $newEntity->eat_flag           = 0;
             $newEntity->i_change_flag      = $flagValue;
             $newEntity->i_version          = 1;
             $newEntity->dt_create          = $now;
@@ -261,7 +253,6 @@ class ActualMealManagementService
         $nextVersion = $expectedVersion + 1;
         $affected = $reservationTable->updateAll(
             [
-                'eat_flag'       => $flagValue,
                 'i_change_flag'  => $flagValue,
                 'dt_update'      => $now,
                 'c_update_user'  => $actor,

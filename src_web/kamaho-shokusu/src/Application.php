@@ -13,9 +13,7 @@ use Authorization\AuthorizationService;
 use Authorization\AuthorizationServiceInterface;
 use Authorization\AuthorizationServiceProviderInterface;
 use Authorization\Middleware\AuthorizationMiddleware;
-use Authorization\Policy\MapResolver;
 use Authorization\Policy\OrmResolver;
-use Authorization\Policy\ResolverCollection;
 use Cake\Routing\Router;
 use Psr\Http\Message\ServerRequestInterface;
 use Cake\Core\Configure;
@@ -112,13 +110,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
     {
-        // コントローラークラス → ポリシークラスの明示マッピング
-        $mapResolver = new MapResolver([
-            \App\Controller\ApprovalController::class => \App\Policy\ApprovalPolicy::class,
-        ]);
-
-        // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック
-        $resolver = new ResolverCollection([$mapResolver, new OrmResolver()]);
+        $resolver = new OrmResolver();
 
         return new AuthorizationService($resolver);
     }

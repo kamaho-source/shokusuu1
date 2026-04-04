@@ -30,7 +30,6 @@ $dates    = $gridData['dates']    ?? [];
 $meals    = $gridData['meals']    ?? [1 => '朝', 2 => '昼', 3 => '夜'];
 $grid     = $gridData['grid']     ?? [];
 $versions = $gridData['versions'] ?? [];
-$mealNames = [1 => '朝食', 2 => '昼食', 3 => '夕食'];
 
 // 週の表示ラベル
 $dow = ['日', '月', '火', '水', '木', '金', '土'];
@@ -84,61 +83,11 @@ if (!empty($dates)) {
         .notice-toast.success { background: #15803d; }
         .notice-toast.error   { background: #dc2626; }
         .notice-toast.warning { background: #b45309; }
-        .user-action-btn { white-space: nowrap; }
-        .meal-editor-grid { display: flex; flex-direction: column; gap: 12px; }
-        .meal-editor-day {
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 14px;
-            background: #f8fafc;
-        }
-        .meal-editor-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 10px;
-        }
-        .meal-editor-title { font-weight: 700; color: #0f172a; }
-        .meal-editor-row { display: flex; flex-wrap: wrap; gap: 10px; }
-        .meal-editor-toggle {
-            min-width: 120px;
-            border: 1px solid #cbd5e1;
-            border-radius: 12px;
-            background: #fff;
-            padding: 10px 12px;
-            text-align: left;
-            transition: all .15s ease;
-        }
-        .meal-editor-toggle.active {
-            border-color: #2563eb;
-            background: #eff6ff;
-            color: #1d4ed8;
-        }
-        .meal-editor-toggle.pending {
-            border-color: #d97706;
-            background: #fffbeb;
-            color: #b45309;
-        }
-        .meal-editor-status {
-            display: block;
-            font-size: .76rem;
-            margin-top: 4px;
-            color: #64748b;
-        }
     </style>
     <script>
         window.__BASE_PATH = <?= json_encode($this->request->getAttribute('base') ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__ACTUAL_MEAL_SAVE_URL = <?= json_encode($this->Url->build('/TReservationInfo/actual-meal-save'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_REQUEST_APPROVAL_URL = <?= json_encode($this->Url->build('/TReservationInfo/actual-meal-request-approval'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__CSRF_TOKEN = <?= json_encode($csrfToken, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_USERS = <?= json_encode($adultUsers, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_GRID = <?= json_encode($grid, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_VERSIONS = <?= json_encode($versions, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_DATES = <?= json_encode($dates, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_LABELS = <?= json_encode($dateLabels, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_MEALS = <?= json_encode($meals, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
-        window.__ACTUAL_MEAL_MEAL_NAMES = <?= json_encode($mealNames, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     </script>
 </head>
 <body>
@@ -230,19 +179,10 @@ if (!empty($dates)) {
                         ?>
                             <tr>
                                 <td class="user-name">
-                                    <div class="d-flex align-items-center justify-content-between gap-2">
-                                        <div>
-                                            <div><?= h($u['name']) ?></div>
-                                            <?php if (!empty($u['staff_id'])): ?>
-                                                <div class="staff-id">ID: <?= h($u['staff_id']) ?></div>
-                                            <?php endif; ?>
-                                        </div>
-                                        <button type="button"
-                                                class="btn btn-outline-primary btn-sm user-action-btn open-user-modal-btn"
-                                                data-uid="<?= (int)$uid ?>">
-                                            入力
-                                        </button>
-                                    </div>
+                                    <div><?= h($u['name']) ?></div>
+                                    <?php if (!empty($u['staff_id'])): ?>
+                                        <div class="staff-id">ID: <?= h($u['staff_id']) ?></div>
+                                    <?php endif; ?>
                                 </td>
                                 <?php foreach ($dates as $d):
                                     $dow_idx = (int)(new \DateTimeImmutable($d))->format('w');
@@ -272,7 +212,7 @@ if (!empty($dates)) {
         </div>
 
         <div class="mt-3 d-flex align-items-center gap-3 flex-wrap">
-            <button id="confirm-request-btn" class="btn btn-primary" disabled>登録して承認申請</button>
+            <button id="confirm-btn" class="btn btn-primary" disabled>確定</button>
             <span id="pending-count" class="text-muted small"></span>
         </div>
         <div class="mt-1 small text-muted">
@@ -292,53 +232,14 @@ if (!empty($dates)) {
 <?php /* ---- 通知エリア ---- */ ?>
 <div class="notice-area" id="notice-area"></div>
 
-<div class="modal fade" id="userMealEditorModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <div>
-                    <h5 class="modal-title" id="user-meal-editor-title">実食入力</h5>
-                    <div class="small text-muted" id="user-meal-editor-subtitle"></div>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
-            </div>
-            <div class="modal-body">
-                <div id="user-meal-editor-body" class="meal-editor-grid"></div>
-            </div>
-            <div class="modal-footer">
-                <span class="text-muted small me-auto" id="user-meal-editor-pending"></span>
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
-                <button type="button" class="btn btn-primary" id="user-meal-editor-request-btn" disabled>登録して承認申請</button>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const saveUrl    = window.__ACTUAL_MEAL_SAVE_URL;
-    const requestApprovalUrl = window.__ACTUAL_MEAL_REQUEST_APPROVAL_URL;
     const csrfToken  = window.__CSRF_TOKEN;
     const overlay    = document.getElementById('saving-overlay');
     const noticeArea = document.getElementById('notice-area');
-    const confirmRequestBtn = document.getElementById('confirm-request-btn');
+    const confirmBtn = document.getElementById('confirm-btn');
     const pendingCount = document.getElementById('pending-count');
-    const users = window.__ACTUAL_MEAL_USERS || [];
-    const gridState = window.__ACTUAL_MEAL_GRID || {};
-    const versionState = window.__ACTUAL_MEAL_VERSIONS || {};
-    const dates = window.__ACTUAL_MEAL_DATES || [];
-    const dateLabels = window.__ACTUAL_MEAL_LABELS || {};
-    const meals = window.__ACTUAL_MEAL_MEALS || {};
-    const mealNames = window.__ACTUAL_MEAL_MEAL_NAMES || {};
-    const editorModalEl = document.getElementById('userMealEditorModal');
-    const editorModal = editorModalEl ? new bootstrap.Modal(editorModalEl) : null;
-    const editorBody = document.getElementById('user-meal-editor-body');
-    const editorTitle = document.getElementById('user-meal-editor-title');
-    const editorSubtitle = document.getElementById('user-meal-editor-subtitle');
-    const editorPending = document.getElementById('user-meal-editor-pending');
-    const editorRequestBtn = document.getElementById('user-meal-editor-request-btn');
-    const modalPendingChanges = new Map();
-    let modalUserId = null;
 
     // key: "uid-date-meal", value: {el, checked}
     const pendingChanges = new Map();
@@ -357,106 +258,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePendingUI() {
         const count = pendingChanges.size;
-        if (confirmRequestBtn) confirmRequestBtn.disabled = count === 0;
+        if (confirmBtn) confirmBtn.disabled = count === 0;
         if (pendingCount) {
             pendingCount.textContent = count > 0 ? `${count} 件の変更があります` : '';
         }
-    }
-
-    function getCellChecked(uid, date, meal) {
-        return Boolean(gridState?.[uid]?.[date]?.[meal]);
-    }
-
-    function getCellVersion(uid, date, meal) {
-        return parseInt(versionState?.[uid]?.[date]?.[meal] ?? 1, 10);
-    }
-
-    function updateEditorPendingUI() {
-        const count = modalPendingChanges.size;
-        if (editorRequestBtn) editorRequestBtn.disabled = count === 0;
-        if (editorPending) editorPending.textContent = count > 0 ? `${count} 件の変更があります` : '';
-    }
-
-    function syncEditorToggleState(button, checked, changed) {
-        button.classList.toggle('active', checked && !changed);
-        button.classList.toggle('pending', changed);
-        const status = button.querySelector('.meal-editor-status');
-        if (status) {
-            status.textContent = changed ? '変更中' : (checked ? '入力済み' : '未入力');
-        }
-    }
-
-    function renderUserEditor(uid) {
-        if (!editorBody) return;
-        modalPendingChanges.clear();
-        modalUserId = uid;
-        const targetUser = users.find((row) => parseInt(row.id, 10) === uid);
-        if (editorTitle) {
-            editorTitle.textContent = targetUser ? `${targetUser.name} の実食入力` : '実食入力';
-        }
-        if (editorSubtitle) {
-            editorSubtitle.textContent = targetUser && targetUser.staff_id
-                ? `職員ID: ${targetUser.staff_id}`
-                : '対象者の週次実食を入力します。';
-        }
-
-        editorBody.innerHTML = dates.map((date) => {
-            const mealButtons = Object.keys(meals).map((mealKey) => {
-                const meal = parseInt(mealKey, 10);
-                const checked = getCellChecked(uid, date, meal);
-                const mealName = mealNames[meal] || meals[meal] || '';
-                return `
-                    <button type="button"
-                            class="meal-editor-toggle ${checked ? 'active' : ''}"
-                            data-uid="${uid}"
-                            data-date="${date}"
-                            data-meal="${meal}"
-                            data-version="${getCellVersion(uid, date, meal)}"
-                            data-original="${checked ? '1' : '0'}">
-                        ${mealName}
-                        <span class="meal-editor-status">${checked ? '入力済み' : '未入力'}</span>
-                    </button>
-                `;
-            }).join('');
-
-            return `
-                <div class="meal-editor-day">
-                    <div class="meal-editor-head">
-                        <div class="meal-editor-title">${dateLabels[date] || date}</div>
-                    </div>
-                    <div class="meal-editor-row">${mealButtons}</div>
-                </div>
-            `;
-        }).join('');
-
-        editorBody.querySelectorAll('.meal-editor-toggle').forEach((button) => {
-            button.addEventListener('click', () => {
-                const original = button.dataset.original === '1';
-                const currentChecked = modalPendingChanges.has(`${button.dataset.uid}-${button.dataset.date}-${button.dataset.meal}`)
-                    ? modalPendingChanges.get(`${button.dataset.uid}-${button.dataset.date}-${button.dataset.meal}`).checked
-                    : original;
-                const nextChecked = !currentChecked;
-                const key = `${button.dataset.uid}-${button.dataset.date}-${button.dataset.meal}`;
-                const changed = nextChecked !== original;
-
-                if (changed) {
-                    modalPendingChanges.set(key, {
-                        uid: parseInt(button.dataset.uid, 10),
-                        date: button.dataset.date,
-                        meal: parseInt(button.dataset.meal, 10),
-                        version: parseInt(button.dataset.version, 10),
-                        checked: nextChecked,
-                        button,
-                    });
-                } else {
-                    modalPendingChanges.delete(key);
-                }
-
-                syncEditorToggleState(button, nextChecked, changed);
-            });
-        });
-
-        updateEditorPendingUI();
     }
 
     document.querySelectorAll('.actual-cb').forEach((cb) => {
@@ -483,200 +288,79 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    async function requestApproval(keys) {
-        const res = await fetch(requestApprovalUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': csrfToken,
-            },
-            body: JSON.stringify({ _csrfToken: csrfToken, keys }),
-        });
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            if (pendingChanges.size === 0) return;
 
-        return res.json();
-    }
+            confirmBtn.disabled = true;
+            setOverlay(true);
 
-    async function saveGridChanges(shouldRequestApproval = false) {
-        if (pendingChanges.size === 0) return;
+            const entries = Array.from(pendingChanges.entries());
+            let successCount = 0;
+            let errorMessages = [];
 
-        if (confirmRequestBtn) confirmRequestBtn.disabled = true;
-        setOverlay(true);
+            for (const [key, { el }] of entries) {
+                const uid     = parseInt(el.dataset.uid,     10);
+                const date    = el.dataset.date;
+                const meal    = parseInt(el.dataset.meal,    10);
+                const version = parseInt(el.dataset.version, 10);
+                const roomId  = parseInt(el.dataset.room,    10);
+                const checked = el.checked ? 1 : 0;
 
-        const entries = Array.from(pendingChanges.entries());
-        let successCount = 0;
-        let errorMessages = [];
-        const approvalKeys = [];
+                try {
+                    const res  = await fetch(saveUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': csrfToken,
+                        },
+                        body: JSON.stringify({
+                            _csrfToken: csrfToken,
+                            user_id:    uid,
+                            date:       date,
+                            meal_type:  meal,
+                            checked:    checked,
+                            version:    version,
+                            room_id:    roomId,
+                        }),
+                    });
+                    const data = await res.json();
 
-        for (const [key, { el }] of entries) {
-            const uid     = parseInt(el.dataset.uid, 10);
-            const date    = el.dataset.date;
-            const meal    = parseInt(el.dataset.meal, 10);
-            const version = parseInt(el.dataset.version, 10);
-            const roomId  = parseInt(el.dataset.room, 10);
-            const checked = el.checked ? 1 : 0;
-
-            try {
-                const res  = await fetch(saveUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': csrfToken,
-                    },
-                    body: JSON.stringify({
-                        _csrfToken: csrfToken,
-                        user_id: uid,
-                        date: date,
-                        meal_type: meal,
-                        checked: checked,
-                        version: version,
-                        room_id: roomId,
-                    }),
-                });
-                const data = await res.json();
-
-                if (res.ok && data.ok) {
-                    el.dataset.version = String(data.data?.version ?? version + 1);
-                    el.dataset.originalChecked = checked ? '1' : '0';
-                    el.classList.remove('border', 'border-warning');
-                    pendingChanges.delete(key);
-                    successCount++;
-                    approvalKeys.push({ user_id: uid, date, meal_type: meal, room_id: roomId });
-                } else {
-                    errorMessages.push(data.message || '保存に失敗しました。');
+                    if (res.ok && data.ok) {
+                        // サーバーから返却されたバージョンで更新する
+                        el.dataset.version = String(data.data?.version ?? version + 1);
+                        el.dataset.originalChecked = checked ? '1' : '0';
+                        el.classList.remove('border', 'border-warning');
+                        pendingChanges.delete(key);
+                        successCount++;
+                    } else {
+                        errorMessages.push(data.message || '保存に失敗しました。');
+                        // ロールバック
+                        el.checked = el.dataset.originalChecked === '1';
+                        el.classList.remove('border', 'border-warning');
+                        pendingChanges.delete(key);
+                    }
+                } catch (err) {
+                    errorMessages.push('通信エラーが発生しました。');
+                    // ロールバック
                     el.checked = el.dataset.originalChecked === '1';
                     el.classList.remove('border', 'border-warning');
                     pendingChanges.delete(key);
+                    console.error(err);
                 }
-            } catch (err) {
-                errorMessages.push('通信エラーが発生しました。');
-                el.checked = el.dataset.originalChecked === '1';
-                el.classList.remove('border', 'border-warning');
-                pendingChanges.delete(key);
-                console.error(err);
             }
-        }
 
-        if (shouldRequestApproval && approvalKeys.length > 0) {
-            const approvalResult = await requestApproval(approvalKeys);
-            if (!approvalResult.ok) {
-                errorMessages.push(approvalResult.message || '承認申請に失敗しました。');
+            setOverlay(false);
+            updatePendingUI();
+
+            if (successCount > 0) {
+                showNotice(`${successCount} 件保存しました。`, 'success');
             }
-        }
-
-        setOverlay(false);
-        updatePendingUI();
-
-        if (successCount > 0) {
-            showNotice(shouldRequestApproval ? `${successCount} 件保存して申請しました。` : `${successCount} 件保存しました。`, 'success');
-        }
-        if (errorMessages.length > 0) {
-            errorMessages.forEach(msg => showNotice(msg, 'error'));
-        }
-    }
-
-    confirmRequestBtn?.addEventListener('click', () => saveGridChanges(true));
-
-    document.querySelectorAll('.open-user-modal-btn').forEach((button) => {
-        button.addEventListener('click', () => {
-            const uid = parseInt(button.dataset.uid, 10);
-            renderUserEditor(uid);
-            editorModal?.show();
+            if (errorMessages.length > 0) {
+                errorMessages.forEach(msg => showNotice(msg, 'error'));
+            }
         });
-    });
-
-    async function saveModalChanges(shouldRequestApproval = false) {
-        if (modalPendingChanges.size === 0 || modalUserId === null) return;
-
-        if (editorRequestBtn) editorRequestBtn.disabled = true;
-        setOverlay(true);
-
-        let successCount = 0;
-        const errorMessages = [];
-        const approvalKeys = [];
-
-        for (const [key, payload] of Array.from(modalPendingChanges.entries())) {
-            try {
-                const res = await fetch(saveUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': csrfToken,
-                    },
-                    body: JSON.stringify({
-                        _csrfToken: csrfToken,
-                        user_id: payload.uid,
-                        date: payload.date,
-                        meal_type: payload.meal,
-                        checked: payload.checked ? 1 : 0,
-                        version: payload.version,
-                        room_id: <?= json_encode((int)$selectedRoomId) ?>,
-                    }),
-                });
-                const data = await res.json();
-
-                if (res.ok && data.ok) {
-                    if (!gridState[payload.uid]) gridState[payload.uid] = {};
-                    if (!gridState[payload.uid][payload.date]) gridState[payload.uid][payload.date] = {};
-                    if (!versionState[payload.uid]) versionState[payload.uid] = {};
-                    if (!versionState[payload.uid][payload.date]) versionState[payload.uid][payload.date] = {};
-
-                    gridState[payload.uid][payload.date][payload.meal] = payload.checked;
-                    versionState[payload.uid][payload.date][payload.meal] = parseInt(data.data?.version ?? payload.version + 1, 10);
-
-                    payload.button.dataset.original = payload.checked ? '1' : '0';
-                    payload.button.dataset.version = String(versionState[payload.uid][payload.date][payload.meal]);
-                    syncEditorToggleState(payload.button, payload.checked, false);
-
-                    const rowCheckbox = document.querySelector(`.actual-cb[data-uid="${payload.uid}"][data-date="${payload.date}"][data-meal="${payload.meal}"]`);
-                    if (rowCheckbox) {
-                        rowCheckbox.checked = payload.checked;
-                        rowCheckbox.dataset.originalChecked = payload.checked ? '1' : '0';
-                        rowCheckbox.dataset.version = String(versionState[payload.uid][payload.date][payload.meal]);
-                        rowCheckbox.classList.remove('border', 'border-warning');
-                        pendingChanges.delete(key);
-                    }
-
-                    modalPendingChanges.delete(key);
-                    successCount++;
-                    approvalKeys.push({
-                        user_id: payload.uid,
-                        date: payload.date,
-                        meal_type: payload.meal,
-                        room_id: <?= json_encode((int)$selectedRoomId) ?>,
-                    });
-                } else {
-                    errorMessages.push(data.message || '保存に失敗しました。');
-                }
-            } catch (error) {
-                errorMessages.push('通信エラーが発生しました。');
-                console.error(error);
-            }
-        }
-
-        if (shouldRequestApproval && approvalKeys.length > 0) {
-            const approvalResult = await requestApproval(approvalKeys);
-            if (!approvalResult.ok) {
-                errorMessages.push(approvalResult.message || '承認申請に失敗しました。');
-            }
-        }
-
-        setOverlay(false);
-        updatePendingUI();
-        updateEditorPendingUI();
-        if (successCount > 0) {
-            showNotice(shouldRequestApproval ? `${successCount} 件保存して申請しました。` : `${successCount} 件保存しました。`, 'success');
-        }
-        if (errorMessages.length > 0) {
-            showNotice(errorMessages[0], 'error');
-        }
-        if (modalPendingChanges.size === 0) {
-            editorModal?.hide();
-        } else {
-            if (editorRequestBtn) editorRequestBtn.disabled = false;
-        }
     }
-
-    editorRequestBtn?.addEventListener('click', () => saveModalChanges(true));
 });
 </script>
 
