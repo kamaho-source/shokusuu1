@@ -21,11 +21,11 @@ $csrfToken = $this->request->getAttribute('csrfToken');
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h3 id="userListTitle" class="mb-0">
         <?php if (isset($showDeleted) && $showDeleted): ?>
-            <span class="badge badge-danger badge-lg">
+            <span class="badge text-bg-danger badge-lg">
                 <i class="bi bi-trash"></i> 削除済みユーザー一覧
             </span>
         <?php else: ?>
-            <span class="badge badge-primary badge-lg">
+            <span class="badge text-bg-primary badge-lg">
                 <i class="bi bi-people"></i> ユーザー一覧
             </span>
         <?php endif; ?>
