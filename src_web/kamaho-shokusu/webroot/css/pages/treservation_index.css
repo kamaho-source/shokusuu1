@@ -1,11 +1,8 @@
 #calendar { max-width:130%; margin:0 auto; }
         @media (max-width: 768px){
-            #calendar { max-width:100%; }
             .fc-toolbar button{font-size:12px;}
             .fc-toolbar-title{font-size:14px;}
             #calendar{font-size:12px;}
-            .mode-bar { flex-wrap: wrap; gap: .5rem; }
-            .cal-room-select { min-width: 100px; max-width: 100%; }
         }
         @media (min-width:769px) and (max-width:1024px){
             .fc-toolbar button{font-size:14px;}
