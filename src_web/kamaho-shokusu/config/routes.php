@@ -155,7 +155,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect(
             '/TReservationInfo/view/:date',
             ['controller' => 'TReservationInfo', 'action' => 'view']
-        )->setPass(['date']);
+        );
 
         // === 予約トグル（POST）: roomId あり版 と なし版 の両方を受け付ける ===
         $builder->connect(
