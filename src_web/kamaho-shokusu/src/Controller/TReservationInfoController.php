@@ -289,11 +289,11 @@ class TReservationInfoController extends AppController
      * @throws \Cake\Datasource\Exception\RecordNotFoundException 記録が見つからない場合
      * 管理者および所属部屋のみ詳細閲覧と修正可能
      */
-    public function view(?string $date = null): ?Response
+    public function view(): ?Response
     {
         $this->authorizeReservation('view');
 
-        $date = $date ?? $this->request->getQuery('date');
+        $date = $this->request->getParam('date') ?? $this->request->getQuery('date');
         $context = $this->viewService->buildViewContext(
             $this->request->getAttribute('identity'),
             $date,
