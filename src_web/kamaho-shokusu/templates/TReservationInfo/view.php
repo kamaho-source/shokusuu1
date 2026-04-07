@@ -349,54 +349,17 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
         font-size: .88rem;
     }
 
-    .mobile-menu-btn {
-        display: none;
-        padding: 8px 14px;
-        border: 1px solid #e8edf3;
-        border-radius: 10px;
-        background: #fff;
-        font-weight: 600;
-        font-size: .9rem;
-        cursor: pointer;
-        color: #374151;
-    }
-    .sidebar-overlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,.4);
-        z-index: 900;
-    }
     @media (max-width: 992px) {
         .page-shell { grid-template-columns: 1fr; }
-        .side {
-            position: fixed;
-            top: 0; left: 0;
-            width: 78%;
-            max-width: 300px;
-            height: 100%;
-            z-index: 1000;
-            overflow-y: auto;
-            transform: translateX(-100%);
-            transition: transform .3s ease;
-            border-right: 1px solid #e8edf3;
-        }
-        .side.is-open { transform: translateX(0); }
-        .sidebar-overlay.is-active { display: block; }
-        .mobile-menu-btn { display: inline-block; }
-        .topbar { flex-wrap: wrap; }
-        .table-scroll-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        .table-row { min-width: 480px; }
-        .tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
-        .tab { white-space: nowrap; }
-        .summary-table { font-size: .82rem; overflow-x: auto; display: block; }
+        .side { position: static; height: auto; border-right: none; border-bottom: 1px solid #e8edf3; }
+        .table-row { grid-template-columns: 60px 1fr 80px 80px 80px 80px; }
+        .summary-table { font-size: .82rem; }
         .summary-table th, .summary-table td { padding: 7px 8px; }
     }
 </style>
 
-<div id="sidebar-overlay" class="sidebar-overlay"></div>
 <div class="page-shell">
-    <aside class="side" id="view-side">
+    <aside class="side">
         <div class="brand">
             <div class="brand-icon">🍴</div>
             食数管理システム
@@ -421,10 +384,7 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
 
     <main class="main">
         <div class="topbar">
-            <div class="d-flex align-items-center gap-2">
-                <button class="mobile-menu-btn" id="view-sidebar-toggle">☰ メニュー</button>
-                <div class="top-title">食数状況確認</div>
-            </div>
+            <div class="top-title">食数状況確認</div>
             <div class="d-flex align-items-center gap-2">
                 <div class="date-pill"><?= h($dateLabel) ?></div>
                 <div class="bell">🔔</div>
@@ -448,7 +408,6 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
             </div>
 
             <div class="mt-3">
-            <div class="table-scroll-wrap">
                 <div class="table-row header">
                     <div>番号</div>
                     <div>氏名</div>
@@ -518,7 +477,6 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
                         <?php $idx++; ?>
                     <?php endforeach; ?>
                 <?php endif; ?>
-            </div><!-- /.table-scroll-wrap -->
             </div>
 
             <div class="summary">
@@ -529,19 +487,3 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
         </div>
     </main>
 </div>
-<script>
-(function () {
-    var btn = document.getElementById('view-sidebar-toggle');
-    var side = document.getElementById('view-side');
-    var overlay = document.getElementById('sidebar-overlay');
-    if (!btn || !side || !overlay) return;
-    btn.addEventListener('click', function () {
-        side.classList.toggle('is-open');
-        overlay.classList.toggle('is-active');
-    });
-    overlay.addEventListener('click', function () {
-        side.classList.remove('is-open');
-        overlay.classList.remove('is-active');
-    });
-})();
-</script>

@@ -18,8 +18,27 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <div class="mUserInfo index content">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <h3 id="userListTitle" class="mb-0">
+    <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
+        <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
+        <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary float-right mb-3 mr-2']) ?>
+    <?php endif; ?>
+    
+    <?php if ($isAdmin): ?>
+        <div class="float-right mb-3 mr-2">
+            <div class="user-view-toggle-container">
+                <button type="button" class="toggle-btn toggle-btn-left <?= !isset($showDeleted) || !$showDeleted ? 'active' : '' ?>" id="toggleNormal">
+                    <i class="bi bi-people-fill"></i>
+                    <span>通常ユーザー</span>
+                </button>
+                <button type="button" class="toggle-btn toggle-btn-right <?= isset($showDeleted) && $showDeleted ? 'active' : '' ?>" id="toggleDeleted">
+                    <i class="bi bi-trash-fill"></i>
+                    <span>削除済み</span>
+                </button>
+            </div>
+        </div>
+    <?php endif; ?>
+
+    <h3 id="userListTitle" class="mb-4">
         <?php if (isset($showDeleted) && $showDeleted): ?>
             <span class="badge badge-danger badge-lg">
                 <i class="bi bi-trash"></i> 削除済みユーザー一覧
@@ -29,27 +48,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 <i class="bi bi-people"></i> ユーザー一覧
             </span>
         <?php endif; ?>
-        </h3>
-
-        <div class="d-flex flex-wrap gap-2 align-items-center">
-            <?php if ($isAdmin): ?>
-                <div class="user-view-toggle-container">
-                    <button type="button" class="toggle-btn toggle-btn-left <?= !isset($showDeleted) || !$showDeleted ? 'active' : '' ?>" id="toggleNormal">
-                        <i class="bi bi-people-fill"></i>
-                        <span>通常ユーザー</span>
-                    </button>
-                    <button type="button" class="toggle-btn toggle-btn-right <?= isset($showDeleted) && $showDeleted ? 'active' : '' ?>" id="toggleDeleted">
-                        <i class="bi bi-trash-fill"></i>
-                        <span>削除済み</span>
-                    </button>
-                </div>
-            <?php endif; ?>
-            <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
-                <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary btn-sm']) ?>
-                <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success btn-sm']) ?>
-            <?php endif; ?>
-        </div>
-    </div>
+    </h3>
 
     <div class="table-responsive">
         <table class="table table-bordered">
