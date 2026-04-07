@@ -40,7 +40,7 @@ $this->Html->css(['bootstrap.min']);
                     <h4><?= __('所属メンバー') ?></h4>
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">
-                            <thead class="thead-dark">
+                            <thead class="table-dark">
                             <tr>
                                 <th><?= __('ユーザー識別ID') ?></th>
                                 <th><?= __('ユーザー名') ?></th>

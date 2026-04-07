@@ -9,7 +9,9 @@ $this->assign('title', __('部屋情報追加'));
     <aside class="col-md-3">
         <div class="p-3 bg-light rounded">
             <h4><?= __('アクション') ?></h4>
-            <?= $this->Html->link(__('部屋情報一覧'), ['action' => 'index'], ['class' => 'btn btn-secondary btn-block mt-2']) ?>
+            <div class="d-grid mt-2">
+                <?= $this->Html->link(__('部屋情報一覧'), ['action' => 'index'], ['class' => 'btn btn-secondary']) ?>
+            </div>
         </div>
     </aside>
     <div class="col-md-9">
