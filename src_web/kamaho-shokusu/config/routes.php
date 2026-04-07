@@ -153,7 +153,7 @@ return function (RouteBuilder $routes): void {
 
         // 日付別ビュー
         $builder->connect(
-            '/TReservationInfo/view/:date',
+            '/TReservationInfo/view/{date}',
             ['controller' => 'TReservationInfo', 'action' => 'view']
         );
 
