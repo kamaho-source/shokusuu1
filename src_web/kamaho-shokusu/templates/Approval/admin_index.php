@@ -312,7 +312,7 @@ foreach ($summary as $row) {
             <h1 class="page-title">承認管理</h1>
             <div class="page-subtitle">管理者向けに、ブロック長承認済の申請確認、最終承認、差し戻し、食数反映までを行います。</div>
         </div>
-        <a href="<?= h($basePath) ?>/" class="btn btn-outline-secondary mui-btn">戻る</a>
+        <a href="<?= h($basePath) ?>/MUserInfo/logout" class="btn btn-outline-secondary mui-btn">ログアウト</a>
     </div>
 
     <div class="summary-grid">
