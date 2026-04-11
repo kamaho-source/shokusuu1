@@ -120,8 +120,10 @@ data "oci_core_images" "ubuntu" {
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
 }
+# 注: VM.Standard.A1.Flex は ARM (aarch64) のため、
+#     イメージは自動的に ARM 対応版が選択されます。
 
-# ── Computeインスタンス (Always Free: VM.Standard.E2.1.Micro) ─────────────
+# ── Computeインスタンス (Always Free: VM.Standard.A1.Flex) ───────────────
 
 resource "oci_core_instance" "staging" {
   compartment_id      = var.compartment_ocid

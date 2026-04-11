@@ -9,7 +9,7 @@ use Cake\ORM\TableRegistry;
 
 class RoomAccessService
 {
-    private const string OFFICE_ROOM_KEYWORD = '事務所';
+    private const OFFICE_ROOM_KEYWORD = '事務所';
 
     /**
      * @return array<int>
