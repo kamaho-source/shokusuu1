@@ -246,7 +246,7 @@ foreach ($records as $record) {
             <h1 class="page-title">承認一覧</h1>
             <div class="page-subtitle">ブロック長向けに、担当部屋の申請を確認して承認または差し戻しを行います。</div>
         </div>
-        <a href="<?= h($basePath) ?>/MUserInfo/logout" class="btn btn-outline-secondary mui-btn">ログアウト</a>
+        <a href="<?= h($basePath) ?>/" class="btn btn-outline-secondary mui-btn">戻る</a>
     </div>
 
     <div class="summary-grid">
