@@ -163,22 +163,12 @@ class TReservationInfoPolicy
 
     public function canActualMealManagement(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isBlockLeaderOrAdmin($user);
+        return $this->isStaffOrAdmin($user);
     }
 
     public function canActualMealSave(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
-    }
-
-    public function canActualMealRequestApproval(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isAuthenticated($user);
-    }
-
-    public function canMyActualMeal(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isAuthenticated($user);
+        return $this->isStaffOrAdmin($user);
     }
 
     private function isAuthenticated(?IdentityInterface $user): bool
@@ -230,36 +220,9 @@ class TReservationInfoPolicy
         return false;
     }
 
-    public function isBlockLeader(?IdentityInterface $user): bool
-    {
-        $identity = $this->getOriginalIdentity($user);
-        if ($identity === null) {
-            return false;
-        }
-
-        if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 2;
-        }
-
-        if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 2;
-        }
-
-        if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 2;
-        }
-
-        return false;
-    }
-
     private function isStaffOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isStaff($user);
-    }
-
-    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
-    {
-        return $this->isAdmin($user) || $this->isBlockLeader($user);
     }
 
     private function canAccessRoom(?IdentityInterface $user, TReservationInfo $resource): bool

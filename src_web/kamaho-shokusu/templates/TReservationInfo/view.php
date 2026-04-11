@@ -401,7 +401,7 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
             <div class="tabs">
                 <?php foreach ($roomsForTabs as $rid => $rname): ?>
                     <a class="tab <?= ((int)$rid === (int)$activeRoomId) ? 'active' : '' ?>"
-                       href="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'view', $date, '?' => ['room_id' => $rid]]) ?>">
+                       href="<?= $this->Url->build('/TReservationInfo/view/' . h($date) . '?room_id=' . (int)$rid) ?>">
                         <?= h($rname) ?>
                     </a>
                 <?php endforeach; ?>

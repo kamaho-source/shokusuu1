@@ -140,7 +140,6 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/changePassword', ['controller' => 'MUserInfo', 'action' => 'changePassword']);
         $builder->connect('/MUserInfo/AdminChangePassword', ['controller' => 'MUserInfo', 'action' => 'AdminChangePassword']);
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
-        $builder->connect('/MUserInfo/update-user-level', ['controller' => 'MUserInfo', 'action' => 'updateUserLevel'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
@@ -154,9 +153,9 @@ return function (RouteBuilder $routes): void {
 
         // 日付別ビュー
         $builder->connect(
-            '/TReservationInfo/view/:date',
+            '/TReservationInfo/view/{date}',
             ['controller' => 'TReservationInfo', 'action' => 'view']
-        )->setPass(['date']);
+        );
 
         // === 予約トグル（POST）: roomId あり版 と なし版 の両方を受け付ける ===
         $builder->connect(
@@ -203,84 +202,11 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'actualMealSave']
         )->setMethods(['POST']);
 
-        $builder->connect(
-            '/TReservationInfo/actual-meal-request-approval',
-            ['controller' => 'TReservationInfo', 'action' => 'actualMealRequestApproval']
-        )->setMethods(['POST']);
-
-        $builder->connect(
-            '/TReservationInfo/my-actual-meal',
-            ['controller' => 'TReservationInfo', 'action' => 'myActualMeal']
-        )->setMethods(['GET']);
-
         // 予約コピープレビューAPI
         $builder->connect(
             '/TReservationInfo/copyPreview',
             ['controller' => 'TReservationInfo', 'action' => 'copyPreview']
         )->setMethods(['GET', 'POST']);
-
-        // ------------------------------------------------------------------
-        // Approval（承認フロー）
-        // ------------------------------------------------------------------
-        // ブロック長用 承認一覧（GET）
-        $builder->connect(
-            '/Approval/blockLeaderIndex',
-            ['controller' => 'Approval', 'action' => 'blockLeaderIndex']
-        )->setMethods(['GET']);
-
-        // ブロック長による承認（POST/JSON）
-        $builder->connect(
-            '/Approval/blockLeaderApprove',
-            ['controller' => 'Approval', 'action' => 'blockLeaderApprove']
-        )->setMethods(['POST']);
-
-        // ブロック長による差し戻し（POST/JSON）
-        $builder->connect(
-            '/Approval/blockLeaderReject',
-            ['controller' => 'Approval', 'action' => 'blockLeaderReject']
-        )->setMethods(['POST']);
-
-        // 管理者用 承認一覧（GET）
-        $builder->connect(
-            '/Approval/adminIndex',
-            ['controller' => 'Approval', 'action' => 'adminIndex']
-        )->setMethods(['GET']);
-
-        // 管理者による最終承認（POST/JSON）
-        $builder->connect(
-            '/Approval/adminApprove',
-            ['controller' => 'Approval', 'action' => 'adminApprove']
-        )->setMethods(['POST']);
-
-        // 管理者による差し戻し（POST/JSON）
-        $builder->connect(
-            '/Approval/adminReject',
-            ['controller' => 'Approval', 'action' => 'adminReject']
-        )->setMethods(['POST']);
-
-        // 通知一覧（GET）
-        $builder->connect(
-            '/Notifications',
-            ['controller' => 'Notifications', 'action' => 'index']
-        )->setMethods(['GET']);
-
-        // 通知既読化（POST/JSON）
-        $builder->connect(
-            '/Notifications/markRead',
-            ['controller' => 'Notifications', 'action' => 'markRead']
-        )->setMethods(['POST']);
-
-        // 通知一括既読化（POST/JSON）
-        $builder->connect(
-            '/Notifications/markAllRead',
-            ['controller' => 'Notifications', 'action' => 'markAllRead']
-        )->setMethods(['POST']);
-
-        // 承認済みを食数テーブルへ反映（POST/JSON）
-        $builder->connect(
-            '/Approval/adminReflect',
-            ['controller' => 'Approval', 'action' => 'adminReflect']
-        )->setMethods(['POST']);
 
         // フォールバック
         $builder->fallbacks();
