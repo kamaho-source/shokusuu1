@@ -25,6 +25,8 @@ $isModal = ($request->getQuery('modal') === '1'); // ?modal=1 のときはモー
 $user    = $request->getAttribute('identity');    // 既存テンプレ内で使用している $user を補完
 $isStaff = $user && ((int)$user->i_admin === 1 || (int)$user->i_user_level === 0);
 $isChild = $user && (int)$user->i_user_level === 1;
+$notificationUnreadCount = $notificationUnreadCount ?? 0;
+$recentNotifications = $recentNotifications ?? [];
 ?>
 
 <?php if (!$isModal): ?>
@@ -71,6 +73,39 @@ $isChild = $user && (int)$user->i_user_level === 1;
 
                 <ul class="navbar-nav ms-auto">
                     <?php if ($user): ?>
+                        <li class="nav-item dropdown me-2">
+                            <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                通知
+                                <?php if ($notificationUnreadCount > 0): ?>
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                        <?= h($notificationUnreadCount > 99 ? '99+' : (string)$notificationUnreadCount) ?>
+                                    </span>
+                                <?php endif; ?>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end animate__animated animate__fadeIn" aria-labelledby="notificationMenu" style="min-width: 24rem;">
+                                <?php if (empty($recentNotifications)): ?>
+                                    <li><span class="dropdown-item-text text-muted">未読通知はありません</span></li>
+                                <?php else: ?>
+                                    <?php foreach ($recentNotifications as $notification): ?>
+                                        <li>
+                                            <a class="dropdown-item text-wrap" href="<?= $this->Url->build('/Notifications') ?>">
+                                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                                    <strong class="<?= (int)$notification->i_is_read === 0 ? 'text-dark' : 'text-muted' ?>">
+                                                        <?= h($notification->c_title) ?>
+                                                    </strong>
+                                                    <?php if ((int)$notification->i_is_read === 0): ?>
+                                                        <span class="badge bg-danger">未読</span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="small text-muted mt-1"><?= h($notification->c_message) ?></div>
+                                            </a>
+                                        </li>
+                                    <?php endforeach; ?>
+                                    <li><hr class="dropdown-divider"></li>
+                                <?php endif; ?>
+                                <li><?= $this->Html->link('通知一覧を開く', ['controller' => 'Notifications', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
+                            </ul>
+                        </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <?= !empty($user->i_id_staff) ? '<span class="small text-light">(職員ID: ' . h($user->i_id_staff) . ')</span>' : '' ?>

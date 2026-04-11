@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
 
@@ -29,6 +30,8 @@ use Cake\Event\EventInterface;
  */
 class AppController extends Controller
 {
+    private NotificationService $notificationService;
+
     /**
      * Initialization hook method.
      *
@@ -44,6 +47,7 @@ class AppController extends Controller
         $this->loadComponent('Flash');
         $this->loadComponent('Authentication.Authentication');
         $this->loadComponent('Authorization.Authorization');
+        $this->notificationService = new NotificationService();
         $this->set('user', $this->Authentication->getIdentity());
         /*
          * Enable the following component for recommended CakePHP form protection settings.
@@ -60,6 +64,14 @@ class AppController extends Controller
         $user = $this->Authentication->getIdentity();
 
         $this->set('user', $user);
+        if ($user !== null) {
+            $userId = (int)$user->get('i_id_user');
+            $this->set('notificationUnreadCount', $this->notificationService->getUnreadCount($userId));
+            $this->set('recentNotifications', $this->notificationService->getRecentNotifications($userId));
+        } else {
+            $this->set('notificationUnreadCount', 0);
+            $this->set('recentNotifications', []);
+        }
     }
 
 }

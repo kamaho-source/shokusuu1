@@ -40,6 +40,7 @@ class TIndividualReservationInfoTable extends Table
         $validator
             ->integer('eat_flag')->allowEmptyString('eat_flag')
             ->integer('i_change_flag')->allowEmptyString('i_change_flag')
+            ->integer('i_approval_status')->inList('i_approval_status', [0, 1, 2, 3])->allowEmptyString('i_approval_status')
             ->integer('i_version')->greaterThanOrEqual('i_version', 1)->allowEmptyString('i_version');
 
         // 監査

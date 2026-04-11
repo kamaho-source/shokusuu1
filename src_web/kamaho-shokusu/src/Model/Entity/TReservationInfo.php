@@ -30,6 +30,9 @@ class TReservationInfo extends Entity
      * @var array<string, bool>
      */
     protected array $_accessible = [
+        'd_reservation_date' => true,
+        'i_id_room' => true,
+        'c_reservation_type' => true,
         'i_taberu_ninzuu' => true,
         'i_tabenai_ninzuu' => true,
         'dt_create' => true,
@@ -37,17 +40,6 @@ class TReservationInfo extends Entity
         'dt_update' => true,
         'c_update_user' => true,
     ];
-
-
-
-    public function initialize(array $config): void
-    {
-        parent::initialize($config);
-        $this->setTable('t_reservation_info');
-        $this->setPrimaryKey('i_id_room');
-
-    }
-
 
     public function getReservationSummary($roomId,$date,$mealType)
     {
