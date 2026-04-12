@@ -85,6 +85,17 @@ class ApprovalService
             $query->where(['TIndividualReservationInfo.i_approval_status' => self::STATUS_PENDING]);
         }
 
+        // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
+        $query->where([
+            'OR' => [
+                [
+                    'MUserInfo.i_id_staff IS NOT' => null,
+                    'MUserInfo.i_id_staff !='     => '',
+                ],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
+
         $query->order([
             'TIndividualReservationInfo.d_reservation_date' => 'ASC',
             'MRoomInfo.i_disp_no'                          => 'ASC',
@@ -125,6 +136,17 @@ class ApprovalService
         if ($filterStatus !== null) {
             $query->where(['TIndividualReservationInfo.i_approval_status' => $filterStatus]);
         }
+
+        // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
+        $query->where([
+            'OR' => [
+                [
+                    'MUserInfo.i_id_staff IS NOT' => null,
+                    'MUserInfo.i_id_staff !='     => '',
+                ],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
 
         $query->order([
             'TIndividualReservationInfo.d_reservation_date' => 'ASC',
