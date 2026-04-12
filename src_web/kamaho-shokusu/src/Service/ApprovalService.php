@@ -246,6 +246,7 @@ class ApprovalService
 
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $query = $table->find()
+            ->contain(['MUserInfo'])
             ->where([
                 'TIndividualReservationInfo.i_id_room IN' => $roomIds,
                 'TIndividualReservationInfo.i_approval_status' => self::STATUS_PENDING,
@@ -258,6 +259,20 @@ class ApprovalService
             $query->where(['TIndividualReservationInfo.d_reservation_date <=' => $dateTo]);
         }
 
+        // 大人ユーザーのみ（getBlockLeaderList と同条件）
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_id_staff IS NOT' => null, 'MUserInfo.i_id_staff !=' => ''],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_admin IS' => null],
+                ['MUserInfo.i_admin'    => 0],
+            ],
+        ]);
+
         return $query->count();
     }
 
@@ -268,6 +283,7 @@ class ApprovalService
     {
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $query = $table->find()
+            ->contain(['MUserInfo'])
             ->where([
                 'TIndividualReservationInfo.i_approval_status' => self::STATUS_BLOCK_LEADER,
             ]);
@@ -278,6 +294,20 @@ class ApprovalService
         if ($dateTo !== null) {
             $query->where(['TIndividualReservationInfo.d_reservation_date <=' => $dateTo]);
         }
+
+        // 大人ユーザーのみ（getAdminList と同条件）
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_id_staff IS NOT' => null, 'MUserInfo.i_id_staff !=' => ''],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_admin IS' => null],
+                ['MUserInfo.i_admin'    => 0],
+            ],
+        ]);
 
         return $query->count();
     }
