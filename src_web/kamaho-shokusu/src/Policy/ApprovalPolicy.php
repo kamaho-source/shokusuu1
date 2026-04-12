@@ -26,16 +26,16 @@ class ApprovalPolicy
         return $this->isBlockLeaderOrAdmin($user);
     }
 
-    /** ブロック長による承認操作（ブロック長のみ。管理者は adminApprove を使用する） */
+    /** ブロック長による承認操作 */
     public function canBlockLeaderApprove(?IdentityInterface $user, mixed $resource): bool
     {
-        return $this->isBlockLeader($user);
+        return $this->isBlockLeaderOrAdmin($user);
     }
 
-    /** ブロック長による差し戻し操作（ブロック長のみ。管理者は adminReject を使用する） */
+    /** ブロック長による差し戻し操作 */
     public function canBlockLeaderReject(?IdentityInterface $user, mixed $resource): bool
     {
-        return $this->isBlockLeader($user);
+        return $this->isBlockLeaderOrAdmin($user);
     }
 
     /** 管理者用承認一覧 */

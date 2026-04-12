@@ -86,6 +86,7 @@ class ApprovalService
         }
 
         // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
+        // かつ、管理者・ブロック長本人の予約は除外（自己承認防止）
         $query->where([
             'OR' => [
                 [
@@ -93,6 +94,12 @@ class ApprovalService
                     'MUserInfo.i_id_staff !='     => '',
                 ],
                 ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_admin IS' => null],
+                ['MUserInfo.i_admin'    => 0],
             ],
         ]);
 
@@ -138,6 +145,7 @@ class ApprovalService
         }
 
         // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
+        // かつ、管理者・ブロック長本人の予約は除外（自己承認防止）
         $query->where([
             'OR' => [
                 [
@@ -145,6 +153,12 @@ class ApprovalService
                     'MUserInfo.i_id_staff !='     => '',
                 ],
                 ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_admin IS' => null],
+                ['MUserInfo.i_admin'    => 0],
             ],
         ]);
 
