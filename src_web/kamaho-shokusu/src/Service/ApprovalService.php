@@ -85,6 +85,14 @@ class ApprovalService
             $query->where(['TIndividualReservationInfo.i_approval_status' => self::STATUS_PENDING]);
         }
 
+        // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_id_staff IS NOT' => null],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
+
         $query->order([
             'TIndividualReservationInfo.d_reservation_date' => 'ASC',
             'MRoomInfo.i_disp_no'                          => 'ASC',
@@ -125,6 +133,14 @@ class ApprovalService
         if ($filterStatus !== null) {
             $query->where(['TIndividualReservationInfo.i_approval_status' => $filterStatus]);
         }
+
+        // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_id_staff IS NOT' => null],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
 
         $query->order([
             'TIndividualReservationInfo.d_reservation_date' => 'ASC',
@@ -210,6 +226,7 @@ class ApprovalService
 
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $query = $table->find()
+            ->contain(['MUserInfo'])
             ->where([
                 'TIndividualReservationInfo.i_id_room IN' => $roomIds,
                 'TIndividualReservationInfo.i_approval_status' => self::STATUS_PENDING,
@@ -222,6 +239,14 @@ class ApprovalService
             $query->where(['TIndividualReservationInfo.d_reservation_date <=' => $dateTo]);
         }
 
+        // 大人ユーザーのみ（getBlockLeaderList と同条件）
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_id_staff IS NOT' => null],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
+
         return $query->count();
     }
 
@@ -232,6 +257,7 @@ class ApprovalService
     {
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $query = $table->find()
+            ->contain(['MUserInfo'])
             ->where([
                 'TIndividualReservationInfo.i_approval_status' => self::STATUS_BLOCK_LEADER,
             ]);
@@ -242,6 +268,14 @@ class ApprovalService
         if ($dateTo !== null) {
             $query->where(['TIndividualReservationInfo.d_reservation_date <=' => $dateTo]);
         }
+
+        // 大人ユーザーのみ（getAdminList と同条件）
+        $query->where([
+            'OR' => [
+                ['MUserInfo.i_id_staff IS NOT' => null],
+                ['MUserInfo.i_user_level' => 7],
+            ],
+        ]);
 
         return $query->count();
     }
@@ -256,7 +290,7 @@ class ApprovalService
      */
     public function blockLeaderApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null);
+        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
     }
 
     /**
@@ -269,7 +303,7 @@ class ApprovalService
      */
     public function adminApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null);
+        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER]);
     }
 
     /**
@@ -283,7 +317,7 @@ class ApprovalService
      */
     public function reject(array $keys, int $approverId, string $actor, ?string $reason): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason);
+        return $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
     }
 
     /**
@@ -375,15 +409,21 @@ class ApprovalService
         int $newStatus,
         int $approverId,
         string $actor,
-        ?string $reason
+        ?string $reason,
+        array $allowedFromStatuses,
+        ?int $excludeUserId = null
     ): bool {
         $individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $logTable        = TableRegistry::getTableLocator()->get('TApprovalLog');
         $now             = DateTime::now();
 
         return $individualTable->getConnection()->transactional(
-            function () use ($keys, $newStatus, $approverId, $actor, $reason, $individualTable, $logTable, $now): bool {
+            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $individualTable, $logTable, $now): bool {
                 foreach ($keys as $k) {
+                    // 承認者自身の予約は自己承認を防止するためスキップ
+                    if ($excludeUserId !== null && (int)$k['i_id_user'] === $excludeUserId) {
+                        return false;
+                    }
                     $affected = $individualTable->updateAll(
                         ['i_approval_status' => $newStatus, 'dt_update' => $now, 'c_update_user' => $actor],
                         [
@@ -391,6 +431,7 @@ class ApprovalService
                             'd_reservation_date' => $k['d_reservation_date'],
                             'i_id_room'          => $k['i_id_room'],
                             'i_reservation_type' => $k['i_reservation_type'],
+                            'i_approval_status IN' => $allowedFromStatuses,
                         ]
                     );
                     if ($affected < 1) {

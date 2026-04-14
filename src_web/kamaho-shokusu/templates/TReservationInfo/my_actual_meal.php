@@ -217,6 +217,7 @@ if (!empty($dates)) {
             color: var(--text-main);
         }
         .legend-chip.approved { background: var(--accent-soft); color: var(--accent); border-color: rgba(31, 79, 122, 0.18); }
+        .legend-chip.pending { background: #fff7ed; color: #b45309; border-color: rgba(180, 83, 9, 0.2); }
         .legend-chip.editing { background: var(--warning-soft); color: var(--warning); border-color: rgba(154, 103, 0, 0.2); }
         .legend-chip.rejected { background: var(--danger-soft); color: var(--danger); border-color: rgba(180, 35, 24, 0.18); }
         .legend-chip.empty { background: #fff; color: var(--text-sub); }
@@ -391,6 +392,7 @@ if (!empty($dates)) {
             font-weight: 600;
         }
         .meal-toggle.active .meal-status { color: var(--accent); }
+        .meal-toggle.pending .meal-status { color: #b45309; }
         .meal-toggle.changed .meal-status { color: var(--warning); }
         .meal-toggle.rejected .meal-status { color: var(--danger); }
         .meal-toggle input { display: none; }
@@ -565,6 +567,7 @@ if (!empty($dates)) {
                 </div>
                 <div class="legend-list">
                     <div class="legend-item"><span class="legend-chip approved">承認済み</span><span>承認済の内容が現在値です。</span></div>
+                    <div class="legend-item"><span class="legend-chip pending">申請中</span><span>承認待ちの状態です。</span></div>
                     <div class="legend-item"><span class="legend-chip editing">変更中</span><span>保存前の変更があります。</span></div>
                     <div class="legend-item"><span class="legend-chip rejected">差し戻し</span><span>再確認が必要な入力です。</span></div>
                     <div class="legend-item"><span class="legend-chip empty">未入力</span><span>まだ登録されていません。</span></div>
@@ -679,18 +682,25 @@ if (!empty($dates)) {
                         $version = (int)($versions[$selectedUserId][$d][$mealType] ?? 1);
                         $status  = (int)($statuses[$selectedUserId][$d][$mealType] ?? 0);
                         $isRejected = $status === 3;
-                        $statusText = $checked ? '承認済み' : '未入力';
+                        $isPending  = $checked && in_array($status, [0, 1], true);
                         if ($isRejected) {
                             $statusText = '差し戻し';
+                        } elseif ($isPending) {
+                            $statusText = '申請中';
+                        } elseif ($checked) {
+                            $statusText = '承認済み';
+                        } else {
+                            $statusText = '未入力';
                         }
                         $mealCode = [1 => 'AM', 2 => 'LN', 3 => 'PM'][$mealType] ?? '--';
                     ?>
-                        <label class="meal-toggle <?= $checked ? 'active' : '' ?> <?= $isRejected ? 'rejected' : '' ?>"
+                        <label class="meal-toggle <?= $checked ? 'active' : '' ?> <?= $isRejected ? 'rejected' : '' ?> <?= $isPending ? 'pending' : '' ?>"
                                data-uid="<?= $selectedUserId ?>"
                                data-date="<?= h($d) ?>"
                                data-meal="<?= $mealType ?>"
                                data-version="<?= $version ?>"
-                               data-original="<?= $checked ? '1' : '0' ?>">
+                               data-original="<?= $checked ? '1' : '0' ?>"
+                               data-status-text="<?= h($statusText) ?>">
                             <input type="checkbox" <?= $checked ? 'checked' : '' ?>>
                             <span class="meal-toggle-top">
                                 <span class="meal-code"><?= h($mealCode) ?></span>
@@ -765,7 +775,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const status = label.querySelector('.meal-status');
         label.classList.toggle('active',   checked && !isChanged);
         label.classList.toggle('changed',  isChanged);
-        if (status) status.textContent = isChanged ? '変更中' : (checked ? '承認済み' : '未入力');
+        if (status) {
+            if (isChanged) {
+                status.textContent = '変更中';
+            } else if (checked) {
+                status.textContent = label.dataset.statusText || '承認済み';
+            } else {
+                status.textContent = '未入力';
+            }
+        }
     }
 
     // トグルクリック
