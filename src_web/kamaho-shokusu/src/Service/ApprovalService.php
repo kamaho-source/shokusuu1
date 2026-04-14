@@ -322,7 +322,7 @@ class ApprovalService
      */
     public function blockLeaderApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null);
+        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
     }
 
     /**
@@ -335,7 +335,7 @@ class ApprovalService
      */
     public function adminApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null);
+        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER]);
     }
 
     /**
@@ -349,7 +349,7 @@ class ApprovalService
      */
     public function reject(array $keys, int $approverId, string $actor, ?string $reason): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason);
+        return $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
     }
 
     /**
@@ -441,14 +441,15 @@ class ApprovalService
         int $newStatus,
         int $approverId,
         string $actor,
-        ?string $reason
+        ?string $reason,
+        array $allowedFromStatuses
     ): bool {
         $individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $logTable        = TableRegistry::getTableLocator()->get('TApprovalLog');
         $now             = DateTime::now();
 
         return $individualTable->getConnection()->transactional(
-            function () use ($keys, $newStatus, $approverId, $actor, $reason, $individualTable, $logTable, $now): bool {
+            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $individualTable, $logTable, $now): bool {
                 foreach ($keys as $k) {
                     $affected = $individualTable->updateAll(
                         ['i_approval_status' => $newStatus, 'dt_update' => $now, 'c_update_user' => $actor],
@@ -457,6 +458,7 @@ class ApprovalService
                             'd_reservation_date' => $k['d_reservation_date'],
                             'i_id_room'          => $k['i_id_room'],
                             'i_reservation_type' => $k['i_reservation_type'],
+                            'i_approval_status IN' => $allowedFromStatuses,
                         ]
                     );
                     if ($affected < 1) {
