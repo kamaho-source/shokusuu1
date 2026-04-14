@@ -88,10 +88,7 @@ class ApprovalService
         // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
         $query->where([
             'OR' => [
-                [
-                    'MUserInfo.i_id_staff IS NOT' => null,
-                    'MUserInfo.i_id_staff !='     => '',
-                ],
+                ['MUserInfo.i_id_staff IS NOT' => null],
                 ['MUserInfo.i_user_level' => 7],
             ],
         ]);
@@ -140,10 +137,7 @@ class ApprovalService
         // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
         $query->where([
             'OR' => [
-                [
-                    'MUserInfo.i_id_staff IS NOT' => null,
-                    'MUserInfo.i_id_staff !='     => '',
-                ],
+                ['MUserInfo.i_id_staff IS NOT' => null],
                 ['MUserInfo.i_user_level' => 7],
             ],
         ]);
@@ -248,14 +242,8 @@ class ApprovalService
         // 大人ユーザーのみ（getBlockLeaderList と同条件）
         $query->where([
             'OR' => [
-                ['MUserInfo.i_id_staff IS NOT' => null, 'MUserInfo.i_id_staff !=' => ''],
+                ['MUserInfo.i_id_staff IS NOT' => null],
                 ['MUserInfo.i_user_level' => 7],
-            ],
-        ]);
-        $query->where([
-            'OR' => [
-                ['MUserInfo.i_admin IS' => null],
-                ['MUserInfo.i_admin'    => 0],
             ],
         ]);
 
@@ -284,14 +272,8 @@ class ApprovalService
         // 大人ユーザーのみ（getAdminList と同条件）
         $query->where([
             'OR' => [
-                ['MUserInfo.i_id_staff IS NOT' => null, 'MUserInfo.i_id_staff !=' => ''],
+                ['MUserInfo.i_id_staff IS NOT' => null],
                 ['MUserInfo.i_user_level' => 7],
-            ],
-        ]);
-        $query->where([
-            'OR' => [
-                ['MUserInfo.i_admin IS' => null],
-                ['MUserInfo.i_admin'    => 0],
             ],
         ]);
 
