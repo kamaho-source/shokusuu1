@@ -97,6 +97,7 @@ return [
             'i_id_room' => ['type' => 'integer', 'null' => false],
             'eat_flag' => ['type' => 'integer', 'null' => true],
             'i_change_flag' => ['type' => 'integer', 'null' => true],
+            'i_approval_status' => ['type' => 'integer', 'null' => false, 'default' => 0],
             'i_version' => ['type' => 'integer', 'null' => false, 'default' => 1],
             'dt_create' => ['type' => 'datetime', 'null' => true],
             'c_create_user' => ['type' => 'string', 'length' => 50, 'null' => true],
@@ -108,6 +109,22 @@ return [
                 'type' => 'primary',
                 'columns' => ['i_id_user', 'd_reservation_date', 'i_id_room', 'i_reservation_type'],
             ],
+        ],
+    ],
+    't_approval_log' => [
+        'columns' => [
+            'i_id_approval'      => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user'          => ['type' => 'integer', 'null' => false],
+            'd_reservation_date' => ['type' => 'date', 'null' => false],
+            'i_id_room'          => ['type' => 'integer', 'null' => false],
+            'i_reservation_type' => ['type' => 'integer', 'null' => false],
+            'i_approval_status'  => ['type' => 'integer', 'null' => false],
+            'i_approver_id'      => ['type' => 'integer', 'null' => false],
+            'c_reject_reason'    => ['type' => 'string', 'length' => 255, 'null' => true],
+            'dt_create'          => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_approval']],
         ],
     ],
     't_reservation_info' => [
