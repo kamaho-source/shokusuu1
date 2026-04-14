@@ -322,7 +322,7 @@ class ApprovalService
      */
     public function blockLeaderApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
+        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId);
     }
 
     /**
@@ -335,7 +335,7 @@ class ApprovalService
      */
     public function adminApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER]);
+        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER], $approverId);
     }
 
     /**
@@ -442,15 +442,20 @@ class ApprovalService
         int $approverId,
         string $actor,
         ?string $reason,
-        array $allowedFromStatuses
+        array $allowedFromStatuses,
+        ?int $excludeUserId = null
     ): bool {
         $individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $logTable        = TableRegistry::getTableLocator()->get('TApprovalLog');
         $now             = DateTime::now();
 
         return $individualTable->getConnection()->transactional(
-            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $individualTable, $logTable, $now): bool {
+            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $individualTable, $logTable, $now): bool {
                 foreach ($keys as $k) {
+                    // 承認者自身の予約は自己承認を防止するためスキップ
+                    if ($excludeUserId !== null && (int)$k['i_id_user'] === $excludeUserId) {
+                        return false;
+                    }
                     $affected = $individualTable->updateAll(
                         ['i_approval_status' => $newStatus, 'dt_update' => $now, 'c_update_user' => $actor],
                         [

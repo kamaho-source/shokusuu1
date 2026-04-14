@@ -151,4 +151,30 @@ class ApprovalServiceTest extends TestCase
         $this->assertFalse($result);
         $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), '最終承認済みは差し戻せないこと');
     }
+
+    // ----------------------------------------------------------------
+    // 自己承認防止
+    // ----------------------------------------------------------------
+
+    public function testBlockLeaderApprove_fails_when_self_approval(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_PENDING);
+
+        // approverId = 1（key1.i_id_user と同じ）→ 自己承認
+        $result = $this->service->blockLeaderApprove([$this->key1], 1, 'self');
+
+        $this->assertFalse($result);
+        $this->assertSame(ApprovalService::STATUS_PENDING, $this->getStatus(), '自分の予約をブロック長承認できないこと');
+    }
+
+    public function testAdminApprove_fails_when_self_approval(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER);
+
+        // approverId = 1（key1.i_id_user と同じ）→ 自己承認
+        $result = $this->service->adminApprove([$this->key1], 1, 'self');
+
+        $this->assertFalse($result);
+        $this->assertSame(ApprovalService::STATUS_BLOCK_LEADER, $this->getStatus(), '自分の予約を管理者承認できないこと');
+    }
 }
