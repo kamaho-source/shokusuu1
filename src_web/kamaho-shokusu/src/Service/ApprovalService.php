@@ -86,8 +86,6 @@ class ApprovalService
         }
 
         // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
-        // かつ、管理者（i_admin=1）本人の予約は除外（自己承認防止）
-        // ※ブロック長（i_admin=2）は管理者が承認できるため除外しない
         $query->where([
             'OR' => [
                 [
@@ -95,12 +93,6 @@ class ApprovalService
                     'MUserInfo.i_id_staff !='     => '',
                 ],
                 ['MUserInfo.i_user_level' => 7],
-            ],
-        ]);
-        $query->where([
-            'OR' => [
-                ['MUserInfo.i_admin IS' => null],
-                ['MUserInfo.i_admin !=' => 1],
             ],
         ]);
 
@@ -146,8 +138,6 @@ class ApprovalService
         }
 
         // 大人ユーザーのみ表示（職員 または i_user_level=7 の大人）
-        // かつ、管理者（i_admin=1）本人の予約は除外（自己承認防止）
-        // ※ブロック長（i_admin=2）は管理者が承認できるため除外しない
         $query->where([
             'OR' => [
                 [
@@ -155,12 +145,6 @@ class ApprovalService
                     'MUserInfo.i_id_staff !='     => '',
                 ],
                 ['MUserInfo.i_user_level' => 7],
-            ],
-        ]);
-        $query->where([
-            'OR' => [
-                ['MUserInfo.i_admin IS' => null],
-                ['MUserInfo.i_admin !=' => 1],
             ],
         ]);
 
@@ -324,7 +308,7 @@ class ApprovalService
      */
     public function blockLeaderApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId);
+        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
     }
 
     /**
@@ -337,7 +321,7 @@ class ApprovalService
      */
     public function adminApprove(array $keys, int $approverId, string $actor): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER], $approverId);
+        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER]);
     }
 
     /**
