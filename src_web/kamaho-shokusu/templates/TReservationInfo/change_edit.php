@@ -22,20 +22,21 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
      data-date="<?= h($date) ?>"
      data-mealtype="<?= h($mealType) ?>">
     <style>
-        body { background:#eef2f6; }
-        .excel-header { background:#e9edf3; border-radius:10px; padding:10px 12px; }
-        .sub-bar { background:#1f2937; color:#fff; padding:8px 14px; border-radius:8px; }
-        .meal-count { color:#22c55e; font-weight:700; margin-left:4px; }
-        .excel-card { background:#fff; border-radius:12px; border:1px solid #e2e8f0; }
-        .excel-table th { font-size:.75rem; color:#8a96a3; text-transform:uppercase; }
-        .meal-toggle { display:none; }
-        .meal-btn {
+        /* change_edit モーダル内スタイル（bodyへの適用を避けるため #ce-root にスコープ） */
+        #ce-root { background:#eef2f6; }
+        #ce-root .excel-header { background:#e9edf3; border-radius:10px; padding:10px 12px; }
+        #ce-root .sub-bar { background:#1f2937; color:#fff; padding:8px 14px; border-radius:8px; }
+        #ce-root .meal-count { color:#22c55e; font-weight:700; margin-left:4px; }
+        #ce-root .excel-card { background:#fff; border-radius:12px; border:1px solid #e2e8f0; }
+        #ce-root .excel-table th { font-size:.75rem; color:#8a96a3; text-transform:uppercase; }
+        #ce-root .meal-toggle { display:none; }
+        #ce-root .meal-btn {
             width:36px; height:28px; border-radius:6px;
             background:#e5e7eb; display:inline-flex; align-items:center; justify-content:center;
             color:#1f2937; font-weight:700; cursor:pointer;
         }
-        .meal-toggle:checked + .meal-btn { background:#2563eb; color:#fff; }
-        .meal-toggle:disabled + .meal-btn { background:#cbd5e1; color:#64748b; cursor:not-allowed; }
+        #ce-root .meal-toggle:checked + .meal-btn { background:#2563eb; color:#fff; }
+        #ce-root .meal-toggle:disabled + .meal-btn { background:#cbd5e1; color:#64748b; cursor:not-allowed; }
     </style>
 
     <div class="container py-3">
@@ -89,12 +90,11 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
                 <table class="table excel-table align-middle" id="ce-table">
                     <thead>
                     <tr>
-                        <th style="width:60px;">ID</th>
                         <th>職員氏名 / 所属</th>
-                        <th class="text-center">MORNING<br><input type="checkbox" id="select-all-1" aria-label="朝 全選択/解除"></th>
-                        <th class="text-center">LUNCH<br><input type="checkbox" id="select-all-2" aria-label="昼 全選択/解除"></th>
-                        <th class="text-center">DINNER<br><input type="checkbox" id="select-all-3" aria-label="夜 全選択/解除"></th>
-                        <th class="text-center">BENTO<br><input type="checkbox" id="select-all-4" aria-label="弁当 全選択/解除"></th>
+                        <th class="text-center">朝<br><input type="checkbox" id="select-all-1" aria-label="朝 全選択/解除"></th>
+                        <th class="text-center">昼<br><input type="checkbox" id="select-all-2" aria-label="昼 全選択/解除"></th>
+                        <th class="text-center">夜<br><input type="checkbox" id="select-all-3" aria-label="夜 全選択/解除"></th>
+                        <th class="text-center">弁当<br><input type="checkbox" id="select-all-4" aria-label="弁当 全選択/解除"></th>
                     </tr>
                     </thead>
                     <tbody id="ce-tbody">
