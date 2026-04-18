@@ -72,19 +72,44 @@
             for (var t = 1; t <= 4; t++){
                 var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
                 if (!cb) continue;
-                var isChecked  = cb.checked;
-                var wasChecked = cb.getAttribute('data-initial-checked') === '1';
-                if (isChecked !== wasChecked) { hasChange = true; break; }
+                if (cb.checked !== (cb.getAttribute('data-initial-checked') === '1')) { hasChange = true; break; }
             }
-            if (hasChange){
-                changed++;
-                tr.classList.add('ce-row-changed');
-            } else {
-                tr.classList.remove('ce-row-changed');
-            }
+            if (hasChange){ changed++; tr.classList.add('ce-row-changed'); }
+            else { tr.classList.remove('ce-row-changed'); }
         });
         var el = container.querySelector('#ce-change-count');
         if (el) el.textContent = changed > 0 ? changed + '件の変更があります' : '';
+    }
+
+    // ---- ヘッダーチェックボックスの状態を行の状態から再計算（indeterminate対応）
+    function updateHeaderStates(container){
+        for (var t = 1; t <= 4; t++){
+            var header = container.querySelector('#select-all-' + t);
+            if (!header) continue;
+            // disabled / locked でないチェックボックスのみ対象
+            var allCbs = Array.prototype.slice.call(
+                container.querySelectorAll(
+                    '#ce-tbody tr[data-user-id] input.meal-checkbox[data-reservation-type="' + t + '"]'
+                )
+            ).filter(function(cb){ return !cb.disabled && cb.dataset.locked !== '1'; });
+
+            if (allCbs.length === 0){ header.checked = false; header.indeterminate = false; continue; }
+            var checkedCount = allCbs.filter(function(cb){ return cb.checked; }).length;
+            if (checkedCount === 0){
+                header.checked = false; header.indeterminate = false;
+            } else if (checkedCount === allCbs.length){
+                header.checked = true; header.indeterminate = false;
+            } else {
+                header.checked = false; header.indeterminate = true;
+            }
+        }
+    }
+
+    // ---- まとめてUI更新
+    function updateAll(container){
+        updateSummary(container);
+        updateChangeCount(container);
+        updateHeaderStates(container);
     }
 
     // ---- 行 HTML 生成
@@ -125,51 +150,41 @@
     }
 
     // ---- 列一括切替（昼食⇔弁当排他制御）
+    // イベントは発火せず直接値を書き換え、最後に updateAll で一括更新する
     function toggleColumn(container, reservationType, checked){
         var tbody = container.querySelector('#ce-tbody');
         if (!tbody) return;
-        tbody.querySelectorAll('input.meal-checkbox[data-reservation-type="' + reservationType + '"]').forEach(function(cb){
-            if (cb.disabled || cb.dataset.locked === '1') return;
+        tbody.querySelectorAll('tr[data-user-id]').forEach(function(tr){
+            var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + reservationType + '"]');
+            if (!cb || cb.disabled || cb.dataset.locked === '1') return;
             cb.checked = !!checked;
-            var tr = cb.closest('tr');
-            if (!tr) return;
+            // 昼(2)をONにしたら弁当(4)をOFF
             if (reservationType === 2 && checked){
                 var bento = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
-                if (bento && !bento.disabled && bento.dataset.locked !== '1') { bento.checked = false; bento.dispatchEvent(new Event('change')); }
+                if (bento && !bento.disabled && bento.dataset.locked !== '1') bento.checked = false;
             }
+            // 弁当(4)をONにしたら昼(2)をOFF
             if (reservationType === 4 && checked){
                 var lunch = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
-                if (lunch && !lunch.disabled && lunch.dataset.locked !== '1') { lunch.checked = false; lunch.dispatchEvent(new Event('change')); }
+                if (lunch && !lunch.disabled && lunch.dataset.locked !== '1') lunch.checked = false;
             }
-            cb.dispatchEvent(new Event('change'));
         });
+        updateAll(container);
     }
 
     // ---- ヘッダー全選択チェックボックスのバインド
     function bindHeaderChecks(container){
-        ['select-all-1','select-all-2','select-all-3','select-all-4'].forEach(function(id){
-            var h = container.querySelector('#' + id);
+        [1, 2, 3, 4].forEach(function(t){
+            var h = container.querySelector('#select-all-' + t);
             if (!h) return;
+            // 既存のリスナーをリセット（cloneで置き換え）
             var clone = h.cloneNode(true);
             h.parentNode.replaceChild(clone, h);
-        });
-        var h1 = container.querySelector('#select-all-1');
-        if (h1) h1.addEventListener('change', function(e){ toggleColumn(container, 1, !!e.target.checked); updateSummary(container); updateChangeCount(container); });
-        var h2 = container.querySelector('#select-all-2');
-        if (h2) h2.addEventListener('change', function(e){
-            toggleColumn(container, 2, !!e.target.checked);
-            var h4 = container.querySelector('#select-all-4');
-            if (e.target.checked && h4) h4.checked = false;
-            updateSummary(container); updateChangeCount(container);
-        });
-        var h3 = container.querySelector('#select-all-3');
-        if (h3) h3.addEventListener('change', function(e){ toggleColumn(container, 3, !!e.target.checked); updateSummary(container); updateChangeCount(container); });
-        var h4 = container.querySelector('#select-all-4');
-        if (h4) h4.addEventListener('change', function(e){
-            toggleColumn(container, 4, !!e.target.checked);
-            var h2b = container.querySelector('#select-all-2');
-            if (e.target.checked && h2b) h2b.checked = false;
-            updateSummary(container); updateChangeCount(container);
+            clone.addEventListener('change', function(e){
+                // indeterminate状態でクリックするとchecked=trueになるのでそのまま利用
+                toggleColumn(container, t, !!e.target.checked);
+                // toggleColumn内でupdateAll済み（ヘッダー状態も含む）
+            });
         });
     }
 
@@ -253,36 +268,37 @@
             // UIガード
             installUncheckGuards(tbody);
 
-            // 行レベルの昼食⇔弁当排他制御
+            // 行レベルのchangeイベント（排他制御 + UI一括更新）
             tbody.querySelectorAll('tr[data-user-id]').forEach(function(tr){
                 var lunchCb = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
                 var bentoCb = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
-                if (lunchCb && bentoCb){
-                    lunchCb.addEventListener('change', function(){
-                        if (lunchCb.checked && !lunchCb.disabled && lunchCb.dataset.locked !== '1'){
-                            if (!bentoCb.disabled && bentoCb.dataset.locked !== '1') bentoCb.checked = false;
-                        }
-                        updateSummary(container); updateChangeCount(container);
-                    });
-                    bentoCb.addEventListener('change', function(){
-                        if (bentoCb.checked && !bentoCb.disabled && bentoCb.dataset.locked !== '1'){
-                            if (!lunchCb.disabled && lunchCb.dataset.locked !== '1') lunchCb.checked = false;
-                        }
-                        updateSummary(container); updateChangeCount(container);
-                    });
-                } else {
-                    // 朝・夕のchange→サマリー更新
-                    [1, 3].forEach(function(t){
-                        var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
-                        if (cb) cb.addEventListener('change', function(){ updateSummary(container); updateChangeCount(container); });
-                    });
-                }
+
+                // 朝・夕：変更があればUI更新のみ
+                [1, 3].forEach(function(t){
+                    var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
+                    if (cb) cb.addEventListener('change', function(){ updateAll(container); });
+                });
+
+                // 昼：ONにしたら弁当をOFF
+                if (lunchCb) lunchCb.addEventListener('change', function(){
+                    if (lunchCb.checked && !lunchCb.disabled && lunchCb.dataset.locked !== '1'){
+                        if (bentoCb && !bentoCb.disabled && bentoCb.dataset.locked !== '1') bentoCb.checked = false;
+                    }
+                    updateAll(container);
+                });
+
+                // 弁当：ONにしたら昼をOFF
+                if (bentoCb) bentoCb.addEventListener('change', function(){
+                    if (bentoCb.checked && !bentoCb.disabled && bentoCb.dataset.locked !== '1'){
+                        if (lunchCb && !lunchCb.disabled && lunchCb.dataset.locked !== '1') lunchCb.checked = false;
+                    }
+                    updateAll(container);
+                });
             });
 
             bindHeaderChecks(container);
             bindNameSearch(container);
-            updateSummary(container);
-            updateChangeCount(container);
+            updateAll(container);
 
             // フォーム送信
             var csrfMeta  = document.querySelector('meta[name="csrfToken"]');
