@@ -71,12 +71,19 @@ $recentNotifications = $recentNotifications ?? [];
                     <?php endif; ?>
 
                     <?php if ($user): ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="<?= $this->Url->build('/Contacts') ?>">&#128140; お問い合わせ</a>
-                        </li>
                         <?php if ((int)($user->get('i_admin') ?? 0) === 1): ?>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="contactDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    &#128140; お問い合わせ
+                                </a>
+                                <ul class="dropdown-menu animate__animated animate__fadeIn" aria-labelledby="contactDropdown">
+                                    <li><?= $this->Html->link('&#128140; お問い合わせフォーム', ['controller' => 'Contacts', 'action' => 'index'], ['class' => 'dropdown-item', 'escape' => false]) ?></li>
+                                    <li><?= $this->Html->link('&#128235; 問い合わせ一覧', ['controller' => 'Contacts', 'action' => 'adminIndex'], ['class' => 'dropdown-item', 'escape' => false]) ?></li>
+                                </ul>
+                            </li>
+                        <?php else: ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="<?= $this->Url->build('/Contacts/admin') ?>">&#128235; 問い合わせ一覧</a>
+                                <a class="nav-link" href="<?= $this->Url->build('/Contacts') ?>">&#128140; お問い合わせ</a>
                             </li>
                         <?php endif; ?>
                     <?php endif; ?>
