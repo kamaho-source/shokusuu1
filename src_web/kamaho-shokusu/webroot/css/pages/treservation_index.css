@@ -85,10 +85,25 @@
             color:#fff;
         }
         .modal-warning .modal-title i { margin-right:.4rem; }
-        .modal-warning .modal-body .alert { margin-bottom:0; }
-        .modal-warning .btn-primary { background:#dc3545; border-color:#dc3545; }
-        .modal-warning .btn-primary:disabled,
-        .modal-warning .btn-primary.disabled { background:#dc3545; border-color:#dc3545; opacity:.65; }
+
+        /* 直前編集モーダル：情報エリア */
+        .late-notice-info { background:#fff8f8; }
+        .late-notice-alert { font-size:.92rem; }
+        .late-notice-detail { font-size:.92rem; }
+        .late-notice-detail dt { padding:.2rem 0; }
+        .late-notice-detail dd { padding:.2rem 0; }
+
+        /* 直前編集モーダル：同意エリア */
+        .late-notice-agree { background:#fff; }
+        .late-notice-agree .form-text { color:#6c757d; font-size:.82rem; }
+
+        /* ネストモーダル（quickDayModal内から開く場合）のz-index対応 */
+        #lateNoticeModal { z-index: 1065; }
+        #lateNoticeModal + .modal-backdrop { z-index: 1060; }
+
+        .modal-warning .btn-danger { background:#dc3545; border-color:#dc3545; }
+        .modal-warning .btn-danger:disabled,
+        .modal-warning .btn-danger.disabled { background:#dc3545; border-color:#dc3545; opacity:.65; }
 
         /* モード切替の見出し行（子画面） */
         .mode-bar {

@@ -32,26 +32,37 @@ $pastDateUnavailableMessage = (string)Configure::read(
 </div>
 
 <div class="modal fade modal-warning" id="lateNoticeModal" tabindex="-1" aria-labelledby="lateNoticeTitle" aria-hidden="true" role="alertdialog" aria-modal="true">
-    <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-dialog modal-dialog-centered modal-sm-fullwidth">
+        <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="lateNoticeTitle"><i class="bi bi-exclamation-triangle-fill"></i>警告：直前の変更・追加</h5>
+                <h5 class="modal-title" id="lateNoticeTitle">
+                    <i class="bi bi-exclamation-triangle-fill"></i>警告：直前の変更・追加
+                </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="とじる"></button>
             </div>
-            <div class="modal-body">
-                <div id="lateNoticeBody" class="alert alert-danger mb-3"></div>
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="lateAgreeCheck" aria-describedby="lateAgreeHelp">
-                    <label class="form-check-label" for="lateAgreeCheck">
-                        <strong>発注済みであること</strong>を理解しました（内容をよく確認します）
-                    </label>
-                    <div id="lateAgreeHelp" class="form-text">チェックすると「同意して進む」ボタンが有効になります。</div>
+            <div class="modal-body p-0">
+                <div id="lateNoticeBody" class="late-notice-info px-3 pt-3 pb-2"></div>
+                <hr class="my-0">
+                <div class="late-notice-agree px-3 py-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="lateAgreeCheck" aria-describedby="lateAgreeHelp">
+                        <label class="form-check-label fw-semibold" for="lateAgreeCheck">
+                            発注済みであることを理解しました（内容をよく確認します）
+                        </label>
+                        <div id="lateAgreeHelp" class="form-text mt-1">チェックすると「同意して進む」ボタンが有効になります。</div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <a id="lateProceed" href="#" class="btn btn-primary disabled" aria-disabled="true" tabindex="-1" role="button">同意して進む</a>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">同意しない（戻る）</button>
+                <a id="lateProceed" href="#" class="btn btn-danger disabled" aria-disabled="true" tabindex="-1" role="button">
+                    <i class="bi bi-check-lg me-1"></i>同意して進む
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-lg me-1"></i>戻る
+                </button>
             </div>
-        </div></div>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="mealCalUserModal" tabindex="-1" aria-labelledby="mealCalUserModalLabel" aria-hidden="true">

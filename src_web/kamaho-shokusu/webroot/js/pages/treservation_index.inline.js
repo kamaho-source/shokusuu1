@@ -654,6 +654,22 @@ function openModalById(id){
                 openModalById('conflictModal');
             }
 
+            function makeLateNoticeHtml(date, mealIdx, action) {
+                var actionLabel = action
+                    ? '<span class="badge bg-danger ms-1">' + action + '</span>'
+                    : '';
+                return '<div class="late-notice-alert alert alert-danger mb-0">'
+                    + '<i class="bi bi-exclamation-circle-fill me-1"></i>'
+                    + 'この期間はすでに<strong>発注済</strong>です。内容をよく確認してください。'
+                    + '</div>'
+                    + '<dl class="late-notice-detail row g-0 mt-2 mb-1">'
+                    + '<dt class="col-4 text-muted small">対象日</dt>'
+                    + '<dd class="col-8 fw-semibold mb-1">' + date + '</dd>'
+                    + '<dt class="col-4 text-muted small">食事種別</dt>'
+                    + '<dd class="col-8 fw-semibold mb-1">' + mealJaFull[mealIdx] + actionLabel + '</dd>'
+                    + '</dl>';
+            }
+
             function showLateNotice(html, onAgree){
                 var body = document.getElementById('lateNoticeBody');
                 var agree = document.getElementById('lateAgreeCheck');
@@ -837,7 +853,7 @@ function openModalById(id){
                                 showConflict(
                                     'この日（' + date + '）は<strong>' + labelFrom + '</strong>の予約があります。<br><strong>' + labelFrom + '</strong>を先に<strong>取り消し</strong>てから、<strong>' + labelTo + '</strong>を登録してもよろしいですか？',
                                     async function(){
-                                        var html = '日付：<strong>' + date + '</strong><br>対象：<strong>' + mealJaFull[mealIdx] + '</strong><br><br>この期間はすでに<strong>発注済</strong>です。登録内容をよく確認してください。';
+                                        var html = makeLateNoticeHtml(date, mealIdx, null);
                                         withLateAgreement(html, async function(){
                                             try { await resolveConflictSequence(date, mealIdx, true, btn, mealKey); }
                                             catch (ee) { notifyUser((ee && ee.message) || '競合解消に失敗しました。', 'danger'); }
@@ -859,7 +875,7 @@ function openModalById(id){
                                 showConflict(
                                     ((e && e.message) || '昼食と弁当は同時に予約できません。') + '<br><small class="text-muted">（競合先の予約を先にOFFしてから目的の予約をONにします）</small>',
                                     async function(){
-                                        var html = '日付：<strong>' + date + '</strong><br>対象：<strong>' + mealJaFull[mealIdx] + '</strong><br><br>この期間はすでに<strong>発注済</strong>です。登録内容をよく確認してください。';
+                                        var html = makeLateNoticeHtml(date, mealIdx, null);
                                         withLateAgreement(html, async function(){
                                             try {
                                                 btn.disabled = true; btn.style.opacity = .65;
@@ -886,7 +902,7 @@ function openModalById(id){
                         }
                     }
 
-                    var bodyHtml = '日付：<strong>' + date + '</strong><br>対象：<strong>' + mealJaFull[mealIdx] + '</strong><br><br>この期間はすでに<strong>発注済</strong>です。' + (nextVal ? '追加' : 'キャンセル') + 'してよいか、内容をよく確認してください。';
+                    var bodyHtml = makeLateNoticeHtml(date, mealIdx, nextVal ? '追加' : 'キャンセル');
                     withLateAgreement(bodyHtml, doToggle);
                 }, false);
             });
