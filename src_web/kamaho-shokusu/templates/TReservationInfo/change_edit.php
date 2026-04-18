@@ -1,6 +1,6 @@
 <?php
 /**
- * 直前編集ビュー（ExcelライクUI）
+ * 直前編集ビュー
  */
 
 $selectedRoomId = null;
@@ -21,102 +21,203 @@ $mealType = $this->request->getParam('mealType') ?? $this->request->getQuery('me
      data-base="<?= h($basePath) ?>"
      data-date="<?= h($date) ?>"
      data-mealtype="<?= h($mealType) ?>">
+
     <style>
-        body { background:#eef2f6; }
-        .excel-header { background:#e9edf3; border-radius:10px; padding:10px 12px; }
-        .sub-bar { background:#1f2937; color:#fff; padding:8px 14px; border-radius:8px; }
-        .meal-count { color:#22c55e; font-weight:700; margin-left:4px; }
-        .excel-card { background:#fff; border-radius:12px; border:1px solid #e2e8f0; }
-        .excel-table th { font-size:.75rem; color:#8a96a3; text-transform:uppercase; }
-        .meal-toggle { display:none; }
-        .meal-btn {
-            width:36px; height:28px; border-radius:6px;
-            background:#e5e7eb; display:inline-flex; align-items:center; justify-content:center;
-            color:#1f2937; font-weight:700; cursor:pointer;
+        /* ===== 直前編集モーダル（#ce-rootスコープ） ===== */
+        #ce-root { font-size: .88rem; }
+
+        /* 警告ヘッダ */
+        #ce-root .ce-warning-banner {
+            background: #fff3cd;
+            border-bottom: 1px solid #ffc107;
+            padding: .5rem .85rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .5rem;
+            flex-wrap: wrap;
+            color: #664d03;
         }
-        .meal-toggle:checked + .meal-btn { background:#2563eb; color:#fff; }
-        .meal-toggle:disabled + .meal-btn { background:#cbd5e1; color:#64748b; cursor:not-allowed; }
+        #ce-root .ce-warning-banner .ce-date-label {
+            font-weight: 700;
+            font-size: .92rem;
+        }
+        #ce-root .ce-warning-banner .ce-warning-note {
+            font-size: .78rem;
+            color: #856404;
+        }
+
+        /* ツールバー */
+        #ce-root .ce-toolbar {
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            padding: .4rem .75rem;
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            flex-wrap: wrap;
+        }
+        #ce-root .ce-toolbar .form-control,
+        #ce-root .ce-toolbar .form-select {
+            font-size: .83rem;
+            height: 1.9rem;
+            padding-top: .2rem;
+            padding-bottom: .2rem;
+        }
+        #ce-root #ce-name-search { max-width: 170px; }
+        #ce-root .ce-toolbar .form-select { max-width: 150px; }
+
+        /* 食数サマリーバー */
+        #ce-root .ce-summary-bar {
+            background: #fff;
+            border-bottom: 1px solid #e9ecef;
+            padding: .35rem .75rem;
+            display: flex;
+            align-items: center;
+            gap: .4rem 1rem;
+            flex-wrap: wrap;
+            font-size: .8rem;
+            color: #495057;
+        }
+        #ce-root .ce-summary-bar .ce-sum-label { font-weight: 600; }
+        #ce-root .ce-summary-bar .ce-count { font-weight: 700; color: #0d6efd; }
+
+        /* テーブル */
+        #ce-root .ce-table-wrap { overflow-x: auto; overflow-y: auto; }
+        #ce-root #ce-table { margin-bottom: 0; min-width: 360px; }
+
+        #ce-root #ce-table thead th {
+            background: #f1f3f5;
+            font-size: .78rem;
+            font-weight: 600;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+            padding: .4rem .4rem;
+            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            color: #495057;
+        }
+        #ce-root #ce-table thead th:first-child {
+            text-align: left;
+            padding-left: .75rem;
+            min-width: 140px;
+        }
+
+        #ce-root #ce-table td {
+            text-align: center;
+            vertical-align: middle;
+            padding: .3rem .4rem;
+        }
+        #ce-root #ce-table td:first-child {
+            text-align: left;
+            padding-left: .75rem;
+        }
+        #ce-root #ce-table tbody tr:hover { background: #f8f9fa; }
+        #ce-root #ce-table tbody tr.ce-row-hidden { display: none; }
+        #ce-root #ce-table tbody tr.ce-row-changed { background: #e8f4e8 !important; }
+
+        /* チェックボックス */
+        #ce-root .meal-checkbox,
+        #ce-root #ce-table thead input[type="checkbox"] {
+            width: 1.1rem;
+            height: 1.1rem;
+            cursor: pointer;
+        }
+        #ce-root .meal-checkbox:disabled { cursor: not-allowed; opacity: .4; }
+
+        /* フッター */
+        #ce-root .ce-footer {
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            padding: .5rem .75rem;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: .5rem;
+        }
+        #ce-root .ce-footer .btn { font-size: .83rem; }
+        #ce-root #ce-save-spinner { display: none; }
+        #ce-root #ce-change-count { font-size: .78rem; color: #6c757d; }
     </style>
 
-    <div class="container py-3">
-        <div class="excel-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
-            <div class="d-flex align-items-center gap-2">
-                <input type="search" class="form-control" placeholder="氏名検索" style="max-width:220px;">
-                <button class="btn btn-outline-primary btn-sm" type="button">月曜日の設定を全曜日にコピー</button>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <?php if (!empty($rooms)): ?>
-                    <?php if (count($rooms) > 1): ?>
-                        <?= $this->Form->control('i_id_room', [
-                            'type'      => 'select',
-                            'label'     => false,
-                            'options'   => $rooms,
-                            'empty'     => false,
-                            'value'     => $selectedRoomId,
-                            'class'     => 'form-select',
-                            'required'  => true,
-                            'id'        => 'ce-room-select',
-                            'data-date' => $date,
-                        ]) ?>
-                    <?php else: ?>
-                        <div class="form-control-plaintext"><?= h($selectedRoomName ?: '（部屋未設定）') ?></div>
-                        <?= $this->Form->hidden('i_id_room', ['value'=>$selectedRoomId, 'id'=>'ce-room-hidden']) ?>
-                    <?php endif; ?>
-                <?php else: ?>
-                    <div class="text-muted small">部屋が設定されていません。</div>
-                <?php endif; ?>
-                <button class="btn btn-success btn-sm" type="button" onclick="document.getElementById('change-edit-form').requestSubmit()">確定・保存</button>
-            </div>
-        </div>
-
-        <div class="sub-bar mt-2 d-flex align-items-center gap-3 flex-wrap">
-            <span>表示中：<strong><?= h($date) ?></strong></span>
-            <span>朝食：<span class="meal-count">-</span></span>
-            <span>昼食：<span class="meal-count">-</span></span>
-            <span>夕食：<span class="meal-count">-</span></span>
-            <span>弁当：<span class="meal-count">-</span></span>
-        </div>
-
-        <div class="excel-card mt-3 p-3">
-            <?= $this->Form->create(null, ['id'=>'change-edit-form', 'url'=>['action'=>'changeEdit']]) ?>
-            <?= $this->Form->hidden('d_reservation_date', ['value'=>$date, 'id'=>'ce-date-hidden']) ?>
-            <?= $this->Form->hidden('meal_type', ['value'=>$mealType, 'id'=>'ce-mealtype-hidden']) ?>
-            <?php if ($selectedRoomId): ?>
-                <?= $this->Form->hidden('i_id_room', ['value'=>$selectedRoomId, 'id'=>'ce-room-hidden']) ?>
-            <?php endif; ?>
-
-            <div id="ce-table-wrap" class="table-responsive">
-                <table class="table excel-table align-middle" id="ce-table">
-                    <thead>
-                    <tr>
-                        <th style="width:60px;">ID</th>
-                        <th>職員氏名 / 所属</th>
-                        <th class="text-center">MORNING<br><input type="checkbox" id="select-all-1" aria-label="朝 全選択/解除"></th>
-                        <th class="text-center">LUNCH<br><input type="checkbox" id="select-all-2" aria-label="昼 全選択/解除"></th>
-                        <th class="text-center">DINNER<br><input type="checkbox" id="select-all-3" aria-label="夜 全選択/解除"></th>
-                        <th class="text-center">BENTO<br><input type="checkbox" id="select-all-4" aria-label="弁当 全選択/解除"></th>
-                    </tr>
-                    </thead>
-                    <tbody id="ce-tbody">
-                    <tr><td colspan="6" class="text-center text-muted">読み込み中...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="mt-3 d-flex gap-2">
-                <?= $this->Form->button(__('保存'), ['class'=>'btn btn-primary']) ?>
-            </div>
-            <?= $this->Form->end() ?>
-        </div>
+    <!-- 警告ヘッダ -->
+    <div class="ce-warning-banner">
+        <span class="ce-date-label">
+            &#9888; 直前編集：<?= h($date) ?>
+        </span>
+        <span class="ce-warning-note">発注済みです。変更内容をよく確認してください。</span>
     </div>
-</div>
 
-<?php
-// 既存の JS を利用するためのスクリプトは元のまま動作します
-?>
-<script>
-    (function(){
-        // 既存 change_edit.php のJSロジックをそのまま動かすために、
-        // 必要なDOMは保持しています。
-    })();
-</script>
+    <!-- ツールバー -->
+    <div class="ce-toolbar">
+        <input type="search" id="ce-name-search" class="form-control" placeholder="氏名で絞り込み" autocomplete="off">
+
+        <?php if (!empty($rooms) && count($rooms) > 1): ?>
+            <?= $this->Form->control('i_id_room', [
+                'type'      => 'select',
+                'label'     => false,
+                'options'   => $rooms,
+                'empty'     => false,
+                'value'     => $selectedRoomId,
+                'class'     => 'form-select',
+                'required'  => true,
+                'id'        => 'ce-room-select',
+                'data-date' => $date,
+            ]) ?>
+        <?php elseif ($selectedRoomId): ?>
+            <span class="text-muted small"><?= h($selectedRoomName ?: '（部屋未設定）') ?></span>
+        <?php endif; ?>
+    </div>
+
+    <!-- 食数サマリー -->
+    <div class="ce-summary-bar">
+        <span class="ce-sum-label">食数：</span>
+        <span>朝&nbsp;<span class="ce-count" data-meal-summary="1">-</span>名</span>
+        <span>昼&nbsp;<span class="ce-count" data-meal-summary="2">-</span>名</span>
+        <span>夕&nbsp;<span class="ce-count" data-meal-summary="3">-</span>名</span>
+        <span>弁当&nbsp;<span class="ce-count" data-meal-summary="4">-</span>名</span>
+    </div>
+
+    <!-- フォーム＋テーブル -->
+    <?= $this->Form->create(null, ['id' => 'change-edit-form', 'url' => ['action' => 'changeEdit']]) ?>
+    <?= $this->Form->hidden('d_reservation_date', ['value' => $date, 'id' => 'ce-date-hidden']) ?>
+    <?= $this->Form->hidden('meal_type', ['value' => $mealType, 'id' => 'ce-mealtype-hidden']) ?>
+    <?php if ($selectedRoomId): ?>
+        <?= $this->Form->hidden('i_id_room', ['value' => $selectedRoomId, 'id' => 'ce-room-hidden']) ?>
+    <?php endif; ?>
+
+    <div class="ce-table-wrap">
+        <table class="table table-sm table-bordered" id="ce-table">
+            <thead>
+                <tr>
+                    <th class="text-start">氏名</th>
+                    <th>朝<br><input type="checkbox" id="select-all-1" aria-label="朝 全選択/解除" title="全選択/解除"></th>
+                    <th>昼<br><input type="checkbox" id="select-all-2" aria-label="昼 全選択/解除" title="全選択/解除"></th>
+                    <th>夕<br><input type="checkbox" id="select-all-3" aria-label="夕 全選択/解除" title="全選択/解除"></th>
+                    <th>弁当<br><input type="checkbox" id="select-all-4" aria-label="弁当 全選択/解除" title="全選択/解除"></th>
+                </tr>
+            </thead>
+            <tbody id="ce-tbody">
+                <tr>
+                    <td colspan="5" class="text-center py-4 text-muted">
+                        <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>読み込み中...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- フッター -->
+    <div class="ce-footer">
+        <span id="ce-change-count" class="me-auto"></span>
+        <span id="ce-save-spinner" class="text-muted small">
+            <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>保存中...
+        </span>
+        <button type="submit" class="btn btn-primary btn-sm" id="ce-save-btn">変更を保存</button>
+    </div>
+    <?= $this->Form->end() ?>
+
+</div>
