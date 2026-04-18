@@ -6,188 +6,201 @@
         return s.replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
     }
 
-    // ---- ユーザー判定:isStaffプロパティを優先
+    // ---- ユーザー判定
     function isStaffUser(u){
-        if (u && typeof u.isStaff === 'boolean') {
-            return u.isStaff;
-        }
-        // フォールバック
+        if (u && typeof u.isStaff === 'boolean') return u.isStaff;
         return Number((u && (u.i_user_level != null ? u.i_user_level : u.userLevel))) === 0;
     }
 
-    // ---- mealType の取得（複数フォールバック）
+    // ---- mealType 取得
     function resolveMealType(container){
         var hidden = container.querySelector('#ce-mealtype-hidden');
         if (hidden && hidden.value) return String(hidden.value);
-
         var root = container.querySelector('#ce-root') || container;
         var dt = root && root.getAttribute('data-mealtype');
         if (dt) return String(dt);
-
-        if (window.mealEditParams && window.mealEditParams.mealType != null) {
-            return String(window.mealEditParams.mealType);
-        }
-
+        if (window.mealEditParams && window.mealEditParams.mealType != null) return String(window.mealEditParams.mealType);
         try {
-            var usp = new URLSearchParams(location.search);
-            var q = usp.get('mealType');
-            if (q != null && q !== '') return String(q);
-        } catch(_e){/* nop */}
-
-        return ''; // 未取得
+            var q = new URLSearchParams(location.search).get('mealType');
+            if (q) return String(q);
+        } catch(_e){}
+        return '';
     }
 
     // ---- API URL
-    //   TReservationInfo/change-edit/{roomId}/{date}/{mealType}
     function apiUrl(base, roomId, dateStr, mealType){
-        // 1) __BASE_PATH を最優先で利用（例: "/kamaho-shokusu"）
-        var rootBase = (typeof window.__BASE_PATH === 'string' && window.__BASE_PATH)
-            ? window.__BASE_PATH
-            : (base || '/');
-
-        // 2) 末尾スラッシュ調整
-        if (rootBase.slice(-1) !== '/') {
-            rootBase += '/';
-        }
-
-        // 3) 既存ルートに合わせて CamelCase + "change-edit" のままにする
-        return rootBase
-            + 'TReservationInfo/change-edit/'
-            + encodeURIComponent(roomId) + '/'
-            + encodeURIComponent(dateStr) + '/'
-            + encodeURIComponent(mealType);
+        var rootBase = (typeof window.__BASE_PATH === 'string' && window.__BASE_PATH) ? window.__BASE_PATH : (base || '/');
+        if (rootBase.slice(-1) !== '/') rootBase += '/';
+        return rootBase + 'TReservationInfo/change-edit/' + encodeURIComponent(roomId) + '/' + encodeURIComponent(dateStr) + '/' + encodeURIComponent(mealType);
     }
 
+    // ---- ローディング表示
     function showLoading(tbody){
         tbody.innerHTML =
-            '<tr>' +
-            '  <td colspan="5" class="text-center">' +
-            '    <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>' +
-            '    <span class="ms-2">読み込み中...</span>' +
-            '  </td>' +
-            '</tr>';
-    }
-    function showMsg(tbody, msg, isError){
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center ' + (isError?'text-danger':'text-muted') + '">' + esc(msg) + '</td></tr>';
+            '<tr><td colspan="5" class="text-center py-4 text-muted">' +
+            '<div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>読み込み中...' +
+            '</td></tr>';
     }
 
-    // ---- 行HTML
+    function showMsg(tbody, msg, isError){
+        tbody.innerHTML =
+            '<tr><td colspan="5" class="text-center py-3 ' + (isError ? 'text-danger' : 'text-muted') + '">' +
+            (isError ? '<i class="bi bi-exclamation-circle me-1"></i>' : '') + esc(msg) +
+            '</td></tr>';
+    }
+
+    // ---- 食数サマリー更新
+    function updateSummary(container){
+        var counts = {1: 0, 2: 0, 3: 0, 4: 0};
+        container.querySelectorAll('#ce-tbody tr[data-user-id]').forEach(function(tr){
+            for (var t = 1; t <= 4; t++){
+                var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
+                if (cb && cb.checked) counts[t]++;
+            }
+        });
+        for (var t = 1; t <= 4; t++){
+            var el = container.querySelector('[data-meal-summary="' + t + '"]');
+            if (el) el.textContent = counts[t];
+        }
+    }
+
+    // ---- 変更件数カウンター更新
+    function updateChangeCount(container){
+        var changed = 0;
+        container.querySelectorAll('#ce-tbody tr[data-user-id]').forEach(function(tr){
+            var hasChange = false;
+            for (var t = 1; t <= 4; t++){
+                var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
+                if (!cb) continue;
+                var isChecked  = cb.checked;
+                var wasChecked = cb.getAttribute('data-initial-checked') === '1';
+                if (isChecked !== wasChecked) { hasChange = true; break; }
+            }
+            if (hasChange){
+                changed++;
+                tr.classList.add('ce-row-changed');
+            } else {
+                tr.classList.remove('ce-row-changed');
+            }
+        });
+        var el = container.querySelector('#ce-change-count');
+        if (el) el.textContent = changed > 0 ? changed + '件の変更があります' : '';
+    }
+
+    // ---- 行 HTML 生成
     function createRowHTML(user, flagsByType){
-        var uId   = esc(user.id);
-        var uName = esc(user.name);
-        var allow = !!user.allowEdit;
+        var uId     = esc(user.id);
+        var uName   = esc(user.name);
+        var allow   = !!user.allowEdit;
         var isStaff = isStaffUser(user);
         var userLevel = (user && (user.i_user_level != null ? user.i_user_level : user.userLevel));
 
         var cells = '';
-        for (var t=1; t<=4; t++){
+        for (var t = 1; t <= 4; t++){
             var f = flagsByType[t] || {};
             var initiallyOn = Number(f.i_change_flag || 0) === 1;
-            var eatFlag = Number(f.eat_flag || 0);
-            var checked  = initiallyOn ? ' checked' : '';
-            // allowEditがfalseの場合は常にdisabled
-            var disabled = allow ? '' : ' disabled';
-            var initAttr = initiallyOn ? ' data-initial-checked="1"' : '';
-            var eatAttr = eatFlag === 1 ? ' data-eat-flag="1"' : '';
+            var eatFlag     = Number(f.eat_flag || 0);
+            var checked     = initiallyOn ? ' checked' : '';
+            var disabled    = allow ? '' : ' disabled';
+            var initAttr    = initiallyOn ? ' data-initial-checked="1"' : '';
+            var eatAttr     = eatFlag === 1 ? ' data-eat-flag="1"' : '';
 
-            cells += '' +
+            cells +=
                 '<td class="text-center">' +
-                '  <input type="checkbox"' +
-                '         name="users['+uId+']['+t+']"' +
-                '         class="meal-checkbox"' +
-                '         data-reservation-type="'+t+'"' +
-                '         data-user-id="'+uId+'"' +
-                '         value="1"'+checked+disabled+initAttr+eatAttr+'>' +
+                '<input type="checkbox"' +
+                ' name="users[' + uId + '][' + t + ']"' +
+                ' class="meal-checkbox"' +
+                ' data-reservation-type="' + t + '"' +
+                ' data-user-id="' + uId + '"' +
+                ' value="1"' + checked + disabled + initAttr + eatAttr + '>' +
                 '</td>';
         }
+
         var staffAttr = isStaff ? ' data-is-staff="1"' : '';
-        var levelAttr = (userLevel != null && userLevel !== '') ? ' data-user-level="'+esc(userLevel)+'"' : '';
-        return '<tr data-user-id="'+uId+'"' + staffAttr + levelAttr + '><td>'+uName+'</td>' + cells + '</tr>';
+        var levelAttr = (userLevel != null && userLevel !== '') ? ' data-user-level="' + esc(userLevel) + '"' : '';
+        return '<tr data-user-id="' + uId + '"' + staffAttr + levelAttr + '>' +
+            '<td>' + uName + '</td>' +
+            cells +
+            '</tr>';
     }
 
-    // ---- 列一括切替（昼食⇔弁当排他制御強化）
+    // ---- 列一括切替（昼食⇔弁当排他制御）
     function toggleColumn(container, reservationType, checked){
         var tbody = container.querySelector('#ce-tbody');
         if (!tbody) return;
-
-        tbody.querySelectorAll('input.meal-checkbox[data-reservation-type="'+reservationType+'"]').forEach(function(cb){
+        tbody.querySelectorAll('input.meal-checkbox[data-reservation-type="' + reservationType + '"]').forEach(function(cb){
             if (cb.disabled || cb.dataset.locked === '1') return;
             cb.checked = !!checked;
-
             var tr = cb.closest('tr');
             if (!tr) return;
-
-            // 昼食(2)と弁当(4)の排他制御
-            if (reservationType === 2 && checked) {
+            if (reservationType === 2 && checked){
                 var bento = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
-                if (bento && !bento.disabled && bento.dataset.locked !== '1') {
-                    bento.checked = false;
-                    bento.dispatchEvent(new Event('change'));
-                }
+                if (bento && !bento.disabled && bento.dataset.locked !== '1') { bento.checked = false; bento.dispatchEvent(new Event('change')); }
             }
-            if (reservationType === 4 && checked) {
+            if (reservationType === 4 && checked){
                 var lunch = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
-                if (lunch && !lunch.disabled && lunch.dataset.locked !== '1') {
-                    lunch.checked = false;
-                    lunch.dispatchEvent(new Event('change'));
-                }
+                if (lunch && !lunch.disabled && lunch.dataset.locked !== '1') { lunch.checked = false; lunch.dispatchEvent(new Event('change')); }
             }
-
             cb.dispatchEvent(new Event('change'));
         });
     }
 
-    // ---- 列ヘッダ
+    // ---- ヘッダー全選択チェックボックスのバインド
     function bindHeaderChecks(container){
         ['select-all-1','select-all-2','select-all-3','select-all-4'].forEach(function(id){
-            var h = container.querySelector('#'+id);
+            var h = container.querySelector('#' + id);
             if (!h) return;
             var clone = h.cloneNode(true);
             h.parentNode.replaceChild(clone, h);
         });
-
         var h1 = container.querySelector('#select-all-1');
-        if (h1) h1.addEventListener('change', function(e){ toggleColumn(container, 1, !!e.target.checked); });
-
+        if (h1) h1.addEventListener('change', function(e){ toggleColumn(container, 1, !!e.target.checked); updateSummary(container); updateChangeCount(container); });
         var h2 = container.querySelector('#select-all-2');
         if (h2) h2.addEventListener('change', function(e){
             toggleColumn(container, 2, !!e.target.checked);
             var h4 = container.querySelector('#select-all-4');
             if (e.target.checked && h4) h4.checked = false;
+            updateSummary(container); updateChangeCount(container);
         });
-
         var h3 = container.querySelector('#select-all-3');
-        if (h3) h3.addEventListener('change', function(e){ toggleColumn(container, 3, !!e.target.checked); });
-
+        if (h3) h3.addEventListener('change', function(e){ toggleColumn(container, 3, !!e.target.checked); updateSummary(container); updateChangeCount(container); });
         var h4 = container.querySelector('#select-all-4');
         if (h4) h4.addEventListener('change', function(e){
             toggleColumn(container, 4, !!e.target.checked);
             var h2b = container.querySelector('#select-all-2');
             if (e.target.checked && h2b) h2b.checked = false;
+            updateSummary(container); updateChangeCount(container);
         });
     }
 
-    // ---- UIガード: 職員の予約済みチェックは解除させない
-    function installUncheckGuards(tbody) {
+    // ---- 氏名検索バインド
+    function bindNameSearch(container){
+        var input = container.querySelector('#ce-name-search');
+        if (!input || input.dataset.searchBound === '1') return;
+        input.dataset.searchBound = '1';
+        input.addEventListener('input', function(){
+            var q = input.value.trim().toLowerCase();
+            container.querySelectorAll('#ce-tbody tr[data-user-id]').forEach(function(tr){
+                var name = (tr.querySelector('td:first-child') || {}).textContent || '';
+                tr.classList.toggle('ce-row-hidden', q !== '' && name.toLowerCase().indexOf(q) === -1);
+            });
+        });
+    }
+
+    // ---- 職員の既存予約チェックボックスをロック
+    function installUncheckGuards(tbody){
         if (!tbody || !(tbody instanceof HTMLElement)) return;
-
-        // 職員ユーザーの予約済み(i_change_flag=1)チェックボックスをロック
-        const lockTargetList = tbody.querySelectorAll('tr[data-is-staff="1"] input.meal-checkbox[data-initial-checked="1"]');
-
-        console.log('ロック対象の職員CB数:', lockTargetList.length);
-
-        lockTargetList.forEach(cb => {
-            // allowEdit=falseで既にdisabledの場合もあるが、そうでなければロックする
-            if (cb.checked && !cb.disabled) {
+        tbody.querySelectorAll('tr[data-is-staff="1"] input.meal-checkbox[data-initial-checked="1"]').forEach(function(cb){
+            if (cb.checked && !cb.disabled){
                 cb.disabled = true;
                 cb.dataset.locked = '1';
-                if (!cb.title) cb.title = '職員の予約は直前変更画面からは解除できません。';
+                cb.title = '職員の予約は直前変更画面からは解除できません。';
                 cb.classList.add('deletion-blocked');
             }
         });
     }
 
-    // ---- 一覧取得＆描画
+    // ---- 一覧取得 & 描画
     function fetchAndRender(container){
         var root       = container.querySelector('#ce-root') || container;
         var base       = root.getAttribute('data-base') || '/';
@@ -203,179 +216,160 @@
         var date   = (dateHidden && dateHidden.value);
         var meal   = resolveMealType(container);
 
-        if (!roomId) { showMsg(tbody, '部屋が選択されていません。', true); return; }
-        if (!date)   { showMsg(tbody, '日付が不正です。', true); return; }
-        if (!meal)   { showMsg(tbody, '食種(mealType)が不正です。', true); return; }
+        if (!roomId){ showMsg(tbody, '部屋が選択されていません。', true); return; }
+        if (!date)  { showMsg(tbody, '日付が不正です。', true); return; }
+        if (!meal)  { showMsg(tbody, '食種(mealType)が不正です。', true); return; }
 
         showLoading(tbody);
 
-        // タイムアウト付きフェッチ（AbortController 非対応ブラウザ対策付き）
-        var ctrl = null;
-        var signal = undefined;
-        var to = null;
-
-        if (typeof AbortController !== 'undefined') {
-            ctrl = new AbortController();
-            signal = ctrl.signal;
-            to = setTimeout(function(){
-                try { ctrl.abort(); } catch(_e){}
-            }, 12000);
+        var ctrl = null, signal, to = null;
+        if (typeof AbortController !== 'undefined'){
+            ctrl = new AbortController(); signal = ctrl.signal;
+            to = setTimeout(function(){ try { ctrl.abort(); } catch(_e){} }, 12000);
         }
 
         fetch(apiUrl(base, roomId, date, meal), {
             method: 'GET',
-            headers: { 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' },
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             credentials: 'same-origin',
             signal: signal
         })
-            .then(function(res){
-                return res.json().then(function(j){ return { ok: res.ok, j:j }; });
-            })
-            .then(function(pair){
-                var ok = pair.ok, json = pair.j;
+        .then(function(res){ return res.json().then(function(j){ return { ok: res.ok, j: j }; }); })
+        .then(function(pair){
+            var ok = pair.ok, json = pair.j;
+            if (!ok || !json || json.status !== 'success' || !json.data){
+                showMsg(tbody, (json && json.message) || '一覧取得に失敗しました。', true); return;
+            }
 
-                if (!ok || !json || json.status !== 'success' || !json.data) {
-                    showMsg(tbody, (json && json.message) || '一覧取得に失敗しました。', true); return;
-                }
+            var users = Array.isArray(json.data.users) ? json.data.users : [];
+            var flags = json.data.userReservations || {};
 
-                var users = Array.isArray(json.data.users) ? json.data.users : [];
-                var flags = json.data.userReservations || {};
+            if (users.length === 0){ showMsg(tbody, '該当する利用者がいません。'); return; }
 
-                if (users.length === 0) { showMsg(tbody, '該当する利用者がいません。'); return; }
+            var html = '';
+            users.forEach(function(u){ html += createRowHTML(u, flags[String(u.id)] || {}); });
+            tbody.innerHTML = html;
 
-                var html = '';
-                users.forEach(function(u) {
-                    html += createRowHTML(u, flags[String(u.id)] || {});
-                });
-                tbody.innerHTML = html;
+            // UIガード
+            installUncheckGuards(tbody);
 
-                // UIガード（職員の予約解除をブロック）
-                installUncheckGuards(tbody);
-
-                // 行レベルの昼食⇔弁当排他制御
-                tbody.querySelectorAll('tr[data-user-id]').forEach(function(tr){
-                    var lunchCb = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
-                    var bentoCb = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
-                    if (lunchCb && bentoCb) {
-                        lunchCb.addEventListener('change', function(){
-                            if (lunchCb.checked && !lunchCb.disabled && lunchCb.dataset.locked !== '1') {
-                                if (bentoCb && !bentoCb.disabled && bentoCb.dataset.locked !== '1') {
-                                    bentoCb.checked = false;
-                                }
-                            }
-                        });
-                        bentoCb.addEventListener('change', function(){
-                            if (bentoCb.checked && !bentoCb.disabled && bentoCb.dataset.locked !== '1') {
-                                if (lunchCb && !lunchCb.disabled && lunchCb.dataset.locked !== '1') {
-                                    lunchCb.checked = false;
-                                }
-                            }
-                        });
-                    }
-                });
-
-                // ヘッダ全選択/解除
-                bindHeaderChecks(container);
-
-                // 保存(JSON POST)
-                var csrfMeta  = document.querySelector('meta[name="csrfToken"]');
-                var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
-                if (form && form.dataset.submitBound !== '1') {
-                    form.dataset.submitBound = '1';
-                    form.addEventListener('submit', function(e){
-                        e.preventDefault();
-
-                        var rId = (roomSelect && roomSelect.value) || (roomHidden && roomHidden.value);
-                        var d   = (dateHidden && dateHidden.value);
-                        var m   = resolveMealType(container);
-
-                        if (!rId || !d) { alert('部屋または日付が不正です。'); return; }
-                        if (!m)         { alert('食種(mealType)が不正です。'); return; }
-
-                        var usersPayload = {};
-                        var trs = tbody.querySelectorAll('tr[data-user-id]');
-                        Array.prototype.forEach.call(trs, function(tr){
-                            var uid = tr.getAttribute('data-user-id');
-                            if (!uid) return;
-                            var obj = {};
-                            var hasChange = false;
-                            for (var t=1; t<=4; t++){
-                                var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="'+t+'"]');
-                                if (!cb) continue;
-
-                                var isChecked = !!cb.checked;
-                                var wasChecked = cb.getAttribute('data-initial-checked') === '1';
-                                var changeFlag = 0; // 0:変更なし, 1:食べる, 2:食べない
-
-                                if (isChecked && !wasChecked) {
-                                    changeFlag = 1; // 新規予約
-                                } else if (!isChecked && wasChecked) {
-                                    changeFlag = 2; // 予約取消
-                                }
-
-                                if (changeFlag > 0) {
-                                    obj[String(t)] = { i_change_flag: changeFlag };
-                                    hasChange = true;
-                                }
-                            }
-                            if (hasChange) {
-                                usersPayload[String(uid)] = obj;
-                            }
-                        });
-
-                        if (Object.keys(usersPayload).length === 0) {
-                            alert('変更された項目がありません。');
-                            return;
+            // 行レベルの昼食⇔弁当排他制御
+            tbody.querySelectorAll('tr[data-user-id]').forEach(function(tr){
+                var lunchCb = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
+                var bentoCb = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
+                if (lunchCb && bentoCb){
+                    lunchCb.addEventListener('change', function(){
+                        if (lunchCb.checked && !lunchCb.disabled && lunchCb.dataset.locked !== '1'){
+                            if (!bentoCb.disabled && bentoCb.dataset.locked !== '1') bentoCb.checked = false;
                         }
-
-                        var headers = { 'Content-Type':'application/json', 'Accept':'application/json', 'X-Requested-With':'XMLHttpRequest' };
-                        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-
-                        fetch(apiUrl(base, rId, d, m), {
-                            method:'POST', headers: headers, credentials:'same-origin',
-                            body: JSON.stringify({ users: usersPayload })
-                        })
-                            .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, j:j }; }); })
-                            .then(function(pair2){
-                                var ok2 = pair2.ok, json2 = pair2.j;
-                                if (!ok2 || !json2 || json2.status !== 'success') {
-                                    alert((json2 && json2.message) || '直前予約の更新に失敗しました。'); return;
-                                }
-
-                                // ---- 成功時の処理 ----
-                                alert('直前予約を更新しました。');
-
-                                // モーダルを閉じる
-                                var modalEl = container.closest('.modal');
-                                if (modalEl) {
-                                    var modalInstance = bootstrap.Modal.getInstance(modalEl);
-                                    if (modalInstance) {
-                                        modalInstance.hide();
-                                    }
-                                }
-
-                                // ページをリロードして変更を反映
-                                window.location.reload();
-                            })
-                            .catch(function(){ alert('保存リクエスト送信に失敗しました。'); });
+                        updateSummary(container); updateChangeCount(container);
+                    });
+                    bentoCb.addEventListener('change', function(){
+                        if (bentoCb.checked && !bentoCb.disabled && bentoCb.dataset.locked !== '1'){
+                            if (!lunchCb.disabled && lunchCb.dataset.locked !== '1') lunchCb.checked = false;
+                        }
+                        updateSummary(container); updateChangeCount(container);
+                    });
+                } else {
+                    // 朝・夕のchange→サマリー更新
+                    [1, 3].forEach(function(t){
+                        var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
+                        if (cb) cb.addEventListener('change', function(){ updateSummary(container); updateChangeCount(container); });
                     });
                 }
-
-                // 部屋変更→再取得
-                if (roomSelect && roomSelect.dataset.changeBound !== '1') {
-                    roomSelect.dataset.changeBound = '1';
-                    roomSelect.addEventListener('change', function(){ fetchAndRender(container); });
-                }
-            })
-            .catch(function(err){
-                console.error('一覧取得エラー:', err);
-                showMsg(tbody, '一覧取得に失敗しました。', true);
-            })
-            .finally(function(){
-                if (to) clearTimeout(to);
             });
+
+            bindHeaderChecks(container);
+            bindNameSearch(container);
+            updateSummary(container);
+            updateChangeCount(container);
+
+            // フォーム送信
+            var csrfMeta  = document.querySelector('meta[name="csrfToken"]');
+            var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+            if (form && form.dataset.submitBound !== '1'){
+                form.dataset.submitBound = '1';
+                form.addEventListener('submit', function(e){
+                    e.preventDefault();
+
+                    var rId = (roomSelect && roomSelect.value) || (roomHidden && roomHidden.value);
+                    var d   = (dateHidden && dateHidden.value);
+                    var m   = resolveMealType(container);
+
+                    if (!rId || !d){ alert('部屋または日付が不正です。'); return; }
+                    if (!m)        { alert('食種(mealType)が不正です。'); return; }
+
+                    var usersPayload = {};
+                    tbody.querySelectorAll('tr[data-user-id]').forEach(function(tr){
+                        var uid = tr.getAttribute('data-user-id');
+                        if (!uid) return;
+                        var obj = {}, hasChange = false;
+                        for (var t = 1; t <= 4; t++){
+                            var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
+                            if (!cb) continue;
+                            var isChecked  = !!cb.checked;
+                            var wasChecked = cb.getAttribute('data-initial-checked') === '1';
+                            var flag = 0;
+                            if (isChecked  && !wasChecked) flag = 1;
+                            if (!isChecked && wasChecked)  flag = 2;
+                            if (flag > 0){ obj[String(t)] = { i_change_flag: flag }; hasChange = true; }
+                        }
+                        if (hasChange) usersPayload[String(uid)] = obj;
+                    });
+
+                    if (Object.keys(usersPayload).length === 0){ alert('変更された項目がありません。'); return; }
+
+                    var saveBtn    = container.querySelector('#ce-save-btn');
+                    var saveSpinner = container.querySelector('#ce-save-spinner');
+                    if (saveBtn)    { saveBtn.disabled = true; }
+                    if (saveSpinner){ saveSpinner.style.display = 'inline-flex'; }
+
+                    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+                    fetch(apiUrl(base, rId, d, m), {
+                        method: 'POST', headers: headers, credentials: 'same-origin',
+                        body: JSON.stringify({ users: usersPayload })
+                    })
+                    .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, j: j }; }); })
+                    .then(function(pair2){
+                        var ok2 = pair2.ok, json2 = pair2.j;
+                        if (!ok2 || !json2 || json2.status !== 'success'){
+                            alert((json2 && json2.message) || '直前予約の更新に失敗しました。');
+                            if (saveBtn)    saveBtn.disabled = false;
+                            if (saveSpinner) saveSpinner.style.display = 'none';
+                            return;
+                        }
+                        // 成功：モーダルを閉じてリロード
+                        var modalEl = container.closest('.modal');
+                        if (modalEl && window.bootstrap){
+                            var inst = bootstrap.Modal.getInstance(modalEl);
+                            if (inst) inst.hide();
+                        }
+                        window.location.reload();
+                    })
+                    .catch(function(){
+                        alert('保存リクエスト送信に失敗しました。');
+                        if (saveBtn)    saveBtn.disabled = false;
+                        if (saveSpinner) saveSpinner.style.display = 'none';
+                    });
+                });
+            }
+
+            // 部屋変更 → 再取得
+            if (roomSelect && roomSelect.dataset.changeBound !== '1'){
+                roomSelect.dataset.changeBound = '1';
+                roomSelect.addEventListener('change', function(){ fetchAndRender(container); });
+            }
+        })
+        .catch(function(err){
+            console.error('一覧取得エラー:', err);
+            showMsg(tbody, '一覧取得に失敗しました。', true);
+        })
+        .finally(function(){ if (to) clearTimeout(to); });
     }
 
+    // ---- 初期化
     function init(scope){
         var container = scope || document;
         var form = container.querySelector('#change-edit-form');
@@ -383,14 +377,9 @@
 
         var sel = container.querySelector('#ce-room-select');
         var hid = container.querySelector('#ce-room-hidden');
-        
-        if (sel) {
-            // セレクトボックスがある場合：値が未設定なら最初のオプションを選択
-            if (!sel.value && sel.options.length > 0) {
-                sel.value = sel.options[0].value;
-            }
-        } else if (hid && !hid.value) {
-            // hiddenフィールドのみの場合：値が空なら警告
+        if (sel){
+            if (!sel.value && sel.options.length > 0) sel.value = sel.options[0].value;
+        } else if (hid && !hid.value){
             console.warn('部屋IDが設定されていません');
         }
 
@@ -403,34 +392,30 @@
 
     // 直描画時
     document.addEventListener('DOMContentLoaded', function(){
-        var root = document.getElementById('ce-root');
-        if (root) init(document);
+        if (document.getElementById('ce-root')) init(document);
     });
 
-    // モーダル表示時
+    // モーダル表示時（shown.bs.modal）
     document.addEventListener('shown.bs.modal', function(ev){
         var modal = ev.target;
-        if (!modal) return;
-        if (modal.querySelector && modal.querySelector('#ce-root')) window.CE_CHANGE_EDIT.init(modal);
+        if (modal && modal.querySelector && modal.querySelector('#ce-root')) window.CE_CHANGE_EDIT.init(modal);
     });
 })();
 
 
-// 食数予約: 利用者一覧取得と描画（本番互換版）
+// ---- 食数予約：利用者一覧取得と描画
 (function(){
     if (!window.GET_USERS_BY_ROOM_TPL) return;
 
     function buildUsersUrl(roomId){
-        const tpl = window.GET_USERS_BY_ROOM_TPL;
+        var tpl = window.GET_USERS_BY_ROOM_TPL;
         if (!tpl) return '';
-        if (tpl.includes('__RID__')) return tpl.replace('__RID__', encodeURIComponent(roomId));
-        return tpl;
+        return tpl.includes('__RID__') ? tpl.replace('__RID__', encodeURIComponent(roomId)) : tpl;
     }
 
     function normalizeUser(u){
         return {
-            id: u.id,
-            name: u.name || '',
+            id: u.id, name: u.name || '',
             breakfast: (u.breakfast ?? u.morning) || false,
             lunch: (u.lunch ?? u.noon) || false,
             dinner: (u.dinner ?? u.night) || false,
@@ -439,81 +424,49 @@
         };
     }
 
+    function escapeHtml(s){
+        return String(s || '').replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; });
+    }
+
     async function safeFetchJson(url){
-        const res = await fetch(url, {
-            headers: {
-                'Accept':'application/json',
-                'X-Requested-With':'XMLHttpRequest'
-            },
-            credentials:'same-origin'
-        });
-        const text = await res.text();
-        try {
-            return JSON.parse(text);
-        } catch(e){
-            if (/Warning|Notice|Fatal/i.test(text)) {
-                console.error('JSON破損（PHP警告混入の可能性）', text.slice(0,200));
-            } else {
-                console.error('JSON parse失敗', text.slice(0,200));
-            }
-            return null;
-        }
+        var res = await fetch(url, { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
+        var text = await res.text();
+        try { return JSON.parse(text); }
+        catch(e){ console.error('JSON parse失敗', text.slice(0, 200)); return null; }
     }
 
     async function fetchUsers(roomId){
-        const url = buildUsersUrl(roomId);
+        var url = buildUsersUrl(roomId);
         if (!url) return [];
-        const json = await safeFetchJson(url);
+        var json = await safeFetchJson(url);
         if (!json) return [];
-
-        let arr = [];
-        if (Array.isArray(json.users)) {
-            arr = json.users;
-        } else if (json.data && Array.isArray(json.data.users)) {
-            arr = json.data.users;
-        } else if (Array.isArray(json.usersByRoom)) {
-            arr = json.usersByRoom;
-        } else {
-            console.warn('ユーザ配列未検出', json);
-            return [];
-        }
+        var arr = Array.isArray(json.users) ? json.users
+            : (json.data && Array.isArray(json.data.users)) ? json.data.users
+            : Array.isArray(json.usersByRoom) ? json.usersByRoom : [];
         return arr.map(normalizeUser);
     }
 
     function renderUsers(users){
-        const tbody = document.getElementById('user-checkboxes');
+        var tbody = document.getElementById('user-checkboxes');
         if (!tbody) return;
-        if (users.length === 0){
-            tbody.innerHTML = '<tr><td colspan="6">利用者が取得できませんでした。</td></tr>';
-            return;
-        }
-        tbody.innerHTML = users.map(u => `
-      <tr data-user-id="${u.id}">
-        <td>${escapeHtml(u.name)}</td>
-        <td>${escapeHtml(u.room_name)}</td>
-        <td class="text-center"><input type="checkbox" ${u.breakfast ? 'checked':''} disabled></td>
-        <td class="text-center"><input type="checkbox" ${u.lunch ? 'checked':''} disabled></td>
-        <td class="text-center"><input type="checkbox" ${u.dinner ? 'checked':''} disabled></td>
-        <td class="text-center"><input type="checkbox" ${u.bento ? 'checked':''} disabled></td>
-      </tr>
-    `).join('');
-    }
-
-    function escapeHtml(s){
-        return String(s||'').replace(/[&<>"']/g, m => ({
-            '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-        }[m]));
+        if (users.length === 0){ tbody.innerHTML = '<tr><td colspan="6">利用者が取得できませんでした。</td></tr>'; return; }
+        tbody.innerHTML = users.map(function(u){
+            return '<tr data-user-id="' + u.id + '">' +
+                '<td>' + escapeHtml(u.name) + '</td>' +
+                '<td>' + escapeHtml(u.room_name) + '</td>' +
+                '<td class="text-center"><input type="checkbox" ' + (u.breakfast ? 'checked' : '') + ' disabled></td>' +
+                '<td class="text-center"><input type="checkbox" ' + (u.lunch     ? 'checked' : '') + ' disabled></td>' +
+                '<td class="text-center"><input type="checkbox" ' + (u.dinner    ? 'checked' : '') + ' disabled></td>' +
+                '<td class="text-center"><input type="checkbox" ' + (u.bento     ? 'checked' : '') + ' disabled></td>' +
+                '</tr>';
+        }).join('');
     }
 
     async function init(){
-        const rid = window.__PRIMARY_ROOM_ID || (window.__USER_INFO && window.__USER_INFO.roomId) || 1;
-        const users = await fetchUsers(rid);
-        renderUsers(users);
+        var rid = window.__PRIMARY_ROOM_ID || (window.__USER_INFO && window.__USER_INFO.roomId) || 1;
+        renderUsers(await fetchUsers(rid));
     }
 
     document.addEventListener('DOMContentLoaded', init);
-    window.refreshUsersByRoom = async function(roomId){
-        const users = await fetchUsers(roomId);
-        renderUsers(users);
-    };
+    window.refreshUsersByRoom = async function(roomId){ renderUsers(await fetchUsers(roomId)); };
 })();
