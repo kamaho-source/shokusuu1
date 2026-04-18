@@ -69,6 +69,17 @@ $recentNotifications = $recentNotifications ?? [];
                             </ul>
                         </li>
                     <?php endif; ?>
+
+                    <?php if ($user): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="<?= $this->Url->build('/Contacts') ?>">&#128140; お問い合わせ</a>
+                        </li>
+                        <?php if ((int)($user->get('i_admin') ?? 0) === 1): ?>
+                            <li class="nav-item">
+                                <a class="nav-link" href="<?= $this->Url->build('/Contacts/admin') ?>">&#128235; 問い合わせ一覧</a>
+                            </li>
+                        <?php endif; ?>
+                    <?php endif; ?>
                 </ul>
 
                 <ul class="navbar-nav ms-auto">

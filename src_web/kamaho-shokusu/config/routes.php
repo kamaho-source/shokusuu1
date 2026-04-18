@@ -282,6 +282,10 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Approval', 'action' => 'adminReflect']
         )->setMethods(['POST']);
 
+        // フィードバック・お問い合わせ
+        $builder->connect('/Contacts', ['controller' => 'Contacts', 'action' => 'index']);
+        $builder->connect('/Contacts/admin', ['controller' => 'Contacts', 'action' => 'adminIndex'])->setMethods(['GET']);
+
         // フォールバック
         $builder->fallbacks();
     });
