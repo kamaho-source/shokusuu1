@@ -254,6 +254,11 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                     <div class="menu-desc">担当部屋の実食を代理入力する</div>
                 </a>
                 <?php endif; ?>
+                <a class="menu-card" href="<?= $this->Url->build('/Contacts') ?>">
+                    <div class="menu-icon" style="background:#f0fdf4;color:#16a34a;">✉️</div>
+                    <div class="menu-title-text">お問い合わせ</div>
+                    <div class="menu-desc">ご意見・不具合のご報告はこちら</div>
+                </a>
             </div>
 
             <?php /* ---- 管理者専用メニュー ---- */ ?>
@@ -289,6 +294,12 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                             <?php endif; ?>
                         </div>
                         <div class="menu-desc">全ブロックの承認・食数反映</div>
+                    </a>
+                    <?php /* 問い合わせ一覧: 管理者のみ表示する */ ?>
+                    <a class="menu-card" href="<?= $this->Url->build('/Contacts/admin') ?>">
+                        <div class="menu-icon" style="background:#fdf2f8;color:#9d174d;">📬</div>
+                        <div class="menu-title-text">問い合わせ一覧</div>
+                        <div class="menu-desc">ユーザーからの問い合わせを確認する</div>
                     </a>
                 </div>
             <?php endif; ?>
