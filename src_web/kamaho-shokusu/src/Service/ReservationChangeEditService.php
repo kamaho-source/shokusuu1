@@ -67,6 +67,8 @@ class ReservationChangeEditService
                 'MUserInfo.i_del_flag'   => 0,
             ])
             ->enableHydration(false)->all()->extract('i_id_user')->toList();
+        // 職員IDが未付与（null）のレコードを除外して予期しない動作を防ぐ
+        $baseUserIds = array_values(array_filter($baseUserIds, fn($id) => $id !== null && $id > 0));
         if (empty($baseUserIds)) {
             $baseUserIds = [-1];
         }
