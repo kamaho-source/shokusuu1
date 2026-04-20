@@ -117,12 +117,16 @@ class ReservationChangeEditService
 
     public function buildUsersForJson(array $users, $loginUser): array
     {
-        $isAdmin  = ($loginUser && ($loginUser->get('i_admin') === 1 || (int)$loginUser->get('i_user_level') === 0));
+        // 管理者（i_admin=1）または職員（i_user_level=0）は全ユーザーを編集できる
+        $canEditAll = $loginUser && (
+            (int)($loginUser->get('i_admin')      ?? 0) === 1 ||
+            (int)($loginUser->get('i_user_level') ?? -1) === 0
+        );
         $loginUid = $loginUser?->get('i_id_user');
 
         $usersForJson = [];
         foreach ($users as $u) {
-            $allowEdit = $isAdmin || ($loginUid && (int)$loginUid === (int)$u['id']);
+            $allowEdit = $canEditAll || ($loginUid && (int)$loginUid === (int)$u['id']);
             $usersForJson[] = [
                 'id'           => $u['id'],
                 'name'         => $u['name'],
