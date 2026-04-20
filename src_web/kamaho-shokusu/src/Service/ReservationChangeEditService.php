@@ -153,6 +153,13 @@ class ReservationChangeEditService
         $skipped = [];
 
         try {
+            // ログインユーザーの編集権限を確定する（buildUsersForJson と同一ロジック）
+            $loginUid    = $loginUser ? (int)$loginUser->get('i_id_user') : 0;
+            $canEditAll  = $loginUser && (
+                (int)($loginUser->get('i_admin')      ?? 0) === 1 ||
+                (int)($loginUser->get('i_user_level') ?? -1) === 0
+            );
+
             $allowedMap = array_fill_keys(array_map('intval', $userIdList), true);
             $targetUserIds = [];
             foreach ($usersData as $uid => $_) {
@@ -209,6 +216,12 @@ class ReservationChangeEditService
                 $userId = (int)$userIdRaw;
                 if (!isset($allowedMap[$userId])) {
                     $skipped[] = "利用者ID {$userId} はこの部屋の所属ではないためスキップされました。";
+                    continue;
+                }
+
+                // サーバー側 allowEdit チェック: 管理者・職員以外は自分以外の予約を変更できない
+                if (!$canEditAll && $userId !== $loginUid) {
+                    $skipped[] = "利用者ID {$userId} の予約を変更する権限がありません。";
                     continue;
                 }
 
