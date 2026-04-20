@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Exception\OptimisticLockConflictException;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
 
@@ -276,7 +277,7 @@ class ReservationChangeEditService
             foreach ($rowsToUpdate as $item) {
                 $ok = $this->updateReservationRowWithVersion($reservationTable, $item['row'], $item['set']);
                 if (!$ok) {
-                    throw new \RuntimeException('optimistic_conflict');
+                    throw new OptimisticLockConflictException();
                 }
             }
 
