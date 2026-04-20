@@ -21,6 +21,7 @@ use App\Service\ReservationWriteService;
 use App\Service\ReservationDatePolicy;
 use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
+use App\Exception\OptimisticLockConflictException;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
 use App\Service\ApiResponseService;
@@ -1049,6 +1050,19 @@ class TReservationInfoController extends AppController
                     $this->Flash->success(__($payload['message']));
                     return $this->redirect(['action' => 'index']);
 
+                } catch (OptimisticLockConflictException $e) {
+                    // オプティミスティックロック競合: 409 Conflict + 再試行を促すメッセージ
+                    $this->log('直前編集 競合: '.$e->getMessage(), 'warning');
+                    if ($wantsJson) {
+                        return $this->response->withStatus(409)->withType('application/json')
+                            ->withStringBody(json_encode([
+                                'ok' => false,
+                                'status' => 'conflict',
+                                'message' => $e->getMessage(),
+                                'data' => [],
+                            ], JSON_UNESCAPED_UNICODE));
+                    }
+                    $this->Flash->error(__($e->getMessage()));
                 } catch (\Throwable $e) {
                     $this->log('直前編集エラー: '.$e->getMessage(), 'error');
                     if ($wantsJson) {

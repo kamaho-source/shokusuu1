@@ -249,11 +249,24 @@
             credentials: 'same-origin',
             signal: signal
         })
-        .then(function(res){ return res.json().then(function(j){ return { ok: res.ok, j: j }; }); })
+        .then(function(res){ return res.json().then(function(j){ return { ok: res.ok, status: res.status, j: j }; }); })
         .then(function(pair){
-            var ok = pair.ok, json = pair.j;
+            var ok = pair.ok, json = pair.j, httpStatus = pair.status;
             if (!ok || !json || json.status !== 'success' || !json.data){
-                showMsg(tbody, (json && json.message) || '一覧取得に失敗しました。', true); return;
+                var errMsg = (json && json.message) || '一覧取得に失敗しました。';
+                // 403 の場合は権限エラーとして専用メッセージを表示
+                if (httpStatus === 403) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5">' +
+                        '<div class="text-center py-4">' +
+                        '<div style="font-size:2rem;">&#128274;</div>' +
+                        '<p class="text-danger fw-bold mt-2 mb-1">直前編集は利用できません</p>' +
+                        '<p class="text-muted small mb-0">' + esc(errMsg) + '</p>' +
+                        '</div></td></tr>';
+                } else {
+                    showMsg(tbody, errMsg, true);
+                }
+                return;
             }
 
             var users = Array.isArray(json.data.users) ? json.data.users : [];
@@ -347,11 +360,20 @@
                         method: 'POST', headers: headers, credentials: 'same-origin',
                         body: JSON.stringify({ users: usersPayload })
                     })
-                    .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, j: j }; }); })
+                    .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, status: res2.status, j: j }; }); })
                     .then(function(pair2){
-                        var ok2 = pair2.ok, json2 = pair2.j;
+                        var ok2 = pair2.ok, json2 = pair2.j, httpStatus = pair2.status;
                         if (!ok2 || !json2 || json2.status !== 'success'){
-                            alert((json2 && json2.message) || '直前予約の更新に失敗しました。');
+                            var msg = (json2 && json2.message) || '直前予約の更新に失敗しました。';
+                            // 409 競合の場合はページリロードを促す
+                            if (httpStatus === 409 || (json2 && json2.status === 'conflict')) {
+                                if (confirm(msg + '\n\nページを再読込しますか？')) {
+                                    window.location.reload();
+                                    return;
+                                }
+                            } else {
+                                alert(msg);
+                            }
                             if (saveBtn)    saveBtn.disabled = false;
                             if (saveSpinner) saveSpinner.style.display = 'none';
                             return;
