@@ -1487,7 +1487,8 @@ function unlockForChildren(wrap){
 
                 if (!response.ok) {
                     // サーバーが JSON エラーを返している場合はそのメッセージを取り出す
-                    var errMessage = 'HTTP ' + response.status;
+                    var errStatus = response.status;
+                    var errMessage = 'HTTP ' + errStatus;
                     try {
                         var ct = response.headers.get('content-type') || '';
                         if (ct.indexOf('application/json') !== -1) {
@@ -1497,7 +1498,9 @@ function unlockForChildren(wrap){
                             }
                         }
                     } catch (_) {}
-                    throw new Error(errMessage);
+                    var httpErr = new Error(errMessage);
+                    httpErr.httpStatus = errStatus;
+                    throw httpErr;
                 }
 
                 var htmlText = await response.text();
@@ -1552,18 +1555,34 @@ function unlockForChildren(wrap){
                 installModalSaveBridge(host, modalEl || host);
 
             } catch(err) {
-                // HTTP ステータス表示など技術的な文字列はユーザーに見せない
                 var rawMsg = (err && err.message) ? String(err.message) : '';
-                var isTechnical = !rawMsg || /^HTTP \d/.test(rawMsg) || rawMsg === '空のレスポンス';
-                var displayMsg = isTechnical
-                    ? 'ページを再読み込みするか、管理者にお問い合わせください。'
-                    : rawMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                container.innerHTML =
-                    '<div class="alert alert-danger" role="alert">' +
-                    '<h4 class="alert-heading">エラー</h4>' +
-                    '<p>読み込みに失敗しました</p>' +
-                    '<hr><p class="mb-0"><small>' + displayMsg + '</small></p>' +
-                    '</div>';
+                var httpStatus = err && err.httpStatus ? err.httpStatus : null;
+                var isForbidden = httpStatus === 403;
+                var isTechnical = !isForbidden && (!rawMsg || /^HTTP \d/.test(rawMsg) || rawMsg === '空のレスポンス');
+
+                if (isForbidden) {
+                    // 権限エラー：理由と次のアクションをわかりやすく表示
+                    var reason = rawMsg && !/^HTTP \d/.test(rawMsg)
+                        ? rawMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        : '直前編集を利用する権限がありません。';
+                    container.innerHTML =
+                        '<div class="text-center py-4">' +
+                        '<div style="font-size:3rem;line-height:1;">&#128274;</div>' +
+                        '<h5 class="mt-3 text-danger fw-bold">直前編集は利用できません</h5>' +
+                        '<p class="mt-2 mb-3" style="max-width:420px;margin:0 auto;">' + reason + '</p>' +
+                        '</div>';
+                } else {
+                    // 技術的エラー：詳細は管理者に委ねる
+                    var displayMsg = isTechnical
+                        ? 'ページを再読み込みするか、管理者にお問い合わせください。'
+                        : rawMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    container.innerHTML =
+                        '<div class="alert alert-danger" role="alert">' +
+                        '<h4 class="alert-heading">エラー</h4>' +
+                        '<p>読み込みに失敗しました</p>' +
+                        '<hr><p class="mb-0"><small>' + displayMsg + '</small></p>' +
+                        '</div>';
+                }
             }
         }
 
