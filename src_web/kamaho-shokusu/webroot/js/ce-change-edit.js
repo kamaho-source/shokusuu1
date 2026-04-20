@@ -249,11 +249,24 @@
             credentials: 'same-origin',
             signal: signal
         })
-        .then(function(res){ return res.json().then(function(j){ return { ok: res.ok, j: j }; }); })
+        .then(function(res){ return res.json().then(function(j){ return { ok: res.ok, status: res.status, j: j }; }); })
         .then(function(pair){
-            var ok = pair.ok, json = pair.j;
+            var ok = pair.ok, json = pair.j, httpStatus = pair.status;
             if (!ok || !json || json.status !== 'success' || !json.data){
-                showMsg(tbody, (json && json.message) || '一覧取得に失敗しました。', true); return;
+                var errMsg = (json && json.message) || '一覧取得に失敗しました。';
+                // 403 の場合は権限エラーとして専用メッセージを表示
+                if (httpStatus === 403) {
+                    tbody.innerHTML =
+                        '<tr><td colspan="5">' +
+                        '<div class="text-center py-4">' +
+                        '<div style="font-size:2rem;">&#128274;</div>' +
+                        '<p class="text-danger fw-bold mt-2 mb-1">直前編集は利用できません</p>' +
+                        '<p class="text-muted small mb-0">' + esc(errMsg) + '</p>' +
+                        '</div></td></tr>';
+                } else {
+                    showMsg(tbody, errMsg, true);
+                }
+                return;
             }
 
             var users = Array.isArray(json.data.users) ? json.data.users : [];
