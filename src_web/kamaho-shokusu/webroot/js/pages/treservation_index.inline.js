@@ -1502,7 +1502,18 @@ function unlockForChildren(wrap){
                 });
 
                 if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
+                    // サーバーが JSON エラーを返している場合はそのメッセージを取り出す
+                    var errMessage = 'HTTP ' + response.status;
+                    try {
+                        var ct = response.headers.get('content-type') || '';
+                        if (ct.indexOf('application/json') !== -1) {
+                            var errJson = await response.json();
+                            if (errJson && errJson.message) {
+                                errMessage = errJson.message;
+                            }
+                        }
+                    } catch (_) {}
+                    throw new Error(errMessage);
                 }
 
                 var htmlText = await response.text();
@@ -1566,11 +1577,17 @@ function unlockForChildren(wrap){
                 installModalSaveBridge(host, modalEl || host);
 
             } catch(err) {
+                // HTTP ステータス表示など技術的な文字列はユーザーに見せない
+                var rawMsg = (err && err.message) ? String(err.message) : '';
+                var isTechnical = !rawMsg || /^HTTP \d/.test(rawMsg) || rawMsg === '空のレスポンス';
+                var displayMsg = isTechnical
+                    ? 'ページを再読み込みするか、管理者にお問い合わせください。'
+                    : rawMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 container.innerHTML =
                     '<div class="alert alert-danger" role="alert">' +
                     '<h4 class="alert-heading">エラー</h4>' +
                     '<p>読み込みに失敗しました</p>' +
-                    '<hr><p class="mb-0"><small>ページを再読み込みするか、管理者にお問い合わせください。</small></p>' +
+                    '<hr><p class="mb-0"><small>' + displayMsg + '</small></p>' +
                     '</div>';
             }
         }

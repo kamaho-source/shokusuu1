@@ -880,14 +880,19 @@ class TReservationInfoController extends AppController
      */
     public function changeEdit($roomId = null, $date = null, $mealType = null): ?Response
     {
-        $this->authorizeReservation('changeEdit');
-
-        // 応答種別（try/catch の両スコープで参照するため外側で定義する）
+        // 応答種別を先に確定させてから認可チェックに渡す。
+        // こうすることで AJAX リクエスト時の ForbiddenException が
+        // CakePHP のエラーハンドラーではなく JSON レスポンスとして返るため、
+        // loadInto() 側でビジネスロジックエラーのメッセージを表示できる。
         $wantsJson =
             $this->request->is('ajax') ||
             $this->request->getQuery('ajax') === '1' || // ★ クエリで強制的に JSON を要求
             $this->request->accepts('application/json') ||
             $this->request->getParam('_ext') === 'json';
+
+        if ($denied = $this->authorizeReservation('changeEdit', [], $wantsJson)) {
+            return $denied;
+        }
 
         try {
             // ---- パラメータ補完（route/query/POST 両対応）----
