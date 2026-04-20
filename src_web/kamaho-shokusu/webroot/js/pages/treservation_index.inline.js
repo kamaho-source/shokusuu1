@@ -1519,6 +1519,16 @@ function unlockForChildren(wrap){
                 } else {
                     console.warn('[loadInto] ADD_RESERVATION.init not found. UI might be misconfigured.');
                 }
+
+                // 直前編集モーダル（ce-change-edit.js）の初期化を明示的に呼び出す
+                // shown.bs.modal はHTML読み込み前に発火する場合があるため、ここで確実に初期化する
+                if (window.CE_CHANGE_EDIT && typeof window.CE_CHANGE_EDIT.init === 'function') {
+                    try {
+                        window.CE_CHANGE_EDIT.init(host);
+                    } catch (e) {
+                        console.error('Error during CE_CHANGE_EDIT.init():', e);
+                    }
+                }
                 // ★★★★★ 修正箇所ここまで ★★★★★
 
                 ensureAddModalCompat(host);
