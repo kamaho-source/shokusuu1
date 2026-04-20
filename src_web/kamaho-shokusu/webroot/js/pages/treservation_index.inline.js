@@ -1502,7 +1502,21 @@ function unlockForChildren(wrap){
                 });
 
                 if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
+                    // サーバーが JSON エラーを返している場合はそのメッセージを取り出す
+                    var errStatus = response.status;
+                    var errMessage = 'HTTP ' + errStatus;
+                    try {
+                        var ct = response.headers.get('content-type') || '';
+                        if (ct.indexOf('application/json') !== -1) {
+                            var errJson = await response.json();
+                            if (errJson && errJson.message) {
+                                errMessage = errJson.message;
+                            }
+                        }
+                    } catch (_) {}
+                    var httpErr = new Error(errMessage);
+                    httpErr.httpStatus = errStatus;
+                    throw httpErr;
                 }
 
                 var htmlText = await response.text();
@@ -1535,6 +1549,16 @@ function unlockForChildren(wrap){
                 } else {
                     console.warn('[loadInto] ADD_RESERVATION.init not found. UI might be misconfigured.');
                 }
+
+                // 直前編集モーダル（ce-change-edit.js）の初期化を明示的に呼び出す
+                // shown.bs.modal はHTML読み込み前に発火する場合があるため、ここで確実に初期化する
+                if (window.CE_CHANGE_EDIT && typeof window.CE_CHANGE_EDIT.init === 'function') {
+                    try {
+                        window.CE_CHANGE_EDIT.init(host);
+                    } catch (e) {
+                        console.error('Error during CE_CHANGE_EDIT.init():', e);
+                    }
+                }
                 // ★★★★★ 修正箇所ここまで ★★★★★
 
                 // 直前編集フォーム（change_edit.php）初期化
@@ -1556,12 +1580,34 @@ function unlockForChildren(wrap){
                 installModalSaveBridge(host, modalEl || host);
 
             } catch(err) {
-                container.innerHTML =
-                    '<div class="alert alert-danger" role="alert">' +
-                    '<h4 class="alert-heading">エラー</h4>' +
-                    '<p>読み込みに失敗しました</p>' +
-                    '<hr><p class="mb-0"><small>ページを再読み込みするか、管理者にお問い合わせください。</small></p>' +
-                    '</div>';
+                var rawMsg = (err && err.message) ? String(err.message) : '';
+                var httpStatus = err && err.httpStatus ? err.httpStatus : null;
+                var isForbidden = httpStatus === 403;
+                var isTechnical = !isForbidden && (!rawMsg || /^HTTP \d/.test(rawMsg) || rawMsg === '空のレスポンス');
+
+                if (isForbidden) {
+                    // 権限エラー：理由と次のアクションをわかりやすく表示
+                    var reason = rawMsg && !/^HTTP \d/.test(rawMsg)
+                        ? rawMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                        : '直前編集を利用する権限がありません。';
+                    container.innerHTML =
+                        '<div class="text-center py-4">' +
+                        '<div style="font-size:3rem;line-height:1;">&#128274;</div>' +
+                        '<h5 class="mt-3 text-danger fw-bold">直前編集は利用できません</h5>' +
+                        '<p class="mt-2 mb-3" style="max-width:420px;margin:0 auto;">' + reason + '</p>' +
+                        '</div>';
+                } else {
+                    // 技術的エラー：詳細は管理者に委ねる
+                    var displayMsg = isTechnical
+                        ? 'ページを再読み込みするか、管理者にお問い合わせください。'
+                        : rawMsg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    container.innerHTML =
+                        '<div class="alert alert-danger" role="alert">' +
+                        '<h4 class="alert-heading">エラー</h4>' +
+                        '<p>読み込みに失敗しました</p>' +
+                        '<hr><p class="mb-0"><small>' + displayMsg + '</small></p>' +
+                        '</div>';
+                }
             }
         }
 
