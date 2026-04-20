@@ -360,11 +360,20 @@
                         method: 'POST', headers: headers, credentials: 'same-origin',
                         body: JSON.stringify({ users: usersPayload })
                     })
-                    .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, j: j }; }); })
+                    .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, status: res2.status, j: j }; }); })
                     .then(function(pair2){
-                        var ok2 = pair2.ok, json2 = pair2.j;
+                        var ok2 = pair2.ok, json2 = pair2.j, httpStatus = pair2.status;
                         if (!ok2 || !json2 || json2.status !== 'success'){
-                            alert((json2 && json2.message) || '直前予約の更新に失敗しました。');
+                            var msg = (json2 && json2.message) || '直前予約の更新に失敗しました。';
+                            // 409 競合の場合はページリロードを促す
+                            if (httpStatus === 409 || (json2 && json2.status === 'conflict')) {
+                                if (confirm(msg + '\n\nページを再読込しますか？')) {
+                                    window.location.reload();
+                                    return;
+                                }
+                            } else {
+                                alert(msg);
+                            }
                             if (saveBtn)    saveBtn.disabled = false;
                             if (saveSpinner) saveSpinner.style.display = 'none';
                             return;
