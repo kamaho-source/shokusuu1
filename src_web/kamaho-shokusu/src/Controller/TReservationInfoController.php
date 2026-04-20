@@ -890,6 +890,23 @@ class TReservationInfoController extends AppController
             $this->request->accepts('application/json') ||
             $this->request->getParam('_ext') === 'json';
 
+        // 403 の理由をユーザーにわかりやすく伝えるため、ロール別のメッセージを返す
+        $loginUser = $this->request->getAttribute('identity');
+        if ($loginUser !== null) {
+            $isAdmin  = (int)($loginUser->get('i_admin')      ?? 0) === 1;
+            $isStaff  = (int)($loginUser->get('i_user_level') ?? -1) === 0;
+            if (!$isAdmin && !$isStaff) {
+                // 子どもユーザー: 直前編集権限なし
+                $reason = '直前編集は職員・管理者のみ使用できます。予約変更は通常の予約画面からご利用ください。';
+                if ($wantsJson) {
+                    return $this->response->withStatus(403)->withType('application/json')
+                        ->withStringBody(json_encode(['ok' => false, 'status' => 'forbidden', 'message' => $reason], JSON_UNESCAPED_UNICODE));
+                }
+                $this->Flash->error($reason);
+                return $this->redirect(['action' => 'index']);
+            }
+        }
+
         if ($denied = $this->authorizeReservation('changeEdit', [], $wantsJson)) {
             return $denied;
         }
