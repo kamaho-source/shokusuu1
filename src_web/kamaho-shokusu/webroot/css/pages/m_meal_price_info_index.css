@@ -1,0 +1,10 @@
+.header-id { background-color: #f8d7da; }
+.header-fiscal-year { background-color: #d1ecf1; }
+.header-morning-price { background-color: #d4edda; }
+.header-lunch-price { background-color: #fff3cd; }
+.header-dinner-price { background-color: #f0e68c; }
+.header-bento-price { background-color: #f8d7da; }
+
+table td, table th {
+    white-space: nowrap;
+}
