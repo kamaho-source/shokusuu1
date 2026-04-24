@@ -10,6 +10,7 @@ $this->assign('title', '食数予約の追加');
 $this->Html->script('reservation.js', ['block' => true]);
 $this->Html->script('add.js', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
+echo $this->Html->css('pages/t_reservation_add.css');
 echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
 
@@ -41,14 +42,6 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
         ['fullBase' => true]
 );
 ?>
-<style>
-    /* Add画面用の軽微な整形（モーダル仕様は触らない） */
-    .card-header h3 { margin: 0; font-size: 1.15rem; }
-    .form-section legend { font-size: 1.05rem; margin-bottom: .75rem; }
-    .table thead th { vertical-align: middle; }
-    .list-group h4 { font-size: 1rem; margin: 0; }
-</style>
-
 <!-- ★ 親の抽出ロジックが最優先で拾うラッパー -->
 <div id="ce-root" <?= $isModal ? 'data-modal="1"' : '' ?>>
     <div class="row">

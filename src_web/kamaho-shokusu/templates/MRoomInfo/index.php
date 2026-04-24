@@ -5,30 +5,11 @@
  */
 
 $this->assign('title', __('部屋情報一覧'));
+echo $this->Html->css('pages/m_room_info_index.css');
 
 // 管理者権限の確認
 $isAdmin = $user->get('i_admin') === 1;
 ?>
-<style>
-    /* ページネーションリンク間の感覚を調整 */
-    .custom-pagination .page-item {
-        margin: 0 5px; /* 左右に5px間隔を設定 */
-    }
-
-    .custom-pagination .page-item a {
-        padding: 8px 12px; /* 内側のスペースを調整 */
-        border-radius: 5px; /* 少し角を丸くする */
-        border: 1px solid #ddd; /* 境界線を追加して視認性を向上 */
-        text-decoration: none; /* 下線を消す */
-        color: #007bff; /* 色を調整 */
-    }
-
-    .custom-pagination .page-item a:hover {
-        background-color: #f8f9fa; /* ホバー時の背景色 */
-        border-color: #007bff; /* ホバー時のボーダーカラー */
-        color: #0056b3; /* ホバー時のテキスト色 */
-    }
-</style>
 <div class="mRoomInfo index content">
     <?php if ($isAdmin): // 管理者のみが新しい部屋情報を追加できる ?>
     <?= $this->Html->link(__('新しい部屋情報を追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
