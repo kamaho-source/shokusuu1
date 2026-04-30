@@ -22,6 +22,11 @@ class TContactsTable extends Table
         $this->setTable('t_contacts');
         $this->setPrimaryKey('id');
         $this->addBehavior('Timestamp');
+
+        $this->hasMany('TContactReplies', [
+            'foreignKey' => 'contact_id',
+            'dependent'  => true,
+        ]);
     }
 
     public function validationDefault(Validator $validator): Validator
