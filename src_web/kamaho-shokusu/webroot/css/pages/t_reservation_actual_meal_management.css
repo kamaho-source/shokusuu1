@@ -63,3 +63,77 @@ body { background: #f8f9fa; }
     margin-top: 4px;
     color: #64748b;
 }
+
+.mobile-user-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.user-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+
+.user-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.user-card-name {
+    font-weight: 700;
+    color: #0f172a;
+    line-height: 1.3;
+}
+
+.user-card-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.meal-day-block {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.meal-day-block:last-child {
+    border-bottom: 0;
+}
+
+.meal-day-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 8px;
+}
+
+.meal-day-checks {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.meal-check-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    padding: 8px 10px;
+    font-size: 0.84rem;
+    color: #334155;
+}
+
+@media (max-width: 420px) {
+    .meal-day-checks {
+        grid-template-columns: 1fr;
+    }
+}
