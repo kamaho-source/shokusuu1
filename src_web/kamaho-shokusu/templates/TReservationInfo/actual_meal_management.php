@@ -133,8 +133,61 @@ if (!empty($dates)) {
             <small>※ 職員IDが設定されているユーザーのみ表示されます。</small></div>
     <?php else: ?>
 
+        <?php /* ---- モバイルカード表示 ---- */ ?>
+        <div class="mobile-user-cards d-md-none">
+            <?php foreach ($adultUsers as $u):
+                $uid = (int)$u['id'];
+            ?>
+                <section class="user-card">
+                    <header class="user-card-header">
+                        <div>
+                            <div class="user-card-name"><?= h($u['name']) ?></div>
+                            <?php if (!empty($u['staff_id'])): ?>
+                                <div class="staff-id">ID: <?= h($u['staff_id']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm user-action-btn open-user-modal-btn"
+                                data-uid="<?= (int)$uid ?>">
+                            入力
+                        </button>
+                    </header>
+
+                    <div class="user-card-body">
+                        <?php foreach ($dates as $d):
+                            $dow_idx = (int)(new \DateTimeImmutable($d))->format('w');
+                            $dayClass = $dow_idx === 6 ? 'sat-col' : ($dow_idx === 0 ? 'sun-col' : '');
+                        ?>
+                            <div class="meal-day-block <?= $dayClass ?>">
+                                <div class="meal-day-label"><?= h($dateLabels[$d] ?? $d) ?></div>
+                                <div class="meal-day-checks">
+                                    <?php foreach ($meals as $mealType => $mealLabel):
+                                        $checked  = !empty($grid[$uid][$d][$mealType]);
+                                        $version  = (int)($versions[$uid][$d][$mealType] ?? 1);
+                                    ?>
+                                        <label class="meal-check-item">
+                                            <span><?= h($mealLabel) ?></span>
+                                            <input type="checkbox"
+                                                   class="actual-cb"
+                                                   data-uid="<?= (int)$uid ?>"
+                                                   data-date="<?= h($d) ?>"
+                                                   data-meal="<?= (int)$mealType ?>"
+                                                   data-version="<?= $version ?>"
+                                                   data-room="<?= (int)$selectedRoomId ?>"
+                                                   <?= $checked ? 'checked' : '' ?>
+                                                   title="<?= h($u['name']) ?> <?= h($d) ?> <?= h($mealLabel) ?>">
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+            <?php endforeach; ?>
+        </div>
+
         <?php /* ---- グリッドテーブル ---- */ ?>
-        <div class="card">
+        <div class="card d-none d-md-block">
             <div class="card-body p-2">
                 <div class="table-responsive">
                     <table class="table table-bordered grid-table align-middle mb-0">
