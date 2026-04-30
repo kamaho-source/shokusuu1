@@ -60,73 +60,7 @@ if (!empty($dates)) {
     <meta name="csrfToken" content="<?= h($csrfToken) ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background: #f8f9fa; }
-        .page-header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 12px 16px; }
-        .grid-table { font-size: 0.88rem; }
-        .grid-table th { background: #f1f5f9; font-weight: 600; white-space: nowrap; }
-        .grid-table td { vertical-align: middle; }
-        .meal-header { font-size: 0.78rem; color: #64748b; }
-        .date-header { font-size: 0.82rem; }
-        .weekend-col { background: #fafafa; }
-        .sat-col th, .sat-col td { background: #eff6ff; }
-        .sun-col th, .sun-col td { background: #fff0f0; }
-        .check-cell { min-width: 32px; }
-        .actual-cb { width: 18px; height: 18px; cursor: pointer; }
-        .actual-cb:disabled { cursor: not-allowed; opacity: 0.4; }
-        .user-name { white-space: nowrap; min-width: 100px; }
-        .staff-id { font-size: 0.75rem; color: #94a3b8; }
-        .week-nav { gap: 8px; }
-        .saving-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.15); z-index: 9000; align-items: center; justify-content: center; }
-        .saving-overlay.active { display: flex; }
-        .notice-area { position: fixed; top: 12px; right: 12px; z-index: 9999; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
-        .notice-toast { background: #1d4ed8; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .notice-toast.success { background: #15803d; }
-        .notice-toast.error   { background: #dc2626; }
-        .notice-toast.warning { background: #b45309; }
-        .user-action-btn { white-space: nowrap; }
-        .meal-editor-grid { display: flex; flex-direction: column; gap: 12px; }
-        .meal-editor-day {
-            border: 1px solid #e2e8f0;
-            border-radius: 14px;
-            padding: 14px;
-            background: #f8fafc;
-        }
-        .meal-editor-head {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 10px;
-        }
-        .meal-editor-title { font-weight: 700; color: #0f172a; }
-        .meal-editor-row { display: flex; flex-wrap: wrap; gap: 10px; }
-        .meal-editor-toggle {
-            min-width: 120px;
-            border: 1px solid #cbd5e1;
-            border-radius: 12px;
-            background: #fff;
-            padding: 10px 12px;
-            text-align: left;
-            transition: all .15s ease;
-        }
-        .meal-editor-toggle.active {
-            border-color: #2563eb;
-            background: #eff6ff;
-            color: #1d4ed8;
-        }
-        .meal-editor-toggle.pending {
-            border-color: #d97706;
-            background: #fffbeb;
-            color: #b45309;
-        }
-        .meal-editor-status {
-            display: block;
-            font-size: .76rem;
-            margin-top: 4px;
-            color: #64748b;
-        }
-    </style>
+    <?= $this->Html->css('pages/t_reservation_actual_meal_management.css') ?>
     <script>
         window.__BASE_PATH = <?= json_encode($this->request->getAttribute('base') ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__ACTUAL_MEAL_SAVE_URL = <?= json_encode($this->Url->build('/TReservationInfo/actual-meal-save'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
@@ -199,8 +133,61 @@ if (!empty($dates)) {
             <small>※ 職員IDが設定されているユーザーのみ表示されます。</small></div>
     <?php else: ?>
 
+        <?php /* ---- モバイルカード表示 ---- */ ?>
+        <div class="mobile-user-cards d-md-none">
+            <?php foreach ($adultUsers as $u):
+                $uid = (int)$u['id'];
+            ?>
+                <section class="user-card">
+                    <header class="user-card-header">
+                        <div>
+                            <div class="user-card-name"><?= h($u['name']) ?></div>
+                            <?php if (!empty($u['staff_id'])): ?>
+                                <div class="staff-id">ID: <?= h($u['staff_id']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm user-action-btn open-user-modal-btn"
+                                data-uid="<?= (int)$uid ?>">
+                            入力
+                        </button>
+                    </header>
+
+                    <div class="user-card-body">
+                        <?php foreach ($dates as $d):
+                            $dow_idx = (int)(new \DateTimeImmutable($d))->format('w');
+                            $dayClass = $dow_idx === 6 ? 'sat-col' : ($dow_idx === 0 ? 'sun-col' : '');
+                        ?>
+                            <div class="meal-day-block <?= $dayClass ?>">
+                                <div class="meal-day-label"><?= h($dateLabels[$d] ?? $d) ?></div>
+                                <div class="meal-day-checks">
+                                    <?php foreach ($meals as $mealType => $mealLabel):
+                                        $checked  = !empty($grid[$uid][$d][$mealType]);
+                                        $version  = (int)($versions[$uid][$d][$mealType] ?? 1);
+                                    ?>
+                                        <label class="meal-check-item">
+                                            <span><?= h($mealLabel) ?></span>
+                                            <input type="checkbox"
+                                                   class="actual-cb"
+                                                   data-uid="<?= (int)$uid ?>"
+                                                   data-date="<?= h($d) ?>"
+                                                   data-meal="<?= (int)$mealType ?>"
+                                                   data-version="<?= $version ?>"
+                                                   data-room="<?= (int)$selectedRoomId ?>"
+                                                   <?= $checked ? 'checked' : '' ?>
+                                                   title="<?= h($u['name']) ?> <?= h($d) ?> <?= h($mealLabel) ?>">
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+            <?php endforeach; ?>
+        </div>
+
         <?php /* ---- グリッドテーブル ---- */ ?>
-        <div class="card">
+        <div class="card d-none d-md-block">
             <div class="card-body p-2">
                 <div class="table-responsive">
                     <table class="table table-bordered grid-table align-middle mb-0">

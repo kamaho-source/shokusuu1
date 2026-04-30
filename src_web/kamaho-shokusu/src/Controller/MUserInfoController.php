@@ -8,8 +8,6 @@ use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
-use Cake\Log\Log;
-
 class MUserInfoController extends AppController
 {
     protected $MUserGroup;
@@ -425,8 +423,8 @@ class MUserInfoController extends AppController
             return ['未所属'];
         }
 
-        $this->loadModel('MUserGroup');
-        $this->loadModel('MRoomInfo');
+        $this->fetchTable('MUserGroup');
+        $this->fetchTable('MRoomInfo');
 
         $userRooms = $this->MUserGroup->find()
             ->where([
