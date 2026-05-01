@@ -73,6 +73,39 @@ jobs:
             PLUGINS_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/config/plugins.php"
             [ -f "$PLUGINS_FILE" ] || printf '<?php\nreturn [];\n' > "$PLUGINS_FILE"
 
+            # ── app_local.php に EmailTransport がなければ注入 ──────────────────
+            APP_LOCAL="$DEPLOY_PATH/src_web/kamaho-shokusu/config/app_local.php"
+            if [ -f "$APP_LOCAL" ] && ! grep -q "EmailTransport" "$APP_LOCAL"; then
+              python3 - "$APP_LOCAL" <<'PYEOF'
+import sys, re
+path = sys.argv[1]
+content = open(path).read()
+insert = """    'EmailTransport' => [
+        'default' => [
+            'className' => 'Smtp',
+            'host'      => 'smtp.resend.com',
+            'port'      => 587,
+            'username'  => 'resend',
+            'password'  => env('RESEND_API_KEY', ''),
+            'tls'       => true,
+            'client'    => null,
+        ],
+    ],
+    'Email' => [
+        'default' => [
+            'transport'     => 'default',
+            'from'          => ['no-reply@kamaho-shokusu.jp' => 'かまほ食数管理システム'],
+            'charset'       => 'utf-8',
+            'headerCharset' => 'utf-8',
+        ],
+    ],
+"""
+content = re.sub(r'\];\s*$', insert + '];', content.rstrip(), flags=re.MULTILINE)
+open(path, 'w').write(content)
+print("EmailTransport injected into app_local.php")
+PYEOF
+            fi
+
             # ── CakePHP マイグレーション実行 ──────────────────────────────────
             echo "── Running CakePHP migrations ───────────────────────────────────"
             docker exec kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
