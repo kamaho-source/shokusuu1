@@ -80,4 +80,39 @@ class ContactsController extends AppController
         $this->set(compact('contacts', 'page'));
         return null;
     }
+
+    /**
+     * 管理者用：問い合わせ詳細・返信送信
+     */
+    public function adminDetail(int $id): ?Response
+    {
+        $this->Authorization->skipAuthorization();
+
+        $user = $this->Authentication->getIdentity();
+        if ($user === null) {
+            return $this->redirect('/MUserInfo/login');
+        }
+
+        if ((int)$user->get('i_admin') !== 1) {
+            $this->Flash->error('管理者のみアクセスできます。');
+            return $this->redirect('/');
+        }
+
+        $contact = $this->contactService->getDetail($id);
+
+        if ($this->request->is('post')) {
+            $replyBody = (string)($this->request->getData('reply_body') ?? '');
+            $result = $this->contactService->sendReply($id, $replyBody);
+
+            if ($result['success']) {
+                $this->Flash->success('返信を送信しました。');
+                return $this->redirect(['action' => 'adminDetail', $id]);
+            }
+
+            $this->Flash->error('返信の送信に失敗しました。');
+        }
+
+        $this->set(compact('contact'));
+        return null;
+    }
 }

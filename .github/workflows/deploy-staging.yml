@@ -75,6 +75,7 @@ jobs:
           DB_PASS:            ${{ secrets.STG_DB_PASS }}
           DB_ROOT_PASS:       ${{ secrets.STG_DB_ROOT_PASS }}
           OPENROUTER_API_KEY: ${{ secrets.STG_OPENROUTER_API_KEY }}
+          RESEND_API_KEY:     ${{ secrets.RESEND_API_KEY }}
           REPO_URL:           ${{ secrets.REPO_URL }}
           BRANCH:             ${{ github.ref_name }}
           DEPLOY_KEY:         ${{ secrets.STG_SSH_PRIVATE_KEY }}
@@ -85,7 +86,7 @@ jobs:
           username: ubuntu
           key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
           port:     22
-          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,REPO_URL,BRANCH,DEPLOY_KEY,GHCR_TOKEN,GHCR_USER
+          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,RESEND_API_KEY,REPO_URL,BRANCH,DEPLOY_KEY,GHCR_TOKEN,GHCR_USER
           timeout:  60s
           command_timeout: 35m
           script: |
@@ -125,9 +126,40 @@ jobs:
               > docker/.env.staging
 
             # ── app_local.php 生成 ─────────────────────────────────────────
-            printf '<?php\nreturn [\n    '"'"'debug'"'"' => true,\n    '"'"'Security'"'"' => ['"'"'salt'"'"' => '"'"'%s'"'"'],\n    '"'"'Datasources'"'"' => ['"'"'default'"'"' => ['"'"'host'"'"' => '"'"'stg_db'"'"', '"'"'database'"'"' => '"'"'%s'"'"', '"'"'username'"'"' => '"'"'%s'"'"', '"'"'password'"'"' => '"'"'%s'"'"']],\n];\n' \
-              "${APP_SALT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}" \
-              > src_web/kamaho-shokusu/config/app_local.php
+            {
+              echo "<?php"
+              echo "return ["
+              echo "    'debug' => true,"
+              echo "    'Security' => ['salt' => '${APP_SALT}'],"
+              echo "    'Datasources' => ["
+              echo "        'default' => ["
+              echo "            'host'     => 'stg_db',"
+              echo "            'database' => '${DB_NAME}',"
+              echo "            'username' => '${DB_USER}',"
+              echo "            'password' => '${DB_PASS}',"
+              echo "        ],"
+              echo "    ],"
+              echo "    'EmailTransport' => ["
+              echo "        'default' => ["
+              echo "            'className' => 'Smtp',"
+              echo "            'host'      => 'smtp.resend.com',"
+              echo "            'port'      => 587,"
+              echo "            'username'  => 'resend',"
+              echo "            'password'  => '${RESEND_API_KEY}',"
+              echo "            'tls'       => true,"
+              echo "            'client'    => null,"
+              echo "        ],"
+              echo "    ],"
+              echo "    'Email' => ["
+              echo "        'default' => ["
+              echo "            'transport'     => 'default',"
+              echo "            'from'          => ['no-reply@kamaho-shokusu.jp' => 'かまほ食数管理システム'],"
+              echo "            'charset'       => 'utf-8',"
+              echo "            'headerCharset' => 'utf-8',"
+              echo "        ],"
+              echo "    ],"
+              echo "];"
+            } > src_web/kamaho-shokusu/config/app_local.php
 
             # ── ghcr.io からイメージを pull & 起動 ────────────────────────
             cd docker
@@ -143,10 +175,25 @@ jobs:
             docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
             docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
 
+            # ── plugins.php が存在しない場合は生成 ───────────────────────────
+            docker exec stg_web bash -c \
+              "[ -f /var/www/html/kamaho-shokusu/config/plugins.php ] || \
+               printf '<?php\nreturn [];\n' > /var/www/html/kamaho-shokusu/config/plugins.php"
+
             # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
             sleep 5
             cd /home/ubuntu/shokusuu1
             ./scripts/apply_sql_updates.sh stg_db "${DB_NAME}" root "${DB_ROOT_PASS}" sql/updates
+
+            # ── マイグレーション失敗テーブルのクリーンアップ ───────────────────
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "DROP TABLE IF EXISTS t_contact_replies;" 2>/dev/null || true
+            # phinxlog の実行済み記録も削除して再マイグレーションを強制
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "DELETE FROM phinxlog WHERE version = '20260501000000';" 2>/dev/null || true
+
+            # ── CakePHP マイグレーション実行 ──────────────────────────────────
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
 
             # ── キャッシュクリア ────────────────────────────────────────────
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake cache clear_all || true
