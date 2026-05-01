@@ -156,6 +156,9 @@ jobs:
             # ── マイグレーション失敗テーブルのクリーンアップ ───────────────────
             docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
               -e "DROP TABLE IF EXISTS t_contact_replies;" 2>/dev/null || true
+            # phinxlog の実行済み記録も削除して再マイグレーションを強制
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "DELETE FROM phinxlog WHERE version = '20260501000000';" 2>/dev/null || true
 
             # ── CakePHP マイグレーション実行 ──────────────────────────────────
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
