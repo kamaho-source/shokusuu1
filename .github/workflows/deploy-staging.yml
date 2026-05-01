@@ -148,6 +148,9 @@ jobs:
             cd /home/ubuntu/shokusuu1
             ./scripts/apply_sql_updates.sh stg_db "${DB_NAME}" root "${DB_ROOT_PASS}" sql/updates
 
+            # ── CakePHP マイグレーション実行 ──────────────────────────────────
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+
             # ── キャッシュクリア ────────────────────────────────────────────
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake cache clear_all || true
 

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Model\Table\TContactsTable;
 use App\Service\ContactService;
 use Cake\Http\Response;
 
