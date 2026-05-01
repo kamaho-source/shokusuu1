@@ -149,7 +149,7 @@ class ContactService
      */
     private function notifySlack(\App\Model\Entity\TContact $entity): void
     {
-        $webhookUrl = env('SLACK_WEBHOOK', '');
+        $webhookUrl = env('SLACK_CONTACT_WEBHOOK', '');
         if ($webhookUrl === '') {
             return;
         }
