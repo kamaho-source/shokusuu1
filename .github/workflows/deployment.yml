@@ -77,19 +77,17 @@ jobs:
             echo "── Running CakePHP migrations ───────────────────────────────────"
             docker exec kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
 
-            # ── .env に RESEND_API_KEY を注入 ──────────────────────────────────
-            ENV_FILE="$DEPLOY_PATH/.env"
-            if grep -q "^RESEND_API_KEY=" "$ENV_FILE" 2>/dev/null; then
-              sed -i "s|^RESEND_API_KEY=.*|RESEND_API_KEY=${RESEND_API_KEY}|" "$ENV_FILE"
-            else
-              echo "RESEND_API_KEY=${RESEND_API_KEY}" >> "$ENV_FILE"
-            fi
-
-            if grep -q "^SLACK_CONTACT_WEBHOOK=" "$ENV_FILE" 2>/dev/null; then
-              sed -i "s|^SLACK_CONTACT_WEBHOOK=.*|SLACK_CONTACT_WEBHOOK=${SLACK_CONTACT_WEBHOOK}|" "$ENV_FILE"
-            else
-              echo "SLACK_CONTACT_WEBHOOK=${SLACK_CONTACT_WEBHOOK}" >> "$ENV_FILE"
-            fi
+            # ── アプリ用 .env に環境変数を注入（コンテナの env_file と同じパス） ──
+            ENV_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/.env"
+            touch "$ENV_FILE"
+            for KEY_VAL in "RESEND_API_KEY=${RESEND_API_KEY}" "SLACK_CONTACT_WEBHOOK=${SLACK_CONTACT_WEBHOOK}"; do
+              KEY="${KEY_VAL%%=*}"
+              if grep -q "^${KEY}=" "$ENV_FILE" 2>/dev/null; then
+                sed -i "s|^${KEY}=.*|${KEY_VAL}|" "$ENV_FILE"
+              else
+                echo "${KEY_VAL}" >> "$ENV_FILE"
+              fi
+            done
 
             echo "✅ Deployed: $(git rev-parse --short HEAD) @ $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         env:

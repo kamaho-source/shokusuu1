@@ -74,19 +74,20 @@ jobs:
           DB_USER:            ${{ secrets.STG_DB_USER }}
           DB_PASS:            ${{ secrets.STG_DB_PASS }}
           DB_ROOT_PASS:       ${{ secrets.STG_DB_ROOT_PASS }}
-          OPENROUTER_API_KEY: ${{ secrets.STG_OPENROUTER_API_KEY }}
-          RESEND_API_KEY:     ${{ secrets.RESEND_API_KEY }}
-          REPO_URL:           ${{ secrets.REPO_URL }}
-          BRANCH:             ${{ github.ref_name }}
-          DEPLOY_KEY:         ${{ secrets.STG_SSH_PRIVATE_KEY }}
-          GHCR_TOKEN:         ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USER:          ${{ github.actor }}
+          OPENROUTER_API_KEY:    ${{ secrets.STG_OPENROUTER_API_KEY }}
+          RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
+          SLACK_CONTACT_WEBHOOK: ${{ secrets.SLACK_CONTACT_WEBHOOK }}
+          REPO_URL:              ${{ secrets.REPO_URL }}
+          BRANCH:                ${{ github.ref_name }}
+          DEPLOY_KEY:            ${{ secrets.STG_SSH_PRIVATE_KEY }}
+          GHCR_TOKEN:            ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER:             ${{ github.actor }}
         with:
           host:     ${{ secrets.STG_HOST }}
           username: ubuntu
           key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
           port:     22
-          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,RESEND_API_KEY,REPO_URL,BRANCH,DEPLOY_KEY,GHCR_TOKEN,GHCR_USER
+          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,RESEND_API_KEY,SLACK_CONTACT_WEBHOOK,REPO_URL,BRANCH,DEPLOY_KEY,GHCR_TOKEN,GHCR_USER
           timeout:  60s
           command_timeout: 35m
           script: |
@@ -117,7 +118,8 @@ jobs:
             fi
 
             # ── .env 生成 (アプリ用) ────────────────────────────────────────
-            printf 'OPENROUTER_API_KEY=%s\n' "${OPENROUTER_API_KEY}" \
+            printf 'OPENROUTER_API_KEY=%s\nSLACK_CONTACT_WEBHOOK=%s\n' \
+              "${OPENROUTER_API_KEY}" "${SLACK_CONTACT_WEBHOOK}" \
               > src_web/kamaho-shokusu/.env
 
             # ── docker/.env.staging 生成 (Docker Compose 用) ───────────────
