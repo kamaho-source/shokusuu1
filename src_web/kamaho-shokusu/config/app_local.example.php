@@ -85,7 +85,7 @@ return [
         'default' => [
             'className' => 'Smtp',
             'host' => 'smtp.resend.com',
-            'port' => 465,
+            'port' => 587,
             'username' => 'resend',
             'password' => env('RESEND_API_KEY', ''),
             'tls' => true,
