@@ -195,7 +195,7 @@ class ContactService
             '',
             $entity->body,
             '─────────────────────────────',
-            'かまほ食数管理システム',
+            '鎌倉児童ホーム食数管理システム',
             'no-reply@kamaho-shokusu.jp',
         ]);
 
@@ -230,13 +230,13 @@ class ContactService
             'カテゴリ：' . $contact->category,
             $contact->body,
             '─────────────────────────────',
-            'かまほ食数管理システム サポート',
+            '鎌倉児童ホーム食数管理システム サポート',
             'support@kamaho-shokusu.jp',
         ]);
 
         $mailer = new Mailer('default');
         $mailer
-            ->setFrom(['support@kamaho-shokusu.jp' => 'かまほ食数管理システム サポート'])
+            ->setFrom(['support@kamaho-shokusu.jp' => '鎌倉児童ホーム食数管理システム サポート'])
             ->setTo($contact->email, $contact->name)
             ->setSubject('[食数管理システム] Re: ' . $contact->category . 'について')
             ->setEmailFormat('text')
