@@ -21,6 +21,7 @@ $this->assign('title', 'お問い合わせ一覧（管理者）');
                     <th style="width: 110px;">お名前</th>
                     <th>メール</th>
                     <th>内容</th>
+                    <th style="width: 80px;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -37,12 +38,15 @@ $this->assign('title', 'お問い合わせ一覧（管理者）');
                             </a>
                         </td>
                         <td>
-                            <details>
-                                <summary class="text-muted small" style="cursor: pointer;">
-                                    <?= h(mb_substr($contact->body, 0, 40)) ?><?= mb_strlen($contact->body) > 40 ? '…' : '' ?>
-                                </summary>
-                                <div class="mt-2 small" style="white-space: pre-wrap;"><?= h($contact->body) ?></div>
-                            </details>
+                            <span class="text-muted small">
+                                <?= h(mb_substr($contact->body, 0, 40)) ?><?= mb_strlen($contact->body) > 40 ? '…' : '' ?>
+                            </span>
+                        </td>
+                        <td>
+                            <a href="<?= $this->Url->build(['action' => 'adminDetail', $contact->id]) ?>"
+                               class="btn btn-outline-primary btn-sm">
+                                詳細・返信
+                            </a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

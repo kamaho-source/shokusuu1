@@ -285,6 +285,9 @@ return function (RouteBuilder $routes): void {
         // フィードバック・お問い合わせ
         $builder->connect('/Contacts', ['controller' => 'Contacts', 'action' => 'index']);
         $builder->connect('/Contacts/admin', ['controller' => 'Contacts', 'action' => 'adminIndex'])->setMethods(['GET']);
+        $builder->connect('/Contacts/admin/{id}', ['controller' => 'Contacts', 'action' => 'adminDetail'])
+            ->setPass(['id'])
+            ->setPatterns(['id' => '\d+']);
 
         // フォールバック
         $builder->fallbacks();
