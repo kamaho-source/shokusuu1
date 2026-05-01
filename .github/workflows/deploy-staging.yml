@@ -75,6 +75,7 @@ jobs:
           DB_PASS:            ${{ secrets.STG_DB_PASS }}
           DB_ROOT_PASS:       ${{ secrets.STG_DB_ROOT_PASS }}
           OPENROUTER_API_KEY: ${{ secrets.STG_OPENROUTER_API_KEY }}
+          RESEND_API_KEY:     ${{ secrets.RESEND_API_KEY }}
           REPO_URL:           ${{ secrets.REPO_URL }}
           BRANCH:             ${{ github.ref_name }}
           DEPLOY_KEY:         ${{ secrets.STG_SSH_PRIVATE_KEY }}
@@ -85,7 +86,7 @@ jobs:
           username: ubuntu
           key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
           port:     22
-          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,REPO_URL,BRANCH,DEPLOY_KEY,GHCR_TOKEN,GHCR_USER
+          envs:     APP_SALT,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,OPENROUTER_API_KEY,RESEND_API_KEY,REPO_URL,BRANCH,DEPLOY_KEY,GHCR_TOKEN,GHCR_USER
           timeout:  60s
           command_timeout: 35m
           script: |
@@ -125,9 +126,40 @@ jobs:
               > docker/.env.staging
 
             # ── app_local.php 生成 ─────────────────────────────────────────
-            printf '<?php\nreturn [\n    '"'"'debug'"'"' => true,\n    '"'"'Security'"'"' => ['"'"'salt'"'"' => '"'"'%s'"'"'],\n    '"'"'Datasources'"'"' => ['"'"'default'"'"' => ['"'"'host'"'"' => '"'"'stg_db'"'"', '"'"'database'"'"' => '"'"'%s'"'"', '"'"'username'"'"' => '"'"'%s'"'"', '"'"'password'"'"' => '"'"'%s'"'"']],\n];\n' \
-              "${APP_SALT}" "${DB_NAME}" "${DB_USER}" "${DB_PASS}" \
-              > src_web/kamaho-shokusu/config/app_local.php
+            cat > src_web/kamaho-shokusu/config/app_local.php << PHPEOF
+<?php
+return [
+    'debug' => true,
+    'Security' => ['salt' => '${APP_SALT}'],
+    'Datasources' => [
+        'default' => [
+            'host'     => 'stg_db',
+            'database' => '${DB_NAME}',
+            'username' => '${DB_USER}',
+            'password' => '${DB_PASS}',
+        ],
+    ],
+    'EmailTransport' => [
+        'default' => [
+            'className' => 'Smtp',
+            'host'      => 'smtp.resend.com',
+            'port'      => 465,
+            'username'  => 'resend',
+            'password'  => '${RESEND_API_KEY}',
+            'tls'       => true,
+            'client'    => null,
+        ],
+    ],
+    'Email' => [
+        'default' => [
+            'transport'     => 'default',
+            'from'          => ['no-reply@kamaho-shokusu.jp' => 'かまほ食数管理システム'],
+            'charset'       => 'utf-8',
+            'headerCharset' => 'utf-8',
+        ],
+    ],
+];
+PHPEOF
 
             # ── ghcr.io からイメージを pull & 起動 ────────────────────────
             cd docker
