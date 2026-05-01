@@ -143,6 +143,11 @@ jobs:
             docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
             docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
 
+            # ── plugins.php が存在しない場合は生成 ───────────────────────────
+            docker exec stg_web bash -c \
+              "[ -f /var/www/html/kamaho-shokusu/config/plugins.php ] || \
+               printf '<?php\nreturn [];\n' > /var/www/html/kamaho-shokusu/config/plugins.php"
+
             # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
             sleep 5
             cd /home/ubuntu/shokusuu1
