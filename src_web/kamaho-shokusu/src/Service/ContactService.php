@@ -139,7 +139,10 @@ class ContactService
             return ['success' => false, 'errors' => ['save' => '保存に失敗しました。']];
         }
 
-        $this->sendReplyMail($contact, trim($replyBody));
+        try {
+            $this->sendReplyMail($contact, trim($replyBody));
+        } catch (\Throwable) {
+        }
 
         return ['success' => true, 'errors' => []];
     }
