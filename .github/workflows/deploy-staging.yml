@@ -126,40 +126,40 @@ jobs:
               > docker/.env.staging
 
             # ── app_local.php 生成 ─────────────────────────────────────────
-            cat > src_web/kamaho-shokusu/config/app_local.php << PHPEOF
-<?php
-return [
-    'debug' => true,
-    'Security' => ['salt' => '${APP_SALT}'],
-    'Datasources' => [
-        'default' => [
-            'host'     => 'stg_db',
-            'database' => '${DB_NAME}',
-            'username' => '${DB_USER}',
-            'password' => '${DB_PASS}',
-        ],
-    ],
-    'EmailTransport' => [
-        'default' => [
-            'className' => 'Smtp',
-            'host'      => 'smtp.resend.com',
-            'port'      => 465,
-            'username'  => 'resend',
-            'password'  => '${RESEND_API_KEY}',
-            'tls'       => true,
-            'client'    => null,
-        ],
-    ],
-    'Email' => [
-        'default' => [
-            'transport'     => 'default',
-            'from'          => ['no-reply@kamaho-shokusu.jp' => 'かまほ食数管理システム'],
-            'charset'       => 'utf-8',
-            'headerCharset' => 'utf-8',
-        ],
-    ],
-];
-PHPEOF
+            {
+              echo "<?php"
+              echo "return ["
+              echo "    'debug' => true,"
+              echo "    'Security' => ['salt' => '${APP_SALT}'],"
+              echo "    'Datasources' => ["
+              echo "        'default' => ["
+              echo "            'host'     => 'stg_db',"
+              echo "            'database' => '${DB_NAME}',"
+              echo "            'username' => '${DB_USER}',"
+              echo "            'password' => '${DB_PASS}',"
+              echo "        ],"
+              echo "    ],"
+              echo "    'EmailTransport' => ["
+              echo "        'default' => ["
+              echo "            'className' => 'Smtp',"
+              echo "            'host'      => 'smtp.resend.com',"
+              echo "            'port'      => 465,"
+              echo "            'username'  => 'resend',"
+              echo "            'password'  => '${RESEND_API_KEY}',"
+              echo "            'tls'       => true,"
+              echo "            'client'    => null,"
+              echo "        ],"
+              echo "    ],"
+              echo "    'Email' => ["
+              echo "        'default' => ["
+              echo "            'transport'     => 'default',"
+              echo "            'from'          => ['no-reply@kamaho-shokusu.jp' => 'かまほ食数管理システム'],"
+              echo "            'charset'       => 'utf-8',"
+              echo "            'headerCharset' => 'utf-8',"
+              echo "        ],"
+              echo "    ],"
+              echo "];"
+            } > src_web/kamaho-shokusu/config/app_local.php
 
             # ── ghcr.io からイメージを pull & 起動 ────────────────────────
             cd docker
