@@ -69,6 +69,10 @@ jobs:
               "${DB_ROOT_PASS}" \
               sql/updates
 
+            # ── plugins.php が存在しない場合は生成 ───────────────────────────
+            PLUGINS_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/config/plugins.php"
+            [ -f "$PLUGINS_FILE" ] || printf '<?php\nreturn [];\n' > "$PLUGINS_FILE"
+
             # ── CakePHP マイグレーション実行 ──────────────────────────────────
             echo "── Running CakePHP migrations ───────────────────────────────────"
             cd "$DEPLOY_PATH/src_web/kamaho-shokusu"
