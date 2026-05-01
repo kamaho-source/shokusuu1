@@ -75,9 +75,7 @@ jobs:
 
             # ── CakePHP マイグレーション実行 ──────────────────────────────────
             echo "── Running CakePHP migrations ───────────────────────────────────"
-            cd "$DEPLOY_PATH/src_web/kamaho-shokusu"
-            php bin/cake migrations migrate
-            cd "$DEPLOY_PATH"
+            docker exec kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
 
             # ── .env に RESEND_API_KEY を注入 ──────────────────────────────────
             ENV_FILE="$DEPLOY_PATH/.env"
