@@ -9,7 +9,7 @@ class CreateTContactReplies extends AbstractMigration
     {
         $table = $this->table('t_contact_replies');
         $table
-            ->addColumn('contact_id', 'integer', ['null' => false])
+            ->addColumn('contact_id', 'integer', ['null' => false, 'signed' => false])
             ->addColumn('body', 'text', ['null' => false])
             ->addColumn('sent_at', 'datetime', ['null' => false])
             ->addColumn('created', 'datetime', ['null' => false])
