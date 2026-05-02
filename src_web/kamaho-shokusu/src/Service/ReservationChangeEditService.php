@@ -19,14 +19,6 @@ class ReservationChangeEditService
     public function getAllowedRooms($loginUser, ?int $roomId, Table $userGroupTable, Table $roomTable): array
     {
         $loginUid = (int)($loginUser?->get('i_id_user') ?? 0);
-        $isAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 1;
-
-        if ($isAdmin) {
-            return $roomTable->find('list', [
-                'keyField' => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])->toArray();
-        }
 
         $allowedRooms = $this->roomAccessService->getAccessibleRooms($roomTable, $loginUid);
 
@@ -41,6 +33,38 @@ class ReservationChangeEditService
         }
 
         return $allowedRooms;
+    }
+
+    /**
+     * 許可部屋の中から、指定日に予約レコードが存在する部屋IDを返す。
+     * 該当がなければ先頭の部屋IDを返す。
+     *
+     * @param array<int, string> $allowedRooms
+     */
+    public function resolveDefaultRoomId(array $allowedRooms, string $date, Table $reservationTable): ?int
+    {
+        if (empty($allowedRooms)) {
+            return null;
+        }
+
+        if (count($allowedRooms) === 1) {
+            return (int)array_key_first($allowedRooms);
+        }
+
+        $row = $reservationTable->find()
+            ->select(['i_id_room'])
+            ->where([
+                'd_reservation_date'    => $date,
+                'i_id_room IN'          => array_keys($allowedRooms),
+                'i_reservation_type IN' => [1, 2, 3, 4],
+            ])
+            ->first();
+
+        if ($row) {
+            return (int)$row->i_id_room;
+        }
+
+        return (int)array_key_first($allowedRooms);
     }
 
     public function buildContext(
