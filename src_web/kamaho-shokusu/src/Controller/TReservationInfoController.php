@@ -939,6 +939,16 @@ class TReservationInfoController extends AppController
             if ($isModalShell) {
                 $rooms = $allowedRooms; // ★所属部屋のみ
                 $room  = null;
+
+                // roomId 未指定の場合は当日予約のある部屋を初期選択にする
+                if (!$roomId && $date && !empty($rooms)) {
+                    $roomId = $changeEditService->resolveDefaultRoomId(
+                        $rooms,
+                        (string)$date,
+                        $this->TIndividualReservationInfo
+                    );
+                }
+
                 if ($roomId && isset($rooms[(int)$roomId])) {
                     $room = $this->MRoomInfo->find()
                         ->select(['i_id_room', 'c_room_name'])
