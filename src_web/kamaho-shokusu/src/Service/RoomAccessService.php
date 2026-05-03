@@ -87,10 +87,6 @@ class RoomAccessService
             return [];
         }
 
-        if ($this->isOfficeUser($userId)) {
-            return $this->getOfficeRooms($roomTable, $userId);
-        }
-
         $rows = $roomTable->find()
             ->enableAutoFields(false)
             ->select([
