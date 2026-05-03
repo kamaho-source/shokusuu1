@@ -73,18 +73,32 @@ class RoomAccessServiceTest extends TestCase
         ]);
     }
 
-    public function testGetAccessibleRoomsForOfficeUserReturnsOnlyOfficeRooms(): void
+    public function testGetAccessibleRoomsReturnsAllAssignedRooms(): void
     {
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
         $rooms = $this->service->getAccessibleRooms($roomTable, 10);
 
-        $this->assertSame([2 => '事務所'], $rooms);
+        $this->assertSame([2 => '事務所', 3 => '居室A'], $rooms);
     }
 
-    public function testOfficeUserCanAccessOnlyOfficeRoom(): void
+    public function testGetAccessibleRoomsReturnsEmptyForUnknownUser(): void
+    {
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $rooms = $this->service->getAccessibleRooms($roomTable, 0);
+
+        $this->assertSame([], $rooms);
+    }
+
+    public function testUserCanAccessAllAssignedRooms(): void
     {
         $this->assertTrue($this->service->userCanAccessRoom(10, 2));
-        $this->assertFalse($this->service->userCanAccessRoom(10, 3));
+        $this->assertTrue($this->service->userCanAccessRoom(10, 3));
+    }
+
+    public function testUserCannotAccessUnassignedRoom(): void
+    {
+        $this->assertFalse($this->service->userCanAccessRoom(10, 99));
     }
 }

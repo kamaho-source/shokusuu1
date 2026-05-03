@@ -74,10 +74,6 @@ class RoomAccessService
             return false;
         }
 
-        if ($this->isOfficeUser($userId)) {
-            return in_array($roomId, $this->getOfficeRoomIds($userId), true);
-        }
-
         return in_array($roomId, $this->getUserRoomIds($userId), true);
     }
 
