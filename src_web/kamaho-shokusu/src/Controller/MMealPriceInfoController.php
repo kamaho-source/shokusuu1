@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\ApiResponseService;
+use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
 
 /**
@@ -14,17 +15,13 @@ class MMealPriceInfoController extends AppController
 {
 
     protected $MMealPriceInfo;
-    protected $TIndividualReservationInfo;
-    protected $MUserInfo;
-
-
+    private MealSummaryExportService $mealSummaryExportService;
 
     public function initialize(): void
     {
         parent::initialize();
         $this->MMealPriceInfo = $this->fetchTable('MMealPriceInfo');
-        $this->TIndividualReservationInfo = $this->fetchTable('TIndividualReservationInfo');
-        $this->MUserInfo = $this->fetchTable('MUserInfo');
+        $this->mealSummaryExportService = new MealSummaryExportService();
     }
 
     /**
@@ -184,87 +181,10 @@ class MMealPriceInfoController extends AppController
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();
 
-        // リクエストから年度と月を取得
-        $year = $this->request->getQuery('year', date('Y'));
-        $month = $this->request->getQuery('month', date('n')); // 月が指定されていなければ現在の月をデフォルトとする
+        $year  = (int)$this->request->getQuery('year', date('Y'));
+        $month = (int)$this->request->getQuery('month', date('n'));
 
-        // 食事単価を取得 (年度単位)
-        $mealPricesData = $this->MMealPriceInfo->find()
-            ->select(['i_morning_price', 'i_lunch_price', 'i_dinner_price', 'i_bento_price'])
-            ->where(['i_fiscal_year' => $year])
-            ->first();
-
-        $mealPrices = [
-            'morning' => $mealPricesData->i_morning_price ?? 0,
-            'lunch'   => $mealPricesData->i_lunch_price ?? 0,
-            'dinner'  => $mealPricesData->i_dinner_price ?? 0,
-            'bento'   => $mealPricesData->i_bento_price ?? 0,
-        ];
-
-        // 職員IDが存在するユーザーを取得
-        $users = $this->MUserInfo->find()
-            ->select(['i_id_user', 'c_user_name', 'i_id_staff'])
-            ->where(['i_id_staff IS NOT' => null,'i_del_flag' => 0]) // 職員IDが null でないユーザー
-            ->all();
-
-        // 該当月のデータを収集
-        $monthlyData = [];
-
-        foreach ($users as $user) {
-            // 食事の回数を初期化
-            $mealCounts = [
-                'bento'   => 0,
-                'morning' => 0,
-                'lunch'   => 0,
-                'dinner'  => 0,
-            ];
-
-            // 該当ユーザーの食事の回数を集計
-            $reservationRows = $this->TIndividualReservationInfo->find()
-                ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
-                ->where([
-                    'i_id_user' => $user->i_id_user,
-                    'YEAR(d_reservation_date)' => $year,
-                    'MONTH(d_reservation_date)' => $month,
-                    'i_approval_status' => 2,
-                ])
-                ->toArray();
-
-            foreach ($reservationRows as $row) {
-                $effectiveFlag = $row->i_change_flag !== null
-                    ? (int)$row->i_change_flag
-                    : (int)($row->eat_flag ?? 0);
-                if ($effectiveFlag !== 1) {
-                    continue;
-                }
-
-                if ((int)$row->i_reservation_type === 4) {
-                    $mealCounts['bento']++;
-                } elseif ((int)$row->i_reservation_type === 1) {
-                    $mealCounts['morning']++;
-                } elseif ((int)$row->i_reservation_type === 2) {
-                    $mealCounts['lunch']++;
-                } elseif ((int)$row->i_reservation_type === 3) {
-                    $mealCounts['dinner']++;
-                }
-            }
-
-            // 食事料金の計算
-            $mealTotalPrice = (
-                $mealCounts['bento'] * $mealPrices['bento'] +
-                $mealCounts['morning'] * $mealPrices['morning'] +
-                $mealCounts['lunch'] * $mealPrices['lunch'] +
-                $mealCounts['dinner'] * $mealPrices['dinner']
-            );
-
-            // 結果を格納
-            $monthlyData[] = [
-                'name' => $user->c_user_name,
-                'staff_id' => $user->i_id_staff,
-                'meal_counts' => $mealCounts,
-                'total_price' => $mealTotalPrice,
-            ];
-        }
+        $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
 
         return $apiResponse->success($this->response, ['rows' => $monthlyData]);
     }
