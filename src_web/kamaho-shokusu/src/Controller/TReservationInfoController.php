@@ -25,6 +25,7 @@ use App\Exception\OptimisticLockConflictException;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
 use App\Service\ApiResponseService;
+use App\Service\MealReportingService;
 use Cake\Routing\Router;
 
 /**
@@ -62,6 +63,7 @@ class TReservationInfoController extends AppController
     private ReservationCopyService $copyService;
     private ReservationDatePolicy $datePolicy;
     protected ApiResponseService $apiResponseService;
+    protected MealReportingService $mealReportingService;
     /**
      * initialize メソッド
      *
@@ -97,6 +99,7 @@ class TReservationInfoController extends AppController
         );
         $this->copyService = new ReservationCopyService();
         $this->apiResponseService = new ApiResponseService();
+        $this->mealReportingService = new MealReportingService();
         $this->loadComponent('Flash');
 
         // ★ これがあると全アクションが“勝手に JSON 化”されやすいので外す
@@ -172,21 +175,7 @@ class TReservationInfoController extends AppController
             (int)$userId
         );
         $myReservationDates = $this->calendarService->buildMyReservationDates($myReservationDetails);
-        //職員情報を取得する
-        $staff_user = $this->MUserGroup->find()
-            ->enableAutoFields(false)
-            ->select([
-                'user_name' => 'MUserInfo.c_user_name',
-                'staff_id' => 'MUserInfo.i_id_staff',
-                'is_admin' => 'MUserInfo.i_admin',
-            ])
-            ->innerJoin(
-                ['MUserInfo' => 'm_user_info'],
-                ['MUserInfo.i_id_user = MUserGroup.i_id_user']
-            )
-            ->where(['MUserGroup.i_id_user' => $userId])
-            ->enableHydration(false)
-            ->toArray();
+        $staff_user = $this->calendarService->getStaffUserInfo($this->MUserGroup, (int)$userId);
 
         /* ========== ビューへ ========== */
         $this->set(compact(
@@ -1627,7 +1616,6 @@ class TReservationInfoController extends AppController
 
         $authUser = $this->Authentication->getIdentity();
         $actor = (string)($authUser?->get('c_user_name') ?? 'system');
-        $now = \Cake\I18n\DateTime::now('Asia/Tokyo');
 
         foreach ($keys as $key) {
             $targetUid = (int)($key['user_id'] ?? 0);
@@ -1645,22 +1633,8 @@ class TReservationInfoController extends AppController
             }
         }
 
-        $affectedTotal = 0;
-        foreach ($keys as $key) {
-            $affectedTotal += $this->TIndividualReservationInfo->updateAll(
-                [
-                    'i_approval_status' => 0,
-                    'dt_update' => $now,
-                    'c_update_user' => $actor,
-                ],
-                [
-                    'i_id_user' => (int)$key['user_id'],
-                    'i_id_room' => (int)$key['room_id'],
-                    'd_reservation_date' => (string)$key['date'],
-                    'i_reservation_type' => (int)$key['meal_type'],
-                ]
-            );
-        }
+        $service       = new \App\Service\ActualMealManagementService();
+        $affectedTotal = $service->requestApproval($this->TIndividualReservationInfo, $keys, $actor);
 
         return $this->apiResponseService->success(
             $this->response,
