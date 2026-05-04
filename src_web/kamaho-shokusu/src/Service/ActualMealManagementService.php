@@ -284,6 +284,38 @@ class ActualMealManagementService
     }
 
     /**
+     * 実食確認の承認申請をまとめて行う（i_approval_status を 0 にリセット）。
+     *
+     * @param Table  $reservationTable TIndividualReservationInfo テーブル
+     * @param array  $keys             申請対象キーの配列（user_id, room_id, date, meal_type を含む）
+     * @param string $actor            操作者ユーザー名
+     * @return int 更新件数合計
+     */
+    public function requestApproval(Table $reservationTable, array $keys, string $actor): int
+    {
+        $now          = \Cake\I18n\DateTime::now('Asia/Tokyo');
+        $affectedTotal = 0;
+
+        foreach ($keys as $key) {
+            $affectedTotal += $reservationTable->updateAll(
+                [
+                    'i_approval_status' => 0,
+                    'dt_update'         => $now,
+                    'c_update_user'     => $actor,
+                ],
+                [
+                    'i_id_user'          => (int)$key['user_id'],
+                    'i_id_room'          => (int)$key['room_id'],
+                    'd_reservation_date' => (string)$key['date'],
+                    'i_reservation_type' => (int)$key['meal_type'],
+                ]
+            );
+        }
+
+        return $affectedTotal;
+    }
+
+    /**
      * 管理者が選択可能な最も古い週の月曜日を返す（過去2ヶ月）。
      *
      * @return \DateTimeImmutable
