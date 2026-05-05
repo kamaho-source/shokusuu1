@@ -451,13 +451,14 @@ class MUserInfoController extends AppController
             } else {
                 $defaultRedirect = ['controller' => 'Pages', 'action' => 'display', 'home'];
             }
-            $redirect = $this->request->getQuery('redirect', $defaultRedirect);
+            $redirectParam = $this->request->getQuery('redirect');
+            $redirect = $this->isSafeRedirect($redirectParam) ? $redirectParam : $defaultRedirect;
             return $this->redirect($redirect);
         }
 
         if ($this->request->is('post') && !$result->isValid()) {
             $status = $result ? $result->getStatus() : 'Result is null';
-            $this->log(print_r($status, true), 'debug');
+            $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
         }
     }

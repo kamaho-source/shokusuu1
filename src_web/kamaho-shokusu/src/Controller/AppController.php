@@ -57,6 +57,23 @@ class AppController extends Controller
     }
 
 
+    /**
+     * リダイレクト先が安全な内部パスかどうかを検証する。
+     * 外部ドメインやプロトコル相対URLへのオープンリダイレクトを防ぐ。
+     */
+    protected function isSafeRedirect(mixed $url): bool
+    {
+        if (!is_string($url) || $url === '') {
+            return false;
+        }
+        // '//' や 'http://' 等の外部URLは拒否
+        if (preg_match('#^(https?:)?//#i', $url)) {
+            return false;
+        }
+        // '/' から始まる内部パスのみ許可
+        return str_starts_with($url, '/');
+    }
+
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);

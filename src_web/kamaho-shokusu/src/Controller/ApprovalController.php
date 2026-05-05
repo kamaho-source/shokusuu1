@@ -95,7 +95,8 @@ class ApprovalController extends AppController
             $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
-            return $this->jsonError($e->getMessage(), 500);
+            $this->log('blockLeaderApprove error: ' . $e->getMessage(), 'error');
+            return $this->jsonError('承認処理中にエラーが発生しました。', 500);
         }
     }
 
@@ -125,7 +126,8 @@ class ApprovalController extends AppController
             $ok = $this->approvalService->reject($keys, $approver, $actor, $reason);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
-            return $this->jsonError($e->getMessage(), 500);
+            $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
+            return $this->jsonError('却下処理中にエラーが発生しました。', 500);
         }
     }
 
@@ -192,7 +194,8 @@ class ApprovalController extends AppController
             $ok = $this->approvalService->adminApprove($keys, $approver, $actor);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
-            return $this->jsonError($e->getMessage(), 500);
+            $this->log('adminApprove error: ' . $e->getMessage(), 'error');
+            return $this->jsonError('承認処理中にエラーが発生しました。', 500);
         }
     }
 
@@ -222,7 +225,8 @@ class ApprovalController extends AppController
             $ok = $this->approvalService->reject($keys, $approver, $actor, $reason);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
-            return $this->jsonError($e->getMessage(), 500);
+            $this->log('adminReject error: ' . $e->getMessage(), 'error');
+            return $this->jsonError('却下処理中にエラーが発生しました。', 500);
         }
     }
 
@@ -247,7 +251,8 @@ class ApprovalController extends AppController
             $count = $this->approvalService->reflectToReservation($roomId, $date, $actor);
             return $this->jsonResponse(['success' => true, 'count' => $count]);
         } catch (\Throwable $e) {
-            return $this->jsonError($e->getMessage(), 500);
+            $this->log('adminReflect error: ' . $e->getMessage(), 'error');
+            return $this->jsonError('反映処理中にエラーが発生しました。', 500);
         }
     }
 
