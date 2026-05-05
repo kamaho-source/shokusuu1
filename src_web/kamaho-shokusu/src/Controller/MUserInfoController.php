@@ -453,6 +453,9 @@ class MUserInfoController extends AppController
                 return $this->redirect(['action' => 'login']);
             }
 
+            // セッション固定化攻撃対策：ログイン成功時にセッションIDを再生成する
+            $this->request->getSession()->renew();
+
             if ((int)$user->i_admin === 1) {
                 $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
             } elseif ((int)$user->i_user_level === 1) {
