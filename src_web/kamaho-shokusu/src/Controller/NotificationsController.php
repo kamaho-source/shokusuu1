@@ -14,6 +14,13 @@ class NotificationsController extends AppController
     {
         parent::initialize();
         $this->notificationService = new NotificationService();
+
+        if (isset($this->FormProtection)) {
+            $this->FormProtection->setConfig('unlockedActions', [
+                'markRead',
+                'markAllRead',
+            ]);
+        }
     }
 
     public function index(): ?Response
