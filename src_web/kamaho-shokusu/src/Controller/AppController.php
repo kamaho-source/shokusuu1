@@ -49,13 +49,26 @@ class AppController extends Controller
         $this->loadComponent('Authorization.Authorization');
         $this->notificationService = new NotificationService();
         $this->set('user', $this->Authentication->getIdentity());
-        /*
-         * Enable the following component for recommended CakePHP form protection settings.
-         * see https://book.cakephp.org/4/en/controllers/components/form-protection.html
-         */
-        //$this->loadComponent('FormProtection');
+        $this->loadComponent('FormProtection');
     }
 
+
+    /**
+     * リダイレクト先が安全な内部パスかどうかを検証する。
+     * 外部ドメインやプロトコル相対URLへのオープンリダイレクトを防ぐ。
+     */
+    protected function isSafeRedirect(mixed $url): bool
+    {
+        if (!is_string($url) || $url === '') {
+            return false;
+        }
+        // '//' や 'http://' 等の外部URLは拒否
+        if (preg_match('#^(https?:)?//#i', $url)) {
+            return false;
+        }
+        // '/' から始まる内部パスのみ許可
+        return str_starts_with($url, '/');
+    }
 
     public function beforeFilter(EventInterface $event)
     {

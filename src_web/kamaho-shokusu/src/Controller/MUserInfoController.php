@@ -46,6 +46,15 @@ class MUserInfoController extends AppController
         $this->userPermissionService    = new UserPermissionService();
         $this->userRestoreService       = new UserRestoreService();
         $this->userRoomAssignmentService = new UserRoomAssignmentService();
+
+        if (isset($this->FormProtection)) {
+            $this->FormProtection->setConfig('unlockedActions', [
+                'importJson',
+                'updateAdminStatus',
+                'updateUserLevel',
+                'addUserRooms',
+            ]);
+        }
     }
 
     public function beforeFilter(EventInterface $event)
@@ -451,13 +460,14 @@ class MUserInfoController extends AppController
             } else {
                 $defaultRedirect = ['controller' => 'Pages', 'action' => 'display', 'home'];
             }
-            $redirect = $this->request->getQuery('redirect', $defaultRedirect);
+            $redirectParam = $this->request->getQuery('redirect');
+            $redirect = $this->isSafeRedirect($redirectParam) ? $redirectParam : $defaultRedirect;
             return $this->redirect($redirect);
         }
 
         if ($this->request->is('post') && !$result->isValid()) {
             $status = $result ? $result->getStatus() : 'Result is null';
-            $this->log(print_r($status, true), 'debug');
+            $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
         }
     }

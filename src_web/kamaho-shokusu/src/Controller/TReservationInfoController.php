@@ -107,7 +107,17 @@ class TReservationInfoController extends AppController
         $this->viewBuilder()->setLayout('default');
 
         if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', ['toggle']);
+            $this->FormProtection->setConfig('unlockedActions', [
+                'toggle',
+                'checkDuplicateReservation',
+                'changeEdit',
+                'bulkChangeEditSubmit',
+                'bulkAddSubmit',
+                'copy',
+                'copyPreview',
+                'actualMealSave',
+                'actualMealRequestApproval',
+            ]);
         }
     }
 
@@ -237,8 +247,17 @@ class TReservationInfoController extends AppController
         try {
             $startDate = new Date($start);
             $endDate   = new Date($end);
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
+        }
+
+        $diffDays = $startDate->diffInDays($endDate, false);
+        if ($diffDays < 0) {
+            return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
+        }
+
+        if ($diffDays > 366) {
+            return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
         $isAdmin = (int)($user->i_admin ?? 0) === 1;
@@ -316,8 +335,7 @@ class TReservationInfoController extends AppController
     {
         $this->authorizeReservation('roomDetails', ['i_id_room' => (int)$roomId]);
 
-        // パラメータのログ出力
-        $this->log("roomId: $roomId, date: $date, mealType: $mealType", 'debug');
+        $this->log(sprintf('roomId: %d, date: %s, mealType: %d', (int)$roomId, preg_replace('/[\r\n\t]/', '', (string)$date), (int)$mealType), 'debug');
 
         if (empty($roomId) || empty($date) || empty($mealType)) {
             throw new \InvalidArgumentException('部屋ID、日付、または食事タイプが指定されていません。');
@@ -513,7 +531,7 @@ class TReservationInfoController extends AppController
      * ユーザーの権限に基づいて、個人予約またはグループ予約を処理します。
      */
 
-    public function add(): ?Response
+    public function add()
     {
         $this->authorizeReservation('add');
 
@@ -1103,7 +1121,7 @@ class TReservationInfoController extends AppController
                     ->withStringBody(json_encode([
                         'ok' => false,
                         'status'  => 'error',
-                        'message' => $e->getMessage() ?: '直前予約の取得中にエラーが発生しました。',
+                        'message' => '直前予約の取得中にエラーが発生しました。',
                         'data' => [],
                     ], JSON_UNESCAPED_UNICODE));
             }
