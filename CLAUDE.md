@@ -123,17 +123,17 @@ vendor/bin/phpunit tests/TestCase/Domain/   # 層ごと
 ## 9. ブランチ戦略
 
 ```
-main     ← 本番リリース用（直接push禁止）
-develop  ← 統合ブランチ（PRのベース）
+main     ← 本番リリース用（PRのベース）
 feature/ ← 機能開発
 fix/     ← バグ修正
 hotfix/  ← 緊急本番修正
 ```
 
-**PRのベースブランチは必ず `develop` を指定すること。`main` への直接PRは禁止。**
+**ブランチは必ず `main` から切ること。PRのベースブランチも必ず `main` を指定すること。**
 
 ```bash
-gh pr create --base develop --title "feat: 機能名" --body "..."
+git checkout -b feature/xxx main
+gh pr create --base main --title "feat: 機能名" --body "..."
 ```
 
 コミットメッセージは Conventional Commits に従う（`feat:` / `fix:` / `refactor:` / `test:` / `docs:`）。
