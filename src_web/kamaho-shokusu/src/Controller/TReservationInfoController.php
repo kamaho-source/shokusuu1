@@ -107,7 +107,17 @@ class TReservationInfoController extends AppController
         $this->viewBuilder()->setLayout('default');
 
         if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', ['toggle']);
+            $this->FormProtection->setConfig('unlockedActions', [
+                'toggle',
+                'checkDuplicateReservation',
+                'changeEdit',
+                'bulkChangeEditSubmit',
+                'bulkAddSubmit',
+                'copy',
+                'copyPreview',
+                'actualMealSave',
+                'actualMealRequestApproval',
+            ]);
         }
     }
 
@@ -237,8 +247,17 @@ class TReservationInfoController extends AppController
         try {
             $startDate = new Date($start);
             $endDate   = new Date($end);
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
+        }
+
+        $diffDays = $startDate->diffInDays($endDate, false);
+        if ($diffDays < 0) {
+            return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
+        }
+
+        if ($diffDays > 366) {
+            return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
         $isAdmin = (int)($user->i_admin ?? 0) === 1;

@@ -49,11 +49,7 @@ class AppController extends Controller
         $this->loadComponent('Authorization.Authorization');
         $this->notificationService = new NotificationService();
         $this->set('user', $this->Authentication->getIdentity());
-        /*
-         * Enable the following component for recommended CakePHP form protection settings.
-         * see https://book.cakephp.org/4/en/controllers/components/form-protection.html
-         */
-        //$this->loadComponent('FormProtection');
+        $this->loadComponent('FormProtection');
     }
 
 

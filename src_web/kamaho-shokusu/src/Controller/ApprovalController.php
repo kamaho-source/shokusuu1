@@ -26,6 +26,16 @@ class ApprovalController extends AppController
         $this->approvalService   = new ApprovalService();
         $this->roomAccessService = new RoomAccessService();
         $this->approvalPolicy    = new ApprovalPolicy();
+
+        if (isset($this->FormProtection)) {
+            $this->FormProtection->setConfig('unlockedActions', [
+                'blockLeaderApprove',
+                'blockLeaderReject',
+                'adminApprove',
+                'adminReject',
+                'adminReflect',
+            ]);
+        }
     }
 
     // ------------------------------------------------------------------
