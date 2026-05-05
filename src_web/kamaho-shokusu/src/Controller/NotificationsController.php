@@ -29,7 +29,7 @@ class NotificationsController extends AppController
 
         $user = $this->Authentication->getIdentity();
         if ($user === null) {
-            return $this->redirect('/MUserInfo/login');
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
         }
 
         $userId = (int)$user->get('i_id_user');

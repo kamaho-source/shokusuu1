@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller\Traits;
 
-use Cake\Core\Configure;
 use Cake\Log\Log;
 
 trait ReservationCopyActionsTrait
@@ -80,8 +79,7 @@ trait ReservationCopyActionsTrait
             return $this->apiResponseService->error(
                 $this->response,
                 'コピー処理中にエラーが発生しました。',
-                500,
-                ['detail' => Configure::read('debug') ? $e->getMessage() : null]
+                500
             );
         }
     }
@@ -141,8 +139,7 @@ trait ReservationCopyActionsTrait
             return $this->apiResponseService->error(
                 $this->response,
                 'プレビュー取得中にエラーが発生しました。',
-                500,
-                ['detail' => Configure::read('debug') ? $e->getMessage() : null]
+                500
             );
         }
     }
