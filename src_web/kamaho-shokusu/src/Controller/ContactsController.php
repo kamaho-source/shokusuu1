@@ -26,7 +26,7 @@ class ContactsController extends AppController
 
         $user = $this->Authentication->getIdentity();
         if ($user === null) {
-            return $this->redirect('/MUserInfo/login');
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
         }
 
         $categories = TContactsTable::CATEGORIES;
@@ -65,13 +65,13 @@ class ContactsController extends AppController
 
         $user = $this->Authentication->getIdentity();
         if ($user === null) {
-            return $this->redirect('/MUserInfo/login');
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
         }
 
         // 管理者のみアクセス可能
         if ((int)$user->get('i_admin') !== 1) {
             $this->Flash->error('管理者のみアクセスできます。');
-            return $this->redirect('/');
+            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
 
         $page    = (int)($this->request->getQuery('page') ?? 1);
@@ -90,12 +90,12 @@ class ContactsController extends AppController
 
         $user = $this->Authentication->getIdentity();
         if ($user === null) {
-            return $this->redirect('/MUserInfo/login');
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
         }
 
         if ((int)$user->get('i_admin') !== 1) {
             $this->Flash->error('管理者のみアクセスできます。');
-            return $this->redirect('/');
+            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
 
         $contact = $this->contactService->getDetail($id);

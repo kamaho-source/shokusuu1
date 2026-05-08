@@ -21,17 +21,16 @@ class MMenuInfoController extends AppController
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
-        $this->Authorization->skipAuthorization();
     }
 
     public function index()
     {
-
+        $this->Authorization->skipAuthorization();
     }
 
     public function generateMenuChat()
     {
+        $this->Authorization->skipAuthorization();
         $this->autoRender = false;
-
     }
 }
