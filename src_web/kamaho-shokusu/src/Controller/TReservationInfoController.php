@@ -341,6 +341,10 @@ class TReservationInfoController extends AppController
             throw new \InvalidArgumentException('部屋ID、日付、または食事タイプが指定されていません。');
         }
 
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$date)) {
+            throw new \InvalidArgumentException('日付の形式が正しくありません。');
+        }
+
         if (!is_numeric($mealType)) {
             throw new \InvalidArgumentException('食事タイプは整数である必要があります。');
         }

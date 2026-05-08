@@ -68,13 +68,7 @@ class ApprovalController extends AppController
             $userId, $filterRoomId, $dateFrom, $dateTo, $filterStatus
         );
 
-        $roomTable = $this->fetchTable('MRoomInfo');
-        $rooms = $roomTable->find()
-            ->where(['i_id_room IN' => empty($roomIds) ? [0] : $roomIds, 'i_del_flg' => 0])
-            ->order(['i_disp_no' => 'ASC'])
-            ->all()
-            ->combine('i_id_room', 'c_room_name')
-            ->toArray();
+        $rooms = $this->roomAccessService->getRoomsByIds($roomIds);
 
         $this->set(compact('records', 'rooms', 'filterRoomId', 'filterStatus', 'dateFrom', 'dateTo'));
         return null;
@@ -167,13 +161,7 @@ class ApprovalController extends AppController
         $records = $this->approvalService->getAdminList($filterRoomId, $dateFrom, $dateTo, $filterStatus);
         $summary = $this->approvalService->getAdminSummary($dateFrom, $dateTo);
 
-        $roomTable = $this->fetchTable('MRoomInfo');
-        $rooms = $roomTable->find()
-            ->where(['i_del_flg' => 0])
-            ->order(['i_disp_no' => 'ASC'])
-            ->all()
-            ->combine('i_id_room', 'c_room_name')
-            ->toArray();
+        $rooms = $this->roomAccessService->getAllActiveRooms();
 
         $this->set(compact('records', 'summary', 'rooms', 'filterRoomId', 'filterStatus', 'dateFrom', 'dateTo'));
         return null;
