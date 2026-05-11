@@ -213,10 +213,16 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'myActualMeal']
         )->setMethods(['GET']);
 
-        // 食数予約 Excel グリッド画面
+        // 食数予約 Excel グリッド画面（28日）
         $builder->connect(
             '/TReservationInfo/meal-count-grid',
             ['controller' => 'TReservationInfo', 'action' => 'mealCountGrid']
+        )->setMethods(['GET']);
+
+        // 食数予約 週次 Excel グリッド画面（7日）
+        $builder->connect(
+            '/TReservationInfo/weekly-meal-grid',
+            ['controller' => 'TReservationInfo', 'action' => 'weeklyMealGrid']
         )->setMethods(['GET']);
 
         // 予約コピープレビューAPI

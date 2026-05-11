@@ -128,13 +128,15 @@ class TReservationInfoController extends AppController
     {
         parent::beforeFilter($event);
 
+        // JSON API エンドポイントは FormProtectionComponent のフォームトークン検証対象外にする。
+        // CSRF 保護は CsrfProtectionMiddleware（X-CSRF-Token ヘッダー）で担保済み。
         $apiActions = [
             'toggle', 'checkDuplicateReservation', 'changeEdit',
             'bulkChangeEditSubmit', 'bulkAddSubmit', 'copy',
             'copyPreview', 'actualMealSave', 'actualMealRequestApproval',
         ];
-        if (isset($this->FormProtection) && in_array($this->request->getParam('action'), $apiActions, true)) {
-            $this->FormProtection->setConfig('validate', false);
+        if (in_array($this->request->getParam('action'), $apiActions, true)) {
+            $this->components()->unload('FormProtection');
         }
     }
 
@@ -1883,6 +1885,132 @@ class TReservationInfoController extends AppController
             'canViewAll'     => $canViewAll,
             'loginUserId'    => $loginUserId,
             'loginName'      => $loginName,
+        ]);
+
+        return null;
+    }
+
+    /**
+     * 食数予約 週次 Excel グリッド画面（7日・全部屋表示）。
+     *
+     * @return \Cake\Http\Response|null
+     */
+    public function weeklyMealGrid(): ?Response
+    {
+        $this->authorizeReservation('weeklyMealGrid');
+
+        $authUser = $this->Authentication->getIdentity();
+        if (!$authUser) {
+            throw new \Cake\Http\Exception\UnauthorizedException('ログインが必要です。');
+        }
+
+        $loginUserId  = (int)$authUser->get('i_id_user');
+        $loginName    = (string)($authUser->get('c_user_name') ?? '');
+        $isAdmin      = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
+        $canViewAll   = $isAdmin || $isOfficeUser;
+
+        $gridService = new \App\Service\MealCountGridService();
+        $today       = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+
+        // 週ナビゲーション（1週単位）
+        $weekParam = $this->request->getQuery('week');
+        $thisMonday = (int)$today->format('N') === 1 ? $today : $today->modify('monday this week');
+
+        $weekMonday = $thisMonday;
+        if ($weekParam !== null) {
+            try {
+                $dt = new \DateTimeImmutable($weekParam, new \DateTimeZone('Asia/Tokyo'));
+                $weekMonday = (int)$dt->format('N') === 1 ? $dt : $dt->modify('monday this week');
+            } catch (\Throwable) {
+                $weekMonday = $thisMonday;
+            }
+        }
+        // 非管理者は今週より前に戻れない
+        if (!$canViewAll && $weekMonday < $thisMonday) {
+            $weekMonday = $thisMonday;
+        }
+        // 未来上限: 今週から4週先まで
+        $futureMonday = $thisMonday->modify('+4 weeks');
+        if ($weekMonday > $futureMonday) {
+            $weekMonday = $futureMonday;
+        }
+
+        $prevMonday = $weekMonday->modify('-7 days');
+        $nextMonday = $weekMonday->modify('+7 days');
+        $oldestMonday = $canViewAll
+            ? $gridService->getAdminOldestAllowedMonday($today)
+            : $thisMonday;
+        $canGoPrev = $prevMonday >= $oldestMonday;
+        $canGoNext = $nextMonday <= $futureMonday;
+
+        $weekMondayStr = $weekMonday->format('Y-m-d');
+        $dates         = $gridService->buildDateRange($weekMondayStr, 7);
+        $periodLabel   = $gridService->buildPeriodLabel($dates);
+
+        // 表示対象の全部屋
+        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUserId);
+        $allRooms    = $this->calendarService->getRoomsForUser(
+            $this->MRoomInfo,
+            $userRoomIds,
+            $canViewAll,
+            $isOfficeUser
+        );
+
+        // 全部屋のユーザーリスト
+        $roomUsers = [];
+        foreach (array_keys($allRooms) as $roomId) {
+            $roomId = (int)$roomId;
+            $roomUsers[$roomId] = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
+        }
+
+        // グリッドデータ構築
+        $gridData = $gridService->buildGrid(
+            $this->TIndividualReservationInfo,
+            $allRooms,
+            $roomUsers,
+            $dates
+        );
+
+        // ログインユーザーの週計（全部屋合算）
+        $loginUserWeeklyTotals = array_fill_keys(array_keys(\App\Service\MealCountGridService::MEALS), 0);
+        foreach ($gridData['rooms'] as $roomData) {
+            $userGrid = $roomData['grid'][$loginUserId] ?? [];
+            foreach ($dates as $d) {
+                foreach (array_keys(\App\Service\MealCountGridService::MEALS) as $mt) {
+                    if (!empty($userGrid[$d][$mt])) {
+                        $loginUserWeeklyTotals[$mt]++;
+                    }
+                }
+            }
+        }
+
+        // ログインユーザーの所属部屋バッジ用
+        $loginUserRooms = [];
+        foreach ($userRoomIds as $rid) {
+            if (isset($allRooms[$rid])) {
+                $loginUserRooms[$rid] = $allRooms[$rid];
+            }
+        }
+
+        $basePath = (string)($this->request->getAttribute('base') ?? '');
+
+        $this->set([
+            'allRooms'               => $allRooms,
+            'gridData'               => $gridData,
+            'weekMondayStr'          => $weekMondayStr,
+            'periodLabel'            => $periodLabel,
+            'prevMonday'             => $prevMonday,
+            'nextMonday'             => $nextMonday,
+            'canGoPrev'              => $canGoPrev,
+            'canGoNext'              => $canGoNext,
+            'isAdmin'                => $isAdmin,
+            'canViewAll'             => $canViewAll,
+            'loginUserId'            => $loginUserId,
+            'loginName'              => $loginName,
+            'loginUserWeeklyTotals'  => $loginUserWeeklyTotals,
+            'loginUserRooms'         => $loginUserRooms,
+            'basePath'               => $basePath,
         ]);
 
         return null;

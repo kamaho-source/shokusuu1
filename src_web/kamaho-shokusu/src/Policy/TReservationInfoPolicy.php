@@ -186,6 +186,11 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user);
     }
 
+    public function canWeeklyMealGrid(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isStaffOrAdmin($user);
+    }
+
     private function isAuthenticated(?IdentityInterface $user): bool
     {
         return $this->getOriginalIdentity($user) !== null;

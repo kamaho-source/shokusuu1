@@ -160,6 +160,11 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                     <div class="menu-title-text">食数予約グリッド</div>
                     <div class="menu-desc">Excelライクな4週間グリッドで予約を管理する</div>
                 </a>
+                <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/weekly-meal-grid') ?>">
+                    <div class="menu-icon" style="background:#e8f4fd;color:#0f5fa5;">📅</div>
+                    <div class="menu-title-text">週次グリッド</div>
+                    <div class="menu-desc">Excelライクな週間ビューで予約を管理する</div>
+                </a>
                 <button class="menu-card border-0 text-start" type="button" id="actual-meal-choice-trigger">
                     <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
                     <div class="menu-title-text">実食入力</div>
