@@ -3,10 +3,107 @@
 /* ── 食事種別定数 ── */
 var MEAL = { BREAKFAST: 1, LUNCH: 2, DINNER: 3, BENTO: 4 };
 
+/* ── 部屋名マップ（PHP から注入） ── */
+var MCG_ROOM_NAMES = (window.MCG_CONFIG && window.MCG_CONFIG.rooms) ? window.MCG_CONFIG.rooms : {};
+
 /* ── 昼↔弁当 排他マップ ── */
 var MEAL_OPPONENT = {};
 MEAL_OPPONENT[MEAL.LUNCH] = MEAL.BENTO;
 MEAL_OPPONENT[MEAL.BENTO] = MEAL.LUNCH;
+
+/* ─────────────────────────────────────────────
+ * 排他制御（他部屋予約チェック）
+ * ─────────────────────────────────────────── */
+
+/**
+ * 同一ユーザー・日付・食種のセルを全部屋分取得
+ */
+function mcgGetSiblingCells(userId, date, meal) {
+    return document.querySelectorAll(
+        '.mcg-toggleable[data-user-id="' + userId + '"]' +
+        '[data-date="' + date + '"]' +
+        '[data-meal="' + meal + '"]'
+    );
+}
+
+/**
+ * 指定ユーザー・日付・食種の排他状態を更新する。
+ * 他部屋で予約済みのセルを conflict 状態にし、自身の予約がなければ解除する。
+ */
+function mcgSyncConflicts(userId, date, meal) {
+    var cells = mcgGetSiblingCells(userId, date, meal);
+    if (cells.length <= 1) return; // 複数部屋にまたがっていなければ不要
+
+    var reservedRoomId = null;
+    cells.forEach(function (cell) {
+        if (cell.dataset.reserved === '1') {
+            reservedRoomId = cell.dataset.roomId;
+        }
+    });
+
+    cells.forEach(function (cell) {
+        if (reservedRoomId !== null && cell.dataset.roomId !== reservedRoomId) {
+            var roomName = MCG_ROOM_NAMES[reservedRoomId] || ('部屋' + reservedRoomId);
+            cell.classList.add('mcg-cell-conflict');
+            cell.dataset.conflictMsg = roomName + 'で予約済みのため選択できません';
+        } else {
+            cell.classList.remove('mcg-cell-conflict');
+            delete cell.dataset.conflictMsg;
+        }
+    });
+}
+
+/**
+ * ページ初期表示時に全セルの排他状態を一括設定する
+ */
+function mcgInitConflicts() {
+    var seen = Object.create(null);
+    document.querySelectorAll('.mcg-toggleable').forEach(function (cell) {
+        var key = cell.dataset.userId + '|' + cell.dataset.date + '|' + cell.dataset.meal;
+        if (!seen[key]) {
+            seen[key] = true;
+            mcgSyncConflicts(cell.dataset.userId, cell.dataset.date, cell.dataset.meal);
+        }
+    });
+}
+
+/* ── コンフリクトツールチップ（フローティング） ── */
+
+var _mcgConflictTip = null;
+
+function mcgShowConflictTip(msg, x, y) {
+    if (!_mcgConflictTip) {
+        _mcgConflictTip = document.createElement('div');
+        _mcgConflictTip.className = 'mcg-conflict-tip';
+        document.body.appendChild(_mcgConflictTip);
+    }
+    _mcgConflictTip.textContent = msg;
+    _mcgConflictTip.style.display = 'block';
+    _mcgConflictTip.style.left = (x + 12) + 'px';
+    _mcgConflictTip.style.top  = (y - 36) + 'px';
+}
+
+function mcgHideConflictTip() {
+    if (_mcgConflictTip) _mcgConflictTip.style.display = 'none';
+}
+
+function mcgInitConflictTip() {
+    document.addEventListener('mouseover', function (e) {
+        var cell = e.target.closest('.mcg-cell-conflict');
+        if (cell && cell.dataset.conflictMsg) {
+            mcgShowConflictTip(cell.dataset.conflictMsg, e.clientX, e.clientY);
+        } else {
+            mcgHideConflictTip();
+        }
+    });
+    document.addEventListener('mousemove', function (e) {
+        if (_mcgConflictTip && _mcgConflictTip.style.display === 'block') {
+            _mcgConflictTip.style.left = (e.clientX + 12) + 'px';
+            _mcgConflictTip.style.top  = (e.clientY - 36) + 'px';
+        }
+    });
+    document.addEventListener('mouseleave', mcgHideConflictTip, true);
+}
 
 /* ─────────────────────────────────────────────
  * Toast 通知
@@ -104,6 +201,7 @@ function mcgInitToggle() {
 
         td.addEventListener('click', function () {
             if (td.dataset.mcgProcessing === '1') return;
+            if (td.classList.contains('mcg-cell-conflict')) return; // 他部屋予約済み
 
             var userId   = td.dataset.userId;
             var roomId   = td.dataset.roomId;
@@ -171,6 +269,8 @@ function mcgInitToggle() {
             })
             .then(function () {
                 mcgFlashCell(td, newValue === 1);
+                mcgSyncConflicts(userId, date, meal);
+                if (opponentCell) mcgSyncConflicts(userId, date, MEAL_OPPONENT[meal]);
             })
             .catch(function (err) {
                 /* 差し戻し */
@@ -190,6 +290,8 @@ function mcgInitToggle() {
                 if (opponentCell) {
                     mcgUpdateDailyTotal(date, MEAL_OPPONENT[meal]);
                 }
+                mcgSyncConflicts(userId, date, meal);
+                if (opponentCell) mcgSyncConflicts(userId, date, MEAL_OPPONENT[meal]);
                 console.error('Toggle error:', err);
                 mcgShowToast(err.message || '通信エラーが発生しました。', 'error');
             })
@@ -218,6 +320,8 @@ function mcgInitCellRef() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    mcgInitConflicts();
+    mcgInitConflictTip();
     mcgInitToggle();
     mcgInitCellRef();
 });

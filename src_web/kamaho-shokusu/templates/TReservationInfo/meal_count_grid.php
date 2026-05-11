@@ -81,6 +81,7 @@ $lastColLtr = 'R'; // 仮: 日計列
     <script>
         window.MCG_CONFIG = {
             basePath: <?= json_encode($basePath, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
+            rooms: <?= json_encode($allRooms, JSON_UNESCAPED_UNICODE) ?>,
         };
     </script>
 </head>

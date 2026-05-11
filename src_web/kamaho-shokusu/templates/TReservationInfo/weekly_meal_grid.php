@@ -75,6 +75,7 @@ $weekGrandTotal = array_sum($weekTotals);
     <script>
         window.WMG_CONFIG = {
             basePath: <?= json_encode($basePath, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
+            rooms: <?= json_encode($allRooms, JSON_UNESCAPED_UNICODE) ?>,
         };
     </script>
 </head>
@@ -342,10 +343,78 @@ $weekGrandTotal = array_sum($weekTotals);
 <script>
 'use strict';
 
-var WMG_BASE = (window.WMG_CONFIG && window.WMG_CONFIG.basePath) ? window.WMG_CONFIG.basePath : '';
-var MEAL_OPPONENT = {};
+var WMG_BASE       = (window.WMG_CONFIG && window.WMG_CONFIG.basePath) ? window.WMG_CONFIG.basePath : '';
+var WMG_ROOM_NAMES = (window.WMG_CONFIG && window.WMG_CONFIG.rooms)    ? window.WMG_CONFIG.rooms    : {};
+var MEAL_OPPONENT  = {};
 MEAL_OPPONENT[2] = 4;
 MEAL_OPPONENT[4] = 2;
+
+/* ─── 排他制御（他部屋予約チェック） ─── */
+
+function wmgSyncConflicts(userId, date, meal) {
+    var cells = document.querySelectorAll(
+        '.wmg-toggleable[data-user-id="' + userId + '"]' +
+        '[data-date="' + date + '"][data-meal="' + meal + '"]'
+    );
+    if (cells.length <= 1) return;
+
+    var reservedRoomId = null;
+    cells.forEach(function (cell) {
+        if (cell.dataset.reserved === '1') reservedRoomId = cell.dataset.roomId;
+    });
+
+    cells.forEach(function (cell) {
+        if (reservedRoomId !== null && cell.dataset.roomId !== reservedRoomId) {
+            var roomName = WMG_ROOM_NAMES[reservedRoomId] || ('部屋' + reservedRoomId);
+            cell.classList.add('wmg-cell-conflict');
+            cell.dataset.conflictMsg = roomName + 'で予約済みのため選択できません';
+        } else {
+            cell.classList.remove('wmg-cell-conflict');
+            delete cell.dataset.conflictMsg;
+        }
+    });
+}
+
+function wmgInitConflicts() {
+    var seen = Object.create(null);
+    document.querySelectorAll('.wmg-toggleable').forEach(function (cell) {
+        var key = cell.dataset.userId + '|' + cell.dataset.date + '|' + cell.dataset.meal;
+        if (!seen[key]) {
+            seen[key] = true;
+            wmgSyncConflicts(cell.dataset.userId, cell.dataset.date, cell.dataset.meal);
+        }
+    });
+}
+
+var _wmgConflictTip = null;
+
+function wmgInitConflictTip() {
+    document.addEventListener('mouseover', function (e) {
+        var cell = e.target.closest('.wmg-cell-conflict');
+        if (cell && cell.dataset.conflictMsg) {
+            if (!_wmgConflictTip) {
+                _wmgConflictTip = document.createElement('div');
+                _wmgConflictTip.className = 'wmg-conflict-tip';
+                document.body.appendChild(_wmgConflictTip);
+            }
+            _wmgConflictTip.textContent = cell.dataset.conflictMsg;
+            _wmgConflictTip.style.display = 'block';
+            _wmgConflictTip.style.left = (e.clientX + 12) + 'px';
+            _wmgConflictTip.style.top  = (e.clientY - 36) + 'px';
+        } else if (_wmgConflictTip) {
+            _wmgConflictTip.style.display = 'none';
+        }
+    });
+    document.addEventListener('mousemove', function (e) {
+        if (_wmgConflictTip && _wmgConflictTip.style.display === 'block') {
+            _wmgConflictTip.style.left = (e.clientX + 12) + 'px';
+            _wmgConflictTip.style.top  = (e.clientY - 36) + 'px';
+        }
+    });
+    document.addEventListener('mouseleave', function () {
+        if (_wmgConflictTip) _wmgConflictTip.style.display = 'none';
+    }, true);
+}
 
 /* ─── Toast ─── */
 function wmgShowToast(message, type) {
@@ -432,6 +501,7 @@ function wmgInitToggle() {
 
         td.addEventListener('click', function () {
             if (td.dataset.wmgProcessing === '1') return;
+            if (td.classList.contains('wmg-cell-conflict')) return; // 他部屋予約済み
 
             var userId   = td.dataset.userId;
             var roomId   = td.dataset.roomId;
@@ -485,7 +555,11 @@ function wmgInitToggle() {
                     return data;
                 });
             })
-            .then(function () { wmgFlashCell(td, newValue === 1); })
+            .then(function () {
+                wmgFlashCell(td, newValue === 1);
+                wmgSyncConflicts(userId, date, meal);
+                if (opponentCell) wmgSyncConflicts(userId, date, MEAL_OPPONENT[meal]);
+            })
             .catch(function (err) {
                 if (snapshot.reserved === '1') wmgSetCellOn(td); else wmgSetCellOff(td);
                 if (opponentCell && opponentSnap) {
@@ -494,6 +568,8 @@ function wmgInitToggle() {
                 wmgUpdateDailyTotal(date, meal);
                 if (opponentCell) wmgUpdateDailyTotal(date, MEAL_OPPONENT[meal]);
                 if (parseInt(userId, 10) === loginUserId) wmgUpdateLoginUserWeeklyTotals();
+                wmgSyncConflicts(userId, date, meal);
+                if (opponentCell) wmgSyncConflicts(userId, date, MEAL_OPPONENT[meal]);
                 wmgShowToast(err.message || '通信エラーが発生しました。', 'error');
             })
             .finally(function () {
@@ -519,6 +595,8 @@ function wmgInitCellRef() {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    wmgInitConflicts();
+    wmgInitConflictTip();
     wmgUpdateLoginUserWeeklyTotals();
     wmgInitToggle();
     wmgInitCellRef();
