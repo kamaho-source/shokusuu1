@@ -43,7 +43,7 @@ foreach ($dates as $d) {
 }
 
 // モード別 URL 生成ヘルパー
-$makeUrl = function (array $params) use ($viewMode, $selectedRoomId, $selectedUserId, $weekMondayStr): string {
+$makeUrl = function (array $params) use ($viewMode, $selectedRoomId, $selectedUserId, $weekMondayStr, $basePath): string {
     $p = array_merge([
         'mode'    => $viewMode,
         'room_id' => $selectedRoomId,
@@ -51,7 +51,7 @@ $makeUrl = function (array $params) use ($viewMode, $selectedRoomId, $selectedUs
         'week'    => $weekMondayStr,
     ], $params);
     $qs = http_build_query(array_filter($p, fn($v) => $v !== null && $v !== ''));
-    return '/TReservationInfo/meal-count-grid' . ($qs ? '?' . $qs : '');
+    return $basePath . '/TReservationInfo/meal-count-grid' . ($qs ? '?' . $qs : '');
 };
 
 $prevUrl   = $makeUrl(['week' => $prevMonday->format('Y-m-d')]);
@@ -135,22 +135,26 @@ $lastColLtr = 'R'; // 仮: 日計列
             <?php endif; ?>
         </select>
 
+        <?php if ($viewMode !== 'individual'): ?>
         <div class="mcg-toolbar-sep"></div>
 
-        <!-- 部屋 -->
+        <!-- 部屋（room / all モードのみ表示） -->
         <span class="mcg-toolbar-label">部屋</span>
-        <select id="js-room-select" onchange="mcgChangeRoom(this.value)"
-                <?= ($viewMode === 'all') ? 'disabled' : '' ?>>
+        <div class="mcg-room-btngroup" id="js-room-btngroup">
             <?php foreach ($allRooms as $rid => $rname): ?>
-                <option value="<?= h($rid) ?>" <?= (int)$rid === $selectedRoomId ? 'selected' : '' ?>>
-                    <?= h($rname) ?>
-                </option>
+                <button type="button"
+                        class="mcg-room-btn<?= (int)$rid === $selectedRoomId ? ' active' : '' ?>"
+                        data-room-id="<?= h($rid) ?>"
+                        <?= ($viewMode === 'all') ? 'disabled' : '' ?>
+                        onclick="mcgChangeRoom(this.dataset.roomId)"
+                ><?= h($rname) ?></button>
             <?php endforeach; ?>
-        </select>
+        </div>
+        <?php endif; ?>
 
-        <!-- 氏名（個人モード時のみ有効） -->
-        <?php if ($viewMode === 'individual' && !empty($nameList)): ?>
-        <span class="mcg-toolbar-label">氏名</span>
+        <!-- 氏名（個人モードのみ・管理者は全ユーザー選択可） -->
+        <?php if ($viewMode === 'individual' && $canViewAll && !empty($nameList)): ?>
+        <span class="mcg-toolbar-label">表示ユーザー</span>
         <select id="js-name-select" onchange="mcgChangeName(this.value)">
             <?php foreach ($nameList as $uid => $uname): ?>
                 <option value="<?= h($uid) ?>" <?= (int)$uid === $selectedUserId ? 'selected' : '' ?>>
@@ -368,25 +372,32 @@ $lastColLtr = 'R'; // 仮: 日計列
 </div><!-- /.excel-window -->
 
 <script>
+var MCG_BASE = (window.MCG_CONFIG && window.MCG_CONFIG.basePath) ? window.MCG_CONFIG.basePath : '';
+
+function mcgActiveRoomId() {
+    var btn = document.querySelector('.mcg-room-btn.active');
+    return btn ? btn.dataset.roomId : '';
+}
+
 function mcgChangeMode(mode) {
-    var roomId = document.getElementById('js-room-select')?.value ?? '';
-    var userId = document.getElementById('js-name-select')?.value ?? '';
+    var roomId = mcgActiveRoomId();
+    var userId = document.getElementById('js-name-select') ? document.getElementById('js-name-select').value : '';
     var week   = <?= json_encode($weekMondayStr) ?>;
-    var qs = new URLSearchParams({ mode, room_id: roomId, user_id: userId, week }).toString();
-    location.href = '/TReservationInfo/meal-count-grid?' + qs;
+    var qs = new URLSearchParams({ mode: mode, room_id: roomId, user_id: userId, week: week }).toString();
+    location.href = MCG_BASE + '/TReservationInfo/meal-count-grid?' + qs;
 }
 function mcgChangeRoom(roomId) {
-    var mode = document.getElementById('js-mode-select')?.value ?? 'individual';
+    var mode = document.getElementById('js-mode-select') ? document.getElementById('js-mode-select').value : 'individual';
     var week = <?= json_encode($weekMondayStr) ?>;
-    var qs = new URLSearchParams({ mode, room_id: roomId, week }).toString();
-    location.href = '/TReservationInfo/meal-count-grid?' + qs;
+    var qs = new URLSearchParams({ mode: mode, room_id: roomId, week: week }).toString();
+    location.href = MCG_BASE + '/TReservationInfo/meal-count-grid?' + qs;
 }
 function mcgChangeName(userId) {
-    var mode   = document.getElementById('js-mode-select')?.value ?? 'individual';
-    var roomId = document.getElementById('js-room-select')?.value ?? '';
+    var mode   = document.getElementById('js-mode-select') ? document.getElementById('js-mode-select').value : 'individual';
+    var roomId = mcgActiveRoomId();
     var week   = <?= json_encode($weekMondayStr) ?>;
-    var qs = new URLSearchParams({ mode, room_id: roomId, user_id: userId, week }).toString();
-    location.href = '/TReservationInfo/meal-count-grid?' + qs;
+    var qs = new URLSearchParams({ mode: mode, room_id: roomId, user_id: userId, week: week }).toString();
+    location.href = MCG_BASE + '/TReservationInfo/meal-count-grid?' + qs;
 }
 </script>
 

@@ -171,6 +171,44 @@ html, body {
     flex-shrink: 0;
 }
 
+/* 部屋ボタングループ */
+.mcg-room-btngroup {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.mcg-room-btn {
+    background: #fff;
+    border: 1px solid #b0b0b0;
+    border-radius: 2px;
+    font-size: 12px;
+    padding: 2px 10px;
+    cursor: pointer;
+    height: 26px;
+    white-space: nowrap;
+    color: #333;
+    transition: background 0.1s, border-color 0.1s;
+    line-height: 1;
+}
+
+.mcg-room-btn:hover:not(:disabled) { background: #e8e8e8; }
+
+.mcg-room-btn.active {
+    background: #217346;
+    color: #fff;
+    border-color: #1a5c38;
+    font-weight: 600;
+}
+
+.mcg-room-btn:disabled {
+    color: #aaa;
+    cursor: default;
+    background: #f5f5f5;
+    border-color: #d5d5d5;
+}
+
 .mcg-period-group {
     display: flex;
     align-items: center;

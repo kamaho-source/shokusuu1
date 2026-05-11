@@ -121,6 +121,22 @@ class TReservationInfoController extends AppController
         }
     }
 
+    /**
+     * @param \Cake\Event\EventInterface $event
+     */
+    public function beforeFilter(\Cake\Event\EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+
+        $apiActions = [
+            'toggle', 'checkDuplicateReservation', 'changeEdit',
+            'bulkChangeEditSubmit', 'bulkAddSubmit', 'copy',
+            'copyPreview', 'actualMealSave', 'actualMealRequestApproval',
+        ];
+        if (isset($this->FormProtection) && in_array($this->request->getParam('action'), $apiActions, true)) {
+            $this->FormProtection->setConfig('validate', false);
+        }
+    }
 
     /**
      * インデックスメソッド
@@ -1788,16 +1804,26 @@ class TReservationInfoController extends AppController
         $dates         = $gridService->buildDateRange($weekMondayStr, 28); // 4週間=28日
         $periodLabel   = $gridService->buildPeriodLabel($dates);
 
+        // 表示対象ユーザーを先に確定（individual モードの部屋自動決定に使う）
+        $selectedUserId = $this->request->getQuery('user_id')
+            ? (int)$this->request->getQuery('user_id')
+            : $loginUserId;
+        if (!$canViewAll) {
+            $selectedUserId = $loginUserId;
+        }
+
         // モード別の表示対象部屋を絞り込む
-        $targetRooms = match ($viewMode) {
-            'all'    => $allRooms,
-            'room'   => ($selectedRoomId !== null && isset($allRooms[$selectedRoomId]))
-                            ? [$selectedRoomId => $allRooms[$selectedRoomId]]
-                            : [],
-            default  => ($selectedRoomId !== null && isset($allRooms[$selectedRoomId]))
-                            ? [$selectedRoomId => $allRooms[$selectedRoomId]]
-                            : [],
-        };
+        if ($viewMode === 'individual') {
+            // 対象ユーザーの所属部屋を自動決定（部屋選択不要）
+            $targetUserRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $selectedUserId);
+            $targetRooms = array_intersect_key($allRooms, array_flip($targetUserRoomIds));
+        } elseif ($viewMode === 'room') {
+            $targetRooms = ($selectedRoomId !== null && isset($allRooms[$selectedRoomId]))
+                ? [$selectedRoomId => $allRooms[$selectedRoomId]]
+                : [];
+        } else {
+            $targetRooms = $allRooms;
+        }
 
         // 部屋ごとのユーザーリスト
         $roomUsers = [];
@@ -1805,20 +1831,8 @@ class TReservationInfoController extends AppController
             $roomId = (int)$roomId;
             $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
 
-            // 個人モード: ログインユーザー（または選択ユーザー）のみ
             if ($viewMode === 'individual') {
-                $selectedUserId = $this->request->getQuery('user_id')
-                    ? (int)$this->request->getQuery('user_id')
-                    : $loginUserId;
-                // 管理者以外は自分だけ
-                if (!$canViewAll) {
-                    $selectedUserId = $loginUserId;
-                }
                 $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
-                // 対象ユーザーが一覧にいない場合はログインユーザーをセット
-                if (empty($users) && $roomId === $selectedRoomId) {
-                    $users = [['id' => $loginUserId, 'name' => $loginName]];
-                }
             }
 
             $roomUsers[$roomId] = $users;
@@ -1833,23 +1847,22 @@ class TReservationInfoController extends AppController
         );
         $monthlyTotals = $gridService->buildMonthlyTotals($gridData);
 
-        // 個人モード用の氏名リスト（選択部屋のユーザー）
+        // 個人モード用の氏名リスト（管理者は全アクティブユーザー、一般ユーザーは自分のみ）
         $nameList = [];
-        if ($viewMode === 'individual' && $selectedRoomId !== null) {
-            $allUsersInRoom = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $selectedRoomId);
-            foreach ($allUsersInRoom as $u) {
-                $nameList[(int)$u['id']] = $u['name'];
-            }
-            if (!isset($nameList[$loginUserId])) {
+        if ($viewMode === 'individual') {
+            if ($canViewAll) {
+                $activeUsers = $this->MUserInfo->find()
+                    ->select(['i_id_user', 'c_user_name'])
+                    ->where(['i_del_flag' => 0])
+                    ->orderAsc('c_user_name')
+                    ->enableHydration(false)
+                    ->all();
+                foreach ($activeUsers as $u) {
+                    $nameList[(int)$u['i_id_user']] = (string)$u['c_user_name'];
+                }
+            } else {
                 $nameList[$loginUserId] = $loginName;
             }
-        }
-
-        $selectedUserId = $this->request->getQuery('user_id')
-            ? (int)$this->request->getQuery('user_id')
-            : $loginUserId;
-        if (!$canViewAll) {
-            $selectedUserId = $loginUserId;
         }
 
         $this->set([
