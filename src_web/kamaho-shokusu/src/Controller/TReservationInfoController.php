@@ -1724,4 +1724,79 @@ class TReservationInfoController extends AppController
 
         return null;
     }
+
+    /**
+     * 食数予約 Excel グリッド画面。
+     *
+     * 部屋×ユーザー×日付×食事種別のグリッドを表示し、
+     * セルのクリックで予約をトグルできる（既存の toggle API を利用）。
+     *
+     * @return Response|null
+     */
+    public function mealCountGrid(): ?Response
+    {
+        $this->authorizeReservation('mealCountGrid');
+
+        $authUser = $this->Authentication->getIdentity();
+        if (!$authUser) {
+            throw new \Cake\Http\Exception\UnauthorizedException('ログインが必要です。');
+        }
+
+        $userId       = (int)$authUser->get('i_id_user');
+        $isAdmin      = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
+        $canViewAll   = $isAdmin || $isOfficeUser;
+
+        // 表示対象の部屋リスト
+        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
+        $rooms       = $this->calendarService->getRoomsForUser(
+            $this->MRoomInfo,
+            $userRoomIds,
+            $canViewAll,
+            $isOfficeUser
+        );
+
+        // 週ナビゲーション解決
+        $gridService  = new \App\Service\MealCountGridService();
+        $today        = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $weekNav      = $gridService->resolveWeekNavigation(
+            $this->request->getQuery('week'),
+            $isAdmin,
+            $today
+        );
+
+        $weekMondayStr = $weekNav['weekMondayStr'];
+        $dates         = $gridService->buildDateRange($weekMondayStr);
+
+        // 部屋ごとのユーザーリストを取得
+        $roomUsers = [];
+        foreach (array_keys($rooms) as $roomId) {
+            $roomUsers[(int)$roomId] = $gridService->getRoomUsers(
+                $this->MUserGroup,
+                $this->MUserInfo,
+                (int)$roomId
+            );
+        }
+
+        // グリッドデータ構築
+        $gridData = $gridService->buildGrid(
+            $this->TIndividualReservationInfo,
+            $rooms,
+            $roomUsers,
+            $dates
+        );
+
+        $this->set([
+            'rooms'        => $rooms,
+            'gridData'     => $gridData,
+            'weekMondayStr' => $weekMondayStr,
+            'prevMonday'   => $weekNav['prevMonday'],
+            'nextMonday'   => $weekNav['nextMonday'],
+            'canGoPrev'    => $weekNav['canGoPrev'],
+            'canGoNext'    => $weekNav['canGoNext'],
+            'isAdmin'      => $isAdmin,
+        ]);
+
+        return null;
+    }
 }

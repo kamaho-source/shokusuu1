@@ -181,6 +181,11 @@ class TReservationInfoPolicy
         return $this->isAuthenticated($user);
     }
 
+    public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isStaffOrAdmin($user);
+    }
+
     private function isAuthenticated(?IdentityInterface $user): bool
     {
         return $this->getOriginalIdentity($user) !== null;

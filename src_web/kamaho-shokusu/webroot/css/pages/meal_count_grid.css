@@ -1,0 +1,377 @@
+/* ===== 食数予約 Excel グリッド ===== */
+
+body {
+    background: #f4f6fb;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ページヘッダー */
+.mcg-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.mcg-subtitle {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+.mcg-page-header h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.1;
+    color: #0f172a;
+}
+
+/* ナビゲーション */
+.mcg-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mcg-date-range {
+    font-size: 13px;
+    color: #475569;
+    white-space: nowrap;
+    padding: 5px 12px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    font-weight: 500;
+}
+
+/* ツールバー */
+.mcg-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+
+/* ===== グリッドテーブル ===== */
+
+:root {
+    --mcg-col-room-w: 100px;
+    --mcg-col-name-w: 80px;
+    --mcg-fixed-total: 180px;
+    --mcg-cell-w: 22px;
+}
+
+.mcg-grid-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+
+.mcg-grid {
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+}
+
+/* 固定列: 部屋名 */
+.mcg-grid .col-room {
+    width: var(--mcg-col-room-w);
+    min-width: var(--mcg-col-room-w);
+    max-width: var(--mcg-col-room-w);
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: #fff;
+}
+
+/* 固定列: ユーザー名 */
+.mcg-grid .col-name {
+    width: var(--mcg-col-name-w);
+    min-width: var(--mcg-col-name-w);
+    max-width: var(--mcg-col-name-w);
+    position: sticky;
+    left: var(--mcg-col-room-w);
+    z-index: 3;
+    background: #fff;
+    border-right: 2px solid #cbd5e1;
+}
+
+/* ヘッダー全体 */
+.mcg-grid thead th {
+    background: #f8fafc;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.mcg-grid thead th.col-room,
+.mcg-grid thead th.col-name {
+    z-index: 4;
+    background: #f1f5f9;
+}
+
+/* 日付ヘッダー行 */
+.mcg-grid thead tr.header-dates th {
+    text-align: center;
+    padding: 6px 2px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+.mcg-grid thead tr.header-dates th.col-room,
+.mcg-grid thead tr.header-dates th.col-name {
+    vertical-align: middle;
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    text-align: center;
+}
+
+.mcg-grid thead tr.header-dates th.is-today { background: #fffbeb; color: #b45309; }
+.mcg-grid thead tr.header-dates th.is-saturday { color: #2563eb; }
+.mcg-grid thead tr.header-dates th.is-sunday   { color: #dc2626; }
+
+.mcg-grid thead tr.header-dates th.date-group {
+    border-left: 1px solid #cbd5e1;
+}
+
+/* 食事種別ヘッダー行 */
+.mcg-grid thead tr.header-meals th {
+    text-align: center;
+    padding: 3px 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: #94a3b8;
+    border-bottom: 2px solid #cbd5e1;
+    width: var(--mcg-cell-w);
+}
+
+.mcg-grid thead tr.header-meals th.meal-first {
+    border-left: 1px solid #cbd5e1;
+}
+
+/* ── データ行 ── */
+.mcg-grid tbody td {
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+    border-bottom: 1px solid #f1f5f9;
+    height: 28px;
+}
+
+.mcg-grid tbody td.col-room {
+    padding: 4px 6px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+    border-right: 1px solid #e2e8f0;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mcg-grid tbody td.col-name {
+    padding: 4px 6px;
+    text-align: left;
+    font-size: 11px;
+    color: #1e293b;
+    vertical-align: middle;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 食事セル */
+.mcg-grid tbody td.cell-meal {
+    width: var(--mcg-cell-w);
+    cursor: pointer;
+    user-select: none;
+}
+
+.mcg-grid tbody td.meal-first {
+    border-left: 1px solid #e2e8f0;
+}
+
+/* 今日列 */
+.mcg-grid thead th.is-today,
+.mcg-grid tbody td.is-today {
+    background: #fffbeb !important;
+}
+
+/* 土日列 */
+.mcg-grid tbody td.is-saturday { background: #f0f5ff; }
+.mcg-grid tbody td.is-sunday   { background: #fff5f5; }
+
+/* 予約済みマーク（○） */
+.mcg-cell-check {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    border: 2px solid #3b82f6;
+    background: transparent;
+}
+
+/* 部屋グループヘッダー行 */
+.mcg-grid tr.row-room-header td {
+    background: #e2e8f0;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 8px;
+    text-align: left;
+    border-top: 2px solid #cbd5e1;
+}
+
+.mcg-grid tr.row-room-header td.col-room {
+    background: #cbd5e1;
+    border-right-color: #94a3b8;
+}
+
+.mcg-grid tr.row-room-header td.col-name {
+    background: #cbd5e1;
+}
+
+/* 部屋小計行 */
+.mcg-grid tr.row-room-subtotal td {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 11px;
+    font-weight: 700;
+    border-top: 1px solid #bfdbfe;
+    border-bottom: 1px solid #bfdbfe;
+    height: 24px;
+}
+
+.mcg-grid tr.row-room-subtotal td.col-room {
+    background: #dbeafe;
+    font-size: 11px;
+    color: #1d4ed8;
+}
+
+.mcg-grid tr.row-room-subtotal td.col-name {
+    background: #dbeafe;
+}
+
+/* 日計行（最下部） */
+.mcg-grid tr.row-daily-total td {
+    background: #f0fdf4;
+    color: #15803d;
+    font-size: 11px;
+    font-weight: 700;
+    border-top: 2px solid #86efac;
+    height: 26px;
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+}
+
+.mcg-grid tr.row-daily-total td.col-room {
+    background: #dcfce7;
+    color: #15803d;
+    z-index: 3;
+}
+
+.mcg-grid tr.row-daily-total td.col-name {
+    background: #dcfce7;
+    z-index: 3;
+}
+
+/* ===== セルフラッシュアニメーション ===== */
+
+@keyframes mcg-flash-on {
+    0%   { background-color: inherit; }
+    30%  { background-color: #bbf7d0; }
+    100% { background-color: inherit; }
+}
+
+@keyframes mcg-flash-off {
+    0%   { background-color: inherit; }
+    30%  { background-color: #fecaca; }
+    100% { background-color: inherit; }
+}
+
+.mcg-cell-flash-on  { animation: mcg-flash-on  0.55s ease; }
+.mcg-cell-flash-off { animation: mcg-flash-off 0.55s ease; }
+
+/* ===== Toast 通知 ===== */
+
+.mcg-toast-wrap {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.mcg-toast {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    pointer-events: auto;
+    max-width: 320px;
+    word-break: break-word;
+    animation: mcg-toast-in 0.2s ease;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.mcg-toast--hiding {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.mcg-toast--error   { background: #ef4444; }
+.mcg-toast--success { background: #22c55e; }
+.mcg-toast--info    { background: #3b82f6; }
+
+@keyframes mcg-toast-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 凡例 ===== */
+.mcg-legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: #64748b;
+    flex-wrap: wrap;
+}
+
+.mcg-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
