@@ -32,19 +32,54 @@ class MealCountGridService
     private const FUTURE_WEEKS = 4;
 
     /**
-     * 指定月曜日から7日分の日付文字列を返す。
+     * 指定月曜日から $days 日分の日付文字列を返す。
      *
      * @param string $mondayStr YYYY-MM-DD（月曜日）
+     * @param int    $days      日数（デフォルト 28 = 4週間）
      * @return string[]
      */
-    public function buildDateRange(string $mondayStr): array
+    public function buildDateRange(string $mondayStr, int $days = 28): array
     {
         $base  = new \DateTimeImmutable($mondayStr);
         $dates = [];
-        for ($i = 0; $i < 7; $i++) {
+        for ($i = 0; $i < $days; $i++) {
             $dates[] = $base->modify("+{$i} days")->format('Y-m-d');
         }
         return $dates;
+    }
+
+    /**
+     * 期間表示ラベルを返す（例: 2025/11/10 〜 2025/12/07 (28日)）。
+     *
+     * @param string[] $dates
+     * @return string
+     */
+    public function buildPeriodLabel(array $dates): string
+    {
+        if (empty($dates)) {
+            return '';
+        }
+        $start = (new \DateTimeImmutable($dates[0]))->format('Y/m/d');
+        $end   = (new \DateTimeImmutable($dates[count($dates) - 1]))->format('Y/m/d');
+        $days  = count($dates);
+        return "{$start} 〜 {$end} ({$days}日)";
+    }
+
+    /**
+     * 食事種別ごとの月計（集計）を返す。
+     *
+     * @param array $gridData buildGrid() の返却値
+     * @return array<int, int> [mealType => count]
+     */
+    public function buildMonthlyTotals(array $gridData): array
+    {
+        $totals = array_fill_keys(array_keys(self::MEALS), 0);
+        foreach ($gridData['dailyTotals'] as $dateTotals) {
+            foreach ($dateTotals as $mealType => $count) {
+                $totals[$mealType] += (int)$count;
+            }
+        }
+        return $totals;
     }
 
     /**

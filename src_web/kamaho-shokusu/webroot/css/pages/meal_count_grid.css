@@ -1,85 +1,245 @@
 /* ===== 食数予約 Excel グリッド ===== */
 
-body {
-    background: #f4f6fb;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
-/* ページヘッダー */
-.mcg-page-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 12px;
-}
-
-.mcg-subtitle {
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    color: #94a3b8;
-    text-transform: uppercase;
-    margin-bottom: 2px;
-}
-
-.mcg-page-header h1 {
-    font-size: 1.6rem;
-    font-weight: 800;
-    margin: 0;
-    line-height: 1.1;
-    color: #0f172a;
-}
-
-/* ナビゲーション */
-.mcg-nav {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.mcg-date-range {
+html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    font-family: 'Yu Gothic UI', 'Meiryo UI', 'Segoe UI', sans-serif;
     font-size: 13px;
-    color: #475569;
-    white-space: nowrap;
-    padding: 5px 12px;
-    background: #fff;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
+    background: #d4d0c8;
+    color: #000;
+}
+
+/* =====================================================================
+ * Excel ライクなウィンドウ枠
+ * ===================================================================== */
+
+.excel-window {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #f0f0f0;
+}
+
+/* タイトルバー */
+.excel-titlebar {
+    background: #217346;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 4px 12px;
+    gap: 8px;
+    min-height: 32px;
+    flex-shrink: 0;
+}
+
+.excel-titlebar .app-icon {
+    font-size: 16px;
+    font-weight: 900;
+    color: #fff;
+    background: #1a5c38;
+    border-radius: 3px;
+    width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+    font-style: italic;
+    margin-right: 4px;
+}
+
+.excel-titlebar .title-text {
+    flex: 1;
+    font-size: 13px;
     font-weight: 500;
 }
 
-/* ツールバー */
+.excel-titlebar .user-badge {
+    font-size: 12px;
+    background: rgba(255,255,255,.15);
+    border-radius: 50%;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700;
+}
+
+/* リボンタブ */
+.excel-ribbon-tabs {
+    background: #217346;
+    display: flex;
+    gap: 0;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+
+.excel-ribbon-tabs button {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,.85);
+    font-size: 12px;
+    padding: 4px 12px;
+    cursor: pointer;
+    border-radius: 3px 3px 0 0;
+    transition: background 0.1s;
+}
+
+.excel-ribbon-tabs button:hover { background: rgba(255,255,255,.1); color: #fff; }
+.excel-ribbon-tabs button.active { background: #f0f0f0; color: #217346; font-weight: 600; }
+
+/* リボン本体（ホームタブ） */
+.excel-ribbon {
+    background: #f0f0f0;
+    border-bottom: 1px solid #c0c0c0;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    min-height: 36px;
+}
+
+/* 数式バー */
+.excel-formulabar {
+    background: #fff;
+    border-bottom: 1px solid #c0c0c0;
+    display: flex;
+    align-items: center;
+    padding: 2px 6px;
+    gap: 6px;
+    flex-shrink: 0;
+    min-height: 26px;
+}
+
+.excel-formulabar .cell-ref {
+    width: 60px;
+    font-size: 12px;
+    border: 1px solid #c0c0c0;
+    padding: 1px 4px;
+    text-align: center;
+    background: #fff;
+}
+
+.excel-formulabar .fx-label {
+    font-size: 12px;
+    color: #555;
+    font-style: italic;
+    padding: 0 4px;
+    border-right: 1px solid #c0c0c0;
+    border-left: 1px solid #c0c0c0;
+}
+
+.excel-formulabar .formula-text {
+    flex: 1;
+    font-size: 12px;
+    color: #000;
+}
+
+/* =====================================================================
+ * ツールバー（フィルター + 期間ナビ）
+ * ===================================================================== */
+
 .mcg-toolbar {
+    background: #f8f8f8;
+    border-bottom: 1px solid #d0d0d0;
+    padding: 6px 10px;
     display: flex;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
-    padding: 10px 16px;
-    background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    margin-bottom: 14px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    flex-shrink: 0;
 }
 
-/* ===== グリッドテーブル ===== */
+.mcg-toolbar-label {
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+}
+
+.mcg-toolbar select {
+    font-size: 12px;
+    border: 1px solid #c0c0c0;
+    border-radius: 2px;
+    padding: 2px 20px 2px 6px;
+    background: #fff;
+    min-width: 100px;
+    height: 26px;
+    appearance: auto;
+}
+
+.mcg-toolbar-sep {
+    width: 1px;
+    height: 22px;
+    background: #c0c0c0;
+    flex-shrink: 0;
+}
+
+.mcg-period-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.mcg-period-label-text {
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+}
+
+.mcg-nav-btn {
+    background: #fff;
+    border: 1px solid #b0b0b0;
+    border-radius: 2px;
+    font-size: 12px;
+    padding: 2px 10px;
+    cursor: pointer;
+    height: 26px;
+    white-space: nowrap;
+    color: #333;
+    transition: background 0.1s;
+}
+
+.mcg-nav-btn:hover { background: #e8e8e8; }
+.mcg-nav-btn:disabled { color: #aaa; cursor: default; background: #f5f5f5; }
+.mcg-nav-btn.today { background: #217346; color: #fff; border-color: #1a5c38; }
+.mcg-nav-btn.today:hover { background: #1a5c38; }
+
+/* =====================================================================
+ * メインコンテンツエリア
+ * ===================================================================== */
+
+.excel-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.excel-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* =====================================================================
+ * グリッドテーブル
+ * ===================================================================== */
 
 :root {
-    --mcg-col-room-w: 100px;
-    --mcg-col-name-w: 80px;
-    --mcg-fixed-total: 180px;
-    --mcg-cell-w: 22px;
+    --col-row-w:  32px;
+    --col-room-w: 72px;
+    --col-name-w: 60px;
+    --cell-w:     24px;
+    --header-h:   40px;
+    --row-h:      22px;
 }
 
 .mcg-grid-wrap {
     overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    flex-shrink: 0;
     background: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 10px;
-    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    border-bottom: 1px solid #c0c0c0;
 }
 
 .mcg-grid {
@@ -90,288 +250,369 @@ body {
     min-width: 100%;
 }
 
-/* 固定列: 部屋名 */
+/* ── 固定左列 ── */
+.mcg-grid .col-row {
+    width: var(--col-row-w);
+    min-width: var(--col-row-w);
+    position: sticky; left: 0; z-index: 3;
+    background: #d8e4bc;
+}
+
 .mcg-grid .col-room {
-    width: var(--mcg-col-room-w);
-    min-width: var(--mcg-col-room-w);
-    max-width: var(--mcg-col-room-w);
-    position: sticky;
-    left: 0;
-    z-index: 3;
-    background: #fff;
+    width: var(--col-room-w);
+    min-width: var(--col-room-w);
+    position: sticky; left: var(--col-row-w); z-index: 3;
+    background: #d8e4bc;
 }
 
-/* 固定列: ユーザー名 */
 .mcg-grid .col-name {
-    width: var(--mcg-col-name-w);
-    min-width: var(--mcg-col-name-w);
-    max-width: var(--mcg-col-name-w);
+    width: var(--col-name-w);
+    min-width: var(--col-name-w);
     position: sticky;
-    left: var(--mcg-col-room-w);
+    left: calc(var(--col-row-w) + var(--col-room-w));
     z-index: 3;
-    background: #fff;
-    border-right: 2px solid #cbd5e1;
+    background: #d8e4bc;
+    border-right: 2px solid #7f7f7f !important;
 }
 
-/* ヘッダー全体 */
+/* ── ヘッダー全体 ── */
 .mcg-grid thead th {
-    background: #f8fafc;
-    position: sticky;
-    top: 0;
-    z-index: 2;
+    position: sticky; top: 0; z-index: 2;
 }
 
+.mcg-grid thead th.col-row,
 .mcg-grid thead th.col-room,
 .mcg-grid thead th.col-name {
     z-index: 4;
-    background: #f1f5f9;
 }
 
-/* 日付ヘッダー行 */
+/* ── 日付ヘッダー行 ── */
 .mcg-grid thead tr.header-dates th {
+    background: #d8e4bc;
     text-align: center;
-    padding: 6px 2px 4px;
+    padding: 4px 1px 2px;
     font-size: 11px;
     font-weight: 600;
-    color: #374151;
-    border-bottom: 1px solid #e2e8f0;
+    color: #000;
+    border: 1px solid #aaa;
     white-space: nowrap;
+    height: var(--header-h);
     vertical-align: bottom;
+    line-height: 1.3;
 }
-
-.mcg-grid thead tr.header-dates th.col-room,
-.mcg-grid thead tr.header-dates th.col-name {
-    vertical-align: middle;
-    font-size: 11px;
-    font-weight: 700;
-    color: #475569;
-    text-align: center;
-}
-
-.mcg-grid thead tr.header-dates th.is-today { background: #fffbeb; color: #b45309; }
-.mcg-grid thead tr.header-dates th.is-saturday { color: #2563eb; }
-.mcg-grid thead tr.header-dates th.is-sunday   { color: #dc2626; }
 
 .mcg-grid thead tr.header-dates th.date-group {
-    border-left: 1px solid #cbd5e1;
+    border-left: 2px solid #7f7f7f;
 }
 
-/* 食事種別ヘッダー行 */
+/* 今日 */
+.mcg-grid thead tr.header-dates th.is-today { background: #ffc000; color: #000; }
+/* 土曜 */
+.mcg-grid thead tr.header-dates th.is-saturday { background: #dce6f1; color: #0070c0; }
+/* 日曜 */
+.mcg-grid thead tr.header-dates th.is-sunday { background: #e2efda; color: #375623; }
+
+/* ── 食事種別ヘッダー行 ── */
 .mcg-grid thead tr.header-meals th {
+    background: #d8e4bc;
     text-align: center;
-    padding: 3px 0;
+    padding: 1px 0;
     font-size: 10px;
     font-weight: 600;
-    color: #94a3b8;
-    border-bottom: 2px solid #cbd5e1;
-    width: var(--mcg-cell-w);
+    color: #333;
+    border: 1px solid #aaa;
+    width: var(--cell-w);
+    height: 18px;
+    top: var(--header-h);
 }
 
 .mcg-grid thead tr.header-meals th.meal-first {
-    border-left: 1px solid #cbd5e1;
+    border-left: 2px solid #7f7f7f;
 }
 
+.mcg-grid thead tr.header-meals th.is-today  { background: #fce4d6; }
+.mcg-grid thead tr.header-meals th.is-saturday { background: #dce6f1; }
+.mcg-grid thead tr.header-meals th.is-sunday   { background: #e2efda; }
+
 /* ── データ行 ── */
+.mcg-grid tbody tr { height: var(--row-h); }
+
 .mcg-grid tbody td {
     padding: 0;
     text-align: center;
     vertical-align: middle;
-    border-bottom: 1px solid #f1f5f9;
-    height: 28px;
+    border: 1px solid #d9d9d9;
+    height: var(--row-h);
+    font-size: 12px;
+}
+
+.mcg-grid tbody td.col-row {
+    background: #d8e4bc;
+    font-size: 11px;
+    color: #555;
+    border-color: #aaa;
 }
 
 .mcg-grid tbody td.col-room {
-    padding: 4px 6px;
+    background: #fff;
     text-align: left;
+    padding: 0 4px;
     font-size: 11px;
     font-weight: 600;
-    color: #374151;
-    border-right: 1px solid #e2e8f0;
-    vertical-align: middle;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    border-color: #aaa;
 }
 
 .mcg-grid tbody td.col-name {
-    padding: 4px 6px;
+    background: #fff;
     text-align: left;
+    padding: 0 4px;
     font-size: 11px;
-    color: #1e293b;
-    vertical-align: middle;
-    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+    border-color: #aaa;
 }
 
 /* 食事セル */
 .mcg-grid tbody td.cell-meal {
-    width: var(--mcg-cell-w);
+    width: var(--cell-w);
     cursor: pointer;
     user-select: none;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    color: #000;
 }
 
-.mcg-grid tbody td.meal-first {
-    border-left: 1px solid #e2e8f0;
-}
+.mcg-grid tbody td.cell-meal:hover { background: #b8d0a8 !important; }
+
+.mcg-grid tbody td.meal-first { border-left: 2px solid #7f7f7f; }
 
 /* 今日列 */
-.mcg-grid thead th.is-today,
-.mcg-grid tbody td.is-today {
-    background: #fffbeb !important;
+.mcg-grid tbody td.is-today { background: #fce4d6; }
+.mcg-grid tbody td.is-today.cell-meal:hover { background: #f4b183 !important; }
+
+/* 土曜列 */
+.mcg-grid tbody td.is-saturday { background: #dce6f1; }
+.mcg-grid tbody td.is-saturday.cell-meal:hover { background: #9dc3e6 !important; }
+
+/* 日曜列 */
+.mcg-grid tbody td.is-sunday { background: #e2efda; }
+.mcg-grid tbody td.is-sunday.cell-meal:hover { background: #a9d18e !important; }
+
+/* 日計行 */
+.mcg-grid tr.row-daily-total td {
+    background: #d8e4bc;
+    color: #000;
+    font-size: 11px;
+    font-weight: 700;
+    border-color: #aaa;
+    border-top: 2px solid #7f7f7f;
 }
 
-/* 土日列 */
-.mcg-grid tbody td.is-saturday { background: #f0f5ff; }
-.mcg-grid tbody td.is-sunday   { background: #fff5f5; }
-
-/* 予約済みマーク（○） */
-.mcg-cell-check {
-    display: inline-block;
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    border: 2px solid #3b82f6;
-    background: transparent;
+.mcg-grid tr.row-daily-total td.col-row,
+.mcg-grid tr.row-daily-total td.col-room,
+.mcg-grid tr.row-daily-total td.col-name {
+    text-align: left;
+    padding-left: 4px;
 }
 
-/* 部屋グループヘッダー行 */
-.mcg-grid tr.row-room-header td {
-    background: #e2e8f0;
-    color: #334155;
+/* セル選択状態 */
+.mcg-grid tbody td.mcg-selected {
+    outline: 2px solid #217346;
+    outline-offset: -2px;
+    z-index: 1;
+    position: relative;
+}
+
+/* =====================================================================
+ * 月計サマリーパネル
+ * ===================================================================== */
+
+.mcg-summary {
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid #c0c0c0;
+    margin: 10px;
+    border-radius: 2px;
+    box-shadow: 1px 1px 4px rgba(0,0,0,.08);
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 280px;
+    max-width: 460px;
+}
+
+.mcg-summary-title {
     font-size: 12px;
     font-weight: 700;
-    padding: 4px 8px;
-    text-align: left;
-    border-top: 2px solid #cbd5e1;
+    color: #375623;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 4px;
 }
 
-.mcg-grid tr.row-room-header td.col-room {
-    background: #cbd5e1;
-    border-right-color: #94a3b8;
+.mcg-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
 }
 
-.mcg-grid tr.row-room-header td.col-name {
-    background: #cbd5e1;
+.mcg-summary-label {
+    font-size: 12px;
+    color: #333;
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
 }
 
-/* 部屋小計行 */
-.mcg-grid tr.row-room-subtotal td {
-    background: #eff6ff;
-    color: #1d4ed8;
-    font-size: 11px;
+.mcg-summary-bar-wrap {
+    flex: 1;
+    background: #e0e0e0;
+    height: 14px;
+    border-radius: 1px;
+    overflow: hidden;
+}
+
+.mcg-summary-bar {
+    height: 100%;
+    background: #375623;
+    transition: width 0.3s ease;
+    min-width: 0;
+}
+
+.mcg-summary-val {
+    font-size: 12px;
     font-weight: 700;
-    border-top: 1px solid #bfdbfe;
-    border-bottom: 1px solid #bfdbfe;
-    height: 24px;
+    color: #000;
+    min-width: 24px;
+    text-align: right;
 }
 
-.mcg-grid tr.row-room-subtotal td.col-room {
-    background: #dbeafe;
+/* =====================================================================
+ * ステータスバー
+ * ===================================================================== */
+
+.excel-statusbar {
+    background: #217346;
+    color: rgba(255,255,255,.9);
     font-size: 11px;
-    color: #1d4ed8;
+    display: flex;
+    align-items: center;
+    padding: 2px 10px;
+    justify-content: space-between;
+    flex-shrink: 0;
+    min-height: 22px;
 }
 
-.mcg-grid tr.row-room-subtotal td.col-name {
-    background: #dbeafe;
+/* =====================================================================
+ * シートタブ
+ * ===================================================================== */
+
+.excel-sheettabs {
+    background: #d4d0c8;
+    border-top: 1px solid #7f7f7f;
+    display: flex;
+    align-items: flex-end;
+    padding: 0 4px;
+    gap: 2px;
+    flex-shrink: 0;
+    min-height: 24px;
 }
 
-/* 日計行（最下部） */
-.mcg-grid tr.row-daily-total td {
-    background: #f0fdf4;
-    color: #15803d;
+.excel-sheettab {
+    background: #c8c4bc;
+    border: 1px solid #7f7f7f;
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
     font-size: 11px;
-    font-weight: 700;
-    border-top: 2px solid #86efac;
-    height: 26px;
-    position: sticky;
-    bottom: 0;
+    padding: 3px 14px;
+    cursor: pointer;
+    color: #333;
+    text-decoration: none;
+    display: inline-block;
+    transition: background 0.1s;
+    white-space: nowrap;
+}
+
+.excel-sheettab:hover { background: #e0dcd4; color: #000; }
+.excel-sheettab.active {
+    background: #fff;
+    color: #000;
+    font-weight: 600;
+    border-bottom: 1px solid #fff;
     z-index: 1;
+    position: relative;
 }
 
-.mcg-grid tr.row-daily-total td.col-room {
-    background: #dcfce7;
-    color: #15803d;
-    z-index: 3;
+.excel-sheettab-add {
+    background: none;
+    border: none;
+    font-size: 15px;
+    color: #555;
+    cursor: pointer;
+    padding: 0 6px;
+    align-self: center;
 }
 
-.mcg-grid tr.row-daily-total td.col-name {
-    background: #dcfce7;
-    z-index: 3;
-}
-
-/* ===== セルフラッシュアニメーション ===== */
+/* =====================================================================
+ * セルフラッシュアニメーション
+ * ===================================================================== */
 
 @keyframes mcg-flash-on {
     0%   { background-color: inherit; }
-    30%  { background-color: #bbf7d0; }
+    25%  { background-color: #92d050; }
     100% { background-color: inherit; }
 }
 
 @keyframes mcg-flash-off {
     0%   { background-color: inherit; }
-    30%  { background-color: #fecaca; }
+    25%  { background-color: #ff7f7f; }
     100% { background-color: inherit; }
 }
 
-.mcg-cell-flash-on  { animation: mcg-flash-on  0.55s ease; }
-.mcg-cell-flash-off { animation: mcg-flash-off 0.55s ease; }
+.mcg-cell-flash-on  { animation: mcg-flash-on  0.5s ease; }
+.mcg-cell-flash-off { animation: mcg-flash-off 0.5s ease; }
 
-/* ===== Toast 通知 ===== */
+/* =====================================================================
+ * Toast
+ * ===================================================================== */
 
 .mcg-toast-wrap {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
+    bottom: 28px;
+    right: 20px;
     z-index: 9999;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     pointer-events: none;
 }
 
 .mcg-toast {
-    display: flex;
-    align-items: center;
-    padding: 10px 16px;
-    border-radius: 8px;
-    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 3px;
+    font-size: 12px;
     font-weight: 500;
     color: #fff;
-    box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
     pointer-events: auto;
-    max-width: 320px;
+    max-width: 300px;
     word-break: break-word;
-    animation: mcg-toast-in 0.2s ease;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    animation: mcg-toast-in 0.15s ease;
+    transition: opacity 0.25s, transform 0.25s;
 }
 
-.mcg-toast--hiding {
-    opacity: 0;
-    transform: translateY(8px);
-}
-
-.mcg-toast--error   { background: #ef4444; }
-.mcg-toast--success { background: #22c55e; }
-.mcg-toast--info    { background: #3b82f6; }
+.mcg-toast--hiding { opacity: 0; transform: translateY(6px); }
+.mcg-toast--error   { background: #c00000; }
+.mcg-toast--success { background: #375623; }
+.mcg-toast--info    { background: #2f75b6; }
 
 @keyframes mcg-toast-in {
-    from { opacity: 0; transform: translateY(12px); }
+    from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ===== 凡例 ===== */
-.mcg-legend {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 11px;
-    color: #64748b;
-    flex-wrap: wrap;
-}
-
-.mcg-legend-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
 }

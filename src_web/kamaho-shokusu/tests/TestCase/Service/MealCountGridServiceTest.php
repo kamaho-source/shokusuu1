@@ -53,30 +53,93 @@ class MealCountGridServiceTest extends TestCase
      * buildDateRange
      * ===================================================================== */
 
-    public function testBuildDateRangeReturnsSevenDays(): void
+    public function testBuildDateRangeDefaultsTwentyEightDays(): void
     {
         $dates = $this->service->buildDateRange('2026-05-11');
 
-        $this->assertCount(7, $dates);
+        $this->assertCount(28, $dates);
     }
 
-    public function testBuildDateRangeStartsOnMonday(): void
+    public function testBuildDateRangeCanReturnSevenDays(): void
     {
-        $dates = $this->service->buildDateRange('2026-05-11');
+        $dates = $this->service->buildDateRange('2026-05-11', 7);
 
+        $this->assertCount(7, $dates);
         $this->assertSame('2026-05-11', $dates[0]);
         $this->assertSame('2026-05-17', $dates[6]);
     }
 
-    public function testBuildDateRangeReturnsConsecutiveDays(): void
+    public function testBuildDateRangeTwentyEightDaysEndsOnSunday(): void
     {
         $dates = $this->service->buildDateRange('2026-05-11');
+
+        $this->assertSame('2026-05-11', $dates[0]);
+        $this->assertSame('2026-06-07', $dates[27]);
+    }
+
+    public function testBuildDateRangeReturnsConsecutiveDays(): void
+    {
+        $dates = $this->service->buildDateRange('2026-05-11', 7);
 
         for ($i = 0; $i < 6; $i++) {
             $current = new \DateTimeImmutable($dates[$i]);
             $next    = new \DateTimeImmutable($dates[$i + 1]);
             $diff    = (int)$current->diff($next)->days;
             $this->assertSame(1, $diff, "インデックス {$i} と " . ($i + 1) . " は連続していない");
+        }
+    }
+
+    /* =====================================================================
+     * buildPeriodLabel
+     * ===================================================================== */
+
+    public function testBuildPeriodLabelReturnsCorrectFormat(): void
+    {
+        $dates = $this->service->buildDateRange('2026-05-11');
+
+        $label = $this->service->buildPeriodLabel($dates);
+
+        $this->assertStringContainsString('2026/05/11', $label);
+        $this->assertStringContainsString('2026/06/07', $label);
+        $this->assertStringContainsString('28日', $label);
+    }
+
+    public function testBuildPeriodLabelReturnsEmptyForEmptyDates(): void
+    {
+        $label = $this->service->buildPeriodLabel([]);
+
+        $this->assertSame('', $label);
+    }
+
+    /* =====================================================================
+     * buildMonthlyTotals
+     * ===================================================================== */
+
+    public function testBuildMonthlyTotalsReturnsAllMealTypes(): void
+    {
+        $gridData = [
+            'dailyTotals' => [
+                '2026-05-11' => [1 => 2, 2 => 1, 3 => 0, 4 => 0],
+                '2026-05-12' => [1 => 1, 2 => 0, 3 => 1, 4 => 0],
+            ],
+        ];
+
+        $totals = $this->service->buildMonthlyTotals($gridData);
+
+        $this->assertSame(3, $totals[1]); // 朝: 2+1
+        $this->assertSame(1, $totals[2]); // 昼: 1+0
+        $this->assertSame(1, $totals[3]); // 夕: 0+1
+        $this->assertSame(0, $totals[4]); // 弁: 0+0
+    }
+
+    public function testBuildMonthlyTotalsReturnsZeroForEmptyGrid(): void
+    {
+        $gridData = ['dailyTotals' => []];
+
+        $totals = $this->service->buildMonthlyTotals($gridData);
+
+        foreach (array_keys(\App\Service\MealCountGridService::MEALS) as $mealType) {
+            $this->assertSame(0, $totals[$mealType]);
         }
     }
 

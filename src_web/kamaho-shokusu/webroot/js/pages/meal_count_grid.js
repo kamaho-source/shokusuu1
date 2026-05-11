@@ -3,7 +3,7 @@
 /* ── 食事種別定数 ── */
 var MEAL = { BREAKFAST: 1, LUNCH: 2, DINNER: 3, BENTO: 4 };
 
-/* ── 昼↔弁当の排他マップ ── */
+/* ── 昼↔弁当 排他マップ ── */
 var MEAL_OPPONENT = {};
 MEAL_OPPONENT[MEAL.LUNCH] = MEAL.BENTO;
 MEAL_OPPONENT[MEAL.BENTO] = MEAL.LUNCH;
@@ -15,21 +15,19 @@ function mcgShowToast(message, type) {
     var wrap = document.getElementById('mcg-toast-wrap');
     if (!wrap) {
         wrap = document.createElement('div');
-        wrap.id = 'mcg-toast-wrap';
+        wrap.id        = 'mcg-toast-wrap';
         wrap.className = 'mcg-toast-wrap';
         document.body.appendChild(wrap);
     }
-
     var toast = document.createElement('div');
-    toast.className = 'mcg-toast mcg-toast--' + (type || 'info');
+    toast.className  = 'mcg-toast mcg-toast--' + (type || 'info');
     toast.textContent = message;
     wrap.appendChild(toast);
-
     setTimeout(function () {
         toast.classList.add('mcg-toast--hiding');
         setTimeout(function () {
             if (toast.parentNode) toast.parentNode.removeChild(toast);
-        }, 300);
+        }, 250);
     }, 2700);
 }
 
@@ -41,25 +39,22 @@ function mcgFlashCell(td, isOn) {
     td.classList.remove('mcg-cell-flash-on', 'mcg-cell-flash-off');
     void td.offsetWidth;
     td.classList.add(cls);
-    setTimeout(function () { td.classList.remove(cls); }, 550);
+    setTimeout(function () { td.classList.remove(cls); }, 500);
 }
 
 /* ─────────────────────────────────────────────
- * セル状態ヘルパー
+ * セル状態ヘルパー（値は「1」 or 空）
  * ─────────────────────────────────────────── */
 function mcgSetCellOn(td) {
     td.dataset.reserved = '1';
-    if (!td.querySelector('.mcg-cell-check')) {
-        var span = document.createElement('span');
-        span.className = 'mcg-cell-check';
-        td.appendChild(span);
-    }
+    td.textContent = '1';
+    td.setAttribute('aria-checked', 'true');
 }
 
 function mcgSetCellOff(td) {
     td.dataset.reserved = '0';
-    var check = td.querySelector('.mcg-cell-check');
-    if (check) check.remove();
+    td.textContent = '';
+    td.setAttribute('aria-checked', 'false');
 }
 
 /* ─────────────────────────────────────────────
@@ -75,28 +70,18 @@ function mcgFindCell(userId, roomId, date, meal) {
 }
 
 /* ─────────────────────────────────────────────
- * 小計セルを更新する（部屋小計・日計行）
+ * 日計行を再集計
  * ─────────────────────────────────────────── */
-function mcgUpdateTotals(roomId, date, meal) {
-    // 部屋小計
-    var subtotalSelector = '.row-room-subtotal[data-room-id="' + roomId + '"]' +
-        ' td[data-date="' + date + '"][data-meal="' + meal + '"]';
-    var subtotalCell = document.querySelector(subtotalSelector);
-    if (subtotalCell) {
-        var roomCount = document.querySelectorAll(
-            '.mcg-toggleable[data-room-id="' + roomId + '"][data-date="' + date + '"][data-meal="' + meal + '"][data-reserved="1"]'
-        ).length;
-        subtotalCell.textContent = roomCount > 0 ? String(roomCount) : '';
-    }
+function mcgUpdateDailyTotal(date, meal) {
+    var count = document.querySelectorAll(
+        '.mcg-toggleable[data-date="' + date + '"][data-meal="' + meal + '"][data-reserved="1"]'
+    ).length;
 
-    // 日計行
-    var dailySelector = '.row-daily-total td[data-date="' + date + '"][data-meal="' + meal + '"]';
-    var dailyCell = document.querySelector(dailySelector);
-    if (dailyCell) {
-        var totalCount = document.querySelectorAll(
-            '.mcg-toggleable[data-date="' + date + '"][data-meal="' + meal + '"][data-reserved="1"]'
-        ).length;
-        dailyCell.textContent = totalCount > 0 ? String(totalCount) : '';
+    var cell = document.querySelector(
+        '.row-daily-total td[data-date="' + date + '"][data-meal="' + meal + '"]'
+    );
+    if (cell) {
+        cell.textContent = count > 0 ? String(count) : '';
     }
 }
 
@@ -109,6 +94,14 @@ function mcgInitToggle() {
     var basePath  = (window.MCG_CONFIG && window.MCG_CONFIG.basePath) ? window.MCG_CONFIG.basePath : '';
 
     document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+        /* キーボード操作（Space/Enter）でも動作 */
+        td.addEventListener('keydown', function (e) {
+            if (e.key === ' ' || e.key === 'Enter') {
+                e.preventDefault();
+                td.click();
+            }
+        });
+
         td.addEventListener('click', function () {
             if (td.dataset.mcgProcessing === '1') return;
 
@@ -120,14 +113,14 @@ function mcgInitToggle() {
             var newValue = reserved ? 0 : 1;
 
             /* スナップショット */
-            var snapshot     = { reserved: td.dataset.reserved };
+            var snapshot     = { reserved: td.dataset.reserved, text: td.textContent };
             var opponentCell = null;
             var opponentSnap = null;
 
             if (newValue === 1 && Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
                 opponentCell = mcgFindCell(userId, roomId, date, MEAL_OPPONENT[meal]);
                 if (opponentCell) {
-                    opponentSnap = { reserved: opponentCell.dataset.reserved };
+                    opponentSnap = { reserved: opponentCell.dataset.reserved, text: opponentCell.textContent };
                 }
             }
 
@@ -141,9 +134,10 @@ function mcgInitToggle() {
             } else {
                 mcgSetCellOff(td);
             }
-            mcgUpdateTotals(roomId, date, meal);
+
+            mcgUpdateDailyTotal(date, meal);
             if (opponentCell) {
-                mcgUpdateTotals(roomId, date, MEAL_OPPONENT[meal]);
+                mcgUpdateDailyTotal(date, MEAL_OPPONENT[meal]);
             }
 
             /* API リクエスト */
@@ -165,10 +159,8 @@ function mcgInitToggle() {
             .then(function (res) {
                 return res.text().then(function (text) {
                     var data;
-                    try {
-                        data = JSON.parse(text);
-                    } catch (e) {
-                        console.error('Non-JSON response (HTTP ' + res.status + '):', text.substring(0, 500));
+                    try { data = JSON.parse(text); }
+                    catch (e) {
                         throw new Error('サーバーエラーが発生しました (HTTP ' + res.status + ')。');
                     }
                     if (data.ok === false) {
@@ -194,11 +186,10 @@ function mcgInitToggle() {
                         mcgSetCellOff(opponentCell);
                     }
                 }
-                mcgUpdateTotals(roomId, date, meal);
+                mcgUpdateDailyTotal(date, meal);
                 if (opponentCell) {
-                    mcgUpdateTotals(roomId, date, MEAL_OPPONENT[meal]);
+                    mcgUpdateDailyTotal(date, MEAL_OPPONENT[meal]);
                 }
-
                 console.error('Toggle error:', err);
                 mcgShowToast(err.message || '通信エラーが発生しました。', 'error');
             })
@@ -210,6 +201,23 @@ function mcgInitToggle() {
     });
 }
 
+/* ─────────────────────────────────────────────
+ * 数式バーのセル参照を更新
+ * ─────────────────────────────────────────── */
+function mcgInitCellRef() {
+    var cellRefEl = document.querySelector('.excel-formulabar .cell-ref');
+    document.querySelectorAll('.mcg-toggleable').forEach(function (td, idx) {
+        td.addEventListener('focus', function () {
+            if (cellRefEl) {
+                var col = String.fromCharCode(67 + (idx % 100)); // C始まり（仮）
+                var row = td.closest('tr')?.rowIndex ?? 7;
+                cellRefEl.textContent = col + row;
+            }
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     mcgInitToggle();
+    mcgInitCellRef();
 });
