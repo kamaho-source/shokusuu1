@@ -12,12 +12,17 @@ use Cake\ORM\Table;
 
 class ReservationWriteService
 {
+    private ReservationDatePolicy $datePolicy;
+
     public function __construct(
         private Table $reservationTable,
         private Table $userTable,
         private Table $roomTable,
-        private string $webroot
-    ) {}
+        private string $webroot,
+        ?ReservationDatePolicy $datePolicy = null
+    ) {
+        $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
+    }
 
     public function processIndividualReservation(
         string $reservationDate,
@@ -542,9 +547,25 @@ class ReservationWriteService
         }
 
         $targetDate   = new Date($dateStr);
-        $today        = Date::today('Asia/Tokyo');
-        $lastDeadline = $today->addDays(14);
-        $isLastMinute = ($targetDate >= $today && $targetDate <= $lastDeadline);
+        $isLastMinute = $this->datePolicy->shouldUseChangeFlag($targetDate);
+
+        // 同日・同食事種別で他部屋に有効な予約が存在する場合は登録不可
+        if ($value === 1) {
+            $activeFlag = $isLastMinute ? 'i_change_flag' : 'eat_flag';
+            $conflictExists = $this->reservationTable->exists([
+                'i_id_user'          => $targetUserId,
+                'd_reservation_date' => $dateStr,
+                'i_reservation_type' => $meal,
+                'i_id_room !='       => $roomId,
+                $activeFlag          => 1,
+            ]);
+            if ($conflictExists) {
+                return [
+                    'status' => 422,
+                    'body'   => ['ok' => false, 'message' => '同日・同食事種別の予約が別の部屋に既に存在します。'],
+                ];
+            }
+        }
 
         $exists = $this->reservationTable->exists([
             'i_id_user'          => $targetUserId,
@@ -553,7 +574,9 @@ class ReservationWriteService
             'i_reservation_type' => $meal,
         ]);
 
-        if ($isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
+        $today = Date::today('Asia/Tokyo');
+        $isFutureLastMinute = $isLastMinute && $targetDate >= $today;
+        if ($isFutureLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
             return [
                 'status' => 403,
                 'body' => ['ok' => false, 'message' => '職員は直前編集でのキャンセルはできません。'],
@@ -602,6 +625,7 @@ class ReservationWriteService
                 actor:  $actorName,
                 eatFlag: $eatFlag,
                 changeFlag: $changeFlag,
+                useChangeFlag: $isLastMinute,
             );
             $this->invalidateCachesForDateRooms($dateStr, [$roomId], [$targetUserId]);
 

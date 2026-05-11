@@ -13,6 +13,17 @@ use Cake\Validation\Validator;
 
 class TIndividualReservationInfoTable extends Table
 {
+    public const MEAL_BREAKFAST = 1;
+    public const MEAL_LUNCH     = 2;
+    public const MEAL_DINNER    = 3;
+    public const MEAL_BENTO     = 4;
+
+    /** 昼↔弁当の排他ペア [一方 => 他方] */
+    private const MEAL_OPPONENTS = [
+        self::MEAL_LUNCH  => self::MEAL_BENTO,
+        self::MEAL_BENTO  => self::MEAL_LUNCH,
+    ];
+
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -58,7 +69,7 @@ class TIndividualReservationInfoTable extends Table
         // 昼(2)⇔弁(4)の排他（その日の“有効値”で判定）
         $rules->add(function (EntityInterface $entity): bool {
             $type = (int)$entity->i_reservation_type;
-            if (!in_array($type, [2, 4], true)) {
+            if (!array_key_exists($type, self::MEAL_OPPONENTS)) {
                 return true;
             }
             $date = $entity->d_reservation_date instanceof \DateTimeInterface
@@ -76,7 +87,7 @@ class TIndividualReservationInfoTable extends Table
             };
 
             // 相手タイプ
-            $opponentType = $type === 2 ? 4 : 2;
+            $opponentType = self::MEAL_OPPONENTS[$type];
 
             // 必要カラムのみ取得
             $rows = $this->find()
@@ -92,8 +103,8 @@ class TIndividualReservationInfoTable extends Table
             $hasLunch = false; $hasBento = false;
             foreach ($rows as $r) {
                 $eff = $effective($r);
-                if ((int)$r->i_reservation_type === 2) $hasLunch = $hasLunch || ($eff === 1);
-                if ((int)$r->i_reservation_type === 4) $hasBento = $hasBento || ($eff === 1);
+                if ((int)$r->i_reservation_type === self::MEAL_LUNCH)  $hasLunch = $hasLunch || ($eff === 1);
+                if ((int)$r->i_reservation_type === self::MEAL_BENTO)  $hasBento = $hasBento || ($eff === 1);
             }
 
             // 今回エンティティの有効化も反映
@@ -101,8 +112,8 @@ class TIndividualReservationInfoTable extends Table
                 ? (int)($entity->i_change_flag ?? $entity->eat_flag ?? 0)
                 : (int)($entity->eat_flag ?? 0);
 
-            if ($type === 2 && $thisEff === 1) $hasLunch = true;
-            if ($type === 4 && $thisEff === 1) $hasBento = true;
+            if ($type === self::MEAL_LUNCH  && $thisEff === 1) $hasLunch = true;
+            if ($type === self::MEAL_BENTO  && $thisEff === 1) $hasBento = true;
 
             return !($hasLunch && $hasBento);
         }, 'uniqueLunchBentoEffective', [
@@ -134,28 +145,30 @@ class TIndividualReservationInfoTable extends Table
         bool $on,
         string $actor,
         ?int $eatFlag = null,
-        ?int $changeFlag = null
+        ?int $changeFlag = null,
+        ?bool $useChangeFlag = null  // true=直前編集(i_change_flag), false=通常(eat_flag)
     ): array {
-        if (!in_array($meal, [1, 2, 3, 4], true)) {
+        $validMeals = [self::MEAL_BREAKFAST, self::MEAL_LUNCH, self::MEAL_DINNER, self::MEAL_BENTO];
+        if (!in_array($meal, $validMeals, true)) {
             throw new \InvalidArgumentException('meal は 1(朝)/2(昼)/3(夜)/4(弁) のみ');
         }
 
-        $today = Date::today();
-        $d     = new Date($date);
-        $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
+        // useChangeFlag が未指定の場合のみフォールバック計算（後方互換）
+        if ($useChangeFlag === null) {
+            $today = Date::today();
+            $d     = new Date($date);
+            $useChangeFlag = ($d <= $today->addDays(14));
+        }
 
-        // コントローラから明示があればそれを、無ければ規定ロジックで
         if ($eatFlag === null || $changeFlag === null) {
-            $eat  = $on ? ($isLastMinute ? 0 : 1) : 0;
-            $chg  = $on ? 1 : 0;
-            $eatFlag    = $eatFlag    ?? $eat;
-            $changeFlag = $changeFlag ?? $chg;
+            $eatFlag    = $eatFlag    ?? ($on ? ($useChangeFlag ? 0 : 1) : 0);
+            $changeFlag = $changeFlag ?? ($on ? 1 : 0);
         }
 
         $now = DateTime::now();
 
         return $this->getConnection()->transactional(function () use (
-            $userId, $roomId, $date, $meal, $on, $actor, $now, $isLastMinute, $eatFlag, $changeFlag
+            $userId, $roomId, $date, $meal, $on, $actor, $now, $useChangeFlag, $eatFlag, $changeFlag
         ) {
 
             // 対象レコード取得（必要カラムのみ、autoFields無効化）
@@ -187,13 +200,13 @@ class TIndividualReservationInfoTable extends Table
                 $isNew = true;
             }
 
-            // フラグの確定（NULL を残さない）
-            if ($isLastMinute) {
-                $entity->i_change_flag = (int)$changeFlag;                // 0/1
-                $entity->eat_flag      = (int)($entity->eat_flag ?? 0);   // 既存NULLを0に
+            // フラグの確定: ReservationDatePolicy の判定に従い書き込む列を決定する
+            if ($useChangeFlag) {
+                $entity->i_change_flag = (int)$changeFlag;                // 直前編集: i_change_flag を更新
+                $entity->eat_flag      = (int)($entity->eat_flag ?? 0);   // eat_flag は既存値を保持
             } else {
-                $entity->eat_flag      = (int)$eatFlag;                   // 0/1
-                $entity->i_change_flag = (int)$changeFlag;                // 通常予約でも1にする
+                $entity->eat_flag      = (int)$eatFlag;                   // 通常予約: eat_flag を更新
+                $entity->i_change_flag = (int)$changeFlag;                // i_change_flag も連動して更新
             }
 
             // 監査: 新規か更新かで分岐
@@ -225,8 +238,8 @@ class TIndividualReservationInfoTable extends Table
             }
 
             // 昼/弁の相互排他：ON にしたら相手は OFF
-            if ($on && in_array($meal, [2, 4], true)) {
-                $opponentMeal = ($meal === 2) ? 4 : 2;
+            if ($on && array_key_exists($meal, self::MEAL_OPPONENTS)) {
+                $opponentMeal = self::MEAL_OPPONENTS[$meal];
 
                 $opponent = $this->find()
                     ->enableAutoFields(false)
@@ -256,7 +269,7 @@ class TIndividualReservationInfoTable extends Table
                     $oppIsNew = true;
                 }
 
-                if ($isLastMinute) {
+                if ($useChangeFlag) {
                     $opponent->i_change_flag = 0;
                     $opponent->eat_flag      = (int)($opponent->eat_flag ?? 0);
                 } else {
@@ -293,10 +306,15 @@ class TIndividualReservationInfoTable extends Table
             }
 
             // “有効値”詳細
-            $details = $this->getDayDetailsEffective($userId, $roomId, $date, $isLastMinute);
+            $details = $this->getDayDetailsEffective($userId, $roomId, $date, $useChangeFlag);
 
-            $map = [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
-            $mealKey = $map[$meal];
+            $mealKeyMap = [
+                self::MEAL_BREAKFAST => 'breakfast',
+                self::MEAL_LUNCH     => 'lunch',
+                self::MEAL_DINNER    => 'dinner',
+                self::MEAL_BENTO     => 'bento',
+            ];
+            $mealKey = $mealKeyMap[$meal];
 
             return [
                 'value'   => (bool)$details[$mealKey],
@@ -326,11 +344,23 @@ class TIndividualReservationInfoTable extends Table
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $date,
                 'i_id_room'             => $roomId,
-                'i_reservation_type IN' => [1,2,3,4],
+                'i_reservation_type IN' => [
+                    self::MEAL_BREAKFAST,
+                    self::MEAL_LUNCH,
+                    self::MEAL_DINNER,
+                    self::MEAL_BENTO,
+                ],
             ])
             ->all();
 
-        $details = ['breakfast'=>false,'lunch'=>false,'dinner'=>false,'bento'=>false];
+        $details = ['breakfast' => false, 'lunch' => false, 'dinner' => false, 'bento' => false];
+
+        $mealKeyMap = [
+            self::MEAL_BREAKFAST => 'breakfast',
+            self::MEAL_LUNCH     => 'lunch',
+            self::MEAL_DINNER    => 'dinner',
+            self::MEAL_BENTO     => 'bento',
+        ];
 
         $effective = static function ($eatFlag, $chgFlag) use ($isLastMinute): int {
             if ($isLastMinute && $chgFlag !== null) return (int)$chgFlag;
@@ -338,12 +368,10 @@ class TIndividualReservationInfoTable extends Table
         };
 
         foreach ($rows as $r) {
-            $val = $effective($r->eat_flag, $r->i_change_flag) === 1;
-            switch ((int)$r->i_reservation_type) {
-                case 1: $details['breakfast'] = $val; break;
-                case 2: $details['lunch']     = $val; break;
-                case 3: $details['dinner']    = $val; break;
-                case 4: $details['bento']     = $val; break;
+            $type = (int)$r->i_reservation_type;
+            $key  = $mealKeyMap[$type] ?? null;
+            if ($key !== null) {
+                $details[$key] = $effective($r->eat_flag, $r->i_change_flag) === 1;
             }
         }
         return $details;

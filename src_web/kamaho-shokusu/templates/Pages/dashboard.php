@@ -180,6 +180,15 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                     <div class="menu-desc">担当部屋の実食を代理入力する</div>
                 </a>
                 <?php endif; ?>
+                <?php
+                $isStaff = (int)($user?->get('i_user_level') ?? -1) === 0;
+                if ($isStaff || $isAdmin): ?>
+                <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/staff-reservation') ?>">
+                    <div class="menu-icon" style="background:#eff6ff;color:#1d4ed8;">🗓️</div>
+                    <div class="menu-title-text">週間予約（職員）</div>
+                    <div class="menu-desc">自分の1週間分の食事予約を確認・編集する</div>
+                </a>
+                <?php endif; ?>
                 <a class="menu-card" href="<?= $this->Url->build('/Contacts') ?>">
                     <div class="menu-icon" style="background:#f0fdf4;color:#16a34a;">✉️</div>
                     <div class="menu-title-text">お問い合わせ</div>

@@ -106,7 +106,7 @@ class TReservationInfoController extends AppController
         // $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
-        if (isset($this->FormProtection)) {
+        if ($this->components()->has('FormProtection')) {
             $this->FormProtection->setConfig('unlockedActions', [
                 'toggle',
                 'checkDuplicateReservation',
@@ -957,10 +957,7 @@ class TReservationInfoController extends AppController
                 }
 
                 if ($roomId && isset($rooms[(int)$roomId])) {
-                    $room = $this->MRoomInfo->find()
-                        ->select(['i_id_room', 'c_room_name'])
-                        ->where(['i_id_room' => $roomId])
-                        ->first();
+                    $room = $changeEditService->getRoomById($this->MRoomInfo, (int)$roomId);
                 }
                 // 部屋が空の場合は警告ログ
                 if (empty($rooms)) {
@@ -1131,6 +1128,141 @@ class TReservationInfoController extends AppController
         }
     }
 
+
+    /**
+     * 職員用週間予約グリッド画面（ログインユーザー自身の予約を1週間単位で表示）
+     *
+     * クエリパラメータ:
+     *   week_start: 'YYYY-MM-DD' (表示週の月曜日、省略時=今週月曜)
+     *
+     * @return Response|null
+     */
+    public function staffReservation(): ?Response
+    {
+        $this->authorizeReservation('staffReservation');
+
+        $authUser = $this->Authentication->getIdentity();
+        if (!$authUser) {
+            throw new UnauthorizedException('ログインが必要です。');
+        }
+
+        $loginUserId = (int)$authUser->get('i_id_user');
+        $loginUserName = (string)($authUser->get('c_user_name') ?? '');
+        $isAdmin     = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isStaff     = (int)($authUser->get('i_user_level') ?? -1) === 0;
+
+        if (!$isAdmin && !$isStaff) {
+            throw new UnauthorizedException('職員・管理者のみ使用できます。');
+        }
+
+        /* ── 週の日付範囲（月曜〜日曜の7日間） ── */
+        $tz           = new \DateTimeZone('Asia/Tokyo');
+        $todayObj     = new \DateTimeImmutable('now', $tz);
+        $defaultStart = $todayObj->modify('monday this week');
+
+        $weekStartParam = $this->request->getQuery('week_start');
+        try {
+            $weekStart = $weekStartParam
+                ? new \DateTimeImmutable($weekStartParam, $tz)
+                : $defaultStart;
+        } catch (\Throwable) {
+            $weekStart = $defaultStart;
+        }
+        if ((int)$weekStart->format('N') !== 1) {
+            $weekStart = $weekStart->modify('monday this week');
+        }
+
+        $weekEnd = $weekStart->modify('+6 days'); // 月〜日の7日間
+
+        $dates = [];
+        $cursor = $weekStart;
+        while ($cursor <= $weekEnd) {
+            $dates[] = $cursor;
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        /* ── 表示モード (individual / room / all) ── */
+        $mode = $this->request->getQuery('mode', 'individual');
+        if (!in_array($mode, ['individual', 'room', 'all'], true)) {
+            $mode = 'individual';
+        }
+        // 'all' モードは管理者のみ
+        if ($mode === 'all' && !$isAdmin) {
+            $mode = 'room';
+        }
+
+        /* ── ログインユーザーの所属部屋 ── */
+        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUserId);
+        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
+        $allRoomsForUser = $this->calendarService->getRoomsForUser(
+            $this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser
+        );
+
+        /* ── モード別グリッド行データ ── */
+        $startDateStr = $weekStart->format('Y-m-d');
+        $endDateStr   = $weekEnd->format('Y-m-d');
+
+        if ($mode === 'individual') {
+            $gridRoomIds = $userRoomIds;
+            $gridRows    = !empty($gridRoomIds)
+                ? $this->calendarService->buildStaffGridRows(
+                    $this->MUserGroup, $this->MUserInfo, $this->MRoomInfo,
+                    'individual', [$loginUserId], $gridRoomIds
+                  )
+                : [];
+            $gridUserIds = [$loginUserId];
+        } elseif ($mode === 'room') {
+            $gridRoomIds = $userRoomIds;
+            $gridRows    = !empty($gridRoomIds)
+                ? $this->calendarService->buildStaffGridRows(
+                    $this->MUserGroup, $this->MUserInfo, $this->MRoomInfo,
+                    'room', [], $gridRoomIds
+                  )
+                : [];
+            $gridUserIds = array_values(array_unique(array_column($gridRows, 'user_id')));
+        } else {
+            // 全部: 全部屋の全ユーザー（管理者のみ到達）
+            $gridRoomIds = $this->calendarService->getAllActiveRoomIds($this->MRoomInfo);
+            $gridRows    = $this->calendarService->buildStaffGridRows(
+                $this->MUserGroup, $this->MUserInfo, $this->MRoomInfo,
+                'all', [], $gridRoomIds
+            );
+            $gridUserIds = array_values(array_unique(array_column($gridRows, 'user_id')));
+        }
+
+        /* ── 予約グリッドデータ ── */
+        $grid = (!empty($gridUserIds) && !empty($gridRoomIds))
+            ? $this->calendarService->buildFourWeekGrid(
+                $this->TIndividualReservationInfo,
+                $gridUserIds,
+                $gridRoomIds,
+                $startDateStr,
+                $endDateStr
+              )
+            : [];
+
+        /* ── ナビゲーション ── */
+        $prevWeekStart = $weekStart->modify('-1 week');
+        $nextWeekStart = $weekStart->modify('+1 week');
+
+        /* ── ビューへ ── */
+        $this->set(compact(
+            'loginUserId',
+            'loginUserName',
+            'allRoomsForUser',
+            'dates',
+            'weekStart',
+            'weekEnd',
+            'prevWeekStart',
+            'nextWeekStart',
+            'gridRows',
+            'grid',
+            'isAdmin',
+            'mode'
+        ));
+
+        return null;
+    }
 
     public function getMealCounts($date): ?Response
     {
@@ -1350,38 +1482,15 @@ class TReservationInfoController extends AppController
             $selectedRoomId = !empty($rooms) ? (int)array_key_first($rooms) : null;
         }
 
-        // 週パラメータ: デフォルトは今週月曜
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
-        $defaultMonday = $today->modify('monday this week')->format('Y-m-d');
-        $weekParam = $this->request->getQuery('week') ?? $defaultMonday;
-
-        try {
-            $weekDate = new \DateTimeImmutable($weekParam, new \DateTimeZone('Asia/Tokyo'));
-        } catch (\Throwable $e) {
-            $weekDate = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
-        }
-        // 常に月曜日に正規化する
-        $weekMonday = (int)$weekDate->format('N') === 1
-            ? $weekDate
-            : $weekDate->modify('monday this week');
-
-        // 管理者の編集可能最古週
         $service = new \App\Service\ActualMealManagementService();
-        $oldestMonday = $isAdmin ? $service->getAdminOldestAllowedMonday() : $today->modify('monday this week');
-
-        // 週の範囲チェック（管理者以外は現在週のみ）
-        $futureMonday = $today->modify('monday this week')->modify('+4 weeks');
-        if (!$isAdmin && $weekMonday < $today->modify('monday this week')) {
-            $weekMonday = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
-        }
-        if ($weekMonday < $oldestMonday) {
-            $weekMonday = $oldestMonday;
-        }
-        if ($weekMonday > $futureMonday) {
-            $weekMonday = $futureMonday;
-        }
-
-        $weekMondayStr = $weekMonday->format('Y-m-d');
+        $today   = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $weekNav = $service->resolveWeekNavigation(
+            $this->request->getQuery('week'),
+            $isAdmin,
+            $today
+        );
+        $weekMonday    = $weekNav['weekMonday'];
+        $weekMondayStr = $weekNav['weekMondayStr'];
 
         // 大人ユーザーリストとグリッドデータ
         $adultUsers = [];
@@ -1389,34 +1498,22 @@ class TReservationInfoController extends AppController
 
         if ($selectedRoomId) {
             $adultUsers = $service->getAdultUsers($this->MUserGroup, $this->MUserInfo, $selectedRoomId);
-
-            // 管理者自身がリストにいない場合、選択部屋に所属していれば先頭に追加する
-            if ($isAdmin) {
-                $alreadyIn = array_filter($adultUsers, fn($u) => (int)$u['id'] === $userId);
-                if (empty($alreadyIn)) {
-                    $inRoom = $this->MUserGroup->find()
-                        ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, 'active_flag' => 0])
-                        ->count() > 0;
-                    if ($inRoom) {
-                        array_unshift($adultUsers, [
-                            'id'       => $userId,
-                            'name'     => (string)($authUser->get('c_user_name') ?? ''),
-                            'staff_id' => (string)($authUser->get('i_id_staff') ?? ''),
-                        ]);
-                    }
-                }
-            }
-
+            $adultUsers = $service->ensureUserInList(
+                $adultUsers,
+                $userId,
+                (string)($authUser->get('c_user_name') ?? ''),
+                (string)($authUser->get('i_id_staff') ?? ''),
+                $selectedRoomId,
+                $isAdmin,
+                $this->MUserGroup
+            );
             $gridData = $service->buildWeekGrid($this->TIndividualReservationInfo, $adultUsers, $weekMondayStr);
         }
 
-        // 前週・次週の月曜日
-        $prevMonday = $weekMonday->modify('-7 days');
-        $nextMonday = $weekMonday->modify('+7 days');
-
-        // 前週ナビが使えるか（最古週より前はNG）
-        $canGoPrev = $isAdmin && $prevMonday >= $oldestMonday;
-        $canGoNext = $nextMonday <= $futureMonday;
+        $prevMonday = $weekNav['prevMonday'];
+        $nextMonday = $weekNav['nextMonday'];
+        $canGoPrev  = $weekNav['canGoPrev'];
+        $canGoNext  = $weekNav['canGoNext'];
 
         $this->set(compact(
             'rooms',
@@ -1453,17 +1550,8 @@ class TReservationInfoController extends AppController
         $isBlockLeader = (int)($authUser->get('i_admin') ?? 0) === 2;
         $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
-        // ユーザーの所属部屋
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
-        $rooms = [];
-        if (!empty($userRoomIds)) {
-            $rooms = $this->MRoomInfo->find()
-                ->where(['i_id_room IN' => $userRoomIds, 'i_del_flg' => 0])
-                ->orderAsc('i_disp_no')
-                ->all()
-                ->combine('i_id_room', 'c_room_name')
-                ->toArray();
-        }
+        $rooms       = $this->calendarService->getRoomsByIds($this->MRoomInfo, $userRoomIds);
 
         $selectedRoomId = $this->request->getQuery('room_id')
             ? (int)$this->request->getQuery('room_id')
@@ -1472,56 +1560,36 @@ class TReservationInfoController extends AppController
             $selectedRoomId = !empty($rooms) ? (int)array_key_first($rooms) : null;
         }
 
-        // 週パラメータ（管理者は2ヶ月前まで遡れる、一般は今週のみ）
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
-        $defaultMonday = $today->modify('monday this week')->format('Y-m-d');
-        $weekParam = $this->request->getQuery('week') ?? $defaultMonday;
-
-        try {
-            $weekDate = new \DateTimeImmutable($weekParam, new \DateTimeZone('Asia/Tokyo'));
-        } catch (\Throwable $e) {
-            $weekDate = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
-        }
-        $weekMonday = (int)$weekDate->format('N') === 1
-            ? $weekDate
-            : $weekDate->modify('monday this week');
-
         $service = new \App\Service\ActualMealManagementService();
-        $oldestMonday  = $isAdmin ? $service->getAdminOldestAllowedMonday() : new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
-        $futureMonday  = $today->modify('monday this week')->modify('+4 weeks');
+        $today   = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $weekNav = $service->resolveWeekNavigation(
+            $this->request->getQuery('week'),
+            $isAdmin,
+            $today
+        );
+        $weekMondayStr = $weekNav['weekMondayStr'];
+        $prevMonday    = $weekNav['prevMonday'];
+        $nextMonday    = $weekNav['nextMonday'];
+        $canGoPrev     = $weekNav['canGoPrev'];
+        $canGoNext     = $weekNav['canGoNext'];
 
-        if (!$isAdmin && $weekMonday < new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'))) {
-            $weekMonday = new \DateTimeImmutable($defaultMonday, new \DateTimeZone('Asia/Tokyo'));
-        }
-        if ($weekMonday < $oldestMonday) $weekMonday = $oldestMonday;
-        if ($weekMonday > $futureMonday) $weekMonday = $futureMonday;
-
-        $weekMondayStr = $weekMonday->format('Y-m-d');
-        $prevMonday    = $weekMonday->modify('-7 days');
-        $nextMonday    = $weekMonday->modify('+7 days');
-        $canGoPrev     = $isAdmin && $prevMonday >= $oldestMonday;
-        $canGoNext     = $nextMonday <= $futureMonday;
-
-        $targetUsers = [[
-            'id' => $userId,
-            'name' => (string)$authUser->get('c_user_name'),
+        $selfEntry = [
+            'id'       => $userId,
+            'name'     => (string)$authUser->get('c_user_name'),
             'staff_id' => (string)($authUser->get('i_id_staff') ?? ''),
-        ]];
+        ];
+        $targetUsers = [$selfEntry];
         if ($canProxyActualMeal && $selectedRoomId) {
             $targetUsers = $service->getAdultUsers($this->MUserGroup, $this->MUserInfo, $selectedRoomId);
-            $hasSelf = array_filter($targetUsers, fn($targetUser) => (int)$targetUser['id'] === $userId);
-            if (empty($hasSelf) && $selectedRoomId !== null) {
-                $belongsToRoom = $isAdmin || $this->MUserGroup->find()
-                    ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, 'active_flag' => 0])
-                    ->count() > 0;
-                if ($belongsToRoom) {
-                    array_unshift($targetUsers, [
-                        'id' => $userId,
-                        'name' => (string)$authUser->get('c_user_name'),
-                        'staff_id' => (string)($authUser->get('i_id_staff') ?? ''),
-                    ]);
-                }
-            }
+            $targetUsers = $service->ensureUserInList(
+                $targetUsers,
+                $userId,
+                $selfEntry['name'],
+                $selfEntry['staff_id'],
+                $selectedRoomId,
+                $isAdmin,
+                $this->MUserGroup
+            );
         }
 
         $selectedUserId = $this->request->getQuery('user_id')
@@ -1699,15 +1767,8 @@ class TReservationInfoController extends AppController
                 return '担当外の部屋データは保存できません。';
             }
 
-            $targetBelongsToRoom = $this->MUserGroup->find()
-                ->where([
-                    'i_id_user' => $targetUid,
-                    'i_id_room' => $roomId,
-                    'active_flag' => 0,
-                ])
-                ->count() > 0;
-
-            if (!$targetBelongsToRoom) {
+            $actMealService = new \App\Service\ActualMealManagementService();
+            if (!$actMealService->userBelongsToRoom($this->MUserGroup, $targetUid, $roomId)) {
                 return '対象利用者は選択中の部屋に所属していません。';
             }
 

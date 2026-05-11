@@ -192,6 +192,12 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'getAllRoomsMealCounts']
         )->setMethods(['GET']);
 
+        // 職員用4週間予約グリッド
+        $builder->connect(
+            '/TReservationInfo/staff-reservation',
+            ['controller' => 'TReservationInfo', 'action' => 'staffReservation']
+        )->setMethods(['GET']);
+
         // 実食確認管理（大人限定）
         $builder->connect(
             '/TReservationInfo/actual-meal-management',

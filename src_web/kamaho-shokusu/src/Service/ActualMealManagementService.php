@@ -331,6 +331,128 @@ class ActualMealManagementService
     }
 
     /**
+     * 週ナビゲーションを解決する。
+     *
+     * クエリパラメータで指定された週を月曜日に正規化し、許可範囲内にクランプして
+     * 前週・次週への遷移フラグとともに返す。
+     *
+     * @param string|null        $weekParam クエリから取得した週パラメータ (YYYY-MM-DD)
+     * @param bool               $isAdmin   管理者フラグ
+     * @param \DateTimeImmutable $today     基準となる「今日」
+     * @return array{
+     *   weekMonday: \DateTimeImmutable,
+     *   weekMondayStr: string,
+     *   prevMonday: \DateTimeImmutable,
+     *   nextMonday: \DateTimeImmutable,
+     *   canGoPrev: bool,
+     *   canGoNext: bool,
+     *   oldestMonday: \DateTimeImmutable,
+     * }
+     */
+    public function resolveWeekNavigation(?string $weekParam, bool $isAdmin, \DateTimeImmutable $today): array
+    {
+        $tz = new \DateTimeZone('Asia/Tokyo');
+        $defaultMonday = $today->modify('monday this week');
+        $oldestMonday  = $isAdmin
+            ? $this->getAdminOldestAllowedMonday()
+            : $defaultMonday;
+        $futureMonday  = $defaultMonday->modify('+4 weeks');
+
+        try {
+            $weekDate = $weekParam !== null && $weekParam !== ''
+                ? new \DateTimeImmutable($weekParam, $tz)
+                : $defaultMonday;
+        } catch (\Throwable) {
+            $weekDate = $defaultMonday;
+        }
+
+        $weekMonday = (int)$weekDate->format('N') === 1
+            ? $weekDate
+            : $weekDate->modify('monday this week');
+
+        if (!$isAdmin && $weekMonday < $defaultMonday) {
+            $weekMonday = $defaultMonday;
+        }
+        if ($weekMonday < $oldestMonday) {
+            $weekMonday = $oldestMonday;
+        }
+        if ($weekMonday > $futureMonday) {
+            $weekMonday = $futureMonday;
+        }
+
+        $prevMonday = $weekMonday->modify('-7 days');
+        $nextMonday = $weekMonday->modify('+7 days');
+
+        return [
+            'weekMonday'    => $weekMonday,
+            'weekMondayStr' => $weekMonday->format('Y-m-d'),
+            'prevMonday'    => $prevMonday,
+            'nextMonday'    => $nextMonday,
+            'canGoPrev'     => $isAdmin && $prevMonday >= $oldestMonday,
+            'canGoNext'     => $nextMonday <= $futureMonday,
+            'oldestMonday'  => $oldestMonday,
+        ];
+    }
+
+    /**
+     * ユーザーリストに指定ユーザーが含まれていない場合、部屋所属チェック後に先頭へ追加する。
+     *
+     * 管理者は部屋所属チェックをスキップして常に追加候補とする。
+     *
+     * @param array  $users          getAdultUsers() の返却値
+     * @param int    $userId         追加対象のユーザーID
+     * @param string $userName       追加対象のユーザー名
+     * @param string $staffId        追加対象のスタッフID
+     * @param int    $roomId         対象部屋ID
+     * @param bool   $isAdmin        管理者フラグ（true なら部屋チェック不要）
+     * @param Table  $userGroupTable MUserGroup テーブル
+     * @return array 更新後のユーザーリスト
+     */
+    public function ensureUserInList(
+        array $users,
+        int $userId,
+        string $userName,
+        string $staffId,
+        int $roomId,
+        bool $isAdmin,
+        Table $userGroupTable
+    ): array {
+        $alreadyIn = !empty(array_filter($users, fn($u) => (int)$u['id'] === $userId));
+        if ($alreadyIn) {
+            return $users;
+        }
+
+        $belongsToRoom = $isAdmin || $userGroupTable->find()
+            ->where(['i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => 0])
+            ->count() > 0;
+
+        if ($belongsToRoom) {
+            array_unshift($users, [
+                'id'       => $userId,
+                'name'     => $userName,
+                'staff_id' => $staffId,
+            ]);
+        }
+
+        return $users;
+    }
+
+    /**
+     * 指定ユーザーが部屋に所属しているかを確認する。
+     *
+     * @param Table $userGroupTable MUserGroup テーブル
+     * @param int   $userId         対象ユーザーID
+     * @param int   $roomId         対象部屋ID
+     * @return bool
+     */
+    public function userBelongsToRoom(Table $userGroupTable, int $userId, int $roomId): bool
+    {
+        return $userGroupTable->find()
+            ->where(['i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => 0])
+            ->count() > 0;
+    }
+
+    /**
      * 日付の正規化（YYYY-MM-DD 文字列に変換する）。
      */
     private function normalizeDateString(mixed $value): ?string

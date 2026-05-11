@@ -150,8 +150,8 @@ class ReservationCalendarService
             $type    = (int)$r->i_reservation_type;
 
             $effective = ($r->d_reservation_date <= $borderDate)
-                ? (int)$r->i_change_flag
-                : (int)$r->eat_flag;
+                ? ($r->i_change_flag !== null ? (int)$r->i_change_flag : (int)($r->eat_flag ?? 0))
+                : (int)($r->eat_flag ?? 0);
 
             if ($effective !== 1) {
                 continue;
@@ -212,8 +212,8 @@ class ReservationCalendarService
             }
 
             $effective = ($r->d_reservation_date <= $borderDate)
-                ? (int)$r->i_change_flag
-                : (int)$r->eat_flag;
+                ? ($r->i_change_flag !== null ? (int)$r->i_change_flag : (int)($r->eat_flag ?? 0))
+                : (int)($r->eat_flag ?? 0);
 
             $details[$dateStr][$key] = $effective;
         }
@@ -315,8 +315,8 @@ class ReservationCalendarService
         foreach ($rows as $r) {
             $dateStr = $r->d_reservation_date->format('Y-m-d');
             $effective = ($r->d_reservation_date <= $borderDate)
-                ? (int)$r->i_change_flag
-                : (int)$r->eat_flag;
+                ? ($r->i_change_flag !== null ? (int)$r->i_change_flag : (int)($r->eat_flag ?? 0))
+                : (int)($r->eat_flag ?? 0);
             if ($effective === 1) {
                 $dateCounts[$dateStr] = ($dateCounts[$dateStr] ?? 0) + 1;
             }
@@ -356,6 +356,229 @@ class ReservationCalendarService
             )
             ->where(['MUserGroup.i_id_user' => $userId])
             ->enableHydration(false)
+            ->toArray();
+    }
+
+    /**
+     * 職員用4週間グリッド: ユーザー×部屋×日付×食事種別の予約状況を返す。
+     *
+     * @param Table  $reservationTable TIndividualReservationInfo
+     * @param array  $userIds          対象ユーザーIDの配列
+     * @param array  $roomIds          対象部屋IDの配列
+     * @param string $startDate        YYYY-MM-DD
+     * @param string $endDate          YYYY-MM-DD (inclusive)
+     * @return array [userId][roomId][date][mealType(1-4)] = 0|1
+     */
+    public function buildFourWeekGrid(
+        Table $reservationTable,
+        array $userIds,
+        array $roomIds,
+        string $startDate,
+        string $endDate
+    ): array {
+        if (empty($userIds) || empty($roomIds)) {
+            return [];
+        }
+
+        $borderDate = $this->datePolicy->changeBoundaryDate();
+
+        $rows = $reservationTable->find()
+            ->select([
+                'i_id_user',
+                'i_id_room',
+                'd_reservation_date',
+                'i_reservation_type',
+                'eat_flag',
+                'i_change_flag',
+            ])
+            ->where([
+                'i_id_user IN'           => $userIds,
+                'i_id_room IN'           => $roomIds,
+                'd_reservation_date >='  => $startDate,
+                'd_reservation_date <='  => $endDate,
+            ])
+            ->enableHydration(false)
+            ->toArray();
+
+        $grid = [];
+        foreach ($rows as $r) {
+            $uid      = (int)$r['i_id_user'];
+            $rid      = (int)$r['i_id_room'];
+            $dateObj  = $r['d_reservation_date'];
+            $dateStr  = is_string($dateObj) ? substr($dateObj, 0, 10) : $dateObj->format('Y-m-d');
+            $type     = (int)$r['i_reservation_type'];
+            $dateObjForCmp = $dateObj instanceof \DateTimeInterface
+                ? $dateObj
+                : new \DateTimeImmutable($dateStr);
+
+            $effective = ($dateObjForCmp <= $borderDate)
+                ? ($r['i_change_flag'] !== null ? (int)$r['i_change_flag'] : (int)($r['eat_flag'] ?? 0))
+                : (int)($r['eat_flag'] ?? 0);
+
+            $grid[$uid][$rid][$dateStr][$type] = $effective;
+        }
+
+        return $grid;
+    }
+
+    /**
+     * 部屋に所属する職員ユーザー一覧を返す。
+     *
+     * @param Table    $userGroupTable  MUserGroup
+     * @param Table    $userInfoTable   MUserInfo
+     * @param int[]    $roomIds         対象部屋ID配列（空=全部屋）
+     * @param bool     $staffOnly       trueなら職員のみ（i_user_level=0）
+     * @return array   [{user_id, user_name, staff_id, room_ids[]}]
+     */
+    public function getUsersInRooms(
+        Table $userGroupTable,
+        Table $userInfoTable,
+        array $roomIds,
+        bool $staffOnly = false
+    ): array {
+        $query = $userGroupTable->find()
+            ->enableAutoFields(false)
+            ->select([
+                'user_id'   => 'MUserGroup.i_id_user',
+                'room_id'   => 'MUserGroup.i_id_room',
+                'user_name' => 'MUserInfo.c_user_name',
+                'staff_id'  => 'MUserInfo.i_id_staff',
+                'user_level'=> 'MUserInfo.i_user_level',
+            ])
+            ->innerJoin(
+                ['MUserInfo' => $userInfoTable->getTable()],
+                ['MUserInfo.i_id_user = MUserGroup.i_id_user', 'MUserInfo.i_del_flag' => 0]
+            )
+            ->where(['MUserGroup.active_flag' => 0]);
+
+        if (!empty($roomIds)) {
+            $query->where(['MUserGroup.i_id_room IN' => $roomIds]);
+        }
+
+        if ($staffOnly) {
+            $query->where(['MUserInfo.i_user_level' => 0]);
+        }
+
+        $query->orderBy(['MUserInfo.c_user_name' => 'ASC', 'MUserGroup.i_id_room' => 'ASC'])
+              ->enableHydration(false);
+
+        $rows = $query->toArray();
+
+        // user_id をキーに room_ids を集約
+        $byUser = [];
+        foreach ($rows as $r) {
+            $uid = (int)$r['user_id'];
+            if (!isset($byUser[$uid])) {
+                $byUser[$uid] = [
+                    'user_id'    => $uid,
+                    'user_name'  => (string)$r['user_name'],
+                    'staff_id'   => (string)($r['staff_id'] ?? ''),
+                    'user_level' => (int)$r['user_level'],
+                    'room_ids'   => [],
+                ];
+            }
+            $byUser[$uid]['room_ids'][] = (int)$r['room_id'];
+        }
+
+        return array_values($byUser);
+    }
+
+    /**
+     * 職員用4週間グリッドの行データを構築する。
+     *
+     * @param Table  $userGroupTable
+     * @param Table  $userInfoTable
+     * @param Table  $roomTable
+     * @param string $viewMode       'individual'|'room'|'all'
+     * @param int[]  $targetUserIds  個人モード時の対象ユーザーID配列
+     * @param int[]  $targetRoomIds  部屋モード時の対象部屋ID配列（全部屋=all部屋ID配列）
+     * @return array [{room_id, room_name, user_id, user_name, staff_id}]
+     */
+    public function buildStaffGridRows(
+        Table $userGroupTable,
+        Table $userInfoTable,
+        Table $roomTable,
+        string $viewMode,
+        array $targetUserIds,
+        array $targetRoomIds
+    ): array {
+        $whereUser = empty($targetUserIds) ? [] : ['MUserGroup.i_id_user IN' => $targetUserIds];
+        $whereRoom = empty($targetRoomIds) ? [] : ['MUserGroup.i_id_room IN' => $targetRoomIds];
+
+        $query = $userGroupTable->find()
+            ->enableAutoFields(false)
+            ->select([
+                'user_id'    => 'MUserGroup.i_id_user',
+                'room_id'    => 'MUserGroup.i_id_room',
+                'user_name'  => 'MUserInfo.c_user_name',
+                'staff_id'   => 'MUserInfo.i_id_staff',
+                'room_name'  => 'MRoomInfo.c_room_name',
+                'room_order' => 'MRoomInfo.i_disp_no',
+            ])
+            ->innerJoin(
+                ['MUserInfo' => $userInfoTable->getTable()],
+                ['MUserInfo.i_id_user = MUserGroup.i_id_user', 'MUserInfo.i_del_flag' => 0]
+            )
+            ->innerJoin(
+                ['MRoomInfo' => $roomTable->getTable()],
+                ['MRoomInfo.i_id_room = MUserGroup.i_id_room', 'MRoomInfo.i_del_flg' => 0]
+            )
+            ->where(['MUserGroup.active_flag' => 0])
+            ->where($whereUser)
+            ->where($whereRoom)
+            ->orderBy([
+                'MRoomInfo.i_disp_no'  => 'ASC',
+                'MRoomInfo.i_id_room'  => 'ASC',
+                'MUserInfo.c_user_name' => 'ASC',
+            ])
+            ->enableHydration(false);
+
+        $rows = $query->toArray();
+
+        return array_map(static fn(array $r): array => [
+            'room_id'   => (int)$r['room_id'],
+            'room_name' => (string)$r['room_name'],
+            'user_id'   => (int)$r['user_id'],
+            'user_name' => (string)$r['user_name'],
+            'staff_id'  => (string)($r['staff_id'] ?? ''),
+        ], $rows);
+    }
+
+    /**
+     * 削除されていない全部屋のIDを返す。
+     *
+     * @param Table $roomTable MRoomInfo テーブル
+     * @return int[]
+     */
+    public function getAllActiveRoomIds(Table $roomTable): array
+    {
+        $rows = $roomTable->find()
+            ->select(['i_id_room'])
+            ->where(['i_del_flg' => 0])
+            ->enableHydration(false)
+            ->toArray();
+
+        return array_column($rows, 'i_id_room');
+    }
+
+    /**
+     * 指定したID配列に一致する削除済みでない部屋を [id => name] の連想配列で返す。
+     *
+     * @param Table  $roomTable MRoomInfo テーブル
+     * @param int[]  $roomIds   対象部屋IDの配列
+     * @return array<int, string>
+     */
+    public function getRoomsByIds(Table $roomTable, array $roomIds): array
+    {
+        if (empty($roomIds)) {
+            return [];
+        }
+
+        return $roomTable->find()
+            ->where(['i_id_room IN' => $roomIds, 'i_del_flg' => 0])
+            ->orderAsc('i_disp_no')
+            ->all()
+            ->combine('i_id_room', 'c_room_name')
             ->toArray();
     }
 }

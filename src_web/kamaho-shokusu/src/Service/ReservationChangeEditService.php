@@ -41,6 +41,21 @@ class ReservationChangeEditService
      *
      * @param array<int, string> $allowedRooms
      */
+    /**
+     * 部屋IDから部屋エンティティを取得する。見つからなければ null を返す。
+     *
+     * @param Table $roomTable MRoomInfo テーブル
+     * @param int   $roomId    部屋ID
+     * @return \Cake\Datasource\EntityInterface|null
+     */
+    public function getRoomById(Table $roomTable, int $roomId): mixed
+    {
+        return $roomTable->find()
+            ->select(['i_id_room', 'c_room_name'])
+            ->where(['i_id_room' => $roomId])
+            ->first();
+    }
+
     public function resolveDefaultRoomId(array $allowedRooms, string $date, Table $reservationTable): ?int
     {
         if (empty($allowedRooms)) {
