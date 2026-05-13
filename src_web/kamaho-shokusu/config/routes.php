@@ -89,6 +89,11 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation']
         )->setMethods(['GET']);
 
+        $builder->connect(
+            '/TReservationInfo/getReservationSnapshots',
+            ['controller' => 'TReservationInfo', 'action' => 'getReservationSnapshots']
+        )->setMethods(['POST']);
+
         $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
         $builder->connect(
             '/TReservationInfo/changeEdit/:roomId/:date/:mealType',
