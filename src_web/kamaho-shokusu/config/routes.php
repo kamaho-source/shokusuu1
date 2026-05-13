@@ -89,11 +89,6 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation']
         )->setMethods(['GET']);
 
-        $builder->connect(
-            '/TReservationInfo/getReservationSnapshots',
-            ['controller' => 'TReservationInfo', 'action' => 'getReservationSnapshots']
-        )->setMethods(['POST']);
-
         $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
         $builder->connect(
             '/TReservationInfo/changeEdit/:roomId/:date/:mealType',
@@ -153,17 +148,6 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
-
-        // MRoomTransferSchedule（部屋異動予約）
-        $builder->connect('/MRoomTransferSchedule', ['controller' => 'MRoomTransferSchedule', 'action' => 'index']);
-        $builder->connect('/MRoomTransferSchedule/add', ['controller' => 'MRoomTransferSchedule', 'action' => 'add']);
-        $builder->connect(
-            '/MRoomTransferSchedule/cancel/:id',
-            ['controller' => 'MRoomTransferSchedule', 'action' => 'cancel']
-        )
-            ->setPass(['id'])
-            ->setPatterns(['id' => '\d+'])
-            ->setMethods(['POST']);
 
         // Pages
         $builder->connect('/pages/*', 'Pages::display');
