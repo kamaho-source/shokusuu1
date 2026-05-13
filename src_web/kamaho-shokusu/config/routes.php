@@ -149,6 +149,17 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
 
+        // MRoomTransferSchedule（部屋異動予約）
+        $builder->connect('/MRoomTransferSchedule', ['controller' => 'MRoomTransferSchedule', 'action' => 'index']);
+        $builder->connect('/MRoomTransferSchedule/add', ['controller' => 'MRoomTransferSchedule', 'action' => 'add']);
+        $builder->connect(
+            '/MRoomTransferSchedule/cancel/:id',
+            ['controller' => 'MRoomTransferSchedule', 'action' => 'cancel']
+        )
+            ->setPass(['id'])
+            ->setPatterns(['id' => '\d+'])
+            ->setMethods(['POST']);
+
         // Pages
         $builder->connect('/pages/*', 'Pages::display');
 
