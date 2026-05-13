@@ -66,6 +66,8 @@ $recentNotifications = $recentNotifications ?? [];
                             <ul class="dropdown-menu animate__animated animate__fadeIn" aria-labelledby="adminDropdown">
                                 <li><?= $this->Html->link('💰 食数単価一覧', ['controller' => 'MMealPriceInfo', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
                                 <li><?= $this->Html->link('📄 食事控除表ダウンロード', ['controller' => 'MMealPriceInfo', 'action' => 'GetMealSummary'], ['class' => 'dropdown-item']) ?></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><?= $this->Html->link('🔄 部屋異動予約', ['controller' => 'MRoomTransferSchedule', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
                             </ul>
                         </li>
                     <?php endif; ?>
