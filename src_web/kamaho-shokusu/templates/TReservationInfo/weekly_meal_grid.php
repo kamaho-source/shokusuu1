@@ -131,6 +131,9 @@ $weekGrandTotal = array_sum($weekTotals);
         <div class="wmg-toolbar-spacer"></div>
         <a href="<?= h($basePath . '/TReservationInfo/meal-count-grid') ?>"
            class="wmg-nav-btn" style="font-size:11px;">4週間ビュー</a>
+
+        <!-- 登録ボタン -->
+        <button id="wmg-register-btn" type="button" disabled>登録</button>
     </div>
 
     <!-- ユーザー情報カード -->
@@ -435,10 +438,42 @@ function wmgShowToast(message, type) {
     }, 2700);
 }
 
-/* ─── セル状態 ─── */
-function wmgSetCellOn(td)  { td.dataset.reserved = '1'; td.textContent = '1'; td.setAttribute('aria-checked', 'true'); }
-function wmgSetCellOff(td) { td.dataset.reserved = '0'; td.textContent = '';  td.setAttribute('aria-checked', 'false'); }
+/* ─── Pending 管理 ─── */
+var _wmgPending = new Map();
 
+function _wmgKey(td) {
+    return td.dataset.userId + '|' + td.dataset.roomId + '|' + td.dataset.date + '|' + td.dataset.meal;
+}
+
+function wmgAddPending(td, newValue) {
+    var key      = _wmgKey(td);
+    var existing = _wmgPending.get(key);
+    var original = existing ? existing.original : td.dataset.reserved;
+    _wmgPending.set(key, { td: td, original: original, desired: newValue });
+    td.dataset.reserved = newValue === 1 ? '1' : '0';
+    td.setAttribute('aria-checked', newValue === 1 ? 'true' : 'false');
+    td.classList.remove('wmg-pending-on', 'wmg-pending-off');
+    if (newValue === 1) { td.classList.add('wmg-pending-on');  td.textContent = '●'; }
+    else                { td.classList.add('wmg-pending-off'); td.textContent = '×'; }
+}
+
+function wmgRemovePending(td) {
+    var key   = _wmgKey(td);
+    var entry = _wmgPending.get(key);
+    if (entry) { td.dataset.reserved = entry.original; td.setAttribute('aria-checked', entry.original === '1' ? 'true' : 'false'); _wmgPending.delete(key); }
+    td.classList.remove('wmg-pending-on', 'wmg-pending-off');
+    td.textContent = td.dataset.reserved === '1' ? '1' : '';
+}
+
+function wmgUpdateRegisterBtn() {
+    var btn = document.getElementById('wmg-register-btn');
+    if (!btn) return;
+    var count = _wmgPending.size;
+    if (count > 0) { btn.disabled = false; btn.textContent = '登録 (' + count + '件)'; btn.classList.add('has-changes'); }
+    else           { btn.disabled = true;  btn.textContent = '登録';                    btn.classList.remove('has-changes'); }
+}
+
+/* ─── Flash アニメーション ─── */
 function wmgFlashCell(td, isOn) {
     var cls = isOn ? 'wmg-cell-flash-on' : 'wmg-cell-flash-off';
     td.classList.remove('wmg-cell-flash-on', 'wmg-cell-flash-off');
@@ -452,46 +487,25 @@ function wmgUpdateDailyTotal(date, meal) {
     var count = document.querySelectorAll(
         '.wmg-toggleable[data-date="' + date + '"][data-meal="' + meal + '"][data-reserved="1"]'
     ).length;
-    var cell = document.querySelector(
-        '.row-daily-total td[data-date="' + date + '"][data-meal="' + meal + '"]'
-    );
+    var cell = document.querySelector('.row-daily-total td[data-date="' + date + '"][data-meal="' + meal + '"]');
     if (cell) cell.textContent = count > 0 ? String(count) : '';
 }
 
 function wmgUpdateLoginUserWeeklyTotals() {
     var loginUserId = <?= json_encode($loginUserId) ?>;
-    var dates = <?= json_encode($dates) ?>;
-    var mealTypes = [1, 2, 3, 4];
-
-    mealTypes.forEach(function (mt) {
-        var total = 0;
-        dates.forEach(function (d) {
-            var cell = document.querySelector(
-                '.wmg-toggleable[data-user-id="' + loginUserId + '"][data-date="' + d + '"][data-meal="' + mt + '"][data-reserved="1"]'
-            );
-            if (cell) total++;
-        });
-    });
-
-    /* 週計行セルを日ごとに集計（縦断ではなく行横断で表示） */
+    var dates       = <?= json_encode($dates) ?>;
     dates.forEach(function (d) {
-        mealTypes.forEach(function (mt) {
-            var weekCell = document.querySelector(
-                '.row-login-weekly-total td[data-wmy-date="' + d + '"][data-wmy-meal="' + mt + '"]'
-            );
+        [1, 2, 3, 4].forEach(function (mt) {
+            var weekCell = document.querySelector('.row-login-weekly-total td[data-wmy-date="' + d + '"][data-wmy-meal="' + mt + '"]');
             if (!weekCell) return;
-            var userCell = document.querySelector(
-                '.wmg-toggleable[data-user-id="' + loginUserId + '"][data-date="' + d + '"][data-meal="' + mt + '"]'
-            );
+            var userCell = document.querySelector('.wmg-toggleable[data-user-id="' + loginUserId + '"][data-date="' + d + '"][data-meal="' + mt + '"]');
             weekCell.textContent = (userCell && userCell.dataset.reserved === '1') ? '1' : '';
         });
     });
 }
 
-/* ─── セルトグル ─── */
+/* ─── セルクリック（Pending モード） ─── */
 function wmgInitToggle() {
-    var csrfMeta  = document.querySelector('meta[name="csrfToken"]');
-    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
     var loginUserId = <?= json_encode($loginUserId) ?>;
 
     document.querySelectorAll('.wmg-toggleable').forEach(function (td) {
@@ -500,83 +514,93 @@ function wmgInitToggle() {
         });
 
         td.addEventListener('click', function () {
-            if (td.dataset.wmgProcessing === '1') return;
-            if (td.classList.contains('wmg-cell-conflict')) return; // 他部屋予約済み
+            if (td.classList.contains('wmg-cell-conflict')) return;
 
             var userId   = td.dataset.userId;
             var roomId   = td.dataset.roomId;
             var date     = td.dataset.date;
             var meal     = parseInt(td.dataset.meal, 10);
-            var reserved = td.dataset.reserved === '1';
-            var newValue = reserved ? 0 : 1;
+            var newValue = td.dataset.reserved === '1' ? 0 : 1;
 
-            var snapshot = { reserved: td.dataset.reserved };
-            var opponentCell = null, opponentSnap = null;
-
+            /* 昼↔弁当 排他 */
             if (newValue === 1 && Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
-                opponentCell = document.querySelector(
-                    '.wmg-toggleable[data-user-id="' + userId + '"]' +
-                    '[data-room-id="' + roomId + '"]' +
-                    '[data-date="' + date + '"]' +
-                    '[data-meal="' + MEAL_OPPONENT[meal] + '"]'
-                );
-                if (opponentCell) opponentSnap = { reserved: opponentCell.dataset.reserved };
+                var opMeal = MEAL_OPPONENT[meal];
+                var opTd   = document.querySelector('.wmg-toggleable[data-user-id="' + userId + '"][data-room-id="' + roomId + '"][data-date="' + date + '"][data-meal="' + opMeal + '"]');
+                if (opTd && opTd.dataset.reserved === '1') {
+                    var opEntry    = _wmgPending.get(_wmgKey(opTd));
+                    var opOriginal = opEntry ? opEntry.original : opTd.dataset.reserved;
+                    if (opOriginal === '0') wmgRemovePending(opTd);
+                    else                    wmgAddPending(opTd, 0);
+                    wmgUpdateDailyTotal(date, opMeal);
+                    wmgSyncConflicts(userId, date, String(opMeal));
+                }
             }
 
-            td.dataset.wmgProcessing = '1';
-            td.style.pointerEvents   = 'none';
-
-            if (newValue === 1) {
-                wmgSetCellOn(td);
-                if (opponentCell) wmgSetCellOff(opponentCell);
-            } else {
-                wmgSetCellOff(td);
-            }
+            /* 元の状態に戻るなら pending 解除、それ以外は pending 追加 */
+            var key      = _wmgKey(td);
+            var entry    = _wmgPending.get(key);
+            var original = entry ? entry.original : td.dataset.reserved;
+            if (String(newValue) === original) wmgRemovePending(td);
+            else                               wmgAddPending(td, newValue);
 
             wmgUpdateDailyTotal(date, meal);
-            if (opponentCell) wmgUpdateDailyTotal(date, MEAL_OPPONENT[meal]);
+            wmgSyncConflicts(userId, date, td.dataset.meal);
             if (parseInt(userId, 10) === loginUserId) wmgUpdateLoginUserWeeklyTotals();
+            wmgUpdateRegisterBtn();
+        });
+    });
+}
 
-            fetch(WMG_BASE + '/TReservationInfo/toggle/' + roomId, {
-                method: 'POST',
-                headers: {
-                    'Content-Type':     'application/json',
-                    'X-CSRF-Token':     csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept':           'application/json',
-                },
-                body: JSON.stringify({ userId: parseInt(userId, 10), date: date, meal: meal, value: newValue }),
-            })
-            .then(function (res) {
-                return res.text().then(function (text) {
-                    var data;
-                    try { data = JSON.parse(text); } catch (e) { throw new Error('サーバーエラー (HTTP ' + res.status + ')'); }
-                    if (data.ok === false) throw new Error(data.message || 'エラーが発生しました。');
-                    return data;
-                });
-            })
-            .then(function () {
-                wmgFlashCell(td, newValue === 1);
-                wmgSyncConflicts(userId, date, meal);
-                if (opponentCell) wmgSyncConflicts(userId, date, MEAL_OPPONENT[meal]);
-            })
-            .catch(function (err) {
-                if (snapshot.reserved === '1') wmgSetCellOn(td); else wmgSetCellOff(td);
-                if (opponentCell && opponentSnap) {
-                    if (opponentSnap.reserved === '1') wmgSetCellOn(opponentCell); else wmgSetCellOff(opponentCell);
-                }
-                wmgUpdateDailyTotal(date, meal);
-                if (opponentCell) wmgUpdateDailyTotal(date, MEAL_OPPONENT[meal]);
-                if (parseInt(userId, 10) === loginUserId) wmgUpdateLoginUserWeeklyTotals();
-                wmgSyncConflicts(userId, date, meal);
-                if (opponentCell) wmgSyncConflicts(userId, date, MEAL_OPPONENT[meal]);
-                wmgShowToast(err.message || '通信エラーが発生しました。', 'error');
-            })
-            .finally(function () {
-                delete td.dataset.wmgProcessing;
-                td.style.pointerEvents = '';
+/* ─── 一括登録 ─── */
+function wmgRegisterAll() {
+    if (_wmgPending.size === 0) return;
+    var btn = document.getElementById('wmg-register-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '保存中…'; btn.classList.remove('has-changes'); }
+
+    var csrfMeta  = document.querySelector('meta[name="csrfToken"]');
+    var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+    var loginUserId = <?= json_encode($loginUserId) ?>;
+
+    var entries = Array.from(_wmgPending.entries());
+    Promise.allSettled(entries.map(function (pair) {
+        var parts = pair[0].split('|');
+        return fetch(WMG_BASE + '/TReservationInfo/toggle/' + parts[1], {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' },
+            body: JSON.stringify({ userId: parseInt(parts[0], 10), date: parts[2], meal: parseInt(parts[3], 10), value: pair[1].desired }),
+        }).then(function (res) {
+            return res.text().then(function (text) {
+                var data; try { data = JSON.parse(text); } catch (e) { throw new Error('HTTP ' + res.status); }
+                if (data.ok === false) throw new Error(data.message || 'エラー');
+                return pair[0];
             });
         });
+    })).then(function (results) {
+        var successCount = 0, failCount = 0;
+        results.forEach(function (result, i) {
+            var entry = entries[i][1];
+            var parts = entries[i][0].split('|');
+            if (result.status === 'fulfilled') {
+                successCount++;
+                _wmgPending.delete(entries[i][0]);
+                entry.td.classList.remove('wmg-pending-on', 'wmg-pending-off');
+                entry.td.textContent = entry.desired === 1 ? '1' : '';
+                wmgFlashCell(entry.td, entry.desired === 1);
+            } else {
+                failCount++;
+                _wmgPending.delete(entries[i][0]);
+                entry.td.dataset.reserved = entry.original;
+                entry.td.classList.remove('wmg-pending-on', 'wmg-pending-off');
+                entry.td.textContent = entry.original === '1' ? '1' : '';
+                entry.td.setAttribute('aria-checked', entry.original === '1' ? 'true' : 'false');
+            }
+            wmgUpdateDailyTotal(parts[2], parseInt(parts[3], 10));
+            wmgSyncConflicts(parts[0], parts[2], parts[3]);
+        });
+        wmgUpdateLoginUserWeeklyTotals();
+        if (successCount > 0) wmgShowToast(successCount + '件を登録しました', 'success');
+        if (failCount > 0)    wmgShowToast(failCount + '件の登録に失敗しました', 'error');
+        wmgUpdateRegisterBtn();
     });
 }
 
@@ -585,12 +609,15 @@ function wmgInitCellRef() {
     var cellRefEl = document.querySelector('.excel-formulabar .cell-ref');
     document.querySelectorAll('.wmg-toggleable').forEach(function (td, idx) {
         td.addEventListener('focus', function () {
-            if (cellRefEl) {
-                var col = String.fromCharCode(65 + (idx % 26));
-                var row = td.closest('tr') ? td.closest('tr').rowIndex + 1 : 1;
-                cellRefEl.textContent = col + row;
-            }
+            if (cellRefEl) { cellRefEl.textContent = String.fromCharCode(65 + (idx % 26)) + (td.closest('tr') ? td.closest('tr').rowIndex + 1 : 1); }
         });
+    });
+}
+
+/* ─── ページ離脱ガード ─── */
+function wmgInitBeforeUnload() {
+    window.addEventListener('beforeunload', function (e) {
+        if (_wmgPending.size > 0) { e.preventDefault(); e.returnValue = '登録されていない変更があります。ページを離れますか？'; }
     });
 }
 
@@ -600,6 +627,10 @@ document.addEventListener('DOMContentLoaded', function () {
     wmgUpdateLoginUserWeeklyTotals();
     wmgInitToggle();
     wmgInitCellRef();
+    wmgInitBeforeUnload();
+    wmgUpdateRegisterBtn();
+    var btn = document.getElementById('wmg-register-btn');
+    if (btn) btn.addEventListener('click', wmgRegisterAll);
 });
 </script>
 

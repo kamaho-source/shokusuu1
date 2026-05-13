@@ -724,3 +724,51 @@ html, body {
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+
+/* =====================================================================
+ * 登録ボタン
+ * ===================================================================== */
+
+#wmg-register-btn {
+    background: #bdbdbd;
+    border: none;
+    border-radius: 2px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    height: 26px;
+    padding: 0 16px;
+    cursor: not-allowed;
+    white-space: nowrap;
+    transition: background 0.2s;
+    letter-spacing: 0.04em;
+}
+
+#wmg-register-btn.has-changes {
+    background: #217346;
+    cursor: pointer;
+    animation: wmg-btn-pulse 1.8s ease-in-out infinite;
+}
+
+#wmg-register-btn.has-changes:hover { background: #1a5c38; animation: none; }
+
+@keyframes wmg-btn-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(33,115,70,.5); }
+    50%       { box-shadow: 0 0 0 5px rgba(33,115,70,0); }
+}
+
+/* =====================================================================
+ * Pending セル
+ * ===================================================================== */
+
+.wmg-grid tbody td.wmg-pending-on {
+    background: #c6efce !important;
+    color: #375623 !important;
+    outline: 1px solid #375623;
+}
+
+.wmg-grid tbody td.wmg-pending-off {
+    background: #ffc7ce !important;
+    color: #9c0006 !important;
+    outline: 1px solid #9c0006;
+}

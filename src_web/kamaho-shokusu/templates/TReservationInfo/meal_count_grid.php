@@ -184,6 +184,9 @@ $lastColLtr = 'R'; // 仮: 日計列
                 <button class="mcg-nav-btn" disabled>翌4週 ►</button>
             <?php endif; ?>
         </div>
+
+        <!-- 登録ボタン -->
+        <button id="mcg-register-btn" type="button" disabled>登録</button>
     </div>
 
     <!-- ═══════════════════════════════════════════

@@ -598,6 +598,60 @@ html, body {
 }
 
 /* =====================================================================
+ * 登録ボタン
+ * ===================================================================== */
+
+#mcg-register-btn {
+    background: #bdbdbd;
+    color: #fff;
+    border: none;
+    border-radius: 2px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 14px;
+    height: 28px;
+    cursor: not-allowed;
+    white-space: nowrap;
+    transition: background 0.15s;
+    letter-spacing: 0.03em;
+}
+
+#mcg-register-btn.has-changes {
+    background: #217346;
+    cursor: pointer;
+    animation: mcg-btn-pulse 1.8s ease-in-out infinite;
+}
+
+#mcg-register-btn.has-changes:hover { background: #1a5c38; animation: none; }
+
+@keyframes mcg-btn-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(33,115,70,.5); }
+    50%       { box-shadow: 0 0 0 5px rgba(33,115,70,0); }
+}
+
+/* =====================================================================
+ * Pending セル（未保存変更）
+ * ===================================================================== */
+
+/* pending ON: 緑 ● */
+.mcg-grid tbody td.mcg-pending-on {
+    background: #c6efce !important;
+    color: #375623 !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    cursor: pointer;
+}
+
+/* pending OFF: 赤 × */
+.mcg-grid tbody td.mcg-pending-off {
+    background: #ffc7ce !important;
+    color: #9c0006 !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    cursor: pointer;
+}
+
+/* =====================================================================
  * 排他制御: 他部屋で予約済みセル
  * ===================================================================== */
 
