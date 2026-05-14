@@ -20,6 +20,86 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 <meta name="csrfToken" content="<?= h($csrfToken) ?>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
+<style>
+#rts-popup-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.35);
+    backdrop-filter: blur(2px);
+    z-index: 1040;
+    animation: rts-overlay-in .15s ease;
+}
+#rts-popup-overlay.show { display: block; }
+
+#rts-confirm-popup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -60%) scale(.92);
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px 28px 22px;
+    width: min(380px, 92vw);
+    box-shadow: 0 20px 60px rgba(0,0,0,.22);
+    z-index: 1050;
+    text-align: center;
+    transition: transform .18s cubic-bezier(.34,1.56,.64,1), opacity .15s ease;
+    opacity: 0;
+}
+#rts-confirm-popup.show {
+    display: block;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+.rts-popup-icon-wrap {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 14px;
+    background: #fff1f2;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.rts-popup-icon-svg {
+    width: 28px;
+    height: 28px;
+    stroke: #ef4444;
+}
+#rts-popup-message {
+    font-size: .95rem;
+    font-weight: 500;
+    color: #374151;
+    margin: 0 0 20px;
+    line-height: 1.6;
+}
+.rts-popup-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.rts-popup-actions button {
+    flex: 1;
+    padding: 9px 0;
+    border: none;
+    border-radius: 10px;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter .15s;
+}
+.rts-popup-actions button:hover { filter: brightness(.93); }
+#rts-popup-cancel { background: #f3f4f6; color: #6b7280; }
+#rts-popup-ok     { background: #ef4444; color: #fff; }
+
+@keyframes rts-overlay-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+</style>
+
 <div class="content">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0">
@@ -95,6 +175,13 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                     $dtCreate = $schedule->dt_create
                         ? (new \DateTime((string)$schedule->dt_create))->format('Y/m/d H:i')
                         : '-';
+
+                    $cancelMessage = sprintf(
+                        '%s の異動予約（→ %s）をキャンセルしますか？',
+                        $schedule->m_user_info->c_user_name ?? '',
+                        $schedule->room_to->c_room_name ?? ''
+                    );
+                    $cancelUrl = $this->Url->build(['action' => 'cancel', $schedule->i_id]);
                 ?>
                 <tr>
                     <td><?= h($schedule->m_user_info->c_user_name ?? '-') ?></td>
@@ -116,19 +203,21 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                     <td class="text-muted small text-nowrap"><?= h($dtCreate) ?></td>
                     <td>
                         <?php if ((int)$schedule->i_status === 0): ?>
-                            <?= $this->Form->postLink(
-                                '<i class="bi bi-x-circle"></i> キャンセル',
-                                ['action' => 'cancel', $schedule->i_id],
-                                [
-                                    'class'   => 'btn btn-sm btn-outline-danger',
-                                    'escape'  => false,
-                                    'confirm' => sprintf(
-                                        '%s の異動予約（→ %s）をキャンセルしますか？',
-                                        $schedule->m_user_info->c_user_name ?? '',
-                                        $schedule->room_to->c_room_name ?? ''
-                                    ),
-                                ]
-                            ) ?>
+                            <!-- キャンセル用フォーム（非表示） -->
+                            <?= $this->Form->create(null, [
+                                'url'    => ['action' => 'cancel', $schedule->i_id],
+                                'method' => 'post',
+                                'id'     => 'cancel-form-' . $schedule->i_id,
+                                'style'  => 'display:none',
+                            ]) ?>
+                            <?= $this->Form->end() ?>
+
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger rts-cancel-btn"
+                                    data-form-id="cancel-form-<?= $schedule->i_id ?>"
+                                    data-message="<?= h($cancelMessage) ?>">
+                                <i class="bi bi-x-circle"></i> キャンセル
+                            </button>
                         <?php else: ?>
                             <span class="text-muted">—</span>
                         <?php endif; ?>
@@ -147,3 +236,66 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
         </table>
     </div>
 </div>
+
+<!-- 確認モーダル -->
+<div id="rts-popup-overlay"></div>
+<div id="rts-confirm-popup" role="dialog" aria-modal="true" aria-labelledby="rts-popup-message">
+    <div class="rts-popup-icon-wrap">
+        <svg class="rts-popup-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <circle cx="12" cy="16" r=".5" fill="currentColor"/>
+        </svg>
+    </div>
+    <p id="rts-popup-message"></p>
+    <div class="rts-popup-actions">
+        <button id="rts-popup-cancel" type="button">戻る</button>
+        <button id="rts-popup-ok"     type="button">キャンセルする</button>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const overlay      = document.getElementById('rts-popup-overlay');
+    const popup        = document.getElementById('rts-confirm-popup');
+    const messageEl    = document.getElementById('rts-popup-message');
+    const okBtn        = document.getElementById('rts-popup-ok');
+    const cancelBtn    = document.getElementById('rts-popup-cancel');
+
+    let pendingFormId = null;
+
+    function showModal(message, formId) {
+        messageEl.textContent = message;
+        pendingFormId = formId;
+        overlay.classList.add('show');
+        popup.classList.add('show');
+        okBtn.focus();
+    }
+
+    function hideModal() {
+        overlay.classList.remove('show');
+        popup.classList.remove('show');
+        pendingFormId = null;
+    }
+
+    okBtn.addEventListener('click', () => {
+        if (pendingFormId) {
+            document.getElementById(pendingFormId)?.submit();
+        }
+        hideModal();
+    });
+
+    cancelBtn.addEventListener('click', hideModal);
+    overlay.addEventListener('click', hideModal);
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && popup.classList.contains('show')) hideModal();
+    });
+
+    document.querySelectorAll('.rts-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            showModal(btn.dataset.message, btn.dataset.formId);
+        });
+    });
+});
+</script>
