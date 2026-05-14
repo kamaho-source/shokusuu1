@@ -5,3 +5,122 @@
         float: none;
     }
 }
+
+/* ============================================================
+   ConfirmPopup — 共通確認モーダル (confirm_popup.js と対)
+   ============================================================ */
+#cp-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.35);
+    backdrop-filter: blur(2px);
+    z-index: 1040;
+    animation: cp-overlay-in .15s ease;
+}
+#cp-overlay.show { display: block; }
+
+#cp-popup {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -60%) scale(.92);
+    background: #fff;
+    border-radius: 16px;
+    padding: 28px 28px 22px;
+    width: min(380px, 92vw);
+    box-shadow: 0 20px 60px rgba(0,0,0,.22);
+    z-index: 1050;
+    text-align: center;
+    transition: transform .18s cubic-bezier(.34,1.56,.64,1), opacity .15s ease;
+    opacity: 0;
+}
+#cp-popup.show {
+    display: block;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+.cp-icon-wrap {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 14px;
+    background: #fffbeb;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.cp-icon-svg {
+    width: 28px;
+    height: 28px;
+    stroke: #f59e0b;
+}
+
+#cp-message {
+    font-size: .95rem;
+    font-weight: 500;
+    color: #374151;
+    margin: 0 0 20px;
+    line-height: 1.6;
+}
+
+.cp-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+.cp-actions button {
+    flex: 1;
+    padding: 9px 0;
+    border: none;
+    border-radius: 10px;
+    font-size: .88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter .15s;
+}
+.cp-actions button:hover { filter: brightness(.93); }
+
+#cp-cancel {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+#cp-ok {
+    /* background は JS 側で動的にセット */
+    color: #fff;
+}
+
+#cp-result {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px 20px;
+    font-size: .9rem;
+    font-weight: 600;
+    box-shadow: 0 8px 32px rgba(0,0,0,.16);
+    z-index: 1060;
+    transform: translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform .22s cubic-bezier(.34,1.56,.64,1), opacity .18s ease;
+}
+#cp-result.show {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+#cp-result.success { border-left: 4px solid #10b981; color: #065f46; }
+#cp-result.error   { border-left: 4px solid #ef4444; color: #991b1b; }
+#cp-result-icon    { font-size: 1.3rem; }
+
+@keyframes cp-overlay-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}

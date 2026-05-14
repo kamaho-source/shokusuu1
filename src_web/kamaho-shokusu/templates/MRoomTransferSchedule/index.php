@@ -20,6 +20,7 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 <meta name="csrfToken" content="<?= h($csrfToken) ?>">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
+
 <div class="content">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h3 class="mb-0">
@@ -95,6 +96,13 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                     $dtCreate = $schedule->dt_create
                         ? (new \DateTime((string)$schedule->dt_create))->format('Y/m/d H:i')
                         : '-';
+
+                    $cancelMessage = sprintf(
+                        '%s の異動予約（→ %s）をキャンセルしますか？',
+                        $schedule->m_user_info->c_user_name ?? '',
+                        $schedule->room_to->c_room_name ?? ''
+                    );
+                    $cancelUrl = $this->Url->build(['action' => 'cancel', $schedule->i_id]);
                 ?>
                 <tr>
                     <td><?= h($schedule->m_user_info->c_user_name ?? '-') ?></td>
@@ -116,19 +124,21 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                     <td class="text-muted small text-nowrap"><?= h($dtCreate) ?></td>
                     <td>
                         <?php if ((int)$schedule->i_status === 0): ?>
-                            <?= $this->Form->postLink(
-                                '<i class="bi bi-x-circle"></i> キャンセル',
-                                ['action' => 'cancel', $schedule->i_id],
-                                [
-                                    'class'   => 'btn btn-sm btn-outline-danger',
-                                    'escape'  => false,
-                                    'confirm' => sprintf(
-                                        '%s の異動予約（→ %s）をキャンセルしますか？',
-                                        $schedule->m_user_info->c_user_name ?? '',
-                                        $schedule->room_to->c_room_name ?? ''
-                                    ),
-                                ]
-                            ) ?>
+                            <!-- キャンセル用フォーム（非表示） -->
+                            <?= $this->Form->create(null, [
+                                'url'    => ['action' => 'cancel', $schedule->i_id],
+                                'method' => 'post',
+                                'id'     => 'cancel-form-' . $schedule->i_id,
+                                'style'  => 'display:none',
+                            ]) ?>
+                            <?= $this->Form->end() ?>
+
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger rts-cancel-btn"
+                                    data-form-id="cancel-form-<?= $schedule->i_id ?>"
+                                    data-message="<?= h($cancelMessage) ?>">
+                                <i class="bi bi-x-circle"></i> キャンセル
+                            </button>
                         <?php else: ?>
                             <span class="text-muted">—</span>
                         <?php endif; ?>
@@ -147,3 +157,20 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
         </table>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.rts-cancel-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const ok = await window.ConfirmPopup.show(btn.dataset.message, {
+                okLabel:  'キャンセルする',
+                okColor:  'danger',
+                cancelLabel: '戻る',
+            });
+            if (ok) {
+                document.getElementById(btn.dataset.formId)?.submit();
+            }
+        });
+    });
+});
+</script>

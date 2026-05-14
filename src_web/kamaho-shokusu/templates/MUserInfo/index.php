@@ -188,29 +188,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
     </p>
 </div>
 
-<!-- 確認ポップアップ -->
-<div id="popup-overlay"></div>
-<div id="confirm-popup" role="dialog" aria-modal="true" aria-labelledby="popup-message">
-    <div class="popup-icon-wrap">
-        <svg class="popup-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <circle cx="12" cy="16" r=".5" fill="currentColor"/>
-        </svg>
-    </div>
-    <p id="popup-message"></p>
-    <div class="popup-actions">
-        <button id="popup-cancel" type="button">キャンセル</button>
-        <button id="popup-ok"     type="button">確定</button>
-    </div>
-</div>
-
-<!-- 完了ポップアップ -->
-<div id="result-popup" role="status">
-    <span id="result-popup-icon"></span>
-    <span id="result-popup-msg"></span>
-</div>
-
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const toggleNormal  = document.getElementById('toggleNormal');
@@ -219,44 +196,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
             document.querySelector('input[name="_csrfToken"]')?.value ||
             '';
-
-        // ---- ポップアップユーティリティ ----
-        const overlay      = document.getElementById('popup-overlay');
-        const confirmPopup = document.getElementById('confirm-popup');
-        const resultPopup  = document.getElementById('result-popup');
-
-        function showConfirm(message) {
-            return new Promise(resolve => {
-                document.getElementById('popup-message').textContent = message;
-                overlay.classList.add('show');
-                confirmPopup.classList.add('show');
-
-                const okBtn     = document.getElementById('popup-ok');
-                const cancelBtn = document.getElementById('popup-cancel');
-
-                function cleanup() {
-                    okBtn.removeEventListener('click', onOk);
-                    cancelBtn.removeEventListener('click', onCancel);
-                    overlay.removeEventListener('click', onCancel);
-                }
-                function hide()     { overlay.classList.remove('show'); confirmPopup.classList.remove('show'); }
-                function onOk()     { cleanup(); hide(); resolve(true);  }
-                function onCancel() { cleanup(); hide(); resolve(false); }
-
-                okBtn.addEventListener('click', onOk);
-                cancelBtn.addEventListener('click', onCancel);
-                overlay.addEventListener('click', onCancel);
-            });
-        }
-
-        let resultTimer = null;
-        function showResult(message, success = true) {
-            document.getElementById('result-popup-icon').textContent = success ? '✅' : '❌';
-            document.getElementById('result-popup-msg').textContent  = message;
-            resultPopup.className = success ? 'show success' : 'show error';
-            clearTimeout(resultTimer);
-            resultTimer = setTimeout(() => { resultPopup.className = ''; }, 2000);
-        }
 
         // ---- 管理者トグル ----
         document.querySelectorAll('.admin-checkbox').forEach(cb => {
@@ -268,7 +207,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     ? `${userName} に管理者権限を付与しますか？`
                     : `${userName} から管理者権限を削除しますか？`;
 
-                const ok = await showConfirm(message);
+                const ok = await window.ConfirmPopup.show(message);
                 if (!ok) { this.checked = !this.checked; return; }
 
                 fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
@@ -280,13 +219,13 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 .then(data => {
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.ok === true || payload.success) {
-                        showResult('管理者権限を更新しました。');
+                        window.ConfirmPopup.showResult('管理者権限を更新しました。');
                     } else {
-                        showResult(payload.message || '管理者権限の更新に失敗しました。', false);
+                        window.ConfirmPopup.showResult(payload.message || '管理者権限の更新に失敗しました。', false);
                         this.checked = !this.checked;
                     }
                 })
-                .catch(() => { showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
             });
         });
 
@@ -302,7 +241,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     ? `${userName} をブロック長に設定しますか？`
                     : `${userName} からブロック長権限を削除しますか？`;
 
-                const ok = await showConfirm(message);
+                const ok = await window.ConfirmPopup.show(message);
                 if (!ok) { this.checked = !this.checked; return; }
 
                 fetch('/kamaho-shokusu/MUserInfo/update-user-level', {
@@ -315,13 +254,13 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.ok === true || payload.success) {
                         this.setAttribute('data-current-admin', newAdmin);
-                        showResult('ブロック長権限を更新しました。');
+                        window.ConfirmPopup.showResult('ブロック長権限を更新しました。');
                     } else {
-                        showResult(payload.message || 'ブロック長権限の更新に失敗しました。', false);
+                        window.ConfirmPopup.showResult(payload.message || 'ブロック長権限の更新に失敗しました。', false);
                         this.checked = !this.checked;
                     }
                 })
-                .catch(() => { showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
             });
         });
 
