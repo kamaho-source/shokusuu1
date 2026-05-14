@@ -160,6 +160,7 @@ $recentNotifications = $recentNotifications ?? [];
 <!-- 必要なスクリプトを正しい順序で読み込む -->
 <?= $this->Html->script('jquery-3.5.1.min.js') ?>
 <?= $this->Html->script('bootstrap.bundle.min.js') ?>
+<?= $this->Html->script('confirm_popup.js') ?>
 </body>
 <script>
     (() => {
