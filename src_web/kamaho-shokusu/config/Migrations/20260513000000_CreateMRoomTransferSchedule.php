@@ -5,8 +5,12 @@ use Migrations\AbstractMigration;
 
 class CreateMRoomTransferSchedule extends AbstractMigration
 {
-    public function change(): void
+    public function up(): void
     {
+        if ($this->hasTable('m_room_transfer_schedule')) {
+            return;
+        }
+
         $table = $this->table('m_room_transfer_schedule', ['id' => false, 'primary_key' => ['i_id']]);
         $table
             ->addColumn('i_id', 'integer', ['identity' => true, 'null' => false])
@@ -22,5 +26,10 @@ class CreateMRoomTransferSchedule extends AbstractMigration
             ->addIndex(['i_id_user'], ['name' => 'idx_rts_user_id'])
             ->addIndex(['d_effective_date', 'i_status'], ['name' => 'idx_rts_effective_date'])
             ->create();
+    }
+
+    public function down(): void
+    {
+        $this->table('m_room_transfer_schedule')->drop()->save();
     }
 }
