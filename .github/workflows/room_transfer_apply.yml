@@ -60,8 +60,7 @@ jobs:
           key: ${{ secrets.STG_SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            cd /home/ubuntu/shokusuu1
-            bash scripts/apply_room_transfer_schedule.sh stg_web
+            docker exec stg_web bash -c "cd /var/www/html/kamaho-shokusu && php bin/cake.php apply_room_transfer_schedule"
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2
