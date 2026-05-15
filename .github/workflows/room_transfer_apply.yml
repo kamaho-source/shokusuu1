@@ -26,6 +26,8 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_PATH }}
             bash scripts/apply_room_transfer_schedule.sh kamakura-shokusu_web
+            docker exec kamakura-shokusu_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
+            docker exec kamakura-shokusu_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2
@@ -61,6 +63,8 @@ jobs:
           port: 22
           script: |
             docker exec stg_web bash -c "cd /var/www/html/kamaho-shokusu && php bin/cake.php apply_room_transfer_schedule"
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2
