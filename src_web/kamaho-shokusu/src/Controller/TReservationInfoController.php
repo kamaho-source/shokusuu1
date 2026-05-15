@@ -106,19 +106,18 @@ class TReservationInfoController extends AppController
         // $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
-        if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', [
-                'toggle',
-                'checkDuplicateReservation',
-                'changeEdit',
-                'bulkChangeEditSubmit',
-                'bulkAddSubmit',
-                'copy',
-                'copyPreview',
-                'actualMealSave',
-                'actualMealRequestApproval',
-            ]);
-        }
+        $this->FormProtection->setConfig('unlockedActions', [
+            'add',
+            'toggle',
+            'checkDuplicateReservation',
+            'changeEdit',
+            'bulkChangeEditSubmit',
+            'bulkAddSubmit',
+            'copy',
+            'copyPreview',
+            'actualMealSave',
+            'actualMealRequestApproval',
+        ]);
     }
 
 
