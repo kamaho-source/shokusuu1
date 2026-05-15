@@ -30,7 +30,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.PROD_USER }}
-          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           timeout: 60s
           command_timeout: 20m
