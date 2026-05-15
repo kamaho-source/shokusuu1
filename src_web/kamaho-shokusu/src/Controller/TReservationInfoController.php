@@ -108,6 +108,7 @@ class TReservationInfoController extends AppController
 
         if (isset($this->FormProtection)) {
             $this->FormProtection->setConfig('unlockedActions', [
+                'add',
                 'toggle',
                 'checkDuplicateReservation',
                 'changeEdit',
