@@ -227,6 +227,11 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-title-text">問い合わせ一覧</div>
                         <div class="menu-desc">ユーザーからの問い合わせを確認する</div>
                     </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/MRoomTransferSchedule') ?>">
+                        <div class="menu-icon" style="background:#f0f4ff;color:#3b5bdb;">🔄</div>
+                        <div class="menu-title-text">部屋異動予約</div>
+                        <div class="menu-desc">将来日付での部屋移動を事前登録する</div>
+                    </a>
                 </div>
             <?php endif; ?>
         </main>
