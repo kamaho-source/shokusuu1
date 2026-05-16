@@ -226,7 +226,9 @@ class RoomTransferScheduleService
             ->all();
 
         foreach ($oldRows as $old) {
-            $dateStr  = (string)$old->d_reservation_date;
+            $dateStr  = $old->d_reservation_date instanceof \DateTimeInterface 
+                ? $old->d_reservation_date->format('Y-m-d') 
+                : (string)$old->d_reservation_date;
             $mealType = (int)$old->i_reservation_type;
             $eatFlag  = (int)$old->eat_flag;
 
