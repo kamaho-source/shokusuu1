@@ -32,9 +32,10 @@ class ReservationWriteService
             return $this->err('入力データが無効です。', 400);
         }
 
-        $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
-        if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('JSONデコードエラー: ' . json_last_error_msg());
+        try {
+            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+        } catch (\JsonException $e) {
+            Log::error('JSONデコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
         }
 
@@ -263,9 +264,10 @@ class ReservationWriteService
             return $this->err('入力データが無効です。', 400);
         }
 
-        $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
-        if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('JSON デコードエラー: ' . json_last_error_msg());
+        try {
+            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+        } catch (\JsonException $e) {
+            Log::error('JSON デコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
         }
 

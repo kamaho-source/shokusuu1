@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Model\Table\TContactsTable;
 use App\Service\ContactService;
+use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 
 class ContactsController extends AppController
@@ -22,12 +23,10 @@ class ContactsController extends AppController
      */
     public function index(): ?Response
     {
-        $this->Authorization->skipAuthorization();
+        $entity = $this->fetchTable('TContacts')->newEmptyEntity();
+        $this->Authorization->authorize($entity, 'index');
 
         $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
-        }
 
         $categories = TContactsTable::CATEGORIES;
 
@@ -61,15 +60,10 @@ class ContactsController extends AppController
      */
     public function adminIndex(): ?Response
     {
-        $this->Authorization->skipAuthorization();
-
-        $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
-        }
-
-        // 管理者のみアクセス可能
-        if ((int)$user->get('i_admin') !== 1) {
+        $entity = $this->fetchTable('TContacts')->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($entity, 'adminIndex');
+        } catch (ForbiddenException $e) {
             $this->Flash->error('管理者のみアクセスできます。');
             return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
@@ -86,14 +80,10 @@ class ContactsController extends AppController
      */
     public function adminDetail(int $id): ?Response
     {
-        $this->Authorization->skipAuthorization();
-
-        $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
-        }
-
-        if ((int)$user->get('i_admin') !== 1) {
+        $entity = $this->fetchTable('TContacts')->newEmptyEntity();
+        try {
+            $this->Authorization->authorize($entity, 'adminDetail');
+        } catch (ForbiddenException $e) {
             $this->Flash->error('管理者のみアクセスできます。');
             return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
