@@ -45,6 +45,24 @@ jobs:
               -e "SELECT i_id, i_id_user, i_id_room_from, i_id_room_to, d_effective_date, i_status, c_create_user, dt_create FROM m_room_transfer_schedule ORDER BY i_id;" 2>&1
 
             echo ""
+            echo "=== MySQLクエリログ有効化 ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" \
+              -e "SET GLOBAL general_log = 'ON'; SET GLOBAL general_log_file = '/tmp/mysql_general.log';" 2>&1
+
+            echo ""
+            echo "=== バッチ実行 ==="
+            docker exec stg_web bash -c "cd /var/www/html/kamaho-shokusu && php bin/cake.php apply_room_transfer_schedule" 2>&1 || true
+
+            echo ""
+            echo "=== MySQLクエリログ (DATE関連のみ) ==="
+            docker exec stg_db bash -c "cat /tmp/mysql_general.log 2>/dev/null | grep -i '5/16/26\|d_effective_date\|d_reservation_date' | head -50" 2>&1
+
+            echo ""
+            echo "=== MySQLクエリログ無効化 ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" \
+              -e "SET GLOBAL general_log = 'OFF';" 2>&1
+
+            echo ""
             echo "=== RoomTransferScheduleService.php の d_effective_date 周辺 ==="
             docker exec stg_web grep -n "effective_date\|DateTimeInterface\|format\|d_reservation_date" \
               /var/www/html/kamaho-shokusu/src/Service/RoomTransferScheduleService.php 2>&1
