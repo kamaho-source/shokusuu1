@@ -52,6 +52,8 @@ jobs:
             echo ""
             echo "=== バッチ実行 ==="
             docker exec stg_web bash -c "cd /var/www/html/kamaho-shokusu && php bin/cake.php apply_room_transfer_schedule" 2>&1 || true
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
 
             echo ""
             echo "=== MySQLクエリログ (DATE関連のみ) ==="
