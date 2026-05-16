@@ -123,7 +123,9 @@ class RoomTransferScheduleService
                 $userId        = (int)$schedule->i_id_user;
                 $roomFromId    = $schedule->i_id_room_from !== null ? (int)$schedule->i_id_room_from : null;
                 $roomToId      = (int)$schedule->i_id_room_to;
-                $effectiveDate = (string)$schedule->d_effective_date;
+                $effectiveDate = $schedule->d_effective_date instanceof \DateTimeInterface
+                    ? $schedule->d_effective_date->format('Y-m-d')
+                    : (string)$schedule->d_effective_date;
                 $now           = DateTime::now();
 
                 // Step 1: m_user_group 切替
