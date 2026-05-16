@@ -1,0 +1,40 @@
+name: Investigate Staging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  investigate:
+    name: Investigate Staging DB & Containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Investigate via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DB_NAME:      ${{ secrets.STG_DB_NAME }}
+          DB_ROOT_PASS: ${{ secrets.STG_DB_ROOT_PASS }}
+        with:
+          host:     ${{ secrets.STG_HOST }}
+          username: ubuntu
+          key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
+          port:     22
+          envs:     DB_NAME,DB_ROOT_PASS
+          timeout:  30s
+          script: |
+            echo "=== Docker コンテナ状態 ==="
+            docker ps
+
+            echo ""
+            echo "=== app_local.php Datasources ==="
+            grep -A8 "Datasources" /home/ubuntu/shokusuu1/src_web/kamaho-shokusu/config/app_local.php
+
+            echo ""
+            echo "=== DB接続テスト ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "SHOW TABLES;" 2>&1
+
+            echo ""
+            echo "=== 最新エラーログ ==="
+            docker exec stg_web tail -30 /var/www/html/kamaho-shokusu/logs/error.log 2>&1
