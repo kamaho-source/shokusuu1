@@ -123,7 +123,7 @@ class RoomTransferScheduleService
                 $userId        = (int)$schedule->i_id_user;
                 $roomFromId    = $schedule->i_id_room_from !== null ? (int)$schedule->i_id_room_from : null;
                 $roomToId      = (int)$schedule->i_id_room_to;
-                $effectiveDate = $schedule->d_effective_date instanceof \DateTimeInterface
+                $effectiveDate = $schedule->d_effective_date instanceof Date
                     ? $schedule->d_effective_date->format('Y-m-d')
                     : (string)$schedule->d_effective_date;
                 $now           = DateTime::now();
@@ -228,8 +228,8 @@ class RoomTransferScheduleService
             ->all();
 
         foreach ($oldRows as $old) {
-            $dateStr  = $old->d_reservation_date instanceof \DateTimeInterface 
-                ? $old->d_reservation_date->format('Y-m-d') 
+            $dateStr  = $old->d_reservation_date instanceof Date
+                ? $old->d_reservation_date->format('Y-m-d')
                 : (string)$old->d_reservation_date;
             $mealType = (int)$old->i_reservation_type;
             $eatFlag  = (int)$old->eat_flag;
