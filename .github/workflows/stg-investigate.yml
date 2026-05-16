@@ -36,5 +36,15 @@ jobs:
               -e "SHOW TABLES;" 2>&1
 
             echo ""
-            echo "=== 最新エラーログ ==="
-            docker exec stg_web tail -30 /var/www/html/kamaho-shokusu/logs/error.log 2>&1
+            echo "=== 最新エラーログ (DebugKit除外) ==="
+            docker exec stg_web grep -v "DebugKit" /var/www/html/kamaho-shokusu/logs/error.log 2>&1 | tail -60
+
+            echo ""
+            echo "=== m_room_transfer_schedule の現在のデータ ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "SELECT i_id, i_id_user, i_id_room_from, i_id_room_to, d_effective_date, i_status, c_create_user, dt_create FROM m_room_transfer_schedule ORDER BY i_id;" 2>&1
+
+            echo ""
+            echo "=== RoomTransferScheduleService.php の d_effective_date 周辺 ==="
+            docker exec stg_web grep -n "effective_date\|DateTimeInterface\|format\|d_reservation_date" \
+              /var/www/html/kamaho-shokusu/src/Service/RoomTransferScheduleService.php 2>&1
