@@ -27,14 +27,14 @@ jobs:
             docker ps
 
             echo ""
-            echo "=== app_local.php Datasources ==="
-            grep -A8 "Datasources" /home/ubuntu/shokusuu1/src_web/kamaho-shokusu/config/app_local.php
+            echo "=== RoomTransferScheduleService.php の d_effective_date 周辺 ==="
+            docker exec stg_web grep -n "effective_date\|effectiveDate\|DateTimeInterface\|format(" \
+              /var/www/html/kamaho-shokusu/src/Service/RoomTransferScheduleService.php | head -20
 
             echo ""
-            echo "=== DB接続テスト ==="
-            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
-              -e "SHOW TABLES;" 2>&1
+            echo "=== git log (最新3件) ==="
+            cd /home/ubuntu/shokusuu1 && git log --oneline -3
 
             echo ""
             echo "=== 最新エラーログ ==="
-            docker exec stg_web tail -30 /var/www/html/kamaho-shokusu/logs/error.log 2>&1
+            docker exec stg_web tail -20 /var/www/html/kamaho-shokusu/logs/error.log 2>&1
