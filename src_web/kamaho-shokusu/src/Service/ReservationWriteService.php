@@ -675,7 +675,7 @@ class ReservationWriteService
             $set,
             [
                 'i_id_user'          => (int)$row->i_id_user,
-                'd_reservation_date' => $row->d_reservation_date instanceof \DateTimeInterface
+                'd_reservation_date' => $row->d_reservation_date instanceof Date
                     ? $row->d_reservation_date->format('Y-m-d')
                     : (string)$row->d_reservation_date,
                 'i_reservation_type' => (int)$row->i_reservation_type,

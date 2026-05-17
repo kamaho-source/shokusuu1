@@ -23,6 +23,8 @@ services:
   db:
     container_name: stg_db
     image: mysql:lts
+    ports:
+      - "127.0.0.1:3306:3306"
     volumes:
       - stg-db-data:/var/lib/mysql
     environment:

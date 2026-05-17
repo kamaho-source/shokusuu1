@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Exception\OptimisticLockConflictException;
+use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
 
@@ -349,7 +350,7 @@ class ReservationChangeEditService
         $set['i_version'] = $expectedVersion + 1;
 
         $dateValue = $row->d_reservation_date;
-        if ($dateValue instanceof \DateTimeInterface) {
+        if ($dateValue instanceof Date) {
             $dateValue = $dateValue->format('Y-m-d');
         } else {
             $dateValue = (string)$dateValue;

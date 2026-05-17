@@ -403,7 +403,7 @@ class ReservationCopyService
         $set['i_version'] = $expectedVersion + 1;
 
         $dateValue = $row->d_reservation_date;
-        if ($dateValue instanceof \DateTimeInterface) {
+        if ($dateValue instanceof Date) {
             $dateValue = $dateValue->format('Y-m-d');
         } else {
             $dateValue = (string)$dateValue;
