@@ -429,7 +429,7 @@ class ReservationReportService
 
     private function normalizeDateString(mixed $value): ?string
     {
-        if ($value instanceof \DateTimeInterface) {
+        if ($value instanceof Date) {
             return $value->format('Y-m-d');
         }
 
