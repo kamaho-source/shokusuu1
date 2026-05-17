@@ -23,11 +23,9 @@ class ContactsController extends AppController
      */
     public function index(): ?Response
     {
-        $entity = $this->fetchTable('TContacts')->newEmptyEntity();
-        $this->Authorization->authorize($entity, 'index');
+        $this->Authorization->authorize($this, 'index');
 
         $user = $this->Authentication->getIdentity();
-
         $categories = TContactsTable::CATEGORIES;
 
         // ログインユーザーの情報を初期値として渡す
@@ -60,13 +58,7 @@ class ContactsController extends AppController
      */
     public function adminIndex(): ?Response
     {
-        $entity = $this->fetchTable('TContacts')->newEmptyEntity();
-        try {
-            $this->Authorization->authorize($entity, 'adminIndex');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error('管理者のみアクセスできます。');
-            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
-        }
+        $this->Authorization->authorize($this, 'adminIndex');
 
         $page    = (int)($this->request->getQuery('page') ?? 1);
         $contacts = $this->contactService->getList($page);
@@ -80,13 +72,7 @@ class ContactsController extends AppController
      */
     public function adminDetail(int $id): ?Response
     {
-        $entity = $this->fetchTable('TContacts')->newEmptyEntity();
-        try {
-            $this->Authorization->authorize($entity, 'adminDetail');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error('管理者のみアクセスできます。');
-            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
-        }
+        $this->Authorization->authorize($this, 'adminDetail');
 
         $contact = $this->contactService->getDetail($id);
 

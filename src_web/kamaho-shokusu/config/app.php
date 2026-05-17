@@ -420,5 +420,6 @@ return [
      */
     'Session' => [
         'defaults' => 'php',
+        'timeout' => 60, // 60分でセッションを失効させる
     ],
 ];
