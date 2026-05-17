@@ -3,6 +3,7 @@
  * @var \App\View\AppView $this
  * @var array $users
  * @var array $rooms
+ * @var array<int, int[]> $userRoomMap ユーザーID→現在所属部屋IDリスト
  */
 
 $this->assign('title', '部屋異動予約 登録');
@@ -69,3 +70,43 @@ $today = date('Y-m-d');
 
     <?= $this->Form->end() ?>
 </div>
+
+<script>
+(function () {
+    const userRoomMap = <?= json_encode($userRoomMap, JSON_THROW_ON_ERROR) ?>;
+    const allRooms    = <?= json_encode($rooms, JSON_THROW_ON_ERROR) ?>;
+
+    const userSelect    = document.getElementById('i_id_user');
+    const roomFromSelect = document.getElementById('i_id_room_from');
+
+    function updateRoomFromOptions(userId) {
+        const currentValue = roomFromSelect.value;
+        while (roomFromSelect.options.length > 0) {
+            roomFromSelect.remove(0);
+        }
+
+        const emptyOption = new Option('-- （新規配属） --', '');
+        roomFromSelect.add(emptyOption);
+
+        const allowedRoomIds = userId ? (userRoomMap[userId] || []) : Object.keys(allRooms).map(Number);
+
+        allowedRoomIds.forEach(function (roomId) {
+            if (allRooms[roomId] !== undefined) {
+                const opt = new Option(allRooms[roomId], roomId);
+                if (String(roomId) === String(currentValue)) {
+                    opt.selected = true;
+                }
+                roomFromSelect.add(opt);
+            }
+        });
+    }
+
+    userSelect.addEventListener('change', function () {
+        updateRoomFromOptions(this.value ? parseInt(this.value, 10) : null);
+    });
+
+    if (userSelect.value) {
+        updateRoomFromOptions(parseInt(userSelect.value, 10));
+    }
+})();
+</script>
