@@ -114,7 +114,9 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
     {
         // コントローラークラス → ポリシークラスの明示マッピング
         $mapResolver = new MapResolver([
-            \App\Controller\ApprovalController::class => \App\Policy\ApprovalPolicy::class,
+            \App\Controller\ApprovalController::class     => \App\Policy\ApprovalPolicy::class,
+            \App\Controller\NotificationsController::class => \App\Policy\NotificationPolicy::class,
+            \App\Controller\ContactsController::class      => \App\Policy\ContactsPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック
