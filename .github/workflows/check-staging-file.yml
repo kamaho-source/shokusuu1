@@ -1,0 +1,25 @@
+name: Check Staging File
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check file via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host:     ${{ secrets.STG_HOST }}
+          username: ubuntu
+          key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
+          port:     22
+          timeout:  30s
+          script: |
+            echo "=== git log ==="
+            cd /home/ubuntu/shokusuu1 && git log --oneline -5
+
+            echo ""
+            echo "=== RoomTransferScheduleService 該当行 ==="
+            docker exec stg_web sed -n '120,135p' \
+              /var/www/html/kamaho-shokusu/src/Service/RoomTransferScheduleService.php

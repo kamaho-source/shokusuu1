@@ -113,7 +113,17 @@ class MRoomTransferScheduleController extends AppController
             'valueField' => 'c_room_name',
         ])->toArray();
 
-        $this->set(compact('users', 'rooms'));
+        $userRoomRows = $this->fetchTable('MUserGroup')->find()
+            ->select(['i_id_user', 'i_id_room'])
+            ->where(['active_flag' => 0])
+            ->toArray();
+
+        $userRoomMap = [];
+        foreach ($userRoomRows as $row) {
+            $userRoomMap[$row->i_id_user][] = $row->i_id_room;
+        }
+
+        $this->set(compact('users', 'rooms', 'userRoomMap'));
     }
 
     /**

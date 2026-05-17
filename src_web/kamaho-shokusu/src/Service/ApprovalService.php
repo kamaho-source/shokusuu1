@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 
@@ -177,7 +178,7 @@ class ApprovalService
 
         $summary = [];
         foreach ($rows as $row) {
-            $reservationDate = $row->d_reservation_date instanceof \DateTimeInterface
+            $reservationDate = $row->d_reservation_date instanceof Date
                 ? $row->d_reservation_date->format('Y-m-d')
                 : (string)$row->d_reservation_date;
             $roomName = $row->m_room_info->c_room_name ?? '不明';
