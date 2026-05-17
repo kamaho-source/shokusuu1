@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Model\Table\TContactsTable;
 use App\Service\ContactService;
+use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 
 class ContactsController extends AppController
