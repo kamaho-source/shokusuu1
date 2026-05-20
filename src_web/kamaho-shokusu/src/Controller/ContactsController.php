@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Model\Table\TContactsTable;
 use App\Service\ContactService;
 use Authorization\Exception\ForbiddenException;
+use Cake\Event\EventInterface;
 use Cake\Http\Response;
 
 class ContactsController extends AppController
@@ -16,6 +17,17 @@ class ContactsController extends AppController
     {
         parent::initialize();
         $this->contactService = new ContactService();
+    }
+
+    /**
+     * @throws \Exception
+     */
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+        if ($this->request->getParam('action') === 'index') {
+            $this->FormProtection->setConfig('unlockedFields', ['name', 'email', 'category', 'body']);
+        }
     }
 
     /**
