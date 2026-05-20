@@ -24,6 +24,7 @@ class ContactsController extends AppController
     public function index(): ?Response
     {
         $this->Authorization->authorize($this, 'index');
+        $this->FormProtection->setConfig('unlockedFields', ['name', 'email', 'category', 'body']);
 
         $user = $this->Authentication->getIdentity();
         $categories = TContactsTable::CATEGORIES;
