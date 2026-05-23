@@ -10,6 +10,7 @@
  * @var string $viewMode       'individual' | 'room' | 'all'
  * @var array  $gridData       {dates, meals, rooms, dailyTotals}
  * @var array  $monthlyTotals  [mealType => int]
+ * @var array  $dateCategories [date => 'past'|'last_minute'|'normal']
  * @var string $weekMondayStr  YYYY-MM-DD
  * @var string $periodLabel    表示期間ラベル
  * @var \DateTimeImmutable $prevMonday
@@ -27,10 +28,11 @@ $this->assign('title', '食数予約グリッド');
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 $basePath  = $this->request->getAttribute('base') ?? '';
 
-$dates       = $gridData['dates']       ?? [];
-$meals       = $gridData['meals']       ?? [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁'];
-$roomsData   = $gridData['rooms']       ?? [];
-$dailyTotals = $gridData['dailyTotals'] ?? [];
+$dates          = $gridData['dates']       ?? [];
+$meals          = $gridData['meals']       ?? [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁'];
+$roomsData      = $gridData['rooms']       ?? [];
+$dailyTotals    = $gridData['dailyTotals'] ?? [];
+$dateCategories = $dateCategories          ?? [];
 
 $today      = date('Y-m-d');
 $dow        = ['日', '月', '火', '水', '木', '金', '土'];
@@ -58,68 +60,24 @@ $prevUrl   = $makeUrl(['week' => $prevMonday->format('Y-m-d')]);
 $nextUrl   = $makeUrl(['week' => $nextMonday->format('Y-m-d')]);
 $todayUrl  = $makeUrl(['week' => date('Y-m-d', strtotime('monday this week'))]);
 
-// 月計バーの最大値
-$maxMonthly = max(1, max($monthlyTotals ?: [1]));
-
 // 選択セル情報（数式バー表示用）
 // 行番号は全ユーザーを通じた連番
 $rowOffset = 0;
 foreach ($roomsData as $rid => $ri) {
     foreach ($ri['users'] as $u) { $rowOffset++; }
 }
-$totalRows  = $rowOffset;
-$lastColLtr = 'R'; // 仮: 日計列
+$totalRows = $rowOffset;
+
+// CSS・JS をレイアウトの <head> / </body> 直前ブロックに注入
+$this->Html->css('pages/meal_count_grid.css', ['block' => true]);
+$this->append('script', sprintf(
+    '<script>window.MCG_CONFIG = %s;</script>',
+    json_encode(['basePath' => $basePath, 'rooms' => $allRooms], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+));
+$this->Html->script('pages/meal_count_grid.js', ['block' => true]);
 ?>
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <title>食数予約グリッド — 食数管理</title>
-    <meta name="csrfToken" content="<?= h($csrfToken) ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <?= $this->Html->css('pages/meal_count_grid.css') ?>
-    <script>
-        window.MCG_CONFIG = {
-            basePath: <?= json_encode($basePath, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
-            rooms: <?= json_encode($allRooms, JSON_UNESCAPED_UNICODE) ?>,
-        };
-    </script>
-</head>
-<body>
 
 <div class="excel-window">
-
-    <!-- ═══════════════════════════════════════════
-         タイトルバー
-    ═══════════════════════════════════════════ -->
-    <div class="excel-titlebar">
-        <span class="app-icon">X</span>
-        <span class="title-text">食数予約.xlsx &mdash; 食数管理</span>
-        <span class="user-badge" title="<?= h($loginName) ?>"><?= h(mb_substr($loginName, 0, 1)) ?></span>
-        <span style="font-size:12px;margin-left:4px"><?= h($loginName) ?></span>
-    </div>
-
-    <!-- ═══════════════════════════════════════════
-         リボン タブ
-    ═══════════════════════════════════════════ -->
-    <div class="excel-ribbon-tabs">
-        <button>ファイル</button>
-        <button class="active">ホーム</button>
-        <button>挿入</button>
-        <button>データ</button>
-        <button>表示</button>
-        <button>ヘルプ</button>
-    </div>
-    <div class="excel-ribbon"></div>
-
-    <!-- ═══════════════════════════════════════════
-         数式バー
-    ═══════════════════════════════════════════ -->
-    <div class="excel-formulabar">
-        <span class="cell-ref">C7</span>
-        <span class="fx-label">fx</span>
-        <span class="formula-text">=COUNTIF(C7:<?= h($lastColLtr) ?>7,1)</span>
-    </div>
 
     <!-- ═══════════════════════════════════════════
          ツールバー（フィルター + 期間ナビ）
@@ -153,16 +111,10 @@ $lastColLtr = 'R'; // 仮: 日計列
         </div>
         <?php endif; ?>
 
-        <!-- 氏名（個人モードのみ・管理者は全ユーザー選択可） -->
-        <?php if ($viewMode === 'individual' && $canViewAll && !empty($nameList)): ?>
+        <!-- 氏名（固定表示） -->
+        <?php if ($viewMode === 'individual'): ?>
         <span class="mcg-toolbar-label">表示ユーザー</span>
-        <select id="js-name-select" onchange="mcgChangeName(this.value)">
-            <?php foreach ($nameList as $uid => $uname): ?>
-                <option value="<?= h($uid) ?>" <?= (int)$uid === $selectedUserId ? 'selected' : '' ?>>
-                    <?= h($uname) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
+        <span class="mcg-toolbar-user-name"><?= h($nameList[$selectedUserId] ?? $loginName) ?></span>
         <?php endif; ?>
 
         <!-- 期間ナビ -->
@@ -183,6 +135,12 @@ $lastColLtr = 'R'; // 仮: 日計列
             <?php else: ?>
                 <button class="mcg-nav-btn" disabled>翌4週 ►</button>
             <?php endif; ?>
+        </div>
+
+        <!-- 凡例 -->
+        <div class="mcg-legend">
+            <span class="mcg-legend-item mcg-legend-last-minute">直前（当日〜14日後）</span>
+            <span class="mcg-legend-item mcg-legend-past">過去日（変更不可）</span>
         </div>
 
         <!-- 登録ボタン -->
@@ -213,12 +171,23 @@ $lastColLtr = 'R'; // 仮: 日計列
                                 $isToday = ($d === $today);
                                 $isSat   = ($dowIdx === 6);
                                 $isSun   = ($dowIdx === 0);
+                                $dateCat      = $dateCategories[$d] ?? 'normal';
+                                $isLastMinute = ($dateCat === 'last_minute');
+                                $isPastDate   = ($dateCat === 'past');
                                 $cls = 'date-group'
-                                    . ($isToday ? ' is-today' : '')
-                                    . ($isSat   ? ' is-saturday' : '')
-                                    . ($isSun   ? ' is-sunday' : '');
+                                    . ($isToday       ? ' is-today'       : '')
+                                    . ($isSat         ? ' is-saturday'    : '')
+                                    . ($isSun         ? ' is-sunday'      : '')
+                                    . ($isLastMinute  ? ' is-last-minute' : '')
+                                    . ($isPastDate    ? ' is-past-header' : '');
                             ?>
-                                <th colspan="<?= count($meals) ?>" class="<?= h($cls) ?>">
+                                <th colspan="<?= count($meals) ?>" class="<?= h($cls) ?>"
+                                    <?php if ($isLastMinute): ?>
+                                    data-tooltip="直前編集ウィンドウ（当日〜14日後）&#10;・予約のON/OFFを変更できます&#10;・職員はこの期間のキャンセルができません&#10;・変更は「登録」ボタンで確定します"
+                                    <?php elseif ($isPastDate): ?>
+                                    data-tooltip="過去日のため変更できません。"
+                                    <?php endif; ?>
+                                >
                                     <?= h($dt->format('n/j')) ?><br>
                                     <small><?= h($dow[$dowIdx]) ?></small>
                                 </th>
@@ -235,12 +204,14 @@ $lastColLtr = 'R'; // 仮: 日計列
                                 $dowIdx  = (int)(new \DateTimeImmutable($d))->format('w');
                                 $isSat   = ($dowIdx === 6);
                                 $isSun   = ($dowIdx === 0);
+                                $dateCat = $dateCategories[$d] ?? 'normal';
                                 $first   = true;
                                 foreach ($meals as $mealType => $mealLabel):
                                     $cls = ($first ? 'meal-first ' : '')
                                         . ($isToday ? 'is-today ' : '')
                                         . ($isSat   ? 'is-saturday ' : '')
-                                        . ($isSun   ? 'is-sunday' : '');
+                                        . ($isSun   ? 'is-sunday ' : '')
+                                        . ($dateCat === 'last_minute' ? 'is-last-minute' : '');
                                     $first = false;
                             ?>
                                 <th class="<?= h(trim($cls)) ?>"><?= h($mealLabel) ?></th>
@@ -270,14 +241,19 @@ $lastColLtr = 'R'; // 仮: 日計列
                                 $isToday = ($d === $today);
                                 $isSat   = ($dowIdx === 6);
                                 $isSun   = ($dowIdx === 0);
+                                $dateCat = $dateCategories[$d] ?? 'normal';
+                                $isPast  = ($dateCat === 'past');
                                 $first   = true;
                                 foreach ($meals as $mealType => $mealLabel):
                                     $reserved = !empty($grid[$uid][$d][$mealType]);
-                                    $tdClass = 'cell-meal mcg-toggleable'
-                                        . ($first ? ' meal-first' : '')
-                                        . ($isToday ? ' is-today' : '')
-                                        . ($isSat   ? ' is-saturday' : '')
-                                        . ($isSun   ? ' is-sunday' : '');
+                                    $tdClass = 'cell-meal'
+                                        . ($isPast ? '' : ' mcg-toggleable')
+                                        . ($first   ? ' meal-first'     : '')
+                                        . ($isToday ? ' is-today'       : '')
+                                        . ($isSat   ? ' is-saturday'    : '')
+                                        . ($isSun   ? ' is-sunday'      : '')
+                                        . ($isPast                        ? ' is-past'        : '')
+                                        . ($dateCat === 'last_minute'     ? ' is-last-minute' : '');
                                     $first = false;
                             ?>
                                 <td class="<?= h($tdClass) ?>"
@@ -287,9 +263,11 @@ $lastColLtr = 'R'; // 仮: 日計列
                                     data-meal="<?= h($mealType) ?>"
                                     data-reserved="<?= $reserved ? '1' : '0' ?>"
                                     title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
+                                    <?php if (!$isPast): ?>
                                     role="checkbox"
                                     aria-checked="<?= $reserved ? 'true' : 'false' ?>"
                                     tabindex="0"
+                                    <?php endif; ?>
                                 ><?= $reserved ? '1' : '' ?></td>
                             <?php endforeach; endforeach; ?>
                         </tr>
@@ -326,24 +304,6 @@ $lastColLtr = 'R'; // 仮: 日計列
             <?php endif; ?>
             </div><!-- /.mcg-grid-wrap -->
 
-            <!-- 月計サマリーパネル -->
-            <div style="padding:0 10px 10px">
-                <div class="mcg-summary">
-                    <div class="mcg-summary-title">食事別の月計</div>
-                    <?php foreach ($meals as $mealType => $mealLabel):
-                        $val = (int)($monthlyTotals[$mealType] ?? 0);
-                        $pct = $maxMonthly > 0 ? round($val / $maxMonthly * 100) : 0;
-                    ?>
-                    <div class="mcg-summary-row">
-                        <span class="mcg-summary-label"><?= h($mealLabel) ?></span>
-                        <div class="mcg-summary-bar-wrap">
-                            <div class="mcg-summary-bar" style="width:<?= h($pct) ?>%"></div>
-                        </div>
-                        <span class="mcg-summary-val"><?= h($val) ?></span>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
 
         </div><!-- /.excel-body -->
     </div><!-- /.excel-content -->
@@ -376,6 +336,18 @@ $lastColLtr = 'R'; // 仮: 日計列
 </div><!-- /.excel-window -->
 
 <script>
+/* ナビバーの実高さを CSS 変数にセット（excel-window の top 値に使用） */
+(function () {
+    function applyNavHeight() {
+        var nav = document.getElementById('mainNav');
+        if (nav) {
+            document.documentElement.style.setProperty('--mcg-nav-h', nav.offsetHeight + 'px');
+        }
+    }
+    applyNavHeight();
+    window.addEventListener('resize', applyNavHeight);
+}());
+
 var MCG_BASE = (window.MCG_CONFIG && window.MCG_CONFIG.basePath) ? window.MCG_CONFIG.basePath : '';
 
 function mcgActiveRoomId() {
@@ -385,9 +357,8 @@ function mcgActiveRoomId() {
 
 function mcgChangeMode(mode) {
     var roomId = mcgActiveRoomId();
-    var userId = document.getElementById('js-name-select') ? document.getElementById('js-name-select').value : '';
     var week   = <?= json_encode($weekMondayStr) ?>;
-    var qs = new URLSearchParams({ mode: mode, room_id: roomId, user_id: userId, week: week }).toString();
+    var qs = new URLSearchParams({ mode: mode, room_id: roomId, week: week }).toString();
     location.href = MCG_BASE + '/TReservationInfo/meal-count-grid?' + qs;
 }
 function mcgChangeRoom(roomId) {
@@ -396,15 +367,4 @@ function mcgChangeRoom(roomId) {
     var qs = new URLSearchParams({ mode: mode, room_id: roomId, week: week }).toString();
     location.href = MCG_BASE + '/TReservationInfo/meal-count-grid?' + qs;
 }
-function mcgChangeName(userId) {
-    var mode   = document.getElementById('js-mode-select') ? document.getElementById('js-mode-select').value : 'individual';
-    var roomId = mcgActiveRoomId();
-    var week   = <?= json_encode($weekMondayStr) ?>;
-    var qs = new URLSearchParams({ mode: mode, room_id: roomId, user_id: userId, week: week }).toString();
-    location.href = MCG_BASE + '/TReservationInfo/meal-count-grid?' + qs;
-}
 </script>
-
-<?= $this->Html->script('pages/meal_count_grid.js') ?>
-</body>
-</html>

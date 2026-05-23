@@ -237,6 +237,7 @@ class MealCountGridService
         array $dates
     ): array {
         $today      = Date::today('Asia/Tokyo');
+        // 直前編集ウィンドウ最終日: 当日〜+14日は i_change_flag を有効値として使う。
         $borderDate = $today->addDays(14);
 
         $allUserIds = [];
@@ -332,6 +333,36 @@ class MealCountGridService
             'rooms'       => $roomsData,
             'dailyTotals' => $dailyTotals,
         ];
+    }
+
+    /**
+     * 日付ごとの期間区分を返す。
+     *
+     * - 'past'        : 今日より前
+     * - 'last_minute' : 今日〜今日+14日（直前編集ウィンドウ）
+     * - 'normal'      : 今日+15日以降（通常予約期間）
+     *
+     * @param string[] $dates YYYY-MM-DD の配列
+     * @return array<string, string>
+     */
+    public function buildDateCategories(array $dates): array
+    {
+        $today      = Date::today('Asia/Tokyo');
+        // 直前編集ウィンドウ最終日: 当日〜+14日は 'last_minute'、15日以降は 'normal'。
+        $borderDate = $today->addDays(14);
+
+        $categories = [];
+        foreach ($dates as $d) {
+            $dateObj = new Date($d);
+            if ($dateObj < $today) {
+                $categories[$d] = 'past';
+            } elseif ($dateObj <= $borderDate) {
+                $categories[$d] = 'last_minute';
+            } else {
+                $categories[$d] = 'normal';
+            }
+        }
+        return $categories;
     }
 
     /**

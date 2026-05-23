@@ -16,120 +16,15 @@ html, body {
  * ===================================================================== */
 
 .excel-window {
+    position: fixed;
+    top: var(--mcg-nav-h, 66px);
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     flex-direction: column;
-    height: 100vh;
     background: #f0f0f0;
-}
-
-/* タイトルバー */
-.excel-titlebar {
-    background: #217346;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    padding: 4px 12px;
-    gap: 8px;
-    min-height: 32px;
-    flex-shrink: 0;
-}
-
-.excel-titlebar .app-icon {
-    font-size: 16px;
-    font-weight: 900;
-    color: #fff;
-    background: #1a5c38;
-    border-radius: 3px;
-    width: 22px; height: 22px;
-    display: flex; align-items: center; justify-content: center;
-    font-style: italic;
-    margin-right: 4px;
-}
-
-.excel-titlebar .title-text {
-    flex: 1;
-    font-size: 13px;
-    font-weight: 500;
-}
-
-.excel-titlebar .user-badge {
-    font-size: 12px;
-    background: rgba(255,255,255,.15);
-    border-radius: 50%;
-    width: 28px; height: 28px;
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 700;
-}
-
-/* リボンタブ */
-.excel-ribbon-tabs {
-    background: #217346;
-    display: flex;
-    gap: 0;
-    padding: 0 4px;
-    flex-shrink: 0;
-}
-
-.excel-ribbon-tabs button {
-    background: none;
-    border: none;
-    color: rgba(255,255,255,.85);
-    font-size: 12px;
-    padding: 4px 12px;
-    cursor: pointer;
-    border-radius: 3px 3px 0 0;
-    transition: background 0.1s;
-}
-
-.excel-ribbon-tabs button:hover { background: rgba(255,255,255,.1); color: #fff; }
-.excel-ribbon-tabs button.active { background: #f0f0f0; color: #217346; font-weight: 600; }
-
-/* リボン本体（ホームタブ） */
-.excel-ribbon {
-    background: #f0f0f0;
-    border-bottom: 1px solid #c0c0c0;
-    padding: 4px 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-    min-height: 36px;
-}
-
-/* 数式バー */
-.excel-formulabar {
-    background: #fff;
-    border-bottom: 1px solid #c0c0c0;
-    display: flex;
-    align-items: center;
-    padding: 2px 6px;
-    gap: 6px;
-    flex-shrink: 0;
-    min-height: 26px;
-}
-
-.excel-formulabar .cell-ref {
-    width: 60px;
-    font-size: 12px;
-    border: 1px solid #c0c0c0;
-    padding: 1px 4px;
-    text-align: center;
-    background: #fff;
-}
-
-.excel-formulabar .fx-label {
-    font-size: 12px;
-    color: #555;
-    font-style: italic;
-    padding: 0 4px;
-    border-right: 1px solid #c0c0c0;
-    border-left: 1px solid #c0c0c0;
-}
-
-.excel-formulabar .formula-text {
-    flex: 1;
-    font-size: 12px;
-    color: #000;
+    z-index: 10;
 }
 
 /* =====================================================================
@@ -145,6 +40,13 @@ html, body {
     gap: 12px;
     flex-wrap: wrap;
     flex-shrink: 0;
+}
+
+.mcg-toolbar-user-name {
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+    font-weight: 600;
 }
 
 .mcg-toolbar-label {
@@ -169,6 +71,54 @@ html, body {
     height: 22px;
     background: #c0c0c0;
     flex-shrink: 0;
+}
+
+/* 凡例 */
+.mcg-legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.mcg-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+}
+.mcg-legend-item::before {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.mcg-legend-last-minute::before { background: #fff8f0; border: 1px solid #fb8c00; }
+.mcg-legend-past::before        { background: #ebebeb; border: 1px solid #bbb; }
+
+/* ヘッダーセル（直前ウィンドウ）のホバーツールチップ */
+.mcg-grid thead th[data-tooltip] {
+    cursor: help;
+}
+
+/* JS で body に append するツールチップ要素 */
+.mcg-tooltip {
+    position: fixed;
+    background: #333;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.7;
+    white-space: pre;
+    padding: 6px 10px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 99999;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    transition: opacity 0.12s;
 }
 
 /* 部屋ボタングループ */
@@ -440,6 +390,41 @@ html, body {
 /* 日曜列 */
 .mcg-grid tbody td.is-sunday { background: #e2efda; }
 .mcg-grid tbody td.is-sunday.cell-meal:hover { background: #a9d18e !important; }
+
+/* 過去日: グレー・クリック不可 */
+.mcg-grid tbody td.cell-meal.is-past {
+    background: #ebebeb !important;
+    color: #bbb;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+/* 過去日ヘッダー: ツールチップ用カーソル */
+.mcg-grid thead th.is-past-header {
+    cursor: help;
+}
+
+/* 直前ウィンドウ（当日〜+14日）: 薄いオレンジティント */
+.mcg-grid tbody td.cell-meal.is-last-minute {
+    background: #fff8f0;
+}
+.mcg-grid tbody td.cell-meal.is-last-minute:hover {
+    background: #ffd8a8 !important;
+}
+.mcg-grid tbody td.cell-meal.is-last-minute[data-reserved="1"] {
+    background: #ffe0b2;
+}
+.mcg-grid tbody td.cell-meal.is-last-minute.mcg-pending-on {
+    background: #fb8c00 !important;
+    color: #fff;
+}
+
+/* ヘッダー: 直前ウィンドウのオレンジ下線 */
+.mcg-grid thead tr.header-dates th.is-last-minute {
+    border-bottom: 3px solid #fb8c00;
+}
+.mcg-grid thead tr.header-meals th.is-last-minute {
+    border-bottom: 3px solid #fb8c00;
+}
 
 /* 日計行 */
 .mcg-grid tr.row-daily-total td {

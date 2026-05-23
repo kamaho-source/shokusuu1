@@ -83,10 +83,10 @@ function mcgUpdateRegisterBtn() {
 }
 
 /* ─────────────────────────────────────────────
- * 一括登録
+ * 一括登録（Promise を返す）
  * ─────────────────────────────────────────── */
 function mcgRegisterAll() {
-    if (_mcgPending.size === 0) return;
+    if (_mcgPending.size === 0) return Promise.resolve();
 
     var btn = document.getElementById('mcg-register-btn');
     if (btn) { btn.disabled = true; btn.textContent = '保存中…'; btn.classList.remove('has-changes'); }
@@ -96,7 +96,7 @@ function mcgRegisterAll() {
 
     var entries = Array.from(_mcgPending.entries());
 
-    Promise.allSettled(entries.map(function (pair) {
+    return Promise.allSettled(entries.map(function (pair) {
         var key = pair[0];
         var entry = pair[1];
         var parts  = key.split('|');
@@ -327,6 +327,7 @@ function mcgInitToggle() {
         });
 
         td.addEventListener('click', function () {
+            if (td.classList.contains('is-past')) return;
             if (td.classList.contains('mcg-cell-conflict')) return;
 
             var userId = td.dataset.userId;
@@ -378,22 +379,6 @@ function mcgInitToggle() {
 }
 
 /* ─────────────────────────────────────────────
- * 数式バーのセル参照を更新
- * ─────────────────────────────────────────── */
-function mcgInitCellRef() {
-    var cellRefEl = document.querySelector('.excel-formulabar .cell-ref');
-    document.querySelectorAll('.mcg-toggleable').forEach(function (td, idx) {
-        td.addEventListener('focus', function () {
-            if (cellRefEl) {
-                var col = String.fromCharCode(67 + (idx % 100));
-                var row = td.closest('tr') ? td.closest('tr').rowIndex : 7;
-                cellRefEl.textContent = col + row;
-            }
-        });
-    });
-}
-
-/* ─────────────────────────────────────────────
  * ページ離脱ガード（未保存あり）
  * ─────────────────────────────────────────── */
 function mcgInitBeforeUnload() {
@@ -405,12 +390,60 @@ function mcgInitBeforeUnload() {
     });
 }
 
+/* ─────────────────────────────────────────────
+ * ナビリンク（前4週・翌4週・今日）クリック時の自動保存
+ * ─────────────────────────────────────────── */
+function mcgInitNavSave() {
+    document.querySelectorAll('a.mcg-nav-btn').forEach(function (link) {
+        link.addEventListener('click', function (e) {
+            if (_mcgPending.size === 0) return;
+            e.preventDefault();
+            var href = this.href;
+            mcgRegisterAll().then(function () {
+                window.location.href = href;
+            });
+        });
+    });
+}
+
+function mcgInitHeaderTooltip() {
+    var tip = document.createElement('div');
+    tip.className = 'mcg-tooltip';
+    tip.style.opacity = '0';
+    document.body.appendChild(tip);
+
+    document.querySelectorAll('.mcg-grid thead th[data-tooltip]').forEach(function (th) {
+        th.addEventListener('mouseenter', function (e) {
+            tip.textContent = th.dataset.tooltip;
+            tip.style.opacity = '1';
+            _mcgPositionTooltip(tip, th);
+        });
+        th.addEventListener('mousemove', function () {
+            _mcgPositionTooltip(tip, th);
+        });
+        th.addEventListener('mouseleave', function () {
+            tip.style.opacity = '0';
+        });
+    });
+}
+
+function _mcgPositionTooltip(tip, anchor) {
+    var rect = anchor.getBoundingClientRect();
+    var left = rect.left + rect.width / 2 - tip.offsetWidth / 2;
+    // 画面右端からはみ出さないよう補正
+    left = Math.min(left, window.innerWidth - tip.offsetWidth - 8);
+    left = Math.max(left, 8);
+    tip.style.left = left + 'px';
+    tip.style.top  = (rect.bottom + 6) + 'px';
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     mcgInitConflicts();
     mcgInitConflictTip();
     mcgInitToggle();
-    mcgInitCellRef();
     mcgInitBeforeUnload();
+    mcgInitNavSave();
+    mcgInitHeaderTooltip();
     mcgUpdateRegisterBtn();
 
     var btn = document.getElementById('mcg-register-btn');
