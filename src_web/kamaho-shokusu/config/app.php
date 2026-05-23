@@ -3,6 +3,7 @@
 use Cake\Cache\Engine\FileEngine;
 use Cake\Database\Connection;
 use Cake\Database\Driver\Mysql;
+use App\Log\Engine\SlackLogEngine;
 use Cake\Log\Engine\FileLog;
 use Cake\Mailer\Transport\MailTransport;
 
@@ -363,6 +364,11 @@ return [
             'serialize' => true,
             'duration' => '+1 years',
         ],
+        'slack_error' => [
+            'className' => SlackLogEngine::class,
+            'levels' => ['error', 'critical', 'alert', 'emergency'],
+            'scopes' => null,
+        ],
         // To enable this dedicated query log, you need set your datasource's log flag to true
         'queries' => [
             'className' => FileLog::class,
@@ -414,5 +420,6 @@ return [
      */
     'Session' => [
         'defaults' => 'php',
+        'timeout' => 60, // 60分でセッションを失効させる
     ],
 ];

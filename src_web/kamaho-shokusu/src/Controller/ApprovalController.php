@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Policy\ApprovalPolicy;
 use App\Service\ApprovalService;
 use App\Service\RoomAccessService;
 use Cake\Event\EventInterface;
@@ -13,13 +12,12 @@ use Cake\Http\Response;
  * 承認フロー コントローラー
  *
  * ブロック長（i_admin = 2）と管理者（i_admin = 1）向けの承認画面を提供する。
- * Authorization は skipAuthorization() + ApprovalPolicy の直接呼び出しで制御する。
+ * 認可は ApprovalPolicy を通じて Authorization::authorize() で制御する。
  */
 class ApprovalController extends AppController
 {
     private ApprovalService $approvalService;
     private RoomAccessService $roomAccessService;
-    private ApprovalPolicy $approvalPolicy;
 
     /**
      * JS から JSON で POST する API アクション一覧。
@@ -39,14 +37,13 @@ class ApprovalController extends AppController
         parent::initialize();
         $this->approvalService   = new ApprovalService();
         $this->roomAccessService = new RoomAccessService();
-        $this->approvalPolicy    = new ApprovalPolicy();
 
         if (isset($this->FormProtection)) {
             $this->FormProtection->setConfig('unlockedActions', self::API_ACTIONS);
         }
     }
 
-    public function beforeFilter(\Cake\Event\EventInterface $event): void
+    public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
 
@@ -65,13 +62,9 @@ class ApprovalController extends AppController
      */
     public function blockLeaderIndex(): ?Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'blockLeaderIndex');
 
-        $user = $this->Authentication->getIdentity();
-        if (!$this->approvalPolicy->canBlockLeaderIndex($user, null)) {
-            return $this->jsonForbidden();
-        }
-
+        $user    = $this->Authentication->getIdentity();
         $userId  = (int)$user->get('i_id_user');
         $roomIds = $this->roomAccessService->getUserRoomIds($userId);
 
@@ -97,14 +90,10 @@ class ApprovalController extends AppController
      */
     public function blockLeaderApprove(): Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'blockLeaderApprove');
         $this->request->allowMethod('post');
 
-        $user = $this->Authentication->getIdentity();
-        if (!$this->approvalPolicy->canBlockLeaderApprove($user, null)) {
-            return $this->jsonForbidden();
-        }
-
+        $user     = $this->Authentication->getIdentity();
         $approver = (int)$user->get('i_id_user');
         $actor    = $user->get('c_login_account') ?? (string)$approver;
         $keys     = (array)($this->request->getData('keys') ?? []);
@@ -127,14 +116,10 @@ class ApprovalController extends AppController
      */
     public function blockLeaderReject(): Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'blockLeaderReject');
         $this->request->allowMethod('post');
 
-        $user = $this->Authentication->getIdentity();
-        if (!$this->approvalPolicy->canBlockLeaderReject($user, null)) {
-            return $this->jsonForbidden();
-        }
-
+        $user     = $this->Authentication->getIdentity();
         $approver = (int)$user->get('i_id_user');
         $actor    = $user->get('c_login_account') ?? (string)$approver;
         $keys     = (array)($this->request->getData('keys') ?? []);
@@ -162,12 +147,7 @@ class ApprovalController extends AppController
      */
     public function adminIndex(): ?Response
     {
-        $this->Authorization->skipAuthorization();
-
-        $user = $this->Authentication->getIdentity();
-        if (!$this->approvalPolicy->canAdminIndex($user, null)) {
-            return $this->jsonForbidden();
-        }
+        $this->Authorization->authorize($this, 'adminIndex');
 
         $filterRoomId = $this->request->getQuery('room_id') ? (int)$this->request->getQuery('room_id') : null;
         $filterStatus = $this->request->getQuery('status') !== null && $this->request->getQuery('status') !== ''
@@ -190,14 +170,10 @@ class ApprovalController extends AppController
      */
     public function adminApprove(): Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'adminApprove');
         $this->request->allowMethod('post');
 
-        $user = $this->Authentication->getIdentity();
-        if (!$this->approvalPolicy->canAdminApprove($user, null)) {
-            return $this->jsonForbidden();
-        }
-
+        $user     = $this->Authentication->getIdentity();
         $approver = (int)$user->get('i_id_user');
         $actor    = $user->get('c_login_account') ?? (string)$approver;
         $keys     = (array)($this->request->getData('keys') ?? []);
@@ -220,14 +196,10 @@ class ApprovalController extends AppController
      */
     public function adminReject(): Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'adminReject');
         $this->request->allowMethod('post');
 
-        $user = $this->Authentication->getIdentity();
-        if (!$this->approvalPolicy->canAdminReject($user, null)) {
-            return $this->jsonForbidden();
-        }
-
+        $user     = $this->Authentication->getIdentity();
         $approver = (int)$user->get('i_id_user');
         $actor    = $user->get('c_login_account') ?? (string)$approver;
         $keys     = (array)($this->request->getData('keys') ?? []);
@@ -251,14 +223,10 @@ class ApprovalController extends AppController
      */
     public function adminReflect(): Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'adminReflect');
         $this->request->allowMethod('post');
 
-        $user = $this->Authentication->getIdentity();
-        if (!$this->approvalPolicy->canAdminReflect($user, null)) {
-            return $this->jsonForbidden();
-        }
-
+        $user  = $this->Authentication->getIdentity();
         $actor  = $user->get('c_login_account') ?? (string)$user->get('i_id_user');
         $roomId = $this->request->getData('room_id') ? (int)$this->request->getData('room_id') : null;
         $date   = $this->request->getData('date');

@@ -24,10 +24,10 @@ class MRoomInfo extends Entity
         'c_room_name' => true,
         'i_disp_no' => true,
         'i_enable' => true,
-        'i_del_flg' => true,
-        'dt_create' => true,
-        'c_create_user' => true,
-        'dt_update' => true,
-        'c_update_user' => true,
+        'i_del_flg' => false,
+        'dt_create' => false,
+        'c_create_user' => false,
+        'dt_update' => false,
+        'c_update_user' => false,
     ];
 }

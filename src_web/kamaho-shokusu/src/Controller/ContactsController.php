@@ -5,6 +5,8 @@ namespace App\Controller;
 
 use App\Model\Table\TContactsTable;
 use App\Service\ContactService;
+use Authorization\Exception\ForbiddenException;
+use Cake\Event\EventInterface;
 use Cake\Http\Response;
 
 class ContactsController extends AppController
@@ -18,17 +20,24 @@ class ContactsController extends AppController
     }
 
     /**
+     * @throws \Exception
+     */
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+        if ($this->request->getParam('action') === 'index') {
+            $this->FormProtection->setConfig('unlockedFields', ['name', 'email', 'category', 'body']);
+        }
+    }
+
+    /**
      * フィードバック・お問い合わせフォーム（全ユーザー共通）
      */
     public function index(): ?Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'index');
 
         $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
-        }
-
         $categories = TContactsTable::CATEGORIES;
 
         // ログインユーザーの情報を初期値として渡す
@@ -61,18 +70,7 @@ class ContactsController extends AppController
      */
     public function adminIndex(): ?Response
     {
-        $this->Authorization->skipAuthorization();
-
-        $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
-        }
-
-        // 管理者のみアクセス可能
-        if ((int)$user->get('i_admin') !== 1) {
-            $this->Flash->error('管理者のみアクセスできます。');
-            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
-        }
+        $this->Authorization->authorize($this, 'adminIndex');
 
         $page    = (int)($this->request->getQuery('page') ?? 1);
         $contacts = $this->contactService->getList($page);
@@ -86,17 +84,7 @@ class ContactsController extends AppController
      */
     public function adminDetail(int $id): ?Response
     {
-        $this->Authorization->skipAuthorization();
-
-        $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
-        }
-
-        if ((int)$user->get('i_admin') !== 1) {
-            $this->Flash->error('管理者のみアクセスできます。');
-            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
-        }
+        $this->Authorization->authorize($this, 'adminDetail');
 
         $contact = $this->contactService->getDetail($id);
 

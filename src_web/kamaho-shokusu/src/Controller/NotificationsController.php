@@ -15,23 +15,17 @@ class NotificationsController extends AppController
         parent::initialize();
         $this->notificationService = new NotificationService();
 
-        if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', [
-                'markRead',
-                'markAllRead',
-            ]);
-        }
+        $this->FormProtection->setConfig('unlockedActions', [
+            'markRead',
+            'markAllRead',
+        ]);
     }
 
     public function index(): ?Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'index');
 
         $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
-        }
-
         $userId = (int)$user->get('i_id_user');
         $notifications = $this->notificationService->getNotifications($userId);
         $this->set(compact('notifications'));
@@ -41,14 +35,10 @@ class NotificationsController extends AppController
 
     public function markRead(): Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'markRead');
         $this->request->allowMethod('post');
 
         $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->jsonError('認証が必要です', 401);
-        }
-
         $ids = (array)($this->request->getData('ids') ?? []);
         $count = $this->notificationService->markAsRead((int)$user->get('i_id_user'), $ids);
 
@@ -57,14 +47,10 @@ class NotificationsController extends AppController
 
     public function markAllRead(): Response
     {
-        $this->Authorization->skipAuthorization();
+        $this->Authorization->authorize($this, 'markAllRead');
         $this->request->allowMethod('post');
 
         $user = $this->Authentication->getIdentity();
-        if ($user === null) {
-            return $this->jsonError('認証が必要です', 401);
-        }
-
         $count = $this->notificationService->markAllAsRead((int)$user->get('i_id_user'));
 
         return $this->jsonResponse(['success' => true, 'count' => $count]);

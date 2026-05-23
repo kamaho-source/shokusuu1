@@ -33,9 +33,10 @@ class ReservationWriteService
             return $this->err('入力データが無効です。', 400);
         }
 
-        $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
-        if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('JSONデコードエラー: ' . json_last_error_msg());
+        try {
+            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+        } catch (\JsonException $e) {
+            Log::error('JSONデコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
         }
 
@@ -264,9 +265,10 @@ class ReservationWriteService
             return $this->err('入力データが無効です。', 400);
         }
 
-        $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
-        if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('JSON デコードエラー: ' . json_last_error_msg());
+        try {
+            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+        } catch (\JsonException $e) {
+            Log::error('JSON デコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
         }
 
@@ -675,7 +677,9 @@ class ReservationWriteService
             $set,
             [
                 'i_id_user'          => (int)$row->i_id_user,
-                'd_reservation_date' => (string)$row->d_reservation_date,
+                'd_reservation_date' => $row->d_reservation_date instanceof Date
+                    ? $row->d_reservation_date->format('Y-m-d')
+                    : (string)$row->d_reservation_date,
                 'i_reservation_type' => (int)$row->i_reservation_type,
                 'i_id_room'          => (int)$row->i_id_room,
                 'i_version'          => $expectedVersion,

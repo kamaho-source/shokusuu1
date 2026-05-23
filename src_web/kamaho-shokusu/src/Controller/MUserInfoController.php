@@ -47,14 +47,12 @@ class MUserInfoController extends AppController
         $this->userRestoreService       = new UserRestoreService();
         $this->userRoomAssignmentService = new UserRoomAssignmentService();
 
-        if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', [
-                'importJson',
-                'updateAdminStatus',
-                'updateUserLevel',
-                'addUserRooms',
-            ]);
-        }
+        $this->FormProtection->setConfig('unlockedActions', [
+            'importJson',
+            'updateAdminStatus',
+            'updateUserLevel',
+            'addUserRooms',
+        ]);
     }
 
     public function beforeFilter(EventInterface $event)

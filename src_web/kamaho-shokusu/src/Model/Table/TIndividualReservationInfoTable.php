@@ -61,7 +61,7 @@ class TIndividualReservationInfoTable extends Table
             if (!in_array($type, [2, 4], true)) {
                 return true;
             }
-            $date = $entity->d_reservation_date instanceof \DateTimeInterface
+            $date = $entity->d_reservation_date instanceof Date
                 ? Date::parseDate($entity->d_reservation_date->format('Y-m-d'), 'yyyy-MM-dd')
                 : new Date((string)$entity->d_reservation_date);
 

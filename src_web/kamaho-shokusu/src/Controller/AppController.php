@@ -62,10 +62,17 @@ class AppController extends Controller
         if (!is_string($url) || $url === '') {
             return false;
         }
-        // '//' や 'http://' 等の外部URLは拒否
-        if (preg_match('#^(https?:)?//#i', $url)) {
+
+        $parsed = parse_url($url);
+        if ($parsed === false) {
             return false;
         }
+
+        // スキームまたはホストが含まれる場合は外部URLとして拒否（//evil.com 亜種も含む）
+        if (!empty($parsed['scheme']) || !empty($parsed['host'])) {
+            return false;
+        }
+
         // '/' から始まる内部パスのみ許可
         return str_starts_with($url, '/');
     }

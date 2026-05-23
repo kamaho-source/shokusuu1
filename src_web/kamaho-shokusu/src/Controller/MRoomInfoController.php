@@ -94,7 +94,9 @@ class MRoomInfoController extends AppController
             $mRoomInfo->i_del_flg  = 0;
             $mRoomInfo->i_disp_no  = $this->roomService->nextDisplayNo();
 
-            $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data);
+            $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data, [
+                'fieldList' => ['c_room_name'],
+            ]);
 
             if ($this->MRoomInfo->save($mRoomInfo)) {
                 $this->Flash->success(__('部屋情報が正常に追加されました。'));
@@ -131,7 +133,9 @@ class MRoomInfoController extends AppController
                 $mRoomInfo->c_update_user = $user->get('c_user_name');
             }
 
-            $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data);
+            $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data, [
+                'fieldList' => ['c_room_name'],
+            ]);
 
             if ($this->MRoomInfo->save($mRoomInfo)) {
                 $this->Flash->success(__('部屋情報が正常に更新されました。'));
