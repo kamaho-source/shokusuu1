@@ -138,6 +138,8 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MMealPriceInfo', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
         $builder->connect('/MMealPriceInfo/add', ['controller'=>'MMealPriceInfo', 'action'=>'add']);
         $builder->connect('/MMealPriceInfo/GetMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'GetMealSummary']);
+        $builder->connect('/MMealPriceInfo/exportMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'exportMealSummary'])->setMethods(['GET']);
+        $builder->connect('/MMealPriceInfo/exportMealSummaryPreview', ['controller'=>'MMealPriceInfo', 'action'=>'exportMealSummaryPreview'])->setMethods(['GET']);
 
         // MUserInfo
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);

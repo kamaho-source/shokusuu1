@@ -18,6 +18,9 @@ class MealSummaryExportService
     private const RESERVATION_TYPE_BENTO   = 4;
     private const APPROVAL_STATUS_APPROVED = 2;
 
+    /** 未承認プレビュー対象ステータス（差し戻し=3は除外） */
+    private const PREVIEW_STATUSES = [0, 1];
+
     /**
      * 指定年度・月の職員別食事集計データを返す。
      *
@@ -40,6 +43,38 @@ class MealSummaryExportService
                 'staff_id'    => $user->i_id_staff,
                 'meal_counts' => $mealCounts,
                 'total_price' => $mealTotalPrice,
+            ];
+        }
+
+        return $monthlyData;
+    }
+
+    /**
+     * 未承認プレビュー用: 未承認(0)・ブロック長承認済(1) のみを集計する。
+     * 差し戻し(3)・管理者承認済(2) は含まない。
+     * 承認ステータス別の内訳も返すことで Excel 上での区別を可能にする。
+     *
+     * @param int $year  年度
+     * @param int $month 月（1〜12）
+     * @return array{name: string, staff_id: mixed, meal_counts: array, status_breakdown: array, total_price: int}[]
+     */
+    public function aggregatePreview(int $year, int $month): array
+    {
+        $mealPrices = $this->fetchMealPrices($year);
+        $users      = $this->fetchStaffUsers();
+
+        $monthlyData = [];
+        foreach ($users as $user) {
+            $mealCounts     = $this->countMealsPreview($user->i_id_user, $year, $month);
+            $statusBreakdown = $this->countMealsByStatus($user->i_id_user, $year, $month);
+            $mealTotalPrice  = $this->calcTotalPrice($mealCounts, $mealPrices);
+
+            $monthlyData[] = [
+                'name'             => $user->c_user_name,
+                'staff_id'         => $user->i_id_staff,
+                'meal_counts'      => $mealCounts,
+                'status_breakdown' => $statusBreakdown,
+                'total_price'      => $mealTotalPrice,
             ];
         }
 
@@ -112,6 +147,96 @@ class MealSummaryExportService
         }
 
         return $counts;
+    }
+
+    /**
+     * 未承認プレビュー用: status IN (0,1) のレコードのみ有効フラグを集計する。
+     *
+     * @return array{morning: int, lunch: int, dinner: int, bento: int}
+     */
+    private function countMealsPreview(int $userId, int $year, int $month): array
+    {
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $rows  = $table->find()
+            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
+            ->where([
+                'i_id_user'                 => $userId,
+                'YEAR(d_reservation_date)'  => $year,
+                'MONTH(d_reservation_date)' => $month,
+                'i_approval_status IN'      => self::PREVIEW_STATUSES,
+            ])
+            ->toArray();
+
+        $counts = ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0];
+
+        foreach ($rows as $row) {
+            $effectiveFlag = $row->i_change_flag !== null
+                ? (int)$row->i_change_flag
+                : (int)($row->eat_flag ?? 0);
+
+            if ($effectiveFlag !== 1) {
+                continue;
+            }
+
+            match ((int)$row->i_reservation_type) {
+                self::RESERVATION_TYPE_BENTO   => $counts['bento']++,
+                self::RESERVATION_TYPE_MORNING => $counts['morning']++,
+                self::RESERVATION_TYPE_LUNCH   => $counts['lunch']++,
+                self::RESERVATION_TYPE_DINNER  => $counts['dinner']++,
+                default                        => null,
+            };
+        }
+
+        return $counts;
+    }
+
+    /**
+     * ステータス別内訳: 各ステータス(0/1)の有効食事件数を返す。
+     *
+     * @return array<int, array{morning: int, lunch: int, dinner: int, bento: int}>
+     */
+    private function countMealsByStatus(int $userId, int $year, int $month): array
+    {
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $rows  = $table->find()
+            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
+            ->where([
+                'i_id_user'                 => $userId,
+                'YEAR(d_reservation_date)'  => $year,
+                'MONTH(d_reservation_date)' => $month,
+                'i_approval_status IN'      => self::PREVIEW_STATUSES,
+            ])
+            ->toArray();
+
+        $breakdown = [
+            0 => ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0],
+            1 => ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0],
+        ];
+
+        foreach ($rows as $row) {
+            $effectiveFlag = $row->i_change_flag !== null
+                ? (int)$row->i_change_flag
+                : (int)($row->eat_flag ?? 0);
+
+            if ($effectiveFlag !== 1) {
+                continue;
+            }
+
+            $status = (int)$row->i_approval_status;
+            if (!isset($breakdown[$status])) {
+                continue;
+            }
+
+            match ((int)$row->i_reservation_type) {
+                self::RESERVATION_TYPE_BENTO   => $breakdown[$status]['bento']++,
+                self::RESERVATION_TYPE_MORNING => $breakdown[$status]['morning']++,
+                self::RESERVATION_TYPE_LUNCH   => $breakdown[$status]['lunch']++,
+                self::RESERVATION_TYPE_DINNER  => $breakdown[$status]['dinner']++,
+                default                        => null,
+            };
+        }
+
+        return $breakdown;
     }
 
     /**

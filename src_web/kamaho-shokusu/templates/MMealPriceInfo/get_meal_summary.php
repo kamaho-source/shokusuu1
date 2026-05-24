@@ -42,8 +42,18 @@ $this->assign('title', __('食事給与控除データエクスポート'));
             </select>
         </div>
 
-        <!-- Submit Button -->
-        <button type="button" id="downloadExcelWithDeductions" class="btn btn-primary">エクスポート</button>
+        <!-- Submit Buttons -->
+        <div class="d-flex gap-2 mt-2">
+            <button type="button" id="downloadExcelWithDeductions" class="btn btn-primary">
+                承認済みエクスポート
+            </button>
+            <button type="button" id="downloadExcelPreview" class="btn btn-warning">
+                未承認プレビューエクスポート
+            </button>
+        </div>
+        <div class="form-text text-muted mt-1">
+            ※ 未承認プレビューは管理者承認前のデータ（未承認・ブロック長承認済）を含みます。確定値ではありません。
+        </div>
     </form>
 </div>
 
@@ -219,6 +229,122 @@ $this->assign('title', __('食事給与控除データエクスポート'));
             });
         } else {
             console.error("必要な要素が見つかりません。");
+        }
+
+        // ── 未承認プレビューエクスポート ──────────────────────────────
+        const previewButton = document.getElementById("downloadExcelPreview");
+        if (previewButton && yearSelect && monthSelect) {
+            previewButton.addEventListener("click", async function () {
+                const selectedYear  = yearSelect.value;
+                const selectedMonth = monthSelect.value;
+
+                if (!selectedYear)  { alert("年度を選択してください。"); return; }
+                if (!selectedMonth) { alert("月を選択してください。"); return; }
+
+                const confirmed = confirm(
+                    "これは未承認データのプレビューエクスポートです。\n" +
+                    "管理者による最終承認が完了していないデータを含むため、確定値ではありません。\n\n" +
+                    "エクスポートを続けますか？"
+                );
+                if (!confirmed) return;
+
+                try {
+                    const response = await fetch(
+                        `/kamaho-shokusu/MMealPriceInfo/exportMealSummaryPreview?year=${selectedYear}&month=${selectedMonth}`
+                    );
+                    if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
+
+                    const raw  = await response.json();
+                    const data = (raw && typeof raw === "object" && raw.ok !== undefined)
+                        ? (Array.isArray(raw.data?.rows) ? raw.data.rows : [])
+                        : [];
+
+                    if (data.length === 0) {
+                        alert("未承認データが見つかりませんでした。");
+                        return;
+                    }
+
+                    const workbook = new ExcelJS.Workbook();
+                    workbook.creator = "給与控除システム（プレビュー）";
+                    workbook.created  = new Date();
+                    workbook.modified = new Date();
+
+                    const sheet = workbook.addWorksheet(`未承認プレビュー_${selectedYear}_${selectedMonth}`);
+
+                    // ── ヘッダー ──────────────────────────
+                    const header = [
+                        "職員情報", "弁当", "朝食", "昼食", "夕食",
+                        "控除額合計（参考）", "うち未承認(0)", "うちBL承認済(1)"
+                    ];
+                    sheet.addRow(header);
+
+                    // ヘッダー行スタイル（警告色）
+                    sheet.getRow(1).eachCell(cell => {
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC107" } };
+                        cell.font = { bold: true };
+                    });
+
+                    const statusLabels = { 0: "未承認", 1: "BL承認済" };
+
+                    data.forEach(row => {
+                        const mc  = row.meal_counts      || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+                        const sb  = row.status_breakdown || {};
+                        const s0  = sb[0] || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+                        const s1  = sb[1] || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+
+                        const dataRow = sheet.addRow([
+                            `${row.staff_id || ""} ${row.name || ""}`,
+                            mc.bento   || 0,
+                            mc.morning || 0,
+                            mc.lunch   || 0,
+                            mc.dinner  || 0,
+                            row.total_price || 0,
+                            // ステータス別内訳（弁当+朝+昼+夕の合計件数で代表表示）
+                            (s0.bento + s0.morning + s0.lunch + s0.dinner),
+                            (s1.bento + s1.morning + s1.lunch + s1.dinner),
+                        ]);
+
+                        // 未承認行（status=0 の食事あり）を薄い赤でハイライト
+                        const hasUnapproved = (s0.bento + s0.morning + s0.lunch + s0.dinner) > 0;
+                        if (hasUnapproved) {
+                            dataRow.eachCell(cell => {
+                                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3CD" } };
+                            });
+                        }
+                    });
+
+                    // 合計行
+                    const lastDataRow = data.length + 1;
+                    const totalRow = sheet.addRow([
+                        "合計",
+                        { formula: `SUM(B2:B${lastDataRow})` },
+                        { formula: `SUM(C2:C${lastDataRow})` },
+                        { formula: `SUM(D2:D${lastDataRow})` },
+                        { formula: `SUM(E2:E${lastDataRow})` },
+                        { formula: `SUM(F2:F${lastDataRow})` },
+                        { formula: `SUM(G2:G${lastDataRow})` },
+                        { formula: `SUM(H2:H${lastDataRow})` },
+                    ]);
+                    totalRow.font = { bold: true };
+
+                    autoFitColumns(sheet);
+
+                    const buffer = await workbook.xlsx.writeBuffer();
+                    const blob   = new Blob([buffer], {
+                        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    });
+                    const link = document.createElement("a");
+                    link.href     = URL.createObjectURL(blob);
+                    link.download = `給与控除データ_未承認プレビュー_${selectedYear}_${selectedMonth}.xlsx`;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+
+                } catch (error) {
+                    console.error("プレビューエクスポートエラー:", error);
+                    alert("プレビューエクスポート中にエラーが発生しました。詳細はコンソールを確認してください。");
+                }
+            });
         }
     });
 </script>

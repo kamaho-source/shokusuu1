@@ -188,4 +188,25 @@ class MMealPriceInfoController extends AppController
 
         return $apiResponse->success($this->response, ['rows' => $monthlyData]);
     }
+
+    /**
+     * GET /MMealPriceInfo/exportMealSummaryPreview
+     *
+     * 未承認(status=0)・ブロック長承認済(status=1) のみを集計したプレビューデータを返す。
+     * 管理者のみ使用可能（canAdd ポリシーで管理者判定）。
+     */
+    public function exportMealSummaryPreview()
+    {
+        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'add');
+
+        $this->autoRender = false;
+        $apiResponse = new ApiResponseService();
+
+        $year  = (int)$this->request->getQuery('year', date('Y'));
+        $month = (int)$this->request->getQuery('month', date('n'));
+
+        $monthlyData = $this->mealSummaryExportService->aggregatePreview($year, $month);
+
+        return $apiResponse->success($this->response, ['rows' => $monthlyData]);
+    }
 }
