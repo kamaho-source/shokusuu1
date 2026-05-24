@@ -440,11 +440,28 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
-                    // 警告行(A1)の長文が列幅計算に影響しないよう一時退避してから autoFit する
-                    const warnText = warnRow.getCell(1).value;
-                    warnRow.getCell(1).value = null;
-                    autoFitColumns(sheet);
-                    warnRow.getCell(1).value = warnText;
+                    // 行2以降のみで列幅を計算し、行1（警告行）は変更しない
+                    sheet.columns.forEach((column, colIdx) => {
+                        let max = 10;
+                        sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+                            if (rowNumber === 1) return;
+                            const cell = row.getCell(colIdx + 1);
+                            if (!cell.value) return;
+                            let text = '';
+                            if (typeof cell.value === 'object') {
+                                text = cell.value.result != null ? String(cell.value.result)
+                                     : cell.value.formula   != null ? String(cell.value.formula)
+                                     : '';
+                            } else {
+                                text = String(cell.value);
+                            }
+                            const w = Array.from(text).reduce(
+                                (s, c) => s + (/[ -~]/.test(c) ? 1 : 2), 0
+                            );
+                            if (w > max) max = w;
+                        });
+                        column.width = max + 2;
+                    });
 
                     const buffer = await workbook.xlsx.writeBuffer();
                     const blob   = new Blob([buffer], {
