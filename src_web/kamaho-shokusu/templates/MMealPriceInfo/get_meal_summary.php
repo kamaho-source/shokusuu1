@@ -440,11 +440,25 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
-                    autoFitColumns(sheet);
-                    // 警告行(A1:G1結合)の長文が autoFitColumns の幅計算に混入するため
-                    // 各列に上限を設けて適切な幅に収める
-                    sheet.columns.forEach(col => {
-                        if (col.width > 30) col.width = 30;
+                    // 警告行(A1:G1結合)を除いた行だけで列幅を計算する
+                    sheet.columns.forEach((column, colIdx) => {
+                        let max = 10;
+                        sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+                            if (rowNumber === 1) return; // 結合行はスキップ
+                            const cellValue = row.getCell(colIdx + 1).value;
+                            if (cellValue == null) return;
+                            let text = '';
+                            if (typeof cellValue === 'object') {
+                                text = cellValue.result != null ? String(cellValue.result) : String(cellValue.formula ?? '');
+                            } else {
+                                text = String(cellValue);
+                            }
+                            const w = Array.from(text).reduce(
+                                (s, c) => s + (/[ -~]/.test(c) ? 1 : 2), 0
+                            );
+                            if (w > max) max = w;
+                        });
+                        column.width = max + 2;
                     });
 
                     const buffer = await workbook.xlsx.writeBuffer();
