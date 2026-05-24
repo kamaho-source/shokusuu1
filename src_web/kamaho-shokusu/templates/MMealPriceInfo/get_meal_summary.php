@@ -441,6 +441,11 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
                     autoFitColumns(sheet);
+                    // 警告行(A1:G1結合)の長文が autoFitColumns の幅計算に混入するため
+                    // 各列に上限を設けて適切な幅に収める
+                    sheet.columns.forEach(col => {
+                        if (col.width > 30) col.width = 30;
+                    });
 
                     const buffer = await workbook.xlsx.writeBuffer();
                     const blob   = new Blob([buffer], {
