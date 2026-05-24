@@ -57,6 +57,89 @@ $this->assign('title', __('食事給与控除データエクスポート'));
     </form>
 </div>
 
+<!-- 未承認プレビュー確認モーダル -->
+<div id="preview-confirm-modal" class="preview-modal-backdrop" aria-hidden="true">
+    <div class="preview-modal-card" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
+        <div class="preview-modal-header">
+            <div class="preview-modal-icon">⚠</div>
+            <h5 id="preview-modal-title" class="preview-modal-title">未承認データのエクスポート</h5>
+        </div>
+        <div class="preview-modal-body">
+            これは<strong>未承認データのプレビューエクスポート</strong>です。<br>
+            管理者による最終承認が完了していないデータを含むため、<strong>確定値ではありません。</strong><br><br>
+            エクスポートを続けますか？
+        </div>
+        <div class="preview-modal-footer">
+            <button type="button" id="preview-modal-cancel" class="btn btn-secondary">キャンセル</button>
+            <button type="button" id="preview-modal-confirm" class="btn btn-warning">エクスポートする</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.preview-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.18);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1055;
+    padding: 1rem;
+    backdrop-filter: blur(4px);
+}
+.preview-modal-backdrop.is-open { display: flex; }
+.preview-modal-card {
+    width: min(100%, 400px);
+    background: linear-gradient(180deg, #ffffff 0%, #fffdf5 100%);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+    overflow: hidden;
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+    transition: transform .18s ease, opacity .18s ease;
+}
+.preview-modal-backdrop.is-open .preview-modal-card {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+.preview-modal-header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: 1rem 1.2rem .5rem;
+    border-bottom: none;
+}
+.preview-modal-icon {
+    width: 42px; height: 42px;
+    border-radius: 999px;
+    background: #fef9c3;
+    color: #b45309;
+    font-size: 1.3rem;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.preview-modal-title { margin: 0; font-size: 1rem; font-weight: 700; color: #1e293b; }
+.preview-modal-body {
+    padding: .5rem 1.2rem 1rem;
+    color: #475569;
+    line-height: 1.8;
+    font-size: .92rem;
+}
+.preview-modal-footer {
+    display: flex;
+    gap: .6rem;
+    padding: 0 1.2rem 1rem;
+}
+.preview-modal-footer .btn {
+    flex: 1;
+    border-radius: 999px;
+    font-weight: 600;
+    padding: .6rem .9rem;
+}
+</style>
+
 <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
 
 <!-- ★ 列幅自動調整ユーティリティ -->
@@ -233,6 +316,33 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
         // ── 未承認プレビューエクスポート ──────────────────────────────
         const previewButton = document.getElementById("downloadExcelPreview");
+        const previewModal  = document.getElementById("preview-confirm-modal");
+        const modalCancel   = document.getElementById("preview-modal-cancel");
+        const modalConfirm  = document.getElementById("preview-modal-confirm");
+
+        function openPreviewModal() {
+            return new Promise(function (resolve) {
+                previewModal.classList.add("is-open");
+                previewModal.setAttribute("aria-hidden", "false");
+
+                function onConfirm() { cleanup(); resolve(true); }
+                function onCancel()  { cleanup(); resolve(false); }
+                function onBackdrop(e) { if (e.target === previewModal) { cleanup(); resolve(false); } }
+
+                function cleanup() {
+                    previewModal.classList.remove("is-open");
+                    previewModal.setAttribute("aria-hidden", "true");
+                    modalConfirm.removeEventListener("click", onConfirm);
+                    modalCancel.removeEventListener("click", onCancel);
+                    previewModal.removeEventListener("click", onBackdrop);
+                }
+
+                modalConfirm.addEventListener("click", onConfirm);
+                modalCancel.addEventListener("click", onCancel);
+                previewModal.addEventListener("click", onBackdrop);
+            });
+        }
+
         if (previewButton && yearSelect && monthSelect) {
             previewButton.addEventListener("click", async function () {
                 const selectedYear  = yearSelect.value;
@@ -241,11 +351,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                 if (!selectedYear)  { alert("年度を選択してください。"); return; }
                 if (!selectedMonth) { alert("月を選択してください。"); return; }
 
-                const confirmed = confirm(
-                    "これは未承認データのプレビューエクスポートです。\n" +
-                    "管理者による最終承認が完了していないデータを含むため、確定値ではありません。\n\n" +
-                    "エクスポートを続けますか？"
-                );
+                const confirmed = await openPreviewModal();
                 if (!confirmed) return;
 
                 try {
@@ -271,6 +377,16 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
                     const sheet = workbook.addWorksheet(`未承認プレビュー_${selectedYear}_${selectedMonth}`);
 
+                    // ── 警告行（1行目）──────────────────────────
+                    const warnRow = sheet.addRow([
+                        "【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。"
+                    ]);
+                    sheet.mergeCells(`A1:H1`);
+                    warnRow.getCell(1).font  = { bold: true, color: { argb: "FFCC0000" }, size: 12 };
+                    warnRow.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
+                    warnRow.getCell(1).alignment = { vertical: "middle", wrapText: true };
+                    warnRow.height = 36;
+
                     // ── ヘッダー ──────────────────────────
                     const header = [
                         "職員情報", "弁当", "朝食", "昼食", "夕食",
@@ -278,8 +394,8 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     ];
                     sheet.addRow(header);
 
-                    // ヘッダー行スタイル（警告色）
-                    sheet.getRow(1).eachCell(cell => {
+                    // ヘッダー行スタイル（警告色） ※警告行(1)の次なので行番号は2
+                    sheet.getRow(2).eachCell(cell => {
                         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC107" } };
                         cell.font = { bold: true };
                     });
@@ -313,17 +429,18 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         }
                     });
 
-                    // 合計行
-                    const lastDataRow = data.length + 1;
+                    // 合計行（警告行1行＋ヘッダー行1行＋データ行）
+                    const firstDataRow = 3;
+                    const lastDataRow  = data.length + 2; // 警告(1) + ヘッダー(1) + データ
                     const totalRow = sheet.addRow([
                         "合計",
-                        { formula: `SUM(B2:B${lastDataRow})` },
-                        { formula: `SUM(C2:C${lastDataRow})` },
-                        { formula: `SUM(D2:D${lastDataRow})` },
-                        { formula: `SUM(E2:E${lastDataRow})` },
-                        { formula: `SUM(F2:F${lastDataRow})` },
-                        { formula: `SUM(G2:G${lastDataRow})` },
-                        { formula: `SUM(H2:H${lastDataRow})` },
+                        { formula: `SUM(B${firstDataRow}:B${lastDataRow})` },
+                        { formula: `SUM(C${firstDataRow}:C${lastDataRow})` },
+                        { formula: `SUM(D${firstDataRow}:D${lastDataRow})` },
+                        { formula: `SUM(E${firstDataRow}:E${lastDataRow})` },
+                        { formula: `SUM(F${firstDataRow}:F${lastDataRow})` },
+                        { formula: `SUM(G${firstDataRow}:G${lastDataRow})` },
+                        { formula: `SUM(H${firstDataRow}:H${lastDataRow})` },
                     ]);
                     totalRow.font = { bold: true };
 
