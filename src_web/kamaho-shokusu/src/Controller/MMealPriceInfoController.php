@@ -205,8 +205,8 @@ class MMealPriceInfoController extends AppController
         $year  = (int)$this->request->getQuery('year', date('Y'));
         $month = (int)$this->request->getQuery('month', date('n'));
 
-        $monthlyData = $this->mealSummaryExportService->aggregatePreview($year, $month);
+        $result = $this->mealSummaryExportService->aggregatePreview($year, $month);
 
-        return $apiResponse->success($this->response, ['rows' => $monthlyData]);
+        return $apiResponse->success($this->response, $result);
     }
 }

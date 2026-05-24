@@ -370,79 +370,102 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         return;
                     }
 
+                    const mealPrices = raw.data?.meal_prices || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+
                     const workbook = new ExcelJS.Workbook();
                     workbook.creator = "給与控除システム（プレビュー）";
                     workbook.created  = new Date();
                     workbook.modified = new Date();
 
                     const sheet = workbook.addWorksheet(`未承認プレビュー_${selectedYear}_${selectedMonth}`);
+                    // 列定義: A〜G の7列
+                    sheet.columns = [
+                        { key: "a", width: 22 },
+                        { key: "b", width: 10 },
+                        { key: "c", width: 10 },
+                        { key: "d", width: 10 },
+                        { key: "e", width: 10 },
+                        { key: "f", width: 10 },
+                        { key: "g", width: 14 },
+                    ];
 
-                    // ── 警告行（1行目）──────────────────────────
+                    // ── 行1: 警告 ──────────────────────────
                     const warnRow = sheet.addRow([
                         "【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。"
                     ]);
-                    sheet.mergeCells(`A1:H1`);
-                    warnRow.getCell(1).font  = { bold: true, color: { argb: "FFCC0000" }, size: 12 };
-                    warnRow.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
+                    sheet.mergeCells("A1:G1");
+                    warnRow.getCell(1).font      = { bold: true, color: { argb: "FFCC0000" }, size: 12 };
+                    warnRow.getCell(1).fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
                     warnRow.getCell(1).alignment = { vertical: "middle", wrapText: true };
-                    warnRow.height = 36;
+                    warnRow.height = 40;
 
-                    // ── ヘッダー ──────────────────────────
-                    const header = [
-                        "職員情報", "弁当", "朝食", "昼食", "夕食",
-                        "控除額合計（参考）", "うち未承認(0)", "うちBL承認済(1)"
-                    ];
-                    sheet.addRow(header);
-
-                    // ヘッダー行スタイル（警告色） ※警告行(1)の次なので行番号は2
-                    sheet.getRow(2).eachCell(cell => {
-                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC107" } };
-                        cell.font = { bold: true };
+                    // ── 行2: 単価情報 ──────────────────────────
+                    const priceInfoRow = sheet.addRow([
+                        "【単価情報】",
+                        `弁当: ${mealPrices.bento}円`,
+                        `朝食: ${mealPrices.morning}円`,
+                        `昼食: ${mealPrices.lunch}円`,
+                        `夕食: ${mealPrices.dinner}円`,
+                        "", ""
+                    ]);
+                    priceInfoRow.eachCell(cell => {
+                        cell.font = { bold: true, color: { argb: "FF1D4ED8" } };
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
                     });
 
-                    const statusLabels = { 0: "未承認", 1: "BL承認済" };
+                    // ── 行3: ヘッダー ──────────────────────────
+                    const headerRow = sheet.addRow([
+                        "職員情報", "承認ステータス", "弁当(回)", "朝食(回)", "昼食(回)", "夕食(回)", "控除額合計"
+                    ]);
+                    headerRow.eachCell(cell => {
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC107" } };
+                        cell.font = { bold: true };
+                        cell.alignment = { horizontal: "center" };
+                    });
+
+                    // ── 行4〜: データ（職員×ステータスで1行ずつ） ──────────────────────────
+                    const STATUS_LABELS = { 0: "未承認", 1: "ブロック長承認済" };
+                    const STATUS_COLORS = {
+                        0: "FFFFF3CD", // 薄い黄: 未承認
+                        1: "FFE0F2FE", // 薄い青: BL承認済
+                    };
 
                     data.forEach(row => {
-                        const mc  = row.meal_counts      || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
-                        const sb  = row.status_breakdown || {};
-                        const s0  = sb[0] || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
-                        const s1  = sb[1] || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+                        const mc     = row.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+                        const status = row.approval_status ?? 0;
+                        const label  = STATUS_LABELS[status] ?? `status:${status}`;
+                        const color  = STATUS_COLORS[status] ?? "FFFFFFFF";
 
                         const dataRow = sheet.addRow([
-                            `${row.staff_id || ""} ${row.name || ""}`,
+                            `${row.staff_id ?? ""} ${row.name ?? ""}`.trim(),
+                            label,
                             mc.bento   || 0,
                             mc.morning || 0,
                             mc.lunch   || 0,
                             mc.dinner  || 0,
                             row.total_price || 0,
-                            // ステータス別内訳（弁当+朝+昼+夕の合計件数で代表表示）
-                            (s0.bento + s0.morning + s0.lunch + s0.dinner),
-                            (s1.bento + s1.morning + s1.lunch + s1.dinner),
                         ]);
-
-                        // 未承認行（status=0 の食事あり）を薄い赤でハイライト
-                        const hasUnapproved = (s0.bento + s0.morning + s0.lunch + s0.dinner) > 0;
-                        if (hasUnapproved) {
-                            dataRow.eachCell(cell => {
-                                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF3CD" } };
-                            });
-                        }
+                        dataRow.eachCell(cell => {
+                            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+                        });
+                        // 控除額列は通貨書式
+                        dataRow.getCell(7).numFmt = "¥#,##0";
                     });
 
-                    // 合計行（警告行1行＋ヘッダー行1行＋データ行）
-                    const firstDataRow = 3;
-                    const lastDataRow  = data.length + 2; // 警告(1) + ヘッダー(1) + データ
+                    // ── 合計行 ──────────────────────────
+                    // 行1=警告, 行2=単価情報, 行3=ヘッダー → データは4行目〜
+                    const firstDataRow = 4;
+                    const lastDataRow  = data.length + 3;
                     const totalRow = sheet.addRow([
-                        "合計",
-                        { formula: `SUM(B${firstDataRow}:B${lastDataRow})` },
+                        "合計", "",
                         { formula: `SUM(C${firstDataRow}:C${lastDataRow})` },
                         { formula: `SUM(D${firstDataRow}:D${lastDataRow})` },
                         { formula: `SUM(E${firstDataRow}:E${lastDataRow})` },
                         { formula: `SUM(F${firstDataRow}:F${lastDataRow})` },
                         { formula: `SUM(G${firstDataRow}:G${lastDataRow})` },
-                        { formula: `SUM(H${firstDataRow}:H${lastDataRow})` },
                     ]);
                     totalRow.font = { bold: true };
+                    totalRow.getCell(7).numFmt = "¥#,##0";
 
                     autoFitColumns(sheet);
 

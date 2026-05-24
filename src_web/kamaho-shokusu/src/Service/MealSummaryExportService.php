@@ -51,34 +51,44 @@ class MealSummaryExportService
 
     /**
      * 未承認プレビュー用: 未承認(0)・ブロック長承認済(1) のみを集計する。
-     * 差し戻し(3)・管理者承認済(2) は含まない。
-     * 承認ステータス別の内訳も返すことで Excel 上での区別を可能にする。
+     * 「職員 × 承認ステータス」の組み合わせで1行ずつ展開し、
+     * 単価情報も合わせて返す。食事が0件の行はスキップする。
      *
      * @param int $year  年度
      * @param int $month 月（1〜12）
-     * @return array{name: string, staff_id: mixed, meal_counts: array, status_breakdown: array, total_price: int}[]
+     * @return array{
+     *   meal_prices: array{morning:int, lunch:int, dinner:int, bento:int},
+     *   rows: array{name:string, staff_id:mixed, approval_status:int, meal_counts:array, total_price:int}[]
+     * }
      */
     public function aggregatePreview(int $year, int $month): array
     {
         $mealPrices = $this->fetchMealPrices($year);
         $users      = $this->fetchStaffUsers();
 
-        $monthlyData = [];
+        $rows = [];
         foreach ($users as $user) {
-            $mealCounts     = $this->countMealsPreview($user->i_id_user, $year, $month);
             $statusBreakdown = $this->countMealsByStatus($user->i_id_user, $year, $month);
-            $mealTotalPrice  = $this->calcTotalPrice($mealCounts, $mealPrices);
 
-            $monthlyData[] = [
-                'name'             => $user->c_user_name,
-                'staff_id'         => $user->i_id_staff,
-                'meal_counts'      => $mealCounts,
-                'status_breakdown' => $statusBreakdown,
-                'total_price'      => $mealTotalPrice,
-            ];
+            foreach ($statusBreakdown as $status => $counts) {
+                // 食事が1件もないステータスはスキップ
+                if (array_sum($counts) === 0) {
+                    continue;
+                }
+                $rows[] = [
+                    'name'            => $user->c_user_name,
+                    'staff_id'        => $user->i_id_staff,
+                    'approval_status' => $status,
+                    'meal_counts'     => $counts,
+                    'total_price'     => $this->calcTotalPrice($counts, $mealPrices),
+                ];
+            }
         }
 
-        return $monthlyData;
+        return [
+            'meal_prices' => $mealPrices,
+            'rows'        => $rows,
+        ];
     }
 
     /**
@@ -93,10 +103,10 @@ class MealSummaryExportService
             ->first();
 
         return [
-            'morning' => $row->i_morning_price ?? 0,
-            'lunch'   => $row->i_lunch_price   ?? 0,
-            'dinner'  => $row->i_dinner_price  ?? 0,
-            'bento'   => $row->i_bento_price   ?? 0,
+            'morning' => $row ? ($row->i_morning_price ?? 0) : 0,
+            'lunch'   => $row ? ($row->i_lunch_price   ?? 0) : 0,
+            'dinner'  => $row ? ($row->i_dinner_price  ?? 0) : 0,
+            'bento'   => $row ? ($row->i_bento_price   ?? 0) : 0,
         ];
     }
 
@@ -123,47 +133,6 @@ class MealSummaryExportService
                 'YEAR(d_reservation_date)'  => $year,
                 'MONTH(d_reservation_date)' => $month,
                 'i_approval_status'      => self::APPROVAL_STATUS_APPROVED,
-            ])
-            ->toArray();
-
-        $counts = ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0];
-
-        foreach ($rows as $row) {
-            $effectiveFlag = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
-
-            if ($effectiveFlag !== 1) {
-                continue;
-            }
-
-            match ((int)$row->i_reservation_type) {
-                self::RESERVATION_TYPE_BENTO   => $counts['bento']++,
-                self::RESERVATION_TYPE_MORNING => $counts['morning']++,
-                self::RESERVATION_TYPE_LUNCH   => $counts['lunch']++,
-                self::RESERVATION_TYPE_DINNER  => $counts['dinner']++,
-                default                        => null,
-            };
-        }
-
-        return $counts;
-    }
-
-    /**
-     * 未承認プレビュー用: status IN (0,1) のレコードのみ有効フラグを集計する。
-     *
-     * @return array{morning: int, lunch: int, dinner: int, bento: int}
-     */
-    private function countMealsPreview(int $userId, int $year, int $month): array
-    {
-        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $rows  = $table->find()
-            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
-            ->where([
-                'i_id_user'                 => $userId,
-                'YEAR(d_reservation_date)'  => $year,
-                'MONTH(d_reservation_date)' => $month,
-                'i_approval_status IN'      => self::PREVIEW_STATUSES,
             ])
             ->toArray();
 
