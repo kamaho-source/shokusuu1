@@ -379,14 +379,12 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
                     // ── 行1: 警告 ──────────────────────────
                     const warnRow = sheet.addRow([
-                        "【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。",
-                        "", "", "", "", "", ""
+                        "【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。"
                     ]);
-                    warnRow.getCell(1).font = { bold: true, color: { argb: "FFCC0000" } };
-                    warnRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
-                    for (let i = 2; i <= 7; i++) {
-                        warnRow.getCell(i).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
-                    }
+                    sheet.mergeCells("A1:G1");
+                    warnRow.getCell(1).font      = { bold: true, color: { argb: "FFCC0000" } };
+                    warnRow.getCell(1).fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
+                    warnRow.getCell(1).alignment = { vertical: "middle", wrapText: false };
 
                     // ── 行2: ヘッダー ──────────────────────────
                     const headerRow = sheet.addRow([
