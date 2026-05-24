@@ -370,8 +370,6 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         return;
                     }
 
-                    const mealPrices = raw.data?.meal_prices || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
-
                     const workbook = new ExcelJS.Workbook();
                     workbook.creator = "給与控除システム（プレビュー）";
                     workbook.created  = new Date();
@@ -399,21 +397,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     warnRow.getCell(1).alignment = { vertical: "middle", wrapText: true };
                     warnRow.height = 40;
 
-                    // ── 行2: 単価情報 ──────────────────────────
-                    const priceInfoRow = sheet.addRow([
-                        "【単価情報】",
-                        `弁当: ${mealPrices.bento}円`,
-                        `朝食: ${mealPrices.morning}円`,
-                        `昼食: ${mealPrices.lunch}円`,
-                        `夕食: ${mealPrices.dinner}円`,
-                        "", ""
-                    ]);
-                    priceInfoRow.eachCell(cell => {
-                        cell.font = { bold: true, color: { argb: "FF1D4ED8" } };
-                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
-                    });
-
-                    // ── 行3: ヘッダー ──────────────────────────
+                    // ── 行2: ヘッダー ──────────────────────────
                     const headerRow = sheet.addRow([
                         "職員情報", "承認ステータス", "弁当(回)", "朝食(回)", "昼食(回)", "夕食(回)", "控除額合計"
                     ]);
@@ -453,9 +437,9 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     });
 
                     // ── 合計行 ──────────────────────────
-                    // 行1=警告, 行2=単価情報, 行3=ヘッダー → データは4行目〜
-                    const firstDataRow = 4;
-                    const lastDataRow  = data.length + 3;
+                    // 行1=警告, 行2=ヘッダー → データは3行目〜
+                    const firstDataRow = 3;
+                    const lastDataRow  = data.length + 2;
                     const totalRow = sheet.addRow([
                         "合計", "",
                         { formula: `SUM(C${firstDataRow}:C${lastDataRow})` },
