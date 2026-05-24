@@ -376,16 +376,6 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     workbook.modified = new Date();
 
                     const sheet = workbook.addWorksheet(`未承認プレビュー_${selectedYear}_${selectedMonth}`);
-                    // 列定義: A〜G の7列
-                    sheet.columns = [
-                        { key: "a", width: 22 },
-                        { key: "b", width: 10 },
-                        { key: "c", width: 10 },
-                        { key: "d", width: 10 },
-                        { key: "e", width: 10 },
-                        { key: "f", width: 10 },
-                        { key: "g", width: 14 },
-                    ];
 
                     // ── 行1: 警告 ──────────────────────────
                     const warnRow = sheet.addRow([
@@ -394,8 +384,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     sheet.mergeCells("A1:G1");
                     warnRow.getCell(1).font      = { bold: true, color: { argb: "FFCC0000" }, size: 12 };
                     warnRow.getCell(1).fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
-                    warnRow.getCell(1).alignment = { vertical: "middle", wrapText: true };
-                    warnRow.height = 40;
+                    warnRow.getCell(1).alignment = { vertical: "middle" };
 
                     // ── 行2: ヘッダー ──────────────────────────
                     const headerRow = sheet.addRow([
