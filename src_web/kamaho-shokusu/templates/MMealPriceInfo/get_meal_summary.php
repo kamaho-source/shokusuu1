@@ -379,12 +379,14 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
                     // ── 行1: 警告 ──────────────────────────
                     const warnRow = sheet.addRow([
-                        "【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。"
+                        "【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。",
+                        "", "", "", "", "", ""
                     ]);
-                    sheet.mergeCells("A1:G1");
-                    warnRow.getCell(1).font      = { bold: true, color: { argb: "FFCC0000" }, size: 12 };
-                    warnRow.getCell(1).fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
-                    warnRow.getCell(1).alignment = { vertical: "middle" };
+                    warnRow.getCell(1).font = { bold: true, color: { argb: "FFCC0000" } };
+                    warnRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
+                    for (let i = 2; i <= 7; i++) {
+                        warnRow.getCell(i).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
+                    }
 
                     // ── 行2: ヘッダー ──────────────────────────
                     const headerRow = sheet.addRow([
@@ -440,26 +442,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
-                    // 警告行(A1:G1結合)を除いた行だけで列幅を計算する
-                    sheet.columns.forEach((column, colIdx) => {
-                        let max = 10;
-                        sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
-                            if (rowNumber === 1) return; // 結合行はスキップ
-                            const cellValue = row.getCell(colIdx + 1).value;
-                            if (cellValue == null) return;
-                            let text = '';
-                            if (typeof cellValue === 'object') {
-                                text = cellValue.result != null ? String(cellValue.result) : String(cellValue.formula ?? '');
-                            } else {
-                                text = String(cellValue);
-                            }
-                            const w = Array.from(text).reduce(
-                                (s, c) => s + (/[ -~]/.test(c) ? 1 : 2), 0
-                            );
-                            if (w > max) max = w;
-                        });
-                        column.width = max + 2;
-                    });
+                    autoFitColumns(sheet);
 
                     const buffer = await workbook.xlsx.writeBuffer();
                     const blob   = new Blob([buffer], {
