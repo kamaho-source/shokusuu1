@@ -440,9 +440,11 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
+                    // 警告行(A1)の長文が列幅計算に影響しないよう一時退避してから autoFit する
+                    const warnText = warnRow.getCell(1).value;
+                    warnRow.getCell(1).value = null;
                     autoFitColumns(sheet);
-                    // A列は警告文の長さで広がるため、データ内容に合わせた幅に上書きする
-                    sheet.getColumn(1).width = 22;
+                    warnRow.getCell(1).value = warnText;
 
                     const buffer = await workbook.xlsx.writeBuffer();
                     const blob   = new Blob([buffer], {
