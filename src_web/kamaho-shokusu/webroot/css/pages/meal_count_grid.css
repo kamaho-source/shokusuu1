@@ -298,7 +298,9 @@ html, body {
 /* 土曜 */
 .mcg-grid thead tr.header-dates th.is-saturday { background: #dce6f1; color: #0070c0; }
 /* 日曜 */
-.mcg-grid thead tr.header-dates th.is-sunday { background: #e2efda; color: #375623; }
+.mcg-grid thead tr.header-dates th.is-sunday { background: #fde8e8; color: #c00000; }
+/* 祝日（日曜と同色） */
+.mcg-grid thead tr.header-dates th.is-holiday { background: #fde8e8; color: #c00000; }
 
 /* ── 食事種別ヘッダー行 ── */
 .mcg-grid thead tr.header-meals th {
@@ -318,9 +320,10 @@ html, body {
     border-left: 2px solid #7f7f7f;
 }
 
-.mcg-grid thead tr.header-meals th.is-today  { background: #fce4d6; }
+.mcg-grid thead tr.header-meals th.is-today    { background: #fce4d6; }
 .mcg-grid thead tr.header-meals th.is-saturday { background: #dce6f1; }
-.mcg-grid thead tr.header-meals th.is-sunday   { background: #e2efda; }
+.mcg-grid thead tr.header-meals th.is-sunday   { background: #fde8e8; }
+.mcg-grid thead tr.header-meals th.is-holiday  { background: #fde8e8; }
 
 /* ── データ行 ── */
 .mcg-grid tbody tr { height: var(--row-h); }
@@ -388,8 +391,12 @@ html, body {
 .mcg-grid tbody td.is-saturday.cell-meal:hover { background: #9dc3e6 !important; }
 
 /* 日曜列 */
-.mcg-grid tbody td.is-sunday { background: #e2efda; }
-.mcg-grid tbody td.is-sunday.cell-meal:hover { background: #a9d18e !important; }
+.mcg-grid tbody td.is-sunday { background: #fde8e8; }
+.mcg-grid tbody td.is-sunday.cell-meal:hover { background: #f4a0a0 !important; }
+
+/* 祝日（日曜と同色） */
+.mcg-grid tbody td.is-holiday { background: #fde8e8; }
+.mcg-grid tbody td.is-holiday.cell-meal:hover { background: #f4a0a0 !important; }
 
 /* 過去日: グレー・クリック不可 */
 .mcg-grid tbody td.cell-meal.is-past {

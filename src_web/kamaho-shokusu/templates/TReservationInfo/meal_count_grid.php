@@ -23,7 +23,7 @@
  * @var string $loginName
  */
 
-$this->assign('title', '食数予約グリッド');
+$this->assign('title', 'エクセル食数予約');
 
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 $basePath  = $this->request->getAttribute('base') ?? '';
@@ -74,6 +74,7 @@ $this->append('script', sprintf(
     '<script>window.MCG_CONFIG = %s;</script>',
     json_encode(['basePath' => $basePath, 'rooms' => $allRooms], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
 ));
+$this->Html->script('japanese-holidays.min.js', ['block' => true]);
 $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
 ?>
 
@@ -181,7 +182,7 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     . ($isLastMinute  ? ' is-last-minute' : '')
                                     . ($isPastDate    ? ' is-past-header' : '');
                             ?>
-                                <th colspan="<?= count($meals) ?>" class="<?= h($cls) ?>"
+                                <th colspan="<?= count($meals) ?>" class="<?= h($cls) ?>" data-date="<?= h($d) ?>"
                                     <?php if ($isLastMinute): ?>
                                     data-tooltip="直前編集ウィンドウ（当日〜14日後）&#10;・予約のON/OFFを変更できます&#10;・職員はこの期間のキャンセルができません&#10;・変更は「登録」ボタンで確定します"
                                     <?php elseif ($isPastDate): ?>
@@ -214,7 +215,7 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                         . ($dateCat === 'last_minute' ? 'is-last-minute' : '');
                                     $first = false;
                             ?>
-                                <th class="<?= h(trim($cls)) ?>"><?= h($mealLabel) ?></th>
+                                <th class="<?= h(trim($cls)) ?>" data-date="<?= h($d) ?>"><?= h($mealLabel) ?></th>
                             <?php endforeach; endforeach; ?>
                         </tr>
                     </thead>

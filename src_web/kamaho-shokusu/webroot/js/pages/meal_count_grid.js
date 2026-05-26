@@ -437,7 +437,21 @@ function _mcgPositionTooltip(tip, anchor) {
     tip.style.top  = (rect.bottom + 6) + 'px';
 }
 
+/* ─────────────────────────────────────────────
+ * 祝日セルに is-holiday クラスを付与
+ * ─────────────────────────────────────────── */
+function mcgApplyHolidays() {
+    if (!window.JapaneseHolidays) return;
+    document.querySelectorAll('[data-date]').forEach(function (el) {
+        var d = new Date(el.dataset.date + 'T00:00:00');
+        if (JapaneseHolidays.isHoliday(d)) {
+            el.classList.add('is-holiday');
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
+    mcgApplyHolidays();
     mcgInitConflicts();
     mcgInitConflictTip();
     mcgInitToggle();
