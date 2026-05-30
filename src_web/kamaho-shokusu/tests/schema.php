@@ -127,6 +127,22 @@ return [
             'primary' => ['type' => 'primary', 'columns' => ['i_id_approval']],
         ],
     ],
+    't_notification' => [
+        'columns' => [
+            'i_id_notification'    => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user'            => ['type' => 'integer', 'null' => false],
+            'c_notification_type'  => ['type' => 'string', 'length' => 50, 'null' => false],
+            'c_title'              => ['type' => 'string', 'length' => 100, 'null' => false],
+            'c_message'            => ['type' => 'string', 'length' => 255, 'null' => false],
+            'c_link'               => ['type' => 'string', 'length' => 255, 'null' => true],
+            'i_is_read'            => ['type' => 'integer', 'null' => true],
+            'dt_read'              => ['type' => 'datetime', 'null' => true],
+            'dt_create'            => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_notification']],
+        ],
+    ],
     't_reservation_info' => [
         'columns' => [
             'd_reservation_date' => ['type' => 'date', 'null' => false],
