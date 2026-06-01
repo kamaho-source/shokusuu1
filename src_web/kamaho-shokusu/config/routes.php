@@ -154,6 +154,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
 
+        // 監査ログ（システム管理者専用）
+        $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);
+
         // MRoomTransferSchedule（部屋異動予約）
         $builder->connect('/MRoomTransferSchedule', ['controller' => 'MRoomTransferSchedule', 'action' => 'index']);
         $builder->connect('/MRoomTransferSchedule/add', ['controller' => 'MRoomTransferSchedule', 'action' => 'add']);

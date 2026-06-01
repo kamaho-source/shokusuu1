@@ -103,9 +103,10 @@ class MUserInfoController extends AppController
 
         $identity   = $this->request->getAttribute('identity');
         $createUser = $identity ? $identity->get('c_user_name') : 'インポート';
+        $actorId    = $identity ? (int)$identity->get('i_id_user') : 0;
 
         try {
-            $results = $this->userBulkImportService->import($records, $createUser);
+            $results = $this->userBulkImportService->import($records, $createUser, $actorId, (string)$this->request->clientIp());
         } catch (\Throwable $e) {
             throw new BadRequestException('インポート処理でエラー: ' . $e->getMessage());
         }
@@ -202,8 +203,9 @@ class MUserInfoController extends AppController
 
                     $groupData = $data['MUserGroup'] ?? [];
                     $createdBy = $user ? $user->get('c_user_name') : '不明なユーザー';
+                    $actorId   = $user ? (int)$user->get('i_id_user') : 0;
 
-                    if ($this->userCreateService->saveWithRooms($mUserInfo, $groupData, $createdBy)) {
+                    if ($this->userCreateService->saveWithRooms($mUserInfo, $groupData, $createdBy, $actorId, (string)$this->request->clientIp())) {
                         $this->Flash->success(__('ユーザー情報が保存されました。'));
                         return $this->redirect(['action' => 'index']);
                     }
@@ -254,9 +256,10 @@ class MUserInfoController extends AppController
             }
 
             $updatedBy = $user ? $user->get('c_user_name') : '不明なユーザー';
+            $actorId   = $user ? (int)$user->get('i_id_user') : 0;
 
             try {
-                if ($this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy)) {
+                if ($this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, (string)$this->request->clientIp())) {
                     $this->Flash->success(__('ユーザー情報が更新されました。'));
                     return $this->redirect(['action' => 'index']);
                 }
@@ -304,8 +307,9 @@ class MUserInfoController extends AppController
 
         $identity  = $this->request->getAttribute('identity');
         $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
+        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
 
-        if ($this->userPermissionService->updatePermission($user, (int)$isAdmin, $updatedBy)) {
+        if ($this->userPermissionService->updatePermission($user, (int)$isAdmin, $updatedBy, $actorId, (string)$this->request->clientIp())) {
             return $apiResponse->success($this->response, [], '管理者権限が正常に更新されました。');
         }
         return $apiResponse->error($this->response, '管理者権限の更新に失敗しました。', 500);
@@ -337,8 +341,9 @@ class MUserInfoController extends AppController
 
         $identity  = $this->request->getAttribute('identity');
         $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
+        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
 
-        if ($this->userPermissionService->updatePermission($user, (int)$level, $updatedBy)) {
+        if ($this->userPermissionService->updatePermission($user, (int)$level, $updatedBy, $actorId, (string)$this->request->clientIp())) {
             return $apiResponse->success($this->response, [], 'ブロック長権限が正常に更新されました。');
         }
         return $apiResponse->error($this->response, 'ブロック長権限の更新に失敗しました。', 500);
@@ -382,8 +387,9 @@ class MUserInfoController extends AppController
 
         $user      = $this->request->getAttribute('identity');
         $updatedBy = $user ? $user->get('c_user_name') : '不明なユーザー';
+        $actorId   = $user ? (int)$user->get('i_id_user') : 0;
 
-        if ($this->userDeletionService->softDelete($mUserInfo, $updatedBy)) {
+        if ($this->userDeletionService->softDelete($mUserInfo, $updatedBy, $actorId, (string)$this->request->clientIp())) {
             $this->Flash->success(__('ユーザー情報が削除されました。'));
         } else {
             $this->Flash->error(__('ユーザー情報を削除できませんでした。'));
@@ -454,6 +460,18 @@ class MUserInfoController extends AppController
             // セッション固定化攻撃対策：ログイン成功時にセッションIDを再生成する
             $this->request->getSession()->renew();
 
+            \App\Service\AuditLogService::record(
+                'user',
+                'user_login',
+                $user->c_user_name ?? $user->c_login_account ?? '不明',
+                (int)$user->i_id_user,
+                'm_user_info',
+                (string)$user->i_id_user,
+                null,
+                (string)$this->request->clientIp(),
+                1
+            );
+
             if ((int)$user->i_admin === 1) {
                 $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
             } elseif ((int)$user->i_user_level === 1) {
@@ -470,6 +488,18 @@ class MUserInfoController extends AppController
             $status = $result ? $result->getStatus() : 'Result is null';
             $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
+            $loginAccount = (string)($this->request->getData('c_login_account') ?? '');
+            \App\Service\AuditLogService::record(
+                'user',
+                'user_login_failed',
+                $loginAccount ?: '不明',
+                0,
+                'm_user_info',
+                null,
+                ['login_account' => $loginAccount],
+                (string)$this->request->clientIp(),
+                0
+            );
         }
     }
 
@@ -478,6 +508,18 @@ class MUserInfoController extends AppController
         $this->Authorization->skipAuthorization();
         $result = $this->Authentication->getResult();
         if ($result->isValid()) {
+            $identity = $this->request->getAttribute('identity');
+            \App\Service\AuditLogService::record(
+                'user',
+                'user_logout',
+                $identity?->get('c_user_name') ?? '不明',
+                $identity ? (int)$identity->get('i_id_user') : 0,
+                'm_user_info',
+                $identity ? (string)$identity->get('i_id_user') : null,
+                null,
+                (string)$this->request->clientIp(),
+                1
+            );
             $this->Authentication->logout();
             $this->Flash->success('正常にログアウトされました。');
         }
@@ -527,7 +569,19 @@ class MUserInfoController extends AppController
 
             $selectedUser->c_login_passwd = $newPassword;
 
+            $actorIdentity = $this->request->getAttribute('identity');
             if ($this->fetchTable('MUserInfo')->save($selectedUser)) {
+                \App\Service\AuditLogService::record(
+                    'user',
+                    'user_password_change_admin',
+                    $actorIdentity?->get('c_user_name') ?? '不明',
+                    $actorIdentity ? (int)$actorIdentity->get('i_id_user') : 0,
+                    'm_user_info',
+                    (string)$selectedUser->i_id_user,
+                    ['target_user_name' => $selectedUser->c_user_name],
+                    (string)$this->request->clientIp(),
+                    1
+                );
                 $this->Flash->success(__('パスワードを変更しました。'));
                 return $this->redirect(['action' => 'index']);
             }
@@ -576,6 +630,17 @@ class MUserInfoController extends AppController
 
             if ($Users->save($user)) {
                 $this->request->getSession()->renew();
+                \App\Service\AuditLogService::record(
+                    'user',
+                    'user_password_change_self',
+                    $user->c_user_name ?? '不明',
+                    (int)$user->i_id_user,
+                    'm_user_info',
+                    (string)$user->i_id_user,
+                    null,
+                    (string)$this->request->clientIp(),
+                    1
+                );
                 $this->Flash->success('パスワードを変更しました。');
                 return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
             }
@@ -658,9 +723,10 @@ class MUserInfoController extends AppController
         }
 
         $updatedBy = $identity->get('c_user_name') ?? 'admin';
+        $actorId   = (int)($identity->get('i_id_user') ?? 0);
 
         try {
-            $this->userRestoreService->restore($user, $updatedBy);
+            $this->userRestoreService->restore($user, $updatedBy, $actorId, (string)$this->request->clientIp());
             $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->c_user_name));
             return $this->redirect(['action' => 'index']);
         } catch (\Exception $e) {

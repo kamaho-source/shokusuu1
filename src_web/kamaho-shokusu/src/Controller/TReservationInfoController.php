@@ -641,6 +641,18 @@ class TReservationInfoController extends AppController
                     fn($d) => $this->datePolicy->validateReservationDate((string)$d)
                 );
 
+            \App\Service\AuditLogService::record(
+                'reservation',
+                (string)$reservationType === '1' ? 'reservation_individual_save' : 'reservation_group_save',
+                (string)$user->get('c_user_name'),
+                (int)$userId,
+                't_reservation_info',
+                $data['d_reservation_date'] ?? null,
+                ['date' => $data['d_reservation_date'] ?? null],
+                (string)$this->request->clientIp(),
+                ($result['ok'] ?? false) ? 1 : 0
+            );
+
             $resultResponse = $result['ok']
                 ? $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null)
                 : $this->jsonErrorResponse($result['message'], $result['status'] ?? 400, $result['data'] ?? []);
@@ -1249,6 +1261,18 @@ class TReservationInfoController extends AppController
         $status = (int)($result['status'] ?? 200);
         $body = (array)($result['body'] ?? []);
         $ok = (bool)($body['ok'] ?? ($status >= 200 && $status < 300));
+
+        \App\Service\AuditLogService::record(
+            'reservation',
+            'reservation_toggle',
+            $loginUserName,
+            $loginUserId,
+            't_reservation_info',
+            "room:{$roomId}",
+            ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null],
+            (string)$this->request->clientIp(),
+            $ok ? 1 : 0
+        );
         $message = (string)($body['message'] ?? '');
         $data = $body;
         unset($data['ok'], $data['message']);

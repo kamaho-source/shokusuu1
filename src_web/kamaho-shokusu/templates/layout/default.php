@@ -89,6 +89,14 @@ $recentNotifications = $recentNotifications ?? [];
                             </li>
                         <?php endif; ?>
                     <?php endif; ?>
+
+                    <?php if ($user && (int)$user->get('i_admin') === 3): ?>
+                        <li class="nav-item">
+                            <a class="nav-link text-warning fw-bold" href="<?= $this->Url->build('/AuditLog') ?>">
+                                &#128274; 監査ログ
+                            </a>
+                        </li>
+                    <?php endif; ?>
                 </ul>
 
                 <ul class="navbar-nav ms-auto">

@@ -83,7 +83,7 @@ class ApprovalController extends AppController
         }
 
         try {
-            $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor);
+            $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor, (string)$this->request->clientIp());
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderApprove error: ' . $e->getMessage(), 'error');
@@ -110,7 +110,7 @@ class ApprovalController extends AppController
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason);
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, (string)$this->request->clientIp());
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
@@ -163,7 +163,7 @@ class ApprovalController extends AppController
         }
 
         try {
-            $ok = $this->approvalService->adminApprove($keys, $approver, $actor);
+            $ok = $this->approvalService->adminApprove($keys, $approver, $actor, (string)$this->request->clientIp());
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('adminApprove error: ' . $e->getMessage(), 'error');
@@ -190,7 +190,7 @@ class ApprovalController extends AppController
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason);
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, (string)$this->request->clientIp());
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('adminReject error: ' . $e->getMessage(), 'error');
@@ -212,7 +212,7 @@ class ApprovalController extends AppController
         $date   = $this->request->getData('date');
 
         try {
-            $count = $this->approvalService->reflectToReservation($roomId, $date, $actor);
+            $count = $this->approvalService->reflectToReservation($roomId, $date, $actor, (string)$this->request->clientIp());
             return $this->jsonResponse(['success' => true, 'count' => $count]);
         } catch (\Throwable $e) {
             $this->log('adminReflect error: ' . $e->getMessage(), 'error');

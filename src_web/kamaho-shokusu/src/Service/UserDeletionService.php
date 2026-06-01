@@ -15,9 +15,11 @@ class UserDeletionService
     /**
      * @param mixed  $user      MUserInfo エンティティ
      * @param string $updatedBy 操作者ユーザー名
+     * @param int    $actorId   操作者ユーザーID
+     * @param string $ipAddress 操作元IPアドレス
      * @return bool
      */
-    public function softDelete(mixed $user, string $updatedBy): bool
+    public function softDelete(mixed $user, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -38,6 +40,20 @@ class UserDeletionService
             $userGroupTable->save($group);
         }
 
-        return (bool)$userInfoTable->save($user);
+        $result = (bool)$userInfoTable->save($user);
+
+        AuditLogService::record(
+            'user',
+            'user_delete',
+            $updatedBy,
+            $actorId,
+            'm_user_info',
+            (string)$user->i_id_user,
+            ['target_user_name' => $user->c_user_name],
+            $ipAddress ?: null,
+            $result ? 1 : 0
+        );
+
+        return $result;
     }
 }

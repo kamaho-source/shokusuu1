@@ -287,11 +287,24 @@ class ApprovalService
      * @param array $keys  [['i_id_user'=>x, 'd_reservation_date'=>'...', 'i_id_room'=>x, 'i_reservation_type'=>x], ...]
      * @param int   $approverId
      * @param string $actor
+     * @param string $ipAddress 操作元IPアドレス
      * @return bool
      */
-    public function blockLeaderApprove(array $keys, int $approverId, string $actor): bool
+    public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = ''): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
+        $result = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
+        AuditLogService::record(
+            'approval',
+            'approval_block_leader',
+            $actor,
+            $approverId,
+            't_individual_reservation_info',
+            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
+            ['count' => count($keys)],
+            $ipAddress ?: null,
+            $result ? 1 : 0
+        );
+        return $result;
     }
 
     /**
@@ -300,11 +313,24 @@ class ApprovalService
      * @param array  $keys
      * @param int    $approverId
      * @param string $actor
+     * @param string $ipAddress
      * @return bool
      */
-    public function adminApprove(array $keys, int $approverId, string $actor): bool
+    public function adminApprove(array $keys, int $approverId, string $actor, string $ipAddress = ''): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER]);
+        $result = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER]);
+        AuditLogService::record(
+            'approval',
+            'approval_admin',
+            $actor,
+            $approverId,
+            't_individual_reservation_info',
+            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
+            ['count' => count($keys)],
+            $ipAddress ?: null,
+            $result ? 1 : 0
+        );
+        return $result;
     }
 
     /**
@@ -314,11 +340,24 @@ class ApprovalService
      * @param int         $approverId
      * @param string      $actor
      * @param string|null $reason
+     * @param string      $ipAddress
      * @return bool
      */
-    public function reject(array $keys, int $approverId, string $actor, ?string $reason): bool
+    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = ''): bool
     {
-        return $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
+        $result = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
+        AuditLogService::record(
+            'approval',
+            'approval_rejected',
+            $actor,
+            $approverId,
+            't_individual_reservation_info',
+            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
+            ['count' => count($keys), 'reason' => $reason],
+            $ipAddress ?: null,
+            $result ? 1 : 0
+        );
+        return $result;
     }
 
     /**
@@ -327,9 +366,10 @@ class ApprovalService
      * @param int|null    $roomId
      * @param string|null $date
      * @param string      $actor
+     * @param string      $ipAddress
      * @return int  更新された行数
      */
-    public function reflectToReservation(?int $roomId, ?string $date, string $actor): int
+    public function reflectToReservation(?int $roomId, ?string $date, string $actor, string $ipAddress = ''): int
     {
         $individualTable  = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $reservationTable = TableRegistry::getTableLocator()->get('TReservationInfo');
@@ -397,6 +437,18 @@ class ApprovalService
             }
             $updated++;
         }
+
+        AuditLogService::record(
+            'approval',
+            'approval_reflected',
+            $actor,
+            0,
+            't_reservation_info',
+            $roomId !== null ? "room:{$roomId}" : null,
+            ['room_id' => $roomId, 'date' => $date, 'updated' => $updated],
+            $ipAddress ?: null,
+            1
+        );
 
         return $updated;
     }

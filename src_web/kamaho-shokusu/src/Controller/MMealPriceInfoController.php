@@ -86,6 +86,7 @@ class MMealPriceInfoController extends AppController
             $mMealPriceInfo->c_create_user = $user ? $user->get('c_user_name') : null;
 
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
+                \App\Service\AuditLogService::record('master', 'meal_price_create', $mMealPriceInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, (string)$this->request->clientIp(), 1);
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -118,6 +119,7 @@ class MMealPriceInfoController extends AppController
             $mMealPriceInfo->dt_update = date('Y-m-d H:i:s');
             $mMealPriceInfo->c_update_user = $user ? $user->get('c_user_name') : null;
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
+                \App\Service\AuditLogService::record('master', 'meal_price_update', $mMealPriceInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, (string)$this->request->clientIp(), 1);
                 $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -144,8 +146,10 @@ class MMealPriceInfoController extends AppController
             $this->Flash->error(__('あなたは削除権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
-        if ($this->MMealPriceInfo->delete($mMealPriceInfo)) {
-
+        $user = $this->request->getAttribute('identity');
+        $deleted = $this->MMealPriceInfo->delete($mMealPriceInfo);
+        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, (string)$this->request->clientIp(), $deleted ? 1 : 0);
+        if ($deleted) {
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {
             $this->Flash->error(__('食事料金情報を削除できませんでした。もう一度お試しください。'));
