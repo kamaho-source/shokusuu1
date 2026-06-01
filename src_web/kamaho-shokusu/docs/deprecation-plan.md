@@ -17,7 +17,6 @@
 3. `react/promise` 系
 
 ## 実行ステップ
-
 1. 依存更新候補の棚卸し
  - `composer outdated` で patch/minor 更新可能範囲を確認
  - 互換性破壊を含む major 更新は別チケット化

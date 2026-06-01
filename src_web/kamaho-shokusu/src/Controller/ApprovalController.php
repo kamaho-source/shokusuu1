@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Service\ApprovalService;
 use App\Service\RoomAccessService;
+use Cake\Event\EventInterface;
 use Cake\Http\Response;
 
 /**
@@ -18,19 +19,38 @@ class ApprovalController extends AppController
     private ApprovalService $approvalService;
     private RoomAccessService $roomAccessService;
 
+    /**
+     * JS から JSON で POST する API アクション一覧。
+     * FormProtection のフォームトークン検証対象外にする。
+     * CSRF 保護は CsrfProtectionMiddleware（X-CSRF-Token ヘッダー）で担保済み。
+     */
+    private const API_ACTIONS = [
+        'blockLeaderApprove',
+        'blockLeaderReject',
+        'adminApprove',
+        'adminReject',
+        'adminReflect',
+    ];
+
     public function initialize(): void
     {
         parent::initialize();
         $this->approvalService   = new ApprovalService();
         $this->roomAccessService = new RoomAccessService();
 
-        $this->FormProtection->setConfig('unlockedActions', [
-            'blockLeaderApprove',
-            'blockLeaderReject',
-            'adminApprove',
-            'adminReject',
-            'adminReflect',
-        ]);
+        if (isset($this->FormProtection)) {
+            $this->FormProtection->setConfig('unlockedActions', self::API_ACTIONS);
+        }
+    }
+
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+
+        // JSON API エンドポイントは FormProtection のトークン検証を外す。
+        if (in_array($this->request->getParam('action'), self::API_ACTIONS, true)) {
+            $this->components()->unload('FormProtection');
+        }
     }
 
     // ------------------------------------------------------------------

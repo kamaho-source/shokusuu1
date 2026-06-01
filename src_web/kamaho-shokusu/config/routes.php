@@ -233,6 +233,12 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'myActualMeal']
         )->setMethods(['GET']);
 
+        // 食数予約 Excel グリッド画面（28日）
+        $builder->connect(
+            '/TReservationInfo/meal-count-grid',
+            ['controller' => 'TReservationInfo', 'action' => 'mealCountGrid']
+        )->setMethods(['GET']);
+
         // 予約コピープレビューAPI
         $builder->connect(
             '/TReservationInfo/copyPreview',
