@@ -6,7 +6,6 @@ namespace App\Controller;
 use App\Service\AuditLogService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
-use Cake\ORM\TableRegistry;
 
 /**
  * 監査ログ閲覧コントローラー
@@ -34,7 +33,7 @@ class AuditLogController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
         }
 
-        $table      = TableRegistry::getTableLocator()->get('TAuditLog');
+        $table      = $this->fetchTable('TAuditLog');
         $conditions = $this->buildConditions();
 
         $query = $table->find()
@@ -52,14 +51,13 @@ class AuditLogController extends AppController
     /**
      * CSVエクスポート（最大10,000件）
      */
-    public function export(): void
+    public function export(): Response
     {
         try {
             $this->Authorization->authorize($this, 'export');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能はシステム管理者のみ利用できます。'));
-            $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
-            return;
+            return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
         }
 
         $identity = $this->request->getAttribute('identity');
@@ -76,7 +74,7 @@ class AuditLogController extends AppController
         );
 
         $conditions = $this->buildConditions();
-        $table      = TableRegistry::getTableLocator()->get('TAuditLog');
+        $table      = $this->fetchTable('TAuditLog');
         $logs       = $table->find()
             ->where($conditions)
             ->order(['dt_create' => 'DESC'])
@@ -84,11 +82,6 @@ class AuditLogController extends AppController
             ->all();
 
         $filename = 'audit_log_' . date('YmdHis') . '.csv';
-        $this->response = $this->response
-            ->withType('text/csv')
-            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
-            ->withHeader('Pragma', 'no-cache')
-            ->withHeader('Expires', '0');
 
         $output = fopen('php://temp', 'w+');
         // BOM付きUTF-8（Excelで文字化けしない）
@@ -112,12 +105,17 @@ class AuditLogController extends AppController
         }
 
         rewind($output);
-        $body = stream_get_contents($output);
+        $body = (string)stream_get_contents($output);
         fclose($output);
 
-        $this->response = $this->response->withStringBody((string)$body);
-        $this->response->send();
-        exit;
+        $this->autoRender = false;
+
+        return $this->response
+            ->withType('text/csv')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"')
+            ->withHeader('Pragma', 'no-cache')
+            ->withHeader('Expires', '0')
+            ->withStringBody($body);
     }
 
     /**

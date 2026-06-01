@@ -496,7 +496,7 @@ class ReservationWriteService
             ->select(['i_admin', 'i_user_level'])
             ->where(['i_id_user' => $loginUserId])
             ->first();
-        $isAdmin = $loginUser ? ((int)$loginUser->i_admin === 1) : false;
+        $isAdmin = $loginUser ? in_array((int)$loginUser->i_admin, [1, 3]) : false;
         $isStaff = $loginUser ? ((int)$loginUser->i_user_level === 0) : false;
         if ($targetUserId !== $loginUserId && !($isAdmin || $isStaff)) {
             return [

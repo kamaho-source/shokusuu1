@@ -51,6 +51,7 @@ class MUserInfoController extends AppController
             'importJson',
             'updateAdminStatus',
             'updateUserLevel',
+            'updateSystemAdminStatus',
             'addUserRooms',
         ]);
     }
@@ -125,15 +126,16 @@ class MUserInfoController extends AppController
         }
 
         $user          = $this->request->getAttribute('identity');
-        $isAdmin       = $user->i_admin === 1;
+        $isAdmin       = in_array((int)$user->i_admin, [1, 3]);
+        $isSystemAdmin = (int)$user->i_admin === 3;
         $currentUserId = $user->i_id_user;
-        $showDeleted   = $isAdmin && $this->request->getQuery('show_deleted') === '1';
+        $showDeleted   = ($isAdmin || $isSystemAdmin) && $this->request->getQuery('show_deleted') === '1';
 
         $query = $this->MUserInfo->find()
             ->where(['i_del_flag' => $showDeleted ? 1 : 0])
             ->contain(['MUserGroup' => ['MRoomInfo']]);
 
-        if (!$isAdmin) {
+        if (!$isAdmin && !$isSystemAdmin) {
             $query->where(['i_id_user' => $currentUserId]);
         }
 
@@ -152,7 +154,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'currentUserId', 'showDeleted'));
+        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted'));
     }
 
     public function add()
@@ -315,6 +317,41 @@ class MUserInfoController extends AppController
         return $apiResponse->error($this->response, '管理者権限の更新に失敗しました。', 500);
     }
 
+    public function updateSystemAdminStatus()
+    {
+        $this->request->allowMethod(['post']);
+        $apiResponse = new ApiResponseService();
+
+        $data          = $this->request->getData();
+        $userId        = $data['i_id_user'] ?? null;
+        $isSystemAdmin = $data['i_system_admin'] ?? null;
+
+        if (is_null($userId) || is_null($isSystemAdmin)) {
+            return $apiResponse->error($this->response, 'ユーザーIDまたはシステム管理者権限が指定されていません。', 400);
+        }
+
+        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
+        if (!$user) {
+            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
+        }
+
+        try {
+            $this->Authorization->authorize($user, 'updateSystemAdminStatus');
+        } catch (ForbiddenException $e) {
+            return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
+        }
+
+        $identity  = $this->request->getAttribute('identity');
+        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
+        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
+
+        $value = (int)$isSystemAdmin === 1 ? 3 : 0;
+        if ($this->userPermissionService->updatePermission($user, $value, $updatedBy, $actorId, (string)$this->request->clientIp())) {
+            return $apiResponse->success($this->response, [], 'システム管理者権限が正常に更新されました。');
+        }
+        return $apiResponse->error($this->response, 'システム管理者権限の更新に失敗しました。', 500);
+    }
+
     public function updateUserLevel()
     {
         $this->request->allowMethod(['post']);
@@ -472,7 +509,7 @@ class MUserInfoController extends AppController
                 1
             );
 
-            if ((int)$user->i_admin === 1) {
+            if (in_array((int)$user->i_admin, [1, 3])) {
                 $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
             } elseif ((int)$user->i_user_level === 1) {
                 $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];

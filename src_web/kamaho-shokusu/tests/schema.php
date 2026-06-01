@@ -162,4 +162,41 @@ return [
             ],
         ],
     ],
+    't_notification' => [
+        'columns' => [
+            'i_id_notification'  => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user'          => ['type' => 'integer', 'null' => false],
+            'c_notification_type'=> ['type' => 'string', 'length' => 50,  'null' => false],
+            'c_title'            => ['type' => 'string', 'length' => 100, 'null' => false],
+            'c_message'          => ['type' => 'string', 'length' => 255, 'null' => false],
+            'c_link'             => ['type' => 'string', 'length' => 255, 'null' => true],
+            'i_is_read'          => ['type' => 'integer', 'null' => false, 'default' => 0],
+            'dt_read'            => ['type' => 'datetime', 'null' => true],
+            'dt_create'          => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_notification']],
+        ],
+        'indexes' => [
+            'idx_notification_user_read_created' => ['type' => 'index', 'columns' => ['i_id_user', 'i_is_read', 'dt_create']],
+        ],
+    ],
+    't_audit_log' => [
+        'columns' => [
+            'i_id_audit'        => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'c_category'        => ['type' => 'string', 'length' => 50,  'null' => false],
+            'c_action'          => ['type' => 'string', 'length' => 100, 'null' => false],
+            'c_target_table'    => ['type' => 'string', 'length' => 100, 'null' => true],
+            'c_target_id'       => ['type' => 'string', 'length' => 255, 'null' => true],
+            'i_actor_user_id'   => ['type' => 'integer', 'null' => true],
+            'c_actor_user_name' => ['type' => 'string', 'length' => 50,  'null' => false],
+            'c_ip_address'      => ['type' => 'string', 'length' => 45,  'null' => true],
+            'i_result'          => ['type' => 'boolean', 'null' => false, 'default' => true],
+            'c_detail'          => ['type' => 'text', 'null' => true],
+            'dt_create'         => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_audit']],
+        ],
+    ],
 ];

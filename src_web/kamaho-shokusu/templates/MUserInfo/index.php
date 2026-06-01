@@ -6,7 +6,8 @@
  * @var \App\Model\Entity\User $user
  */
 
-$isAdmin = $user->get('i_admin') === 1;
+$isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
+$isSystemAdmin = isset($isSystemAdmin) ? $isSystemAdmin : ((int)$user->get('i_admin') === 3);
 $currentUserId = $user->get('i_id_user');
 
 echo $this->Html->css(['bootstrap.min']);
@@ -20,12 +21,14 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 
 <div class="mUserInfo index content">
     <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
-        <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
-        <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary float-right mb-3 mr-2']) ?>
+        <div class="d-flex gap-2 mb-3">
+            <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>
+            <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary']) ?>
+        </div>
     <?php endif; ?>
-    
-    <?php if ($isAdmin): ?>
-        <div class="float-right mb-3 mr-2">
+
+    <?php if ($isAdmin || $isSystemAdmin): ?>
+        <div class="mb-3">
             <div class="user-view-toggle-container">
                 <button type="button" class="toggle-btn toggle-btn-left <?= !isset($showDeleted) || !$showDeleted ? 'active' : '' ?>" id="toggleNormal">
                     <i class="bi bi-people-fill"></i>
@@ -39,18 +42,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
         </div>
     <?php endif; ?>
 
-    <h3 id="userListTitle" class="mb-4">
-        <?php if (isset($showDeleted) && $showDeleted): ?>
-            <span class="badge badge-danger badge-lg">
-                <i class="bi bi-trash"></i> 削除済みユーザー一覧
-            </span>
-        <?php else: ?>
-            <span class="badge badge-primary badge-lg">
-                <i class="bi bi-people"></i> ユーザー一覧
-            </span>
-        <?php endif; ?>
-    </h3>
-
     <div class="table-responsive">
         <table class="table table-bordered">
             <thead>
@@ -59,9 +50,12 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 <th><?= $this->Paginator->sort('c_user_name', ['label' => 'ユーザー名']) ?></th>
                 <th><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
                 <th><?= __('所属部屋') ?></th>
-                <?php if ($isAdmin): ?>
+                <?php if ($isAdmin || $isSystemAdmin): ?>
                     <th><?= __('ブロック長') ?></th>
                     <th><?= __('管理者権限') ?></th>
+                    <?php if ($isSystemAdmin): ?>
+                        <th><?= __('システム管理者') ?></th>
+                    <?php endif; ?>
                 <?php endif; ?>
                 <th class="actions"><?= __('操作') ?></th>
             </tr>
@@ -73,7 +67,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     <td><?= h($userInfo->c_user_name) ?></td>
                     <td><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
                     <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
-                    <?php if ($isAdmin): ?>
+                    <?php if ($isAdmin || $isSystemAdmin): ?>
                         <td class="text-center">
                             <div class="form-check form-switch d-inline-block">
                                 <input class="form-check-input block-leader-checkbox" type="checkbox" role="switch"
@@ -86,15 +80,26 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                         <td class="text-center">
                             <div class="form-check form-switch d-inline-block">
                                 <input class="form-check-input admin-checkbox" type="checkbox" role="switch"
-                                       <?= $userInfo->i_admin === 1 ? 'checked' : '' ?>
+                                       <?= (int)$userInfo->i_admin === 1 ? 'checked' : '' ?>
                                        data-user-id="<?= h($userInfo->i_id_user) ?>"
                                        data-user-name="<?= h($userInfo->c_user_name) ?>">
                             </div>
                         </td>
+                        <?php if ($isSystemAdmin): ?>
+                            <td class="text-center">
+                                <div class="form-check form-switch d-inline-block">
+                                    <input class="form-check-input system-admin-checkbox" type="checkbox" role="switch"
+                                           <?= (int)$userInfo->i_admin === 3 ? 'checked' : '' ?>
+                                           data-user-id="<?= h($userInfo->i_id_user) ?>"
+                                           data-user-name="<?= h($userInfo->c_user_name) ?>">
+                                </div>
+                            </td>
+                        <?php endif; ?>
                     <?php endif; ?>
                     <td class="actions">
+                        <div class="d-flex gap-1">
                         <?php if (isset($showDeleted) && $showDeleted): ?>
-                            <?php if ($isAdmin): ?>
+                            <?php if ($isAdmin || $isSystemAdmin): ?>
                                 <?= $this->Form->postLink(__('復元'), ['action' => 'restore', $userInfo->i_id_user], [
                                         'confirm' => __('「{0}」を復元してもよろしいですか？', $userInfo->c_user_name),
                                         'class' => 'btn btn-success btn-sm'
@@ -107,11 +112,12 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                             <?php endif; ?>
                             <?php if ($isAdmin): ?>
                                 <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $userInfo->i_id_user], [
-                                        'confirm' => __(' {0} を削除してもよろしいですか？', $userInfo->c_user_name),
-                                        'class' => 'btn btn-danger btn-sm'
+                                        'class' => 'btn btn-danger btn-sm js-delete-btn',
+                                        'data-confirm-msg' => __('「{0}」を削除してもよろしいですか？', $userInfo->c_user_name),
                                 ]) ?>
                             <?php endif; ?>
                         <?php endif; ?>
+                        </div>
                     </td>
                 </tr>
             <?php endforeach; ?>
@@ -261,6 +267,56 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     }
                 })
                 .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+            });
+        });
+
+        // ---- システム管理者トグル ----
+        document.querySelectorAll('.system-admin-checkbox').forEach(cb => {
+            cb.addEventListener('change', async function () {
+                const userId        = this.getAttribute('data-user-id');
+                const userName      = this.getAttribute('data-user-name');
+                const isSystemAdmin = this.checked ? 1 : 0;
+                const message       = isSystemAdmin
+                    ? `${userName} にシステム管理者権限を付与しますか？`
+                    : `${userName} からシステム管理者権限を削除しますか？`;
+
+                const ok = await window.ConfirmPopup.show(message);
+                if (!ok) { this.checked = !this.checked; return; }
+
+                fetch('/kamaho-shokusu/MUserInfo/update-system-admin-status', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    body: JSON.stringify({ i_id_user: userId, i_system_admin: isSystemAdmin })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
+                    if (payload.ok === true || payload.success) {
+                        window.ConfirmPopup.showResult('システム管理者権限を更新しました。');
+                    } else {
+                        window.ConfirmPopup.showResult(payload.message || 'システム管理者権限の更新に失敗しました。', false);
+                        this.checked = !this.checked;
+                    }
+                })
+                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+            });
+        });
+
+        // ---- 削除ボタン（カスタム確認ダイアログ） ----
+        document.querySelectorAll('.js-delete-btn').forEach(btn => {
+            const originalOnclick = btn.getAttribute('onclick');
+            btn.removeAttribute('onclick');
+            btn.addEventListener('click', async function (e) {
+                e.preventDefault();
+                const msg = this.dataset.confirmMsg;
+                const ok = await window.ConfirmPopup.show(msg, {
+                    okLabel: '削除する',
+                    okColor: 'danger',
+                    type: 'danger',
+                });
+                if (!ok) return;
+                const match = originalOnclick && originalOnclick.match(/getElementById\(['"]([^'"]+)['"]\)/);
+                if (match) document.getElementById(match[1]).submit();
             });
         });
 

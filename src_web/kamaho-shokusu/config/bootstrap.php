@@ -128,6 +128,18 @@ if (PHP_SAPI === 'cli') {
 }
 
 /*
+ * リバースプロキシ対応: X-Forwarded-For から実クライアントIPを取得する。
+ * .env に TRUSTED_PROXIES=127.0.0.1,10.0.0.1 のように設定する。
+ * 未設定時は REMOTE_ADDR をそのまま使用する（開発環境向け）。
+ */
+$trustedProxies = env('TRUSTED_PROXIES', '');
+if ($trustedProxies !== '') {
+    ServerRequest::setTrustedProxies(
+        array_filter(array_map('trim', explode(',', $trustedProxies)))
+    );
+}
+
+/*
  * Set the full base URL.
  * This URL is used as the base of all absolute links.
  */

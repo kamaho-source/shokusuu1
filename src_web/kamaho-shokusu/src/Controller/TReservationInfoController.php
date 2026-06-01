@@ -164,7 +164,7 @@ class TReservationInfoController extends AppController
         $userRoomId = $this->calendarService->getPrimaryRoomId($userRoomIds);
 
         /* ========== ここから: 部屋セレクト用の $rooms を必ず用意 ========== */
-        $isAdmin = (int)($user->i_admin ?? 0) === 1;
+        $isAdmin = in_array((int)($user->i_admin ?? 0), [1, 3]);
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
         $rooms = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser);
@@ -280,7 +280,7 @@ class TReservationInfoController extends AppController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $isAdmin = (int)($user->i_admin ?? 0) === 1;
+        $isAdmin = in_array((int)($user->i_admin ?? 0), [1, 3]);
         $canViewAllRooms = $isAdmin || $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
 
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
@@ -937,7 +937,7 @@ class TReservationInfoController extends AppController
         // 403 の理由をユーザーにわかりやすく伝えるため、ロール別のメッセージを返す
         $loginUser = $this->request->getAttribute('identity');
         if ($loginUser !== null) {
-            $isAdmin  = (int)($loginUser->get('i_admin')      ?? 0) === 1;
+            $isAdmin  = in_array((int)($loginUser->get('i_admin') ?? 0), [1, 3]);
             $isStaff  = (int)($loginUser->get('i_user_level') ?? -1) === 0;
             if (!$isAdmin && !$isStaff) {
                 // 子どもユーザー: 直前編集権限なし
@@ -1381,7 +1381,7 @@ class TReservationInfoController extends AppController
         }
 
         $userId  = (int)$authUser->get('i_id_user');
-        $isAdmin = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isAdmin = in_array((int)($authUser->get('i_admin') ?? 0), [1, 3]);
         $canProxyActualMeal = $isAdmin || (int)($authUser->get('i_admin') ?? 0) === 2;
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
@@ -1497,7 +1497,7 @@ class TReservationInfoController extends AppController
         }
 
         $userId  = (int)$authUser->get('i_id_user');
-        $isAdmin = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isAdmin = in_array((int)($authUser->get('i_admin') ?? 0), [1, 3]);
         $isBlockLeader = (int)($authUser->get('i_admin') ?? 0) === 2;
         $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
@@ -1734,7 +1734,7 @@ class TReservationInfoController extends AppController
     private function validateActualMealTarget($authUser, int $targetUid, int $roomId): ?string
     {
         $loginUid  = (int)($authUser?->get('i_id_user') ?? 0);
-        $isAdmin = (int)($authUser?->get('i_admin') ?? 0) === 1;
+        $isAdmin = in_array((int)($authUser?->get('i_admin') ?? 0), [1, 3]);
         $isBlockLeader = (int)($authUser?->get('i_admin') ?? 0) === 2;
 
         if ($isAdmin) {

@@ -11,22 +11,24 @@
     <?= $this->Html->css('animate.min.css') ?>
     <?= $this->Html->css('custom.css') ?>
     <?= $this->Html->script('api_response.js') ?>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?= $this->fetch('meta') ?>
     <?= $this->fetch('css') ?>
-
     <?= $this->fetch('script') ?>
 </head>
 <body>
 <?php
-// ★ 追加：モーダル埋め込み判定とユーザー取得（navbar を抑止するため）
 /** @var \App\View\AppView $this */
-$request = $this->getRequest();
-$isModal = ($request->getQuery('modal') === '1'); // ?modal=1 のときはモーダル
-$user    = $request->getAttribute('identity');    // 既存テンプレ内で使用している $user を補完
-$isStaff = $user && ((int)$user->i_admin === 1 || (int)$user->i_user_level === 0);
-$isChild = $user && (int)$user->i_user_level === 1;
+$request    = $this->getRequest();
+$isModal    = ($request->getQuery('modal') === '1');
+$user       = $request->getAttribute('identity');
+$iAdmin     = $user ? (int)$user->i_admin : 0;
+$isAdmin    = in_array($iAdmin, [1, 3]);
+$isSysAdmin = ($iAdmin === 3);
+$isStaff    = $user && ($isAdmin || (int)$user->i_user_level === 0);
+$isChild    = $user && (int)$user->i_user_level === 1;
 $notificationUnreadCount = $notificationUnreadCount ?? 0;
-$recentNotifications = $recentNotifications ?? [];
+$recentNotifications     = $recentNotifications ?? [];
 ?>
 
 <?php if (!$isModal): ?>
@@ -51,7 +53,7 @@ $recentNotifications = $recentNotifications ?? [];
                         <li class="nav-item">
                             <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">🏠 部屋情報</a>
                         </li>
-                        <?php if ($user->get('i_admin') === 1): ?>
+                        <?php if ($isAdmin): ?>
                             <li class="nav-item">
                                 <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>">👥 ユーザ一覧</a>
                             </li>
@@ -73,7 +75,7 @@ $recentNotifications = $recentNotifications ?? [];
                     <?php endif; ?>
 
                     <?php if ($user): ?>
-                        <?php if ((int)($user->get('i_admin') ?? 0) === 1): ?>
+                        <?php if ($isAdmin): ?>
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" id="contactDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                     &#128140; お問い合わせ
@@ -90,7 +92,7 @@ $recentNotifications = $recentNotifications ?? [];
                         <?php endif; ?>
                     <?php endif; ?>
 
-                    <?php if ($user && (int)$user->get('i_admin') === 3): ?>
+                    <?php if ($user && $isSysAdmin): ?>
                         <li class="nav-item">
                             <a class="nav-link text-warning fw-bold" href="<?= $this->Url->build('/AuditLog') ?>">
                                 &#128274; 監査ログ
@@ -141,12 +143,11 @@ $recentNotifications = $recentNotifications ?? [];
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end animate__animated animate__fadeIn" aria-labelledby="userMenu">
                                 <li><?= $this->Html->link('👤 プロフィール', ['controller' => 'MUserInfo', 'action' => 'view', $user->i_id_user], ['class' => 'dropdown-item']) ?></li>
-                                <li><?= $this->Html->link('🔒 パスワード変更',['controller'=>'MUserInfo','action'=>'general_password_reset'],['class'=>'dropdown-item']) ?></li>
-                                <?php if ($user->i_admin === 1): ?>
-                                    <li><?= $this->Html->link('🔒 管理者：パスワード変更', ['controller' => 'MUserInfo', 'action' => 'AdminChangePassword'], ['class' => 'dropdown-item']) ?></li>
+                                <li><?= $this->Html->link('🔑 パスワード変更', ['controller' => 'MUserInfo', 'action' => 'general_password_reset'], ['class' => 'dropdown-item']) ?></li>
+                                <?php if ($isAdmin): ?>
+                                    <li><?= $this->Html->link('🔑 管理者：パスワード変更', ['controller' => 'MUserInfo', 'action' => 'AdminChangePassword'], ['class' => 'dropdown-item']) ?></li>
                                 <?php endif; ?>
                                 <li><?= $this->Html->link('🚪 ログアウト', ['controller' => 'MUserInfo', 'action' => 'logout'], ['class' => 'dropdown-item']) ?></li>
-
                             </ul>
                         </li>
                     <?php else: ?>
@@ -160,19 +161,17 @@ $recentNotifications = $recentNotifications ?? [];
     </nav>
 <?php endif; ?>
 
-<main class="<?= $isModal ? '' : 'container mt-3' ?>">
+<main class="<?= $isModal ? '' : 'container-xl mt-3' ?>">
     <?= $this->Flash->render() ?>
     <?= $this->fetch('content') ?>
 </main>
 
-<!-- 必要なスクリプトを正しい順序で読み込む -->
 <?= $this->Html->script('jquery-3.5.1.min.js') ?>
 <?= $this->Html->script('bootstrap.bundle.min.js') ?>
 <?= $this->Html->script('confirm_popup.js') ?>
-</body>
+
 <script>
     (() => {
-        // ★ モーダル時は navbar 自体を描画していないため、このスクリプトは自然に何もしません
         const nav = document.getElementById('mainNav');
         if (!nav) return;
 
@@ -180,20 +179,17 @@ $recentNotifications = $recentNotifications ?? [];
             document.body.style.paddingTop = nav.getBoundingClientRect().height + 'px';
         };
 
-        // 初回・リサイズで更新
+        applyPad();
         window.addEventListener('load', applyPad);
         window.addEventListener('resize', applyPad);
 
-        // ナビの高さ変化（折りたたみ開閉・フォント読み込み等）にも追従
         if (window.ResizeObserver) {
-            const ro = new ResizeObserver(applyPad);
-            ro.observe(nav);
+            new ResizeObserver(applyPad).observe(nav);
         }
 
-        // Bootstrapの折りたたみイベントでも更新（保険）
         document.addEventListener('shown.bs.collapse', applyPad);
         document.addEventListener('hidden.bs.collapse', applyPad);
     })();
 </script>
-
+</body>
 </html>
