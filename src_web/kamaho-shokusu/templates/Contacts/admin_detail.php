@@ -2,6 +2,11 @@
 /** @var \App\View\AppView $this */
 /** @var \App\Model\Entity\TContact $contact */
 $this->assign('title', 'お問い合わせ詳細');
+$_dow = ['日', '月', '火', '水', '木', '金', '土'];
+$fmtDt = static function (?\DateTimeInterface $dt) use ($_dow): string {
+    if ($dt === null) return '-';
+    return $dt->format('Y/m/d') . '（' . $_dow[(int)$dt->format('w')] . '）' . $dt->format(' H:i');
+};
 ?>
 
 <div class="d-flex align-items-center mb-3 gap-2">
@@ -17,7 +22,7 @@ $this->assign('title', 'お問い合わせ詳細');
 <div class="card mb-4">
     <div class="card-header bg-light">
         <span class="badge bg-secondary me-2"><?= h($contact->category) ?></span>
-        <span class="text-muted small"><?= h($contact->created->format('Y-m-d H:i')) ?></span>
+        <span class="text-muted small"><?= h($fmtDt($contact->created)) ?></span>
     </div>
     <div class="card-body">
         <dl class="row mb-0">
@@ -41,7 +46,7 @@ $this->assign('title', 'お問い合わせ詳細');
     <?php foreach ($contact->t_contact_replies as $reply): ?>
         <div class="card mb-2 border-start border-primary border-3">
             <div class="card-body py-2">
-                <div class="text-muted small mb-1"><?= h($reply->sent_at->format('Y-m-d H:i')) ?> 送信</div>
+                <div class="text-muted small mb-1"><?= h($fmtDt($reply->sent_at)) ?> 送信</div>
                 <div style="white-space: pre-wrap;"><?= h($reply->body) ?></div>
             </div>
         </div>
