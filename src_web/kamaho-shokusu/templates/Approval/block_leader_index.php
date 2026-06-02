@@ -153,9 +153,7 @@ foreach ($records as $record) {
                         if ($diff < 0) {
                             $dateBadge = '<span class="text-muted">' . h($dateFormatted) . '</span>';
                         } elseif ($diff === 0) {
-                            $dateBadge = '<span class="badge text-bg-danger">本日 ' . h($dateFormatted) . '</span>';
-                        } elseif ($diff <= 7) {
-                            $dateBadge = '<span class="badge text-bg-warning text-dark">まもなく ' . h($dateFormatted) . '</span>';
+                            $dateBadge = '<span class="fw-semibold text-danger">' . h($dateFormatted) . '</span>';
                         } else {
                             $dateBadge = '<span class="fw-semibold">' . h($dateFormatted) . '</span>';
                         }
