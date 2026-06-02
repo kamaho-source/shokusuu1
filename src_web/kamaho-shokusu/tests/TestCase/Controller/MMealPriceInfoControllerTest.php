@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller;
 
 use App\Controller\MMealPriceInfoController;
+use Cake\Core\Configure;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -24,6 +25,12 @@ class MMealPriceInfoControllerTest extends TestCase
     protected array $fixtures = [
         'app.MMealPriceInfo',
     ];
+
+    public function setUp(): void
+    {
+        parent::setUp();
+        Configure::write('debug', true);
+    }
 
     /**
      * Test index method
@@ -61,6 +68,7 @@ class MMealPriceInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-meal-price-info/add', [
             'i_fiscal_year' => 2025,
             'i_morning_price' => 320,
@@ -82,6 +90,7 @@ class MMealPriceInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-meal-price-info/edit/1', [
             'i_morning_price' => 350,
         ]);
@@ -99,6 +108,7 @@ class MMealPriceInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-meal-price-info/delete/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
