@@ -93,9 +93,14 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                         $dateBadge = '<span class="fw-semibold">' . h($dateFormatted) . '</span>';
                     }
 
-                    $dtCreate = $schedule->dt_create
-                        ? (new \DateTime((string)$schedule->dt_create))->format('Y/m/d H:i')
-                        : '-';
+                    if ($schedule->dt_create) {
+                        $dtCreateObj = new \DateTime((string)$schedule->dt_create);
+                        $dtCreate    = $dtCreateObj->format('Y/m/d')
+                            . '（' . $dayNames[(int)$dtCreateObj->format('w')] . '）'
+                            . $dtCreateObj->format(' H:i');
+                    } else {
+                        $dtCreate = '-';
+                    }
 
                     $cancelMessage = sprintf(
                         '%s の異動予約（→ %s）をキャンセルしますか？',
