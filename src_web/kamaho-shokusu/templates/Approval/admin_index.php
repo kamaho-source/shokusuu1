@@ -16,7 +16,6 @@ $statusLabels = [
 ];
 $mealLabels = [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁当'];
 $basePath = $this->request->getAttribute('base') ?? '';
-$today    = new \DateTime('today');
 $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 $pendingCount = 0;
 $approvedCount = 0;
@@ -212,16 +211,9 @@ foreach ($summary as $row) {
                         $dateObj       = $rec->d_reservation_date instanceof \DateTime
                             ? $rec->d_reservation_date
                             : new \DateTime((string)$rec->d_reservation_date);
-                        $diff          = (int)$today->diff($dateObj)->days * ($dateObj >= $today ? 1 : -1);
                         $dow           = $dayNames[(int)$dateObj->format('w')];
-                        $dateFormatted = $dateObj->format('Y/m/d') . "（{$dow}）";
-                        if ($diff < 0) {
-                            $dateBadge = '<span class="text-muted">' . h($dateFormatted) . '</span>';
-                        } elseif ($diff === 0) {
-                            $dateBadge = '<span class="fw-semibold text-danger">' . h($dateFormatted) . '</span>';
-                        } else {
-                            $dateBadge = '<span class="fw-semibold">' . h($dateFormatted) . '</span>';
-                        }
+                        $dateBadge     = '<span class="fw-semibold">'
+                            . h($dateObj->format('Y/m/d') . "（{$dow}）") . '</span>';
                     ?>
                     <tr>
                         <td><input type="checkbox" class="row-check" data-status="<?= h((string)$rec->i_approval_status) ?>" data-key='<?= h($dataKey) ?>'></td>
