@@ -15,6 +15,7 @@ $statusLabels = [
     3 => ['label' => '差し戻し',         'class' => 'bg-danger text-white'],
 ];
 $mealLabels = [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁当'];
+$dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 $basePath = $this->request->getAttribute('base') ?? '';
 $pendingCount = 0;
 $rejectedCount = 0;
@@ -141,12 +142,17 @@ foreach ($records as $record) {
                             'i_id_room'          => $rec->i_id_room,
                             'i_reservation_type' => $rec->i_reservation_type,
                         ], JSON_UNESCAPED_UNICODE);
+
+                        $dateObj   = $rec->d_reservation_date instanceof \DateTime
+                            ? $rec->d_reservation_date
+                            : new \DateTime((string)$rec->d_reservation_date);
+                        $dow       = $dayNames[(int)$dateObj->format('w')];
+                        $dateBadge = '<span class="fw-semibold">'
+                            . h($dateObj->format('Y/m/d') . "（{$dow}）") . '</span>';
                     ?>
                     <tr>
                         <td><input type="checkbox" class="row-check" data-key='<?= h($dataKey) ?>'></td>
-                        <td>
-                            <span class="cell-primary"><?= h($rec->d_reservation_date) ?></span>
-                        </td>
+                        <td class="text-nowrap"><?= $dateBadge ?></td>
                         <td>
                             <span class="cell-primary"><?= h($rec->m_room_info->c_room_name ?? '') ?></span>
                         </td>
