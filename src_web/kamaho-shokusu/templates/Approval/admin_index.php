@@ -16,6 +16,8 @@ $statusLabels = [
 ];
 $mealLabels = [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁当'];
 $basePath = $this->request->getAttribute('base') ?? '';
+$today    = new \DateTime('today');
+$dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 $pendingCount = 0;
 $approvedCount = 0;
 foreach ($records as $record) {
@@ -140,8 +142,13 @@ foreach ($summary as $row) {
                 </thead>
                 <tbody>
                 <?php foreach ($summary as $row): ?>
+                    <?php
+                        $summaryDateObj = new \DateTime((string)$row['reservation_date']);
+                        $summaryDow     = $dayNames[(int)$summaryDateObj->format('w')];
+                        $summaryDateFmt = $summaryDateObj->format('Y/m/d') . "（{$summaryDow}）";
+                    ?>
                     <tr>
-                        <td><?= h($row['reservation_date']) ?></td>
+                        <td class="text-nowrap"><?= h($summaryDateFmt) ?></td>
                         <td class="text-start"><?= h($row['room_name']) ?></td>
                         <td><?= $row['breakfast'] ?>名</td>
                         <td><?= $row['lunch'] ?>名</td>
@@ -201,10 +208,26 @@ foreach ($summary as $row) {
                             'i_id_room'          => $rec->i_id_room,
                             'i_reservation_type' => $rec->i_reservation_type,
                         ], JSON_UNESCAPED_UNICODE);
+
+                        $dateObj       = $rec->d_reservation_date instanceof \DateTime
+                            ? $rec->d_reservation_date
+                            : new \DateTime((string)$rec->d_reservation_date);
+                        $diff          = (int)$today->diff($dateObj)->days * ($dateObj >= $today ? 1 : -1);
+                        $dow           = $dayNames[(int)$dateObj->format('w')];
+                        $dateFormatted = $dateObj->format('Y/m/d') . "（{$dow}）";
+                        if ($diff < 0) {
+                            $dateBadge = '<span class="text-muted">' . h($dateFormatted) . '</span>';
+                        } elseif ($diff === 0) {
+                            $dateBadge = '<span class="badge text-bg-danger">本日 ' . h($dateFormatted) . '</span>';
+                        } elseif ($diff <= 7) {
+                            $dateBadge = '<span class="badge text-bg-warning text-dark">まもなく ' . h($dateFormatted) . '</span>';
+                        } else {
+                            $dateBadge = '<span class="fw-semibold">' . h($dateFormatted) . '</span>';
+                        }
                     ?>
                     <tr>
                         <td><input type="checkbox" class="row-check" data-status="<?= h((string)$rec->i_approval_status) ?>" data-key='<?= h($dataKey) ?>'></td>
-                        <td><?= h($rec->d_reservation_date) ?></td>
+                        <td class="text-nowrap"><?= $dateBadge ?></td>
                         <td><?= h($rec->m_room_info->c_room_name ?? '') ?></td>
                         <td><?= h($rec->m_user_info->c_user_name ?? '') ?></td>
                         <td><?= h($mealLabels[(int)$rec->i_reservation_type] ?? '') ?></td>
