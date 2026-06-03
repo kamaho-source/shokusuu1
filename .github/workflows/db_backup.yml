@@ -11,13 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     # 本番サーバー専用: main ブランチのみ実行
     if: github.ref == 'refs/heads/main'
-    env:
-      SLACK_USERNAME: DeployBot
-      SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
-      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
 
     steps:
       - name: SSH into production server and run backup
+        id: backup
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -32,17 +29,31 @@ jobs:
             bash scripts/db_backup.sh
 
       - name: Slack Notification on Success
-        uses: rtCamp/action-slack-notify@v2
-        if: ${{ success() }}
-        env:
-          SLACK_TITLE: DB Backup / Success
-          SLACK_COLOR: good
-          SLACK_MESSAGE: DBバックアップ完了しました✅
+        if: steps.backup.outcome == 'success'
+        continue-on-error: true
+        run: |
+          curl -fsSL -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+            -H 'Content-type: application/json' \
+            -d '{
+              "attachments": [{
+                "color": "good",
+                "title": "DB Backup / Success",
+                "text": "DBバックアップ完了しました :white_check_mark:",
+                "footer": "GitHub Actions"
+              }]
+            }'
 
       - name: Slack Notification on Failure
-        uses: rtCamp/action-slack-notify@v2
-        if: ${{ failure() }}
-        env:
-          SLACK_TITLE: DB Backup / Failure
-          SLACK_COLOR: danger
-          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> DBバックアップ失敗しました😢"
+        if: steps.backup.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          curl -fsSL -X POST "${{ secrets.SLACK_WEBHOOK }}" \
+            -H 'Content-type: application/json' \
+            -d "{
+              \"attachments\": [{
+                \"color\": \"danger\",
+                \"title\": \"DB Backup / Failure\",
+                \"text\": \"<@${{ secrets.SLACK_MENTION_USER_ID }}> DBバックアップ失敗しました :cry:\",
+                \"footer\": \"GitHub Actions\"
+              }]
+            }"
