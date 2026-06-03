@@ -100,17 +100,29 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                         </div>
 
                         <!-- 個人：部屋ごとのチェック -->
-                        <div class="mb-3" id="room-selection-table" style="display: none;">
+                        <div class="mb-3 d-none" id="room-selection-table">
                             <?= $this->Form->label('rooms', '部屋名と食事選択', ['class' => 'form-label']) ?>
                             <div id="room-table-container" class="table-responsive">
                                 <table class="table table-bordered mb-0">
                                     <thead class="table-light">
                                     <tr>
-                                        <th>部屋名</th>
-                                        <th class="text-center"><input type="checkbox" onclick="toggleAllRooms(1, this.checked)" aria-label="朝を全選択"> 朝</th>
-                                        <th class="text-center"><input type="checkbox" onclick="toggleAllRooms(2, this.checked)" aria-label="昼を全選択"> 昼</th>
-                                        <th class="text-center"><input type="checkbox" onclick="toggleAllRooms(3, this.checked)" aria-label="夜を全選択"> 夜</th>
-                                        <th class="text-center"><input type="checkbox" onclick="toggleAllRooms(4, this.checked)" aria-label="弁当を全選択"> 弁当</th>
+                                        <th scope="col">部屋名</th>
+                                        <th scope="col" class="text-center">
+                                            <label for="select-all-room-1">朝</label>
+                                            <input type="checkbox" id="select-all-room-1">
+                                        </th>
+                                        <th scope="col" class="text-center">
+                                            <label for="select-all-room-2">昼</label>
+                                            <input type="checkbox" id="select-all-room-2">
+                                        </th>
+                                        <th scope="col" class="text-center">
+                                            <label for="select-all-room-3">夜</label>
+                                            <input type="checkbox" id="select-all-room-3">
+                                        </th>
+                                        <th scope="col" class="text-center">
+                                            <label for="select-all-room-4">弁当</label>
+                                            <input type="checkbox" id="select-all-room-4">
+                                        </th>
                                     </tr>
                                     </thead>
                                     <tbody id="room-checkboxes">
@@ -130,7 +142,7 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
 
                         <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
                             <!-- 集団：部屋選択 -->
-                            <div class="mb-3" id="room-select-group" style="display: none;">
+                            <div class="mb-3 d-none" id="room-select-group">
                                 <?= $this->Form->label('room-select', '部屋を選択', ['class' => 'form-label']) ?>
                                 <?= $this->Form->control('i_id_room', [
                                         'type' => 'select',
@@ -144,17 +156,29 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                             </div>
 
                             <!-- 集団：利用者×食事 -->
-                            <div class="mb-3" id="user-selection-table" style="display: none;">
+                            <div class="mb-3 d-none" id="user-selection-table">
                                 <?= $this->Form->label('users', '部屋に属する利用者と食事選択', ['class' => 'form-label']) ?>
                                 <div id="user-table-container" class="table-responsive">
                                     <table class="table table-bordered mb-0">
                                         <thead class="table-light">
                                         <tr>
-                                            <th>利用者名</th>
-                                            <th class="text-center"><input type="checkbox" onclick="toggleAllUsers('morning', this.checked)" aria-label="朝を全選択"> 朝</th>
-                                            <th class="text-center"><input type="checkbox" onclick="toggleAllUsers('noon', this.checked)" aria-label="昼を全選択"> 昼</th>
-                                            <th class="text-center"><input type="checkbox" onclick="toggleAllUsers('night', this.checked)" aria-label="夜を全選択"> 夜</th>
-                                            <th class="text-center"><input type="checkbox" onclick="toggleAllUsers('bento', this.checked)" aria-label="弁当を全選択"> 弁当</th>
+                                            <th scope="col">利用者名</th>
+                                            <th scope="col" class="text-center">
+                                                <label for="select-all-user-morning">朝</label>
+                                                <input type="checkbox" id="select-all-user-morning">
+                                            </th>
+                                            <th scope="col" class="text-center">
+                                                <label for="select-all-user-noon">昼</label>
+                                                <input type="checkbox" id="select-all-user-noon">
+                                            </th>
+                                            <th scope="col" class="text-center">
+                                                <label for="select-all-user-night">夜</label>
+                                                <input type="checkbox" id="select-all-user-night">
+                                            </th>
+                                            <th scope="col" class="text-center">
+                                                <label for="select-all-user-bento">弁当</label>
+                                                <input type="checkbox" id="select-all-user-bento">
+                                            </th>
                                         </tr>
                                         </thead>
                                         <tbody id="user-checkboxes">
@@ -198,9 +222,7 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                     cb.dispatchEvent(new Event('change'));
                                 });
 
-                                const headerCheckbox = document.querySelector(
-                                    `input[type="checkbox"][onclick^="toggleAllRooms(${mealType},"]`
-                                );
+                                const headerCheckbox = document.getElementById('select-all-room-' + mealType);
                                 if (headerCheckbox) {
                                     const allChecked = [...checkboxes].every(cb => cb.checked);
                                     headerCheckbox.checked = allChecked;
@@ -217,9 +239,14 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                     const checkboxes = document.querySelectorAll(
                                         `input[type="checkbox"][name^="meals[${mealType}]"]`
                                     );
-                                    const headerCheckbox = document.querySelector(
-                                        `input[type="checkbox"][onclick^="toggleAllRooms(${mealType},"]`
-                                    );
+                                    const headerCheckbox = document.getElementById('select-all-room-' + mealType);
+
+                                    // onclick 属性の代わりに addEventListener でバインド
+                                    if (headerCheckbox) {
+                                        headerCheckbox.addEventListener('change', function() {
+                                            toggleAllRooms(mealType, this.checked);
+                                        });
+                                    }
 
                                     checkboxes.forEach(cb => {
                                         cb.removeEventListener('change', cb._onchangeHandler ?? (() => {}));
@@ -251,9 +278,15 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                     `input[type="checkbox"][name^="users"][name$="[${mealType}]"]`
                                 );
 
-                                const headerCheckbox = document.querySelector(
-                                    `input[type="checkbox"][onclick^="toggleAllUsers('${mealTime}',"]`
-                                );
+                                const headerCheckbox = document.getElementById('select-all-user-' + mealTime);
+
+                                // onclick 属性の代わりに addEventListener でバインド（初回のみ）
+                                if (headerCheckbox && !headerCheckbox.dataset._bound) {
+                                    headerCheckbox.dataset._bound = '1';
+                                    headerCheckbox.addEventListener('change', function() {
+                                        toggleAllUsers(mealTime, this.checked);
+                                    });
+                                }
 
                                 checkboxes.forEach(cb => {
                                     cb.checked = isChecked;
@@ -311,9 +344,8 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
 
                                 const updateHeaderCheckbox = (mealType) => {
                                     const allCbs = document.querySelectorAll(`input[name^="users"][name$="[${mealType}]"]`);
-                                    const headerCb = document.querySelector(
-                                        `input[type="checkbox"][onclick^="toggleAllUsers('${mealType === 2 ? 'noon' : 'bento'}',"]`
-                                    );
+                                    const mealKey = mealType === 2 ? 'noon' : 'bento';
+                                    const headerCb = document.getElementById('select-all-user-' + mealKey);
                                     if (!headerCb) return;
                                     const allChecked = [...allCbs].every(c => c.checked);
                                     headerCb.checked = allChecked;
@@ -399,21 +431,24 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                         }
                                         const tbody = document.getElementById('user-checkboxes');
                                         tbody.innerHTML = '';
+                                        const escHtml = (s) => String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
                                         users.forEach(u => {
                                             const tr = document.createElement('tr');
+                                            const safeName = escHtml(u.name || '');
+                                            const safeId   = escHtml(u.id   || '');
                                             tr.innerHTML = `
-    <td>${u.name}</td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][1]" value="1" ${Number(u.morning) === 1 ? 'checked data-existing="1"' : ''}></td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][2]" value="1" ${Number(u.noon) === 1 ? 'checked data-existing="1"' : ''}></td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][3]" value="1" ${Number(u.night) === 1 ? 'checked data-existing="1"' : ''}></td>
-    <td class="text-center"><input type="checkbox" name="users[${u.id}][4]" value="1" ${Number(u.bento) === 1 ? 'checked data-existing="1"' : ''}></td>
+    <td>${safeName}</td>
+    <td class="text-center"><input type="checkbox" name="users[${safeId}][1]" value="1" ${Number(u.morning) === 1 ? 'checked data-existing="1"' : ''}></td>
+    <td class="text-center"><input type="checkbox" name="users[${safeId}][2]" value="1" ${Number(u.noon) === 1 ? 'checked data-existing="1"' : ''}></td>
+    <td class="text-center"><input type="checkbox" name="users[${safeId}][3]" value="1" ${Number(u.night) === 1 ? 'checked data-existing="1"' : ''}></td>
+    <td class="text-center"><input type="checkbox" name="users[${safeId}][4]" value="1" ${Number(u.bento) === 1 ? 'checked data-existing="1"' : ''}></td>
 `;
                                             tbody.appendChild(tr);
 
                                             /* ユーザー行の昼⇄弁当排他 */
                                             setupLunchBentoPair(
-                                                tr.querySelector(`input[name="users[${u.id}][2]"]`),
-                                                tr.querySelector(`input[name="users[${u.id}][4]"]`)
+                                                tr.querySelector(`input[name="users[${safeId}][2]"]`),
+                                                tr.querySelector(`input[name="users[${safeId}][4]"]`)
                                             );
                                         });
                                     })
@@ -458,20 +493,12 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
 
                                 /* ヘッダーの “全選択” チェックボックス排他 */
                                 setupLunchBentoPair(
-                                    document.querySelector(
-                                        '#room-table-container thead input[onclick^="toggleAllRooms(2,"]'
-                                    ),
-                                    document.querySelector(
-                                        '#room-table-container thead input[onclick^="toggleAllRooms(4,"]'
-                                    )
+                                    document.getElementById('select-all-room-2'),
+                                    document.getElementById('select-all-room-4')
                                 );
                                 setupLunchBentoPair(
-                                    document.querySelector(
-                                        '#user-table-container thead input[onclick^="toggleAllUsers(\'noon\',"]'
-                                    ),
-                                    document.querySelector(
-                                        '#user-table-container thead input[onclick^="toggleAllUsers(\'bento\',"]'
-                                    )
+                                    document.getElementById('select-all-user-noon'),
+                                    document.getElementById('select-all-user-bento')
                                 );
 
                                 /* 個人予約データを取得して反映（排他処理と連動） */
@@ -490,9 +517,12 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                     <div class="form-text text-muted mb-2">チェックを外して登録すると予約をキャンセルできます。</div>
                     <?= $this->Form->button(__('登録'), ['class' => 'btn btn-primary']) ?>
                     <div id="loading-overlay"
+                         role="status"
+                         aria-live="polite"
+                         aria-label="処理中"
                          style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999; text-align: center;">
                         <div style="position: relative; top: 50%; transform: translateY(-50%);">
-                            <div class="spinner-border text-info" role="status"></div>
+                            <div class="spinner-border text-info" aria-hidden="true"></div>
                             <p style="color: white; margin-top: 10px;">処理中です。少々お待ちください...</p>
                         </div>
                     </div>
@@ -519,25 +549,28 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
         const roomSelectGp = document.getElementById('room-select-group');  // ★ null 可
         const userTableGp  = document.getElementById('user-selection-table'); // ★ null 可
 
+        const showEl = (el) => { if (el) el.classList.remove('d-none'); };
+        const hideEl = (el) => { if (el) el.classList.add('d-none'); };
+
         const handleTypeChange = () => {
             const val = typeSelect.value;
             if (val === '1') {
-                if (roomTable)    roomTable.style.display    = '';
-                if (roomSelectGp) roomSelectGp.style.display = 'none';
-                if (userTableGp)  userTableGp.style.display  = 'none';
+                showEl(roomTable);
+                hideEl(roomSelectGp);
+                hideEl(userTableGp);
                 // 個人の既存予約を取得・反映
                 if (typeof fetchPersonalReservationData === 'function') {
                     fetchPersonalReservationData();
                 }
             } else if (val === '2') {
-                if (roomTable)    roomTable.style.display    = 'none';
-                if (roomSelectGp) roomSelectGp.style.display = '';
-                if (userTableGp)  userTableGp.style.display  = 'none';
+                hideEl(roomTable);
+                showEl(roomSelectGp);
+                hideEl(userTableGp);
                 // ★ select に既定値が入っているので、親 ensureAddModalCompat が自動 fetch します
             } else {
-                if (roomTable)    roomTable.style.display    = 'none';
-                if (roomSelectGp) roomSelectGp.style.display = 'none';
-                if (userTableGp)  userTableGp.style.display  = 'none';
+                hideEl(roomTable);
+                hideEl(roomSelectGp);
+                hideEl(userTableGp);
             }
         };
 
@@ -547,10 +580,10 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
             const tbody = document.getElementById('user-checkboxes');
             if (tbody) tbody.innerHTML = '';
             if (!roomId) {
-                if (userTableGp) userTableGp.style.display = 'none';
+                hideEl(userTableGp);
                 return;
             }
-            if (userTableGp) userTableGp.style.display = '';
+            showEl(userTableGp);
             if (typeof fetchUserData === 'function') {
                 fetchUserData(roomId);
             }
