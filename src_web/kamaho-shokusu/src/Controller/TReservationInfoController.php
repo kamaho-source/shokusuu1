@@ -106,41 +106,20 @@ class TReservationInfoController extends AppController
         // $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
-        if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', self::API_ACTIONS);
-        }
+        $this->FormProtection->setConfig('unlockedActions', [
+            'add',
+            'toggle',
+            'checkDuplicateReservation',
+            'changeEdit',
+            'bulkChangeEditSubmit',
+            'bulkAddSubmit',
+            'copy',
+            'copyPreview',
+            'actualMealSave',
+            'actualMealRequestApproval',
+        ]);
     }
 
-    /**
-     * FormProtection を外す JSON API アクション一覧。
-     * unlockedActions と beforeFilter の両方で参照し、リストの二重管理を防ぐ。
-     */
-    private const API_ACTIONS = [
-        'toggle',
-        'checkDuplicateReservation',
-        'changeEdit',
-        'bulkChangeEditSubmit',
-        'bulkAddSubmit',
-        'copy',
-        'copyPreview',
-        'actualMealSave',
-        'actualMealRequestApproval',
-        'getReservationSnapshots',
-    ];
-
-    /**
-     * @param \Cake\Event\EventInterface $event
-     */
-    public function beforeFilter(\Cake\Event\EventInterface $event): void
-    {
-        parent::beforeFilter($event);
-
-        // JSON API エンドポイントは FormProtectionComponent のフォームトークン検証対象外にする。
-        // CSRF 保護は CsrfProtectionMiddleware（X-CSRF-Token ヘッダー）で担保済み。
-        if (in_array($this->request->getParam('action'), self::API_ACTIONS, true)) {
-            $this->components()->unload('FormProtection');
-        }
-    }
 
     /**
      * インデックスメソッド
@@ -1744,161 +1723,4 @@ class TReservationInfoController extends AppController
 
         return null;
     }
-
-    /**
-     * 食数予約 Excel グリッド画面。
-     *
-     * 部屋×ユーザー×日付×食事種別のグリッドを表示し、
-     * セルのクリックで予約をトグルできる（既存の toggle API を利用）。
-     *
-     * @return Response|null
-     */
-    public function mealCountGrid(): ?Response
-    {
-        $this->authorizeReservation('mealCountGrid');
-
-        $authUser = $this->Authentication->getIdentity();
-        if (!$authUser) {
-            throw new \Cake\Http\Exception\UnauthorizedException('ログインが必要です。');
-        }
-
-        $loginUserId  = (int)$authUser->get('i_id_user');
-        $loginName    = (string)($authUser->get('c_user_name') ?? '');
-        $isAdmin      = (int)($authUser->get('i_admin') ?? 0) === 1;
-        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
-        $canViewAll   = $isAdmin || $isOfficeUser;
-
-        // 表示モード: 個人 / 各部屋 / 全部
-        $viewMode = $this->request->getQuery('mode') ?? 'individual';
-        if (!in_array($viewMode, ['individual', 'room', 'all'], true)) {
-            $viewMode = 'individual';
-        }
-        // 管理者・事務所ユーザー以外は 個人 のみ
-        if (!$canViewAll && $viewMode !== 'individual') {
-            $viewMode = 'individual';
-        }
-
-        // 表示対象の全部屋リスト
-        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUserId);
-        $allRooms    = $this->calendarService->getRoomsForUser(
-            $this->MRoomInfo,
-            $userRoomIds,
-            $canViewAll,
-            $isOfficeUser
-        );
-
-        // 各部屋・全部モードでは所属部屋のみ表示する（管理者でも自分が所属する部屋に限定）
-        if ($viewMode === 'room' || $viewMode === 'all') {
-            $allRooms = array_intersect_key($allRooms, array_flip($userRoomIds));
-        }
-
-        // 選択中の部屋
-        $selectedRoomId = $this->request->getQuery('room_id')
-            ? (int)$this->request->getQuery('room_id')
-            : (!empty($allRooms) ? (int)array_key_first($allRooms) : null);
-        if ($selectedRoomId !== null && !isset($allRooms[$selectedRoomId])) {
-            $selectedRoomId = !empty($allRooms) ? (int)array_key_first($allRooms) : null;
-        }
-
-        $gridService = new \App\Service\MealCountGridService();
-        $today       = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
-
-        // 4週間ナビゲーション（4週単位で移動）
-        $weekNav       = $gridService->resolveWeekNavigation(
-            $this->request->getQuery('week'),
-            $isAdmin,
-            $today
-        );
-        $weekMondayStr = $weekNav['weekMondayStr'];
-        $dates         = $gridService->buildDateRange($weekMondayStr, 28); // 4週間=28日
-        $periodLabel   = $gridService->buildPeriodLabel($dates);
-
-        // 表示対象ユーザーを先に確定（individual モードの部屋自動決定に使う）
-        $selectedUserId = $this->request->getQuery('user_id')
-            ? (int)$this->request->getQuery('user_id')
-            : $loginUserId;
-        if (!$canViewAll) {
-            $selectedUserId = $loginUserId;
-        }
-
-        // モード別の表示対象部屋を絞り込む
-        if ($viewMode === 'individual') {
-            // 対象ユーザーの所属部屋を自動決定（部屋選択不要）
-            $targetUserRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $selectedUserId);
-            $targetRooms = array_intersect_key($allRooms, array_flip($targetUserRoomIds));
-        } elseif ($viewMode === 'room') {
-            $targetRooms = ($selectedRoomId !== null && isset($allRooms[$selectedRoomId]))
-                ? [$selectedRoomId => $allRooms[$selectedRoomId]]
-                : [];
-        } else {
-            $targetRooms = $allRooms;
-        }
-
-        // 部屋ごとのユーザーリスト
-        $roomUsers = [];
-        foreach (array_keys($targetRooms) as $roomId) {
-            $roomId = (int)$roomId;
-            $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
-
-            if ($viewMode === 'individual') {
-                $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
-            }
-
-            $roomUsers[$roomId] = $users;
-        }
-
-        // グリッドデータ構築
-        $gridData      = $gridService->buildGrid(
-            $this->TIndividualReservationInfo,
-            $targetRooms,
-            $roomUsers,
-            $dates
-        );
-        $monthlyTotals  = $gridService->buildMonthlyTotals($gridData);
-        $dateCategories = $gridService->buildDateCategories($dates);
-
-        // 個人モード用の氏名リスト（管理者は全アクティブユーザー、一般ユーザーは自分のみ）
-        $nameList = [];
-        if ($viewMode === 'individual') {
-            if ($canViewAll) {
-                $activeUsers = $this->MUserInfo->find()
-                    ->select(['i_id_user', 'c_user_name'])
-                    ->where(['i_del_flag' => 0])
-                    ->orderAsc('c_user_name')
-                    ->enableHydration(false)
-                    ->all();
-                foreach ($activeUsers as $u) {
-                    $nameList[(int)$u['i_id_user']] = (string)$u['c_user_name'];
-                }
-            } else {
-                $nameList[$loginUserId] = $loginName;
-            }
-        }
-
-        $this->set([
-            'allRooms'       => $allRooms,
-            'selectedRoomId' => $selectedRoomId,
-            'nameList'       => $nameList,
-            'selectedUserId' => $selectedUserId,
-            'viewMode'       => $viewMode,
-            'gridData'       => $gridData,
-            'monthlyTotals'  => $monthlyTotals,
-            'dateCategories' => $dateCategories,
-            'weekMondayStr'  => $weekMondayStr,
-            'periodLabel'    => $periodLabel,
-            'prevMonday'     => $weekNav['prevMonday'],
-            'nextMonday'     => $weekNav['nextMonday'],
-            'canGoPrev'      => $weekNav['canGoPrev'],
-            'canGoNext'      => $weekNav['canGoNext'],
-            'isAdmin'        => $isAdmin,
-            'canViewAll'     => $canViewAll,
-            'loginUserId'    => $loginUserId,
-            'loginName'      => $loginName,
-        ]);
-
-        $this->viewBuilder()->setLayout('default');
-
-        return null;
-    }
-
 }
