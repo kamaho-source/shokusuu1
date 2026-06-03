@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller;
 
 use App\Controller\MUserInfoController;
+use Cake\Core\Configure;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -24,6 +25,12 @@ class MUserInfoControllerTest extends TestCase
     protected array $fixtures = [
         'app.MUserInfo',
     ];
+
+    public function setUp(): void
+    {
+        parent::setUp();
+        Configure::write('debug', true);
+    }
 
     /**
      * Test index method
@@ -61,6 +68,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/add', [
             'c_login_account' => 'test_login_2',
             'c_login_passwd' => 'password123',
@@ -100,6 +108,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/delete/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
@@ -109,6 +118,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession(true);
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
@@ -121,6 +131,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession(false);
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);

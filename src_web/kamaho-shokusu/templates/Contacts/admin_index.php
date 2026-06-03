@@ -1,6 +1,11 @@
 <?php
 /** @var \App\View\AppView $this */
 $this->assign('title', 'お問い合わせ一覧（管理者）');
+$_dow = ['日', '月', '火', '水', '木', '金', '土'];
+$fmtDt = static function (?\DateTimeInterface $dt) use ($_dow): string {
+    if ($dt === null) return '-';
+    return $dt->format('Y/m/d') . '（' . $_dow[(int)$dt->format('w')] . '）' . $dt->format(' H:i');
+};
 ?>
 
 <div class="d-flex align-items-center justify-content-between mb-3">
@@ -27,7 +32,7 @@ $this->assign('title', 'お問い合わせ一覧（管理者）');
             <tbody>
                 <?php foreach ($contacts as $contact): ?>
                     <tr>
-                        <td class="text-muted small"><?= h($contact->created->format('Y-m-d H:i')) ?></td>
+                        <td class="text-muted small text-nowrap"><?= h($fmtDt($contact->created)) ?></td>
                         <td>
                             <span class="badge bg-secondary"><?= h($contact->category) ?></span>
                         </td>
