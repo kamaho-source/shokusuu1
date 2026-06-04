@@ -86,11 +86,17 @@ echo $this->Html->css('pages/t_reservation_view.css');
             <div class="subtext"><?= h($dateLabel) ?>・<?= h($activeRoomName) ?></div>
 
             <div class="tabs">
-                <?php foreach ($roomsForTabs as $rid => $rname): ?>
-                    <a class="tab <?= ((int)$rid === (int)$activeRoomId) ? 'active' : '' ?>"
-                       href="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'view', $date, '?' => ['room_id' => $rid]]) ?>">
+                <?php
+                $viewFormAction = $this->Url->build('/TReservationInfo/view/' . rawurlencode((string)$date));
+                foreach ($roomsForTabs as $rid => $rname):
+                    $activeClass = ((int)$rid === (int)$activeRoomId) ? 'active' : '';
+                ?>
+                    <?= $this->Form->create(null, ['url' => $viewFormAction, 'method' => 'POST', 'style' => 'display:inline;margin:0']) ?>
+                    <?= $this->Form->hidden('room_id', ['value' => (int)$rid]) ?>
+                    <button type="submit" class="tab <?= $activeClass ?>">
                         <?= h($rname) ?>
-                    </a>
+                    </button>
+                    <?= $this->Form->end() ?>
                 <?php endforeach; ?>
             </div>
 

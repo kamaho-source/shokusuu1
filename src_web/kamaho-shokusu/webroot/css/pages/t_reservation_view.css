@@ -152,10 +152,15 @@ main.container { max-width: 100%; padding: 0; }
 
 .tab {
     padding: 10px 12px;
+    border: none;
     border-bottom: 2px solid transparent;
+    background: none;
+    cursor: pointer;
     text-decoration: none;
     color: #6b7785;
     font-weight: 600;
+    font-size: inherit;
+    font-family: inherit;
 }
 
 .tab.active {
