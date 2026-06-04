@@ -27,7 +27,7 @@ $days = $days ?? [];
         window.__BASE_WEEK = <?= json_encode($baseWeek->format('Y-m-d'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__LOGIN_USER_ID = <?= json_encode($user?->get('i_id_user') ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     </script>
-    <?= $this->Html->css('bootstrap-icons') ?>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?= $this->Html->css('pages/bulk_change_edit_form.pc.css') ?>
 <?= $this->Html->css('pages/bulk_change_edit_form.mobile.css') ?>
 </head>
