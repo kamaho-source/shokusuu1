@@ -86,17 +86,15 @@ echo $this->Html->css('pages/t_reservation_view.css');
             <div class="subtext"><?= h($dateLabel) ?>・<?= h($activeRoomName) ?></div>
 
             <div class="tabs">
-                <?php
-                $viewFormAction = $this->Url->build('/TReservationInfo/view/' . rawurlencode((string)$date));
-                $csrfToken = (string)($this->request->getAttribute('csrfToken') ?? '');
-                foreach ($roomsForTabs as $rid => $rname):
-                    $activeClass = ((int)$rid === (int)$activeRoomId) ? 'active' : '';
-                ?>
-                    <form method="POST" action="<?= h($viewFormAction) ?>" style="display:inline;margin:0">
-                        <input type="hidden" name="_csrfToken" value="<?= h($csrfToken) ?>">
-                        <input type="hidden" name="room_id" value="<?= (int)$rid ?>">
-                        <button type="submit" class="tab <?= $activeClass ?>"><?= h($rname) ?></button>
-                    </form>
+                <?php foreach ($roomsForTabs as $rid => $rname): ?>
+                    <?php
+                    $tabUrl = $this->Url->build('/TReservationInfo/view/' . rawurlencode((string)$date))
+                            . '?room_id=' . (int)$rid;
+                    ?>
+                    <a class="tab <?= ((int)$rid === (int)$activeRoomId) ? 'active' : '' ?>"
+                       href="<?= h($tabUrl) ?>">
+                        <?= h($rname) ?>
+                    </a>
                 <?php endforeach; ?>
             </div>
 

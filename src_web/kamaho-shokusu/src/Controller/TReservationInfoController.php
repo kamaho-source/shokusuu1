@@ -117,7 +117,6 @@ class TReservationInfoController extends AppController
             'copyPreview',
             'actualMealSave',
             'actualMealRequestApproval',
-            'view',
         ]);
     }
 
@@ -305,11 +304,10 @@ class TReservationInfoController extends AppController
         $date = $this->request->getParam('date')
             ?? $this->request->getParam('pass.0')
             ?? $this->request->getQuery('date');
-        $roomIdRaw = $this->request->getData('room_id') ?? $this->request->getQuery('room_id');
         $context = $this->viewService->buildViewContext(
             $this->request->getAttribute('identity'),
             $date,
-            $roomIdRaw !== null ? (int)$roomIdRaw : null,
+            $this->request->getQuery('room_id') !== null ? (int)$this->request->getQuery('room_id') : null,
             $this->MRoomInfo,
             $this->MUserGroup,
             $this->TIndividualReservationInfo,
