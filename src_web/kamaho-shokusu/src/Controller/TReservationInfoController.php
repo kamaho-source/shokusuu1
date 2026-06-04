@@ -117,6 +117,7 @@ class TReservationInfoController extends AppController
             'copyPreview',
             'actualMealSave',
             'actualMealRequestApproval',
+            'view',
         ]);
     }
 
