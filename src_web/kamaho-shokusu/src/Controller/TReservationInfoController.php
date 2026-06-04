@@ -113,11 +113,13 @@ class TReservationInfoController extends AppController
             'changeEdit',
             'bulkChangeEditSubmit',
             'bulkAddSubmit',
+            'bulkChangeEditForm',
             'copy',
             'copyPreview',
             'actualMealSave',
             'actualMealRequestApproval',
             'view',
+            'getReservationSnapshots',
         ]);
     }
 
