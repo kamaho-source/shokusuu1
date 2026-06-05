@@ -372,6 +372,10 @@ class MealCountGridService
         if ($value instanceof \DateTimeInterface) {
             return $value->format('Y-m-d');
         }
+        // Cake\I18n\Date does not implement DateTimeInterface but has format()
+        if (is_object($value) && method_exists($value, 'format')) {
+            return $value->format('Y-m-d');
+        }
         return (string)$value;
     }
 }
