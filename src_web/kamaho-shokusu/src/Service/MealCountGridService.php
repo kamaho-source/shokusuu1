@@ -282,12 +282,6 @@ class MealCountGridService
             $change = $row['i_change_flag'];
             $eat    = $row['eat_flag'];
 
-            $dateObj = new Date($date);
-            if ($dateObj <= $borderDate) {
-                $effective = $change !== null ? (int)$change : (int)($eat ?? 0);
-            } else {
-                $effective = (int)($eat ?? 0);
-            }
             // i_change_flag が設定済み(直前編集あり)ならそれを優先。
             // 未設定(NULL)の場合は eat_flag にフォールバック。
             // 過去日・未来日問わず直前編集を優先することで、

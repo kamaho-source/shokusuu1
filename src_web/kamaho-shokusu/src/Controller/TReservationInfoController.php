@@ -1768,8 +1768,11 @@ class TReservationInfoController extends AppController
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
         $canViewAll   = $isAdmin || $isOfficeUser;
 
+        // 前回の表示状態をセッションから復元（クエリパラメータが優先）
+        $session = $this->request->getSession();
+
         // 表示モード: 個人 / 各部屋 / 全部
-        $viewMode = $this->request->getQuery('mode') ?? 'individual';
+        $viewMode = $this->request->getQuery('mode') ?? $session->read('mealCountGrid.mode') ?? 'individual';
         if (!in_array($viewMode, ['individual', 'room', 'all'], true)) {
             $viewMode = 'individual';
         }
@@ -1792,10 +1795,12 @@ class TReservationInfoController extends AppController
             $allRooms = array_intersect_key($allRooms, array_flip($userRoomIds));
         }
 
-        // 選択中の部屋
-        $selectedRoomId = $this->request->getQuery('room_id')
-            ? (int)$this->request->getQuery('room_id')
-            : (!empty($allRooms) ? (int)array_key_first($allRooms) : null);
+        // 選択中の部屋（クエリ → セッション → デフォルト）
+        $roomIdQuery = $this->request->getQuery('room_id');
+        $sessionRoomId = $session->read('mealCountGrid.roomId');
+        $selectedRoomId = $roomIdQuery
+            ? (int)$roomIdQuery
+            : ($sessionRoomId !== null ? (int)$sessionRoomId : (!empty($allRooms) ? (int)array_key_first($allRooms) : null));
         if ($selectedRoomId !== null && !isset($allRooms[$selectedRoomId])) {
             $selectedRoomId = !empty($allRooms) ? (int)array_key_first($allRooms) : null;
         }
@@ -1803,20 +1808,18 @@ class TReservationInfoController extends AppController
         $gridService = new \App\Service\MealCountGridService();
         $today       = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
 
-        // 4週間ナビゲーション（4週単位で移動）
-        $weekNav       = $gridService->resolveWeekNavigation(
-            $this->request->getQuery('week'),
-            $isAdmin,
-            $today
-        );
+        // 4週間ナビゲーション（クエリ → セッション → デフォルト）
+        $weekParam     = $this->request->getQuery('week') ?? $session->read('mealCountGrid.week');
+        $weekNav       = $gridService->resolveWeekNavigation($weekParam, $isAdmin, $today);
         $weekMondayStr = $weekNav['weekMondayStr'];
         $dates         = $gridService->buildDateRange($weekMondayStr, 28); // 4週間=28日
         $periodLabel   = $gridService->buildPeriodLabel($dates);
 
         // 表示対象ユーザーを先に確定（individual モードの部屋自動決定に使う）
-        $selectedUserId = $this->request->getQuery('user_id')
-            ? (int)$this->request->getQuery('user_id')
-            : $loginUserId;
+        $userIdQuery = $this->request->getQuery('user_id');
+        $selectedUserId = $userIdQuery
+            ? (int)$userIdQuery
+            : ($canViewAll ? (int)($session->read('mealCountGrid.userId') ?? $loginUserId) : $loginUserId);
         if (!$canViewAll) {
             $selectedUserId = $loginUserId;
         }
@@ -1873,6 +1876,14 @@ class TReservationInfoController extends AppController
             } else {
                 $nameList[$loginUserId] = $loginName;
             }
+        }
+
+        // 表示状態をセッションに保存（次回アクセス時のデフォルト値として使用）
+        $session->write('mealCountGrid.week', $weekMondayStr);
+        $session->write('mealCountGrid.mode', $viewMode);
+        $session->write('mealCountGrid.roomId', $selectedRoomId);
+        if ($canViewAll) {
+            $session->write('mealCountGrid.userId', $selectedUserId);
         }
 
         $this->set([
