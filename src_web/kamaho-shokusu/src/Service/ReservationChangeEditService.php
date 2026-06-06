@@ -17,6 +17,11 @@ class ReservationChangeEditService
         $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
     }
 
+    public function userHasRoomAccess(int $userId): bool
+    {
+        return $this->roomAccessService->hasAnyAffiliation($userId);
+    }
+
     public function getAllowedRooms($loginUser, ?int $roomId, Table $userGroupTable, Table $roomTable): array
     {
         $loginUid = (int)($loginUser?->get('i_id_user') ?? 0);
@@ -93,7 +98,6 @@ class ReservationChangeEditService
                 'MUserInfo.i_del_flag'   => 0,
             ])
             ->enableHydration(false)->all()->extract('i_id_user')->toList();
-        // 職員IDが未付与（null）のレコードを除外して予期しない動作を防ぐ
         $baseUserIds = array_values(array_filter($baseUserIds, fn($id) => $id !== null && $id > 0));
         if (empty($baseUserIds)) {
             $baseUserIds = [-1];
@@ -141,13 +145,13 @@ class ReservationChangeEditService
         ];
     }
 
-    public function buildUsersForJson(array $users, $loginUser): array
+    public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false): array
     {
-        // 管理者（i_admin=1）または職員（i_user_level=0）は全ユーザーを編集できる
-        $canEditAll = $loginUser && (
+        // 管理者・職員・所属グループユーザーは部屋内の全ユーザーを編集できる
+        $canEditAll = $isRoomManager || ($loginUser && (
             (int)($loginUser->get('i_admin')      ?? 0) === 1 ||
             (int)($loginUser->get('i_user_level') ?? -1) === 0
-        );
+        ));
         $loginUid = $loginUser?->get('i_id_user');
 
         $usersForJson = [];
@@ -173,7 +177,8 @@ class ReservationChangeEditService
         int $roomId,
         $loginUser,
         Table $reservationTable,
-        Table $userTable
+        Table $userTable,
+        bool $isRoomManager = false
     ): array {
         $connection = $reservationTable->getConnection();
         $connection->begin();
@@ -185,10 +190,10 @@ class ReservationChangeEditService
         try {
             // ログインユーザーの編集権限を確定する（buildUsersForJson と同一ロジック）
             $loginUid    = $loginUser ? (int)$loginUser->get('i_id_user') : 0;
-            $canEditAll  = $loginUser && (
+            $canEditAll  = $isRoomManager || ($loginUser && (
                 (int)($loginUser->get('i_admin')      ?? 0) === 1 ||
                 (int)($loginUser->get('i_user_level') ?? -1) === 0
-            );
+            ));
 
             $allowedMap = array_fill_keys(array_map('intval', $userIdList), true);
             $targetUserIds = [];

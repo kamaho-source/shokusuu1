@@ -92,9 +92,12 @@ $pastDateUnavailableMessage = (string)Configure::read(
 <div class="modal fade" id="quickDayModal" tabindex="-1" aria-labelledby="quickDayModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-xxl">
         <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title" id="quickDayModalLabel">食数予約の追加 <small class="fw-normal">(対象日: <span id="qd-picked-date"></span>)</small></h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            <div class="modal-header bg-info text-white" id="qd-modal-header">
+                <h5 class="modal-title" id="quickDayModalLabel">
+                    <i class="bi bi-calendar-plus me-1" id="qd-modal-icon" aria-hidden="true"></i><span id="qd-modal-title-text">食数予約の追加</span>
+                    <small class="fw-normal ms-1">(対象日: <span id="qd-picked-date"></span>)</small>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" id="qd-modal-close-btn" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <div class="modal-body">
                 <div class="alert alert-warning py-2 px-3 small mb-3" role="alert">
