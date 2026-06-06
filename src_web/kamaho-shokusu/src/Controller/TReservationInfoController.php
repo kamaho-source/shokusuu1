@@ -1839,6 +1839,8 @@ class TReservationInfoController extends AppController
         $loginUserId  = (int)$authUser->get('i_id_user');
         $loginName    = (string)($authUser->get('c_user_name') ?? '');
         $isAdmin      = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $loginStaffId = $authUser->get('i_id_staff');
+        $hasStaffId   = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
         $canViewAll   = $isAdmin || $isOfficeUser;
 
@@ -1918,7 +1920,15 @@ class TReservationInfoController extends AppController
             $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
 
             if ($viewMode === 'individual') {
-                $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
+                if ($hasStaffId) {
+                    // 職員IDを持つ場合: 自分 + 同部屋の子供ユーザー(i_user_level=1)を表示
+                    $users = array_values(array_filter(
+                        $users,
+                        fn($u) => (int)$u['id'] === $loginUserId || (int)($u['i_user_level'] ?? 0) === 1
+                    ));
+                } else {
+                    $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
+                }
             }
 
             $roomUsers[$roomId] = $users;
@@ -1977,6 +1987,7 @@ class TReservationInfoController extends AppController
             'canGoNext'      => $weekNav['canGoNext'],
             'isAdmin'        => $isAdmin,
             'canViewAll'     => $canViewAll,
+            'hasStaffId'     => $hasStaffId,
             'loginUserId'    => $loginUserId,
             'loginName'      => $loginName,
         ]);
