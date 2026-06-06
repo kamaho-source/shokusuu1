@@ -41,15 +41,15 @@ class MRoomInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 1;
+            return in_array((int)$identity->get('i_admin'), [1, 3]);
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
         }
 
         return false;

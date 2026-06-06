@@ -11,7 +11,7 @@ $this->Html->css(['bootstrap.min']);
     <aside class="col-md-3">
         <div class="list-group">
             <h4 class="list-group-item-heading"><?= __('アクション') ?></h4>
-            <?php if ($user->get('i_admin') === 1): ?>
+            <?php if (in_array((int)$user->get('i_admin'), [1, 3])): ?>
             <?= $this->Html->link(__('部屋情報を編集'), ['action' => 'edit', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>
             <!-- 部屋情報を削除はadmin権限のみ表示 -->
             <?= $this->Html->link(__('部屋情報を削除'), ['action' => 'delete', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>

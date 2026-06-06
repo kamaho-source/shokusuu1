@@ -17,10 +17,12 @@ class UserEditService
      * @param array  $data      リクエストデータ
      * @param int[]  $roomIds   新しく所属させる部屋IDの配列
      * @param string $updatedBy 操作者ユーザー名
+     * @param int    $actorId   操作者ユーザーID
+     * @param string $ipAddress 操作元IPアドレス
      * @return bool
      * @throws \Exception
      */
-    public function updateWithRooms(mixed $entity, array $data, array $roomIds, string $updatedBy): bool
+    public function updateWithRooms(mixed $entity, array $data, array $roomIds, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -54,9 +56,35 @@ class UserEditService
             }
 
             $conn->commit();
+
+            AuditLogService::record(
+                'user',
+                'user_update',
+                $updatedBy,
+                $actorId,
+                'm_user_info',
+                (string)$userId,
+                ['user_name' => $entity->c_user_name],
+                $ipAddress ?: null,
+                1
+            );
+
             return true;
         } catch (\Exception $e) {
             $conn->rollback();
+
+            AuditLogService::record(
+                'user',
+                'user_update',
+                $updatedBy,
+                $actorId,
+                'm_user_info',
+                (string)$userId,
+                ['error' => $e->getMessage()],
+                $ipAddress ?: null,
+                0
+            );
+
             throw $e;
         }
     }

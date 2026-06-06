@@ -83,7 +83,7 @@ if (!empty($dates)) {
     <small class="text-muted ms-2">※ i_id_staff を保持する職員ユーザーのみ対象です。</small>
 </div>
 
-<div class="container-fluid py-3">
+<div class="py-3">
 
     <?php /* ---- 部屋選択 ---- */ ?>
     <div class="card mb-3">

@@ -93,7 +93,7 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                             <select id="c_reservation_type" name="reservation_type" class="form-select">
                                 <option value="" selected disabled>-- 予約タイプを選択 --</option>
                                 <option value="1">個人</option>
-                                <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
+                                <?php if (in_array((int)$user->get('i_admin'), [1, 3]) || $user->get('i_user_level') == 0): ?>
                                     <option value="2">集団</option>
                                 <?php endif; ?>
                             </select>
@@ -140,7 +140,7 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                             </div>
                         </div>
 
-                        <?php if ($user->get('i_admin') === 1 || $user->get('i_user_level') == 0): ?>
+                        <?php if (in_array((int)$user->get('i_admin'), [1, 3]) || $user->get('i_user_level') == 0): ?>
                             <!-- 集団：部屋選択 -->
                             <div class="mb-3 d-none" id="room-select-group">
                                 <?= $this->Form->label('room-select', '部屋を選択', ['class' => 'form-label']) ?>

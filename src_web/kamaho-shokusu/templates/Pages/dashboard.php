@@ -32,6 +32,7 @@ $isLoggedIn = (bool)$user;
 $roleFlags = $dashboard['roleFlags'] ?? ['isAdmin' => false, 'isBlockLeader' => false];
 $isAdmin = (bool)($roleFlags['isAdmin'] ?? false);
 $isBlockLeader = (bool)($roleFlags['isBlockLeader'] ?? false);
+$isSysAdmin = $user && (int)($user->get('i_admin') ?? 0) === 3;
 $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
 // DashboardService から渡されたダッシュボード用データを展開する
@@ -236,6 +237,17 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-icon" style="background:#f0f4ff;color:#3b5bdb;">🔄</div>
                         <div class="menu-title-text">部屋異動予約</div>
                         <div class="menu-desc">将来日付での部屋移動を事前登録する</div>
+                    </a>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($isSysAdmin): ?>
+                <div class="section-title">システム管理</div>
+                <div class="card-grid">
+                    <a class="menu-card" href="<?= $this->Url->build('/AuditLog') ?>">
+                        <div class="menu-icon" style="background:#1a1a2e;color:#ffd700;">🔒</div>
+                        <div class="menu-title-text">監査ログ</div>
+                        <div class="menu-desc">全操作履歴を検索・CSVエクスポート</div>
                     </a>
                 </div>
             <?php endif; ?>
