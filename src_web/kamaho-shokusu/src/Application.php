@@ -93,7 +93,14 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         ]);
 
         // 認証器の設定（セッション → フォーム）
-        $authenticationService->loadAuthenticator('Authentication.Session');
+        // identify: true でリクエストごとにDBから最新ユーザー情報を再取得する。
+        // これによりDBでロール(i_admin)を変更した場合に再ログイン不要で即時反映される。
+        $authenticationService->loadAuthenticator('Authentication.Session', [
+            'identify' => true,
+            'fields'   => [
+                AbstractIdentifier::CREDENTIAL_USERNAME => 'c_login_account',
+            ],
+        ]);
         $authenticationService->loadAuthenticator('Authentication.Form', [
             'fields'   => [
                 'username' => 'c_login_account',
