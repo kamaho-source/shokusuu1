@@ -51,7 +51,6 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
 ?>
 
 <?= $this->Html->css('pages/home.pc.css') ?>
-<?= $this->Html->css('pages/home.mobile.css') ?>
 <?= $this->Html->css('pages/home_choice_modal.css') ?>
 
 <?php if (!$isLoggedIn): ?>
