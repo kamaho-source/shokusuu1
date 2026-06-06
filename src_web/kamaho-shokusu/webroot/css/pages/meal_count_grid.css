@@ -1,0 +1,736 @@
+/* ===== 食数予約 Excel グリッド ===== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+    margin: 0; padding: 0;
+    height: 100%;
+    font-family: 'Yu Gothic UI', 'Meiryo UI', 'Segoe UI', sans-serif;
+    font-size: 13px;
+    background: #d4d0c8;
+    color: #000;
+}
+
+/* =====================================================================
+ * Excel ライクなウィンドウ枠
+ * ===================================================================== */
+
+.excel-window {
+    position: fixed;
+    top: var(--mcg-nav-h, 66px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    background: #f0f0f0;
+    z-index: 10;
+}
+
+/* =====================================================================
+ * ツールバー（フィルター + 期間ナビ）
+ * ===================================================================== */
+
+.mcg-toolbar {
+    background: #f8f8f8;
+    border-bottom: 1px solid #d0d0d0;
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.mcg-toolbar-user-name {
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.mcg-toolbar-label {
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+}
+
+.mcg-toolbar select {
+    font-size: 12px;
+    border: 1px solid #c0c0c0;
+    border-radius: 2px;
+    padding: 2px 20px 2px 6px;
+    background: #fff;
+    min-width: 100px;
+    height: 26px;
+    appearance: auto;
+}
+
+.mcg-toolbar-sep {
+    width: 1px;
+    height: 22px;
+    background: #c0c0c0;
+    flex-shrink: 0;
+}
+
+/* 凡例 */
+.mcg-legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.mcg-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #555;
+    white-space: nowrap;
+}
+.mcg-legend-item::before {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+.mcg-legend-last-minute::before { background: #fff8f0; border: 1px solid #fb8c00; }
+.mcg-legend-past::before        { background: #ebebeb; border: 1px solid #bbb; }
+
+/* ヘッダーセル（直前ウィンドウ）のホバーツールチップ */
+.mcg-grid thead th[data-tooltip] {
+    cursor: help;
+}
+
+/* JS で body に append するツールチップ要素 */
+.mcg-tooltip {
+    position: fixed;
+    background: #333;
+    color: #fff;
+    font-size: 11px;
+    line-height: 1.7;
+    white-space: pre;
+    padding: 6px 10px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 99999;
+    box-shadow: 0 2px 6px rgba(0,0,0,.35);
+    transition: opacity 0.12s;
+}
+
+/* 部屋ボタングループ */
+.mcg-room-btngroup {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.mcg-room-btn {
+    background: #fff;
+    border: 1px solid #b0b0b0;
+    border-radius: 2px;
+    font-size: 12px;
+    padding: 2px 10px;
+    cursor: pointer;
+    height: 26px;
+    white-space: nowrap;
+    color: #333;
+    transition: background 0.1s, border-color 0.1s;
+    line-height: 1;
+}
+
+.mcg-room-btn:hover:not(:disabled) { background: #e8e8e8; }
+
+.mcg-room-btn.active {
+    background: #217346;
+    color: #fff;
+    border-color: #1a5c38;
+    font-weight: 600;
+}
+
+.mcg-room-btn:disabled {
+    color: #aaa;
+    cursor: default;
+    background: #f5f5f5;
+    border-color: #d5d5d5;
+}
+
+.mcg-period-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.mcg-period-label-text {
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+}
+
+.mcg-nav-btn {
+    background: #fff;
+    border: 1px solid #b0b0b0;
+    border-radius: 2px;
+    font-size: 12px;
+    padding: 2px 10px;
+    cursor: pointer;
+    height: 26px;
+    white-space: nowrap;
+    color: #333;
+    transition: background 0.1s;
+}
+
+.mcg-nav-btn:hover { background: #e8e8e8; }
+.mcg-nav-btn:disabled { color: #aaa; cursor: default; background: #f5f5f5; }
+.mcg-nav-btn.today { background: #217346; color: #fff; border-color: #1a5c38; }
+.mcg-nav-btn.today:hover { background: #1a5c38; }
+
+/* =====================================================================
+ * メインコンテンツエリア
+ * ===================================================================== */
+
+.excel-content {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.excel-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* =====================================================================
+ * グリッドテーブル
+ * ===================================================================== */
+
+:root {
+    --col-row-w:  32px;
+    --col-room-w: 72px;
+    --col-name-w: 60px;
+    --cell-w:     24px;
+    --header-h:   40px;
+    --row-h:      22px;
+}
+
+.mcg-grid-wrap {
+    overflow-x: auto;
+    overflow-y: auto;
+    flex-shrink: 0;
+    background: #fff;
+    border-bottom: 1px solid #c0c0c0;
+}
+
+.mcg-grid {
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+    width: max-content;
+    min-width: 100%;
+}
+
+/* ── 固定左列 ── */
+.mcg-grid .col-row {
+    width: var(--col-row-w);
+    min-width: var(--col-row-w);
+    position: sticky; left: 0; z-index: 3;
+    background: #d8e4bc;
+}
+
+.mcg-grid .col-room {
+    width: var(--col-room-w);
+    min-width: var(--col-room-w);
+    position: sticky; left: var(--col-row-w); z-index: 3;
+    background: #d8e4bc;
+}
+
+.mcg-grid .col-name {
+    width: var(--col-name-w);
+    min-width: var(--col-name-w);
+    position: sticky;
+    left: calc(var(--col-row-w) + var(--col-room-w));
+    z-index: 3;
+    background: #d8e4bc;
+    border-right: 2px solid #7f7f7f !important;
+}
+
+/* ── ヘッダー全体 ── */
+.mcg-grid thead th {
+    position: sticky; top: 0; z-index: 2;
+}
+
+.mcg-grid thead th.col-row,
+.mcg-grid thead th.col-room,
+.mcg-grid thead th.col-name {
+    z-index: 4;
+}
+
+/* ── 日付ヘッダー行 ── */
+.mcg-grid thead tr.header-dates th {
+    background: #d8e4bc;
+    text-align: center;
+    padding: 4px 1px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #000;
+    border: 1px solid #aaa;
+    white-space: nowrap;
+    height: var(--header-h);
+    vertical-align: bottom;
+    line-height: 1.3;
+}
+
+.mcg-grid thead tr.header-dates th.date-group {
+    border-left: 2px solid #7f7f7f;
+}
+
+/* 今日 */
+.mcg-grid thead tr.header-dates th.is-today { background: #ffc000; color: #000; }
+/* 土曜 */
+.mcg-grid thead tr.header-dates th.is-saturday { background: #dce6f1; color: #0070c0; }
+/* 日曜 */
+.mcg-grid thead tr.header-dates th.is-sunday { background: #fde8e8; color: #c00000; }
+/* 祝日（日曜と同色） */
+.mcg-grid thead tr.header-dates th.is-holiday { background: #fde8e8; color: #c00000; }
+
+/* ── 食事種別ヘッダー行 ── */
+.mcg-grid thead tr.header-meals th {
+    background: #d8e4bc;
+    text-align: center;
+    padding: 1px 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: #333;
+    border: 1px solid #aaa;
+    width: var(--cell-w);
+    height: 18px;
+    top: var(--header-h);
+}
+
+.mcg-grid thead tr.header-meals th.meal-first {
+    border-left: 2px solid #7f7f7f;
+}
+
+.mcg-grid thead tr.header-meals th.is-today    { background: #fce4d6; }
+.mcg-grid thead tr.header-meals th.is-saturday { background: #dce6f1; }
+.mcg-grid thead tr.header-meals th.is-sunday   { background: #fde8e8; }
+.mcg-grid thead tr.header-meals th.is-holiday  { background: #fde8e8; }
+
+/* ── データ行 ── */
+.mcg-grid tbody tr { height: var(--row-h); }
+
+.mcg-grid tbody td {
+    padding: 0;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #d9d9d9;
+    height: var(--row-h);
+    font-size: 12px;
+}
+
+.mcg-grid tbody td.col-row {
+    background: #d8e4bc;
+    font-size: 11px;
+    color: #555;
+    border-color: #aaa;
+}
+
+.mcg-grid tbody td.col-room {
+    background: #fff;
+    text-align: left;
+    padding: 0 4px;
+    font-size: 11px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-color: #aaa;
+}
+
+.mcg-grid tbody td.col-name {
+    background: #fff;
+    text-align: left;
+    padding: 0 4px;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-color: #aaa;
+}
+
+/* 食事セル */
+.mcg-grid tbody td.cell-meal {
+    width: var(--cell-w);
+    cursor: pointer;
+    user-select: none;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    color: #000;
+}
+
+.mcg-grid tbody td.cell-meal:hover { background: #b8d0a8 !important; }
+
+.mcg-grid tbody td.meal-first { border-left: 2px solid #7f7f7f; }
+
+/* 今日列 */
+.mcg-grid tbody td.is-today { background: #fce4d6; }
+.mcg-grid tbody td.is-today.cell-meal:hover { background: #f4b183 !important; }
+
+/* 土曜列 */
+.mcg-grid tbody td.is-saturday { background: #dce6f1; }
+.mcg-grid tbody td.is-saturday.cell-meal:hover { background: #9dc3e6 !important; }
+
+/* 日曜列 */
+.mcg-grid tbody td.is-sunday { background: #fde8e8; }
+.mcg-grid tbody td.is-sunday.cell-meal:hover { background: #f4a0a0 !important; }
+
+/* 祝日（日曜と同色） */
+.mcg-grid tbody td.is-holiday { background: #fde8e8; }
+.mcg-grid tbody td.is-holiday.cell-meal:hover { background: #f4a0a0 !important; }
+
+/* 過去日: グレー・クリック不可 */
+.mcg-grid tbody td.cell-meal.is-past {
+    background: #ebebeb !important;
+    color: #bbb;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+/* 過去日ヘッダー: ツールチップ用カーソル */
+.mcg-grid thead th.is-past-header {
+    cursor: help;
+}
+
+/* 直前ウィンドウ（当日〜+14日）: 薄いオレンジティント */
+.mcg-grid tbody td.cell-meal.is-last-minute {
+    background: #fff8f0;
+}
+.mcg-grid tbody td.cell-meal.is-last-minute:hover {
+    background: #ffd8a8 !important;
+}
+.mcg-grid tbody td.cell-meal.is-last-minute[data-reserved="1"] {
+    background: #ffe0b2;
+}
+.mcg-grid tbody td.cell-meal.is-last-minute.mcg-pending-on {
+    background: #fb8c00 !important;
+    color: #fff;
+}
+
+/* ヘッダー: 直前ウィンドウのオレンジ下線 */
+.mcg-grid thead tr.header-dates th.is-last-minute {
+    border-bottom: 3px solid #fb8c00;
+}
+.mcg-grid thead tr.header-meals th.is-last-minute {
+    border-bottom: 3px solid #fb8c00;
+}
+
+/* 日計行 */
+.mcg-grid tr.row-daily-total td {
+    background: #d8e4bc;
+    color: #000;
+    font-size: 11px;
+    font-weight: 700;
+    border-color: #aaa;
+    border-top: 2px solid #7f7f7f;
+}
+
+.mcg-grid tr.row-daily-total td.col-row,
+.mcg-grid tr.row-daily-total td.col-room,
+.mcg-grid tr.row-daily-total td.col-name {
+    text-align: left;
+    padding-left: 4px;
+}
+
+/* セル選択状態 */
+.mcg-grid tbody td.mcg-selected {
+    outline: 2px solid #217346;
+    outline-offset: -2px;
+    z-index: 1;
+    position: relative;
+}
+
+/* =====================================================================
+ * 月計サマリーパネル
+ * ===================================================================== */
+
+.mcg-summary {
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid #c0c0c0;
+    margin: 10px;
+    border-radius: 2px;
+    box-shadow: 1px 1px 4px rgba(0,0,0,.08);
+    display: inline-flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 280px;
+    max-width: 460px;
+}
+
+.mcg-summary-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #375623;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 4px;
+}
+
+.mcg-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 20px;
+}
+
+.mcg-summary-label {
+    font-size: 12px;
+    color: #333;
+    width: 28px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.mcg-summary-bar-wrap {
+    flex: 1;
+    background: #e0e0e0;
+    height: 14px;
+    border-radius: 1px;
+    overflow: hidden;
+}
+
+.mcg-summary-bar {
+    height: 100%;
+    background: #375623;
+    transition: width 0.3s ease;
+    min-width: 0;
+}
+
+.mcg-summary-val {
+    font-size: 12px;
+    font-weight: 700;
+    color: #000;
+    min-width: 24px;
+    text-align: right;
+}
+
+/* =====================================================================
+ * ステータスバー
+ * ===================================================================== */
+
+.excel-statusbar {
+    background: #217346;
+    color: rgba(255,255,255,.9);
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    padding: 2px 10px;
+    justify-content: space-between;
+    flex-shrink: 0;
+    min-height: 22px;
+}
+
+/* =====================================================================
+ * シートタブ
+ * ===================================================================== */
+
+.excel-sheettabs {
+    background: #d4d0c8;
+    border-top: 1px solid #7f7f7f;
+    display: flex;
+    align-items: flex-end;
+    padding: 0 4px;
+    gap: 2px;
+    flex-shrink: 0;
+    min-height: 24px;
+}
+
+.excel-sheettab {
+    background: #c8c4bc;
+    border: 1px solid #7f7f7f;
+    border-bottom: none;
+    border-radius: 3px 3px 0 0;
+    font-size: 11px;
+    padding: 3px 14px;
+    cursor: pointer;
+    color: #333;
+    text-decoration: none;
+    display: inline-block;
+    transition: background 0.1s;
+    white-space: nowrap;
+}
+
+.excel-sheettab:hover { background: #e0dcd4; color: #000; }
+.excel-sheettab.active {
+    background: #fff;
+    color: #000;
+    font-weight: 600;
+    border-bottom: 1px solid #fff;
+    z-index: 1;
+    position: relative;
+}
+
+.excel-sheettab-add {
+    background: none;
+    border: none;
+    font-size: 15px;
+    color: #555;
+    cursor: pointer;
+    padding: 0 6px;
+    align-self: center;
+}
+
+/* =====================================================================
+ * 登録ボタン
+ * ===================================================================== */
+
+#mcg-register-btn {
+    background: #bdbdbd;
+    color: #fff;
+    border: none;
+    border-radius: 2px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 14px;
+    height: 28px;
+    cursor: not-allowed;
+    white-space: nowrap;
+    transition: background 0.15s;
+    letter-spacing: 0.03em;
+}
+
+#mcg-register-btn.has-changes {
+    background: #217346;
+    cursor: pointer;
+    animation: mcg-btn-pulse 1.8s ease-in-out infinite;
+}
+
+#mcg-register-btn.has-changes:hover { background: #1a5c38; animation: none; }
+
+@keyframes mcg-btn-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(33,115,70,.5); }
+    50%       { box-shadow: 0 0 0 5px rgba(33,115,70,0); }
+}
+
+/* =====================================================================
+ * Pending セル（未保存変更）
+ * ===================================================================== */
+
+/* pending ON: 緑 ● */
+.mcg-grid tbody td.mcg-pending-on {
+    background: #c6efce !important;
+    color: #375623 !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    cursor: pointer;
+}
+
+/* pending OFF: 赤 × */
+.mcg-grid tbody td.mcg-pending-off {
+    background: #ffc7ce !important;
+    color: #9c0006 !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+    cursor: pointer;
+}
+
+/* =====================================================================
+ * 排他制御: 他部屋で予約済みセル
+ * ===================================================================== */
+
+.mcg-grid tbody td.mcg-cell-conflict {
+    background: repeating-linear-gradient(
+        45deg,
+        #e4e4e4,
+        #e4e4e4 4px,
+        #d0d0d0 4px,
+        #d0d0d0 8px
+    ) !important;
+    cursor: not-allowed !important;
+    color: transparent !important;
+    pointer-events: auto !important; /* hover 検知のため維持 */
+    position: relative;
+}
+
+/* コンフリクトツールチップ（JS で生成・配置） */
+.mcg-conflict-tip {
+    position: fixed;
+    z-index: 9999;
+    background: #c00000;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 3px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    display: none;
+}
+
+/* =====================================================================
+ * セルフラッシュアニメーション
+ * ===================================================================== */
+
+@keyframes mcg-flash-on {
+    0%   { background-color: inherit; }
+    25%  { background-color: #92d050; }
+    100% { background-color: inherit; }
+}
+
+@keyframes mcg-flash-off {
+    0%   { background-color: inherit; }
+    25%  { background-color: #ff7f7f; }
+    100% { background-color: inherit; }
+}
+
+.mcg-cell-flash-on  { animation: mcg-flash-on  0.5s ease; }
+.mcg-cell-flash-off { animation: mcg-flash-off 0.5s ease; }
+
+/* =====================================================================
+ * Toast
+ * ===================================================================== */
+
+.mcg-toast-wrap {
+    position: fixed;
+    bottom: 28px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.mcg-toast {
+    padding: 8px 14px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    pointer-events: auto;
+    max-width: 300px;
+    word-break: break-word;
+    animation: mcg-toast-in 0.15s ease;
+    transition: opacity 0.25s, transform 0.25s;
+}
+
+.mcg-toast--hiding { opacity: 0; transform: translateY(6px); }
+.mcg-toast--error   { background: #c00000; }
+.mcg-toast--success { background: #375623; }
+.mcg-toast--info    { background: #2f75b6; }
+
+@keyframes mcg-toast-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
