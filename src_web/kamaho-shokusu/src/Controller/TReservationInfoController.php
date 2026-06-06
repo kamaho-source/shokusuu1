@@ -650,7 +650,7 @@ class TReservationInfoController extends AppController
                 't_reservation_info',
                 $data['d_reservation_date'] ?? null,
                 ['date' => $data['d_reservation_date'] ?? null],
-                (string)$this->request->clientIp(),
+                $this->getClientIp(),
                 ($result['ok'] ?? false) ? 1 : 0
             );
 
@@ -1341,7 +1341,7 @@ class TReservationInfoController extends AppController
             't_reservation_info',
             "room:{$roomId}",
             ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null],
-            (string)$this->request->clientIp(),
+            $this->getClientIp(),
             $ok ? 1 : 0
         );
         $message = (string)($body['message'] ?? '');
@@ -1838,7 +1838,7 @@ class TReservationInfoController extends AppController
 
         $loginUserId  = (int)$authUser->get('i_id_user');
         $loginName    = (string)($authUser->get('c_user_name') ?? '');
-        $isAdmin      = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isAdmin      = in_array((int)($authUser->get('i_admin') ?? 0), [1, 3]);
         $loginStaffId = $authUser->get('i_id_staff');
         $hasStaffId   = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);

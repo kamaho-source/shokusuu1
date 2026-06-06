@@ -199,12 +199,12 @@ class PagesController extends AppController
             $isAdmin = in_array((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0), [1, 3]);
             $isBlockLeader = (int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0) === 2;
 
-            // 当日の食数報告が完了しているかを DB + キャッシュで判定する
-            // 所属部屋のいずれかに本日の予約が存在すれば「報告済み」と判定する
+            // ログインユーザー自身の本日の予約レコード有無で申告済みを判定する
+            // 「食べる」「食べない」どちらの申告でもレコードが作成されるため、
+            // レコードが存在しない場合のみアラートを表示する
             $hasTodayReport = $dashboardService->hasTodayReport(
                 $userId,
-                $this->fetchTable('TIndividualReservationInfo'),
-                $this->fetchTable('MUserGroup')
+                $this->fetchTable('TIndividualReservationInfo')
             );
 
             // ダッシュボード画面の日付データ・週データを組み立てる
