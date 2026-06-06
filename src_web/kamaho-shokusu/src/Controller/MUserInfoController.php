@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
 use App\Service\UserBulkImportService;
 use App\Service\UserCreateService;
@@ -126,8 +127,8 @@ class MUserInfoController extends AppController
         }
 
         $user          = $this->request->getAttribute('identity');
-        $isAdmin       = in_array((int)$user->i_admin, [1, 3]);
-        $isSystemAdmin = (int)$user->i_admin === 3;
+        $isAdmin       = UserRole::isAdmin((int)$user->i_admin);
+        $isSystemAdmin = UserRole::isSystemAdmin((int)$user->i_admin);
         $currentUserId = $user->i_id_user;
         $showDeleted   = ($isAdmin || $isSystemAdmin) && $this->request->getQuery('show_deleted') === '1';
 
@@ -509,7 +510,7 @@ class MUserInfoController extends AppController
                 1
             );
 
-            if (in_array((int)$user->i_admin, [1, 3])) {
+            if (UserRole::isAdmin((int)$user->i_admin)) {
                 $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
             } elseif ((int)$user->i_user_level === 1) {
                 $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
@@ -495,7 +496,7 @@ class ReservationWriteService
             ->select(['i_admin', 'i_user_level', 'i_id_staff'])
             ->where(['i_id_user' => $loginUserId])
             ->first();
-        $isAdmin    = $loginUser ? ((int)$loginUser->i_admin === 1) : false;
+        $isAdmin    = $loginUser ? UserRole::isAdmin((int)$loginUser->i_admin) : false;
         $loginStaff = $loginUser ? $loginUser->i_id_staff : null;
         $hasStaffId = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
 

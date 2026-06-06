@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Controller\Traits\ReservationBulkActionsTrait;
 use App\Controller\Traits\ReservationCopyActionsTrait;
 use App\Controller\Traits\ReservationReportActionsTrait;
+use App\Domain\ValueObject\UserRole;
 use Authorization\Exception\ForbiddenException;
 use App\Service\BulkReservationFormService;
 use Cake\Http\Exception\NotFoundException;
@@ -146,7 +147,7 @@ class TReservationInfoController extends AppController
         $userRoomId = $this->calendarService->getPrimaryRoomId($userRoomIds);
 
         /* ========== ここから: 部屋セレクト用の $rooms を必ず用意 ========== */
-        $isAdmin = in_array((int)($user->i_admin ?? 0), [1, 3]);
+        $isAdmin = UserRole::isAdmin((int)($user->i_admin ?? 0));
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
         $rooms = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser);
@@ -262,7 +263,7 @@ class TReservationInfoController extends AppController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $isAdmin = in_array((int)($user->i_admin ?? 0), [1, 3]);
+        $isAdmin = UserRole::isAdmin((int)($user->i_admin ?? 0));
         $canViewAllRooms = $isAdmin || $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
 
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
@@ -917,7 +918,7 @@ class TReservationInfoController extends AppController
         // 403 の理由をユーザーにわかりやすく伝えるため、ロール・所属別のメッセージを返す
         $loginUser = $this->request->getAttribute('identity');
         if ($loginUser !== null) {
-            $isAdmin  = in_array((int)($loginUser->get('i_admin') ?? 0), [1, 3]);
+            $isAdmin  = UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
             $isStaff  = (int)($loginUser->get('i_user_level') ?? -1) === 0;
             if (!$isAdmin && !$isStaff) {
                 // 職員・管理者でない場合は所属部屋があるか確認
@@ -1431,8 +1432,8 @@ class TReservationInfoController extends AppController
         }
 
         $userId  = (int)$authUser->get('i_id_user');
-        $isAdmin = in_array((int)($authUser->get('i_admin') ?? 0), [1, 3]);
-        $canProxyActualMeal = $isAdmin || (int)($authUser->get('i_admin') ?? 0) === 2;
+        $isAdmin = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
+        $canProxyActualMeal = $isAdmin || UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
 
@@ -1547,8 +1548,8 @@ class TReservationInfoController extends AppController
         }
 
         $userId  = (int)$authUser->get('i_id_user');
-        $isAdmin = in_array((int)($authUser->get('i_admin') ?? 0), [1, 3]);
-        $isBlockLeader = (int)($authUser->get('i_admin') ?? 0) === 2;
+        $isAdmin = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
+        $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
         $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
         // ユーザーの所属部屋
@@ -1784,8 +1785,8 @@ class TReservationInfoController extends AppController
     private function validateActualMealTarget($authUser, int $targetUid, int $roomId): ?string
     {
         $loginUid  = (int)($authUser?->get('i_id_user') ?? 0);
-        $isAdmin = in_array((int)($authUser?->get('i_admin') ?? 0), [1, 3]);
-        $isBlockLeader = (int)($authUser?->get('i_admin') ?? 0) === 2;
+        $isAdmin = UserRole::isAdmin((int)($authUser?->get('i_admin') ?? 0));
+        $isBlockLeader = UserRole::isBlockLeader((int)($authUser?->get('i_admin') ?? 0));
 
         if ($isAdmin) {
             return null;
@@ -1838,7 +1839,7 @@ class TReservationInfoController extends AppController
 
         $loginUserId  = (int)$authUser->get('i_id_user');
         $loginName    = (string)($authUser->get('c_user_name') ?? '');
-        $isAdmin      = in_array((int)($authUser->get('i_admin') ?? 0), [1, 3]);
+        $isAdmin      = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
         $loginStaffId = $authUser->get('i_id_staff');
         $hasStaffId   = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
