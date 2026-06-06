@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller\Traits;
 
+use App\Domain\ValueObject\UserRole;
+
 trait ReservationBulkActionsTrait
 {
     protected function runGetUsersByRoomForBulk($roomId)
@@ -76,7 +78,7 @@ trait ReservationBulkActionsTrait
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam = $this->request->getQuery('base_week');
         $formData = $bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
-        $canGroup = (in_array((int)$this->request->getAttribute('identity')->get('i_admin'), [1, 3])
+        $canGroup = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
             || (int)$this->request->getAttribute('identity')->get('i_user_level') === 0);
 
         $this->set(compact(

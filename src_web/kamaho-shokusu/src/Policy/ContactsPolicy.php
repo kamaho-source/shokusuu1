@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
+
 use Authorization\IdentityInterface;
 
 /**
@@ -44,11 +46,11 @@ final class ContactsPolicy
         $identity = $user->getOriginalData();
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return in_array((int)$identity->get('i_admin'), [1, 3]);
+            return UserRole::isAdmin((int)$identity->get('i_admin'));
         }
 
         if (is_array($identity) || $identity instanceof \ArrayAccess) {
-            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         return false;

@@ -77,6 +77,34 @@ class AppController extends Controller
         return str_starts_with($url, '/');
     }
 
+    /**
+     * クライアントの実IPアドレスを取得する。
+     *
+     * Docker + リバースプロキシ構成では REMOTE_ADDR がプロキシのIPになるため、
+     * X-Forwarded-For → X-Real-IP → REMOTE_ADDR の優先順位で実IPを取得する。
+     * X-Forwarded-For が複数IPを持つ場合（例: "client, proxy1"）は
+     * 最左（クライアント側）のIPを使用する。
+     *
+     * @return string IPアドレス文字列
+     */
+    protected function getClientIp(): string
+    {
+        $forwardedFor = $this->request->getHeaderLine('X-Forwarded-For');
+        if ($forwardedFor !== '') {
+            $ip = trim(explode(',', $forwardedFor)[0]);
+            if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+                return $ip;
+            }
+        }
+
+        $realIp = $this->request->getHeaderLine('X-Real-IP');
+        if ($realIp !== '' && filter_var($realIp, FILTER_VALIDATE_IP) !== false) {
+            return $realIp;
+        }
+
+        return (string)$this->request->clientIp();
+    }
+
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
