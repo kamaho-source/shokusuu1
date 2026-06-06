@@ -1867,8 +1867,8 @@ class TReservationInfoController extends AppController
             $isOfficeUser
         );
 
-        // 各部屋・全部モードでは所属部屋のみ表示する（管理者でも自分が所属する部屋に限定）
-        if ($viewMode === 'room' || $viewMode === 'all') {
+        // 各部屋・全部モードでは非管理者のみ所属部屋に絞り込む（管理者は全部屋を表示）
+        if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
             $allRooms = array_intersect_key($allRooms, array_flip($userRoomIds));
         }
 
