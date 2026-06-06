@@ -1,7 +1,48 @@
 body { background:#eef2f6; }
-.excel-header { background:#e9edf3; border-radius:10px; padding:10px 12px; }
+
+/* ── 直前編集モードバナー ── */
+.mode-banner {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    border-bottom: 2px solid #b45309;
+    font-size: .85rem;
+}
+.mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #1c1917;
+    color: #fbbf24;
+    font-weight: 700;
+    font-size: .78rem;
+    padding: 3px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.mode-desc {
+    color: #1c1917;
+    font-weight: 500;
+}
+.mode-back-btn {
+    border: 1px solid rgba(28, 25, 23, .4) !important;
+    color: #1c1917 !important;
+    background: transparent;
+    white-space: nowrap;
+}
+.mode-back-btn:hover {
+    background: rgba(28, 25, 23, .1) !important;
+}
+
+/* ── ヘッダー：左端にアンバーアクセント ── */
+.excel-header {
+    background: #e9edf3;
+    border-radius: 10px;
+    padding: 10px 12px;
+    border-left: 4px solid #f59e0b;
+}
+
+/* ── 曜日タブ：アンバーで通常追加（青）と差別化 ── */
 .tab-day .btn { background:#dfe6ef; border:0; color:#5b6b7a; }
-.tab-day .btn.active { background:#3b82f6; color:#fff; }
+.tab-day .btn.active { background:#d97706; color:#fff; font-weight:600; }
 .sub-bar { background:#1f2937; color:#fff; padding:8px 14px; border-radius:8px; }
 .meal-count { color:#22c55e; font-weight:700; margin-left:4px; }
 .excel-card { background:#fff; border-radius:12px; border:1px solid #e2e8f0; }

@@ -154,23 +154,25 @@
                         const hasNoon = noon && !bento;
                         const hasBento = bento && !noon;
 
-                        const safeName = String(userName).replace(/[<>&"']/g, function(c) {
+                        const escHtml = (s) => String(s).replace(/[<>&"']/g, function(c) {
                             return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];
                         });
+                        const safeName   = escHtml(userName);
+                        const safeUserId = escHtml(userId);
 
                         return '' +
                             '<tr>' +
                             '<td>' + safeName + '</td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][2]" value="1" ' + (hasNoon ? 'checked data-existing="1"' : '') + (hasBento ? ' disabled title="弁当と同時選択不可"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + userId + '][4]" value="1" ' + (hasBento ? 'checked data-existing="1"' : '') + (hasNoon ? ' disabled title="昼食と同時選択不可"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][2]" value="1" ' + (hasNoon ? 'checked data-existing="1"' : '') + (hasBento ? ' disabled title="弁当と同時選択不可"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][4]" value="1" ' + (hasBento ? 'checked data-existing="1"' : '') + (hasNoon ? ' disabled title="昼食と同時選択不可"' : '') + '></td>' +
                             '</tr>';
                     }).join('');
                     userCheckboxesTbody.innerHTML = rows;
                     
-                    // 昼食と弁当の排他制御を動的に適用
-                    setTimeout(() => {
+                    // 昼食と弁当の排他制御を動的に適用（DOM 更新直後に実行）
+                    requestAnimationFrame(() => {
                         if (typeof window.applyLunchBentoExclusion === 'function') {
                             window.applyLunchBentoExclusion(userSelectionTable);
                         } else {
@@ -203,7 +205,7 @@
                                 }
                             });
                         }
-                    }, 100);
+                    });
                 }
                 // 一覧を可視化（d-none を外す）
                 showEl(userSelectionTable);
@@ -262,44 +264,40 @@
                 ev.preventDefault();
                 
                 // バリデーション
+                const toast = (msg, type) => {
+                    if (typeof window.pageToast === 'function') {
+                        window.pageToast(msg, type);
+                    } else {
+                        console.warn('[pageToast 未定義]', type, msg);
+                    }
+                };
+
                 const reservationType = reservationTypeSel?.value;
                 if (reservationType === '2') {
                     // 集団の場合：利用者のチェックが1つ以上必要
                     const userChecked = userSelectionTable && userSelectionTable.querySelector('input[type="checkbox"]:checked');
                     const hasExisting = userSelectionTable && userSelectionTable.querySelector('input[type="checkbox"][data-existing="1"]');
                     if (!userChecked && !hasExisting) {
-                        if (typeof window.pageToast === 'function') {
-                            window.pageToast('エラー: 集団予約は利用者行でいずれかの食事にチェックが必要です。', 'danger');
-                        } else {
-                            alert('エラー: 集団予約は利用者行でいずれかの食事にチェックが必要です。');
-                        }
+                        toast('エラー: 集団予約は利用者行でいずれかの食事にチェックが必要です。', 'danger');
                         return;
                     }
                 }
-                
+
                 const formData = new FormData(form);
                 form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => {
                     formData.set(cb.name, cb.checked ? (cb.value || '1') : '0');
                 });
-                if (!date) { 
-                    if (typeof window.pageToast === 'function') {
-                        window.pageToast('日付が選択されていません。', 'danger');
-                    } else {
-                        alert('日付が選択されていません。');
-                    }
-                    return; 
+                if (!date) {
+                    toast('日付が選択されていません。', 'danger');
+                    return;
                 }
                 formData.append('d_reservation_date', date);
-                
+
                 // 集団予約の場合、部屋IDが正しく設定されているかチェック
                 if (reservationType === '2') {
                     const roomId = formData.get('i_id_room') || roomSelect?.value;
                     if (!roomId) {
-                        if (typeof window.pageToast === 'function') {
-                            window.pageToast('エラー: 部屋を選択してください。', 'danger');
-                        } else {
-                            alert('エラー: 部屋を選択してください。');
-                        }
+                        toast('エラー: 部屋を選択してください。', 'danger');
                         return;
                     }
                     // 部屋IDが明示的に設定されていない場合は追加
@@ -325,26 +323,20 @@
                     if (contentType && contentType.includes('application/json')) return response.json();
                     // 通常遷移HTMLが返ってきた場合（非モーダルのときなど）
                     return response.text().then(html => {
-                        const container = document.createElement('div');
-                        container.innerHTML = html;
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
                         document.body.innerHTML = '';
-                        document.body.appendChild(container);
+                        Array.from(doc.body.childNodes).forEach(n => document.body.appendChild(document.adoptNode(n)));
                         throw new Error('HTMLを表示しました');
                     });
                 })
                 .then(data => {
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.status === 'error' || payload.ok === false) {
-                        if (typeof window.pageToast === 'function') {
-                            window.pageToast(payload.message || '不明なエラーが発生しました。', 'danger');
-                        } else {
-                            alert(`エラー: ${payload.message || '不明なエラーが発生しました。'}`);
-                        }
+                        toast(payload.message || '不明なエラーが発生しました。', 'danger');
                     } else if (payload.status === 'success' || payload.ok === true) {
                         // 成功メッセージを表示
-                        if (typeof window.pageToast === 'function') {
-                            window.pageToast('登録が完了しました', 'success');
-                        }
+                        toast('登録が完了しました', 'success');
                         
                         // モーダル要素を取得
                         const modalEl = form.closest('.modal') || document.getElementById('quickDayModal');
@@ -403,11 +395,7 @@
                 .catch(error => {
                     if (error.message !== 'HTMLを表示しました') {
                         console.error('送信エラー:', error);
-                        if (typeof window.pageToast === 'function') {
-                            window.pageToast(`送信エラー: ${error.message}`, 'danger');
-                        } else {
-                            alert(`送信エラー: ${error.message}`);
-                        }
+                        toast(`送信エラー: ${error.message}`, 'danger');
                     }
                 })
                 .finally(hideLoading);
@@ -460,11 +448,11 @@
             window.ADD_RESERVATION.safeInit(modal);
             
             // 排他制御を適用
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 if (typeof window.applyLunchBentoExclusion === 'function') {
                     window.applyLunchBentoExclusion(modal);
                 }
-            }, 200);
+            });
         }
     });
 

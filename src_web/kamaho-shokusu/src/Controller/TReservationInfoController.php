@@ -113,10 +113,13 @@ class TReservationInfoController extends AppController
             'changeEdit',
             'bulkChangeEditSubmit',
             'bulkAddSubmit',
+            'bulkChangeEditForm',
             'copy',
             'copyPreview',
             'actualMealSave',
             'actualMealRequestApproval',
+            'view',
+            'getReservationSnapshots',
         ]);
     }
 
@@ -304,19 +307,17 @@ class TReservationInfoController extends AppController
         $date = $this->request->getParam('date')
             ?? $this->request->getParam('pass.0')
             ?? $this->request->getQuery('date');
+        $roomIdRaw = $this->request->getData('room_id') ?? $this->request->getQuery('room_id');
         $context = $this->viewService->buildViewContext(
             $this->request->getAttribute('identity'),
             $date,
-            $this->request->getQuery('room_id') !== null ? (int)$this->request->getQuery('room_id') : null,
+            $roomIdRaw !== null ? (int)$roomIdRaw : null,
             $this->MRoomInfo,
             $this->MUserGroup,
             $this->TIndividualReservationInfo,
             $this->queryService
         );
 
-        /* ───────────────────────────────────────
-         * ⑤ ビューにデータをセット
-         * ─────────────────────────────────────── */
         $this->set($context);
         return null;
     }
@@ -901,20 +902,24 @@ class TReservationInfoController extends AppController
             $this->request->accepts('application/json') ||
             $this->request->getParam('_ext') === 'json';
 
-        // 403 の理由をユーザーにわかりやすく伝えるため、ロール別のメッセージを返す
+        // 403 の理由をユーザーにわかりやすく伝えるため、ロール・所属別のメッセージを返す
         $loginUser = $this->request->getAttribute('identity');
         if ($loginUser !== null) {
             $isAdmin  = (int)($loginUser->get('i_admin')      ?? 0) === 1;
             $isStaff  = (int)($loginUser->get('i_user_level') ?? -1) === 0;
             if (!$isAdmin && !$isStaff) {
-                // 子どもユーザー: 直前編集権限なし
-                $reason = '直前編集は職員・管理者のみ使用できます。予約変更は通常の予約画面からご利用ください。';
-                if ($wantsJson) {
-                    return $this->response->withStatus(403)->withType('application/json')
-                        ->withStringBody(json_encode(['ok' => false, 'status' => 'forbidden', 'message' => $reason], JSON_UNESCAPED_UNICODE));
+                // 職員・管理者でない場合は所属部屋があるか確認
+                $loginUidEarly = (int)($loginUser->get('i_id_user') ?? 0);
+                $hasAffiliation = $loginUidEarly > 0 && $this->changeEditService->userHasRoomAccess($loginUidEarly);
+                if (!$hasAffiliation) {
+                    $reason = '直前編集は職員・管理者・所属グループがある方のみ使用できます。予約変更は通常の予約画面からご利用ください。';
+                    if ($wantsJson) {
+                        return $this->response->withStatus(403)->withType('application/json')
+                            ->withStringBody(json_encode(['ok' => false, 'status' => 'forbidden', 'message' => $reason], JSON_UNESCAPED_UNICODE));
+                    }
+                    $this->Flash->error($reason);
+                    return $this->redirect(['action' => 'index']);
                 }
-                $this->Flash->error($reason);
-                return $this->redirect(['action' => 'index']);
             }
         }
 
@@ -944,6 +949,8 @@ class TReservationInfoController extends AppController
                 $this->MUserGroup,
                 $this->MRoomInfo
             );
+            // 所属部屋がある = 部屋の予約を管理できる（職員・管理者・所属グループユーザー全員）
+            $isRoomManager = !empty($allowedRooms);
 
             // ---- 殻 GET（modal=1）: roomId/date 未指定でもレンダリング ----
             if ($isModalShell) {
@@ -971,8 +978,65 @@ class TReservationInfoController extends AppController
                 }
                 $users = new \Cake\Collection\Collection([]);
                 $userReservations = [];
-                $this->set(compact('room','rooms','date','users','userReservations'));
+                $individualReservations = ($loginUid && $date)
+                    ? $this->TIndividualReservationInfo->find()
+                        ->select(['i_reservation_type', 'i_id_room'])
+                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date, 'eat_flag' => 1])
+                        ->toArray()
+                    : [];
+                $this->set(compact('room','rooms','date','users','userReservations','individualReservations'));
                 return $this->render('change_edit');
+            }
+
+            // ---- 個人タイプのPOSTは部屋ID不要のため早期処理 ----
+            if ($this->request->is(['post', 'put'])) {
+                $earlyData = $this->request->getData();
+                if (empty($earlyData)) {
+                    $earlyParsed = $this->request->input('json_decode', true);
+                    if (is_array($earlyParsed)) $earlyData = $earlyParsed;
+                }
+                if (($earlyData['reservation_type'] ?? '2') === '1') {
+                    $postDate = $date ?? ($earlyData['d_reservation_date'] ?? null);
+                    if (!$postDate) {
+                        if ($wantsJson) {
+                            return $this->response->withStatus(422)->withType('application/json')
+                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => '日付が指定されていません。'], JSON_UNESCAPED_UNICODE));
+                        }
+                        $this->Flash->error('日付が指定されていません。');
+                        return $this->redirect(['action' => 'index']);
+                    }
+                    try {
+                        $result = $this->writeService->processIndividualReservation(
+                            (string)$postDate,
+                            $earlyData,
+                            $allowedRooms,
+                            (int)$loginUid,
+                            (string)($loginUser->get('c_user_name') ?? ''),
+                            fn($d) => true
+                        );
+                        $payload = [
+                            'ok'      => true,
+                            'status'  => 'success',
+                            'message' => '直前予約（個人）を更新しました。',
+                            'data'    => $result,
+                            'date'    => $postDate,
+                        ];
+                        if ($wantsJson) {
+                            return $this->response->withType('application/json')
+                                ->withStringBody(json_encode($payload, JSON_UNESCAPED_UNICODE));
+                        }
+                        $this->Flash->success($payload['message']);
+                        return $this->redirect(['action' => 'index']);
+                    } catch (\Throwable $e) {
+                        $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'error');
+                        if ($wantsJson) {
+                            return $this->response->withStatus(500)->withType('application/json')
+                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+                        }
+                        $this->Flash->error($e->getMessage());
+                        return $this->redirect(['action' => 'index']);
+                    }
+                }
             }
 
             // ---- バリデーション（通常/JSON）----
@@ -1013,7 +1077,7 @@ class TReservationInfoController extends AppController
             // ---- GET: JSON/HTML ----
             if ($this->request->is('get')) {
                 if ($wantsJson) {
-                    $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser);
+                    $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser, $isRoomManager);
 
                     return $this->response->withType('application/json')
                         ->withStringBody(json_encode([
@@ -1030,7 +1094,13 @@ class TReservationInfoController extends AppController
                 }
 
                 $rooms = $allowedRooms;
-                $this->set(compact('room','rooms','date','users','userReservations'));
+                $individualReservations = ($loginUid && $date)
+                    ? $this->TIndividualReservationInfo->find()
+                        ->select(['i_reservation_type', 'i_id_room'])
+                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date, 'eat_flag' => 1])
+                        ->toArray()
+                    : [];
+                $this->set(compact('room','rooms','date','users','userReservations','individualReservations'));
                 return $this->render('change_edit');
             }
 
@@ -1051,7 +1121,8 @@ class TReservationInfoController extends AppController
                         (int)$roomId,
                         $loginUser,
                         $this->TIndividualReservationInfo,
-                        $this->MUserInfo
+                        $this->MUserInfo,
+                        $isRoomManager
                     );
 
                     $updated = $result['updated'] ?? [];
@@ -1723,4 +1794,172 @@ class TReservationInfoController extends AppController
 
         return null;
     }
+
+    /**
+     * 食数予約 Excel グリッド画面。
+     *
+     * 部屋×ユーザー×日付×食事種別のグリッドを表示し、
+     * セルのクリックで予約をトグルできる（既存の toggle API を利用）。
+     *
+     * @return Response|null
+     */
+    public function mealCountGrid(): ?Response
+    {
+        $this->authorizeReservation('mealCountGrid');
+
+        $authUser = $this->Authentication->getIdentity();
+        if (!$authUser) {
+            throw new \Cake\Http\Exception\UnauthorizedException('ログインが必要です。');
+        }
+
+        $loginUserId  = (int)$authUser->get('i_id_user');
+        $loginName    = (string)($authUser->get('c_user_name') ?? '');
+        $isAdmin      = (int)($authUser->get('i_admin') ?? 0) === 1;
+        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
+        $canViewAll   = $isAdmin || $isOfficeUser;
+
+        // 前回の表示状態をセッションから復元（クエリパラメータが優先）
+        $session = $this->request->getSession();
+
+        // 表示モード: 個人 / 各部屋 / 全部
+        $viewMode = $this->request->getQuery('mode') ?? $session->read('mealCountGrid.mode') ?? 'individual';
+        if (!in_array($viewMode, ['individual', 'room', 'all'], true)) {
+            $viewMode = 'individual';
+        }
+        // 管理者・事務所ユーザー以外は 個人 のみ
+        if (!$canViewAll && $viewMode !== 'individual') {
+            $viewMode = 'individual';
+        }
+
+        // 表示対象の全部屋リスト
+        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUserId);
+        $allRooms    = $this->calendarService->getRoomsForUser(
+            $this->MRoomInfo,
+            $userRoomIds,
+            $canViewAll,
+            $isOfficeUser
+        );
+
+        // 各部屋・全部モードでは所属部屋のみ表示する（管理者でも自分が所属する部屋に限定）
+        if ($viewMode === 'room' || $viewMode === 'all') {
+            $allRooms = array_intersect_key($allRooms, array_flip($userRoomIds));
+        }
+
+        // 選択中の部屋（クエリ → セッション → デフォルト）
+        $roomIdQuery = $this->request->getQuery('room_id');
+        $sessionRoomId = $session->read('mealCountGrid.roomId');
+        $selectedRoomId = $roomIdQuery
+            ? (int)$roomIdQuery
+            : ($sessionRoomId !== null ? (int)$sessionRoomId : (!empty($allRooms) ? (int)array_key_first($allRooms) : null));
+        if ($selectedRoomId !== null && !isset($allRooms[$selectedRoomId])) {
+            $selectedRoomId = !empty($allRooms) ? (int)array_key_first($allRooms) : null;
+        }
+
+        $gridService = new \App\Service\MealCountGridService();
+        $today       = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+
+        // 4週間ナビゲーション（クエリ → セッション → デフォルト）
+        $weekParam     = $this->request->getQuery('week') ?? $session->read('mealCountGrid.week');
+        $weekNav       = $gridService->resolveWeekNavigation($weekParam, $isAdmin, $today);
+        $weekMondayStr = $weekNav['weekMondayStr'];
+        $dates         = $gridService->buildDateRange($weekMondayStr, 28); // 4週間=28日
+        $periodLabel   = $gridService->buildPeriodLabel($dates);
+
+        // 表示対象ユーザーを先に確定（individual モードの部屋自動決定に使う）
+        $userIdQuery = $this->request->getQuery('user_id');
+        $selectedUserId = $userIdQuery
+            ? (int)$userIdQuery
+            : ($canViewAll ? (int)($session->read('mealCountGrid.userId') ?? $loginUserId) : $loginUserId);
+        if (!$canViewAll) {
+            $selectedUserId = $loginUserId;
+        }
+
+        // モード別の表示対象部屋を絞り込む
+        if ($viewMode === 'individual') {
+            // 対象ユーザーの所属部屋を自動決定（部屋選択不要）
+            $targetUserRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $selectedUserId);
+            $targetRooms = array_intersect_key($allRooms, array_flip($targetUserRoomIds));
+        } elseif ($viewMode === 'room') {
+            $targetRooms = ($selectedRoomId !== null && isset($allRooms[$selectedRoomId]))
+                ? [$selectedRoomId => $allRooms[$selectedRoomId]]
+                : [];
+        } else {
+            $targetRooms = $allRooms;
+        }
+
+        // 部屋ごとのユーザーリスト
+        $roomUsers = [];
+        foreach (array_keys($targetRooms) as $roomId) {
+            $roomId = (int)$roomId;
+            $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
+
+            if ($viewMode === 'individual') {
+                $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
+            }
+
+            $roomUsers[$roomId] = $users;
+        }
+
+        // グリッドデータ構築
+        $gridData      = $gridService->buildGrid(
+            $this->TIndividualReservationInfo,
+            $targetRooms,
+            $roomUsers,
+            $dates
+        );
+        $monthlyTotals  = $gridService->buildMonthlyTotals($gridData);
+        $dateCategories = $gridService->buildDateCategories($dates);
+
+        // 個人モード用の氏名リスト（管理者は全アクティブユーザー、一般ユーザーは自分のみ）
+        $nameList = [];
+        if ($viewMode === 'individual') {
+            if ($canViewAll) {
+                $activeUsers = $this->MUserInfo->find()
+                    ->select(['i_id_user', 'c_user_name'])
+                    ->where(['i_del_flag' => 0])
+                    ->orderAsc('c_user_name')
+                    ->enableHydration(false)
+                    ->all();
+                foreach ($activeUsers as $u) {
+                    $nameList[(int)$u['i_id_user']] = (string)$u['c_user_name'];
+                }
+            } else {
+                $nameList[$loginUserId] = $loginName;
+            }
+        }
+
+        // 表示状態をセッションに保存（次回アクセス時のデフォルト値として使用）
+        $session->write('mealCountGrid.week', $weekMondayStr);
+        $session->write('mealCountGrid.mode', $viewMode);
+        $session->write('mealCountGrid.roomId', $selectedRoomId);
+        if ($canViewAll) {
+            $session->write('mealCountGrid.userId', $selectedUserId);
+        }
+
+        $this->set([
+            'allRooms'       => $allRooms,
+            'selectedRoomId' => $selectedRoomId,
+            'nameList'       => $nameList,
+            'selectedUserId' => $selectedUserId,
+            'viewMode'       => $viewMode,
+            'gridData'       => $gridData,
+            'monthlyTotals'  => $monthlyTotals,
+            'dateCategories' => $dateCategories,
+            'weekMondayStr'  => $weekMondayStr,
+            'periodLabel'    => $periodLabel,
+            'prevMonday'     => $weekNav['prevMonday'],
+            'nextMonday'     => $weekNav['nextMonday'],
+            'canGoPrev'      => $weekNav['canGoPrev'],
+            'canGoNext'      => $weekNav['canGoNext'],
+            'isAdmin'        => $isAdmin,
+            'canViewAll'     => $canViewAll,
+            'loginUserId'    => $loginUserId,
+            'loginName'      => $loginName,
+        ]);
+
+        $this->viewBuilder()->setLayout('default');
+
+        return null;
+    }
+
 }

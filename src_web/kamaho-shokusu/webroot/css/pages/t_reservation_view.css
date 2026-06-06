@@ -150,12 +150,29 @@ main.container { max-width: 100%; padding: 0; }
     margin-top: 12px;
 }
 
+.tabs form {
+    display: inline;
+    margin: 0;
+    padding: 0;
+}
+
 .tab {
+    display: inline-block;
     padding: 10px 12px;
+    border: none;
     border-bottom: 2px solid transparent;
+    background: none;
+    cursor: pointer;
     text-decoration: none;
     color: #6b7785;
     font-weight: 600;
+    font-size: inherit;
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+    box-shadow: none;
+    outline: none;
+    vertical-align: bottom;
 }
 
 .tab.active {

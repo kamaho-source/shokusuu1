@@ -38,7 +38,7 @@ class TReservationInfoPolicy
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isStaffOrAdmin($user) || $this->isRoomAffiliated($user);
     }
 
     public function canToggle(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -181,6 +181,11 @@ class TReservationInfoPolicy
         return $this->isAuthenticated($user);
     }
 
+    public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
     private function isAuthenticated(?IdentityInterface $user): bool
     {
         return $this->getOriginalIdentity($user) !== null;
@@ -255,6 +260,16 @@ class TReservationInfoPolicy
     private function isStaffOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isStaff($user);
+    }
+
+    private function isRoomAffiliated(?IdentityInterface $user): bool
+    {
+        $userId = $this->getUserId($user);
+        if ($userId <= 0) {
+            return false;
+        }
+
+        return $this->roomAccessService->hasAnyAffiliation($userId);
     }
 
     public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
