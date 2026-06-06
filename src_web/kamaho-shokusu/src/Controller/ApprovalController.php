@@ -5,7 +5,6 @@ namespace App\Controller;
 
 use App\Service\ApprovalService;
 use App\Service\RoomAccessService;
-use Cake\Event\EventInterface;
 use Cake\Http\Response;
 
 /**
@@ -19,38 +18,19 @@ class ApprovalController extends AppController
     private ApprovalService $approvalService;
     private RoomAccessService $roomAccessService;
 
-    /**
-     * JS から JSON で POST する API アクション一覧。
-     * FormProtection のフォームトークン検証対象外にする。
-     * CSRF 保護は CsrfProtectionMiddleware（X-CSRF-Token ヘッダー）で担保済み。
-     */
-    private const API_ACTIONS = [
-        'blockLeaderApprove',
-        'blockLeaderReject',
-        'adminApprove',
-        'adminReject',
-        'adminReflect',
-    ];
-
     public function initialize(): void
     {
         parent::initialize();
         $this->approvalService   = new ApprovalService();
         $this->roomAccessService = new RoomAccessService();
 
-        if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', self::API_ACTIONS);
-        }
-    }
-
-    public function beforeFilter(EventInterface $event): void
-    {
-        parent::beforeFilter($event);
-
-        // JSON API エンドポイントは FormProtection のトークン検証を外す。
-        if (in_array($this->request->getParam('action'), self::API_ACTIONS, true)) {
-            $this->components()->unload('FormProtection');
-        }
+        $this->FormProtection->setConfig('unlockedActions', [
+            'blockLeaderApprove',
+            'blockLeaderReject',
+            'adminApprove',
+            'adminReject',
+            'adminReflect',
+        ]);
     }
 
     // ------------------------------------------------------------------
@@ -226,14 +206,15 @@ class ApprovalController extends AppController
         $this->Authorization->authorize($this, 'adminReflect');
         $this->request->allowMethod('post');
 
-        $user  = $this->Authentication->getIdentity();
-        $actor  = $user->get('c_login_account') ?? (string)$user->get('i_id_user');
-        $roomId = $this->request->getData('room_id') ? (int)$this->request->getData('room_id') : null;
-        $date   = $this->request->getData('date');
+        $user     = $this->Authentication->getIdentity();
+        $actor    = $user->get('c_login_account') ?? (string)$user->get('i_id_user');
+        $roomId   = $this->request->getData('room_id') ? (int)$this->request->getData('room_id') : null;
+        $dateFrom = $this->request->getData('date_from') ?: null;
+        $dateTo   = $this->request->getData('date_to') ?: null;
 
         try {
-            $count = $this->approvalService->reflectToReservation($roomId, $date, $actor, (string)$this->request->clientIp());
-            return $this->jsonResponse(['success' => true, 'count' => $count]);
+            [$reflectedCount, $recordCount] = $this->approvalService->reflectToReservation($roomId, $dateFrom, $dateTo, $actor);
+            return $this->jsonResponse(['success' => true, 'reflected_count' => $recordCount, 'group_count' => $reflectedCount]);
         } catch (\Throwable $e) {
             $this->log('adminReflect error: ' . $e->getMessage(), 'error');
             return $this->jsonError('反映処理中にエラーが発生しました。', 500);

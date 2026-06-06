@@ -474,11 +474,11 @@ foreach ($summary as $row) {
         }
     });
     document.getElementById('reflect-confirm-btn').addEventListener('click', async () => {
-        const body = { room_id: FILTER_ROOM_ID, date: null };
+        const body = { room_id: FILTER_ROOM_ID, date_from: FILTER_DATE_FROM, date_to: FILTER_DATE_TO };
         const result = await postApproval('/Approval/adminReflect', body);
         closeReflectModal();
         if (result.success) {
-            showSuccessModal(result.count + ' 件を食数に反映しました。');
+            showSuccessModal(result.reflected_count + ' 件を食数に反映しました。');
         } else {
             showToast('反映に失敗しました: ' + (result.error ?? ''), 'error');
         }

@@ -364,12 +364,12 @@ class ApprovalService
      * 最終承認済みレコードを t_reservation_info へ反映
      *
      * @param int|null    $roomId
-     * @param string|null $date
+     * @param string|null $dateFrom  日付範囲 開始 (YYYY-MM-DD)
+     * @param string|null $dateTo    日付範囲 終了 (YYYY-MM-DD)
      * @param string      $actor
-     * @param string      $ipAddress
-     * @return int  更新された行数
+     * @return array{0: int, 1: int}  [グループ数（upsert行数）, 個別レコード件数]
      */
-    public function reflectToReservation(?int $roomId, ?string $date, string $actor, string $ipAddress = ''): int
+    public function reflectToReservation(?int $roomId, ?string $dateFrom, ?string $dateTo, string $actor): array
     {
         $individualTable  = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $reservationTable = TableRegistry::getTableLocator()->get('TReservationInfo');
@@ -381,14 +381,19 @@ class ApprovalService
         if ($roomId !== null) {
             $query->where(['i_id_room' => $roomId]);
         }
-        if ($date !== null) {
-            $query->where(['d_reservation_date' => $date]);
+        if ($dateFrom !== null) {
+            $query->where(['d_reservation_date >=' => $dateFrom]);
+        }
+        if ($dateTo !== null) {
+            $query->where(['d_reservation_date <=' => $dateTo]);
         }
 
         $rows = $query->all()->toArray();
         if (empty($rows)) {
-            return 0;
+            return [0, 0];
         }
+
+        $recordCount = count($rows);
 
         // ブロック × 日付 × 食種 ごとに集計
         $grouped = [];
@@ -410,7 +415,7 @@ class ApprovalService
             }
         }
 
-        $updated = 0;
+        $groupCount = 0;
         foreach ($grouped as $data) {
             $existing = $reservationTable->find()->where([
                 'd_reservation_date' => $data['d_reservation_date'],
@@ -435,22 +440,10 @@ class ApprovalService
                 ]));
                 $reservationTable->save($entity);
             }
-            $updated++;
+            $groupCount++;
         }
 
-        AuditLogService::record(
-            'approval',
-            'approval_reflected',
-            $actor,
-            0,
-            't_reservation_info',
-            $roomId !== null ? "room:{$roomId}" : null,
-            ['room_id' => $roomId, 'date' => $date, 'updated' => $updated],
-            $ipAddress ?: null,
-            1
-        );
-
-        return $updated;
+        return [$groupCount, $recordCount];
     }
 
     // ------------------------------------------------------------------

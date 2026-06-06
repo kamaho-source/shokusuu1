@@ -553,6 +553,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function applyLocks(resMap) {
         ensureState(activeDate);
         locked[activeDate] = {};
+        // 前回のサーバー既読状態を退避してからリセット
+        // - previousServerReserved が存在する = このセッションで一度サーバーデータを読み込み済み
+        // - その場合はユーザーが意図してfalseにした状態（キャンセル操作）を保持する
+        // - previousServerReserved が存在しない = ページ初回ロードや初めてこの日付を見た場合
+        // - この場合はlocalStorageの古いfalseを無視してサーバー状態を必ず反映する
+        const previousServerReserved = serverReserved[activeDate] ? { ...serverReserved[activeDate] } : null;
         serverReserved[activeDate] = {};
         Object.keys(resMap || {}).forEach((uid) => {
             locked[activeDate][uid] = locked[activeDate][uid] || {};
@@ -564,7 +570,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 selections[activeDate][uid] = selections[activeDate][uid] || {};
                 serverReserved[activeDate][uid][Number(type)] = true;
-                if (selections[activeDate][uid][Number(type)] !== false) {
+                const wasAlreadyLoadedFromServer = !!(previousServerReserved?.[uid]?.[Number(type)]);
+                if (selections[activeDate][uid][Number(type)] !== false || !wasAlreadyLoadedFromServer) {
                     selections[activeDate][uid][Number(type)] = true;
                 }
             });

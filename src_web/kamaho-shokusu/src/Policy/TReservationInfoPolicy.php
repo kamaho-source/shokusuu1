@@ -38,7 +38,7 @@ class TReservationInfoPolicy
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isStaffOrAdmin($user) || $this->isRoomAffiliated($user);
     }
 
     public function canToggle(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -52,11 +52,13 @@ class TReservationInfoPolicy
         }
 
         $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
-        $loginUserId     = $this->getUserId($user);
+        if ($requestedUserId <= 0) {
+            // i_id_user が未指定（0）の場合は「全員向けトグル」として許可する。
+            // 部屋アクセスチェックは上で通過済みのため、認証さえ通っていれば操作可能とする。
+            return true;
+        }
 
-        // 自分自身の予約操作は常に許可。
-        // userId 未指定（0）の場合はコントローラー側でログインユーザーIDに補完されるため、
-        // ここでは明示的な i_id_user が必須とし、未指定は職員・管理者のみ通す。
+        $loginUserId = $this->getUserId($user);
         if ($requestedUserId === $loginUserId) {
             return true;
         }
@@ -181,12 +183,7 @@ class TReservationInfoPolicy
 
     public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
-    }
-
-    public function canWeeklyMealGrid(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isStaffOrAdmin($user);
+        return $this->isAuthenticated($user);
     }
 
     private function isAuthenticated(?IdentityInterface $user): bool
@@ -263,6 +260,16 @@ class TReservationInfoPolicy
     private function isStaffOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isStaff($user);
+    }
+
+    private function isRoomAffiliated(?IdentityInterface $user): bool
+    {
+        $userId = $this->getUserId($user);
+        if ($userId <= 0) {
+            return false;
+        }
+
+        return $this->roomAccessService->hasAnyAffiliation($userId);
     }
 
     public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
