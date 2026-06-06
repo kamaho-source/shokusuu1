@@ -234,6 +234,11 @@ class PagesController extends AppController
             ];
         }
 
-        return compact('hasTodayReport', 'dashboard');
+        $activeNotices = $this->fetchTable('MNotice')
+            ->find('active')
+            ->all()
+            ->toArray();
+
+        return compact('hasTodayReport', 'dashboard', 'activeNotices');
     }
 }
