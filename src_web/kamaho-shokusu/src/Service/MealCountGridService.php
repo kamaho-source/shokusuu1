@@ -282,12 +282,6 @@ class MealCountGridService
             $change = $row['i_change_flag'];
             $eat    = $row['eat_flag'];
 
-            $dateObj = new Date($date);
-            if ($dateObj <= $borderDate) {
-                $effective = $change !== null ? (int)$change : (int)($eat ?? 0);
-            } else {
-                $effective = (int)($eat ?? 0);
-            }
             // i_change_flag が設定済み(直前編集あり)ならそれを優先。
             // 未設定(NULL)の場合は eat_flag にフォールバック。
             // 過去日・未来日問わず直前編集を優先することで、
@@ -376,6 +370,10 @@ class MealCountGridService
     private function normalizeDateString($value): string
     {
         if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+        // Cake\I18n\Date does not implement DateTimeInterface but has format()
+        if (is_object($value) && method_exists($value, 'format')) {
             return $value->format('Y-m-d');
         }
         return (string)$value;
