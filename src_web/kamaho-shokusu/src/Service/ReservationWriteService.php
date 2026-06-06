@@ -10,6 +10,7 @@ use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
 
 class ReservationWriteService
 {
