@@ -16,9 +16,11 @@ class UserBulkImportService
     /**
      * @param array  $records     クライアントから送られてきたレコード配列
      * @param string $createUser  作成者ユーザー名
+     * @param int    $actorId     操作者ユーザーID
+     * @param string $ipAddress   操作元IPアドレス
      * @return array{processed: int, created: int, skipped: int, failed: int, errors: array}
      */
-    public function import(array $records, string $createUser): array
+    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = ''): array
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -187,6 +189,23 @@ class UserBulkImportService
             $conn->rollback();
             throw $e;
         }
+
+        AuditLogService::record(
+            'user',
+            'user_bulk_import',
+            $createUser,
+            $actorId,
+            'm_user_info',
+            null,
+            [
+                'processed' => $results['processed'],
+                'created'   => $results['created'],
+                'skipped'   => $results['skipped'],
+                'failed'    => $results['failed'],
+            ],
+            $ipAddress ?: null,
+            $results['failed'] === 0 ? 1 : 1
+        );
 
         return $results;
     }

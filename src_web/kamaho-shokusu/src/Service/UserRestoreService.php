@@ -18,10 +18,12 @@ class UserRestoreService
     /**
      * @param mixed  $user      MUserInfo エンティティ（i_del_flag === 1 であること）
      * @param string $updatedBy 操作者ユーザー名
+     * @param int    $actorId   操作者ユーザーID
+     * @param string $ipAddress 操作元IPアドレス
      * @return bool
      * @throws \Exception
      */
-    public function restore(mixed $user, string $updatedBy): bool
+    public function restore(mixed $user, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -53,9 +55,35 @@ class UserRestoreService
             }
 
             $conn->commit();
+
+            AuditLogService::record(
+                'user',
+                'user_restore',
+                $updatedBy,
+                $actorId,
+                'm_user_info',
+                (string)$user->i_id_user,
+                ['target_user_name' => $user->c_user_name],
+                $ipAddress ?: null,
+                1
+            );
+
             return true;
         } catch (\Exception $e) {
             $conn->rollback();
+
+            AuditLogService::record(
+                'user',
+                'user_restore',
+                $updatedBy,
+                $actorId,
+                'm_user_info',
+                (string)$user->i_id_user,
+                ['target_user_name' => $user->c_user_name, 'error' => $e->getMessage()],
+                $ipAddress ?: null,
+                0
+            );
+
             throw $e;
         }
     }
