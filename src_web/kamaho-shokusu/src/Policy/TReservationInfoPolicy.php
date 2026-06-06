@@ -55,13 +55,21 @@ class TReservationInfoPolicy
         $loginUserId     = $this->getUserId($user);
 
         // 自分自身の予約操作は常に許可。
-        // userId 未指定（0）の場合はコントローラー側でログインユーザーIDに補完されるため、
-        // ここでは明示的な i_id_user が必須とし、未指定は職員・管理者のみ通す。
         if ($requestedUserId === $loginUserId) {
             return true;
         }
 
-        return $this->isStaffOrAdmin($user);
+        // 管理者は全員を編集可能
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        // 職員IDを持つユーザーは子供の予約編集を試みられる（サービス層で対象が子供かを検証）
+        if ($this->hasStaffId($user)) {
+            return true;
+        }
+
+        return false;
     }
 
     public function canEvents(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -181,7 +189,7 @@ class TReservationInfoPolicy
 
     public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isAuthenticated($user);
     }
 
     public function canWeeklyMealGrid(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -263,6 +271,23 @@ class TReservationInfoPolicy
     private function isStaffOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isStaff($user);
+    }
+
+    private function hasStaffId(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        $staffId = null;
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            $staffId = $identity->get('i_id_staff');
+        } elseif (is_array($identity) || $identity instanceof \ArrayAccess) {
+            $staffId = $identity['i_id_staff'] ?? null;
+        }
+
+        return $staffId !== null && $staffId !== '' && $staffId !== 0;
     }
 
     public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool

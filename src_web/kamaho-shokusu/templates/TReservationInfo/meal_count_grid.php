@@ -19,6 +19,7 @@
  * @var bool   $canGoNext
  * @var bool   $isAdmin
  * @var bool   $canViewAll
+ * @var bool   $hasStaffId
  * @var int    $loginUserId
  * @var string $loginName
  */
@@ -230,9 +231,14 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                         ?>
 
                         <?php foreach ($users as $u):
-                            $uid = (int)$u['id'];
+                            $uid          = (int)$u['id'];
+                            $uLevel       = (int)($u['i_user_level'] ?? 0);
+                            // 編集可否: 管理者は全員、職員IDあり→自分+子供(level=1)、それ以外→自分のみ
+                            $canEditRow   = $isAdmin
+                                || ($uid === $loginUserId)
+                                || ($hasStaffId && $uLevel === 1);
                         ?>
-                        <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>">
+                        <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>">
                             <td class="col-row"><?= h($rowNum++) ?></td>
                             <td class="col-room" title="<?= h($roomName) ?>"><?= h($roomName) ?></td>
                             <td class="col-name" title="<?= h($u['name']) ?>"><?= h($u['name']) ?></td>
@@ -247,8 +253,9 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                 $first   = true;
                                 foreach ($meals as $mealType => $mealLabel):
                                     $reserved = !empty($grid[$uid][$d][$mealType]);
+                                    $toggleable = !$isPast && $canEditRow;
                                     $tdClass = 'cell-meal'
-                                        . ($isPast ? '' : ' mcg-toggleable')
+                                        . ($toggleable ? ' mcg-toggleable' : '')
                                         . ($first   ? ' meal-first'     : '')
                                         . ($isToday ? ' is-today'       : '')
                                         . ($isSat   ? ' is-saturday'    : '')
@@ -264,7 +271,7 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     data-meal="<?= h($mealType) ?>"
                                     data-reserved="<?= $reserved ? '1' : '0' ?>"
                                     title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
-                                    <?php if (!$isPast): ?>
+                                    <?php if ($toggleable): ?>
                                     role="checkbox"
                                     aria-checked="<?= $reserved ? 'true' : 'false' ?>"
                                     tabindex="0"

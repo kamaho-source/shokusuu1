@@ -493,17 +493,12 @@ class ReservationWriteService
         $value   = isset($payload['value']) ? (int)$payload['value'] : null;
 
         $loginUser = $this->userTable->find()
-            ->select(['i_admin', 'i_user_level'])
+            ->select(['i_admin', 'i_user_level', 'i_id_staff'])
             ->where(['i_id_user' => $loginUserId])
             ->first();
-        $isAdmin = $loginUser ? ((int)$loginUser->i_admin === 1) : false;
-        $isStaff = $loginUser ? ((int)$loginUser->i_user_level === 0) : false;
-        if ($targetUserId !== $loginUserId && !($isAdmin || $isStaff)) {
-            return [
-                'status' => 403,
-                'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
-            ];
-        }
+        $isAdmin    = $loginUser ? ((int)$loginUser->i_admin === 1) : false;
+        $loginStaff = $loginUser ? $loginUser->i_id_staff : null;
+        $hasStaffId = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
 
         $targetUser = $this->userTable->find()
             ->select(['i_user_level'])
@@ -516,6 +511,19 @@ class ReservationWriteService
             ];
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
+
+        if ($targetUserId !== $loginUserId) {
+            if ($isAdmin) {
+                // 管理者は全員を編集可能
+            } elseif ($hasStaffId && $targetUserLevel === 1) {
+                // 職員IDを持つユーザーは子供（i_user_level=1）のみ編集可能
+            } else {
+                return [
+                    'status' => 403,
+                    'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
+                ];
+            }
+        }
 
         // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
