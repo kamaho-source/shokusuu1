@@ -181,8 +181,9 @@ class MealCountGridService
         $rows = $userGroupTable->find()
             ->enableAutoFields(false)
             ->select([
-                'i_id_user' => 'MUserGroup.i_id_user',
-                'user_name'  => 'MUserInfo.c_user_name',
+                'i_id_user'    => 'MUserGroup.i_id_user',
+                'user_name'    => 'MUserInfo.c_user_name',
+                'i_user_level' => 'MUserInfo.i_user_level',
             ])
             ->innerJoin(
                 ['MUserInfo' => $userInfoTable->getTable()],
@@ -200,8 +201,9 @@ class MealCountGridService
         $result = [];
         foreach ($rows as $row) {
             $result[] = [
-                'id'   => (int)$row['i_id_user'],
-                'name' => (string)$row['user_name'],
+                'id'           => (int)$row['i_id_user'],
+                'name'         => (string)$row['user_name'],
+                'i_user_level' => (int)($row['i_user_level'] ?? 0),
             ];
         }
         return $result;
