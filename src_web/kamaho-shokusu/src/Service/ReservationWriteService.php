@@ -577,7 +577,7 @@ class ReservationWriteService
             'i_reservation_type' => $meal,
         ]);
 
-        if ($isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
+        if (!$isAdmin && $isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
             return [
                 'status' => 403,
                 'body' => ['ok' => false, 'message' => '職員は直前編集でのキャンセルはできません。'],
