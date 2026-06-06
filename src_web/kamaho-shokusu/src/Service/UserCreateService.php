@@ -42,14 +42,17 @@ class UserCreateService
      * @param mixed  $entity     MUserInfo エンティティ（patchEntity 済み）
      * @param array  $groupData  MUserGroup の入力データ配列（'i_id_room' を含む）
      * @param string $createdBy  作成者ユーザー名
+     * @param int    $actorId    操作者ユーザーID
+     * @param string $ipAddress  操作元IPアドレス
      * @return bool
      */
-    public function saveWithRooms(mixed $entity, array $groupData, string $createdBy): bool
+    public function saveWithRooms(mixed $entity, array $groupData, string $createdBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
 
         if (!$userInfoTable->save($entity)) {
+            AuditLogService::record('user', 'user_create', $createdBy, $actorId, 'm_user_info', null, ['error' => 'save failed'], $ipAddress ?: null, 0);
             return false;
         }
 
@@ -71,6 +74,18 @@ class UserCreateService
         if (!empty($userGroups)) {
             $userGroupTable->saveMany($userGroups);
         }
+
+        AuditLogService::record(
+            'user',
+            'user_create',
+            $createdBy,
+            $actorId,
+            'm_user_info',
+            (string)$userId,
+            ['user_name' => $entity->c_user_name, 'login_account' => $entity->c_login_account],
+            $ipAddress ?: null,
+            1
+        );
 
         return true;
     }

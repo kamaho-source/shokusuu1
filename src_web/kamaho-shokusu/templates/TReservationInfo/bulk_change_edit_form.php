@@ -27,10 +27,26 @@ $days = $days ?? [];
         window.__BASE_WEEK = <?= json_encode($baseWeek->format('Y-m-d'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__LOGIN_USER_ID = <?= json_encode($user?->get('i_id_user') ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     </script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?= $this->Html->css('pages/bulk_change_edit_form.pc.css') ?>
 <?= $this->Html->css('pages/bulk_change_edit_form.mobile.css') ?>
 </head>
 <body>
+
+<!-- 直前編集モードバナー -->
+<div class="mode-banner" role="banner" aria-label="直前編集モード中">
+    <div class="container py-2 d-flex align-items-center gap-2 flex-wrap">
+        <span class="mode-badge">
+            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+            直前編集モード
+        </span>
+        <span class="mode-desc">発注済み期間の予約を変更できます。保存後すぐに食数へ反映されます。</span>
+        <a href="javascript:history.back()" class="btn btn-sm mode-back-btn ms-auto">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i> ホームに戻る
+        </a>
+    </div>
+</div>
+
 <div class="container py-3">
     <div class="excel-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
         <div class="d-flex align-items-center gap-2">

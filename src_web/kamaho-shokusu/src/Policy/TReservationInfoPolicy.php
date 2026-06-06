@@ -38,7 +38,7 @@ class TReservationInfoPolicy
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isStaffOrAdmin($user) || $this->isRoomAffiliated($user);
     }
 
     public function canToggle(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -52,7 +52,11 @@ class TReservationInfoPolicy
         }
 
         $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
-        $loginUserId     = $this->getUserId($user);
+        if ($requestedUserId <= 0) {
+            // i_id_user が未指定（0）の場合は「全員向けトグル」として許可する。
+            // 部屋アクセスチェックは上で通過済みのため、認証さえ通っていれば操作可能とする。
+            return true;
+        }
 
         // 自分自身の予約操作は常に許可。
         if ($requestedUserId === $loginUserId) {
@@ -210,15 +214,15 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 1;
+            return in_array((int)$identity->get('i_admin'), [1, 3]);
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
         }
 
         return false;

@@ -1,5 +1,17 @@
 #ce-root { font-size: .88rem; }
 
+#ce-root .ce-type-selector {
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: .4rem .75rem;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+}
+#ce-root .ce-type-label { font-size: .82rem; font-weight: 600; color: #495057; white-space: nowrap; }
+#ce-root .ce-type-selector .btn { font-size: .8rem; padding: .2rem .65rem; }
+
 #ce-root .ce-warning-banner {
     background: #fff3cd;
     border-bottom: 1px solid #ffc107;

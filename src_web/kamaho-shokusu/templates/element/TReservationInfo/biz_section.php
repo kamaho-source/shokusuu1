@@ -22,7 +22,7 @@ $copyModalVars = [
     'calRoomId' => $calRoomId,
 ];
 ?>
-<?php if ($user && $user->get('i_admin') === 1): ?>
+<?php if ($user && in_array((int)$user->get('i_admin'), [1, 3])): ?>
     <div class="card border-0 shadow-sm mb-3">
         <div class="card-header bg-white py-3">
             <div class="d-flex flex-wrap align-items-center gap-2">

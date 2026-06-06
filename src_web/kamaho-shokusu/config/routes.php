@@ -138,6 +138,8 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MMealPriceInfo', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
         $builder->connect('/MMealPriceInfo/add', ['controller'=>'MMealPriceInfo', 'action'=>'add']);
         $builder->connect('/MMealPriceInfo/GetMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'GetMealSummary']);
+        $builder->connect('/MMealPriceInfo/exportMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'exportMealSummary'])->setMethods(['GET']);
+        $builder->connect('/MMealPriceInfo/exportMealSummaryPreview', ['controller'=>'MMealPriceInfo', 'action'=>'exportMealSummaryPreview'])->setMethods(['GET']);
 
         // MUserInfo
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
@@ -153,6 +155,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
+
+        // 監査ログ（システム管理者専用）
+        $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);
 
         // MRoomTransferSchedule（部屋異動予約）
         $builder->connect('/MRoomTransferSchedule', ['controller' => 'MRoomTransferSchedule', 'action' => 'index']);

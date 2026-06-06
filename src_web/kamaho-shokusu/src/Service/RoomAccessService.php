@@ -77,6 +77,11 @@ class RoomAccessService
         return in_array($roomId, $this->getUserRoomIds($userId), true);
     }
 
+    public function hasAnyAffiliation(int $userId): bool
+    {
+        return !empty($this->getUserRoomIds($userId));
+    }
+
     public function getAccessibleRooms(Table $roomTable, int $userId): array
     {
         if ($userId <= 0) {

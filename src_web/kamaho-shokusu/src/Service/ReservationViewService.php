@@ -52,7 +52,7 @@ class ReservationViewService
             if ($userRoomId !== null) {
                 $userRoomId = (int)$userRoomId;
             }
-            $isAdmin = ((int)$user->get('i_admin') === 1);
+            $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
         }
 
         $date = $dateParam;

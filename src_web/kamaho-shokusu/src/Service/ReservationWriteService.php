@@ -9,7 +9,6 @@ use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\Table;
-use Cake\ORM\TableRegistry;
 
 class ReservationWriteService
 {
@@ -567,9 +566,8 @@ class ReservationWriteService
 
         $targetDate   = new Date($dateStr);
         $today        = Date::today('Asia/Tokyo');
-        // 直前編集ウィンドウ: 当日〜+14日。この範囲は i_change_flag で変更を表現し eat_flag は原則保持する。
-        // 15日以降は eat_flag / i_change_flag を両方書き換える通常予約。
-        $isLastMinute = ($targetDate >= $today && $targetDate <= $today->addDays(14));
+        $lastDeadline = $today->addDays(14);
+        $isLastMinute = ($targetDate >= $today && $targetDate <= $lastDeadline);
 
         $exists = $this->reservationTable->exists([
             'i_id_user'          => $targetUserId,
@@ -585,35 +583,48 @@ class ReservationWriteService
             ];
         }
 
-        // 既存レコードの eat_flag を取得（直前ウィンドウ内でのフラグ計算に必要）
-        $existingEatFlag = null;
-        if ($exists && $isLastMinute) {
-            $existingEntity = $this->reservationTable->find()
-                ->select(['eat_flag'])
-                ->where([
-                    'i_id_user'          => $targetUserId,
-                    'i_id_room'          => $roomId,
-                    'd_reservation_date' => $dateStr,
-                    'i_reservation_type' => $meal,
-                ])
-                ->first();
-            $existingEatFlag = $existingEntity ? (int)$existingEntity->eat_flag : 0;
-        }
+        if ($exists) {
+            $existingEatFlag = null;
+            if ($isLastMinute) {
+                $existingEntity = $this->reservationTable->find()
+                    ->select(['eat_flag'])
+                    ->where([
+                        'i_id_user'          => $targetUserId,
+                        'i_id_room'          => $roomId,
+                        'd_reservation_date' => $dateStr,
+                        'i_reservation_type' => $meal,
+                    ])
+                    ->first();
+                $existingEatFlag = $existingEntity ? (int)$existingEntity->eat_flag : 0;
+            }
 
-        ['eatFlag' => $eatFlag, 'changeFlag' => $changeFlag] =
-            $this->computeToggleFlags($value === 1, $isLastMinute, $existingEatFlag);
+            if ($value === 1) {
+                $eatFlag = $isLastMinute ? (int)$existingEatFlag : 1;
+                $changeFlag = 1;
+            } else {
+                $eatFlag = $isLastMinute ? (int)$existingEatFlag : 0;
+                $changeFlag = 0;
+            }
+        } else {
+            if ($value === 1) {
+                $eatFlag    = $isLastMinute ? 0 : 1;
+                $changeFlag = 1;
+            } else {
+                $eatFlag    = 0;
+                $changeFlag = 0;
+            }
+        }
 
         try {
             $result = $this->reservationTable->toggleMeal(
-                userId:       $targetUserId,
-                roomId:       $roomId,
-                date:         $dateStr,
-                meal:         $meal,
-                on:           $value === 1,
-                actor:        $actorName,
-                eatFlag:      $eatFlag,
-                changeFlag:   $changeFlag,
-                isLastMinute: $isLastMinute,
+                userId: $targetUserId,
+                roomId: $roomId,
+                date:   $dateStr,
+                meal:   $meal,
+                on:     $value === 1,
+                actor:  $actorName,
+                eatFlag: $eatFlag,
+                changeFlag: $changeFlag,
             );
             $this->invalidateCachesForDateRooms($dateStr, [$roomId], [$targetUserId]);
 
@@ -695,37 +706,6 @@ class ReservationWriteService
         );
 
         return $affected === 1;
-    }
-
-    /**
-     * 予約操作に応じた eat_flag / i_change_flag を計算する。
-     *
-     * 14日以内（直前ウィンドウ）ルール:
-     *   - ON（新規）  : eat_flag=0,              i_change_flag=1
-     *   - ON（既存）  : eat_flag=既存のeat_flag,  i_change_flag=1
-     *   - OFF（キャンセル）: eat_flag=既存のeat_flag, i_change_flag=0
-     *
-     * 15日以降（通常予約）ルール:
-     *   - ON  : eat_flag=1, i_change_flag=1
-     *   - OFF : eat_flag=0, i_change_flag=0
-     *
-     * @param bool     $on              true=予約ON / false=予約OFF(キャンセル)
-     * @param bool     $isLastMinute    true=直前ウィンドウ（今日〜+14日）
-     * @param int|null $existingEatFlag 既存レコードの eat_flag（新規=null）
-     * @return array{eatFlag: int, changeFlag: int}
-     */
-    private function computeToggleFlags(bool $on, bool $isLastMinute, ?int $existingEatFlag): array
-    {
-        if ($isLastMinute) {
-            return [
-                'eatFlag'    => $existingEatFlag ?? 0,
-                'changeFlag' => $on ? 1 : 0,
-            ];
-        }
-        return [
-            'eatFlag'    => $on ? 1 : 0,
-            'changeFlag' => $on ? 1 : 0,
-        ];
     }
 
     private function redirectToIndex(): string

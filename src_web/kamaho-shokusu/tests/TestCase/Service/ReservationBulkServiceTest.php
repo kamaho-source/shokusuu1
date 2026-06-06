@@ -40,9 +40,10 @@ class ReservationBulkServiceTest extends TestCase
     private function makeDatePolicyMock(): ReservationDatePolicy
     {
         $mock = $this->getMockBuilder(ReservationDatePolicy::class)
-            ->onlyMethods(['validateReservationDate'])
+            ->onlyMethods(['validateReservationDate', 'isPastDate'])
             ->getMock();
         $mock->method('validateReservationDate')->willReturn(true);
+        $mock->method('isPastDate')->willReturn(false);
         return $mock;
     }
 

@@ -75,12 +75,17 @@ class MUserInfoPolicy
 
     public function canUpdateAdminStatus(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isAdmin($user) || $this->isSystemAdmin($user);
+    }
+
+    public function canUpdateSystemAdminStatus(?IdentityInterface $user, MUserInfo $resource): bool
+    {
+        return $this->isSystemAdmin($user);
     }
 
     public function canRestore(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isAdmin($user) || $this->isSystemAdmin($user);
     }
 
     private function isAdmin(?IdentityInterface $user): bool
@@ -91,15 +96,15 @@ class MUserInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 1;
+            return in_array((int)$identity->get('i_admin'), [1, 3]);
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
         }
 
         return false;
@@ -122,6 +127,24 @@ class MUserInfoPolicy
         }
 
         return $identityId !== null && $identityId > 0 && $identityId === (int)$resource->i_id_user;
+    }
+
+    private function isSystemAdmin(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return (int)$identity->get('i_admin') === 3;
+        }
+        if (is_array($identity)) {
+            return (int)($identity['i_admin'] ?? 0) === 3;
+        }
+        if ($identity instanceof \ArrayAccess) {
+            return (int)($identity['i_admin'] ?? 0) === 3;
+        }
+        return false;
     }
 
     private function getOriginalIdentity(?IdentityInterface $user): mixed

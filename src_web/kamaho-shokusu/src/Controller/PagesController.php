@@ -196,7 +196,7 @@ class PagesController extends AppController
                 ->select(['i_admin'])
                 ->where(['i_id_user' => $userId])
                 ->first();
-            $isAdmin = (int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0) === 1;
+            $isAdmin = in_array((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0), [1, 3]);
             $isBlockLeader = (int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0) === 2;
 
             // 当日の食数報告が完了しているかを DB + キャッシュで判定する

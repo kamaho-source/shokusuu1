@@ -149,14 +149,9 @@ class ReservationCalendarService
             $dateStr = $r->d_reservation_date->format('Y-m-d');
             $type    = (int)$r->i_reservation_type;
 
-            $change = $r->i_change_flag;
-            $eat    = $r->eat_flag;
-
-            // i_change_flag が設定済み(直前編集あり)ならそれを優先。
-            // 未設定(NULL)の場合は eat_flag にフォールバック。
-            // 過去日・未来日問わず直前編集を優先することで、
-            // 実食確認なしでも予約数をカレンダーに表示できる。
-            $effective = $change !== null ? (int)$change : (int)($eat ?? 0);
+            $effective = ($r->d_reservation_date <= $borderDate)
+                ? (int)$r->i_change_flag
+                : (int)$r->eat_flag;
 
             if ($effective !== 1) {
                 continue;

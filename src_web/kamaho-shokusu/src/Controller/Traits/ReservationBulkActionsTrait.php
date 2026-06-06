@@ -76,7 +76,7 @@ trait ReservationBulkActionsTrait
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam = $this->request->getQuery('base_week');
         $formData = $bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
-        $canGroup = ((int)$this->request->getAttribute('identity')->get('i_admin') === 1
+        $canGroup = (in_array((int)$this->request->getAttribute('identity')->get('i_admin'), [1, 3])
             || (int)$this->request->getAttribute('identity')->get('i_user_level') === 0);
 
         $this->set(compact(

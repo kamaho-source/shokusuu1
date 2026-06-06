@@ -42,10 +42,103 @@ $this->assign('title', __('食事給与控除データエクスポート'));
             </select>
         </div>
 
-        <!-- Submit Button -->
-        <button type="button" id="downloadExcelWithDeductions" class="btn btn-primary">エクスポート</button>
+        <!-- Submit Buttons -->
+        <div class="d-flex gap-2 mt-2">
+            <button type="button" id="downloadExcelWithDeductions" class="btn btn-primary">
+                承認済みエクスポート
+            </button>
+            <button type="button" id="downloadExcelPreview" class="btn btn-warning">
+                未承認プレビューエクスポート
+            </button>
+        </div>
+        <div class="form-text text-muted mt-1">
+            ※ 未承認プレビューは管理者承認前のデータ（未承認・ブロック長承認済）を含みます。確定値ではありません。
+        </div>
     </form>
 </div>
+
+<!-- 未承認プレビュー確認モーダル -->
+<div id="preview-confirm-modal" class="preview-modal-backdrop" aria-hidden="true">
+    <div class="preview-modal-card" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
+        <div class="preview-modal-header">
+            <div class="preview-modal-icon">⚠</div>
+            <h5 id="preview-modal-title" class="preview-modal-title">未承認データのエクスポート</h5>
+        </div>
+        <div class="preview-modal-body">
+            これは<strong>未承認データのプレビューエクスポート</strong>です。<br>
+            管理者による最終承認が完了していないデータを含むため、<strong>確定値ではありません。</strong><br><br>
+            エクスポートを続けますか？
+        </div>
+        <div class="preview-modal-footer">
+            <button type="button" id="preview-modal-cancel" class="btn btn-secondary">キャンセル</button>
+            <button type="button" id="preview-modal-confirm" class="btn btn-warning">エクスポートする</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.preview-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.18);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1055;
+    padding: 1rem;
+    backdrop-filter: blur(4px);
+}
+.preview-modal-backdrop.is-open { display: flex; }
+.preview-modal-card {
+    width: min(100%, 400px);
+    background: linear-gradient(180deg, #ffffff 0%, #fffdf5 100%);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 20px;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+    overflow: hidden;
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+    transition: transform .18s ease, opacity .18s ease;
+}
+.preview-modal-backdrop.is-open .preview-modal-card {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+}
+.preview-modal-header {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: 1rem 1.2rem .5rem;
+    border-bottom: none;
+}
+.preview-modal-icon {
+    width: 42px; height: 42px;
+    border-radius: 999px;
+    background: #fef9c3;
+    color: #b45309;
+    font-size: 1.3rem;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.preview-modal-title { margin: 0; font-size: 1rem; font-weight: 700; color: #1e293b; }
+.preview-modal-body {
+    padding: .5rem 1.2rem 1rem;
+    color: #475569;
+    line-height: 1.8;
+    font-size: .92rem;
+}
+.preview-modal-footer {
+    display: flex;
+    gap: .6rem;
+    padding: 0 1.2rem 1rem;
+}
+.preview-modal-footer .btn {
+    flex: 1;
+    border-radius: 999px;
+    font-weight: 600;
+    padding: .6rem .9rem;
+}
+</style>
 
 <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
 
@@ -219,6 +312,169 @@ $this->assign('title', __('食事給与控除データエクスポート'));
             });
         } else {
             console.error("必要な要素が見つかりません。");
+        }
+
+        // ── 未承認プレビューエクスポート ──────────────────────────────
+        const previewButton = document.getElementById("downloadExcelPreview");
+        const previewModal  = document.getElementById("preview-confirm-modal");
+        const modalCancel   = document.getElementById("preview-modal-cancel");
+        const modalConfirm  = document.getElementById("preview-modal-confirm");
+
+        function openPreviewModal() {
+            return new Promise(function (resolve) {
+                previewModal.classList.add("is-open");
+                previewModal.setAttribute("aria-hidden", "false");
+
+                function onConfirm() { cleanup(); resolve(true); }
+                function onCancel()  { cleanup(); resolve(false); }
+                function onBackdrop(e) { if (e.target === previewModal) { cleanup(); resolve(false); } }
+
+                function cleanup() {
+                    previewModal.classList.remove("is-open");
+                    previewModal.setAttribute("aria-hidden", "true");
+                    modalConfirm.removeEventListener("click", onConfirm);
+                    modalCancel.removeEventListener("click", onCancel);
+                    previewModal.removeEventListener("click", onBackdrop);
+                }
+
+                modalConfirm.addEventListener("click", onConfirm);
+                modalCancel.addEventListener("click", onCancel);
+                previewModal.addEventListener("click", onBackdrop);
+            });
+        }
+
+        if (previewButton && yearSelect && monthSelect) {
+            previewButton.addEventListener("click", async function () {
+                const selectedYear  = yearSelect.value;
+                const selectedMonth = monthSelect.value;
+
+                if (!selectedYear)  { alert("年度を選択してください。"); return; }
+                if (!selectedMonth) { alert("月を選択してください。"); return; }
+
+                const confirmed = await openPreviewModal();
+                if (!confirmed) return;
+
+                try {
+                    const response = await fetch(
+                        `/kamaho-shokusu/MMealPriceInfo/exportMealSummaryPreview?year=${selectedYear}&month=${selectedMonth}`
+                    );
+                    if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
+
+                    const raw  = await response.json();
+                    const data = (raw && typeof raw === "object" && raw.ok !== undefined)
+                        ? (Array.isArray(raw.data?.rows) ? raw.data.rows : [])
+                        : [];
+
+                    if (data.length === 0) {
+                        alert("未承認データが見つかりませんでした。");
+                        return;
+                    }
+
+                    const workbook = new ExcelJS.Workbook();
+                    workbook.creator = "給与控除システム（プレビュー）";
+                    workbook.created  = new Date();
+                    workbook.modified = new Date();
+
+                    const sheet = workbook.addWorksheet(`未承認プレビュー_${selectedYear}_${selectedMonth}`);
+
+                    // ── 行1: 警告 ──────────────────────────
+                    const warnRow = sheet.addRow(["【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。"]);
+                    warnRow.getCell(1).font = { bold: true, color: { argb: "FFCC0000" } };
+                    warnRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
+
+                    // ── 行2: ヘッダー ──────────────────────────
+                    const headerRow = sheet.addRow([
+                        "職員情報", "承認ステータス", "弁当(回)", "朝食(回)", "昼食(回)", "夕食(回)", "控除額合計"
+                    ]);
+                    headerRow.eachCell(cell => {
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC107" } };
+                        cell.font = { bold: true };
+                        cell.alignment = { horizontal: "center" };
+                    });
+
+                    // ── 行4〜: データ（職員×ステータスで1行ずつ） ──────────────────────────
+                    const STATUS_LABELS = { 0: "未承認", 1: "ブロック長承認済" };
+                    const STATUS_COLORS = {
+                        0: "FFFFF3CD", // 薄い黄: 未承認
+                        1: "FFE0F2FE", // 薄い青: BL承認済
+                    };
+
+                    data.forEach(row => {
+                        const mc     = row.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+                        const status = row.approval_status ?? 0;
+                        const label  = STATUS_LABELS[status] ?? `status:${status}`;
+                        const color  = STATUS_COLORS[status] ?? "FFFFFFFF";
+
+                        const dataRow = sheet.addRow([
+                            `${row.staff_id ?? ""} ${row.name ?? ""}`.trim(),
+                            label,
+                            mc.bento   || 0,
+                            mc.morning || 0,
+                            mc.lunch   || 0,
+                            mc.dinner  || 0,
+                            row.total_price || 0,
+                        ]);
+                        dataRow.eachCell(cell => {
+                            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+                        });
+                        // 控除額列は通貨書式
+                        dataRow.getCell(7).numFmt = "¥#,##0";
+                    });
+
+                    // ── 合計行 ──────────────────────────
+                    // 行1=警告, 行2=ヘッダー → データは3行目〜
+                    const firstDataRow = 3;
+                    const lastDataRow  = data.length + 2;
+                    const totalRow = sheet.addRow([
+                        "合計", "",
+                        { formula: `SUM(C${firstDataRow}:C${lastDataRow})` },
+                        { formula: `SUM(D${firstDataRow}:D${lastDataRow})` },
+                        { formula: `SUM(E${firstDataRow}:E${lastDataRow})` },
+                        { formula: `SUM(F${firstDataRow}:F${lastDataRow})` },
+                        { formula: `SUM(G${firstDataRow}:G${lastDataRow})` },
+                    ]);
+                    totalRow.font = { bold: true };
+                    totalRow.getCell(7).numFmt = "¥#,##0";
+
+                    // 行2以降のみで列幅を計算し、行1（警告行）は変更しない
+                    sheet.columns.forEach((column, colIdx) => {
+                        let max = 10;
+                        sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+                            if (rowNumber === 1) return;
+                            const cell = row.getCell(colIdx + 1);
+                            if (!cell.value) return;
+                            let text = '';
+                            if (typeof cell.value === 'object') {
+                                text = cell.value.result != null ? String(cell.value.result)
+                                     : cell.value.formula   != null ? String(cell.value.formula)
+                                     : '';
+                            } else {
+                                text = String(cell.value);
+                            }
+                            const w = Array.from(text).reduce(
+                                (s, c) => s + (/[ -~]/.test(c) ? 1 : 2), 0
+                            );
+                            if (w > max) max = w;
+                        });
+                        column.width = max + 2;
+                    });
+
+                    const buffer = await workbook.xlsx.writeBuffer();
+                    const blob   = new Blob([buffer], {
+                        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    });
+                    const link = document.createElement("a");
+                    link.href     = URL.createObjectURL(blob);
+                    link.download = `給与控除データ_未承認プレビュー_${selectedYear}_${selectedMonth}.xlsx`;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+
+                } catch (error) {
+                    console.error("プレビューエクスポートエラー:", error);
+                    alert("プレビューエクスポート中にエラーが発生しました。詳細はコンソールを確認してください。");
+                }
+            });
         }
     });
 </script>

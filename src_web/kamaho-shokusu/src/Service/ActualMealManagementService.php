@@ -280,6 +280,18 @@ class ActualMealManagementService
             return ['ok' => false, 'message' => '他のユーザーによって更新されています。画面を再読み込みしてください。'];
         }
 
+        AuditLogService::record(
+            'actual_meal',
+            'actual_meal_save',
+            $actor,
+            $userId,
+            't_individual_reservation_info',
+            "{$userId}:{$date}:{$roomId}:{$mealType}",
+            ['checked' => $checked, 'meal_type' => $mealType],
+            null,
+            1
+        );
+
         return ['ok' => true, 'message' => '保存しました。', 'version' => $nextVersion];
     }
 
@@ -309,6 +321,20 @@ class ActualMealManagementService
                     'd_reservation_date' => (string)$key['date'],
                     'i_reservation_type' => (int)$key['meal_type'],
                 ]
+            );
+        }
+
+        if ($affectedTotal > 0) {
+            AuditLogService::record(
+                'actual_meal',
+                'actual_meal_approval_request',
+                $actor,
+                0,
+                't_individual_reservation_info',
+                null,
+                ['count' => $affectedTotal],
+                null,
+                1
             );
         }
 

@@ -17,6 +17,13 @@
         success: '#10b981',
     };
 
+    const ICON_THEMES = {
+        warning: { bg: '#fffbeb', stroke: '#f59e0b' },
+        danger:  { bg: '#fee2e2', stroke: '#ef4444' },
+        success: { bg: '#d1fae5', stroke: '#10b981' },
+        primary: { bg: '#ede9fe', stroke: '#6366f1' },
+    };
+
     let initialized = false;
     let currentResolve = null;
     let resultTimer = null;
@@ -85,7 +92,9 @@
 
     function hide() {
         document.getElementById('cp-overlay').classList.remove('show');
-        document.getElementById('cp-popup').classList.remove('show');
+        const popup = document.getElementById('cp-popup');
+        popup.classList.remove('show');
+        popup.style.borderTop = '';
     }
 
     /**
@@ -100,14 +109,24 @@
         const okLabel     = (options && options.okLabel)     || '確定';
         const cancelLabel = (options && options.cancelLabel) || 'キャンセル';
         const okColor     = (options && options.okColor)     || 'primary';
+        const type        = (options && options.type)        || 'warning';
+        const theme       = ICON_THEMES[type] || ICON_THEMES.warning;
 
         document.getElementById('cp-message').textContent  = message;
         document.getElementById('cp-ok').textContent       = okLabel;
         document.getElementById('cp-ok').style.background  = OK_COLORS[okColor] || OK_COLORS.primary;
         document.getElementById('cp-cancel').textContent   = cancelLabel;
 
+        const iconWrap = document.querySelector('.cp-icon-wrap');
+        const iconSvg  = document.querySelector('.cp-icon-svg');
+        iconWrap.style.background = theme.bg;
+        iconSvg.style.stroke      = theme.stroke;
+
+        const popup = document.getElementById('cp-popup');
+        popup.style.borderTop = type === 'danger' ? '4px solid #ef4444' : '';
+
         document.getElementById('cp-overlay').classList.add('show');
-        document.getElementById('cp-popup').classList.add('show');
+        popup.classList.add('show');
         document.getElementById('cp-ok').focus();
 
         return new Promise(function (res) {

@@ -8,7 +8,7 @@ $this->assign('title', __('部屋情報一覧'));
 echo $this->Html->css('pages/m_room_info_index.css');
 
 // 管理者権限の確認
-$isAdmin = $user->get('i_admin') === 1;
+$isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
 ?>
 <div class="mRoomInfo index content">
     <?php if ($isAdmin): // 管理者のみが新しい部屋情報を追加できる ?>
