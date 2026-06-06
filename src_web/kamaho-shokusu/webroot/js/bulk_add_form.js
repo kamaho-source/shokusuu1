@@ -558,9 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 selectionsByRoom[roomId][activeDate][uid] = selectionsByRoom[roomId][activeDate][uid] || {};
                 serverReservedByRoom[roomId][activeDate][uid][Number(type)] = true;
-                if (selectionsByRoom[roomId][activeDate][uid][Number(type)] !== false) {
-                    selectionsByRoom[roomId][activeDate][uid][Number(type)] = true;
-                }
+                selectionsByRoom[roomId][activeDate][uid][Number(type)] = true;
             });
         });
     }
