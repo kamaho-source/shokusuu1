@@ -161,7 +161,7 @@ $recentNotifications     = $recentNotifications ?? [];
     </nav>
 <?php endif; ?>
 
-<main class="<?= $isModal ? '' : 'container-xl mt-3' ?>">
+<main class="<?= $isModal ? '' : 'container mt-3' ?>">
     <?= $this->Flash->render() ?>
     <?= $this->fetch('content') ?>
 </main>

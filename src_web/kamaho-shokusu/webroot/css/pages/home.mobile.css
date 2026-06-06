@@ -1,7 +1,7 @@
 @media (max-width: 992px) {
     .dash-shell { grid-template-columns: 1fr; }
     .dash-main { padding: 24px 20px 40px; }
-    .card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .card-grid { grid-template-columns: 1fr; }
     .alert-card { grid-template-columns: 1fr; }
     .alert-actions { justify-content: flex-start; }
     .menu-card:hover { transform: none; }
@@ -43,12 +43,4 @@
         color: #475569;
         font-weight: 700;
     }
-}
-
-@media (max-width: 575px) {
-    .card-grid { grid-template-columns: 1fr; }
-    .dash-main { padding: 16px 14px 32px; }
-    .menu-card { min-height: 140px; padding: 18px 14px; }
-    .dash-title { font-size: 1.3rem; }
-    .date-pill { font-size: .85rem; padding: 6px 10px; }
 }
