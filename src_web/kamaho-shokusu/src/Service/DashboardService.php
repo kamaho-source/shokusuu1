@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -103,76 +102,24 @@ class DashboardService
     }
 
     /**
-     * 指定ユーザーの「所属部屋のいずれかで本日の予約が存在するか」を判定する。
+     * 指定ユーザーが本日の予約レコードを持つかを判定する。
      *
-     * 判定ロジック:
-     *   1. キャッシュキー「today_report:{userId}:{YYYY-MM-DD}」を参照し、
-     *      キャッシュヒットした場合はその値(1 or 0)を bool にキャストして返す。
-     *   2. キャッシュミス時は m_user_group からユーザーの所属部屋IDを取得する。
-     *   3. 所属部屋のいずれかに当日の予約レコードが存在するか確認する。
-     *      どこか1部屋でも予約があれば「報告済み(true)」と判定する。
-     *   4. 結果をキャッシュに書き込んでから返す。
+     * 「食べる」「食べない」どちらの申告でも TIndividualReservationInfo に
+     * レコードが作成されるため、レコードの有無だけで判定する。
+     * レコードが存在する = 申告済み(アラート非表示)。
+     * レコードが存在しない = 未申告(アラート表示)。
      *
      * @param int   $userId           ログイン中ユーザーの i_id_user
      * @param Table $reservationTable TIndividualReservationInfo テーブルオブジェクト
-     * @param Table $userGroupTable   MUserGroup テーブルオブジェクト
-     * @return bool true = 所属部屋のどこかに本日の予約あり / false = いずれの部屋にも予約なし
+     * @return bool true = 本日の予約レコードあり / false = 本日の予約レコードなし
      */
-    public function hasTodayReport(int $userId, Table $reservationTable, Table $userGroupTable): bool
+    public function hasTodayReport(int $userId, Table $reservationTable): bool
     {
-        // アジア/東京タイムゾーンで「今日」の Date オブジェクトを取得する
         $today = Date::today('Asia/Tokyo');
 
-        // キャッシュキーはユーザーIDと日付の組み合わせで一意にする
-        // 例: today_report:42:2026-02-21
-        $cacheKey = sprintf('today_report:%d:%s', $userId, $today->format('Y-m-d'));
-
-        // キャッシュを確認する。false は「キャッシュなし」を意味する(CakePHP の仕様)
-        $cached = Cache::read($cacheKey, 'default');
-        if ($cached !== false) {
-            // キャッシュヒット: 保存値(1 or 0)を bool に変換して返す
-            return (bool)$cached;
-        }
-
-        // ユーザーが所属する部屋IDの一覧を取得する
-        $roomIds = $userGroupTable->find()
-            ->enableAutoFields(false)
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
-            ->enableHydration(false)
-            ->all()
-            ->extract('i_id_room')
-            ->toArray();
-
-        // 所属部屋がない場合は未報告として扱う
-        if (empty($roomIds)) {
-            return false;
-        }
-
-        // 所属部屋のいずれかに当日の予約レコードが1件でも存在するか確認する
-        $row = $reservationTable
-            ->find()
-            ->enableAutoFields(false)
-            ->select(['i_id_user'])
-            ->where([
-                'i_id_room IN'        => $roomIds,
-                'd_reservation_date'  => $today,
-            ])
-            ->limit(1)
-            ->first();
-
-        // いずれかの部屋に予約レコードが存在すれば「報告済み」
-        $has = $row !== null;
-
-        // 報告済みの場合のみキャッシュに書き込む。
-        // 未報告(false)はキャッシュしない。キャッシュに0を書き込むと
-        // TTLが切れるまで「未報告」状態が固定され、その後の予約操作で
-        // キャッシュクリアが漏れた際にアラートが長時間表示されなくなる
-        // リスクがあるため、未報告は常にDBを参照して最新状態を返す。
-        if ($has) {
-            Cache::write($cacheKey, 1, 'default');
-        }
-
-        return $has;
+        return $reservationTable->exists([
+            'i_id_user'          => $userId,
+            'd_reservation_date' => $today,
+        ]);
     }
 }
