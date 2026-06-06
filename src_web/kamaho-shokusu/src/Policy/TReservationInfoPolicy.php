@@ -60,6 +60,8 @@ class TReservationInfoPolicy
             return true;
         }
 
+        $loginUserId = $this->getUserId($user);
+
         // 自分自身の予約操作は常に許可。
         if ($requestedUserId === $loginUserId) {
             return true;
