@@ -138,6 +138,40 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 </div>
             <?php endif; ?>
 
+            <?php /* ---- 承認申請アラート（ブロック長用） ---- */ ?>
+            <?php /* ブロック長ロールかつ未承認申請がある場合のみ表示する */ ?>
+            <?php if ($isBlockLeader && $blockLeaderPendingCount > 0): ?>
+                <div class="alert-card" style="border-color:#e0e7ff;">
+                    <div class="alert-left">
+                        <div class="alert-icon" style="background:#e0e7ff;color:#4f46e5;">📋</div>
+                        <div>
+                            <div class="alert-title">承認申請が届いています</div>
+                            <div class="alert-sub">未承認の申請が <?= h($blockLeaderPendingCount) ?> 件あります。確認してください。</div>
+                        </div>
+                    </div>
+                    <div class="alert-actions">
+                        <a class="btn-teal" href="<?= $this->Url->build('/Approval/blockLeaderIndex') ?>" style="background:#4f46e5;">承認画面へ</a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php /* ---- 承認申請アラート（管理者用） ---- */ ?>
+            <?php /* 管理者ロールかつ未承認申請がある場合のみ表示する */ ?>
+            <?php if ($isAdmin && $adminPendingCount > 0): ?>
+                <div class="alert-card" style="border-color:#e0e7ff;">
+                    <div class="alert-left">
+                        <div class="alert-icon" style="background:#e0e7ff;color:#4f46e5;">📋</div>
+                        <div>
+                            <div class="alert-title">承認申請が届いています</div>
+                            <div class="alert-sub">未承認の申請が <?= h($adminPendingCount) ?> 件あります。確認してください。</div>
+                        </div>
+                    </div>
+                    <div class="alert-actions">
+                        <a class="btn-teal" href="<?= $this->Url->build('/Approval/adminIndex') ?>" style="background:#4f46e5;">承認管理へ</a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php /* ---- メインメニューカード ---- */ ?>
             <div class="section-title">各種メニュー</div>
             <div class="card-grid">
