@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
 
 class ReservationWriteService
 {
@@ -495,7 +497,7 @@ class ReservationWriteService
             ->select(['i_admin', 'i_user_level', 'i_id_staff'])
             ->where(['i_id_user' => $loginUserId])
             ->first();
-        $isAdmin    = $loginUser ? ((int)$loginUser->i_admin === 1) : false;
+        $isAdmin    = $loginUser ? UserRole::isAdmin((int)$loginUser->i_admin) : false;
         $loginStaff = $loginUser ? $loginUser->i_id_staff : null;
         $hasStaffId = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
 
@@ -576,7 +578,7 @@ class ReservationWriteService
             'i_reservation_type' => $meal,
         ]);
 
-        if ($isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
+        if (!$isAdmin && $isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
             return [
                 'status' => 403,
                 'body' => ['ok' => false, 'message' => '職員は直前編集でのキャンセルはできません。'],

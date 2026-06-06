@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
+
 use App\Model\Entity\TReservationInfo;
 use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
@@ -57,6 +59,8 @@ class TReservationInfoPolicy
             // 部屋アクセスチェックは上で通過済みのため、認証さえ通っていれば操作可能とする。
             return true;
         }
+
+        $loginUserId = $this->getUserId($user);
 
         // 自分自身の予約操作は常に許可。
         if ($requestedUserId === $loginUserId) {
@@ -214,15 +218,15 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return in_array((int)$identity->get('i_admin'), [1, 3]);
+            return UserRole::isAdmin((int)$identity->get('i_admin'));
         }
 
         if (is_array($identity)) {
-            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         return false;
@@ -258,15 +262,15 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 2;
+            return UserRole::isBlockLeader((int)$identity->get('i_admin'));
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 2;
+            return UserRole::isBlockLeader((int)($identity['i_admin'] ?? 0));
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 2;
+            return UserRole::isBlockLeader((int)($identity['i_admin'] ?? 0));
         }
 
         return false;

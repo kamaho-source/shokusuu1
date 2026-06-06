@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
@@ -149,7 +150,7 @@ class ReservationChangeEditService
     {
         // 管理者・職員・所属グループユーザーは部屋内の全ユーザーを編集できる
         $canEditAll = $isRoomManager || ($loginUser && (
-            (int)($loginUser->get('i_admin')      ?? 0) === 1 ||
+            UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0)) ||
             (int)($loginUser->get('i_user_level') ?? -1) === 0
         ));
         $loginUid = $loginUser?->get('i_id_user');
@@ -191,7 +192,7 @@ class ReservationChangeEditService
             // ログインユーザーの編集権限を確定する（buildUsersForJson と同一ロジック）
             $loginUid    = $loginUser ? (int)$loginUser->get('i_id_user') : 0;
             $canEditAll  = $isRoomManager || ($loginUser && (
-                (int)($loginUser->get('i_admin')      ?? 0) === 1 ||
+                UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0)) ||
                 (int)($loginUser->get('i_user_level') ?? -1) === 0
             ));
 

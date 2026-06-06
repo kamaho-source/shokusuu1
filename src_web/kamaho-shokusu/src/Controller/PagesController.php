@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Domain\ValueObject\UserRole;
 use App\Service\ApprovalService;
 use App\Service\DashboardService;
 use Cake\Core\Configure;
@@ -196,8 +197,8 @@ class PagesController extends AppController
                 ->select(['i_admin'])
                 ->where(['i_id_user' => $userId])
                 ->first();
-            $isAdmin = in_array((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0), [1, 3]);
-            $isBlockLeader = (int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0) === 2;
+            $isAdmin = UserRole::isAdmin((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0));
+            $isBlockLeader = UserRole::isBlockLeader((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0));
 
             // ログインユーザー自身の本日の予約レコード有無で申告済みを判定する
             // 「食べる」「食べない」どちらの申告でもレコードが作成されるため、
