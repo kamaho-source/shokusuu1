@@ -1921,13 +1921,14 @@ class TReservationInfoController extends AppController
             $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
 
             if ($viewMode === 'individual') {
-                if ($hasStaffId) {
-                    // 職員IDを持つ場合: 自分 + 同部屋の子供ユーザー(i_user_level=1)を表示
+                if (!$canViewAll && $hasStaffId) {
+                    // 非管理者の職員: 自分 + 同部屋の子供ユーザー(i_user_level=1)を表示
                     $users = array_values(array_filter(
                         $users,
                         fn($u) => (int)$u['id'] === $loginUserId || (int)($u['i_user_level'] ?? 0) === 1
                     ));
                 } else {
+                    // 管理者または職員IDなしユーザー: 選択ユーザーのみ表示
                     $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
                 }
             }
