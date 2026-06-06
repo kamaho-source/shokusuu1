@@ -32,7 +32,7 @@ $recentNotifications     = $recentNotifications ?? [];
 ?>
 
 <?php if (!$isModal): ?>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-info shadow-sm py-3 fixed-top" id="mainNav">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-info shadow-sm py-2 fixed-top" id="mainNav">
         <div class="container">
             <a class="navbar-brand fs-4" href="<?= $this->Url->build($isChild ? '/TReservationInfo' : '/') ?>">食数管理システム</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -44,18 +44,18 @@ $recentNotifications     = $recentNotifications ?? [];
                     <?php if ($user): ?>
                         <?php if ($isStaff): ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="<?= $this->Url->build('/') ?>">🏠 ダッシュボード</a>
+                                <a class="nav-link" href="<?= $this->Url->build('/') ?>">ダッシュボード</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="<?= $this->Url->build('/TReservationInfo') ?>">🗓 予約（従来）</a>
+                                <a class="nav-link" href="<?= $this->Url->build('/TReservationInfo') ?>">予約（従来）</a>
                             </li>
                         <?php endif; ?>
                         <li class="nav-item">
-                            <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">🏠 部屋情報</a>
+                            <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">部屋情報</a>
                         </li>
                         <?php if ($isAdmin): ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>">👥 ユーザ一覧</a>
+                                <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>">ユーザ一覧</a>
                             </li>
                         <?php endif; ?>
                     <?php endif; ?>
@@ -63,7 +63,7 @@ $recentNotifications     = $recentNotifications ?? [];
                     <?php if ($user && $user->i_admin): ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" id="adminDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                📋 予約情報
+                                予約情報
                             </a>
                             <ul class="dropdown-menu animate__animated animate__fadeIn" aria-labelledby="adminDropdown">
                                 <li><?= $this->Html->link('💰 食数単価一覧', ['controller' => 'MMealPriceInfo', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
@@ -78,7 +78,7 @@ $recentNotifications     = $recentNotifications ?? [];
                         <?php if ($isAdmin): ?>
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" id="contactDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    &#128140; お問い合わせ
+                                    お問い合わせ
                                 </a>
                                 <ul class="dropdown-menu animate__animated animate__fadeIn" aria-labelledby="contactDropdown">
                                     <li><?= $this->Html->link('&#128140; お問い合わせフォーム', ['controller' => 'Contacts', 'action' => 'index'], ['class' => 'dropdown-item', 'escape' => false]) ?></li>
@@ -87,16 +87,14 @@ $recentNotifications     = $recentNotifications ?? [];
                             </li>
                         <?php else: ?>
                             <li class="nav-item">
-                                <a class="nav-link" href="<?= $this->Url->build('/Contacts') ?>">&#128140; お問い合わせ</a>
+                                <a class="nav-link" href="<?= $this->Url->build('/Contacts') ?>">お問い合わせ</a>
                             </li>
                         <?php endif; ?>
                     <?php endif; ?>
 
                     <?php if ($user && $isSysAdmin): ?>
                         <li class="nav-item">
-                            <a class="nav-link text-warning fw-bold" href="<?= $this->Url->build('/AuditLog') ?>">
-                                &#128274; 監査ログ
-                            </a>
+                            <a class="nav-link fw-bold" href="<?= $this->Url->build('/AuditLog') ?>">監査ログ</a>
                         </li>
                     <?php endif; ?>
                 </ul>
