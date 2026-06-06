@@ -35,6 +35,8 @@ jobs:
           curl -fsSL -X POST "${{ secrets.SLACK_WEBHOOK }}" \
             -H 'Content-type: application/json' \
             -d '{
+              "username": "DeployBot",
+              "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
               "attachments": [{
                 "color": "good",
                 "title": "DB Backup / Success",
@@ -50,6 +52,8 @@ jobs:
           curl -fsSL -X POST "${{ secrets.SLACK_WEBHOOK }}" \
             -H 'Content-type: application/json' \
             -d "{
+              \"username\": \"DeployBot\",
+              \"icon_url\": \"https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png\",
               \"attachments\": [{
                 \"color\": \"danger\",
                 \"title\": \"DB Backup / Failure\",

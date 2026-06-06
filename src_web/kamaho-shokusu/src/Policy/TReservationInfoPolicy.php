@@ -52,11 +52,13 @@ class TReservationInfoPolicy
         }
 
         $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
-        $loginUserId     = $this->getUserId($user);
+        if ($requestedUserId <= 0) {
+            // i_id_user が未指定（0）の場合は「全員向けトグル」として許可する。
+            // 部屋アクセスチェックは上で通過済みのため、認証さえ通っていれば操作可能とする。
+            return true;
+        }
 
-        // 自分自身の予約操作は常に許可。
-        // userId 未指定（0）の場合はコントローラー側でログインユーザーIDに補完されるため、
-        // ここでは明示的な i_id_user が必須とし、未指定は職員・管理者のみ通す。
+        $loginUserId = $this->getUserId($user);
         if ($requestedUserId === $loginUserId) {
             return true;
         }
@@ -177,16 +179,6 @@ class TReservationInfoPolicy
     public function canMyActualMeal(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
-    }
-
-    public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isStaffOrAdmin($user);
-    }
-
-    public function canWeeklyMealGrid(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isStaffOrAdmin($user);
     }
 
     private function isAuthenticated(?IdentityInterface $user): bool

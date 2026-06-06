@@ -106,41 +106,20 @@ class TReservationInfoController extends AppController
         // $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
-        if (isset($this->FormProtection)) {
-            $this->FormProtection->setConfig('unlockedActions', self::API_ACTIONS);
-        }
+        $this->FormProtection->setConfig('unlockedActions', [
+            'add',
+            'toggle',
+            'checkDuplicateReservation',
+            'changeEdit',
+            'bulkChangeEditSubmit',
+            'bulkAddSubmit',
+            'copy',
+            'copyPreview',
+            'actualMealSave',
+            'actualMealRequestApproval',
+        ]);
     }
 
-    /**
-     * FormProtection を外す JSON API アクション一覧。
-     * unlockedActions と beforeFilter の両方で参照し、リストの二重管理を防ぐ。
-     */
-    private const API_ACTIONS = [
-        'toggle',
-        'checkDuplicateReservation',
-        'changeEdit',
-        'bulkChangeEditSubmit',
-        'bulkAddSubmit',
-        'copy',
-        'copyPreview',
-        'actualMealSave',
-        'actualMealRequestApproval',
-        'getReservationSnapshots',
-    ];
-
-    /**
-     * @param \Cake\Event\EventInterface $event
-     */
-    public function beforeFilter(\Cake\Event\EventInterface $event): void
-    {
-        parent::beforeFilter($event);
-
-        // JSON API エンドポイントは FormProtectionComponent のフォームトークン検証対象外にする。
-        // CSRF 保護は CsrfProtectionMiddleware（X-CSRF-Token ヘッダー）で担保済み。
-        if (in_array($this->request->getParam('action'), self::API_ACTIONS, true)) {
-            $this->components()->unload('FormProtection');
-        }
-    }
 
     /**
      * インデックスメソッド

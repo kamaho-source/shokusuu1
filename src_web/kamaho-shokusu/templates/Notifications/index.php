@@ -1,11 +1,6 @@
 <?php
 /** @var \App\View\AppView $this */
 $notifications = $notifications ?? [];
-$_dow = ['日', '月', '火', '水', '木', '金', '土'];
-$fmtDt = static function (?\DateTimeInterface $dt) use ($_dow): string {
-    if ($dt === null) return '-';
-    return $dt->format('Y/m/d') . '（' . $_dow[(int)$dt->format('w')] . '）' . $dt->format(' H:i');
-};
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -35,7 +30,7 @@ $fmtDt = static function (?\DateTimeInterface $dt) use ($_dow): string {
                             <?php endif; ?>
                         </div>
                         <div class="mb-2"><?= h($notification->c_message) ?></div>
-                        <div class="small text-muted"><?= h($fmtDt($notification->dt_create)) ?></div>
+                        <div class="small text-muted"><?= h($notification->dt_create?->format('Y-m-d H:i')) ?></div>
                     </div>
                     <div class="d-flex flex-column gap-2">
                         <?php if ($link !== '#'): ?>
