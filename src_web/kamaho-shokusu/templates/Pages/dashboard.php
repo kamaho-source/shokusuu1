@@ -51,7 +51,6 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
 ?>
 
 <?= $this->Html->css('pages/home.pc.css') ?>
-<?= $this->Html->css('pages/home.mobile.css') ?>
 <?= $this->Html->css('pages/home_choice_modal.css') ?>
 
 <?php if (!$isLoggedIn): ?>
@@ -62,21 +61,12 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
     </div>
 <?php else: ?>
     <?php /* ログイン済み: ダッシュボード本体を表示する */ ?>
-    <div class="dash-shell mobile-sidebar-collapsed">
-        <?php /* サイドバー要素を読み込む。activeKey='dashboard' でダッシュボードメニューをハイライトする */ ?>
-        <?= $this->element('Pages/home_sidebar', [
-            'user'      => $user,
-            'isAdmin'   => $isAdmin,
-            'activeKey' => 'dashboard'
-        ]) ?>
-
+    <div class="dash-shell">
         <main class="dash-main">
             <?php /* ---- ヘッダー ---- */ ?>
             <div class="dash-header">
                 <div class="dash-title">ダッシュボード</div>
                 <div class="d-flex align-items-center gap-2">
-                    <?php /* モバイル向けサイドバー開閉ボタン */ ?>
-                    <button class="mobile-menu-btn" id="mobile-menu-btn" type="button">メニュー</button>
                     <?php /* 今日の日付ラベル(例: 2026年2月21日(土)) */ ?>
                     <div class="date-pill"><?= h($todayLabel) ?></div>
                     <a class="bell text-decoration-none position-relative" href="<?= $this->Url->build('/Notifications') ?>" aria-label="通知一覧">
@@ -165,6 +155,40 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                            href="<?= h($this->Url->build('/TReservationInfo/bulk-change-edit-form?date=' . $todayParam)) ?>">
                             食べる
                         </a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php /* ---- 承認申請アラート（ブロック長用） ---- */ ?>
+            <?php /* ブロック長ロールかつ未承認申請がある場合のみ表示する */ ?>
+            <?php if ($isBlockLeader && $blockLeaderPendingCount > 0): ?>
+                <div class="alert-card" style="border-color:#e0e7ff;">
+                    <div class="alert-left">
+                        <div class="alert-icon" style="background:#e0e7ff;color:#4f46e5;">📋</div>
+                        <div>
+                            <div class="alert-title">承認申請が届いています</div>
+                            <div class="alert-sub">未承認の申請が <?= h($blockLeaderPendingCount) ?> 件あります。確認してください。</div>
+                        </div>
+                    </div>
+                    <div class="alert-actions">
+                        <a class="btn-teal" href="<?= $this->Url->build('/Approval/blockLeaderIndex') ?>" style="background:#4f46e5;">承認画面へ</a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php /* ---- 承認申請アラート（管理者用） ---- */ ?>
+            <?php /* 管理者ロールかつ未承認申請がある場合のみ表示する */ ?>
+            <?php if ($isAdmin && $adminPendingCount > 0): ?>
+                <div class="alert-card" style="border-color:#e0e7ff;">
+                    <div class="alert-left">
+                        <div class="alert-icon" style="background:#e0e7ff;color:#4f46e5;">📋</div>
+                        <div>
+                            <div class="alert-title">承認申請が届いています</div>
+                            <div class="alert-sub">未承認の申請が <?= h($adminPendingCount) ?> 件あります。確認してください。</div>
+                        </div>
+                    </div>
+                    <div class="alert-actions">
+                        <a class="btn-teal" href="<?= $this->Url->build('/Approval/adminIndex') ?>" style="background:#4f46e5;">承認管理へ</a>
                     </div>
                 </div>
             <?php endif; ?>
@@ -289,8 +313,6 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             <?php endif; ?>
         </main>
     </div>
-    <?php /* モバイルサイドバー表示中にメインコンテンツを暗くするオーバーレイ */ ?>
-    <div class="mobile-overlay" id="mobile-overlay"></div>
 
     <div id="actual-meal-choice-modal" class="choice-modal-backdrop" aria-hidden="true">
         <div class="choice-modal-card" role="dialog" aria-modal="true" aria-labelledby="actual-meal-choice-title">
