@@ -99,7 +99,7 @@ class MRoomInfoController extends AppController
             ]);
 
             if ($this->MRoomInfo->save($mRoomInfo)) {
-                \App\Service\AuditLogService::record('master', 'room_create', $mRoomInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], (string)$this->request->clientIp(), 1);
+                \App\Service\AuditLogService::record('master', 'room_create', $mRoomInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), 1);
                 $this->Flash->success(__('部屋情報が正常に追加されました。'));
                 return $this->redirect(['action' => 'index']);
             }
@@ -139,7 +139,7 @@ class MRoomInfoController extends AppController
             ]);
 
             if ($this->MRoomInfo->save($mRoomInfo)) {
-                \App\Service\AuditLogService::record('master', 'room_update', $mRoomInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], (string)$this->request->clientIp(), 1);
+                \App\Service\AuditLogService::record('master', 'room_update', $mRoomInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), 1);
                 $this->Flash->success(__('部屋情報が正常に更新されました。'));
                 return $this->redirect(['action' => 'index']);
             }
@@ -169,7 +169,7 @@ class MRoomInfoController extends AppController
         $updatedBy = $user?->get('c_user_name');
 
         $deleted = $this->roomService->softDelete($mRoomInfo, $updatedBy);
-        \App\Service\AuditLogService::record('master', 'room_delete', $updatedBy ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], (string)$this->request->clientIp(), $deleted ? 1 : 0);
+        \App\Service\AuditLogService::record('master', 'room_delete', $updatedBy ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), $deleted ? 1 : 0);
         if ($deleted) {
             $this->Flash->success(__('部屋情報を削除しました。'));
         } else {

@@ -650,7 +650,7 @@ class TReservationInfoController extends AppController
                 't_reservation_info',
                 $data['d_reservation_date'] ?? null,
                 ['date' => $data['d_reservation_date'] ?? null],
-                (string)$this->request->clientIp(),
+                $this->getClientIp(),
                 ($result['ok'] ?? false) ? 1 : 0
             );
 
@@ -1341,7 +1341,7 @@ class TReservationInfoController extends AppController
             't_reservation_info',
             "room:{$roomId}",
             ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null],
-            (string)$this->request->clientIp(),
+            $this->getClientIp(),
             $ok ? 1 : 0
         );
         $message = (string)($body['message'] ?? '');

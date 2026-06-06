@@ -69,7 +69,7 @@ class AuditLogController extends AppController
             't_audit_log',
             null,
             ['filters' => $this->request->getQueryParams()],
-            (string)$this->request->clientIp(),
+            $this->getClientIp(),
             1
         );
 
