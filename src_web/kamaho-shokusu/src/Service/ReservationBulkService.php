@@ -707,14 +707,8 @@ class ReservationBulkService
             if (!is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
                 return '無効な日付が含まれています。';
             }
-            try {
-                $targetDate = new Date($date, 'Asia/Tokyo');
-                $today = Date::today('Asia/Tokyo');
-            } catch (\Throwable $e) {
-                return '無効な日付が含まれています。';
-            }
 
-            if ($targetDate < $today) {
+            if ($this->datePolicy->isPastDate($date)) {
                 return (string)Configure::read(
                     'App.messages.pastDateUnavailable',
                     '過去日の内容はこの画面では表示できません。修正が必要な場合は管理者にお問い合わせください。'
