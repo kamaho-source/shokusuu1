@@ -62,21 +62,12 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
     </div>
 <?php else: ?>
     <?php /* ログイン済み: ダッシュボード本体を表示する */ ?>
-    <div class="dash-shell mobile-sidebar-collapsed">
-        <?php /* サイドバー要素を読み込む。activeKey='dashboard' でダッシュボードメニューをハイライトする */ ?>
-        <?= $this->element('Pages/home_sidebar', [
-            'user'      => $user,
-            'isAdmin'   => $isAdmin,
-            'activeKey' => 'dashboard'
-        ]) ?>
-
+    <div class="dash-shell">
         <main class="dash-main">
             <?php /* ---- ヘッダー ---- */ ?>
             <div class="dash-header">
                 <div class="dash-title">ダッシュボード</div>
                 <div class="d-flex align-items-center gap-2">
-                    <?php /* モバイル向けサイドバー開閉ボタン */ ?>
-                    <button class="mobile-menu-btn" id="mobile-menu-btn" type="button">メニュー</button>
                     <?php /* 今日の日付ラベル(例: 2026年2月21日(土)) */ ?>
                     <div class="date-pill"><?= h($todayLabel) ?></div>
                     <a class="bell text-decoration-none position-relative" href="<?= $this->Url->build('/Notifications') ?>" aria-label="通知一覧">
@@ -253,8 +244,6 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             <?php endif; ?>
         </main>
     </div>
-    <?php /* モバイルサイドバー表示中にメインコンテンツを暗くするオーバーレイ */ ?>
-    <div class="mobile-overlay" id="mobile-overlay"></div>
 
     <div id="actual-meal-choice-modal" class="choice-modal-backdrop" aria-hidden="true">
         <div class="choice-modal-card" role="dialog" aria-modal="true" aria-labelledby="actual-meal-choice-title">

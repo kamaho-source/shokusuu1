@@ -1,17 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap');
 
-#mainNav { display: none !important; }
-body { padding-top: 0 !important; background: #f6f8fb; }
+body { background: #f6f8fb; }
 main.container { max-width: 100%; padding: 0; }
 
 .dash-shell {
     display: grid;
-    grid-template-columns: 260px 1fr;
+    grid-template-columns: 1fr;
     min-height: 100vh;
     font-family: "M PLUS Rounded 1c", "Noto Sans JP", sans-serif;
     color: #223;
 }
 .dash-sidebar {
+    display: none;
+}
     background: #ffffff;
     border-right: 1px solid #e8edf3;
     padding: 22px 18px;
