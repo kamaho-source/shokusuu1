@@ -59,18 +59,21 @@
             if (submitButton) submitButton.disabled = false;
         };
 
+        const showEl = (el) => { if (el) el.classList.remove('d-none'); };
+        const hideEl = (el) => { if (el) el.classList.add('d-none'); };
+
         // 正しい表示切替（1=個人 / 2=集団）
         function toggleReservationTypeDisplay(reservationType){
             if (reservationType === 1) {
                 // 個人：個人テーブルのみ表示
-                if (roomSelectionTable) roomSelectionTable.style.display = 'block';
-                if (roomSelectGroup)    roomSelectGroup.style.display    = 'none';
-                if (userSelectionTable) userSelectionTable.style.display = 'none';
+                showEl(roomSelectionTable);
+                hideEl(roomSelectGroup);
+                hideEl(userSelectionTable);
             } else if (reservationType === 2) {
                 // 集団：部屋選択を先に表示、利用者表は部屋選択後
-                if (roomSelectionTable) roomSelectionTable.style.display = 'none';
-                if (roomSelectGroup)    roomSelectGroup.style.display    = 'block';
-                if (userSelectionTable) userSelectionTable.style.display = 'none';
+                hideEl(roomSelectionTable);
+                showEl(roomSelectGroup);
+                hideEl(userSelectionTable);
             }
         }
         window.toggleReservationTypeDisplay = toggleReservationTypeDisplay;
@@ -130,28 +133,35 @@
                 if (users.length === 0) {
                     userCheckboxes.innerHTML = '<tr><td colspan="5" class="text-muted text-center">この部屋に利用者がいません。</td></tr>';
                 } else {
+                    const escHtml = (s) => String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
                     const rows = users.map(function(u){
-                        const morning = Number(u.morning || 0) === 1;
-                        const noon    = Number(u.noon || 0) === 1;
-                        const night   = Number(u.night || 0) === 1;
-                        const bento   = Number(u.bento || 0) === 1;
+                        const morning    = Number(u.morning || 0) === 1;
+                        const noon       = Number(u.noon || 0) === 1;
+                        const night      = Number(u.night || 0) === 1;
+                        const bento      = Number(u.bento || 0) === 1;
+                        const safeName   = escHtml(u.name || 'Unknown');
+                        const safeUserId = escHtml(u.id || '');
                         return '' +
                             '<tr>' +
-                            '<td>' + String(u.name || 'Unknown') + '</td>' +
-                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][2]" value="1" ' + (noon ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users['+u.id+'][4]" value="1" ' + (bento ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td>' + safeName + '</td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+safeUserId+'][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+safeUserId+'][2]" value="1" ' + (noon ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+safeUserId+'][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
+                            '<td class="text-center"><input type="checkbox" name="users['+safeUserId+'][4]" value="1" ' + (bento ? 'checked data-existing="1"' : '') + '></td>' +
                             '</tr>';
                     }).join('');
                     userCheckboxes.innerHTML = rows;
                 }
             }
             // 利用者リストが描画できたら表を見せる
-            if (userSelectionTable) userSelectionTable.style.display = 'block';
+            showEl(userSelectionTable);
             } catch (e) {
                 console.error(e);
-                alert('利用者の取得に失敗しました。');
+                if (typeof window.pageToast === 'function') {
+                    window.pageToast('利用者の取得に失敗しました。', 'danger');
+                } else {
+                    console.error('利用者の取得に失敗しました。');
+                }
             } finally {
                 hideLoading();
             }
@@ -217,26 +227,37 @@
                     showLoading();
                     fetchUserData(roomId);
                 } else {
-                    if (userSelectionTable) userSelectionTable.style.display = 'none';
+                    hideEl(userSelectionTable);
                 }
             });
         }
 
         // 送信
         if (form) {
+            const toast = (msg, type) => {
+                if (typeof window.pageToast === 'function') {
+                    window.pageToast(msg, type);
+                } else {
+                    console.warn('[pageToast 未定義]', type, msg);
+                }
+            };
+
             form.addEventListener('submit', function(event){
                 event.preventDefault();
                 const reservationType   = parseInt(reservationTypeSelect?.value, 10);
                 const validationSuccess = validateForm(reservationType);
                 if (!validationSuccess) {
-                    alert('エラー: 必須項目を確認してください。（集団予約は利用者行でいずれかの食事にチェックが必要です）');
+                    toast('エラー: 必須項目を確認してください。（集団予約は利用者行でいずれかの食事にチェックが必要です）', 'danger');
                     return;
                 }
                 const formData = new FormData(form);
                 form.querySelectorAll('input[type="checkbox"][name]').forEach(cb => {
                     formData.set(cb.name, cb.checked ? (cb.value || '1') : '0');
                 });
-                if (!date) { alert('日付が選択されていません。'); return; }
+                if (!date) {
+                    toast('日付が選択されていません。', 'danger');
+                    return;
+                }
                 formData.append('d_reservation_date', date);
                 showLoading();
                 fetch(form.action, { method: 'POST', body: formData, headers: { 'X-CSRF-Token': csrfToken, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }})
@@ -245,24 +266,24 @@
                         if (contentType && contentType.includes('application/json')) return response.json();
                         // 通常遷移HTMLが返ってきた場合（非モーダルのときなど）
                         return response.text().then(html => {
-                            const container = document.createElement('div');
-                            container.innerHTML = html;
+                            const parser = new DOMParser();
+                            const doc = parser.parseFromString(html, 'text/html');
                             document.body.innerHTML = '';
-                            document.body.appendChild(container);
+                            Array.from(doc.body.childNodes).forEach(n => document.body.appendChild(document.adoptNode(n)));
                             throw new Error('HTMLを表示しました');
                         });
                     })
                     .then(data => {
                         const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                         if (payload.status === 'error' || payload.ok === false) {
-                            alert(`エラー: ${payload.message || '不明なエラーが発生しました。'}`);
+                            toast(payload.message || '不明なエラーが発生しました。', 'danger');
                         } else if (payload.status === 'success' || payload.ok === true) {
                             const modalEl = document.getElementById('quickDayModal');
                             const emitDate = payload.date || date || '';
                             if (modalEl) {
                                 modalEl.dispatchEvent(new CustomEvent('reservation:saved', { detail: { date: emitDate } }));
                             } else {
-                                alert(`成功: ${payload.message}`);
+                                toast(payload.message || '登録が完了しました', 'success');
                                 if (payload.redirect) window.location.href = payload.redirect;
                             }
                         }
@@ -270,7 +291,7 @@
                     .catch(error => {
                         if (error.message !== 'HTMLを表示しました') {
                             console.error('送信エラー:', error);
-                            alert(`送信エラー: ${error.message}`);
+                            toast(`送信エラー: ${error.message}`, 'danger');
                         }
                     })
                     .finally(hideLoading);

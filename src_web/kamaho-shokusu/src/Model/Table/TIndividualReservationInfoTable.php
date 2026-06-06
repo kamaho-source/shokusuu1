@@ -66,7 +66,6 @@ class TIndividualReservationInfoTable extends Table
                 : new Date((string)$entity->d_reservation_date);
 
             $today = Date::today();
-            // 直前編集ウィンドウ（当日〜+14日）は i_change_flag を有効値として使う。
             $isLastMinute = ($date >= $today && $date <= $today->addDays(14));
 
             $effective = static function ($row) use ($isLastMinute): int {
@@ -123,14 +122,9 @@ class TIndividualReservationInfoTable extends Table
      * @param int    $meal   1=朝,2=昼,3=夜,4=弁
      * @param bool   $on     true=ON / false=OFF
      * @param string $actor
-     * @param int  $eatFlag      サービス層が算出した eat_flag 値
-     * @param int  $changeFlag   サービス層が算出した i_change_flag 値
-     * @param bool $isLastMinute サービス層が算出した直前ウィンドウ判定（昼↔弁の排他処理で使用）
+     * @param int|null $eatFlag 上書き用（コントローラから明示指定）
+     * @param int|null $changeFlag 上書き用（コントローラから明示指定）
      * @return array{ value: bool, details: array{breakfast:bool,lunch:bool,dinner:bool,bento:bool} }
-     */
-    /**
-     * @throws \InvalidArgumentException
-     * @throws \Cake\ORM\Exception\PersistenceFailedException
      */
     public function toggleMeal(
         int $userId,
@@ -139,12 +133,23 @@ class TIndividualReservationInfoTable extends Table
         int $meal,
         bool $on,
         string $actor,
-        int $eatFlag,
-        int $changeFlag,
-        bool $isLastMinute
+        ?int $eatFlag = null,
+        ?int $changeFlag = null
     ): array {
         if (!in_array($meal, [1, 2, 3, 4], true)) {
             throw new \InvalidArgumentException('meal は 1(朝)/2(昼)/3(夜)/4(弁) のみ');
+        }
+
+        $today = Date::today();
+        $d     = new Date($date);
+        $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
+
+        // コントローラから明示があればそれを、無ければ規定ロジックで
+        if ($eatFlag === null || $changeFlag === null) {
+            $eat  = $on ? ($isLastMinute ? 0 : 1) : 0;
+            $chg  = $on ? 1 : 0;
+            $eatFlag    = $eatFlag    ?? $eat;
+            $changeFlag = $changeFlag ?? $chg;
         }
 
         $now = DateTime::now();
@@ -182,9 +187,14 @@ class TIndividualReservationInfoTable extends Table
                 $isNew = true;
             }
 
-            // サービス層が計算した値をそのまま適用
-            $entity->eat_flag      = $eatFlag;
-            $entity->i_change_flag = $changeFlag;
+            // フラグの確定（NULL を残さない）
+            if ($isLastMinute) {
+                $entity->i_change_flag = (int)$changeFlag;                // 0/1
+                $entity->eat_flag      = (int)($entity->eat_flag ?? 0);   // 既存NULLを0に
+            } else {
+                $entity->eat_flag      = (int)$eatFlag;                   // 0/1
+                $entity->i_change_flag = (int)$changeFlag;                // 通常予約でも1にする
+            }
 
             // 監査: 新規か更新かで分岐
             if ($isNew) {
@@ -246,11 +256,13 @@ class TIndividualReservationInfoTable extends Table
                     $oppIsNew = true;
                 }
 
-                // 相手をキャンセル扱いにする。
-                // 直前ウィンドウ内: eat_flag は元の値を保持し i_change_flag=0 でキャンセル表現。
-                // 通常期間: 両フラグとも 0 でクリア。
-                $opponent->eat_flag      = $isLastMinute ? (int)($opponent->eat_flag ?? 0) : 0;
-                $opponent->i_change_flag = 0;
+                if ($isLastMinute) {
+                    $opponent->i_change_flag = 0;
+                    $opponent->eat_flag      = (int)($opponent->eat_flag ?? 0);
+                } else {
+                    $opponent->eat_flag      = 0;
+                    $opponent->i_change_flag = 0;
+                }
 
                 // 監査: 新規か更新かで分岐
                 if ($oppIsNew) {
@@ -304,7 +316,6 @@ class TIndividualReservationInfoTable extends Table
         if ($isLastMinute === null) {
             $today = Date::today();
             $d     = new Date($date);
-            // 直前編集ウィンドウ（当日〜+14日）は i_change_flag を有効値として使う。
             $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
         }
 

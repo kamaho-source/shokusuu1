@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller;
 
 use App\Controller\MRoomInfoController;
-use Cake\Core\Configure;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -25,12 +24,6 @@ class MRoomInfoControllerTest extends TestCase
     protected array $fixtures = [
         'app.MRoomInfo',
     ];
-
-    public function setUp(): void
-    {
-        parent::setUp();
-        Configure::write('debug', true);
-    }
 
     /**
      * Test index method
@@ -68,7 +61,6 @@ class MRoomInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
-        $this->enableSecurityToken();
         $this->post('/m-room-info/add', [
             'c_room_name' => 'テスト部屋',
             'i_enable' => 1,
@@ -87,7 +79,6 @@ class MRoomInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
-        $this->enableSecurityToken();
         $this->post('/m-room-info/edit/1', [
             'c_room_name' => '編集済み部屋',
             'i_enable' => 1,
@@ -106,7 +97,6 @@ class MRoomInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
-        $this->enableSecurityToken();
         $this->post('/m-room-info/delete/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);

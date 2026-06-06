@@ -1661,11 +1661,42 @@ function unlockForChildren(wrap){
             });
         }
 
+        function applyQuickModalMode(dateStr, useChange){
+            var header    = document.getElementById('qd-modal-header');
+            var titleText = document.getElementById('qd-modal-title-text');
+            var icon      = document.getElementById('qd-modal-icon');
+            var closeBtn  = document.getElementById('qd-modal-close-btn');
+            var pickedDate = document.getElementById('qd-picked-date');
+
+            if (header) {
+                header.className = 'modal-header ' + (useChange ? 'bg-warning text-dark' : 'bg-info text-white');
+            }
+            if (closeBtn) {
+                if (useChange) {
+                    closeBtn.classList.remove('btn-close-white');
+                } else {
+                    closeBtn.classList.add('btn-close-white');
+                }
+            }
+            if (icon) {
+                icon.className = useChange
+                    ? 'bi bi-pencil-square me-1'
+                    : 'bi bi-calendar-plus me-1';
+                icon.setAttribute('aria-hidden', 'true');
+            }
+            if (titleText) {
+                titleText.textContent = useChange ? '直前編集（変更）' : '食数予約の追加';
+            }
+            if (pickedDate) {
+                pickedDate.textContent = String(dateStr);
+            }
+        }
+
         window.quickOpenDayModal = function(dateStr){
             try{
-                var useChange = isWithin14(dateStr);
+                applyQuickModalMode(dateStr, false);
                 openModalById('quickDayModal');
-                loadViewIntoModal(dateStr, useChange).catch(function(){});
+                loadViewIntoModal(dateStr, false).catch(function(){});
             } catch(e){
                 openModalById('quickDayModal');
             }
