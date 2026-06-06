@@ -1838,7 +1838,7 @@ class TReservationInfoController extends AppController
 
         $loginUserId  = (int)$authUser->get('i_id_user');
         $loginName    = (string)($authUser->get('c_user_name') ?? '');
-        $isAdmin      = in_array((int)($authUser->get('i_admin') ?? 0), [1, 3]);
+        $isAdmin      = (int)($authUser->get('i_admin') ?? 0) === 1;
         $loginStaffId = $authUser->get('i_id_staff');
         $hasStaffId   = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
