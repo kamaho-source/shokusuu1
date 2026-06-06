@@ -151,6 +151,23 @@ class ReservationDatePolicy
     }
 
     /**
+     * 指定した日付文字列が今日より前(過去日)かどうかを返す。
+     *
+     * @param string $date 'Y-m-d' 形式の日付文字列
+     * @return bool true = 過去日 / false = 今日以降
+     */
+    public function isPastDate(string $date): bool
+    {
+        try {
+            $target = new Date($date, 'Asia/Tokyo');
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $target < $this->today();
+    }
+
+    /**
      * 予約日に応じて使用すべきDB列名を返す。
      *
      * - 直前編集ウィンドウ内(今日〜+14日): 'i_change_flag' 列を使う
