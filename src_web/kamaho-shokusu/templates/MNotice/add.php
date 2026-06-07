@@ -62,14 +62,12 @@ $this->assign('title', 'お知らせ作成');
         <label class="form-label fw-bold">重要度</label>
         <div class="d-flex gap-3">
             <div class="form-check">
-                <?= $this->Form->radio('i_importance', [
-                    0 => '通常',
-                    1 => '重要',
-                ], [
-                    'class'   => 'form-check-input',
-                    'value'   => 0,
-                    'escape'  => false,
-                ]) ?>
+                <input class="form-check-input" type="radio" name="i_importance" id="imp_normal" value="0" checked>
+                <label class="form-check-label" for="imp_normal">通常</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="i_importance" id="imp_high" value="1">
+                <label class="form-check-label" for="imp_high">重要</label>
             </div>
         </div>
     </div>
