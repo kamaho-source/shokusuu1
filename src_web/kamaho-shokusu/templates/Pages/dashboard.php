@@ -100,6 +100,37 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 </div>
             </div>
 
+            <?php /* ---- お知らせセクション ---- */ ?>
+            <?php if (!empty($activeNotices)): ?>
+                <div class="section-title">お知らせ</div>
+                <?php foreach ($activeNotices as $notice): ?>
+                    <?php $isHighNotice = (int)$notice->i_importance === 1; ?>
+                    <div class="alert-card" style="<?= $isHighNotice ? 'border-left: 4px solid #dc3545;' : '' ?>">
+                        <div class="alert-left">
+                            <div class="alert-icon" style="<?= $isHighNotice ? 'background:#fde8e8;color:#dc3545;' : 'background:#e8f4fd;color:#2b7bb9;' ?>">
+                                <?= $isHighNotice ? '!' : 'i' ?>
+                            </div>
+                            <div>
+                                <div class="alert-title">
+                                    <?php if ($isHighNotice): ?>
+                                        <span class="badge text-bg-danger me-1">重要</span>
+                                    <?php endif; ?>
+                                    <?= h($notice->c_title) ?>
+                                </div>
+                                <?php if ($notice->c_body): ?>
+                                    <div class="alert-sub" style="white-space: pre-line;"><?= h($notice->c_body) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($isAdmin): ?>
+                            <div class="alert-actions">
+                                <a class="btn-soft" href="<?= $this->Url->build('/MNotice/edit/' . (int)$notice->i_id) ?>">編集</a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+
             <?php /* ---- 本日の食数報告アラート ---- */ ?>
             <?php /* $hasTodayReport が false(未報告)の場合のみ表示する */ ?>
             <?php if (empty($hasTodayReport)): ?>
@@ -261,6 +292,11 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-icon" style="background:#f0f4ff;color:#3b5bdb;">🔄</div>
                         <div class="menu-title-text">部屋異動予約</div>
                         <div class="menu-desc">将来日付での部屋移動を事前登録する</div>
+                    </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/MNotice') ?>">
+                        <div class="menu-icon" style="background:#fff9e6;color:#d97706;">📢</div>
+                        <div class="menu-title-text">お知らせ管理</div>
+                        <div class="menu-desc">掲示するお知らせの作成・編集・削除</div>
                     </a>
                 </div>
             <?php endif; ?>

@@ -27,57 +27,27 @@ $dateLabel = $targetDate->format('Y年n月j日') . '(' . $dow[(int)$targetDate->
 
 $mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
 
-// 選択部屋の集計
-$roomMealSummary = [];
-foreach ($mealTypes as $mealType => $mealLabel) {
-    $data = $mealDataArray[$mealLabel][$activeRoomId] ?? null;
-    $roomMealSummary[$mealType] = [
-        'label' => $mealLabel,
-        'eat' => (int)($data['taberu_ninzuu'] ?? 0),
-        'no' => (int)($data['tabenai_ninzuu'] ?? 0),
-    ];
-}
-
-// 表示用（昼をデフォルトで合計表示）
+// 選択部屋の集計（昼：$userMealMap から直接算出）
 $defaultMealType = 2;
-$totalEat = $roomMealSummary[$defaultMealType]['eat'] ?? 0;
-$totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
+$totalEat = 0;
+$totalNo = 0;
+foreach ($roomUsers as $u) {
+    $uid = (int)$u['user_id'];
+    if (!empty($userMealMap[$uid][$defaultMealType])) {
+        $totalEat++;
+    } else {
+        $totalNo++;
+    }
+}
 echo $this->Html->css('pages/t_reservation_view.css');
 ?>
 
-<div class="page-shell">
-    <aside class="side">
-        <div class="brand">
-            <div class="brand-icon">🍴</div>
-            食数管理システム
-        </div>
-        <div class="profile-card">
-            <div class="avatar"><?=h(mb_substr($user->get('c_user_name'), 0, 1))?></div>
-            <div>
-                <div class="profile-meta">STAFF ID: <?= h($user->get('i_id_staff') ?? '---') ?></div>
-                <div class="profile-name"><?= h($user->get('c_user_name') ?? '') ?></div>
-            </div>
-        </div>
+<div class="rv-wrap">
+    <div class="topbar">
+        <div class="top-title">食数状況確認</div>
+        <div class="date-pill"><?= h($dateLabel) ?></div>
+    </div>
 
-        <div class="menu-title">メインメニュー</div>
-        <a class="menu-item" href="<?= $this->Url->build('/') ?>">ダッシュボード</a>
-        <a class="menu-item active" href="<?= $this->Url->build('/TReservationInfo/view/' . h($date)) ?>">食数状況確認</a>
-        <a class="menu-item" href="<?= $this->Url->build('/TReservationInfo') ?>">食数確認・予約</a>
-        <?php if ($isAdmin): ?>
-            <a class="menu-item" href="<?= $this->Url->build('/MUserInfo') ?>">利用者管理</a>
-            <a class="menu-item" href="<?= $this->Url->build('/MMealPriceInfo/GetMealSummary') ?>">集計・出力</a>
-        <?php endif; ?>
-    </aside>
-
-    <main class="main">
-        <div class="topbar">
-            <div class="top-title">食数状況確認</div>
-            <div class="d-flex align-items-center gap-2">
-                <div class="date-pill"><?= h($dateLabel) ?></div>
-                <div class="bell">🔔</div>
-            </div>
-        </div>
-        
 
         <div class="card">
             <div class="subhead">
@@ -178,5 +148,5 @@ echo $this->Html->css('pages/t_reservation_view.css');
                 <a class="btn-teal" href="<?= $this->Url->build('/') ?>">ダッシュボードへ戻る</a>
             </div>
         </div>
-    </main>
+    </div>
 </div>

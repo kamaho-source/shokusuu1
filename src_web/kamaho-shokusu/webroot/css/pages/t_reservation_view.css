@@ -1,137 +1,40 @@
 @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap');
 
-#mainNav { display: none !important; }
-body { padding-top: 0 !important; background: #f6f8fb; }
-main.container { max-width: 100%; padding: 0; }
-
-.page-shell {
-    display: grid;
-    grid-template-columns: 260px 1fr;
-    min-height: 100vh;
+/* ===== ページ全体 ===== */
+.rv-wrap {
     font-family: "M PLUS Rounded 1c", "Noto Sans JP", sans-serif;
     color: #223;
 }
 
-.side {
-    background: #ffffff;
-    border-right: 1px solid #e8edf3;
-    padding: 22px 18px;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-}
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-weight: 700;
-    font-size: 1.2rem;
-    margin-bottom: 18px;
-}
-
-.brand-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    background: #62cbbf;
-    display: grid;
-    place-items: center;
-    color: #fff;
-    font-size: 1.2rem;
-}
-
-.profile-card {
-    background: #f7fafc;
-    border: 1px solid #edf2f7;
-    border-radius: 16px;
-    padding: 14px;
-    display: grid;
-    grid-template-columns: 48px 1fr;
-    gap: 12px;
-    align-items: center;
-    margin-bottom: 18px;
-}
-
-.avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: #e2e8f0;
-    display: grid;
-    place-items: center;
-    font-weight: 700;
-    color: #4a5568;
-}
-
-.profile-meta { font-size: .85rem; color: #718096; }
-.profile-name { font-weight: 700; margin-top: 2px; }
-
-.menu-title {
-    font-size: .85rem;
-    color: #9aa6b2;
-    letter-spacing: .08em;
-    margin: 14px 0 8px;
-}
-
-.menu-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 12px;
-    text-decoration: none;
-    color: #374151;
-    font-weight: 500;
-}
-
-.menu-item.active {
-    background: #e9f6f3;
-    color: #148777;
-    border: 1px solid #cfeee7;
-}
-
-.menu-item:hover { background: #f3f6f9; }
-
-.main {
-    padding: 26px 28px 40px;
-}
-
+/* ===== トップバー ===== */
 .topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: 12px;
     margin-bottom: 16px;
+    flex-wrap: wrap;
 }
 
-.top-title { font-size: 1.2rem; font-weight: 700; }
+.top-title { font-size: 1.1rem; font-weight: 700; }
 
 .date-pill {
     background: #ffffff;
     border: 1px solid #e8edf3;
     border-radius: 12px;
-    padding: 8px 14px;
+    padding: 7px 14px;
     font-weight: 600;
     color: #52606d;
+    font-size: .9rem;
 }
 
-.bell {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-    border: 1px solid #e8edf3;
-    background: #fff;
-    display: grid;
-    place-items: center;
-    color: #73808c;
-}
-
+/* ===== カード ===== */
 .card {
     background: #fff;
     border: 1px solid #edf2f7;
     border-radius: 18px;
     padding: 18px;
+    overflow-x: auto;
 }
 
 .subhead {
@@ -143,11 +46,13 @@ main.container { max-width: 100%; padding: 0; }
 
 .subtext { color: #7a8b97; font-size: .9rem; }
 
+/* ===== タブ ===== */
 .tabs {
     display: flex;
-    gap: 10px;
+    gap: 6px;
     border-bottom: 1px solid #edf2f7;
     margin-top: 12px;
+    flex-wrap: wrap;
 }
 
 .tabs form {
@@ -158,7 +63,7 @@ main.container { max-width: 100%; padding: 0; }
 
 .tab {
     display: inline-block;
-    padding: 10px 12px;
+    padding: 9px 12px;
     border: none;
     border-bottom: 2px solid transparent;
     background: none;
@@ -180,13 +85,15 @@ main.container { max-width: 100%; padding: 0; }
     border-bottom-color: #0f8a7a;
 }
 
+/* ===== テーブル行 ===== */
 .table-row {
     display: grid;
-    grid-template-columns: 60px 1fr 110px 110px 110px 110px;
+    grid-template-columns: 50px 1fr 100px 100px 100px 100px;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     padding: 10px 6px;
     border-bottom: 1px solid #f0f2f5;
+    min-width: 560px;
 }
 
 .table-row.header {
@@ -195,26 +102,14 @@ main.container { max-width: 100%; padding: 0; }
     font-weight: 600;
 }
 
-.meal-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: #eef6ff;
-    border: 1px solid #dbe7ff;
-    color: #2c5aa0;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: .85rem;
-    font-weight: 600;
-}
-
+/* ===== チップ類 ===== */
 .status-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     padding: 4px 10px;
     border-radius: 999px;
-    font-size: .85rem;
+    font-size: .82rem;
     font-weight: 600;
     border: 1px solid transparent;
     white-space: nowrap;
@@ -246,29 +141,7 @@ main.container { max-width: 100%; padding: 0; }
     border-color: #e2e8f0;
 }
 
-.status-ok {
-    background: #e8fff2;
-    color: #15803d;
-    border: 1px solid #c9f5dd;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: .85rem;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.status-ng {
-    background: #f1f5f9;
-    color: #64748b;
-    border: 1px solid #e2e8f0;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: .85rem;
-    font-weight: 600;
-}
-
+/* ===== サマリー ===== */
 .summary {
     display: flex;
     justify-content: space-between;
@@ -276,6 +149,8 @@ main.container { max-width: 100%; padding: 0; }
     margin-top: 12px;
     color: #6b7785;
     font-weight: 600;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .summary .num { font-size: 1.1rem; color: #222; }
@@ -290,6 +165,7 @@ main.container { max-width: 100%; padding: 0; }
     border: none;
 }
 
+/* ===== サマリーテーブル ===== */
 .summary-card { margin-bottom: 20px; }
 
 .summary-table {
@@ -355,11 +231,19 @@ main.container { max-width: 100%; padding: 0; }
     font-size: .88rem;
 }
 
-@media (max-width: 992px) {
-    .page-shell { grid-template-columns: 1fr; }
-    .side { position: static; height: auto; border-right: none; border-bottom: 1px solid #e8edf3; }
-    .table-row { grid-template-columns: 60px 1fr 80px 80px 80px 80px; }
-    .summary-table { font-size: .82rem; }
+/* ===== レスポンシブ（スマホ） ===== */
+@media (max-width: 600px) {
+    .table-row {
+        grid-template-columns: 38px 1fr 72px 72px 72px 72px;
+        gap: 4px;
+        font-size: .82rem;
+    }
+
+    .status-chip { padding: 3px 7px; font-size: .78rem; }
+
+    .summary-table { font-size: .8rem; }
     .summary-table th,
-    .summary-table td { padding: 7px 8px; }
+    .summary-table td { padding: 6px 8px; }
+
+    .topbar { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
