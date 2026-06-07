@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Authorization\Exception\ForbiddenException;
+use Cake\Event\EventInterface;
 use Cake\Http\Response;
 
 /**
@@ -18,6 +19,16 @@ class MNoticeController extends AppController
     {
         parent::initialize();
         $this->viewBuilder()->setLayout('default');
+    }
+
+    /**
+     * FormProtection::startup() より前に実行されるため、ここで unlockedFields を設定する。
+     * i_importance はプレーン HTML の radio で生成するため Form ヘルパーが追跡しない。
+     */
+    public function beforeFilter(EventInterface $event): void
+    {
+        parent::beforeFilter($event);
+        $this->FormProtection->setConfig('unlockedFields', ['i_importance']);
     }
 
     /**
@@ -49,7 +60,6 @@ class MNoticeController extends AppController
     public function add(): ?Response
     {
         $this->request->allowMethod(['get', 'post']);
-        $this->FormProtection->setConfig('unlockedFields', ['i_importance']);
 
         $table    = $this->fetchTable('MNotice');
         $resource = $table->newEmptyEntity();
@@ -98,7 +108,6 @@ class MNoticeController extends AppController
     public function edit(int $id): ?Response
     {
         $this->request->allowMethod(['get', 'post']);
-        $this->FormProtection->setConfig('unlockedFields', ['i_importance']);
 
         $table    = $this->fetchTable('MNotice');
         $resource = $table->newEmptyEntity();
