@@ -66,9 +66,9 @@ class MNoticeController extends AppController
             $notice = $table->newEmptyEntity();
             $notice = $table->patchEntity($notice, [
                 'c_title'      => trim((string)($data['c_title'] ?? '')),
-                'c_body'       => $data['c_body'] !== '' ? $data['c_body'] : null,
-                'd_start'      => $data['d_start'] !== '' ? $data['d_start'] : null,
-                'd_end'        => $data['d_end']   !== '' ? $data['d_end']   : null,
+                'c_body'       => ($data['c_body'] ?? '') !== '' ? $data['c_body'] : null,
+                'd_start'      => ($data['d_start'] ?? '') !== '' ? $data['d_start'] : null,
+                'd_end'        => ($data['d_end']   ?? '') !== '' ? $data['d_end']   : null,
                 'i_importance' => (int)($data['i_importance'] ?? 0),
             ]);
 
@@ -115,9 +115,9 @@ class MNoticeController extends AppController
 
             $notice = $table->patchEntity($notice, [
                 'c_title'      => trim((string)($data['c_title'] ?? '')),
-                'c_body'       => $data['c_body'] !== '' ? $data['c_body'] : null,
-                'd_start'      => $data['d_start'] !== '' ? $data['d_start'] : null,
-                'd_end'        => $data['d_end']   !== '' ? $data['d_end']   : null,
+                'c_body'       => ($data['c_body'] ?? '') !== '' ? $data['c_body'] : null,
+                'd_start'      => ($data['d_start'] ?? '') !== '' ? $data['d_start'] : null,
+                'd_end'        => ($data['d_end']   ?? '') !== '' ? $data['d_end']   : null,
                 'i_importance' => (int)($data['i_importance'] ?? 0),
             ]);
 

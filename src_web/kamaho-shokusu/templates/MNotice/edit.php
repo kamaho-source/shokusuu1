@@ -8,8 +8,8 @@
 
 $this->assign('title', 'お知らせ編集');
 
-$startVal = $notice->d_start ? (string)$notice->d_start : '';
-$endVal   = $notice->d_end   ? (string)$notice->d_end   : '';
+$startVal = $notice->d_start ? $notice->d_start->format('Y-m-d') : '';
+$endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 

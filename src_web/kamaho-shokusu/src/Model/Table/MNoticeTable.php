@@ -60,7 +60,7 @@ class MNoticeTable extends Table
      * 現在掲示中（有効期間内）のお知らせを取得するスコープ。
      * d_start が null または今日以前、かつ d_end が null または今日以降のレコードを対象とする。
      */
-    public function findActive(Query $query): Query
+    public function findActive(Query $query, array $options): Query
     {
         $today = date('Y-m-d');
 
