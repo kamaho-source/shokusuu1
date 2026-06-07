@@ -49,6 +49,7 @@ class MNoticeController extends AppController
     public function add(): ?Response
     {
         $this->request->allowMethod(['get', 'post']);
+        $this->FormProtection->setConfig('unlockedFields', ['i_importance']);
 
         $table    = $this->fetchTable('MNotice');
         $resource = $table->newEmptyEntity();
@@ -97,6 +98,7 @@ class MNoticeController extends AppController
     public function edit(int $id): ?Response
     {
         $this->request->allowMethod(['get', 'post']);
+        $this->FormProtection->setConfig('unlockedFields', ['i_importance']);
 
         $table    = $this->fetchTable('MNotice');
         $resource = $table->newEmptyEntity();
