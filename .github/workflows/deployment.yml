@@ -60,6 +60,18 @@ jobs:
               git reset --hard "origin/$BRANCH"
             fi
 
+            # ── コンテナ起動（停止中の場合も含め up -d で確実に起動） ────────────
+            echo "── Starting Docker containers ───────────────────────────────────"
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d
+            # DBコンテナが受付可能になるまで待機（最大30秒）
+            for i in $(seq 1 30); do
+              if docker exec "${DB_CONTAINER}" mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent 2>/dev/null; then
+                echo "DB ready after ${i}s"
+                break
+              fi
+              sleep 1
+            done
+
             # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
             echo "── Applying SQL migrations ──────────────────────────────────────"
             ./scripts/apply_sql_updates.sh \
