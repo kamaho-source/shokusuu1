@@ -65,7 +65,8 @@ jobs:
             # 停止中のリバースプロキシを先に起動して名前競合を回避
             docker start docker-network-reverse-1 2>/dev/null || true
             # アプリサービスのみ起動・再作成（--no-depsで他サービスを処理しない）
-            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d --no-deps kamakura-shokusu_web kamakura-shokusu_db
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d --no-deps \
+              kamakura-shokusu_web kamakura-shokusu_db network-inner
             # DBコンテナが受付可能になるまで待機（最大30秒）
             for i in $(seq 1 30); do
               if docker exec "${DB_CONTAINER}" mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent 2>/dev/null; then
