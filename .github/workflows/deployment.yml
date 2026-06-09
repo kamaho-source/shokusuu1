@@ -60,9 +60,13 @@ jobs:
               git reset --hard "origin/$BRANCH"
             fi
 
-            # ── コンテナ起動（停止中の場合も含め up -d で確実に起動） ────────────
+            # ── コンテナ起動（docker compose upはプロジェクト全体を調整するため使わない） ──
             echo "── Starting Docker containers ───────────────────────────────────"
-            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d kamakura-shokusu_web kamakura-shokusu_db
+            # DBコンテナ（固定名）を起動
+            docker start kamakura-shokusu_web_db 2>/dev/null || true
+            # Webコンテナをイメージ名で検索して起動（コンテナ名が変動するため）
+            docker ps -aqf "ancestor=docker-kamakura-shokusu_web" -f "status=exited" \
+              | xargs -r docker start
             # DBコンテナが受付可能になるまで待機（最大30秒）
             for i in $(seq 1 30); do
               if docker exec "${DB_CONTAINER}" mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent 2>/dev/null; then
@@ -87,7 +91,8 @@ jobs:
 
             # ── CakePHP マイグレーション実行 ──────────────────────────────────
             echo "── Running CakePHP migrations ───────────────────────────────────"
-            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+            WEB_CID=$(docker ps -qf "ancestor=docker-kamakura-shokusu_web" | head -1)
+            docker exec "$WEB_CID" php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
 
             # ── アプリ用 .env に環境変数を注入（コンテナの env_file と同じパス） ──
             ENV_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/.env"
