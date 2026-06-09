@@ -62,7 +62,7 @@ jobs:
 
             # ── コンテナ起動（停止中の場合も含め up -d で確実に起動） ────────────
             echo "── Starting Docker containers ───────────────────────────────────"
-            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d kamakura-shokusu_web kamakura-shokusu_db
             # DBコンテナが受付可能になるまで待機（最大30秒）
             for i in $(seq 1 30); do
               if docker exec "${DB_CONTAINER}" mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent 2>/dev/null; then
