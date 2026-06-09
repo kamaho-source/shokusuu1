@@ -87,7 +87,7 @@ jobs:
 
             # ── CakePHP マイグレーション実行 ──────────────────────────────────
             echo "── Running CakePHP migrations ───────────────────────────────────"
-            docker exec kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
 
             # ── アプリ用 .env に環境変数を注入（コンテナの env_file と同じパス） ──
             ENV_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/.env"
