@@ -1843,14 +1843,16 @@ class TReservationInfoController extends AppController
         $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
         $loginStaffId  = $authUser->get('i_id_staff');
         $hasStaffId    = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
+        // i_user_level=0 は職員レベル（子供は 1）
+        $isStaffUser   = (int)($authUser->get('i_user_level') ?? -1) === 0;
         $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
         // 管理者・システム管理者・事務所ユーザー: 全部屋へのフルアクセス
         $canViewAll    = $isAdmin || $isOfficeUser;
-        // 各部屋モード: 管理者・事務所・ブロック長・一般職員(staffId持ち)
-        $canViewRoom   = $canViewAll || $isBlockLeader || $hasStaffId;
-        // 全部モード: 管理者・事務所（全部屋）+ 一般職員(staffId持ち)（自分の部屋のみ）
+        // 各部屋モード: 管理者・事務所・ブロック長・職員レベルユーザー（staffId有無を問わず）
+        $canViewRoom   = $canViewAll || $isBlockLeader || $isStaffUser;
+        // 全部モード: 管理者・事務所（全部屋）+ 職員レベルユーザー（自分の部屋のみ）
         // ブロック長は全部モード不可（各部屋モードまで）
-        $canUseAllMode = $canViewAll || ($hasStaffId && !$isBlockLeader);
+        $canUseAllMode = $canViewAll || ($isStaffUser && !$isBlockLeader);
 
         // 前回の表示状態をセッションから復元（クエリパラメータが優先）
         $session = $this->request->getSession();
@@ -1932,8 +1934,8 @@ class TReservationInfoController extends AppController
             $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
 
             if ($viewMode === 'individual') {
-                if (!$canViewAll && $hasStaffId) {
-                    // 非管理者の職員: 自分 + 同部屋の子供ユーザー(i_user_level=1)を表示
+                if (!$canViewAll && $isStaffUser) {
+                    // 非管理者の職員レベルユーザー: 自分 + 同部屋の子供ユーザー(i_user_level=1)を表示
                     $users = array_values(array_filter(
                         $users,
                         fn($u) => (int)$u['id'] === $loginUserId || (int)($u['i_user_level'] ?? 0) === 1
