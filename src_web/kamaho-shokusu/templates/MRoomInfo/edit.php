@@ -4,6 +4,7 @@
  * @var \App\Model\Entity\MRoomInfo $mRoomInfo
  */
 $this->assign('title', __('部屋情報編集'));
+$this->Html->script('realtime-validation.js', ['block' => true]);
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -17,18 +18,27 @@ $this->assign('title', __('部屋情報編集'));
                 <h4><?= __('部屋情報の修正') ?></h4>
             </div>
             <div class="card-body">
-                <?= $this->Form->create($mRoomInfo) ?>
+                <?= $this->Form->create($mRoomInfo, ['id' => 'room-form']) ?>
                 <fieldset>
                     <div class="mb-3">
                         <?= $this->Form->control('c_room_name', [
                             'label' => ['class' => 'form-label', 'text' => '部屋名'],
-                            'class' => 'form-control'
+                            'class' => 'form-control',
+                            'data-validate' => 'required',
+                            'data-msg-required' => '部屋名を入力してください。',
                         ]) ?>
+                        <div class="invalid-feedback"></div>
                     </div>
                 </fieldset>
-                <?= $this->Form->button(__('変更'), ['class' => 'btn btn-primary']) ?>
+                <?= $this->Form->button(__('変更'), ['class' => 'btn btn-primary', 'id' => 'submit-btn']) ?>
                 <?= $this->Form->end() ?>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    initRealtimeValidation('room-form', 'submit-btn');
+});
+</script>

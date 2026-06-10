@@ -11,13 +11,15 @@ echo $this->Html->css('pages/m_room_info_index.css');
 $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
 ?>
 <div class="mRoomInfo index content">
-    <?php if ($isAdmin): // 管理者のみが新しい部屋情報を追加できる ?>
-    <?= $this->Html->link(__('新しい部屋情報を追加'), ['action' => 'add'], ['class' => 'btn btn-success float-right mb-3']) ?>
-    <?php endif; ?>
-    <h3><?= __('部屋情報一覧') ?></h3>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0"><?= __('部屋情報一覧') ?></h3>
+        <?php if ($isAdmin): // 管理者のみが新しい部屋情報を追加できる ?>
+        <?= $this->Html->link(__('新しい部屋情報を追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>
+        <?php endif; ?>
+    </div>
     <div class="table-responsive">
         <table class="table table-striped table-bordered">
-            <thead class="thead-dark">
+            <thead class="table-dark">
             <tr>
                 <th><?= $this->Paginator->sort('i_id_room', '部屋ID') ?></th>
                 <th><?= $this->Paginator->sort('c_room_name', '部屋名') ?></th>

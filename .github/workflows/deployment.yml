@@ -60,6 +60,21 @@ jobs:
               git reset --hard "origin/$BRANCH"
             fi
 
+            # ── コンテナ起動 ────────────────────────────────────────────────────
+            echo "── Starting Docker containers ───────────────────────────────────"
+            # 停止中のリバースプロキシを先に起動して名前競合を回避
+            docker start docker-network-reverse-1 2>/dev/null || true
+            # アプリサービスのみ起動・再作成（--no-depsで他サービスを処理しない）
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d --no-deps kamakura-shokusu_web kamakura-shokusu_db
+            # DBコンテナが受付可能になるまで待機（最大30秒）
+            for i in $(seq 1 30); do
+              if docker exec "${DB_CONTAINER}" mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent 2>/dev/null; then
+                echo "DB ready after ${i}s"
+                break
+              fi
+              sleep 1
+            done
+
             # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
             echo "── Applying SQL migrations ──────────────────────────────────────"
             ./scripts/apply_sql_updates.sh \
@@ -75,7 +90,7 @@ jobs:
 
             # ── CakePHP マイグレーション実行 ──────────────────────────────────
             echo "── Running CakePHP migrations ───────────────────────────────────"
-            docker exec kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
 
             # ── アプリ用 .env に環境変数を注入（コンテナの env_file と同じパス） ──
             ENV_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/.env"

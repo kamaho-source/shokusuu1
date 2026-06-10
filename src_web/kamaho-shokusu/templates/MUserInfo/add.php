@@ -7,6 +7,7 @@
 $this->assign('title', 'ユーザー情報の追加');
 $this->Html->css('bootstrap-icons.css', ['block' => true]);
 $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
+$this->Html->script('realtime-validation.js', ['block' => true]);
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -30,19 +31,19 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                     <!-- ログインID -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_login_account', [
-                            'label' => ['text' => 'ログインID', 'class' => 'form-label'],
-                            'class' => 'form-control',
-                            'id'    => 'c_login_account'
+                            'label'             => ['text' => 'ログインID', 'class' => 'form-label'],
+                            'class'             => 'form-control',
+                            'id'                => 'c_login_account',
+                            'data-validate'     => 'required',
+                            'data-msg-required' => 'ログインIDを入力してください。',
                         ]) ?>
-                        <div id="login-id-error" class="invalid-feedback" style="display:none;">
-                            <?= __('このログインIDは既に使用されています。') ?>
-                        </div>
+                        <div id="login-id-error" class="invalid-feedback"></div>
                     </div>
 
                     <!-- 生年月日 -->
                     <div class="mb-3">
                         <?= $this->Form->control('birth_date', [
-                            'type'        => 'text',                 // ← カレンダーではなく自由入力
+                            'type'        => 'text',
                             'label'       => ['text' => '生年月日', 'class' => 'form-label'],
                             'class'       => 'form-control',
                             'id'          => 'birthDate',
@@ -60,11 +61,13 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                         ]) ?>
                         <div class="position-relative">
                             <?= $this->Form->control('c_login_passwd', [
-                                'type'  => 'password',
-                                'class' => 'form-control pe-5',
-                                'id'    => 'inputPassword',
-                                'label' => false,
-                                'div'   => false,
+                                'type'              => 'password',
+                                'class'             => 'form-control pe-5',
+                                'id'                => 'inputPassword',
+                                'label'             => false,
+                                'div'               => false,
+                                'data-validate'     => 'required',
+                                'data-msg-required' => 'パスワードを入力してください。',
                             ]) ?>
                             <img src="<?= $this->Html->Url->image('eye-slash.svg') ?>"
                                  id="eyeIcon"
@@ -72,32 +75,39 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                                  class="position-absolute"
                                  style="cursor:pointer; top:50%; right:10px; transform:translateY(-50%);" />
                         </div>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <!-- ユーザー名 -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_user_name', [
-                            'label' => ['text' => 'ユーザー名', 'class' => 'form-label'],
-                            'class' => 'form-control'
+                            'label'             => ['text' => 'ユーザー名', 'class' => 'form-label'],
+                            'class'             => 'form-control',
+                            'data-validate'     => 'required',
+                            'data-msg-required' => 'ユーザー名を入力してください。',
                         ]) ?>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <!-- 性別 -->
                     <div class="mb-3">
                         <?= $this->Form->control('i_user_gender', [
-                            'type'    => 'select',
-                            'options' => [1 => '男性', 2 => '女性'],
-                            'label'   => ['text' => '性別', 'class' => 'form-label'],
-                            'class'   => 'form-control',
-                            'empty'   => '選択してください'
+                            'type'              => 'select',
+                            'options'           => [1 => '男性', 2 => '女性'],
+                            'label'             => ['text' => '性別', 'class' => 'form-label'],
+                            'class'             => 'form-control',
+                            'empty'             => '選択してください',
+                            'data-validate'     => 'required',
+                            'data-msg-required' => '性別を選択してください。',
                         ]) ?>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <!-- どの年代が食べたか -->
                     <div class="mb-3">
                         <?= $this->Form->control('age_group', [
-                            'type'    => 'select',
-                            'options' => [
+                            'type'              => 'select',
+                            'options'           => [
                                 1 => '3~5才',
                                 2 => '低学年',
                                 3 => '中学年',
@@ -106,10 +116,13 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                                 6 => '高校生',
                                 7 => '大人'
                             ],
-                            'label'  => ['text' => '年代選択', 'class' => 'form-label'],
-                            'class'  => 'form-control',
-                            'empty'  => '選択してください'
+                            'label'             => ['text' => '年代選択', 'class' => 'form-label'],
+                            'class'             => 'form-control',
+                            'empty'             => '選択してください',
+                            'data-validate'     => 'required',
+                            'data-msg-required' => '年代を選択してください。',
                         ]) ?>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <!-- 年齢 -->
@@ -126,12 +139,15 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                     <!-- 役職 -->
                     <div class="mb-3">
                         <?= $this->Form->control('role', [
-                            'type'    => 'select',
-                            'options' => [0 => '職員', 1 => '児童', 3 => 'その他'],
-                            'label'   => ['text' => '役職', 'class' => 'form-label'],
-                            'class'   => 'form-control',
-                            'empty'   => '選択してください'
+                            'type'              => 'select',
+                            'options'           => [0 => '職員', 1 => '児童', 3 => 'その他'],
+                            'label'             => ['text' => '役職', 'class' => 'form-label'],
+                            'class'             => 'form-control',
+                            'empty'             => '選択してください',
+                            'data-validate'     => 'required',
+                            'data-msg-required' => '役職を選択してください。',
                         ]) ?>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <!-- 職員ID入力フィールド -->
@@ -142,6 +158,7 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                             'type'        => 'text',
                             'placeholder' => '職員IDを入力してください'
                         ]) ?>
+                        <div class="invalid-feedback"></div>
                     </div>
 
                     <!-- 部屋情報チェックボックス -->
@@ -164,7 +181,7 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
                     </div>
                 </fieldset>
 
-                <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary', 'id' => 'submit-button']) ?>
+                <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary', 'id' => 'submit-button', 'disabled' => true]) ?>
                 <?= $this->Form->end() ?>
             </div>
         </div>
@@ -174,6 +191,10 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 <!-- ユーザー情報フォーム用 JavaScript -->
 <script>
     document.addEventListener('DOMContentLoaded', () => {
+        const form       = document.getElementById('reservation-form');
+        const submitBtn  = document.getElementById('submit-button');
+        const roleSelect = document.querySelector('[name="role"]');
+
         /* ==================================================================
            生年月日選択 → 年齢自動設定
         ================================================================== */
@@ -204,43 +225,19 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
         ['input', 'change'].forEach(ev => birthDateInput.addEventListener(ev, setAge));
 
         /* ==================================================================
-           ログインID重複チェック
-        ================================================================== */
-        const loginIdField = document.getElementById('c_login_account');
-        const loginIdError = document.getElementById('login-id-error');
-        const submitButton = document.getElementById('submit-button');
-
-        loginIdField.addEventListener('blur', () => {
-            const loginId = loginIdField.value.trim();
-            if (!loginId) return;
-
-            fetch('/m-user-info/check-unique-login-id', {
-                method : 'POST',
-                headers: {
-                    'Content-Type' : 'application/json',
-                    'X-CSRF-Token' : document.querySelector('input[name="_csrfToken"]').value
-                },
-                body: JSON.stringify({ c_login_account: loginId })
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (!data.unique) {
-                        loginIdError.style.display = 'block';
-                        submitButton.disabled      = true;
-                    } else {
-                        loginIdError.style.display = 'none';
-                        submitButton.disabled      = false;
-                    }
-                });
-        });
-
-        /* ==================================================================
            役職 = 職員 のときだけ職員ID入力欄を表示
         ================================================================== */
-        const roleSelect      = document.querySelector('[name="role"]');
         const staffIdFieldDiv = document.getElementById('staff-id-field');
+        const staffInput      = form.querySelector('[name="staff_id"]');
+        const staffFeedback   = staffIdFieldDiv.querySelector('.invalid-feedback');
+
         const toggleStaffIdField = (val) => {
             staffIdFieldDiv.style.display = (val === '0') ? 'block' : 'none';
+            if (val !== '0' && staffInput) {
+                staffInput.classList.remove('is-invalid', 'is-valid');
+                if (staffFeedback) staffFeedback.style.display = 'none';
+            }
+            checkAllFields();
         };
         toggleStaffIdField(roleSelect.value);
         roleSelect.addEventListener('change', e => toggleStaffIdField(e.target.value));
@@ -263,39 +260,101 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
         });
 
         /* ==================================================================
-           フロントエンドバリデーション
+           ログインID重複チェック (AJAX)
         ================================================================== */
-        const form = document.getElementById('reservation-form');
-        form.addEventListener('submit', (e) => {
-            const required = [
-                { id: 'c_login_account', label: 'ログインID' },
-                { id: 'inputPassword',   label: 'パスワード' },
-                { name: 'c_user_name',   label: 'ユーザー名' },
-                { name: 'i_user_gender', label: '性別'      },
-                { name: 'age_group',     label: '年代選択'  },
-                { name: 'role',          label: '役職'      },
-            ];
-            for (const r of required) {
-                const field = r.id
-                    ? document.getElementById(r.id)
-                    : document.querySelector(`[name="${r.name}"]`);
-                if (!field || !field.value.trim()) {
-                    alert(`${r.label}は必須入力です。`);
-                    field?.focus();
-                    e.preventDefault();
-                    return;
+        const loginIdField    = document.getElementById('c_login_account');
+        const loginIdFeedback = document.getElementById('login-id-error');
+
+        loginIdField.addEventListener('blur', () => {
+            const loginId = loginIdField.value.trim();
+            if (!loginId) return;
+
+            fetch('/m-user-info/check-unique-login-id', {
+                method : 'POST',
+                headers: {
+                    'Content-Type' : 'application/json',
+                    'X-CSRF-Token' : document.querySelector('input[name="_csrfToken"]').value
+                },
+                body: JSON.stringify({ c_login_account: loginId })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.unique) {
+                        setInvalid(loginIdField, loginIdFeedback, 'このログインIDは既に使用されています。');
+                    } else {
+                        setValid(loginIdField, loginIdFeedback);
+                    }
+                    checkAllFields();
+                });
+        });
+
+        /* ==================================================================
+           職員IDリアルタイムバリデーション
+        ================================================================== */
+        if (staffInput) {
+            ['input', 'change', 'blur'].forEach(ev => staffInput.addEventListener(ev, () => {
+                if (roleSelect.value !== '0') return;
+                if (!staffInput.value.trim()) {
+                    setInvalid(staffInput, staffFeedback, '職員IDを入力してください。');
+                } else {
+                    setValid(staffInput, staffFeedback);
                 }
+                checkAllFields();
+            }));
+        }
+
+        /* ==================================================================
+           部屋チェックボックス変更時に状態更新
+        ================================================================== */
+        form.querySelectorAll('input[type="checkbox"][name^="MUserGroup"]')
+            .forEach(cb => cb.addEventListener('change', checkAllFields));
+
+        /* ==================================================================
+           リアルタイムバリデーション初期化（data-validate フィールド）
+        ================================================================== */
+        initRealtimeValidation('reservation-form', 'submit-button');
+
+        /* ==================================================================
+           全体の送信ボタン状態チェック（追加条件を含む）
+        ================================================================== */
+        function checkAllFields() {
+            const fields = form.querySelectorAll('[data-validate]');
+            if (!Array.from(fields).every(f => validateOk(f))) {
+                submitBtn.disabled = true;
+                return;
             }
             if (roleSelect.value === '0') {
-                const staffInput = document.querySelector('[name="staff_id"]');
-                if (!staffInput.value.trim()) {
-                    alert('職員IDは必須入力です。');
-                    staffInput.focus();
-                    e.preventDefault();
+                if (!staffInput?.value.trim() || staffInput?.classList.contains('is-invalid')) {
+                    submitBtn.disabled = true;
                     return;
                 }
             }
-            const roomCheckboxes = document.querySelectorAll('input[type="checkbox"][name^="MUserGroup"]');
+            const roomCheckboxes = form.querySelectorAll('input[type="checkbox"][name^="MUserGroup"]');
+            if (!Array.from(roomCheckboxes).some(cb => cb.checked)) {
+                submitBtn.disabled = true;
+                return;
+            }
+            submitBtn.disabled = false;
+        }
+
+        // data-validate フィールドのイベント後に追加条件もチェック
+        form.addEventListener('input',  checkAllFields);
+        form.addEventListener('change', checkAllFields);
+        checkAllFields();
+
+        /* ==================================================================
+           送信前最終バリデーション
+        ================================================================== */
+        form.addEventListener('submit', (e) => {
+            form.querySelectorAll('[data-validate]').forEach(f => validateField(f));
+
+            if (roleSelect.value === '0' && !staffInput?.value.trim()) {
+                if (staffInput) setInvalid(staffInput, staffFeedback, '職員IDを入力してください。');
+                e.preventDefault();
+                return;
+            }
+
+            const roomCheckboxes = form.querySelectorAll('input[type="checkbox"][name^="MUserGroup"]');
             if (!Array.from(roomCheckboxes).some(cb => cb.checked)) {
                 alert('所属する部屋を1つ以上選択してください。');
                 e.preventDefault();
