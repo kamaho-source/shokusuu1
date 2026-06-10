@@ -171,13 +171,20 @@ class AuditLogControllerTest extends TestCase
 
     private function setSession(int $adminLevel): void
     {
+        [$userId, $loginAccount] = match($adminLevel) {
+            3       => [4, 'system_admin_user'],
+            1       => [1, 'admin_user'],
+            default => [2, 'staff_user'],
+        };
+
         $this->session([
             'Auth' => [
-                'i_id_user'    => 1,
-                'c_user_name'  => 'システム管理者',
-                'i_admin'      => $adminLevel,
-                'i_user_level' => 0,
-                'i_id_room'    => 1,
+                'i_id_user'       => $userId,
+                'c_login_account' => $loginAccount,
+                'c_user_name'     => 'システム管理者',
+                'i_admin'         => $adminLevel,
+                'i_user_level'    => 0,
+                'i_id_room'       => 1,
             ],
         ]);
     }

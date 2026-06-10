@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Controller;
 
 use App\Controller\MUserInfoController;
+use Cake\Core\Configure;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -24,6 +25,18 @@ class MUserInfoControllerTest extends TestCase
     protected array $fixtures = [
         'app.MUserInfo',
     ];
+
+    public function setUp(): void
+    {
+        parent::setUp();
+        Configure::write('debug', true);
+    }
+
+    public function tearDown(): void
+    {
+        Configure::write('debug', false);
+        parent::tearDown();
+    }
 
     /**
      * Test index method
@@ -61,6 +74,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/add', [
             'c_login_account' => 'test_login_2',
             'c_login_passwd' => 'password123',
@@ -100,6 +114,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/delete/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
@@ -109,6 +124,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession(true);
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
@@ -121,6 +137,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession(false);
         $this->enableCsrfToken();
+        $this->enableSecurityToken();
         $this->post('/m-user-info/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
@@ -133,11 +150,12 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->session([
             'Auth' => [
-                'i_id_user' => 1,
-                'c_user_name' => 'テストユーザー',
-                'i_admin' => $isAdmin ? 1 : 0,
-                'i_user_level' => 0,
-                'i_id_room' => 1,
+                'i_id_user'       => $isAdmin ? 1 : 2,
+                'c_login_account' => $isAdmin ? 'admin_user' : 'staff_user',
+                'c_user_name'     => 'テストユーザー',
+                'i_admin'         => $isAdmin ? 1 : 0,
+                'i_user_level'    => 0,
+                'i_id_room'       => 1,
             ],
         ]);
     }

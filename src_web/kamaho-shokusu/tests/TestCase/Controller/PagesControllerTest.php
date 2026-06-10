@@ -30,6 +30,10 @@ class PagesControllerTest extends TestCase
 {
     use IntegrationTestTrait;
 
+    protected array $fixtures = [
+        'app.MNotice',
+    ];
+
     /**
      * testDisplay method
      *
