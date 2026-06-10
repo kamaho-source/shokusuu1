@@ -33,6 +33,12 @@
     noeatBtn.addEventListener('click', async () => {
         const url = noeatBtn.dataset.url;
         if (!url) return;
+
+        if (window.ConfirmPopup) {
+            const ok = await window.ConfirmPopup.show('本日の食事を「食べない」として登録してよろしいですか？');
+            if (!ok) return;
+        }
+
         noeatBtn.disabled = true;
         try {
             const res = await fetch(url, {

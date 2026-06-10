@@ -43,12 +43,12 @@ $csrfToken = $this->request->getAttribute('csrfToken');
     <?php endif; ?>
 
     <div class="table-responsive">
-        <table class="table table-bordered">
-            <thead>
+        <table class="table table-bordered align-middle">
+            <thead class="table-dark">
             <tr>
-                <th><?= $this->Paginator->sort('i_id_user', ['label' => 'ユーザー識別ID']) ?></th>
+                <th class="d-none d-md-table-cell" style="width:5%;"><?= $this->Paginator->sort('i_id_user', ['label' => 'No.']) ?></th>
                 <th><?= $this->Paginator->sort('c_user_name', ['label' => 'ユーザー名']) ?></th>
-                <th><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
+                <th class="d-none d-md-table-cell" style="width:8%;"><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
                 <th><?= __('所属部屋') ?></th>
                 <?php if ($isAdmin || $isSystemAdmin): ?>
                     <th><?= __('ブロック長') ?></th>
@@ -63,9 +63,9 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             <tbody>
             <?php foreach ($mUserInfo as $userInfo): ?>
                 <tr>
-                    <td><?= h($userInfo->i_id_user) ?></td>
+                    <td class="d-none d-md-table-cell text-muted small"><?= h($userInfo->i_id_user) ?></td>
                     <td><?= h($userInfo->c_user_name) ?></td>
-                    <td><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
+                    <td class="d-none d-md-table-cell text-center"><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
                     <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
                     <?php if ($isAdmin || $isSystemAdmin): ?>
                         <td class="text-center">
@@ -106,13 +106,13 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                                 ]) ?>
                             <?php endif; ?>
                         <?php else: ?>
-                            <?= $this->Html->link(__('表示'), ['action' => 'view', $userInfo->i_id_user], ['class' => 'btn btn-primary btn-sm']) ?>
+                            <?= $this->Html->link(__('詳細'), ['action' => 'view', $userInfo->i_id_user], ['class' => 'btn btn-info btn-sm']) ?>
                             <?php if ($isAdmin || $userInfo->i_id_user === $currentUserId): ?>
-                                <?= $this->Html->link(__('編集'), ['action' => 'edit', $userInfo->i_id_user], ['class' => 'btn btn-warning btn-sm']) ?>
+                                <?= $this->Html->link(__('編集'), ['action' => 'edit', $userInfo->i_id_user], ['class' => 'btn btn-warning btn-sm ms-1']) ?>
                             <?php endif; ?>
                             <?php if ($isAdmin): ?>
-                                <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $userInfo->i_id_user], [
-                                        'class' => 'btn btn-danger btn-sm js-delete-btn',
+                                <?= $this->Form->postLink(__('🗑 削除'), ['action' => 'delete', $userInfo->i_id_user], [
+                                        'class' => 'btn btn-danger btn-sm ms-3 js-delete-btn',
                                         'data-confirm-msg' => __('「{0}」を削除してもよろしいですか？', $userInfo->c_user_name),
                                 ]) ?>
                             <?php endif; ?>
