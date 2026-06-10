@@ -46,3 +46,20 @@
    ```bash
    git clone https://github.com/kamaho-source/shokusuu1.git
    cd shokusuu1
+   ```
+
+## 🧱 DB変更の自動反映ルール（SQLベース）
+
+- ステージングデプロイ時に `scripts/apply_sql_updates.sh` が `sql/updates/*.sql` を自動適用します。
+- 適用済みSQLは `schema_sql_history` テーブルで管理し、同じファイルは再実行しません。
+- DBの変更や新規追加を行う場合は、`sql/updates` に新しいSQLファイルを追加してください（既存の適用済みファイルは変更しない運用）。
+
+### SQL追加手順（例）
+
+1. 連番付きで新規SQLを追加
+   ```bash
+   mkdir -p sql/updates
+   vi sql/updates/20260403_002_add_example_column.sql
+   ```
+2. SQLを記述（`ALTER TABLE ...` など）
+3. `develop` へマージしてステージングデプロイを実行

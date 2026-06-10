@@ -44,8 +44,11 @@
 ## ロール定義
 
 - `i_admin = 1`: 管理者（全体管理権限）
-- `i_user_level = 0`: 職員
-- `i_user_level = 1`: 児童
+- `i_admin = 2`: ブロック長（承認フロー権限）
+- `i_user_level = 0`: 職員・大人
+- `i_user_level = 1`: 児童（小学生以下）
+- `i_user_level = 2`: 中学生
+- `i_user_level = 3`: 高校生
 - 判定優先: 管理者判定を最優先し、管理者以外は職員/本人/所属部屋で判定
 
 ## 実装構成
@@ -82,7 +85,7 @@
   - `TReservationInfoController`: `index/view/add/copy/bulkAddForm/bulkChangeEditForm/changeEdit/bulkAddSubmit/bulkChangeEditSubmit/toggle/events/calendarEvents/checkDuplicateReservation/roomDetails/getUsersByRoom/getUsersByRoomForBulk/getUsersByRoomForEdit/getPersonalReservation/getReservationSnapshots/exportJson/exportJsonrank/reportNoMeal/getAllRoomsMealCounts/getRoomMealCounts`
 - 未適用:
   - `TReservationInfoController`: 参照系・補助APIの一部（必要に応じて追加）
-
+  
 ## 注意点
 
 - 認可は「アクセス可能か」を判定する機能です。入力値の妥当性検証は別で実装します。

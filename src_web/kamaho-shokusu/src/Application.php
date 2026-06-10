@@ -13,7 +13,9 @@ use Authorization\AuthorizationService;
 use Authorization\AuthorizationServiceInterface;
 use Authorization\AuthorizationServiceProviderInterface;
 use Authorization\Middleware\AuthorizationMiddleware;
+use Authorization\Policy\MapResolver;
 use Authorization\Policy\OrmResolver;
+use Authorization\Policy\ResolverCollection;
 use Cake\Routing\Router;
 use Psr\Http\Message\ServerRequestInterface;
 use Cake\Core\Configure;
@@ -91,7 +93,14 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         ]);
 
         // 認証器の設定（セッション → フォーム）
-        $authenticationService->loadAuthenticator('Authentication.Session');
+        // identify: true でリクエストごとにDBから最新ユーザー情報を再取得する。
+        // これによりDBでロール(i_admin)を変更した場合に再ログイン不要で即時反映される。
+        $authenticationService->loadAuthenticator('Authentication.Session', [
+            'identify' => true,
+            'fields'   => [
+                AbstractIdentifier::CREDENTIAL_USERNAME => 'c_login_account',
+            ],
+        ]);
         $authenticationService->loadAuthenticator('Authentication.Form', [
             'fields'   => [
                 'username' => 'c_login_account',
@@ -110,7 +119,16 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
     {
-        $resolver = new OrmResolver();
+        // コントローラークラス → ポリシークラスの明示マッピング
+        $mapResolver = new MapResolver([
+            \App\Controller\ApprovalController::class     => \App\Policy\ApprovalPolicy::class,
+            \App\Controller\NotificationsController::class => \App\Policy\NotificationPolicy::class,
+            \App\Controller\ContactsController::class      => \App\Policy\ContactsPolicy::class,
+            \App\Controller\AuditLogController::class      => \App\Policy\AuditLogPolicy::class,
+        ]);
+
+        // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック
+        $resolver = new ResolverCollection([$mapResolver, new OrmResolver()]);
 
         return new AuthorizationService($resolver);
     }

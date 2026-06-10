@@ -27,370 +27,27 @@ $dateLabel = $targetDate->format('Y年n月j日') . '(' . $dow[(int)$targetDate->
 
 $mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
 
-// 選択部屋の集計
-$roomMealSummary = [];
-foreach ($mealTypes as $mealType => $mealLabel) {
-    $data = $mealDataArray[$mealLabel][$activeRoomId] ?? null;
-    $roomMealSummary[$mealType] = [
-        'label' => $mealLabel,
-        'eat' => (int)($data['taberu_ninzuu'] ?? 0),
-        'no' => (int)($data['tabenai_ninzuu'] ?? 0),
-    ];
-}
-
-// 表示用（昼をデフォルトで合計表示）
+// 選択部屋の集計（昼：$userMealMap から直接算出）
 $defaultMealType = 2;
-$totalEat = $roomMealSummary[$defaultMealType]['eat'] ?? 0;
-$totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
+$totalEat = 0;
+$totalNo = 0;
+foreach ($roomUsers as $u) {
+    $uid = (int)$u['user_id'];
+    if (!empty($userMealMap[$uid][$defaultMealType])) {
+        $totalEat++;
+    } else {
+        $totalNo++;
+    }
+}
+echo $this->Html->css('pages/t_reservation_view.css');
 ?>
 
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap');
+<div class="rv-wrap">
+    <div class="topbar">
+        <div class="top-title">食数状況確認</div>
+        <div class="date-pill"><?= h($dateLabel) ?></div>
+    </div>
 
-    #mainNav { display: none !important; }
-    body { padding-top: 0 !important; background: #f6f8fb; }
-    main.container { max-width: 100%; padding: 0; }
-
-    .page-shell {
-        display: grid;
-        grid-template-columns: 260px 1fr;
-        min-height: 100vh;
-        font-family: "M PLUS Rounded 1c", "Noto Sans JP", sans-serif;
-        color: #223;
-    }
-    .side {
-        background: #ffffff;
-        border-right: 1px solid #e8edf3;
-        padding: 22px 18px;
-        position: sticky;
-        top: 0;
-        height: 100vh;
-    }
-    .brand {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-weight: 700;
-        font-size: 1.2rem;
-        margin-bottom: 18px;
-    }
-    .brand-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 12px;
-        background: #62cbbf;
-        display: grid;
-        place-items: center;
-        color: #fff;
-        font-size: 1.2rem;
-    }
-    .profile-card {
-        background: #f7fafc;
-        border: 1px solid #edf2f7;
-        border-radius: 16px;
-        padding: 14px;
-        display: grid;
-        grid-template-columns: 48px 1fr;
-        gap: 12px;
-        align-items: center;
-        margin-bottom: 18px;
-    }
-    .avatar {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        background: #e2e8f0;
-        display: grid;
-        place-items: center;
-        font-weight: 700;
-        color: #4a5568;
-    }
-    .profile-meta { font-size: .85rem; color: #718096; }
-    .profile-name { font-weight: 700; margin-top: 2px; }
-    .menu-title {
-        font-size: .85rem;
-        color: #9aa6b2;
-        letter-spacing: .08em;
-        margin: 14px 0 8px;
-    }
-    .menu-item {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        text-decoration: none;
-        color: #374151;
-        font-weight: 500;
-    }
-    .menu-item.active {
-        background: #e9f6f3;
-        color: #148777;
-        border: 1px solid #cfeee7;
-    }
-    .menu-item:hover { background: #f3f6f9; }
-
-    .main {
-        padding: 26px 28px 40px;
-    }
-    .topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 16px;
-    }
-    .top-title { font-size: 1.2rem; font-weight: 700; }
-    .date-pill {
-        background: #ffffff;
-        border: 1px solid #e8edf3;
-        border-radius: 12px;
-        padding: 8px 14px;
-        font-weight: 600;
-        color: #52606d;
-    }
-    .bell {
-        width: 38px;
-        height: 38px;
-        border-radius: 12px;
-        border: 1px solid #e8edf3;
-        background: #fff;
-        display: grid;
-        place-items: center;
-        color: #73808c;
-    }
-
-    .card {
-        background: #fff;
-        border: 1px solid #edf2f7;
-        border-radius: 18px;
-        padding: 18px;
-    }
-    .subhead {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 700;
-    }
-    .subtext { color: #7a8b97; font-size: .9rem; }
-
-    .tabs {
-        display: flex;
-        gap: 10px;
-        border-bottom: 1px solid #edf2f7;
-        margin-top: 12px;
-    }
-    .tab {
-        padding: 10px 12px;
-        border-bottom: 2px solid transparent;
-        text-decoration: none;
-        color: #6b7785;
-        font-weight: 600;
-    }
-    .tab.active {
-        color: #0f8a7a;
-        border-bottom-color: #0f8a7a;
-    }
-
-    .table-row {
-        display: grid;
-        grid-template-columns: 60px 1fr 110px 110px 110px 110px;
-        align-items: center;
-        gap: 10px;
-        padding: 10px 6px;
-        border-bottom: 1px solid #f0f2f5;
-    }
-    .table-row.header {
-        color: #8a96a3;
-        font-size: .85rem;
-        font-weight: 600;
-    }
-    .meal-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        background: #eef6ff;
-        border: 1px solid #dbe7ff;
-        color: #2c5aa0;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: .85rem;
-        font-weight: 600;
-    }
-    .status-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: .85rem;
-        font-weight: 600;
-        border: 1px solid transparent;
-        white-space: nowrap;
-    }
-    .other-room {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        margin-left: 6px;
-        font-size: .78rem;
-        color: #6b7785;
-        background: #f8fafc;
-        border: 1px dashed #e2e8f0;
-        padding: 2px 6px;
-        border-radius: 8px;
-        white-space: nowrap;
-    }
-    .status-yes {
-        background: #e8fff2;
-        color: #15803d;
-        border-color: #c9f5dd;
-    }
-    .status-no {
-        background: #f1f5f9;
-        color: #64748b;
-        border-color: #e2e8f0;
-    }
-    .status-ok {
-        background: #e8fff2;
-        color: #15803d;
-        border: 1px solid #c9f5dd;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: .85rem;
-        font-weight: 600;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .status-ng {
-        background: #f1f5f9;
-        color: #64748b;
-        border: 1px solid #e2e8f0;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: .85rem;
-        font-weight: 600;
-    }
-    .summary {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-top: 12px;
-        color: #6b7785;
-        font-weight: 600;
-    }
-    .summary .num { font-size: 1.1rem; color: #222; }
-    .btn-teal {
-        padding: 8px 14px;
-        border-radius: 12px;
-        background: #62cbbf;
-        color: #fff;
-        font-weight: 700;
-        text-decoration: none;
-        border: none;
-    }
-
-    /* 部屋別サマリーテーブル */
-    .summary-card { margin-bottom: 20px; }
-    .summary-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: .92rem;
-    }
-    .summary-table th {
-        background: #f0f4f8;
-        color: #52606d;
-        font-weight: 700;
-        padding: 10px 12px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-        white-space: nowrap;
-    }
-    .summary-table th.room-col {
-        text-align: left;
-        min-width: 120px;
-    }
-    .summary-table td {
-        padding: 10px 12px;
-        border: 1px solid #e8edf3;
-        text-align: center;
-        vertical-align: middle;
-    }
-    .summary-table td.room-name-cell {
-        text-align: left;
-        font-weight: 600;
-        color: #374151;
-        white-space: nowrap;
-    }
-    .eat-count {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        background: #e8fff2;
-        color: #15803d;
-        border: 1px solid #c9f5dd;
-        border-radius: 8px;
-        padding: 3px 10px;
-        font-weight: 700;
-        font-size: .9rem;
-    }
-    .eat-count .sub {
-        font-size: .78rem;
-        color: #64748b;
-        background: #f1f5f9;
-        border: 1px solid #e2e8f0;
-        border-radius: 6px;
-        padding: 2px 6px;
-        font-weight: 500;
-    }
-    .zero-count {
-        color: #94a3b8;
-        font-size: .88rem;
-    }
-
-    @media (max-width: 992px) {
-        .page-shell { grid-template-columns: 1fr; }
-        .side { position: static; height: auto; border-right: none; border-bottom: 1px solid #e8edf3; }
-        .table-row { grid-template-columns: 60px 1fr 80px 80px 80px 80px; }
-        .summary-table { font-size: .82rem; }
-        .summary-table th, .summary-table td { padding: 7px 8px; }
-    }
-</style>
-
-<div class="page-shell">
-    <aside class="side">
-        <div class="brand">
-            <div class="brand-icon">🍴</div>
-            食数管理システム
-        </div>
-        <div class="profile-card">
-            <div class="avatar"><?=h(mb_substr($user->get('c_user_name'), 0, 1))?></div>
-            <div>
-                <div class="profile-meta">STAFF ID: <?= h($user->get('i_id_staff') ?? '---') ?></div>
-                <div class="profile-name"><?= h($user->get('c_user_name') ?? '') ?></div>
-            </div>
-        </div>
-
-        <div class="menu-title">メインメニュー</div>
-        <a class="menu-item" href="<?= $this->Url->build('/') ?>">ダッシュボード</a>
-        <a class="menu-item active" href="<?= $this->Url->build('/TReservationInfo/view/' . h($date)) ?>">食数状況確認</a>
-        <a class="menu-item" href="<?= $this->Url->build('/TReservationInfo') ?>">食数確認・予約</a>
-        <?php if ($isAdmin): ?>
-            <a class="menu-item" href="<?= $this->Url->build('/MUserInfo') ?>">利用者管理</a>
-            <a class="menu-item" href="<?= $this->Url->build('/MMealPriceInfo/GetMealSummary') ?>">集計・出力</a>
-        <?php endif; ?>
-    </aside>
-
-    <main class="main">
-        <div class="topbar">
-            <div class="top-title">食数状況確認</div>
-            <div class="d-flex align-items-center gap-2">
-                <div class="date-pill"><?= h($dateLabel) ?></div>
-                <div class="bell">🔔</div>
-            </div>
-        </div>
-        
 
         <div class="card">
             <div class="subhead">
@@ -399,11 +56,17 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
             <div class="subtext"><?= h($dateLabel) ?>・<?= h($activeRoomName) ?></div>
 
             <div class="tabs">
-                <?php foreach ($roomsForTabs as $rid => $rname): ?>
-                    <a class="tab <?= ((int)$rid === (int)$activeRoomId) ? 'active' : '' ?>"
-                       href="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'view', $date, '?' => ['room_id' => $rid]]) ?>">
-                        <?= h($rname) ?>
-                    </a>
+                <?php
+                $viewFormAction = $this->Url->build('/TReservationInfo/view/' . rawurlencode((string)$date));
+                $csrfToken = (string)($this->request->getAttribute('csrfToken') ?? '');
+                foreach ($roomsForTabs as $rid => $rname):
+                    $activeClass = ((int)$rid === (int)$activeRoomId) ? 'active' : '';
+                ?>
+                    <form method="POST" action="<?= h($viewFormAction) ?>" style="display:inline;margin:0;padding:0">
+                        <input type="hidden" name="_csrfToken" value="<?= h($csrfToken) ?>">
+                        <input type="hidden" name="room_id" value="<?= (int)$rid ?>">
+                        <button type="submit" class="tab <?= $activeClass ?>"><?= h($rname) ?></button>
+                    </form>
                 <?php endforeach; ?>
             </div>
 
@@ -485,5 +148,5 @@ $totalNo = $roomMealSummary[$defaultMealType]['no'] ?? 0;
                 <a class="btn-teal" href="<?= $this->Url->build('/') ?>">ダッシュボードへ戻る</a>
             </div>
         </div>
-    </main>
+    </div>
 </div>

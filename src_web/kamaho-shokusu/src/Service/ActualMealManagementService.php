@@ -107,6 +107,7 @@ class ActualMealManagementService
                 'meals'    => $meals,
                 'grid'     => [],
                 'versions' => [],
+                'statuses' => [],
             ];
         }
 
@@ -121,6 +122,7 @@ class ActualMealManagementService
                 'i_reservation_type',
                 'eat_flag',
                 'i_change_flag',
+                'i_approval_status',
                 'i_version',
             ])
             ->where([
@@ -146,20 +148,24 @@ class ActualMealManagementService
         // グリッドと版数を組み立てる
         $grid     = [];
         $versions = [];
+        $statuses = [];
         foreach ($users as $u) {
             $uid = (int)$u['id'];
             $grid[$uid]     = [];
             $versions[$uid] = [];
+            $statuses[$uid] = [];
 
             foreach ($dates as $date) {
                 $grid[$uid][$date]     = [];
                 $versions[$uid][$date] = [];
+                $statuses[$uid][$date] = [];
 
                 foreach (array_keys($meals) as $mealType) {
                     $row = $map[$uid][$date][$mealType] ?? null;
                     if ($row === null) {
                         $grid[$uid][$date][$mealType]     = false;
                         $versions[$uid][$date][$mealType] = 1;
+                        $statuses[$uid][$date][$mealType] = 0;
                     } else {
                         // 実効値の判定: i_change_flag が設定済みなら日付に関わらず優先
                         if ($row['i_change_flag'] !== null) {
@@ -169,6 +175,7 @@ class ActualMealManagementService
                         }
                         $grid[$uid][$date][$mealType]     = $effective;
                         $versions[$uid][$date][$mealType] = (int)($row['i_version'] ?? 1);
+                        $statuses[$uid][$date][$mealType] = (int)($row['i_approval_status'] ?? 0);
                     }
                 }
             }
@@ -179,6 +186,7 @@ class ActualMealManagementService
             'meals'    => $meals,
             'grid'     => $grid,
             'versions' => $versions,
+            'statuses' => $statuses,
         ];
     }
 
@@ -237,7 +245,7 @@ class ActualMealManagementService
             $newEntity->d_reservation_date = $date;
             $newEntity->i_id_room          = $roomId;
             $newEntity->i_reservation_type = $mealType;
-            $newEntity->eat_flag           = 0;
+            $newEntity->eat_flag           = $flagValue;
             $newEntity->i_change_flag      = $flagValue;
             $newEntity->i_version          = 1;
             $newEntity->dt_create          = $now;
@@ -253,6 +261,7 @@ class ActualMealManagementService
         $nextVersion = $expectedVersion + 1;
         $affected = $reservationTable->updateAll(
             [
+                'eat_flag'       => $flagValue,
                 'i_change_flag'  => $flagValue,
                 'dt_update'      => $now,
                 'c_update_user'  => $actor,
@@ -271,7 +280,65 @@ class ActualMealManagementService
             return ['ok' => false, 'message' => '他のユーザーによって更新されています。画面を再読み込みしてください。'];
         }
 
+        AuditLogService::record(
+            'actual_meal',
+            'actual_meal_save',
+            $actor,
+            $userId,
+            't_individual_reservation_info',
+            "{$userId}:{$date}:{$roomId}:{$mealType}",
+            ['checked' => $checked, 'meal_type' => $mealType],
+            null,
+            1
+        );
+
         return ['ok' => true, 'message' => '保存しました。', 'version' => $nextVersion];
+    }
+
+    /**
+     * 実食確認の承認申請をまとめて行う（i_approval_status を 0 にリセット）。
+     *
+     * @param Table  $reservationTable TIndividualReservationInfo テーブル
+     * @param array  $keys             申請対象キーの配列（user_id, room_id, date, meal_type を含む）
+     * @param string $actor            操作者ユーザー名
+     * @return int 更新件数合計
+     */
+    public function requestApproval(Table $reservationTable, array $keys, string $actor): int
+    {
+        $now          = \Cake\I18n\DateTime::now('Asia/Tokyo');
+        $affectedTotal = 0;
+
+        foreach ($keys as $key) {
+            $affectedTotal += $reservationTable->updateAll(
+                [
+                    'i_approval_status' => 0,
+                    'dt_update'         => $now,
+                    'c_update_user'     => $actor,
+                ],
+                [
+                    'i_id_user'          => (int)$key['user_id'],
+                    'i_id_room'          => (int)$key['room_id'],
+                    'd_reservation_date' => (string)$key['date'],
+                    'i_reservation_type' => (int)$key['meal_type'],
+                ]
+            );
+        }
+
+        if ($affectedTotal > 0) {
+            AuditLogService::record(
+                'actual_meal',
+                'actual_meal_approval_request',
+                $actor,
+                0,
+                't_individual_reservation_info',
+                null,
+                ['count' => $affectedTotal],
+                null,
+                1
+            );
+        }
+
+        return $affectedTotal;
     }
 
     /**
@@ -294,7 +361,7 @@ class ActualMealManagementService
      */
     private function normalizeDateString(mixed $value): ?string
     {
-        if ($value instanceof \DateTimeInterface) {
+        if ($value instanceof Date) {
             return $value->format('Y-m-d');
         }
         if (is_object($value) && method_exists($value, 'format')) {

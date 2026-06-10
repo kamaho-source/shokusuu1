@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
+use App\Exception\OptimisticLockConflictException;
+use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
 
@@ -15,17 +18,14 @@ class ReservationChangeEditService
         $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
     }
 
+    public function userHasRoomAccess(int $userId): bool
+    {
+        return $this->roomAccessService->hasAnyAffiliation($userId);
+    }
+
     public function getAllowedRooms($loginUser, ?int $roomId, Table $userGroupTable, Table $roomTable): array
     {
         $loginUid = (int)($loginUser?->get('i_id_user') ?? 0);
-        $isAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 1;
-
-        if ($isAdmin) {
-            return $roomTable->find('list', [
-                'keyField' => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])->toArray();
-        }
 
         $allowedRooms = $this->roomAccessService->getAccessibleRooms($roomTable, $loginUid);
 
@@ -40,6 +40,38 @@ class ReservationChangeEditService
         }
 
         return $allowedRooms;
+    }
+
+    /**
+     * 許可部屋の中から、指定日に予約レコードが存在する部屋IDを返す。
+     * 該当がなければ先頭の部屋IDを返す。
+     *
+     * @param array<int, string> $allowedRooms
+     */
+    public function resolveDefaultRoomId(array $allowedRooms, string $date, Table $reservationTable): ?int
+    {
+        if (empty($allowedRooms)) {
+            return null;
+        }
+
+        if (count($allowedRooms) === 1) {
+            return (int)array_key_first($allowedRooms);
+        }
+
+        $row = $reservationTable->find()
+            ->select(['i_id_room'])
+            ->where([
+                'd_reservation_date'    => $date,
+                'i_id_room IN'          => array_keys($allowedRooms),
+                'i_reservation_type IN' => [1, 2, 3, 4],
+            ])
+            ->first();
+
+        if ($row) {
+            return (int)$row->i_id_room;
+        }
+
+        return (int)array_key_first($allowedRooms);
     }
 
     public function buildContext(
@@ -67,6 +99,7 @@ class ReservationChangeEditService
                 'MUserInfo.i_del_flag'   => 0,
             ])
             ->enableHydration(false)->all()->extract('i_id_user')->toList();
+        $baseUserIds = array_values(array_filter($baseUserIds, fn($id) => $id !== null && $id > 0));
         if (empty($baseUserIds)) {
             $baseUserIds = [-1];
         }
@@ -113,14 +146,18 @@ class ReservationChangeEditService
         ];
     }
 
-    public function buildUsersForJson(array $users, $loginUser): array
+    public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false): array
     {
-        $isAdmin  = ($loginUser && ($loginUser->get('i_admin') === 1 || (int)$loginUser->get('i_user_level') === 0));
+        // 管理者・職員・所属グループユーザーは部屋内の全ユーザーを編集できる
+        $canEditAll = $isRoomManager || ($loginUser && (
+            UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0)) ||
+            (int)($loginUser->get('i_user_level') ?? -1) === 0
+        ));
         $loginUid = $loginUser?->get('i_id_user');
 
         $usersForJson = [];
         foreach ($users as $u) {
-            $allowEdit = $isAdmin || ($loginUid && (int)$loginUid === (int)$u['id']);
+            $allowEdit = $canEditAll || ($loginUid && (int)$loginUid === (int)$u['id']);
             $usersForJson[] = [
                 'id'           => $u['id'],
                 'name'         => $u['name'],
@@ -141,7 +178,8 @@ class ReservationChangeEditService
         int $roomId,
         $loginUser,
         Table $reservationTable,
-        Table $userTable
+        Table $userTable,
+        bool $isRoomManager = false
     ): array {
         $connection = $reservationTable->getConnection();
         $connection->begin();
@@ -151,6 +189,13 @@ class ReservationChangeEditService
         $skipped = [];
 
         try {
+            // ログインユーザーの編集権限を確定する（buildUsersForJson と同一ロジック）
+            $loginUid    = $loginUser ? (int)$loginUser->get('i_id_user') : 0;
+            $canEditAll  = $isRoomManager || ($loginUser && (
+                UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0)) ||
+                (int)($loginUser->get('i_user_level') ?? -1) === 0
+            ));
+
             $allowedMap = array_fill_keys(array_map('intval', $userIdList), true);
             $targetUserIds = [];
             foreach ($usersData as $uid => $_) {
@@ -207,6 +252,12 @@ class ReservationChangeEditService
                 $userId = (int)$userIdRaw;
                 if (!isset($allowedMap[$userId])) {
                     $skipped[] = "利用者ID {$userId} はこの部屋の所属ではないためスキップされました。";
+                    continue;
+                }
+
+                // サーバー側 allowEdit チェック: 管理者・職員以外は自分以外の予約を変更できない
+                if (!$canEditAll && $userId !== $loginUid) {
+                    $skipped[] = "利用者ID {$userId} の予約を変更する権限がありません。";
                     continue;
                 }
 
@@ -274,7 +325,7 @@ class ReservationChangeEditService
             foreach ($rowsToUpdate as $item) {
                 $ok = $this->updateReservationRowWithVersion($reservationTable, $item['row'], $item['set']);
                 if (!$ok) {
-                    throw new \RuntimeException('optimistic_conflict');
+                    throw new OptimisticLockConflictException();
                 }
             }
 
@@ -305,7 +356,7 @@ class ReservationChangeEditService
         $set['i_version'] = $expectedVersion + 1;
 
         $dateValue = $row->d_reservation_date;
-        if ($dateValue instanceof \DateTimeInterface) {
+        if ($dateValue instanceof Date) {
             $dateValue = $dateValue->format('Y-m-d');
         } else {
             $dateValue = (string)$dateValue;

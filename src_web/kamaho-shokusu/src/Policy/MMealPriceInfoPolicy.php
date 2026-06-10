@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
+
 use App\Model\Entity\MMealPriceInfo;
 use Authorization\IdentityInterface;
 
@@ -41,15 +43,15 @@ class MMealPriceInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 1;
+            return UserRole::isAdmin((int)$identity->get('i_admin'));
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         return false;

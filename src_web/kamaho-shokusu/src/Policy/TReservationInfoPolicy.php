@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
+
 use App\Model\Entity\TReservationInfo;
 use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
@@ -38,7 +40,7 @@ class TReservationInfoPolicy
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isStaffOrAdmin($user) || $this->isRoomAffiliated($user);
     }
 
     public function canToggle(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -59,11 +61,23 @@ class TReservationInfoPolicy
         }
 
         $loginUserId = $this->getUserId($user);
+
+        // 自分自身の予約操作は常に許可。
         if ($requestedUserId === $loginUserId) {
             return true;
         }
 
-        return $this->isStaffOrAdmin($user);
+        // 管理者は全員を編集可能
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        // 職員IDを持つユーザーは子供の予約編集を試みられる（サービス層で対象が子供かを検証）
+        if ($this->hasStaffId($user)) {
+            return true;
+        }
+
+        return false;
     }
 
     public function canEvents(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -163,10 +177,30 @@ class TReservationInfoPolicy
 
     public function canActualMealManagement(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isBlockLeaderOrAdmin($user);
     }
 
     public function canActualMealSave(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
+    public function canActualMealRequestApproval(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
+    public function canMyActualMeal(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
+    public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isAuthenticated($user);
+    }
+
+    public function canWeeklyMealGrid(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isStaffOrAdmin($user);
     }
@@ -184,15 +218,15 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 1;
+            return UserRole::isAdmin((int)$identity->get('i_admin'));
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         return false;
@@ -220,9 +254,53 @@ class TReservationInfoPolicy
         return false;
     }
 
+    public function isBlockLeader(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return UserRole::isBlockLeader((int)$identity->get('i_admin'));
+        }
+
+        if (is_array($identity)) {
+            return UserRole::isBlockLeader((int)($identity['i_admin'] ?? 0));
+        }
+
+        if ($identity instanceof \ArrayAccess) {
+            return UserRole::isBlockLeader((int)($identity['i_admin'] ?? 0));
+        }
+
+        return false;
+    }
+
     private function isStaffOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isStaff($user);
+    }
+
+    private function hasStaffId(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        $staffId = null;
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            $staffId = $identity->get('i_id_staff');
+        } elseif (is_array($identity) || $identity instanceof \ArrayAccess) {
+            $staffId = $identity['i_id_staff'] ?? null;
+        }
+
+        return $staffId !== null && $staffId !== '' && $staffId !== 0;
+    }
+
+    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
+    {
+        return $this->isAdmin($user) || $this->isBlockLeader($user);
     }
 
     private function canAccessRoom(?IdentityInterface $user, TReservationInfo $resource): bool

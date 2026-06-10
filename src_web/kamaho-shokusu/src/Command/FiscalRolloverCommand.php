@@ -5,7 +5,7 @@ use Cake\Command\Command;
 use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
 use Cake\Console\ConsoleOptionParser;
-use Cake\Datasource\ConnectionManager;
+use Cake\Database\Expression\QueryExpression;
 use Cake\I18n\DateTime;
 
 class FiscalRolloverCommand extends Command
@@ -68,18 +68,19 @@ class FiscalRolloverCommand extends Command
             }
         }
 
-        $connection = ConnectionManager::get('default');
+        $mUserInfo = $this->fetchTable('MUserInfo');
+        $connection = $mUserInfo->getConnection();
         $connection->begin();
 
         try {
             $totalUpdated  = 0;
             $ranksAdjusted = 0;
+            $now = DateTime::now();
 
-            // 有効ユーザ条件：i_enable = 0（※ご指定により i_del_flag は条件に含めない）
-            $activeWhere = "i_enable = 0";
+            // 有効ユーザ条件：i_enable = 0（※ i_del_flag は条件に含めない）
+            $activeWhere = ['i_enable' => 0, 'i_user_age IS NOT' => null];
 
             // 優先的に処理する年齢遷移: (現在の年齢 => 設定する i_user_rank)
-            // 例）6 -> 7 になる人を対象に rank=2 へ
             $transitions = [
                 6  => 2, // 6 -> 7 で rank=2（年長 → 小学生(低学年)）
                 9  => 3, // 9 -> 10 で rank=3（低学年 → 中学年）
@@ -89,44 +90,33 @@ class FiscalRolloverCommand extends Command
                 18 => 7, // 18 -> 19 で rank=7（高校生 → 成人など、施設ルールに合わせて）
             ];
 
-            // 1) 個別境界：年齢+1 と rank 更新（dt_update 更新）
+            // 1) 個別境界：年齢+1 と rank 更新
             foreach ($transitions as $age => $rank) {
-                $stmt = $connection->execute(
-                    "UPDATE m_user_info
-                        SET i_user_age = i_user_age + 1,
-                            i_user_rank = :rank,
-                            dt_update   = NOW()
-                      WHERE {$activeWhere}
-                        AND i_user_age IS NOT NULL
-                        AND i_user_age = :age",
-                    ['rank' => $rank, 'age' => $age]
+                $totalUpdated += $mUserInfo->updateAll(
+                    function (QueryExpression $exp) use ($rank, $now) {
+                        return $exp
+                            ->add('i_user_age = i_user_age + 1')
+                            ->add(['i_user_rank' => $rank, 'dt_update' => $now]);
+                    },
+                    $activeWhere + ['i_user_age' => $age]
                 );
-                $totalUpdated += $stmt->rowCount();
             }
 
-            // 2) 上記以外：年齢のみ +1（dt_update 更新）
-            $excludedAges = implode(',', array_map('intval', array_keys($transitions)));
-            $sql = "UPDATE m_user_info
-                       SET i_user_age = i_user_age + 1,
-                           dt_update   = NOW()
-                     WHERE {$activeWhere}
-                       AND i_user_age IS NOT NULL";
-            if ($excludedAges !== '') {
-                $sql .= " AND i_user_age NOT IN ({$excludedAges})";
-            }
-            $stmt = $connection->execute($sql);
-            $totalUpdated += $stmt->rowCount();
-
-            // 3) 新しい年齢が 3〜6 のユーザ：rank を 1 に統一（dt_update 更新）
-            $stmt = $connection->execute(
-                "UPDATE m_user_info
-                    SET i_user_rank = 1,
-                        dt_update   = NOW()
-                  WHERE {$activeWhere}
-                    AND i_user_age IS NOT NULL
-                    AND i_user_age BETWEEN 3 AND 6"
+            // 2) 上記以外：年齢のみ +1
+            $totalUpdated += $mUserInfo->updateAll(
+                function (QueryExpression $exp) use ($now) {
+                    return $exp
+                        ->add('i_user_age = i_user_age + 1')
+                        ->add(['dt_update' => $now]);
+                },
+                $activeWhere + ['i_user_age NOT IN' => array_keys($transitions)]
             );
-            $ranksAdjusted = $stmt->rowCount();
+
+            // 3) 新しい年齢が 3〜6 のユーザ：rank を 1 に統一
+            $ranksAdjusted = $mUserInfo->updateAll(
+                ['i_user_rank' => 1, 'dt_update' => $now],
+                $activeWhere + ['i_user_age >=' => 3, 'i_user_age <=' => 6]
+            );
 
             if ($dryRun) {
                 $connection->rollback();

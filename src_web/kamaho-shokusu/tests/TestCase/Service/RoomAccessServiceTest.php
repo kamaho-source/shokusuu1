@@ -73,18 +73,85 @@ class RoomAccessServiceTest extends TestCase
         ]);
     }
 
-    public function testGetAccessibleRoomsForOfficeUserReturnsOnlyOfficeRooms(): void
+    public function testGetAccessibleRoomsReturnsAllAssignedRooms(): void
     {
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
         $rooms = $this->service->getAccessibleRooms($roomTable, 10);
 
-        $this->assertSame([2 => '事務所'], $rooms);
+        $this->assertSame([2 => '事務所', 3 => '居室A'], $rooms);
     }
 
-    public function testOfficeUserCanAccessOnlyOfficeRoom(): void
+    public function testGetAccessibleRoomsReturnsEmptyForUnknownUser(): void
+    {
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $rooms = $this->service->getAccessibleRooms($roomTable, 0);
+
+        $this->assertSame([], $rooms);
+    }
+
+    public function testUserCanAccessAllAssignedRooms(): void
     {
         $this->assertTrue($this->service->userCanAccessRoom(10, 2));
-        $this->assertFalse($this->service->userCanAccessRoom(10, 3));
+        $this->assertTrue($this->service->userCanAccessRoom(10, 3));
+    }
+
+    public function testUserCannotAccessUnassignedRoom(): void
+    {
+        $this->assertFalse($this->service->userCanAccessRoom(10, 99));
+    }
+
+    public function testGetRoomsByIdsReturnsMatchingRooms(): void
+    {
+        $rooms = $this->service->getRoomsByIds([2, 3]);
+
+        $this->assertSame([2 => '事務所', 3 => '居室A'], $rooms);
+    }
+
+    public function testGetRoomsByIdsFiltersDeletedRooms(): void
+    {
+        $connection = ConnectionManager::get('test');
+        $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
+        $connection->insert('m_room_info', [
+            'i_id_room' => 99,
+            'c_room_name' => '削除済み部屋',
+            'i_disp_no' => 99,
+            'i_enable' => 0,
+            'i_del_flg' => 1,
+            'dt_create' => $now,
+            'dt_update' => $now,
+        ]);
+
+        $rooms = $this->service->getRoomsByIds([2, 99]);
+
+        $this->assertArrayHasKey(2, $rooms);
+        $this->assertArrayNotHasKey(99, $rooms);
+    }
+
+    public function testGetRoomsByIdsReturnsEmptyForEmptyInput(): void
+    {
+        $this->assertSame([], $this->service->getRoomsByIds([]));
+    }
+
+    public function testGetAllActiveRoomsReturnsOnlyActiveRooms(): void
+    {
+        $connection = ConnectionManager::get('test');
+        $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
+        $connection->insert('m_room_info', [
+            'i_id_room' => 98,
+            'c_room_name' => '削除済み部屋',
+            'i_disp_no' => 98,
+            'i_enable' => 0,
+            'i_del_flg' => 1,
+            'dt_create' => $now,
+            'dt_update' => $now,
+        ]);
+
+        $rooms = $this->service->getAllActiveRooms();
+
+        $this->assertArrayHasKey(2, $rooms);
+        $this->assertArrayHasKey(3, $rooms);
+        $this->assertArrayNotHasKey(98, $rooms);
     }
 }

@@ -89,6 +89,11 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation']
         )->setMethods(['GET']);
 
+        $builder->connect(
+            '/TReservationInfo/getReservationSnapshots',
+            ['controller' => 'TReservationInfo', 'action' => 'getReservationSnapshots']
+        )->setMethods(['POST']);
+
         $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
         $builder->connect(
             '/TReservationInfo/changeEdit/:roomId/:date/:mealType',
@@ -133,6 +138,8 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MMealPriceInfo', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
         $builder->connect('/MMealPriceInfo/add', ['controller'=>'MMealPriceInfo', 'action'=>'add']);
         $builder->connect('/MMealPriceInfo/GetMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'GetMealSummary']);
+        $builder->connect('/MMealPriceInfo/exportMealSummary', ['controller'=>'MMealPriceInfo', 'action'=>'exportMealSummary'])->setMethods(['GET']);
+        $builder->connect('/MMealPriceInfo/exportMealSummaryPreview', ['controller'=>'MMealPriceInfo', 'action'=>'exportMealSummaryPreview'])->setMethods(['GET']);
 
         // MUserInfo
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
@@ -140,6 +147,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/changePassword', ['controller' => 'MUserInfo', 'action' => 'changePassword']);
         $builder->connect('/MUserInfo/AdminChangePassword', ['controller' => 'MUserInfo', 'action' => 'AdminChangePassword']);
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-user-level', ['controller' => 'MUserInfo', 'action' => 'updateUserLevel'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
@@ -147,6 +155,21 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
+
+        // 監査ログ（システム管理者専用）
+        $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);
+
+        // MRoomTransferSchedule（部屋異動予約）
+        $builder->connect('/MRoomTransferSchedule', ['controller' => 'MRoomTransferSchedule', 'action' => 'index']);
+        $builder->connect('/MRoomTransferSchedule/add', ['controller' => 'MRoomTransferSchedule', 'action' => 'add']);
+        $builder->connect(
+            '/MRoomTransferSchedule/cancel/:id',
+            ['controller' => 'MRoomTransferSchedule', 'action' => 'cancel']
+        )
+            ->setPass(['id'])
+            ->setPatterns(['id' => '\d+'])
+            ->setMethods(['POST']);
 
         // Pages
         $builder->connect('/pages/*', 'Pages::display');
@@ -202,11 +225,97 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'actualMealSave']
         )->setMethods(['POST']);
 
+        $builder->connect(
+            '/TReservationInfo/actual-meal-request-approval',
+            ['controller' => 'TReservationInfo', 'action' => 'actualMealRequestApproval']
+        )->setMethods(['POST']);
+
+        $builder->connect(
+            '/TReservationInfo/my-actual-meal',
+            ['controller' => 'TReservationInfo', 'action' => 'myActualMeal']
+        )->setMethods(['GET']);
+
+        // 食数予約 Excel グリッド画面（28日）
+        $builder->connect(
+            '/TReservationInfo/meal-count-grid',
+            ['controller' => 'TReservationInfo', 'action' => 'mealCountGrid']
+        )->setMethods(['GET']);
+
         // 予約コピープレビューAPI
         $builder->connect(
             '/TReservationInfo/copyPreview',
             ['controller' => 'TReservationInfo', 'action' => 'copyPreview']
         )->setMethods(['GET', 'POST']);
+
+        // ------------------------------------------------------------------
+        // Approval（承認フロー）
+        // ------------------------------------------------------------------
+        // ブロック長用 承認一覧（GET）
+        $builder->connect(
+            '/Approval/blockLeaderIndex',
+            ['controller' => 'Approval', 'action' => 'blockLeaderIndex']
+        )->setMethods(['GET']);
+
+        // ブロック長による承認（POST/JSON）
+        $builder->connect(
+            '/Approval/blockLeaderApprove',
+            ['controller' => 'Approval', 'action' => 'blockLeaderApprove']
+        )->setMethods(['POST']);
+
+        // ブロック長による差し戻し（POST/JSON）
+        $builder->connect(
+            '/Approval/blockLeaderReject',
+            ['controller' => 'Approval', 'action' => 'blockLeaderReject']
+        )->setMethods(['POST']);
+
+        // 管理者用 承認一覧（GET）
+        $builder->connect(
+            '/Approval/adminIndex',
+            ['controller' => 'Approval', 'action' => 'adminIndex']
+        )->setMethods(['GET']);
+
+        // 管理者による最終承認（POST/JSON）
+        $builder->connect(
+            '/Approval/adminApprove',
+            ['controller' => 'Approval', 'action' => 'adminApprove']
+        )->setMethods(['POST']);
+
+        // 管理者による差し戻し（POST/JSON）
+        $builder->connect(
+            '/Approval/adminReject',
+            ['controller' => 'Approval', 'action' => 'adminReject']
+        )->setMethods(['POST']);
+
+        // 通知一覧（GET）
+        $builder->connect(
+            '/Notifications',
+            ['controller' => 'Notifications', 'action' => 'index']
+        )->setMethods(['GET']);
+
+        // 通知既読化（POST/JSON）
+        $builder->connect(
+            '/Notifications/markRead',
+            ['controller' => 'Notifications', 'action' => 'markRead']
+        )->setMethods(['POST']);
+
+        // 通知一括既読化（POST/JSON）
+        $builder->connect(
+            '/Notifications/markAllRead',
+            ['controller' => 'Notifications', 'action' => 'markAllRead']
+        )->setMethods(['POST']);
+
+        // 承認済みを食数テーブルへ反映（POST/JSON）
+        $builder->connect(
+            '/Approval/adminReflect',
+            ['controller' => 'Approval', 'action' => 'adminReflect']
+        )->setMethods(['POST']);
+
+        // フィードバック・お問い合わせ
+        $builder->connect('/Contacts', ['controller' => 'Contacts', 'action' => 'index']);
+        $builder->connect('/Contacts/admin', ['controller' => 'Contacts', 'action' => 'adminIndex'])->setMethods(['GET']);
+        $builder->connect('/Contacts/admin/{id}', ['controller' => 'Contacts', 'action' => 'adminDetail'])
+            ->setPass(['id'])
+            ->setPatterns(['id' => '\d+']);
 
         // フォールバック
         $builder->fallbacks();

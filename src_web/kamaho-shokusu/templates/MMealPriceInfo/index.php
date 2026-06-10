@@ -5,19 +5,8 @@
  */
 
 $this->assign('title', __('食事単価情報一覧'));
+echo $this->Html->css('pages/m_meal_price_info_index.css');
 ?>
-<style>
-    /* 列ごとの背景色を定義 */
-    .header-id { background-color: #f8d7da; } /* 赤系 */
-    .header-fiscal-year { background-color: #d1ecf1; } /* 青系 */
-    .header-morning-price { background-color: #d4edda; } /* 緑系 */
-    .header-lunch-price { background-color: #fff3cd; } /* 黄系 */
-    .header-dinner-price { background-color: #f0e68c; } /* ゴールド */
-    .header-bento-price { background-color: #f8d7da; } /* 赤系 */
-    table td, table th {
-        white-space: nowrap; /* テキストを折り返さない */
-    }
-</style>
 
 <div class="mMealPriceInfo index content">
     <?= $this->Html->link(

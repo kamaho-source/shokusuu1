@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\ApiResponseService;
+use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
 
 /**
@@ -14,17 +15,13 @@ class MMealPriceInfoController extends AppController
 {
 
     protected $MMealPriceInfo;
-    protected $TIndividualReservationInfo;
-    protected $MUserInfo;
-
-
+    private MealSummaryExportService $mealSummaryExportService;
 
     public function initialize(): void
     {
         parent::initialize();
         $this->MMealPriceInfo = $this->fetchTable('MMealPriceInfo');
-        $this->TIndividualReservationInfo = $this->fetchTable('TIndividualReservationInfo');
-        $this->MUserInfo = $this->fetchTable('MUserInfo');
+        $this->mealSummaryExportService = new MealSummaryExportService();
     }
 
     /**
@@ -89,6 +86,7 @@ class MMealPriceInfoController extends AppController
             $mMealPriceInfo->c_create_user = $user ? $user->get('c_user_name') : null;
 
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
+                \App\Service\AuditLogService::record('master', 'meal_price_create', $mMealPriceInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), 1);
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -121,6 +119,7 @@ class MMealPriceInfoController extends AppController
             $mMealPriceInfo->dt_update = date('Y-m-d H:i:s');
             $mMealPriceInfo->c_update_user = $user ? $user->get('c_user_name') : null;
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
+                \App\Service\AuditLogService::record('master', 'meal_price_update', $mMealPriceInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), 1);
                 $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -147,8 +146,10 @@ class MMealPriceInfoController extends AppController
             $this->Flash->error(__('あなたは削除権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
-        if ($this->MMealPriceInfo->delete($mMealPriceInfo)) {
-
+        $user = $this->request->getAttribute('identity');
+        $deleted = $this->MMealPriceInfo->delete($mMealPriceInfo);
+        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), $deleted ? 1 : 0);
+        if ($deleted) {
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {
             $this->Flash->error(__('食事料金情報を削除できませんでした。もう一度お試しください。'));
@@ -184,83 +185,32 @@ class MMealPriceInfoController extends AppController
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();
 
-        // リクエストから年度と月を取得
-        $year = $this->request->getQuery('year', date('Y'));
-        $month = $this->request->getQuery('month', date('n')); // 月が指定されていなければ現在の月をデフォルトとする
+        $year  = (int)$this->request->getQuery('year', date('Y'));
+        $month = (int)$this->request->getQuery('month', date('n'));
 
-        // 食事単価を取得 (年度単位)
-        $mealPricesData = $this->MMealPriceInfo->find()
-            ->select(['i_morning_price', 'i_lunch_price', 'i_dinner_price', 'i_bento_price'])
-            ->where(['i_fiscal_year' => $year])
-            ->first();
-
-        $mealPrices = [
-            'morning' => $mealPricesData->i_morning_price ?? 0,
-            'lunch'   => $mealPricesData->i_lunch_price ?? 0,
-            'dinner'  => $mealPricesData->i_dinner_price ?? 0,
-            'bento'   => $mealPricesData->i_bento_price ?? 0,
-        ];
-
-        // 職員IDが存在するユーザーを取得
-        $users = $this->MUserInfo->find()
-            ->select(['i_id_user', 'c_user_name', 'i_id_staff'])
-            ->where(['i_id_staff IS NOT' => null,'i_del_flag' => 0]) // 職員IDが null でないユーザー
-            ->all();
-
-        // 該当月のデータを収集
-        $monthlyData = [];
-
-        foreach ($users as $user) {
-            // 食事の回数を初期化
-            $mealCounts = [
-                'bento'   => 0,
-                'morning' => 0,
-                'lunch'   => 0,
-                'dinner'  => 0,
-            ];
-
-            // 該当ユーザーの食事の回数を集計
-            $reservationData = $this->TIndividualReservationInfo->find()
-                ->select(['i_reservation_type', 'count' => 'COUNT(*)'])
-                ->where([
-                    'i_id_user' => $user->i_id_user,
-                    'YEAR(d_reservation_date)' => $year,
-                    'MONTH(d_reservation_date)' => $month,
-                    'i_change_flag' => 1, // 直前変更フラグが立っていないもの
-                ])
-                ->group(['i_reservation_type'])
-                ->toArray();
-
-            foreach ($reservationData as $data) {
-                // 各タイプの食事数を設定
-                if ($data->i_reservation_type === 4) {
-                    $mealCounts['bento'] = $data->count;
-                } elseif ($data->i_reservation_type === 1) {
-                    $mealCounts['morning'] = $data->count;
-                } elseif ($data->i_reservation_type === 2) {
-                    $mealCounts['lunch'] = $data->count;
-                } elseif ($data->i_reservation_type === 3) {
-                    $mealCounts['dinner'] = $data->count;
-                }
-            }
-
-            // 食事料金の計算
-            $mealTotalPrice = (
-                $mealCounts['bento'] * $mealPrices['bento'] +
-                $mealCounts['morning'] * $mealPrices['morning'] +
-                $mealCounts['lunch'] * $mealPrices['lunch'] +
-                $mealCounts['dinner'] * $mealPrices['dinner']
-            );
-
-            // 結果を格納
-            $monthlyData[] = [
-                'name' => $user->c_user_name,
-                'staff_id' => $user->i_id_staff,
-                'meal_counts' => $mealCounts,
-                'total_price' => $mealTotalPrice,
-            ];
-        }
+        $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
 
         return $apiResponse->success($this->response, ['rows' => $monthlyData]);
+    }
+
+    /**
+     * GET /MMealPriceInfo/exportMealSummaryPreview
+     *
+     * 未承認(status=0)・ブロック長承認済(status=1) のみを集計したプレビューデータを返す。
+     * 管理者のみ使用可能（canAdd ポリシーで管理者判定）。
+     */
+    public function exportMealSummaryPreview()
+    {
+        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'add');
+
+        $this->autoRender = false;
+        $apiResponse = new ApiResponseService();
+
+        $year  = (int)$this->request->getQuery('year', date('Y'));
+        $month = (int)$this->request->getQuery('month', date('n'));
+
+        $result = $this->mealSummaryExportService->aggregatePreview($year, $month);
+
+        return $apiResponse->success($this->response, $result);
     }
 }

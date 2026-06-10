@@ -2,6 +2,8 @@
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/runConfigurations/.xml
 /.idea/php-test-framework.xml
+/.idea/db-forest-config.xml
+/.idea/material_theme_project_new.xml
 .DS_Store
 /.phpunit.result.cache
 /.idea/db-forest-config.xml
@@ -10,3 +12,9 @@
 /terraform/staging/terraform.tfstate.backup
 /terraform/staging/terraform.tfvars
 /terraform/staging/.terraform/providers/registry.terraform.io/oracle/oci/6.37.0/darwin_arm64/terraform-provider-oci_v6.37.0
+
+# Terraform
+terraform/staging/.terraform/
+terraform/staging/terraform.tfstate
+terraform/staging/terraform.tfstate.backup
+terraform/staging/terraform.tfvars

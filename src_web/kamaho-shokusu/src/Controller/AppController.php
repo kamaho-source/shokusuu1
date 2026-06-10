@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
 
@@ -29,6 +30,8 @@ use Cake\Event\EventInterface;
  */
 class AppController extends Controller
 {
+    private NotificationService $notificationService;
+
     /**
      * Initialization hook method.
      *
@@ -44,14 +47,63 @@ class AppController extends Controller
         $this->loadComponent('Flash');
         $this->loadComponent('Authentication.Authentication');
         $this->loadComponent('Authorization.Authorization');
+        $this->notificationService = new NotificationService();
         $this->set('user', $this->Authentication->getIdentity());
-        /*
-         * Enable the following component for recommended CakePHP form protection settings.
-         * see https://book.cakephp.org/4/en/controllers/components/form-protection.html
-         */
-        //$this->loadComponent('FormProtection');
+        $this->loadComponent('FormProtection');
     }
 
+
+    /**
+     * リダイレクト先が安全な内部パスかどうかを検証する。
+     * 外部ドメインやプロトコル相対URLへのオープンリダイレクトを防ぐ。
+     */
+    protected function isSafeRedirect(mixed $url): bool
+    {
+        if (!is_string($url) || $url === '') {
+            return false;
+        }
+
+        $parsed = parse_url($url);
+        if ($parsed === false) {
+            return false;
+        }
+
+        // スキームまたはホストが含まれる場合は外部URLとして拒否（//evil.com 亜種も含む）
+        if (!empty($parsed['scheme']) || !empty($parsed['host'])) {
+            return false;
+        }
+
+        // '/' から始まる内部パスのみ許可
+        return str_starts_with($url, '/');
+    }
+
+    /**
+     * クライアントの実IPアドレスを取得する。
+     *
+     * Docker + リバースプロキシ構成では REMOTE_ADDR がプロキシのIPになるため、
+     * X-Forwarded-For → X-Real-IP → REMOTE_ADDR の優先順位で実IPを取得する。
+     * X-Forwarded-For が複数IPを持つ場合（例: "client, proxy1"）は
+     * 最左（クライアント側）のIPを使用する。
+     *
+     * @return string IPアドレス文字列
+     */
+    protected function getClientIp(): string
+    {
+        $forwardedFor = $this->request->getHeaderLine('X-Forwarded-For');
+        if ($forwardedFor !== '') {
+            $ip = trim(explode(',', $forwardedFor)[0]);
+            if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+                return $ip;
+            }
+        }
+
+        $realIp = $this->request->getHeaderLine('X-Real-IP');
+        if ($realIp !== '' && filter_var($realIp, FILTER_VALIDATE_IP) !== false) {
+            return $realIp;
+        }
+
+        return (string)$this->request->clientIp();
+    }
 
     public function beforeFilter(EventInterface $event)
     {
@@ -60,6 +112,14 @@ class AppController extends Controller
         $user = $this->Authentication->getIdentity();
 
         $this->set('user', $user);
+        if ($user !== null) {
+            $userId = (int)$user->get('i_id_user');
+            $this->set('notificationUnreadCount', $this->notificationService->getUnreadCount($userId));
+            $this->set('recentNotifications', $this->notificationService->getRecentNotifications($userId));
+        } else {
+            $this->set('notificationUnreadCount', 0);
+            $this->set('recentNotifications', []);
+        }
     }
 
 }

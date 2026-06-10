@@ -16,6 +16,8 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Domain\ValueObject\UserRole;
+use App\Service\ApprovalService;
 use App\Service\DashboardService;
 use Cake\Core\Configure;
 use Cake\Event\EventInterface;
@@ -184,28 +186,60 @@ class PagesController extends AppController
         $user = $this->Authentication->getIdentity();
 
         $dashboardService = new DashboardService();
+        $approvalService = new ApprovalService();
+        $dateFrom = date('Y-m-d', strtotime('monday this week'));
+        $dateTo = date('Y-m-d', strtotime('sunday this week'));
 
         if ($user) {
             // ログイン済みの場合: ユーザーIDを取得してサービスを呼び出す
             $userId = (int)$user->get('i_id_user');
+            $currentUser = $this->fetchTable('MUserInfo')->find()
+                ->select(['i_admin'])
+                ->where(['i_id_user' => $userId])
+                ->first();
+            $isAdmin = UserRole::isAdmin((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0));
+            $isBlockLeader = UserRole::isBlockLeader((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0));
 
-            // 当日の食数報告が完了しているかを DB + キャッシュで判定する
-            // 所属部屋のいずれかに本日の予約が存在すれば「報告済み」と判定する
+            // ログインユーザー自身の本日の予約レコード有無で申告済みを判定する
+            // 「食べる」「食べない」どちらの申告でもレコードが作成されるため、
+            // レコードが存在しない場合のみアラートを表示する
             $hasTodayReport = $dashboardService->hasTodayReport(
                 $userId,
-                $this->fetchTable('TIndividualReservationInfo'),
-                $this->fetchTable('MUserGroup')
+                $this->fetchTable('TIndividualReservationInfo')
             );
 
             // ダッシュボード画面の日付データ・週データを組み立てる
             $dashboard = $dashboardService->buildHomeContext($user);
+            $dashboard['roleFlags'] = [
+                'isAdmin' => $isAdmin,
+                'isBlockLeader' => $isBlockLeader,
+            ];
+            $dashboard['approvalCounts'] = [
+                'blockLeader' => $approvalService->countBlockLeaderPending($userId, $dateFrom, $dateTo),
+                'admin' => $isAdmin
+                    ? $approvalService->countAdminPending($dateFrom, $dateTo)
+                    : 0,
+            ];
         } else {
             // 未ログインの場合: 報告済みフラグは false 固定にし、
             // ダッシュボードコンテキストはユーザー情報なしで生成する
             $hasTodayReport = false;
             $dashboard      = $dashboardService->buildHomeContext(null);
+            $dashboard['roleFlags'] = [
+                'isAdmin' => false,
+                'isBlockLeader' => false,
+            ];
+            $dashboard['approvalCounts'] = [
+                'blockLeader' => 0,
+                'admin' => 0,
+            ];
         }
 
-        return compact('hasTodayReport', 'dashboard');
+        $activeNotices = $this->fetchTable('MNotice')
+            ->find('active')
+            ->all()
+            ->toArray();
+
+        return compact('hasTodayReport', 'dashboard', 'activeNotices');
     }
 }

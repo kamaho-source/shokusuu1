@@ -40,6 +40,7 @@ class TIndividualReservationInfoTable extends Table
         $validator
             ->integer('eat_flag')->allowEmptyString('eat_flag')
             ->integer('i_change_flag')->allowEmptyString('i_change_flag')
+            ->integer('i_approval_status')->inList('i_approval_status', [0, 1, 2, 3])->allowEmptyString('i_approval_status')
             ->integer('i_version')->greaterThanOrEqual('i_version', 1)->allowEmptyString('i_version');
 
         // 監査
@@ -60,7 +61,7 @@ class TIndividualReservationInfoTable extends Table
             if (!in_array($type, [2, 4], true)) {
                 return true;
             }
-            $date = $entity->d_reservation_date instanceof \DateTimeInterface
+            $date = $entity->d_reservation_date instanceof Date
                 ? Date::parseDate($entity->d_reservation_date->format('Y-m-d'), 'yyyy-MM-dd')
                 : new Date((string)$entity->d_reservation_date);
 

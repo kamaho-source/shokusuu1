@@ -29,16 +29,16 @@ jobs:
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ubuntu
+          username: ${{ secrets.PROD_USER }}
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
           port: 22
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
           timeout: 60s
           command_timeout: 20m
+          envs: REPO_URL,BRANCH,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,DB_CONTAINER,RESEND_API_KEY,SLACK_CONTACT_WEBHOOK
           script: |
             set -euo pipefail
 
             DEPLOY_PATH="/home/ubuntu/shokusuu1"
-            REPO_URL="${{ secrets.REPO_URL }}"   # 例: git@github.com:oohashikazuyuki/shokusuu1.git
             BRANCH="${BRANCH:-main}"
 
             # デプロイ先へ移動（初回は空ディレクトリ想定）
@@ -47,7 +47,7 @@ jobs:
 
             # 初回 clone or 既存更新
             if [ ! -d .git ]; then
-              if [ -z "$REPO_URL" ]; then
+              if [ -z "${REPO_URL:-}" ]; then
                 echo "ERROR: secrets.REPO_URL が未設定です（例: git@github.com:oohashikazuyuki/shokusuu1.git）。" >&2
                 exit 1
               fi
@@ -60,17 +60,61 @@ jobs:
               git reset --hard "origin/$BRANCH"
             fi
 
-            # 必要に応じて有効化（例）
-            # if [ -f docker-compose.yml ] || [ -f compose.yml ]; then
-            #   docker compose pull
-            #   docker compose up -d --remove-orphans
-            #   docker image prune -f
-            # fi
-            # if [ -f bin/cake ]; then
-            #   php bin/cake cache clear_all || true
-            # fi
+            # ── コンテナ起動 ────────────────────────────────────────────────────
+            echo "── Starting Docker containers ───────────────────────────────────"
+            # 停止中のリバースプロキシを先に起動して名前競合を回避
+            docker start docker-network-reverse-1 2>/dev/null || true
+            # アプリサービスのみ起動・再作成（--no-depsで他サービスを処理しない）
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d --no-deps kamakura-shokusu_web kamakura-shokusu_db
+            # DBコンテナが受付可能になるまで待機（最大30秒）
+            for i in $(seq 1 30); do
+              if docker exec "${DB_CONTAINER}" mysqladmin ping -u root -p"${DB_ROOT_PASS}" --silent 2>/dev/null; then
+                echo "DB ready after ${i}s"
+                break
+              fi
+              sleep 1
+            done
+
+            # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
+            echo "── Applying SQL migrations ──────────────────────────────────────"
+            ./scripts/apply_sql_updates.sh \
+              "${DB_CONTAINER}" \
+              "${DB_NAME}" \
+              root \
+              "${DB_ROOT_PASS}" \
+              sql/updates
+
+            # ── plugins.php が存在しない場合は生成 ───────────────────────────
+            PLUGINS_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/config/plugins.php"
+            [ -f "$PLUGINS_FILE" ] || printf '<?php\nreturn [];\n' > "$PLUGINS_FILE"
+
+            # ── CakePHP マイグレーション実行 ──────────────────────────────────
+            echo "── Running CakePHP migrations ───────────────────────────────────"
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+
+            # ── アプリ用 .env に環境変数を注入（コンテナの env_file と同じパス） ──
+            ENV_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/.env"
+            touch "$ENV_FILE"
+            for KEY_VAL in "RESEND_API_KEY=${RESEND_API_KEY}" "SLACK_CONTACT_WEBHOOK=${SLACK_CONTACT_WEBHOOK}"; do
+              KEY="${KEY_VAL%%=*}"
+              if grep -q "^${KEY}=" "$ENV_FILE" 2>/dev/null; then
+                sed -i "s|^${KEY}=.*|${KEY_VAL}|" "$ENV_FILE"
+              else
+                echo "${KEY_VAL}" >> "$ENV_FILE"
+              fi
+            done
 
             echo "✅ Deployed: $(git rev-parse --short HEAD) @ $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        env:
+          REPO_URL:     ${{ secrets.REPO_URL }}
+          BRANCH:       main
+          DB_NAME:      ${{ secrets.DB_NAME }}
+          DB_USER:      ${{ secrets.DB_USER }}
+          DB_PASS:      ${{ secrets.DB_PASS }}
+          DB_ROOT_PASS: ${{ secrets.DB_ROOT_PASS }}
+          DB_CONTAINER:    ${{ secrets.DB_CONTAINER }}
+          RESEND_API_KEY:          ${{ secrets.RESEND_API_KEY }}
+          SLACK_CONTACT_WEBHOOK:   ${{ secrets.SLACK_CONTACT_WEBHOOK }}
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2

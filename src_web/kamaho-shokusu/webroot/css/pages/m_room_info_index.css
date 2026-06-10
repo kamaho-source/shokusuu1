@@ -1,0 +1,17 @@
+.custom-pagination .page-item {
+    margin: 0 5px;
+}
+
+.custom-pagination .page-item a {
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    text-decoration: none;
+    color: #007bff;
+}
+
+.custom-pagination .page-item a:hover {
+    background-color: #f8f9fa;
+    border-color: #007bff;
+    color: #0056b3;
+}

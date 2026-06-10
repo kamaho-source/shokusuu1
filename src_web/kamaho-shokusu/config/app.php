@@ -3,6 +3,7 @@
 use Cake\Cache\Engine\FileEngine;
 use Cake\Database\Connection;
 use Cake\Database\Driver\Mysql;
+use App\Log\Engine\SlackLogEngine;
 use Cake\Log\Engine\FileLog;
 use Cake\Mailer\Transport\MailTransport;
 
@@ -223,22 +224,14 @@ return [
      */
     'EmailTransport' => [
         'default' => [
-            'className' => MailTransport::class,
-            /*
-             * The keys host, port, timeout, username, password, client and tls
-             * are used in SMTP transports
-             */
-            'host' => 'localhost',
-            'port' => 25,
-            'timeout' => 30,
-            /*
-             * It is recommended to set these options through your environment or app_local.php
-             */
-            //'username' => null,
-            //'password' => null,
-            'client' => null,
-            'tls' => false,
-            'url' => env('EMAIL_TRANSPORT_DEFAULT_URL', null),
+            'className' => 'Smtp',
+            'host'      => 'smtp.resend.com',
+            'port'      => 587,
+            'username'  => 'resend',
+            'password'  => env('RESEND_API_KEY', ''),
+            'tls'       => true,
+            'client'    => null,
+            'url'       => env('EMAIL_TRANSPORT_DEFAULT_URL', null),
         ],
     ],
 
@@ -371,6 +364,11 @@ return [
             'serialize' => true,
             'duration' => '+1 years',
         ],
+        'slack_error' => [
+            'className' => SlackLogEngine::class,
+            'levels' => ['error', 'critical', 'alert', 'emergency'],
+            'scopes' => null,
+        ],
         // To enable this dedicated query log, you need set your datasource's log flag to true
         'queries' => [
             'className' => FileLog::class,
@@ -422,5 +420,6 @@ return [
      */
     'Session' => [
         'defaults' => 'php',
+        'timeout' => 60, // 60分でセッションを失効させる
     ],
 ];

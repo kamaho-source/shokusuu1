@@ -1,10 +1,8 @@
 services:
-  # PHP-Apache (本番と同じイメージ)
+  # PHP-Apache (ghcr.io からプリビルドイメージを使用)
   web:
     container_name: stg_web
-    build:
-      context: ./kamakura-shokusu_web
-      dockerfile: Dockerfile
+    image: ghcr.io/kamaho-source/shokusuu1/web:staging
     ports:
       - "8091:80"
     volumes:
@@ -25,6 +23,8 @@ services:
   db:
     container_name: stg_db
     image: mysql:lts
+    ports:
+      - "127.0.0.1:3306:3306"
     volumes:
       - stg-db-data:/var/lib/mysql
     environment:

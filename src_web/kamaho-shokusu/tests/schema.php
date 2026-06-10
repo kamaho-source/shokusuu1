@@ -97,6 +97,7 @@ return [
             'i_id_room' => ['type' => 'integer', 'null' => false],
             'eat_flag' => ['type' => 'integer', 'null' => true],
             'i_change_flag' => ['type' => 'integer', 'null' => true],
+            'i_approval_status' => ['type' => 'integer', 'null' => false, 'default' => 0],
             'i_version' => ['type' => 'integer', 'null' => false, 'default' => 1],
             'dt_create' => ['type' => 'datetime', 'null' => true],
             'c_create_user' => ['type' => 'string', 'length' => 50, 'null' => true],
@@ -108,6 +109,22 @@ return [
                 'type' => 'primary',
                 'columns' => ['i_id_user', 'd_reservation_date', 'i_id_room', 'i_reservation_type'],
             ],
+        ],
+    ],
+    't_approval_log' => [
+        'columns' => [
+            'i_id_approval'      => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user'          => ['type' => 'integer', 'null' => false],
+            'd_reservation_date' => ['type' => 'date', 'null' => false],
+            'i_id_room'          => ['type' => 'integer', 'null' => false],
+            'i_reservation_type' => ['type' => 'integer', 'null' => false],
+            'i_approval_status'  => ['type' => 'integer', 'null' => false],
+            'i_approver_id'      => ['type' => 'integer', 'null' => false],
+            'c_reject_reason'    => ['type' => 'string', 'length' => 255, 'null' => true],
+            'dt_create'          => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_approval']],
         ],
     ],
     't_reservation_info' => [
@@ -127,6 +144,58 @@ return [
                 'type' => 'primary',
                 'columns' => ['d_reservation_date', 'i_id_room', 'c_reservation_type'],
             ],
+        ],
+    ],
+    't_notification' => [
+        'columns' => [
+            'i_id_notification'  => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user'          => ['type' => 'integer', 'null' => false],
+            'c_notification_type'=> ['type' => 'string', 'length' => 50,  'null' => false],
+            'c_title'            => ['type' => 'string', 'length' => 100, 'null' => false],
+            'c_message'          => ['type' => 'string', 'length' => 255, 'null' => false],
+            'c_link'             => ['type' => 'string', 'length' => 255, 'null' => true],
+            'i_is_read'          => ['type' => 'integer', 'null' => false, 'default' => 0],
+            'dt_read'            => ['type' => 'datetime', 'null' => true],
+            'dt_create'          => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_notification']],
+        ],
+        'indexes' => [
+            'idx_notification_user_read_created' => ['type' => 'index', 'columns' => ['i_id_user', 'i_is_read', 'dt_create']],
+        ],
+    ],
+    'm_notice' => [
+        'columns' => [
+            'i_id'          => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'c_title'       => ['type' => 'string', 'length' => 200, 'null' => false],
+            'c_body'        => ['type' => 'text', 'null' => true],
+            'd_start'       => ['type' => 'date', 'null' => true],
+            'd_end'         => ['type' => 'date', 'null' => true],
+            'i_importance'  => ['type' => 'integer', 'null' => true, 'default' => 0],
+            'dt_create'     => ['type' => 'datetime', 'null' => true],
+            'dt_update'     => ['type' => 'datetime', 'null' => true],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id']],
+        ],
+    ],
+    't_audit_log' => [
+        'columns' => [
+            'i_id_audit'        => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'c_category'        => ['type' => 'string', 'length' => 50,  'null' => false],
+            'c_action'          => ['type' => 'string', 'length' => 100, 'null' => false],
+            'c_target_table'    => ['type' => 'string', 'length' => 100, 'null' => true],
+            'c_target_id'       => ['type' => 'string', 'length' => 255, 'null' => true],
+            'i_actor_user_id'   => ['type' => 'integer', 'null' => true],
+            'c_actor_user_name' => ['type' => 'string', 'length' => 50,  'null' => false],
+            'c_ip_address'      => ['type' => 'string', 'length' => 45,  'null' => true],
+            'i_result'          => ['type' => 'boolean', 'null' => false, 'default' => true],
+            'c_detail'          => ['type' => 'text', 'null' => true],
+            'dt_create'         => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id_audit']],
         ],
     ],
 ];

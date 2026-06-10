@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
+
 use App\Model\Entity\MUserInfo;
 use Authorization\IdentityInterface;
 
@@ -75,12 +77,17 @@ class MUserInfoPolicy
 
     public function canUpdateAdminStatus(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isAdmin($user) || $this->isSystemAdmin($user);
+    }
+
+    public function canUpdateSystemAdminStatus(?IdentityInterface $user, MUserInfo $resource): bool
+    {
+        return $this->isSystemAdmin($user);
     }
 
     public function canRestore(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isAdmin($user) || $this->isSystemAdmin($user);
     }
 
     private function isAdmin(?IdentityInterface $user): bool
@@ -91,15 +98,15 @@ class MUserInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_admin') === 1;
+            return UserRole::isAdmin((int)$identity->get('i_admin'));
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_admin'] ?? 0) === 1;
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
         }
 
         return false;
@@ -122,6 +129,24 @@ class MUserInfoPolicy
         }
 
         return $identityId !== null && $identityId > 0 && $identityId === (int)$resource->i_id_user;
+    }
+
+    private function isSystemAdmin(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return UserRole::isSystemAdmin((int)$identity->get('i_admin'));
+        }
+        if (is_array($identity)) {
+            return UserRole::isSystemAdmin((int)($identity['i_admin'] ?? 0));
+        }
+        if ($identity instanceof \ArrayAccess) {
+            return UserRole::isSystemAdmin((int)($identity['i_admin'] ?? 0));
+        }
+        return false;
     }
 
     private function getOriginalIdentity(?IdentityInterface $user): mixed

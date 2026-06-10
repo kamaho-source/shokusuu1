@@ -333,4 +333,29 @@ class ReservationCalendarService
 
         return $events;
     }
+
+    /**
+     * ログインユーザーの職員情報（名前・職員ID・管理者フラグ）を返す。
+     *
+     * @param Table $userGroupTable MUserGroup テーブル
+     * @param int   $userId         ログインユーザーID
+     * @return array
+     */
+    public function getStaffUserInfo(Table $userGroupTable, int $userId): array
+    {
+        return $userGroupTable->find()
+            ->enableAutoFields(false)
+            ->select([
+                'user_name' => 'MUserInfo.c_user_name',
+                'staff_id'  => 'MUserInfo.i_id_staff',
+                'is_admin'  => 'MUserInfo.i_admin',
+            ])
+            ->innerJoin(
+                ['MUserInfo' => 'm_user_info'],
+                ['MUserInfo.i_id_user = MUserGroup.i_id_user']
+            )
+            ->where(['MUserGroup.i_id_user' => $userId])
+            ->enableHydration(false)
+            ->toArray();
+    }
 }

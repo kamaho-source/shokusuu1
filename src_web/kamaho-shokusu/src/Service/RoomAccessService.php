@@ -9,7 +9,7 @@ use Cake\ORM\TableRegistry;
 
 class RoomAccessService
 {
-    private const string OFFICE_ROOM_KEYWORD = '事務所';
+    private const OFFICE_ROOM_KEYWORD = '事務所';
 
     /**
      * @return array<int>
@@ -74,21 +74,18 @@ class RoomAccessService
             return false;
         }
 
-        if ($this->isOfficeUser($userId)) {
-            return in_array($roomId, $this->getOfficeRoomIds($userId), true);
-        }
-
         return in_array($roomId, $this->getUserRoomIds($userId), true);
+    }
+
+    public function hasAnyAffiliation(int $userId): bool
+    {
+        return !empty($this->getUserRoomIds($userId));
     }
 
     public function getAccessibleRooms(Table $roomTable, int $userId): array
     {
         if ($userId <= 0) {
             return [];
-        }
-
-        if ($this->isOfficeUser($userId)) {
-            return $this->getOfficeRooms($roomTable, $userId);
         }
 
         $rows = $roomTable->find()
@@ -152,6 +149,49 @@ class RoomAccessService
             return array_values(array_unique($roomIds));
         } catch (\Throwable $e) {
             Log::error('RoomAccessService#getOfficeRoomIds failed: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * 指定IDの部屋一覧を取得する（ブロック長用）。
+     *
+     * @param array<int> $roomIds
+     * @return array<int, string>
+     */
+    public function getRoomsByIds(array $roomIds): array
+    {
+        if (empty($roomIds)) {
+            return [];
+        }
+
+        try {
+            $table = TableRegistry::getTableLocator()->get('MRoomInfo');
+            return $table->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])
+                ->where(['i_id_room IN' => $roomIds, 'i_del_flg' => 0])
+                ->orderBy(['i_disp_no' => 'ASC'])
+                ->toArray();
+        } catch (\Throwable $e) {
+            Log::error('RoomAccessService#getRoomsByIds failed: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * 有効な全部屋一覧を取得する（管理者用）。
+     *
+     * @return array<int, string>
+     */
+    public function getAllActiveRooms(): array
+    {
+        try {
+            $table = TableRegistry::getTableLocator()->get('MRoomInfo');
+            return $table->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])
+                ->where(['i_del_flg' => 0])
+                ->orderBy(['i_disp_no' => 'ASC'])
+                ->toArray();
+        } catch (\Throwable $e) {
+            Log::error('RoomAccessService#getAllActiveRooms failed: ' . $e->getMessage());
             return [];
         }
     }

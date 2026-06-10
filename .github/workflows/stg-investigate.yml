@@ -1,0 +1,70 @@
+name: Investigate Staging
+
+on:
+  workflow_dispatch:
+
+jobs:
+  investigate:
+    name: Investigate Staging DB & Containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Investigate via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          DB_NAME:      ${{ secrets.STG_DB_NAME }}
+          DB_ROOT_PASS: ${{ secrets.STG_DB_ROOT_PASS }}
+        with:
+          host:     ${{ secrets.STG_HOST }}
+          username: ubuntu
+          key:      ${{ secrets.STG_SSH_PRIVATE_KEY }}
+          port:     22
+          envs:     DB_NAME,DB_ROOT_PASS
+          timeout:  30s
+          script: |
+            echo "=== Docker コンテナ状態 ==="
+            docker ps
+
+            echo ""
+            echo "=== app_local.php Datasources ==="
+            grep -A8 "Datasources" /home/ubuntu/shokusuu1/src_web/kamaho-shokusu/config/app_local.php
+
+            echo ""
+            echo "=== DB接続テスト ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "SHOW TABLES;" 2>&1
+
+            echo ""
+            echo "=== 最新エラーログ (DebugKit除外) ==="
+            docker exec stg_web grep -v "DebugKit" /var/www/html/kamaho-shokusu/logs/error.log 2>&1 | tail -60
+
+            echo ""
+            echo "=== m_room_transfer_schedule の現在のデータ ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "SELECT i_id, i_id_user, i_id_room_from, i_id_room_to, d_effective_date, i_status, c_create_user, dt_create FROM m_room_transfer_schedule ORDER BY i_id;" 2>&1
+
+            echo ""
+            echo "=== MySQLクエリログ有効化 ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" \
+              -e "SET GLOBAL general_log = 'ON'; SET GLOBAL general_log_file = '/tmp/mysql_general.log';" 2>&1
+
+            echo ""
+            echo "=== バッチ実行 ==="
+            docker exec stg_web bash -c "cd /var/www/html/kamaho-shokusu && php bin/cake.php apply_room_transfer_schedule" 2>&1 || true
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/tmp
+            docker exec stg_web chmod -R 777 /var/www/html/kamaho-shokusu/logs
+
+            echo ""
+            echo "=== MySQLクエリログ (DATE関連のみ) ==="
+            docker exec stg_db bash -c "cat /tmp/mysql_general.log 2>/dev/null | grep -i '5/16/26\|d_effective_date\|d_reservation_date' | head -50" 2>&1
+
+            echo ""
+            echo "=== MySQLクエリログ無効化 ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" \
+              -e "SET GLOBAL general_log = 'OFF';" 2>&1
+
+            echo ""
+            echo "=== RoomTransferScheduleService.php の d_effective_date 周辺 ==="
+            docker exec stg_web grep -n "effective_date\|DateTimeInterface\|format\|d_reservation_date" \
+              /var/www/html/kamaho-shokusu/src/Service/RoomTransferScheduleService.php 2>&1

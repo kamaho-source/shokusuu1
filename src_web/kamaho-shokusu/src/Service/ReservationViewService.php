@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -52,7 +53,7 @@ class ReservationViewService
             if ($userRoomId !== null) {
                 $userRoomId = (int)$userRoomId;
             }
-            $isAdmin = ((int)$user->get('i_admin') === 1);
+            $isAdmin = UserRole::isAdmin((int)$user->get('i_admin'));
         }
 
         $date = $dateParam;

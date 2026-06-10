@@ -1,0 +1,68 @@
+.kid-monthly-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+}
+
+.kid-monthly-cal-header .kid-monthly-dow {
+    text-align: center;
+    font-weight: bold;
+    font-size: .78rem;
+    padding: 4px 0;
+    color: #555;
+}
+
+.kid-monthly-cal-header .dow-sun { color: #e44; }
+.kid-monthly-cal-header .dow-sat { color: #44b; }
+
+.kid-monthly-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 2px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid #dee2e6;
+    min-height: 52px;
+    font-size: .82rem;
+    transition: background .15s, border-color .15s;
+    user-select: none;
+    position: relative;
+}
+
+.kid-monthly-cell:hover { background: #f0f8f0; border-color: #28a745; }
+.kid-monthly-cell.cell-sun .kid-monthly-day-num { color: #e44; }
+.kid-monthly-cell.cell-sat .kid-monthly-day-num { color: #44b; }
+
+.kid-monthly-cell.cell-disabled {
+    background: #f8f8f8;
+    cursor: default;
+    border-color: #f0f0f0;
+}
+
+.kid-monthly-cell.cell-selected {
+    background: #d4edda !important;
+    border-color: #28a745 !important;
+}
+
+.kid-monthly-cell .kid-monthly-month-badge {
+    font-size: .65rem;
+    color: #888;
+    position: absolute;
+    top: 3px;
+    left: 5px;
+}
+
+.kid-monthly-cell .kid-monthly-day-num {
+    font-weight: bold;
+    font-size: .9rem;
+}
+
+.kid-monthly-cell .kid-monthly-meal-icons {
+    font-size: .65rem;
+    min-height: 14px;
+    color: #555;
+    margin-top: 1px;
+    letter-spacing: -.05em;
+}

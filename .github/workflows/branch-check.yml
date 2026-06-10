@@ -1,0 +1,33 @@
+name: Branch Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  branch-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch for PR to main
+        if: github.base_ref == 'main'
+        run: |
+          if [[ "${{ github.head_ref }}" != release/* ]]; then
+            echo "ERROR: main へのPRは release/* ブランチからのみ許可されています。"
+            echo "現在のブランチ: ${{ github.head_ref }}"
+            exit 1
+          fi
+          echo "OK: ${{ github.head_ref }} -> main"
+
+      - name: Check source branch for PR to develop
+        if: github.base_ref == 'develop'
+        run: |
+          if [[ "${{ github.head_ref }}" != feature/* ]] && \
+             [[ "${{ github.head_ref }}" != fix/* ]] && \
+             [[ "${{ github.head_ref }}" != hotfix/* ]]; then
+            echo "ERROR: develop へのPRは feature/・fix/・hotfix/ ブランチからのみ許可されています。"
+            echo "現在のブランチ: ${{ github.head_ref }}"
+            exit 1
+          fi
+          echo "OK: ${{ github.head_ref }} -> develop"

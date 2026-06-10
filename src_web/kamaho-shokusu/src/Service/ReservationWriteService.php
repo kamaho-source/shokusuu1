@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
 
 class ReservationWriteService
 {
@@ -32,9 +34,10 @@ class ReservationWriteService
             return $this->err('入力データが無効です。', 400);
         }
 
-        $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
-        if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('JSONデコードエラー: ' . json_last_error_msg());
+        try {
+            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+        } catch (\JsonException $e) {
+            Log::error('JSONデコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
         }
 
@@ -263,9 +266,10 @@ class ReservationWriteService
             return $this->err('入力データが無効です。', 400);
         }
 
-        $data = is_string($jsonData) ? json_decode($jsonData, true) : $jsonData;
-        if (is_null($data) || json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('JSON デコードエラー: ' . json_last_error_msg());
+        try {
+            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+        } catch (\JsonException $e) {
+            Log::error('JSON デコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
         }
 
@@ -490,17 +494,12 @@ class ReservationWriteService
         $value   = isset($payload['value']) ? (int)$payload['value'] : null;
 
         $loginUser = $this->userTable->find()
-            ->select(['i_admin', 'i_user_level'])
+            ->select(['i_admin', 'i_user_level', 'i_id_staff'])
             ->where(['i_id_user' => $loginUserId])
             ->first();
-        $isAdmin = $loginUser ? ((int)$loginUser->i_admin === 1) : false;
-        $isStaff = $loginUser ? ((int)$loginUser->i_user_level === 0) : false;
-        if ($targetUserId !== $loginUserId && !($isAdmin || $isStaff)) {
-            return [
-                'status' => 403,
-                'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
-            ];
-        }
+        $isAdmin    = $loginUser ? UserRole::isAdmin((int)$loginUser->i_admin) : false;
+        $loginStaff = $loginUser ? $loginUser->i_id_staff : null;
+        $hasStaffId = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
 
         $targetUser = $this->userTable->find()
             ->select(['i_user_level'])
@@ -513,6 +512,32 @@ class ReservationWriteService
             ];
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
+
+        if ($targetUserId !== $loginUserId) {
+            if ($isAdmin) {
+                // 管理者は全員を編集可能
+            } elseif ($hasStaffId && $targetUserLevel === 1) {
+                // 職員IDを持つユーザーは子供（i_user_level=1）のみ編集可能
+            } else {
+                return [
+                    'status' => 403,
+                    'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
+                ];
+            }
+        }
+
+        // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
+        $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
+        $belongsToRoom  = $userGroupTable->exists([
+            'i_id_user' => $targetUserId,
+            'i_id_room' => $roomId,
+        ]);
+        if (!$belongsToRoom) {
+            return [
+                'status' => 403,
+                'body' => ['ok' => false, 'message' => '対象ユーザーは指定された部屋に所属していません。'],
+            ];
+        }
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
             return [
@@ -553,7 +578,7 @@ class ReservationWriteService
             'i_reservation_type' => $meal,
         ]);
 
-        if ($isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
+        if (!$isAdmin && $isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
             return [
                 'status' => 403,
                 'body' => ['ok' => false, 'message' => '職員は直前編集でのキャンセルはできません。'],
@@ -673,7 +698,9 @@ class ReservationWriteService
             $set,
             [
                 'i_id_user'          => (int)$row->i_id_user,
-                'd_reservation_date' => (string)$row->d_reservation_date,
+                'd_reservation_date' => $row->d_reservation_date instanceof Date
+                    ? $row->d_reservation_date->format('Y-m-d')
+                    : (string)$row->d_reservation_date,
                 'i_reservation_type' => (int)$row->i_reservation_type,
                 'i_id_room'          => (int)$row->i_id_room,
                 'i_version'          => $expectedVersion,

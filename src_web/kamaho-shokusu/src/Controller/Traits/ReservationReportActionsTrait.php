@@ -4,8 +4,6 @@ declare(strict_types=1);
 namespace App\Controller\Traits;
 
 use Cake\Http\Exception\NotFoundException;
-use Cake\I18n\Date;
-use Cake\I18n\DateTime;
 use Cake\Log\Log;
 
 trait ReservationReportActionsTrait
@@ -119,59 +117,25 @@ trait ReservationReportActionsTrait
         $this->request->allowMethod(['post']);
 
         $loginUser = $this->request->getAttribute('identity');
-        $userId = (int)($loginUser?->get('i_id_user') ?? 0);
-        $userName = (string)($loginUser?->get('c_user_name') ?? $userId);
+        $userId    = (int)($loginUser?->get('i_id_user') ?? 0);
+        $userName  = (string)($loginUser?->get('c_user_name') ?? $userId);
+
         if ($userId <= 0) {
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $today = Date::today('Asia/Tokyo')->format('Y-m-d');
-        $roomRow = $this->MUserGroup->find()
-            ->enableAutoFields(false)
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
-            ->orderAsc('i_id_room')
-            ->first();
-        if (!$roomRow) {
-            return $this->apiResponseService->error($this->response, '所属部屋が設定されていません。管理者にお問い合わせください。', 400);
-        }
-        $roomId = (int)$roomRow->i_id_room;
+        $result = $this->mealReportingService->reportNoMeal(
+            $this->TIndividualReservationInfo,
+            $this->MUserGroup,
+            $userId,
+            $userName
+        );
 
-        $mealTypes = [1, 2, 3, 4];
-        foreach ($mealTypes as $mealType) {
-            $affected = $this->TIndividualReservationInfo->updateAll(
-                [
-                    'eat_flag' => 0,
-                    'i_change_flag' => 0,
-                    'c_update_user' => $userName,
-                    'dt_update' => DateTime::now('Asia/Tokyo'),
-                ],
-                [
-                    'i_id_user' => $userId,
-                    'd_reservation_date' => $today,
-                    'i_reservation_type' => $mealType,
-                    'i_id_room' => $roomId,
-                ]
-            );
-            if ($affected === 0) {
-                $entity = $this->TIndividualReservationInfo->newEmptyEntity();
-                $entity->i_id_user = $userId;
-                $entity->d_reservation_date = $today;
-                $entity->i_reservation_type = $mealType;
-                $entity->i_id_room = $roomId;
-                $entity->eat_flag = 0;
-                $entity->i_change_flag = 0;
-                $entity->c_create_user = $userName;
-                $entity->dt_create = DateTime::now('Asia/Tokyo');
-                if (!$this->TIndividualReservationInfo->save($entity)) {
-                    return $this->apiResponseService->error($this->response, '報告の保存に失敗しました。', 500);
-                }
-            }
+        if (!$result['ok']) {
+            return $this->apiResponseService->error($this->response, $result['message'], 400);
         }
 
-        $this->invalidateReportCaches($userId, $roomId, $today);
-
-        return $this->apiResponseService->success($this->response, [], '食べないで報告しました。');
+        return $this->apiResponseService->success($this->response, [], $result['message']);
     }
 
     protected function runReportEat()
@@ -179,61 +143,25 @@ trait ReservationReportActionsTrait
         $this->request->allowMethod(['post']);
 
         $loginUser = $this->request->getAttribute('identity');
-        $userId = (int)($loginUser?->get('i_id_user') ?? 0);
-        $userName = (string)($loginUser?->get('c_user_name') ?? $userId);
+        $userId    = (int)($loginUser?->get('i_id_user') ?? 0);
+        $userName  = (string)($loginUser?->get('c_user_name') ?? $userId);
+
         if ($userId <= 0) {
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $today = Date::today('Asia/Tokyo')->format('Y-m-d');
-        $roomRow = $this->MUserGroup->find()
-            ->enableAutoFields(false)
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
-            ->orderAsc('i_id_room')
-            ->first();
-        if (!$roomRow) {
-            return $this->apiResponseService->error($this->response, '所属部屋が設定されていません。管理者にお問い合わせください。', 400);
-        }
-        $roomId = (int)$roomRow->i_id_room;
+        $result = $this->mealReportingService->reportEat(
+            $this->TIndividualReservationInfo,
+            $this->MUserGroup,
+            $userId,
+            $userName
+        );
 
-        $mealTypes = [1, 2, 3, 4];
-        foreach ($mealTypes as $mealType) {
-            $affected = $this->TIndividualReservationInfo->updateAll(
-                [
-                    'eat_flag' => 1,
-                    'i_change_flag' => 1,
-                    'c_update_user' => $userName,
-                    'dt_update' => DateTime::now('Asia/Tokyo'),
-                ],
-                [
-                    'i_id_user' => $userId,
-                    'd_reservation_date' => $today,
-                    'i_reservation_type' => $mealType,
-                    'i_id_room' => $roomId,
-                ]
-            );
-            if ($affected === 0) {
-                $entity = $this->TIndividualReservationInfo->newEmptyEntity();
-                $entity->i_id_user = $userId;
-                $entity->d_reservation_date = $today;
-                $entity->i_reservation_type = $mealType;
-                $entity->i_id_room = $roomId;
-                $entity->eat_flag = 1;
-                $entity->i_change_flag = 1;
-                $entity->c_create_user = $userName;
-                $entity->dt_create = DateTime::now('Asia/Tokyo');
-                if (!$this->TIndividualReservationInfo->save($entity)) {
-                    return $this->apiResponseService->error($this->response, '報告の保存に失敗しました。', 500);
-                }
-            }
+        if (!$result['ok']) {
+            return $this->apiResponseService->error($this->response, $result['message'], 400);
         }
 
-        $this->invalidateReportCaches($userId, $roomId, $today);
-        // 食べる報告後は「報告済み」として即時キャッシュに書き込む
-        \Cake\Cache\Cache::write(sprintf('today_report:%d:%s', $userId, $today), 1, 'default');
-
-        return $this->apiResponseService->success($this->response, [], '食べるで報告しました。');
+        return $this->apiResponseService->success($this->response, [], $result['message']);
     }
 
     protected function runGetAllRoomsMealCounts()
@@ -261,17 +189,6 @@ trait ReservationReportActionsTrait
         } catch (\Exception $e) {
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
-    }
-
-    /**
-     * 食数報告後に関連キャッシュをまとめて削除する共通処理。
-     * runReportNoMeal / runReportEat の両メソッドから呼ばれる。
-     */
-    private function invalidateReportCaches(int $userId, int $roomId, string $today): void
-    {
-        \Cake\Cache\Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
-        \Cake\Cache\Cache::delete('meal_counts:' . $today, 'default');
-        \Cake\Cache\Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $today), 'default');
     }
 
     protected function runGetRoomMealCounts($roomId = null)

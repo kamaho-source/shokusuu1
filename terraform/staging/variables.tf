@@ -54,6 +54,18 @@ variable "instance_shape" {
   default     = "VM.Standard.E2.1.Micro"
 }
 
+variable "instance_ocpus" {
+  description = "A1.Flex の OCPU 数（Always Free 上限: 4）"
+  type        = number
+  default     = 2
+}
+
+variable "instance_memory_in_gbs" {
+  description = "A1.Flex のメモリ GB 数（Always Free 上限: 24）"
+  type        = number
+  default     = 12
+}
+
 variable "staging_domain" {
   description = "ステージング環境のドメイン名"
   type        = string

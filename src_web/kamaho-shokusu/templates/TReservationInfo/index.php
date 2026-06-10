@@ -7,7 +7,7 @@ $this->Html->script('add.js', ['block' => true]);
 $user = $this->request->getAttribute('identity');
 $isChild = ($user && (int)$user->get('i_user_level') === 1);
 $isStaff = ($user && (int)$user->get('i_user_level') === 0);
-$isAdmin = ($user && (int)$user->get('i_admin') === 1);
+$isAdmin = ($user && in_array((int)$user->get('i_admin'), [1, 3]));
 $today = date('Y-m-d');
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 $serverToday = $today;
