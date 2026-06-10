@@ -4,6 +4,7 @@
  * @var \Cake\Datasource\EntityInterface $mMealPriceInfo
  */
 $this->assign('title', __('新しい食事単価情報の追加'));
+$this->Html->script('realtime-validation.js', ['block' => true]);
 ?>
 <div class="container">
     <div class="row my-4">
@@ -27,8 +28,7 @@ $this->assign('title', __('新しい食事単価情報の追加'));
                 <div class="card-body">
                     <h5 class="card-title"><?= __('新しい食事単価情報を追加') ?></h5>
 
-                    <!-- フォーム開始 -->
-                    <?= $this->Form->create($mMealPriceInfo) ?>
+                    <?= $this->Form->create($mMealPriceInfo, ['id' => 'meal-price-form']) ?>
                     <fieldset>
                         <legend class="mb-4"><?= __('必要な情報を入力してください') ?></legend>
                         <div class="row g-3">
@@ -36,41 +36,55 @@ $this->assign('title', __('新しい食事単価情報の追加'));
                                 <?= $this->Form->control('i_fiscal_year', [
                                     'label' => '年度',
                                     'class' => 'form-control',
-                                    'placeholder' => '例: 2023'
+                                    'placeholder' => '例: 2025',
+                                    'data-validate' => 'required year',
                                 ]) ?>
+                                <div class="invalid-feedback"></div>
                             </div>
                             <div class="col-md-6">
                                 <?= $this->Form->control('i_morning_price', [
                                     'label' => '朝食単価（円）',
                                     'class' => 'form-control',
-                                    'placeholder' => '例: 500'
+                                    'placeholder' => '例: 500',
+                                    'data-validate' => 'required non-negative',
+                                    'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
+                                <div class="invalid-feedback"></div>
                             </div>
                             <div class="col-md-6">
                                 <?= $this->Form->control('i_lunch_price', [
                                     'label' => '昼食単価（円）',
                                     'class' => 'form-control',
-                                    'placeholder' => '例: 800'
+                                    'placeholder' => '例: 800',
+                                    'data-validate' => 'required non-negative',
+                                    'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
+                                <div class="invalid-feedback"></div>
                             </div>
                             <div class="col-md-6">
                                 <?= $this->Form->control('i_dinner_price', [
                                     'label' => '夕食単価（円）',
                                     'class' => 'form-control',
-                                    'placeholder' => '例: 1000'
+                                    'placeholder' => '例: 1000',
+                                    'data-validate' => 'required non-negative',
+                                    'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
+                                <div class="invalid-feedback"></div>
                             </div>
                             <div class="col-md-6">
                                 <?= $this->Form->control('i_bento_price', [
                                     'label' => '弁当単価（円）',
                                     'class' => 'form-control',
-                                    'placeholder' => '例: 700'
+                                    'placeholder' => '例: 700',
+                                    'data-validate' => 'required non-negative',
+                                    'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
+                                <div class="invalid-feedback"></div>
                             </div>
                         </div>
                     </fieldset>
                     <div class="text-end mt-4">
-                        <?= $this->Form->button('登録', ['class' => 'btn btn-primary']) ?>
+                        <?= $this->Form->button('登録', ['class' => 'btn btn-primary', 'id' => 'submit-btn', 'disabled' => true]) ?>
                     </div>
                     <?= $this->Form->end() ?>
                 </div>
@@ -78,3 +92,9 @@ $this->assign('title', __('新しい食事単価情報の追加'));
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    initRealtimeValidation('meal-price-form', 'submit-btn');
+});
+</script>

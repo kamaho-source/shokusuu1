@@ -6,6 +6,7 @@
  */
 
 $this->assign('title', 'お知らせ作成');
+$this->Html->script('realtime-validation.js', ['block' => true]);
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
@@ -16,17 +17,18 @@ $this->assign('title', 'お知らせ作成');
 
     <?= $this->Flash->render() ?>
 
-    <?= $this->Form->create(null, ['url' => ['action' => 'add'], 'method' => 'post']) ?>
+    <?= $this->Form->create(null, ['url' => ['action' => 'add'], 'method' => 'post', 'id' => 'notice-form']) ?>
 
     <div class="mb-3">
         <label for="c_title" class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
         <?= $this->Form->text('c_title', [
-            'id'          => 'c_title',
-            'class'       => 'form-control',
-            'required'    => true,
-            'maxlength'   => 200,
-            'placeholder' => '例：6月30日が予約締切日です',
+            'id'             => 'c_title',
+            'class'          => 'form-control',
+            'maxlength'      => 200,
+            'placeholder'    => '例：6月30日が予約締切日です',
+            'data-validate'  => 'required maxlength:200',
         ]) ?>
+        <div class="invalid-feedback"></div>
     </div>
 
     <div class="mb-3">
@@ -44,9 +46,12 @@ $this->assign('title', 'お知らせ作成');
             <label for="d_start" class="form-label fw-bold">掲示開始日</label>
             <small class="text-muted d-block mb-1">空欄の場合は即時掲示</small>
             <?= $this->Form->date('d_start', [
-                'id'    => 'd_start',
-                'class' => 'form-control',
+                'id'             => 'd_start',
+                'class'          => 'form-control',
+                'data-validate'  => 'date-range',
+                'data-range-end' => 'd_end',
             ]) ?>
+            <div class="invalid-feedback"></div>
         </div>
         <div class="col-sm-6">
             <label for="d_end" class="form-label fw-bold">掲示終了日</label>
@@ -55,6 +60,7 @@ $this->assign('title', 'お知らせ作成');
                 'id'    => 'd_end',
                 'class' => 'form-control',
             ]) ?>
+            <div class="invalid-feedback"></div>
         </div>
     </div>
 
@@ -73,9 +79,15 @@ $this->assign('title', 'お知らせ作成');
     </div>
 
     <div class="d-flex gap-2">
-        <?= $this->Form->submit('登録する', ['class' => 'btn btn-primary']) ?>
+        <?= $this->Form->submit('登録する', ['class' => 'btn btn-primary', 'id' => 'submit-btn', 'disabled' => true]) ?>
         <?= $this->Html->link('キャンセル', ['action' => 'index'], ['class' => 'btn btn-secondary']) ?>
     </div>
 
     <?= $this->Form->end() ?>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    initRealtimeValidation('notice-form', 'submit-btn');
+});
+</script>
