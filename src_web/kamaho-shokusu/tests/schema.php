@@ -165,6 +165,21 @@ return [
             'idx_notification_user_read_created' => ['type' => 'index', 'columns' => ['i_id_user', 'i_is_read', 'dt_create']],
         ],
     ],
+    'm_notice' => [
+        'columns' => [
+            'i_id'          => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'c_title'       => ['type' => 'string', 'length' => 200, 'null' => false],
+            'c_body'        => ['type' => 'text', 'null' => true],
+            'd_start'       => ['type' => 'date', 'null' => true],
+            'd_end'         => ['type' => 'date', 'null' => true],
+            'i_importance'  => ['type' => 'integer', 'null' => true, 'default' => 0],
+            'dt_create'     => ['type' => 'datetime', 'null' => true],
+            'dt_update'     => ['type' => 'datetime', 'null' => true],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id']],
+        ],
+    ],
     't_audit_log' => [
         'columns' => [
             'i_id_audit'        => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],

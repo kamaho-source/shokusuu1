@@ -24,6 +24,7 @@ jobs:
           php-version: '8.2'
           extensions: mbstring, intl, pdo_sqlite
           coverage: none
+          tools: composer:2
 
       - name: Validate Composer
         run: composer validate --no-check-publish
