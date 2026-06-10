@@ -19,7 +19,7 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
     </div>
     <div class="table-responsive">
         <table class="table table-striped table-bordered align-middle">
-            <thead class="table-dark">
+            <thead class="table-hover">
             <tr>
                 <th class="d-none d-md-table-cell" style="width:5%;"><?= $this->Paginator->sort('i_id_room', 'No.') ?></th>
                 <th><?= $this->Paginator->sort('c_room_name', '部屋名') ?></th>
