@@ -10,7 +10,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
     <aside class="col-md-3">
         <div class="p-3 bg-light rounded">
             <h4><?= __('アクション') ?></h4>
-            <?= $this->Html->link(__('部屋情報一覧'), ['action' => 'index'], ['class' => 'btn btn-secondary btn-block mt-2']) ?>
+            <?= $this->Html->link(__('部屋情報一覧'), ['action' => 'index'], ['class' => 'btn btn-secondary w-100 mt-2']) ?>
         </div>
     </aside>
     <div class="col-md-9">
