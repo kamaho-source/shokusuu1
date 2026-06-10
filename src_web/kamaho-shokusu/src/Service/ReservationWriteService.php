@@ -497,9 +497,10 @@ class ReservationWriteService
             ->select(['i_admin', 'i_user_level', 'i_id_staff'])
             ->where(['i_id_user' => $loginUserId])
             ->first();
-        $isAdmin    = $loginUser ? UserRole::isAdmin((int)$loginUser->i_admin) : false;
-        $loginStaff = $loginUser ? $loginUser->i_id_staff : null;
-        $hasStaffId = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
+        $isAdmin       = $loginUser ? UserRole::isAdmin((int)$loginUser->i_admin) : false;
+        $isBlockLeader = $loginUser ? UserRole::isBlockLeader((int)$loginUser->i_admin) : false;
+        $loginStaff    = $loginUser ? $loginUser->i_id_staff : null;
+        $hasStaffId    = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
 
         $targetUser = $this->userTable->find()
             ->select(['i_user_level'])
@@ -516,8 +517,8 @@ class ReservationWriteService
         if ($targetUserId !== $loginUserId) {
             if ($isAdmin) {
                 // 管理者は全員を編集可能
-            } elseif ($hasStaffId && $targetUserLevel === 1) {
-                // 職員IDを持つユーザーは子供（i_user_level=1）のみ編集可能
+            } elseif (($hasStaffId || $isBlockLeader) && $targetUserLevel === 1) {
+                // 職員IDあり職員・ブロック長は子供（i_user_level=1）のみ編集可能
             } else {
                 return [
                     'status' => 403,
