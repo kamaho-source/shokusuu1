@@ -30,7 +30,7 @@ class AuditLogController extends AppController
             $this->Authorization->authorize($this, 'index');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能はシステム管理者のみ利用できます。'));
-            return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
         $table      = $this->fetchTable('TAuditLog');
@@ -57,7 +57,7 @@ class AuditLogController extends AppController
             $this->Authorization->authorize($this, 'export');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能はシステム管理者のみ利用できます。'));
-            return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
         $identity = $this->request->getAttribute('identity');

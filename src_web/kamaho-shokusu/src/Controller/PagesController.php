@@ -141,12 +141,17 @@ class PagesController extends AppController
             $subpage = $path[1];
         }
 
+        // /pages/home はルートURL（dashboard アクション）に統一
+        if ($page === 'home') {
+            return $this->redirect('/');
+        }
+
         // $page と $subpage をビュー変数の基本セットとして用意する
         $viewVars = compact('page', 'subpage');
 
-        // 'home' または 'dashboard' ページの場合は、ダッシュボード用の
+        // 'dashboard' ページの場合は、ダッシュボード用の
         // 追加ビュー変数($dashboard, $hasTodayReport)をマージする
-        if ($page === 'home' || $page === 'dashboard') {
+        if ($page === 'dashboard') {
             $viewVars += $this->buildDashboardViewVars();
         }
 

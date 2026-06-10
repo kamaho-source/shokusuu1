@@ -43,7 +43,7 @@ class MNoticeController extends AppController
             $this->Authorization->authorize($resource, 'index');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能は管理者のみ利用できます。'));
-            return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
         $notices = $table->find()
