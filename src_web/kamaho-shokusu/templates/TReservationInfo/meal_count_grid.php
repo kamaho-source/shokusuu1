@@ -19,6 +19,7 @@
  * @var bool   $canGoNext
  * @var bool   $isAdmin
  * @var bool   $canViewAll
+ * @var bool   $canViewRoom
  * @var bool   $hasStaffId
  * @var int    $loginUserId
  * @var string $loginName
@@ -88,10 +89,12 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
         <!-- 表示モード -->
         <span class="mcg-toolbar-label">表示</span>
         <select id="js-mode-select" onchange="mcgChangeMode(this.value)"
-                <?= !$canViewAll ? 'disabled' : '' ?>>
+                <?= !$canViewRoom ? 'disabled' : '' ?>>
             <option value="individual" <?= $viewMode === 'individual' ? 'selected' : '' ?>>個人</option>
-            <?php if ($canViewAll): ?>
+            <?php if ($canViewRoom): ?>
             <option value="room"       <?= $viewMode === 'room'       ? 'selected' : '' ?>>各部屋</option>
+            <?php endif; ?>
+            <?php if ($canViewAll): ?>
             <option value="all"        <?= $viewMode === 'all'        ? 'selected' : '' ?>>全部</option>
             <?php endif; ?>
         </select>
@@ -323,9 +326,11 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
         <span class="excel-sheettab-add">⊕</span>
         <a href="<?= h($makeUrl(['mode' => 'individual'])) ?>"
            class="excel-sheettab <?= $viewMode === 'individual' ? 'active' : '' ?>">個人</a>
-        <?php if ($canViewAll): ?>
+        <?php if ($canViewRoom): ?>
         <a href="<?= h($makeUrl(['mode' => 'room'])) ?>"
            class="excel-sheettab <?= $viewMode === 'room' ? 'active' : '' ?>">各部屋</a>
+        <?php endif; ?>
+        <?php if ($canViewAll): ?>
         <a href="<?= h($makeUrl(['mode' => 'all'])) ?>"
            class="excel-sheettab <?= $viewMode === 'all' ? 'active' : '' ?>">全部</a>
         <a href="#" class="excel-sheettab">入力作法</a>

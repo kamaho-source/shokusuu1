@@ -1844,6 +1844,8 @@ class TReservationInfoController extends AppController
         $hasStaffId   = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
         $canViewAll   = $isAdmin || $isOfficeUser;
+        // 職員IDを持つ一般職員は担当部屋の「各部屋」モードを使用可能
+        $canViewRoom  = $canViewAll || $hasStaffId;
 
         // 前回の表示状態をセッションから復元（クエリパラメータが優先）
         $session = $this->request->getSession();
@@ -1853,8 +1855,12 @@ class TReservationInfoController extends AppController
         if (!in_array($viewMode, ['individual', 'room', 'all'], true)) {
             $viewMode = 'individual';
         }
-        // 管理者・事務所ユーザー以外は 個人 のみ
-        if (!$canViewAll && $viewMode !== 'individual') {
+        // 「全部」モードは管理者・事務所ユーザー限定
+        if (!$canViewAll && $viewMode === 'all') {
+            $viewMode = $canViewRoom ? 'room' : 'individual';
+        }
+        // 「各部屋」モードは職員IDあり職員以上が必要
+        if (!$canViewRoom && $viewMode !== 'individual') {
             $viewMode = 'individual';
         }
 
@@ -1989,6 +1995,7 @@ class TReservationInfoController extends AppController
             'canGoNext'      => $weekNav['canGoNext'],
             'isAdmin'        => $isAdmin,
             'canViewAll'     => $canViewAll,
+            'canViewRoom'    => $canViewRoom,
             'hasStaffId'     => $hasStaffId,
             'loginUserId'    => $loginUserId,
             'loginName'      => $loginName,
