@@ -1843,8 +1843,8 @@ class TReservationInfoController extends AppController
         $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
         $loginStaffId  = $authUser->get('i_id_staff');
         $hasStaffId    = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
-        // i_user_level=0 は職員レベル（子供は 1）
-        $isStaffUser   = (int)($authUser->get('i_user_level') ?? -1) === 0;
+        // i_user_level=0,7 は職員レベル（子供は 1）
+        $isStaffUser   = in_array((int)($authUser->get('i_user_level') ?? -1), [0, 7], true);
         $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
         // 管理者・システム管理者・事務所ユーザー: 全部屋へのフルアクセス
         $canViewAll    = $isAdmin || $isOfficeUser;

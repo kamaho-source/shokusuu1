@@ -501,8 +501,8 @@ class ReservationWriteService
         $isBlockLeader = $loginUser ? UserRole::isBlockLeader((int)$loginUser->i_admin) : false;
         $loginStaff    = $loginUser ? $loginUser->i_id_staff : null;
         $hasStaffId    = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
-        // i_user_level=0 は職員レベル（staffId 有無を問わず子供の予約を編集可）
-        $isStaffUser   = $loginUser ? (int)($loginUser->i_user_level ?? -1) === 0 : false;
+        // i_user_level=0,7 は職員レベル（staffId 有無を問わず子供の予約を編集可）
+        $isStaffUser   = $loginUser ? in_array((int)($loginUser->i_user_level ?? -1), [0, 7], true) : false;
 
         $targetUser = $this->userTable->find()
             ->select(['i_user_level'])
