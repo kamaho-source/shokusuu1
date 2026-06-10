@@ -44,7 +44,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 
     <div class="table-responsive">
         <table class="table table-bordered align-middle">
-            <thead class="table-dark">
+            <thead class="table-hover">
             <tr>
                 <th class="d-none d-md-table-cell" style="width:5%;"><?= $this->Paginator->sort('i_id_user', ['label' => 'No.']) ?></th>
                 <th><?= $this->Paginator->sort('c_user_name', ['label' => 'ユーザー名']) ?></th>
