@@ -143,18 +143,19 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         </div>
                     </div>
                     <div class="alert-actions">
+                        <a class="btn-teal"
+                           href="<?= h($this->Url->build('/TReservationInfo/bulk-change-edit-form?date=' . $todayParam)) ?>">
+                            食べる
+                        </a>
                         <?php /*
                             「食べない」ボタン: JS (home.js) が data-url を使って
                             /TReservationInfo/reportNoMeal へ非同期 POST する
+                            ConfirmPopup で誤タップ防止の確認ダイアログを表示する
                         */ ?>
                         <button class="btn-soft" id="daily-report-noeat" type="button"
                                 data-url="<?= h($this->Url->build('/TReservationInfo/reportNoMeal')) ?>">
                             食べない
                         </button>
-                        <a class="btn-teal"
-                           href="<?= h($this->Url->build('/TReservationInfo/bulk-change-edit-form?date=' . $todayParam)) ?>">
-                            食べる
-                        </a>
                     </div>
                 </div>
             <?php endif; ?>
@@ -213,8 +214,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 </button>
                 <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/meal-count-grid') ?>">
                     <div class="menu-icon" style="background:#e8fdf5;color:#0f7a50;">📊</div>
-                    <div class="menu-title-text">エクセル食数予約(プレビュー版)</div>
-                    <div class="menu-desc">Excelライクな4週間分の予約を管理する</div>
+                    <div class="menu-title-text">食数一括管理</div>
+                    <div class="menu-desc">4週間分の食事予約を一覧で確認・編集する</div>
                 </a>
                 <button class="menu-card border-0 text-start" type="button" id="actual-meal-choice-trigger">
                     <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
