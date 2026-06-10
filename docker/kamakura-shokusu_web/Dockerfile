@@ -10,5 +10,6 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && a2enmod rewrite
 
-# Composer インストール
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Composer インストール（最新版に更新して CVE-2026-45793 を修正）
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer \
+  && composer self-update --2
