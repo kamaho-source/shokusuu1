@@ -89,7 +89,7 @@ function validateField(field) {
 
     const feedback = field.nextElementSibling?.classList.contains('invalid-feedback')
         ? field.nextElementSibling
-        : null;
+        : (field.closest('.mb-3, .col-md-6, .col-sm-6')?.querySelector('.invalid-feedback') ?? null);
 
     if (errorMessage) {
         setInvalid(field, feedback, errorMessage);
