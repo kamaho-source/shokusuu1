@@ -7,6 +7,7 @@
  */
 
 $this->assign('title', 'お知らせ編集');
+$this->Html->script('realtime-validation.js', ['block' => true]);
 
 $startVal = $notice->d_start ? $notice->d_start->format('Y-m-d') : '';
 $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
@@ -20,17 +21,18 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
 
     <?= $this->Flash->render() ?>
 
-    <?= $this->Form->create(null, ['url' => ['action' => 'edit', $notice->i_id], 'method' => 'post']) ?>
+    <?= $this->Form->create(null, ['url' => ['action' => 'edit', $notice->i_id], 'method' => 'post', 'id' => 'notice-form']) ?>
 
     <div class="mb-3">
         <label for="c_title" class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
         <?= $this->Form->text('c_title', [
-            'id'        => 'c_title',
-            'class'     => 'form-control',
-            'required'  => true,
-            'maxlength' => 200,
-            'value'     => $notice->c_title,
+            'id'            => 'c_title',
+            'class'         => 'form-control',
+            'maxlength'     => 200,
+            'value'         => $notice->c_title,
+            'data-validate' => 'required maxlength:200',
         ]) ?>
+        <div class="invalid-feedback"></div>
     </div>
 
     <div class="mb-3">
@@ -47,12 +49,17 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
         <div class="col-sm-6">
             <label for="d_start" class="form-label fw-bold">掲示開始日</label>
             <small class="text-muted d-block mb-1">空欄の場合は即時掲示</small>
-            <input type="date" id="d_start" name="d_start" class="form-control" value="<?= h($startVal) ?>">
+            <input type="date" id="d_start" name="d_start" class="form-control"
+                value="<?= h($startVal) ?>"
+                data-validate="date-range"
+                data-range-end="d_end">
+            <div class="invalid-feedback"></div>
         </div>
         <div class="col-sm-6">
             <label for="d_end" class="form-label fw-bold">掲示終了日</label>
             <small class="text-muted d-block mb-1">空欄の場合は無期限</small>
             <input type="date" id="d_end" name="d_end" class="form-control" value="<?= h($endVal) ?>">
+            <div class="invalid-feedback"></div>
         </div>
     </div>
 
@@ -73,9 +80,15 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
     </div>
 
     <div class="d-flex gap-2">
-        <?= $this->Form->submit('更新する', ['class' => 'btn btn-primary']) ?>
+        <?= $this->Form->submit('更新する', ['class' => 'btn btn-primary', 'id' => 'submit-btn']) ?>
         <?= $this->Html->link('キャンセル', ['action' => 'index'], ['class' => 'btn btn-secondary']) ?>
     </div>
 
     <?= $this->Form->end() ?>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    initRealtimeValidation('notice-form', 'submit-btn');
+});
+</script>

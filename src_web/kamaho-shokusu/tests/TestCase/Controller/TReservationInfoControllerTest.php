@@ -657,13 +657,20 @@ class TReservationInfoControllerTest extends TestCase
 
     private function setAuthenticatedSession(bool $isAdmin = true, int $userLevel = 0): void
     {
+        [$userId, $loginAccount] = match(true) {
+            $isAdmin        => [1, 'admin_user'],
+            $userLevel === 0 => [2, 'staff_user'],
+            default          => [3, 'non_staff_user'],
+        };
+
         $this->session([
             'Auth' => [
-                'i_id_user' => 1,
-                'c_user_name' => 'テストユーザー',
-                'i_admin' => $isAdmin ? 1 : 0,
-                'i_user_level' => $userLevel,
-                'i_id_room' => 1,
+                'i_id_user'       => $userId,
+                'c_login_account' => $loginAccount,
+                'c_user_name'     => 'テストユーザー',
+                'i_admin'         => $isAdmin ? 1 : 0,
+                'i_user_level'    => $userLevel,
+                'i_id_room'       => 1,
             ],
         ]);
     }
