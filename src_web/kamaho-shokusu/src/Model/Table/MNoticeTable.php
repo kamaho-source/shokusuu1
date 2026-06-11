@@ -12,6 +12,9 @@ class MNoticeTable extends Table
     public const IMPORTANCE_NORMAL = 0;
     public const IMPORTANCE_HIGH   = 1;
 
+    public const TYPE_NORMAL       = 0;
+    public const TYPE_RELEASE_NOTE = 1;
+
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -52,6 +55,10 @@ class MNoticeTable extends Table
         $validator
             ->integer('i_importance')
             ->inList('i_importance', [self::IMPORTANCE_NORMAL, self::IMPORTANCE_HIGH]);
+
+        $validator
+            ->integer('i_type')
+            ->inList('i_type', [self::TYPE_NORMAL, self::TYPE_RELEASE_NOTE]);
 
         return $validator;
     }

@@ -4,6 +4,7 @@
  *
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MNotice $notice
+ * @var bool $isSysAdmin
  */
 
 $this->assign('title', 'お知らせ編集');
@@ -78,6 +79,25 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
             </div>
         </div>
     </div>
+
+    <?php if ($isSysAdmin): ?>
+    <div class="mb-4">
+        <label class="form-label fw-bold">種別</label>
+        <small class="text-muted d-block mb-1">リリースノートはダッシュボードで 🚀 アイコン付きで表示されます。</small>
+        <div class="d-flex gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="i_type" id="type_normal" value="0"
+                    <?= (int)$notice->i_type === 0 ? 'checked' : '' ?>>
+                <label class="form-check-label" for="type_normal">通常お知らせ</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="i_type" id="type_release" value="1"
+                    <?= (int)$notice->i_type === 1 ? 'checked' : '' ?>>
+                <label class="form-check-label" for="type_release">🚀 リリースノート</label>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="d-flex gap-2">
         <?= $this->Form->submit('更新する', ['class' => 'btn btn-primary', 'id' => 'submit-btn']) ?>
