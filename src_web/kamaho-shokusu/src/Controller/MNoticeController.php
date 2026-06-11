@@ -23,12 +23,12 @@ class MNoticeController extends AppController
 
     /**
      * FormProtection::startup() より前に実行されるため、ここで unlockedFields を設定する。
-     * i_importance はプレーン HTML の radio で生成するため Form ヘルパーが追跡しない。
+     * i_importance・i_type はプレーン HTML の radio で生成するため Form ヘルパーが追跡しない。
      */
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
-        $this->FormProtection->setConfig('unlockedFields', ['i_importance']);
+        $this->FormProtection->setConfig('unlockedFields', ['i_importance', 'i_type', 'd_start', 'd_end']);
     }
 
     /**
@@ -71,8 +71,12 @@ class MNoticeController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
+        $loginUser  = $this->request->getAttribute('identity');
+        $isSysAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 3;
+
         if ($this->request->is('post')) {
-            $data = $this->request->getData();
+            $data     = $this->request->getData();
+            $rawType  = (int)($data['i_type'] ?? 0);
 
             $notice = $table->newEmptyEntity();
             $notice = $table->patchEntity($notice, [
@@ -81,9 +85,9 @@ class MNoticeController extends AppController
                 'd_start'      => ($data['d_start'] ?? '') !== '' ? $data['d_start'] : null,
                 'd_end'        => ($data['d_end']   ?? '') !== '' ? $data['d_end']   : null,
                 'i_importance' => (int)($data['i_importance'] ?? 0),
+                'i_type'       => $isSysAdmin ? $rawType : 0,
             ]);
 
-            $loginUser = $this->request->getAttribute('identity');
             $notice->i_id_user_created = (int)($loginUser?->get('i_id_user') ?? 0);
             $notice->c_create_user     = $loginUser?->get('c_user_name') ?? 'system';
             $notice->c_update_user     = $loginUser?->get('c_user_name') ?? 'system';
@@ -96,7 +100,7 @@ class MNoticeController extends AppController
             $this->Flash->error(__('お知らせの登録に失敗しました。入力内容を確認してください。'));
         }
 
-        $this->set(compact('resource'));
+        $this->set(compact('resource', 'isSysAdmin'));
         return null;
     }
 
@@ -121,8 +125,12 @@ class MNoticeController extends AppController
 
         $notice = $table->get($id);
 
+        $loginUser  = $this->request->getAttribute('identity');
+        $isSysAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 3;
+
         if ($this->request->is('post')) {
-            $data = $this->request->getData();
+            $data    = $this->request->getData();
+            $rawType = (int)($data['i_type'] ?? 0);
 
             $notice = $table->patchEntity($notice, [
                 'c_title'      => trim((string)($data['c_title'] ?? '')),
@@ -130,9 +138,9 @@ class MNoticeController extends AppController
                 'd_start'      => ($data['d_start'] ?? '') !== '' ? $data['d_start'] : null,
                 'd_end'        => ($data['d_end']   ?? '') !== '' ? $data['d_end']   : null,
                 'i_importance' => (int)($data['i_importance'] ?? 0),
+                'i_type'       => $isSysAdmin ? $rawType : (int)$notice->i_type,
             ]);
 
-            $loginUser = $this->request->getAttribute('identity');
             $notice->c_update_user = $loginUser?->get('c_user_name') ?? 'system';
 
             if ($table->save($notice)) {
@@ -143,7 +151,7 @@ class MNoticeController extends AppController
             $this->Flash->error(__('お知らせの更新に失敗しました。入力内容を確認してください。'));
         }
 
-        $this->set(compact('notice'));
+        $this->set(compact('notice', 'isSysAdmin'));
         return null;
     }
 
