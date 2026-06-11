@@ -3,6 +3,7 @@
  * お知らせ新規作成
  *
  * @var \App\View\AppView $this
+ * @var bool $isSysAdmin
  */
 
 $this->assign('title', 'お知らせ作成');
@@ -77,6 +78,23 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
             </div>
         </div>
     </div>
+
+    <?php if ($isSysAdmin): ?>
+    <div class="mb-4">
+        <label class="form-label fw-bold">種別</label>
+        <small class="text-muted d-block mb-1">リリースノートはダッシュボードで 🚀 アイコン付きで表示されます。</small>
+        <div class="d-flex gap-3">
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="i_type" id="type_normal" value="0" checked>
+                <label class="form-check-label" for="type_normal">通常お知らせ</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="i_type" id="type_release" value="1">
+                <label class="form-check-label" for="type_release">🚀 リリースノート</label>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="d-flex gap-2">
         <?= $this->Form->submit('登録する', ['class' => 'btn btn-primary', 'id' => 'submit-btn', 'disabled' => true]) ?>
