@@ -24,6 +24,9 @@ class ApprovalController extends AppController
         $this->approvalService   = new ApprovalService();
         $this->roomAccessService = new RoomAccessService();
 
+        // これらのアクションは JSON ボディを受け取る AJAX エンドポイントのため
+        // FormProtection のフォームトークン検証対象外にする。
+        // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
         $this->FormProtection->setConfig('unlockedActions', [
             'blockLeaderApprove',
             'blockLeaderReject',
