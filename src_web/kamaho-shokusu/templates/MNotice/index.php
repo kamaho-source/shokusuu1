@@ -11,6 +11,10 @@ $importanceLabels = [
     0 => ['label' => '通常',  'class' => 'text-bg-secondary'],
     1 => ['label' => '重要',  'class' => 'text-bg-danger'],
 ];
+$typeLabels = [
+    0 => ['label' => 'お知らせ',       'class' => 'text-bg-secondary'],
+    1 => ['label' => '🚀 リリースノート', 'class' => 'text-bg-success'],
+];
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
@@ -32,6 +36,7 @@ $importanceLabels = [
         <table class="table table-bordered table-hover align-middle">
             <thead class="table-light">
                 <tr>
+                    <th class="text-nowrap">種別</th>
                     <th class="text-nowrap">重要度</th>
                     <th>タイトル</th>
                     <th class="text-nowrap">掲示期間</th>
@@ -45,7 +50,8 @@ $importanceLabels = [
             <?php foreach ($notices as $notice): ?>
                 <?php
                     $rowCount++;
-                    $imp = $importanceLabels[(int)$notice->i_importance] ?? $importanceLabels[0];
+                    $imp  = $importanceLabels[(int)$notice->i_importance] ?? $importanceLabels[0];
+                    $type = $typeLabels[(int)($notice->i_type ?? 0)] ?? $typeLabels[0];
                     $startStr = $notice->d_start ? (string)$notice->d_start : null;
                     $endStr   = $notice->d_end   ? (string)$notice->d_end   : null;
                     if ($startStr && $endStr) {
@@ -62,6 +68,9 @@ $importanceLabels = [
                         : '-';
                 ?>
                 <tr>
+                    <td class="text-center">
+                        <span class="badge rounded-pill <?= $type['class'] ?>"><?= $type['label'] ?></span>
+                    </td>
                     <td class="text-center">
                         <span class="badge rounded-pill <?= $imp['class'] ?>"><?= $imp['label'] ?></span>
                     </td>
@@ -102,7 +111,7 @@ $importanceLabels = [
             <?php endforeach; ?>
             <?php if ($rowCount === 0): ?>
                 <tr>
-                    <td colspan="6" class="text-center text-muted py-4">
+                    <td colspan="7" class="text-center text-muted py-4">
                         <i class="bi bi-inbox fs-4 d-block mb-1"></i>
                         登録されているお知らせはありません。
                     </td>
