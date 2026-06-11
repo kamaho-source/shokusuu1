@@ -102,32 +102,79 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
 
             <?php /* ---- お知らせセクション ---- */ ?>
             <?php if (!empty($activeNotices)): ?>
-                <div class="section-title">お知らせ</div>
+                <div class="section-title d-flex align-items-center gap-2">
+                    お知らせ
+                    <span id="notice-unread-badge" class="badge rounded-pill bg-danger d-none" style="font-size:.7rem;vertical-align:middle;"></span>
+                </div>
                 <?php foreach ($activeNotices as $notice): ?>
-                    <?php $isHighNotice = (int)$notice->i_importance === 1; ?>
-                    <div class="alert-card" style="<?= $isHighNotice ? 'border-left: 4px solid #dc3545;' : '' ?>">
+                    <?php
+                        $isHighNotice    = (int)$notice->i_importance === 1;
+                        $isReleaseNote   = (int)($notice->i_type ?? 0) === 1;
+                        $noticeId        = (int)$notice->i_id;
+                    ?>
+                    <?php if ($isReleaseNote): ?>
+                    <div class="alert-card notice-item" data-notice-id="<?= $noticeId ?>"
+                         style="border-left:4px solid #10b981;background:linear-gradient(135deg,#f0fdf4 0%,#ecfdf5 100%);">
                         <div class="alert-left">
-                            <div class="alert-icon" style="<?= $isHighNotice ? 'background:#fde8e8;color:#dc3545;' : 'background:#e8f4fd;color:#2b7bb9;' ?>">
-                                <?= $isHighNotice ? '!' : 'i' ?>
-                            </div>
+                            <div class="alert-icon" style="background:#d1fae5;color:#059669;font-size:1.1rem;">🚀</div>
                             <div>
                                 <div class="alert-title">
+                                    <span class="badge text-bg-success me-1" style="font-size:.7rem;">リリースノート</span>
                                     <?php if ($isHighNotice): ?>
-                                        <span class="badge text-bg-danger me-1">重要</span>
+                                        <span class="badge text-bg-danger me-1" style="font-size:.7rem;">重要</span>
                                     <?php endif; ?>
                                     <?= h($notice->c_title) ?>
                                 </div>
                                 <?php if ($notice->c_body): ?>
-                                    <div class="alert-sub" style="white-space: pre-line;"><?= h($notice->c_body) ?></div>
+                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->c_body) ?></div>
                                 <?php endif; ?>
                             </div>
                         </div>
                         <?php if ($isAdmin): ?>
                             <div class="alert-actions">
-                                <a class="btn-soft" href="<?= $this->Url->build('/MNotice/edit/' . (int)$notice->i_id) ?>">編集</a>
+                                <a class="btn-soft" href="<?= $this->Url->build('/MNotice/edit/' . $noticeId) ?>">編集</a>
                             </div>
                         <?php endif; ?>
                     </div>
+                    <?php elseif ($isHighNotice): ?>
+                    <div class="alert-card notice-item" data-notice-id="<?= $noticeId ?>"
+                         style="border-left:4px solid #dc3545;background:linear-gradient(135deg,#fff5f5 0%,#fef2f2 100%);">
+                        <div class="alert-left">
+                            <div class="alert-icon" style="background:#fde8e8;color:#dc3545;font-weight:bold;">!</div>
+                            <div>
+                                <div class="alert-title">
+                                    <span class="badge text-bg-danger me-1" style="font-size:.7rem;">重要</span>
+                                    <?= h($notice->c_title) ?>
+                                </div>
+                                <?php if ($notice->c_body): ?>
+                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->c_body) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($isAdmin): ?>
+                            <div class="alert-actions">
+                                <a class="btn-soft" href="<?= $this->Url->build('/MNotice/edit/' . $noticeId) ?>">編集</a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php else: ?>
+                    <div class="alert-card notice-item" data-notice-id="<?= $noticeId ?>">
+                        <div class="alert-left">
+                            <div class="alert-icon" style="background:#e8f4fd;color:#2b7bb9;">i</div>
+                            <div>
+                                <div class="alert-title"><?= h($notice->c_title) ?></div>
+                                <?php if ($notice->c_body): ?>
+                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->c_body) ?></div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($isAdmin): ?>
+                            <div class="alert-actions">
+                                <a class="btn-soft" href="<?= $this->Url->build('/MNotice/edit/' . $noticeId) ?>">編集</a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php endif; ?>
                 <?php endforeach; ?>
             <?php endif; ?>
 
@@ -389,6 +436,47 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
 
     <?= $this->Html->script('pages/home.js') ?>
     <script>
+        /* ---- お知らせ未読インジケーター ---- */
+        (() => {
+            const STORAGE_KEY = 'notice_seen_ids';
+            const items = document.querySelectorAll('.notice-item[data-notice-id]');
+            if (!items.length) return;
+
+            const seenRaw = localStorage.getItem(STORAGE_KEY) ?? '[]';
+            let seenIds;
+            try { seenIds = new Set(JSON.parse(seenRaw)); } catch { seenIds = new Set(); }
+
+            const allIds    = Array.from(items).map(el => el.dataset.noticeId);
+            const unseenIds = allIds.filter(id => !seenIds.has(id));
+
+            const badge = document.getElementById('notice-unread-badge');
+            if (badge && unseenIds.length > 0) {
+                badge.textContent = unseenIds.length > 9 ? '9+' : String(unseenIds.length);
+                badge.classList.remove('d-none');
+
+                const observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            seenIds.add(entry.target.dataset.noticeId);
+                            observer.unobserve(entry.target);
+                            localStorage.setItem(STORAGE_KEY, JSON.stringify([...seenIds]));
+                            const remaining = allIds.filter(id => !seenIds.has(id));
+                            if (remaining.length === 0) {
+                                badge.classList.add('d-none');
+                            } else {
+                                badge.textContent = remaining.length > 9 ? '9+' : String(remaining.length);
+                            }
+                        }
+                    });
+                }, { threshold: 0.5 });
+
+                items.forEach(el => {
+                    if (!seenIds.has(el.dataset.noticeId)) observer.observe(el);
+                });
+            }
+        })();
+        /* ---- ここまで ---- */
+
         (() => {
             const trigger = document.getElementById('actual-meal-choice-trigger');
             const modal = document.getElementById('actual-meal-choice-modal');
