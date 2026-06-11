@@ -28,7 +28,7 @@ class MNoticeController extends AppController
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
-        $this->FormProtection->setConfig('unlockedFields', ['i_importance', 'i_type']);
+        $this->FormProtection->setConfig('unlockedFields', ['i_importance', 'i_type', 'd_start', 'd_end']);
     }
 
     /**
