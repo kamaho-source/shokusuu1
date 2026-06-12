@@ -133,8 +133,9 @@
             showLoading();
             try{
                 const json = await fetchUsersByRoom(roomId, date);
-                const users = Array.isArray(json.usersByRoom) ? json.usersByRoom
-                    : (Array.isArray(json.users) ? json.users : []);
+                const payload = (json && json.data) ? json.data : json;
+                const users = Array.isArray(payload.usersByRoom) ? payload.usersByRoom
+                    : (Array.isArray(payload.users) ? payload.users : []);
                     
                 if (!userCheckboxesTbody) return;
 

@@ -1216,7 +1216,8 @@ function unlockForChildren(wrap){
                                 }
                             })
                             .then(function(d){
-                                var users = d && d.usersByRoom;
+                                var payload = (d && d.data) ? d.data : d;
+                                var users = payload && payload.usersByRoom;
                                 if (!Array.isArray(users)) {
                                     throw new Error('usersByRoom が配列ではありません');
                                 }
@@ -1383,7 +1384,7 @@ function unlockForChildren(wrap){
                 }, 200);
             }
 
-            if (typeof window.initReservationForm === 'function') {
+            if (!addJsBooted && typeof window.initReservationForm === 'function') {
                 window.initReservationForm();
             }
 
