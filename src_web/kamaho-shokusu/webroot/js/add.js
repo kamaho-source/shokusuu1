@@ -151,18 +151,15 @@
                 }
                 formData.append('d_reservation_date', date);
 
-                // 集団予約の場合、部屋IDが正しく設定されているかチェック
                 if (reservationType === '2') {
                     const roomId = formData.get('i_id_room') || roomSelect?.value;
                     if (!roomId) {
                         toast('エラー: 部屋を選択してください。', 'danger');
                         return;
                     }
-                    // 部屋IDが明示的に設定されていない場合は追加
                     if (!formData.get('i_id_room') && roomSelect?.value) {
                         formData.append('i_id_room', roomSelect.value);
                     }
-                    console.log('集団予約 - 選択された部屋ID:', roomId);
                 }
                 
                 showLoading();
