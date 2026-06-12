@@ -107,6 +107,10 @@ class TReservationInfoController extends AppController
         // $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
+        // JSON ボディを受け取る AJAX エンドポイントは FormProtection のフォームトークン検証対象外にする。
+        // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
+        // view・bulkChangeEditForm は GET アクションだが、FormProtection は POST にのみ適用されるため
+        // 実質無害。将来的にリストから除外可能。
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
             'toggle',

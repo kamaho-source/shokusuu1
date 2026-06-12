@@ -21,8 +21,8 @@ trait ReservationCopyActionsTrait
             try {
                 $raw = (string)$this->request->getBody();
                 if ($raw !== '') {
-                    $json = json_decode($raw, true);
-                    if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+                    $json = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                    if (is_array($json)) {
                         $data = $json;
                     }
                 }
@@ -101,8 +101,8 @@ trait ReservationCopyActionsTrait
             try {
                 $raw = (string)$this->request->getBody();
                 if ($raw !== '') {
-                    $json = json_decode($raw, true);
-                    if (json_last_error() === JSON_ERROR_NONE && is_array($json)) {
+                    $json = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                    if (is_array($json)) {
                         $data = $json;
                     }
                 }
