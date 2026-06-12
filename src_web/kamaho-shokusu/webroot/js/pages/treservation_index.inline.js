@@ -1216,7 +1216,8 @@ function unlockForChildren(wrap){
                                 }
                             })
                             .then(function(d){
-                                var users = d && d.usersByRoom;
+                                var payload = (d && d.data) ? d.data : d;
+                                var users = payload && payload.usersByRoom;
                                 if (!Array.isArray(users)) {
                                     throw new Error('usersByRoom が配列ではありません');
                                 }
@@ -1283,7 +1284,13 @@ function unlockForChildren(wrap){
 
             function show(elList, on){
                 elList.forEach(function(el){
-                    el.style.display = on ? '' : 'none';
+                    if (on) {
+                        el.classList.remove('d-none');
+                        el.style.removeProperty('display');
+                    } else {
+                        el.classList.add('d-none');
+                        el.style.removeProperty('display');
+                    }
                 });
             }
 
@@ -1322,51 +1329,62 @@ function unlockForChildren(wrap){
 
             function applyMode(val){
                 var v = String(val || '').toLowerCase();
-                var isGroup = /group|collect| |^2$/.test(v);
+                if (!v) {
+                    show(personalBlocks, false);
+                    show(groupBlocks, false);
+                    var hint = scope.querySelector('#reserve-type-hint');
+                    if (hint) hint.style.display = '';
+                    return;
+                }
+                var isGroup = /^2$|group|collect/.test(v);
                 show(personalBlocks, !isGroup);
                 show(groupBlocks,    isGroup);
                 toggleTable(v);
                 clearHiddenInputs(isGroup);
 
                 var hint = scope.querySelector('#reserve-type-hint');
-                if (hint) hint.style.display = val ? 'none' : '';
+                if (hint) hint.style.display = 'none';
             }
 
-            if (select) {
-                applyMode(select.value);
-                select.addEventListener('change', function(){ applyMode(select.value); });
-            }
+            var ceRoot = scope.querySelector('#ce-root') || scope;
+            var addJsBooted = !!(ceRoot && ceRoot.__ADD_FORM_BOOTED__);
 
-            setTimeout(function() {
-                roomSelect = scope.querySelector('#room-select') ||
-                    scope.querySelector('select[name*="room"]') ||
-                    scope.querySelector('#room_select') ||
-                    scope.querySelector('.room-select');
-
-                if (roomSelect) {
-                    function handleRoomChange() {
-                        var roomId = roomSelect.value;
-                        var tbody = document.getElementById('user-checkboxes');
-                        if (tbody) tbody.innerHTML = '';
-                        if (!roomId) {
-                            var groupContainer = scope.querySelector('#user-selection-table');
-                            if (groupContainer) groupContainer.style.display = 'none';
-                            return;
-                        }
-                        var groupContainer = scope.querySelector('#user-selection-table');
-                        if (groupContainer) groupContainer.style.display = '';
-                        window.fetchUserData(roomId);
-                    }
-                    roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
-                    roomSelect._handleRoomChange = handleRoomChange;
-                    roomSelect.addEventListener('change', handleRoomChange);
-                    if (roomSelect.value) {
-                        setTimeout(function() { handleRoomChange(); }, 100);
-                    }
+            if (!addJsBooted) {
+                if (select) {
+                    applyMode(select.value);
+                    select.addEventListener('change', function(){ applyMode(select.value); });
                 }
-            }, 200);
 
-            if (typeof window.initReservationForm === 'function') {
+                setTimeout(function() {
+                    roomSelect = scope.querySelector('#room-select') ||
+                        scope.querySelector('select[name*="room"]') ||
+                        scope.querySelector('#room_select') ||
+                        scope.querySelector('.room-select');
+
+                    if (roomSelect) {
+                        function handleRoomChange() {
+                            var roomId = roomSelect.value;
+                            var tbody = document.getElementById('user-checkboxes');
+                            if (tbody) tbody.innerHTML = '';
+                            var groupContainer = scope.querySelector('#user-selection-table');
+                            if (!roomId) {
+                                if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
+                                return;
+                            }
+                            if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
+                            window.fetchUserData(roomId);
+                        }
+                        roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
+                        roomSelect._handleRoomChange = handleRoomChange;
+                        roomSelect.addEventListener('change', handleRoomChange);
+                        if (roomSelect.value) {
+                            setTimeout(function() { handleRoomChange(); }, 100);
+                        }
+                    }
+                }, 200);
+            }
+
+            if (!addJsBooted && typeof window.initReservationForm === 'function') {
                 window.initReservationForm();
             }
 
@@ -1981,6 +1999,9 @@ function unlockForChildren(wrap){
             if (typeof _origEnsure === 'function') _origEnsure(host);
             var scope = host || document;
 
+            var ceRoot2 = scope.querySelector ? (scope.querySelector('#ce-root') || scope) : scope;
+            if (ceRoot2 && ceRoot2.__ADD_FORM_BOOTED__) return;
+
             setTimeout(function() {
                 var select = scope.querySelector('#room-select');
                 var groupContainer = scope.querySelector('#user-selection-table');
@@ -1990,10 +2011,10 @@ function unlockForChildren(wrap){
                     var tbody = scope.querySelector('#user-checkboxes');
                     if (tbody) tbody.innerHTML = '';
                     if (!roomId) {
-                        if (groupContainer) groupContainer.style.display = 'none';
+                        if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
                         return;
                     }
-                    if (groupContainer) groupContainer.style.display = '';
+                    if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
                     window.fetchUserData(roomId);
                 }
 
