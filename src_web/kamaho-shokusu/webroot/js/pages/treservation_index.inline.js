@@ -1283,7 +1283,13 @@ function unlockForChildren(wrap){
 
             function show(elList, on){
                 elList.forEach(function(el){
-                    el.style.display = on ? '' : 'none';
+                    if (on) {
+                        el.classList.remove('d-none');
+                        el.style.removeProperty('display');
+                    } else {
+                        el.classList.add('d-none');
+                        el.style.removeProperty('display');
+                    }
                 });
             }
 
@@ -1322,14 +1328,21 @@ function unlockForChildren(wrap){
 
             function applyMode(val){
                 var v = String(val || '').toLowerCase();
-                var isGroup = /group|collect| |^2$/.test(v);
+                if (!v) {
+                    show(personalBlocks, false);
+                    show(groupBlocks, false);
+                    var hint = scope.querySelector('#reserve-type-hint');
+                    if (hint) hint.style.display = '';
+                    return;
+                }
+                var isGroup = /^2$|group|collect/.test(v);
                 show(personalBlocks, !isGroup);
                 show(groupBlocks,    isGroup);
                 toggleTable(v);
                 clearHiddenInputs(isGroup);
 
                 var hint = scope.querySelector('#reserve-type-hint');
-                if (hint) hint.style.display = val ? 'none' : '';
+                if (hint) hint.style.display = 'none';
             }
 
             if (select) {
@@ -1348,13 +1361,12 @@ function unlockForChildren(wrap){
                         var roomId = roomSelect.value;
                         var tbody = document.getElementById('user-checkboxes');
                         if (tbody) tbody.innerHTML = '';
+                        var groupContainer = scope.querySelector('#user-selection-table');
                         if (!roomId) {
-                            var groupContainer = scope.querySelector('#user-selection-table');
-                            if (groupContainer) groupContainer.style.display = 'none';
+                            if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
                             return;
                         }
-                        var groupContainer = scope.querySelector('#user-selection-table');
-                        if (groupContainer) groupContainer.style.display = '';
+                        if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
                         window.fetchUserData(roomId);
                     }
                     roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
@@ -1990,10 +2002,10 @@ function unlockForChildren(wrap){
                     var tbody = scope.querySelector('#user-checkboxes');
                     if (tbody) tbody.innerHTML = '';
                     if (!roomId) {
-                        if (groupContainer) groupContainer.style.display = 'none';
+                        if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
                         return;
                     }
-                    if (groupContainer) groupContainer.style.display = '';
+                    if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
                     window.fetchUserData(roomId);
                 }
 
