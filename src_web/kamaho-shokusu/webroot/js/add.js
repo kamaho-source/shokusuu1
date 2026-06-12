@@ -2,28 +2,6 @@
 /* eslint-disable no-console */
 /* eslint-env browser */
 (function(){
-    // --- ページ埋め込み定数（add.php が出していればそれを使う） ---
-    const TPL   = typeof window.GET_USERS_BY_ROOM_TPL !== 'undefined' ? window.GET_USERS_BY_ROOM_TPL : null;
-    const QDATE = typeof window.QUERY_DATE !== 'undefined' ? window.QUERY_DATE : null;
-
-    function buildGetUsersByRoomUrl(roomId, date){
-        if (TPL) {
-            let url = TPL.indexOf('__RID__') !== -1
-                ? TPL.replace('__RID__', encodeURIComponent(roomId))
-                : (TPL.replace(/\/$/, '') + '/' + encodeURIComponent(roomId));
-            if (date) url += (url.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(date);
-            return url;
-        }
-        // フォールバック（/kamaho-shokusu のようなサブディレクトリ判定）
-        const base = (function(){
-            const parts = location.pathname.split('/').filter(Boolean);
-            return parts[0] === 'kamaho-shokusu' ? '/kamaho-shokusu' : '';
-        })();
-        const u = new URL(base + '/TReservationInfo/getUsersByRoom/' + encodeURIComponent(roomId), window.location.origin);
-        if (date) u.searchParams.set('date', date);
-        return u.toString();
-    }
-
     function init(container){
         // 多重初期化防止
         const root = (container && container.querySelector) ? (container.querySelector('#ce-root') || container) : document;
@@ -50,7 +28,7 @@
 
         const csrfToken = document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ?? '';
         const dateInput = root.querySelector('input[name="d_reservation_date"]');
-        const date      = QDATE || (dateInput ? dateInput.value : null);
+        const date      = (typeof window.QUERY_DATE !== 'undefined' ? window.QUERY_DATE : null) || (dateInput ? dateInput.value : null);
 
         const showLoading = () => { if (overlay) overlay.style.display = 'block'; if (submitButton) submitButton.disabled = true; };
         const hideLoading = () => { if (overlay) overlay.style.display = 'none';  if (submitButton) submitButton.disabled = false; };
@@ -78,139 +56,19 @@
             }
         }
 
-        function getUsersCache(){
-            if (!window.__usersByRoomCache) {
-                window.__usersByRoomCache = new Map();
-            }
-            if (!window.__usersByRoomInFlight) {
-                window.__usersByRoomInFlight = new Map();
-            }
-            return {
-                cache: window.__usersByRoomCache,
-                inFlight: window.__usersByRoomInFlight
-            };
-        }
-
-        async function fetchUsersByRoom(roomId, date){
-            const key = String(roomId) + '|' + String(date || '');
-            const now = Date.now();
-            const { cache, inFlight } = getUsersCache();
-            const cached = cache.get(key);
-            if (cached && (now - cached.ts) < 30000) {
-                return cached.data;
-            }
-            const inflight = inFlight.get(key);
-            if (inflight) {
-                return inflight;
-            }
-
-            const url = buildGetUsersByRoomUrl(roomId, date);
-            const req = fetch(url, { credentials: 'same-origin' })
-                .then(res => {
-                    if (!res.ok) throw new Error('HTTP ' + res.status);
-                    return res.json();
-                })
-                .then(json => {
-                    cache.set(key, { ts: Date.now(), data: json });
-                    return json;
-                })
-                .finally(() => {
-                    inFlight.delete(key);
-                });
-
-            inFlight.set(key, req);
-            return req;
-        }
-
-        // 利用者取得＆描画
         async function fetchAndRenderUsers(roomId){
             if (!roomId) {
                 if (userCheckboxesTbody) userCheckboxesTbody.innerHTML = '';
                 hideEl(userSelectionTable);
                 return;
             }
-            
             showLoading();
-            try{
-                const json = await fetchUsersByRoom(roomId, date);
-                const users = Array.isArray(json.usersByRoom) ? json.usersByRoom
-                    : (Array.isArray(json.users) ? json.users : []);
-                    
-                if (!userCheckboxesTbody) return;
-
-                userCheckboxesTbody.innerHTML = '';
-                if (users.length === 0) {
-                    userCheckboxesTbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">該当する利用者がいません。</td></tr>';
-                } else {
-                    const rows = users.map(u => {
-                        const userId = u.id || u.user_id || '';
-                        const userName = u.name || u.user_name || '名前不明';
-
-                        const morning = Boolean(u.morning === 1 || u.morning === '1' || u.morning === true);
-                        const noon = Boolean(u.noon === 1 || u.noon === '1' || u.noon === true);
-                        const night = Boolean(u.night === 1 || u.night === '1' || u.night === true);
-                        const bento = Boolean(u.bento === 1 || u.bento === '1' || u.bento === true);
-
-                        const hasNoon = noon && !bento;
-                        const hasBento = bento && !noon;
-
-                        const escHtml = (s) => String(s).replace(/[<>&"']/g, function(c) {
-                            return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c];
-                        });
-                        const safeName   = escHtml(userName);
-                        const safeUserId = escHtml(userId);
-
-                        return '' +
-                            '<tr>' +
-                            '<td>' + safeName + '</td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][1]" value="1" ' + (morning ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][2]" value="1" ' + (hasNoon ? 'checked data-existing="1"' : '') + (hasBento ? ' disabled title="弁当と同時選択不可"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][3]" value="1" ' + (night ? 'checked data-existing="1"' : '') + '></td>' +
-                            '<td class="text-center"><input type="checkbox" name="users[' + safeUserId + '][4]" value="1" ' + (hasBento ? 'checked data-existing="1"' : '') + (hasNoon ? ' disabled title="昼食と同時選択不可"' : '') + '></td>' +
-                            '</tr>';
-                    }).join('');
-                    userCheckboxesTbody.innerHTML = rows;
-                    
-                    // 昼食と弁当の排他制御を動的に適用（DOM 更新直後に実行）
-                    requestAnimationFrame(() => {
-                        if (typeof window.applyLunchBentoExclusion === 'function') {
-                            window.applyLunchBentoExclusion(userSelectionTable);
-                        } else {
-                            // フォールバック: 手動で排他制御を適用
-                            const rows = userCheckboxesTbody.querySelectorAll('tr');
-                            rows.forEach(row => {
-                                const lunchCb = row.querySelector('input[name$="[2]"]');
-                                const bentoCb = row.querySelector('input[name$="[4]"]');
-                                if (lunchCb && bentoCb) {
-                                    lunchCb.addEventListener('change', function() {
-                                        if (lunchCb.checked) {
-                                            bentoCb.checked = false;
-                                            bentoCb.disabled = true;
-                                            bentoCb.title = '昼食と同時選択不可';
-                                        } else {
-                                            bentoCb.disabled = false;
-                                            bentoCb.title = '';
-                                        }
-                                    });
-                                    bentoCb.addEventListener('change', function() {
-                                        if (bentoCb.checked) {
-                                            lunchCb.checked = false;
-                                            lunchCb.disabled = true;
-                                            lunchCb.title = '弁当と同時選択不可';
-                                        } else {
-                                            lunchCb.disabled = false;
-                                            lunchCb.title = '';
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
-                }
-                // 一覧を可視化（d-none を外す）
-                showEl(userSelectionTable);
-            } catch(e){
-                console.error('ユーザ取得失敗:', e);
+            try {
+                const RU = window.ReservationUsers;
+                if (!RU) throw new Error('ReservationUsers not loaded');
+                await RU.fetchAndRender(roomId, userCheckboxesTbody, userSelectionTable);
+            } catch(e) {
+                console.error('[ADD_RESERVATION] ユーザ取得失敗:', e);
                 if (userCheckboxesTbody) {
                     userCheckboxesTbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center">利用者一覧の取得に失敗しました。</td></tr>';
                 }

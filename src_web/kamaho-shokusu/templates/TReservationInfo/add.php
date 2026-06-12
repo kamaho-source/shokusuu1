@@ -7,6 +7,7 @@
  */
 
 $this->assign('title', '食数予約の追加');
+$this->Html->script('reservation-users.js', ['block' => true]);
 $this->Html->script('reservation.js', ['block' => true]);
 $this->Html->script('add.js', ['block' => true]);
 $this->Html->css(['bootstrap.min']);
@@ -195,22 +196,10 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
 
                         <!-- ======================== Script ======================== -->
                         <script>
-                            // PHP から安全にフルURLを受け取ってfetchする（__RID__ を JS で置換）
-                            const GET_PERSONAL_URL      = <?= json_encode($URL_GET_PERSONAL, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
-                            const GET_USERS_BY_ROOM_TPL = <?= json_encode($URL_GET_USERS_BY_ROOM_TPL, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>; // 例: .../getUsersByRoom/__RID__
-                            const QUERY_DATE            = <?= json_encode($date, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
-
-                            // __RID__ を安全に差し替えてクエリを付与
-                            function buildGetUsersByRoomUrl(roomId) {
-                                let url = GET_USERS_BY_ROOM_TPL || '';
-                                if (url.indexOf('__RID__') !== -1) {
-                                    url = url.replace('__RID__', encodeURIComponent(roomId));
-                                } else {
-                                    url = url.replace(/\/$/, '') + '/' + encodeURIComponent(roomId);
-                                }
-                                url += (url.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(QUERY_DATE);
-                                return url;
-                            }
+                            // PHP から安全にフルURLを受け取る（reservation-users.js が使用）
+                            window.GET_USERS_BY_ROOM_TPL = <?= json_encode($URL_GET_USERS_BY_ROOM_TPL, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
+                            window.QUERY_DATE            = <?= json_encode($date, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
+                            const GET_PERSONAL_URL       = <?= json_encode($URL_GET_PERSONAL, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
 
                             function toggleAllRooms(mealType, isChecked) {
                                 const checkboxes = document.querySelectorAll(
