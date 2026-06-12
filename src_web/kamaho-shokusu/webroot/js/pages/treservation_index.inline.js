@@ -1239,7 +1239,10 @@ function unlockForChildren(wrap){
                 clearHiddenInputs(isGroup);
 
                 var hint = scope.querySelector('#reserve-type-hint');
-                if (hint) hint.style.display = val ? 'none' : '';
+                if (hint) {
+                    if (val) hint.classList.add('d-none');
+                    else hint.classList.remove('d-none');
+                }
             }
 
             if (select) {
