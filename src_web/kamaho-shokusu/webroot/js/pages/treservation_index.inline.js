@@ -1140,122 +1140,27 @@ function unlockForChildren(wrap){
             var scope = root || document;
             var roomSelect = null;
 
-            if (!window.GET_USERS_BY_ROOM_TPL) {
-                var basePath = window.__BASE_PATH || '';
-                var baseUrl = basePath + '/TReservationInfo/getUsersByRoom/';
-                window.GET_USERS_BY_ROOM_TPL = baseUrl + '__RID__';
-            }
-
-            if (!window.QUERY_DATE) {
-                var urlParams = new URLSearchParams(window.location.search);
-                window.QUERY_DATE = urlParams.get('date') || new Date().toISOString().split('T')[0];
-            }
-
-            if (!window.buildGetUsersByRoomUrl) {
-                window.buildGetUsersByRoomUrl = function(roomId) {
-                    if (!roomId) {
-                        return '';
-                    }
-                    var url = window.GET_USERS_BY_ROOM_TPL || '';
-                    if (url.indexOf('__RID__') !== -1) {
-                        url = url.replace('__RID__', encodeURIComponent(roomId));
-                    } else {
-                        url = (window.__BASE_PATH || '') + '/TReservationInfo/getUsersByRoom/' + encodeURIComponent(roomId);
-                    }
-                    url += (url.indexOf('?') === -1 ? '?' : '&') + 'date=' + encodeURIComponent(window.QUERY_DATE);
-                    return url;
-                };
-            }
+            // URL テンプレートは reservation-users.js / treservation_index.inline.js 冒頭で設定済み
 
             if (!window.fetchUserData) {
                 window.fetchUserData = function(roomId) {
-                    try {
-                        if (!roomId) {
-                            return Promise.resolve();
-                        }
-                        if (!window.buildGetUsersByRoomUrl) {
-                            return Promise.resolve();
-                        }
-                        var url = window.buildGetUsersByRoomUrl(roomId);
-                        var tbody = document.getElementById('user-checkboxes') ||
-                            scope.querySelector('#user-checkboxes') ||
-                            document.querySelector('#qd-remote-wrap #user-checkboxes');
-
-                        if (!tbody) {
-                            setTimeout(function() {
-                                var retryTbody = document.getElementById('user-checkboxes') ||
-                                    document.querySelector('#qd-remote-wrap #user-checkboxes');
-                                if (retryTbody) {
-                                    window.fetchUserData(roomId);
-                                }
-                            }, 500);
-                            return Promise.resolve();
-                        }
-
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center">読み込み中...</td></tr>';
-
-                        return fetch(url, {
-                            credentials: 'same-origin',
-                            headers: {
-                                'Accept': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest'
-                            }
-                        })
-                            .then(function(response) {
-                                if (!response.ok) {
-                                    throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-                                }
-                                return response.text();
-                            })
-                            .then(function(text) {
-                                try {
-                                    var data = JSON.parse(text);
-                                    return data;
-                                } catch (e) {
-                                    throw new Error('レスポンスがJSONではありません: ' + e.message);
-                                }
-                            })
-                            .then(function(d){
-                                var payload = (d && d.data) ? d.data : d;
-                                var users = payload && payload.usersByRoom;
-                                if (!Array.isArray(users)) {
-                                    throw new Error('usersByRoom が配列ではありません');
-                                }
-                                tbody.innerHTML = '';
-                                if (users.length === 0) {
-                                    tbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center">この部屋に利用者がいません。</td></tr>';
-                                    return;
-                                }
-                                users.forEach(function(u){
-                                    var tr = document.createElement('tr');
-                                    tr.innerHTML =
-                                        '<td>' + (u.name || 'Unknown') + '</td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][1]" value="1" ' + (Number(u.morning)===1?'checked':'') + '></td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][2]" value="1" ' + (Number(u.noon)===1   ?'checked':'') + '></td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][3]" value="1" ' + (Number(u.night)===1  ?'checked':'') + '></td>' +
-                                        '<td class="text-center"><input type="checkbox" name="users['+u.id+'][4]" value="1" ' + (Number(u.bento)===1  ?'checked':'') + '></td>';
-                                    tbody.appendChild(tr);
-                                    var lunchCb = tr.querySelector('input[name="users['+u.id+'][2]"]');
-                                    var bentoCb = tr.querySelector('input[name="users['+u.id+'][4]"]');
-                                    if (window.setupLunchBentoPair && lunchCb && bentoCb) {
-                                        window.setupLunchBentoPair(lunchCb, bentoCb);
-                                    }
-                                });
-                                var tableContainer = tbody.closest('.table-responsive, #user-selection-table');
-                                if (tableContainer) {
-                                    tableContainer.style.maxHeight = '400px';
-                                    tableContainer.style.overflowY = 'auto';
-                                }
-                            })
-                            .catch(function(e){
-                                if (tbody) {
-                                    tbody.innerHTML = '<tr><td colspan="5" class="text-danger text-center">利用者一覧の取得に失敗しました: ' + e.message + '</td></tr>';
-                                }
-                            });
-
-                    } catch (error) {
-                        console.error('[fetchUserData] error:', error);
+                    var tbody = document.getElementById('user-checkboxes') ||
+                        scope.querySelector('#user-checkboxes') ||
+                        document.querySelector('#qd-remote-wrap #user-checkboxes');
+                    var tableEl = document.getElementById('user-selection-table') ||
+                        scope.querySelector('#user-selection-table');
+                    if (!tbody) {
+                        setTimeout(function() {
+                            var retryTbody = document.getElementById('user-checkboxes') ||
+                                document.querySelector('#qd-remote-wrap #user-checkboxes');
+                            if (retryTbody) window.fetchUserData(roomId);
+                        }, 500);
+                        return Promise.resolve();
                     }
+                    var RU = window.ReservationUsers;
+                    if (RU) return RU.fetchAndRender(roomId, tbody, tableEl);
+                    // ReservationUsers がまだロードされていない場合は空ハンドリング
+                    return Promise.resolve();
                 };
             }
 
@@ -1286,10 +1191,8 @@ function unlockForChildren(wrap){
                 elList.forEach(function(el){
                     if (on) {
                         el.classList.remove('d-none');
-                        el.style.removeProperty('display');
                     } else {
                         el.classList.add('d-none');
-                        el.style.removeProperty('display');
                     }
                 });
             }
@@ -1329,64 +1232,47 @@ function unlockForChildren(wrap){
 
             function applyMode(val){
                 var v = String(val || '').toLowerCase();
-                if (!v) {
-                    show(personalBlocks, false);
-                    show(groupBlocks, false);
-                    var hint = scope.querySelector('#reserve-type-hint');
-                    if (hint) hint.style.display = '';
-                    return;
-                }
-                var isGroup = /^2$|group|collect/.test(v);
+                var isGroup = /group|collect| |^2$/.test(v);
                 show(personalBlocks, !isGroup);
                 show(groupBlocks,    isGroup);
                 toggleTable(v);
                 clearHiddenInputs(isGroup);
 
                 var hint = scope.querySelector('#reserve-type-hint');
-                if (hint) hint.style.display = 'none';
+                if (hint) hint.style.display = val ? 'none' : '';
             }
 
-            var ceRoot = scope.querySelector('#ce-root') || scope;
-            var addJsBooted = !!(ceRoot && ceRoot.__ADD_FORM_BOOTED__);
+            if (select) {
+                applyMode(select.value);
+                select.addEventListener('change', function(){ applyMode(select.value); });
+            }
 
-            if (!addJsBooted) {
-                if (select) {
-                    applyMode(select.value);
-                    select.addEventListener('change', function(){ applyMode(select.value); });
-                }
+            setTimeout(function() {
+                roomSelect = scope.querySelector('#room-select') ||
+                    scope.querySelector('select[name*="room"]') ||
+                    scope.querySelector('#room_select') ||
+                    scope.querySelector('.room-select');
 
-                setTimeout(function() {
-                    roomSelect = scope.querySelector('#room-select') ||
-                        scope.querySelector('select[name*="room"]') ||
-                        scope.querySelector('#room_select') ||
-                        scope.querySelector('.room-select');
-
-                    if (roomSelect) {
-                        function handleRoomChange() {
-                            var roomId = roomSelect.value;
-                            var tbody = document.getElementById('user-checkboxes');
-                            if (tbody) tbody.innerHTML = '';
-                            var groupContainer = scope.querySelector('#user-selection-table');
-                            if (!roomId) {
-                                if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
-                                return;
-                            }
-                            if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
-                            window.fetchUserData(roomId);
+                if (roomSelect) {
+                    function handleRoomChange() {
+                        var roomId = roomSelect.value;
+                        var tbody = document.getElementById('user-checkboxes');
+                        if (tbody) tbody.innerHTML = '';
+                        var groupContainer = scope.querySelector('#user-selection-table');
+                        if (!roomId) {
+                            if (groupContainer) groupContainer.classList.add('d-none');
+                            return;
                         }
-                        roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
-                        roomSelect._handleRoomChange = handleRoomChange;
-                        roomSelect.addEventListener('change', handleRoomChange);
-                        if (roomSelect.value) {
-                            setTimeout(function() { handleRoomChange(); }, 100);
-                        }
+                        window.fetchUserData(roomId);
                     }
-                }, 200);
-            }
-
-            if (!addJsBooted && typeof window.initReservationForm === 'function') {
-                window.initReservationForm();
-            }
+                    roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
+                    roomSelect._handleRoomChange = handleRoomChange;
+                    roomSelect.addEventListener('change', handleRoomChange);
+                    if (roomSelect.value) {
+                        setTimeout(function() { handleRoomChange(); }, 100);
+                    }
+                }
+            }, 200);
 
             // ★ 昼食⇔弁当排他制御をモーダル描画直後に適用
             if (typeof window.applyLunchBentoExclusion === 'function') {
@@ -1999,9 +1885,6 @@ function unlockForChildren(wrap){
             if (typeof _origEnsure === 'function') _origEnsure(host);
             var scope = host || document;
 
-            var ceRoot2 = scope.querySelector ? (scope.querySelector('#ce-root') || scope) : scope;
-            if (ceRoot2 && ceRoot2.__ADD_FORM_BOOTED__) return;
-
             setTimeout(function() {
                 var select = scope.querySelector('#room-select');
                 var groupContainer = scope.querySelector('#user-selection-table');
@@ -2011,10 +1894,10 @@ function unlockForChildren(wrap){
                     var tbody = scope.querySelector('#user-checkboxes');
                     if (tbody) tbody.innerHTML = '';
                     if (!roomId) {
-                        if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
+                        if (groupContainer) groupContainer.style.display = 'none';
                         return;
                     }
-                    if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
+                    if (groupContainer) groupContainer.style.display = '';
                     window.fetchUserData(roomId);
                 }
 
