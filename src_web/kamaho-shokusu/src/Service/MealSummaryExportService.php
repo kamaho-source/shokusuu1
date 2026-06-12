@@ -26,19 +26,22 @@ class MealSummaryExportService
      *
      * @param int $year  年度
      * @param int $month 月（1〜12）
-     * @return array{name: string, staff_id: mixed, meal_counts: array, total_price: int}[]
+     * @return array{
+     *   meal_prices: array{morning:int, lunch:int, dinner:int, bento:int},
+     *   rows: array{name:string, staff_id:mixed, meal_counts:array, total_price:int}[]
+     * }
      */
     public function aggregate(int $year, int $month): array
     {
         $mealPrices = $this->fetchMealPrices($year);
         $users      = $this->fetchStaffUsers();
 
-        $monthlyData = [];
+        $rows = [];
         foreach ($users as $user) {
             $mealCounts    = $this->countMeals($user->i_id_user, $year, $month);
             $mealTotalPrice = $this->calcTotalPrice($mealCounts, $mealPrices);
 
-            $monthlyData[] = [
+            $rows[] = [
                 'name'        => $user->c_user_name,
                 'staff_id'    => $user->i_id_staff,
                 'meal_counts' => $mealCounts,
@@ -46,7 +49,10 @@ class MealSummaryExportService
             ];
         }
 
-        return $monthlyData;
+        return [
+            'meal_prices' => $mealPrices,
+            'rows'        => $rows,
+        ];
     }
 
     /**

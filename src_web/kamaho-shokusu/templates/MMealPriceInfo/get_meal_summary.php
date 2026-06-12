@@ -196,122 +196,108 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
         if (exportWithDeductionsButton && yearSelect && monthSelect) {
             exportWithDeductionsButton.addEventListener("click", async function (event) {
-                event.preventDefault(); // ボタンのデフォルト動作を防止
+                event.preventDefault();
 
                 try {
-                    const selectedYear = yearSelect.value; // 選択された年度
-                    const selectedMonth = monthSelect.value; // 選択された月
+                    const selectedYear  = yearSelect.value;
+                    const selectedMonth = monthSelect.value;
 
-                    // 年度と月をチェック
-                    if (!selectedYear) {
-                        alert("年度を選択してください。");
-                        return;
-                    }
-                    if (!selectedMonth) {
-                        alert("月を選択してください。");
-                        return;
-                    }
+                    if (!selectedYear)  { alert("年度を選択してください。"); return; }
+                    if (!selectedMonth) { alert("月を選択してください。"); return; }
 
-                    console.info("選択された年度:", selectedYear, "選択された月:", selectedMonth);
-
-                    // APIからデータを取得
                     const response = await fetch(
                         `/kamaho-shokusu/MMealPriceInfo/exportMealSummary?year=${selectedYear}&month=${selectedMonth}`
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
-                    const raw = await response.json();
+                    const raw     = await response.json();
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
-                    const data = (raw && typeof raw === 'object' && raw.ok !== undefined)
+                    const prices  = (raw && raw.data?.meal_prices) ? raw.data.meal_prices : {};
+                    const data    = (raw && typeof raw === 'object' && raw.ok !== undefined)
                         ? (Array.isArray(raw.data?.rows) ? raw.data.rows : (Array.isArray(raw.data) ? raw.data : []))
                         : (Array.isArray(payload) ? payload : []);
-                    console.info("取得したデータ（控除付き）:", data);
 
-                    // データが空の場合の処理
                     if (!Array.isArray(data) || data.length === 0) {
-                        console.warn("該当するデータがありません:", data);
-                        alert("該当するデータがありませんでした。"); // エラー表示
+                        alert("該当するデータがありませんでした。");
                         return;
                     }
 
-                    // Excel ワークブックを作成
                     const workbook = new ExcelJS.Workbook();
-                    workbook.creator = "給与控除システム"; // 作成者情報
-                    workbook.created = new Date();
+                    workbook.creator  = "給与控除システム";
+                    workbook.created  = new Date();
                     workbook.modified = new Date();
 
-                    // メインシート作成
                     const sheet = workbook.addWorksheet(`控除データ_${selectedYear}_${selectedMonth}`);
 
-                    // シートのヘッダー行 (日本語のラベル)
-                    const header = ["職員情報", "弁当", "朝食", "昼食", "夕食", "控除額合計"];
-                    sheet.addRow(header);
+                    // ヘッダー行（A〜F 表示列、G〜J 単価列は非表示）
+                    sheet.addRow(["職員情報", "弁当", "朝食", "昼食", "夕食", "控除額合計",
+                                  "弁当単価", "朝食単価", "昼食単価", "夕食単価"]);
 
-                    // データを埋め込む
+                    // データ行
                     data.forEach((employeeData, index) => {
-                        console.log(`Processing row #${index + 1}:`, employeeData);
+                        const mc     = employeeData.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
+                        const rowNum = index + 2; // 行1=ヘッダー
 
-                        // meal_countsが存在しない場合はデフォルト値として0を使用
-                        const mealCounts = employeeData.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
-
-                        // total_priceが存在する場合は使用（使用しない場合は手計算にフォールバック）
-                        const totalDeductions =
-                            employeeData.total_price ||
-                            (mealCounts.bento || 0) * (employeeData.meal_prices?.bento || 0) +
-                            (mealCounts.morning || 0) * (employeeData.meal_prices?.morning || 0) +
-                            (mealCounts.lunch || 0) * (employeeData.meal_prices?.lunch || 0) +
-                            (mealCounts.dinner || 0) * (employeeData.meal_prices?.dinner || 0);
-
-                        // Excelにデータ追加
-                        sheet.addRow([
-                            `${employeeData.staff_id || ""} ${employeeData.name || ""}`, // 職員ID + 名前
-                            mealCounts.bento || 0, // 弁当回数
-                            mealCounts.morning || 0, // 朝食回数
-                            mealCounts.lunch || 0, // 昼食回数
-                            mealCounts.dinner || 0, // 夕食回数
-                            totalDeductions // 控除額合計
+                        const excelRow = sheet.addRow([
+                            `${employeeData.staff_id || ""} ${employeeData.name || ""}`,
+                            mc.bento   || 0,
+                            mc.morning || 0,
+                            mc.lunch   || 0,
+                            mc.dinner  || 0,
+                            { formula: `=B${rowNum}*G${rowNum}+C${rowNum}*H${rowNum}+D${rowNum}*I${rowNum}+E${rowNum}*J${rowNum}` },
+                            prices.bento   || 0,
+                            prices.morning || 0,
+                            prices.lunch   || 0,
+                            prices.dinner  || 0,
                         ]);
+
+                        excelRow.getCell(6).numFmt = "¥#,##0";
+                        for (let c = 1; c <= 6; c++) {
+                            excelRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5E9" } };
+                        }
                     });
 
-                    // ◆ 合計行を追加
-                    sheet.addRow([
-                        "合計", // 合計ラベル
-                        { formula: `SUM(B2:B${data.length + 1})` }, // 弁当回数 合計
-                        { formula: `SUM(C2:C${data.length + 1})` }, // 朝食回数 合計
-                        { formula: `SUM(D2:D${data.length + 1})` }, // 昼食回数 合計
-                        { formula: `SUM(E2:E${data.length + 1})` }, // 夕食回数 合計
-                        { formula: `SUM(F2:F${data.length + 1})` }  // 控除額 合計
+                    // 合計行
+                    const lastDataRow = data.length + 1;
+                    const sumRow = sheet.addRow([
+                        "合計",
+                        { formula: `SUM(B2:B${lastDataRow})` },
+                        { formula: `SUM(C2:C${lastDataRow})` },
+                        { formula: `SUM(D2:D${lastDataRow})` },
+                        { formula: `SUM(E2:E${lastDataRow})` },
+                        { formula: `SUM(F2:F${lastDataRow})` },
                     ]);
+                    sumRow.font = { bold: true };
+                    sumRow.getCell(6).numFmt = "¥#,##0";
 
-                    // 書式設定：ヘッダ行と集計行を太字にする
-                    sheet.getRow(1).font = { bold: true }; // ヘッダー
-                    sheet.getRow(sheet.lastRow.number).font = { bold: true }; // 合計行を太字にする
+                    // ヘッダー行スタイル
+                    sheet.getRow(1).eachCell((cell, colNumber) => {
+                        if (colNumber > 6) return; // 単価列は装飾しない
+                        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2E7D32" } };
+                        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+                        cell.alignment = { horizontal: "center" };
+                    });
 
-                    // ★ 列幅を自動調整
+                    // 単価列（G〜J）を非表示
+                    ["G","H","I","J"].forEach(col => { sheet.getColumn(col).hidden = true; });
+
                     autoFitColumns(sheet);
 
-                    // Excel ファイルを生成
                     const buffer = await workbook.xlsx.writeBuffer();
-                    const blob = new Blob([buffer], {
+                    const blob   = new Blob([buffer], {
                         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     });
-
-                    // ダウンロード処理
                     const link = document.createElement("a");
-                    link.href = URL.createObjectURL(blob);
-                    link.download = `給与控除データ_${selectedYear}_${selectedMonth}.xlsx`; // ファイル名
+                    link.href     = URL.createObjectURL(blob);
+                    link.download = `給与控除データ_${selectedYear}_${selectedMonth}.xlsx`;
                     document.body.appendChild(link);
                     link.click();
                     link.remove();
-
-                    console.info("控除データのエクセルファイルが生成されました！");
                 } catch (error) {
                     console.error("控除データのエクスポート中にエラー:", error);
                     alert("控除データのエクスポート中にエラーが発生しました。詳細はコンソールを確認してください。");
                 }
             });
-        } else {
-            console.error("必要な要素が見つかりません。");
         }
 
         // ── 未承認プレビューエクスポート ──────────────────────────────
@@ -360,8 +346,9 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
-                    const raw  = await response.json();
-                    const data = (raw && typeof raw === "object" && raw.ok !== undefined)
+                    const raw    = await response.json();
+                    const prices = (raw && raw.data?.meal_prices) ? raw.data.meal_prices : {};
+                    const data   = (raw && typeof raw === "object" && raw.ok !== undefined)
                         ? (Array.isArray(raw.data?.rows) ? raw.data.rows : [])
                         : [];
 
@@ -371,39 +358,42 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     }
 
                     const workbook = new ExcelJS.Workbook();
-                    workbook.creator = "給与控除システム（プレビュー）";
+                    workbook.creator  = "給与控除システム（プレビュー）";
                     workbook.created  = new Date();
                     workbook.modified = new Date();
 
                     const sheet = workbook.addWorksheet(`未承認プレビュー_${selectedYear}_${selectedMonth}`);
 
-                    // ── 行1: 警告 ──────────────────────────
+                    // 行1: 警告
                     const warnRow = sheet.addRow(["【警告】このデータは未承認のプレビューです。管理者承認が完了していないため確定値ではありません。使用の際は十分注意してください。"]);
                     warnRow.getCell(1).font = { bold: true, color: { argb: "FFCC0000" } };
                     warnRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
 
-                    // ── 行2: ヘッダー ──────────────────────────
+                    // 行2: ヘッダー（A〜G 表示列、H〜K 単価列は非表示）
                     const headerRow = sheet.addRow([
-                        "職員情報", "承認ステータス", "弁当(回)", "朝食(回)", "昼食(回)", "夕食(回)", "控除額合計"
+                        "職員情報", "承認ステータス", "弁当(回)", "朝食(回)", "昼食(回)", "夕食(回)", "控除額合計",
+                        "弁当単価", "朝食単価", "昼食単価", "夕食単価",
                     ]);
-                    headerRow.eachCell(cell => {
+                    headerRow.eachCell((cell, colNumber) => {
+                        if (colNumber > 7) return;
                         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC107" } };
                         cell.font = { bold: true };
                         cell.alignment = { horizontal: "center" };
                     });
 
-                    // ── 行4〜: データ（職員×ステータスで1行ずつ） ──────────────────────────
+                    // 行3〜: データ（職員×ステータスで1行）
                     const STATUS_LABELS = { 0: "未承認", 1: "ブロック長承認済" };
                     const STATUS_COLORS = {
                         0: "FFFFF3CD", // 薄い黄: 未承認
                         1: "FFE0F2FE", // 薄い青: BL承認済
                     };
 
-                    data.forEach(row => {
+                    data.forEach((row, index) => {
                         const mc     = row.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
                         const status = row.approval_status ?? 0;
                         const label  = STATUS_LABELS[status] ?? `status:${status}`;
                         const color  = STATUS_COLORS[status] ?? "FFFFFFFF";
+                        const rowNum = index + 3; // 行1=警告, 行2=ヘッダー
 
                         const dataRow = sheet.addRow([
                             `${row.staff_id ?? ""} ${row.name ?? ""}`.trim(),
@@ -412,17 +402,20 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                             mc.morning || 0,
                             mc.lunch   || 0,
                             mc.dinner  || 0,
-                            row.total_price || 0,
+                            { formula: `=C${rowNum}*H${rowNum}+D${rowNum}*I${rowNum}+E${rowNum}*J${rowNum}+F${rowNum}*K${rowNum}` },
+                            prices.bento   || 0,
+                            prices.morning || 0,
+                            prices.lunch   || 0,
+                            prices.dinner  || 0,
                         ]);
-                        dataRow.eachCell(cell => {
+                        dataRow.eachCell((cell, colNumber) => {
+                            if (colNumber > 7) return;
                             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
                         });
-                        // 控除額列は通貨書式
                         dataRow.getCell(7).numFmt = "¥#,##0";
                     });
 
-                    // ── 合計行 ──────────────────────────
-                    // 行1=警告, 行2=ヘッダー → データは3行目〜
+                    // 合計行（行1=警告, 行2=ヘッダー → データは行3〜）
                     const firstDataRow = 3;
                     const lastDataRow  = data.length + 2;
                     const totalRow = sheet.addRow([
@@ -436,8 +429,12 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
-                    // 行2以降のみで列幅を計算し、行1（警告行）は変更しない
+                    // 単価列（H〜K）を非表示
+                    ["H","I","J","K"].forEach(col => { sheet.getColumn(col).hidden = true; });
+
+                    // 行2以降の列幅を計算（行1の警告文は対象外、非表示列はスキップ）
                     sheet.columns.forEach((column, colIdx) => {
+                        if (colIdx >= 7) return; // 単価列はスキップ
                         let max = 10;
                         sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
                             if (rowNumber === 1) return;
