@@ -1345,38 +1345,43 @@ function unlockForChildren(wrap){
                 if (hint) hint.style.display = 'none';
             }
 
-            if (select) {
-                applyMode(select.value);
-                select.addEventListener('change', function(){ applyMode(select.value); });
-            }
+            var ceRoot = scope.querySelector('#ce-root') || scope;
+            var addJsBooted = !!(ceRoot && ceRoot.__ADD_FORM_BOOTED__);
 
-            setTimeout(function() {
-                roomSelect = scope.querySelector('#room-select') ||
-                    scope.querySelector('select[name*="room"]') ||
-                    scope.querySelector('#room_select') ||
-                    scope.querySelector('.room-select');
-
-                if (roomSelect) {
-                    function handleRoomChange() {
-                        var roomId = roomSelect.value;
-                        var tbody = document.getElementById('user-checkboxes');
-                        if (tbody) tbody.innerHTML = '';
-                        var groupContainer = scope.querySelector('#user-selection-table');
-                        if (!roomId) {
-                            if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
-                            return;
-                        }
-                        if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
-                        window.fetchUserData(roomId);
-                    }
-                    roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
-                    roomSelect._handleRoomChange = handleRoomChange;
-                    roomSelect.addEventListener('change', handleRoomChange);
-                    if (roomSelect.value) {
-                        setTimeout(function() { handleRoomChange(); }, 100);
-                    }
+            if (!addJsBooted) {
+                if (select) {
+                    applyMode(select.value);
+                    select.addEventListener('change', function(){ applyMode(select.value); });
                 }
-            }, 200);
+
+                setTimeout(function() {
+                    roomSelect = scope.querySelector('#room-select') ||
+                        scope.querySelector('select[name*="room"]') ||
+                        scope.querySelector('#room_select') ||
+                        scope.querySelector('.room-select');
+
+                    if (roomSelect) {
+                        function handleRoomChange() {
+                            var roomId = roomSelect.value;
+                            var tbody = document.getElementById('user-checkboxes');
+                            if (tbody) tbody.innerHTML = '';
+                            var groupContainer = scope.querySelector('#user-selection-table');
+                            if (!roomId) {
+                                if (groupContainer) { groupContainer.classList.add('d-none'); groupContainer.style.removeProperty('display'); }
+                                return;
+                            }
+                            if (groupContainer) { groupContainer.classList.remove('d-none'); groupContainer.style.removeProperty('display'); }
+                            window.fetchUserData(roomId);
+                        }
+                        roomSelect.removeEventListener('change', roomSelect._handleRoomChange || (() => {}));
+                        roomSelect._handleRoomChange = handleRoomChange;
+                        roomSelect.addEventListener('change', handleRoomChange);
+                        if (roomSelect.value) {
+                            setTimeout(function() { handleRoomChange(); }, 100);
+                        }
+                    }
+                }, 200);
+            }
 
             if (typeof window.initReservationForm === 'function') {
                 window.initReservationForm();
@@ -1992,6 +1997,9 @@ function unlockForChildren(wrap){
         window.ensureAddModalCompat = function(host){
             if (typeof _origEnsure === 'function') _origEnsure(host);
             var scope = host || document;
+
+            var ceRoot2 = scope.querySelector ? (scope.querySelector('#ce-root') || scope) : scope;
+            if (ceRoot2 && ceRoot2.__ADD_FORM_BOOTED__) return;
 
             setTimeout(function() {
                 var select = scope.querySelector('#room-select');
