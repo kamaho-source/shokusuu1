@@ -1,6 +1,7 @@
 <?php
 
 $this->assign('title', '食数予約');
+$this->Html->script('reservation-users.js', ['block' => true]);
 $this->Html->script('reservation.js', ['block' => true]);
 $this->Html->script('ce-change-edit.js', ['block' => true]);
 $this->Html->script('add.js', ['block' => true]);

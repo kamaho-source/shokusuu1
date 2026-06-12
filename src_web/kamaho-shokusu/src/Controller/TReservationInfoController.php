@@ -1009,7 +1009,7 @@ class TReservationInfoController extends AppController
             if ($this->request->is(['post', 'put'])) {
                 $earlyData = $this->request->getData();
                 if (empty($earlyData)) {
-                    $earlyParsed = $this->request->input('json_decode', true);
+                    $earlyParsed = json_decode((string)$this->request->getBody(), true);
                     if (is_array($earlyParsed)) $earlyData = $earlyParsed;
                 }
                 if (($earlyData['reservation_type'] ?? '2') === '1') {
@@ -1125,7 +1125,7 @@ class TReservationInfoController extends AppController
             if ($this->request->is(['post','put'])) {
                 $data = $this->request->getData();
                 if (empty($data)) {
-                    $parsed = $this->request->input('json_decode', true);
+                    $parsed = json_decode((string)$this->request->getBody(), true);
                     if (is_array($parsed)) $data = $parsed;
                 }
                 $usersData = (isset($data['users']) && is_array($data['users'])) ? $data['users'] : [];
@@ -1302,7 +1302,7 @@ class TReservationInfoController extends AppController
         // ペイロード（form→JSON）
         $payload = (array)$this->request->getData();
         if (empty($payload)) {
-            $payload = (array)($this->request->input('json_decode', true) ?? []);
+            $payload = (array)(json_decode((string)$this->request->getBody(), true) ?? []);
         }
         if ($roomId === null) {
             $roomId = isset($payload['roomId']) ? (int)$payload['roomId'] : (int)($payload['i_id_room'] ?? 0);
