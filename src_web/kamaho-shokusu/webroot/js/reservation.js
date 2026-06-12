@@ -1,11 +1,5 @@
 /* eslint-disable no-console */
 (function(){
-    function bindOnce(el, type, handler){
-        el.addEventListener(type, handler, { once: true });
-    }
-
-    const QDATE = typeof window.QUERY_DATE !== 'undefined' ? window.QUERY_DATE : null;
-
     function initReservationForm(){
         if (window.__reservationFormInited && document.getElementById('reservation-form')) return;
         if (!document.getElementById('reservation-form')) return;
@@ -25,7 +19,7 @@
 
         const csrfToken = document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ?? '';
         const dateInput = document.querySelector('input[name="d_reservation_date"]');
-        const date      = QDATE || (dateInput ? dateInput.value : null);
+        const date      = window.QUERY_DATE || (dateInput ? dateInput.value : null);
 
         const showLoading = () => {
             if (overlay) overlay.style.display = 'block';
