@@ -48,6 +48,9 @@ class MUserInfoController extends AppController
         $this->userRestoreService       = new UserRestoreService();
         $this->userRoomAssignmentService = new UserRoomAssignmentService();
 
+        // これらのアクションは JSON ボディを受け取る AJAX エンドポイントのため
+        // FormProtection のフォームトークン検証対象外にする。
+        // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
         $this->FormProtection->setConfig('unlockedActions', [
             'importJson',
             'updateAdminStatus',
@@ -96,7 +99,15 @@ class MUserInfoController extends AppController
 
         $payload = $this->request->getData();
         if (empty($payload)) {
-            $payload = json_decode((string)$this->request->getBody(), true) ?? [];
+            $raw = (string)$this->request->getBody();
+            if ($raw !== '') {
+                try {
+                    $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+                } catch (\JsonException $e) {
+                    throw new BadRequestException('リクエストボディが不正な JSON です。');
+                }
+            }
+            $payload = is_array($payload) ? $payload : [];
         }
         $records = $payload['records'] ?? null;
         if (!is_array($records)) {

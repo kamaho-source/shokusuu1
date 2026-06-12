@@ -126,8 +126,9 @@
     async function fetchUserData(roomId){
         try {
             const data = await fetchUsersByRoom(roomId, date);
-            const users = Array.isArray(data.usersByRoom) ? data.usersByRoom
-                : (Array.isArray(data.users) ? data.users : []);
+            const payload = (data && data.data) ? data.data : data;
+            const users = Array.isArray(payload.usersByRoom) ? payload.usersByRoom
+                : (Array.isArray(payload.users) ? payload.users : []);
             if (!Array.isArray(users)) throw new Error('データ形式が不正です');
             if (userCheckboxes) {
                 if (users.length === 0) {
