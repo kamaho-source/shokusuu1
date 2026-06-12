@@ -1,0 +1,69 @@
+# CodeRabbit 設定ファイル
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+
+language: ja-JP
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - develop
+      - main
+
+knowledge_base:
+  opt_out: false
+
+chat:
+  auto_reply: true
+
+instructions: |
+  ## プロジェクト概要
+  このリポジトリは CakePHP 製の食数管理システム（shokusuu1）です。
+  クリーンアーキテクチャを採用しており、依存の方向は「外側 → 内側」の一方向のみです。
+
+  ## アーキテクチャ制約（最重要）
+  レイヤー構造と依存方向を必ず確認してください：
+  - **Domain 層** (`src/Domain/`): フレームワーク・DB 依存を一切持たない。
+  - **Application 層** (`src/Application/`): Domain にのみ依存。UseCase は `execute()` を持ち、Input/Output は専用 DTO クラス。
+  - **Infrastructure 層** (`src/Infrastructure/`): Domain の Repository Interface を実装。CakePHP ORM 依存はここに閉じ込める。
+  - **Presentation 層** (`src/Presentation/` または `src/Controller/`): UseCase を呼び出すだけ。ビジネスロジック・ORM 直接記述は禁止。
+
+  コントローラーにビジネスロジックが書かれていたら必ず指摘してください。
+
+  ## PHP コーディング規約
+  以下の違反を必ず指摘してください：
+  - `else` の使用（早期リターン・早期スロー推奨）
+  - `mixed` 型の使用禁止
+  - 型宣言の欠落（引数・戻り値・プロパティ）
+  - `final` / `readonly` が使えるのに使っていないクラス・プロパティ
+  - `catch (\Exception $e)` での例外の握りつぶし
+  - `@throws` タグのないメソッドで例外をスロー
+  - Repository を Interface 経由でなく実装クラスに直接依存
+  - `var_dump` / `die` / `dd()` のコミット
+  - ハードコードされた認証情報・シークレット
+  - インターフェース名が `〜Interface` サフィックスでない
+  - UseCase クラスが `〜UseCase` サフィックスでない
+  - DTO が `〜Input` / `〜Output` サフィックスでない
+
+  ## JavaScript コーディング規約
+  以下を確認してください：
+  - `console.log` の本番コードへの残存（`console.error` は許可）
+  - Bootstrap の `d-none` クラスを持つ要素を `style.display` で表示制御しない（`!important` で上書き不能になる）
+  - `window.QUERY_DATE` 等のグローバル変数を `<head>` 内スクリプトの IIFE 先頭でキャプチャしない（`<body>` 内インラインスクリプトより前に実行されるため常に `undefined` になる）
+  - `window.ReservationUsers`・`window.ADD_RESERVATION` 等の共有モジュールを使わずに fetch/render ロジックを重複実装しない
+
+  ## セキュリティ
+  - SQL インジェクション・XSS・CSRF の脆弱性
+  - CakePHP の deprecated API 使用（例: `$this->request->input('json_decode', true)` → `$this->request->getBody()` を使用）
+  - ユーザー入力のサニタイズ漏れ
+
+  ## テスト
+  - Domain・Application 層の新規コードにユニットテストがない場合は指摘
+  - Infrastructure 層の変更には Repository Interface のモックテストを推奨
