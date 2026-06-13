@@ -8,6 +8,14 @@ $filterStatus = $filterStatus ?? '';
 $dateFrom     = $dateFrom ?? date('Y-m-d', strtotime('monday this week'));
 $dateTo       = $dateTo   ?? date('Y-m-d', strtotime('sunday this week'));
 
+$fmtDate = static function (\DateTime|string $d): string {
+    $dow = ['日', '月', '火', '水', '木', '金', '土'];
+    if (is_string($d)) {
+        $d = new \DateTime($d);
+    }
+    return $d->format('Y年n月j日') . '（' . $dow[(int)$d->format('w')] . '）';
+};
+
 $statusLabels = [
     0 => ['label' => '未承認',           'class' => 'bg-warning text-dark'],
     1 => ['label' => 'ブロック長承認済', 'class' => 'bg-info text-dark'],
@@ -141,7 +149,7 @@ foreach ($summary as $row) {
                 <tbody>
                 <?php foreach ($summary as $row): ?>
                     <tr>
-                        <td><?= h($row['reservation_date']) ?></td>
+                        <td><?= h($fmtDate($row['reservation_date'])) ?></td>
                         <td class="text-start"><?= h($row['room_name']) ?></td>
                         <td><?= $row['breakfast'] ?>名</td>
                         <td><?= $row['lunch'] ?>名</td>
@@ -204,7 +212,7 @@ foreach ($summary as $row) {
                     ?>
                     <tr>
                         <td><input type="checkbox" class="row-check" data-status="<?= h((string)$rec->i_approval_status) ?>" data-key='<?= h($dataKey) ?>'></td>
-                        <td><?= h($rec->d_reservation_date) ?></td>
+                        <td><?= h($fmtDate($rec->d_reservation_date)) ?></td>
                         <td><?= h($rec->m_room_info->c_room_name ?? '') ?></td>
                         <td><?= h($rec->m_user_info->c_user_name ?? '') ?></td>
                         <td><?= h($mealLabels[(int)$rec->i_reservation_type] ?? '') ?></td>
