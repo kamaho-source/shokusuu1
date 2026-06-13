@@ -8,6 +8,14 @@ $filterStatus  = $filterStatus ?? '';
 $dateFrom      = $dateFrom ?? date('Y-m-d', strtotime('monday this week'));
 $dateTo        = $dateTo   ?? date('Y-m-d', strtotime('sunday this week'));
 
+$fmtDate = static function (\DateTime|string $d): string {
+    $dow = ['日', '月', '火', '水', '木', '金', '土'];
+    if (is_string($d)) {
+        $d = new \DateTime($d);
+    }
+    return $d->format('Y年n月j日') . '（' . $dow[(int)$d->format('w')] . '）';
+};
+
 $statusLabels = [
     0 => ['label' => '未承認',           'class' => 'bg-warning text-dark'],
     1 => ['label' => 'ブロック長承認済', 'class' => 'bg-info text-dark'],
@@ -145,7 +153,7 @@ foreach ($records as $record) {
                     <tr>
                         <td><input type="checkbox" class="row-check" data-key='<?= h($dataKey) ?>'></td>
                         <td>
-                            <span class="cell-primary"><?= h($rec->d_reservation_date) ?></span>
+                            <span class="cell-primary"><?= h($fmtDate($rec->d_reservation_date)) ?></span>
                         </td>
                         <td>
                             <span class="cell-primary"><?= h($rec->m_room_info->c_room_name ?? '') ?></span>
