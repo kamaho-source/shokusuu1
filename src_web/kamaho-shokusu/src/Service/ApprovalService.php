@@ -465,10 +465,12 @@ class ApprovalService
 
         return $individualTable->getConnection()->transactional(
             function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $individualTable, $logTable, $now): bool {
+                $successKeys = [];
+
                 foreach ($keys as $k) {
-                    // 承認者自身の予約は自己承認を防止するためスキップ
+                    // 承認者自身の予約は自己承認防止のためスキップ
                     if ($excludeUserId !== null && (int)$k['i_id_user'] === $excludeUserId) {
-                        return false;
+                        continue;
                     }
                     $affected = $individualTable->updateAll(
                         ['i_approval_status' => $newStatus, 'dt_update' => $now, 'c_update_user' => $actor],
@@ -480,9 +482,12 @@ class ApprovalService
                             'i_approval_status IN' => $allowedFromStatuses,
                         ]
                     );
+                    // ステータス不一致（既に別の状態）のレコードはスキップ
                     if ($affected < 1) {
-                        return false;
+                        continue;
                     }
+
+                    $successKeys[] = $k;
 
                     $log = $logTable->newEntity([
                         'i_id_user'          => $k['i_id_user'],
@@ -497,8 +502,12 @@ class ApprovalService
                     $logTable->saveOrFail($log);
                 }
 
+                if (empty($successKeys)) {
+                    return false;
+                }
+
                 if ($newStatus === self::STATUS_REJECTED) {
-                    $this->notificationService->createRejectionNotifications($keys, $approverId, $reason, $now);
+                    $this->notificationService->createRejectionNotifications($successKeys, $approverId, $reason, $now);
                 }
 
                 return true;
