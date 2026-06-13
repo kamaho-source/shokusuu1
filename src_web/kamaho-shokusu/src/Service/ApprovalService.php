@@ -318,7 +318,7 @@ class ApprovalService
      */
     public function adminApprove(array $keys, int $approverId, string $actor, string $ipAddress = ''): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_BLOCK_LEADER]);
+        $result = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
         AuditLogService::record(
             'approval',
             'approval_admin',
