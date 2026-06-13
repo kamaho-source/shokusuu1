@@ -252,6 +252,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         ]);
 
                         excelRow.getCell(6).numFmt = "¥#,##0";
+                        excelRow.getCell(6).protection = { locked: true, hidden: true };
                         for (let c = 1; c <= 6; c++) {
                             excelRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5E9" } };
                         }
@@ -271,13 +272,14 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     sumRow.getCell(6).numFmt = "¥#,##0";
 
                     // ヘッダー行スタイル
-                    sheet.getRow(1).eachCell((cell, colNumber) => {
-                        if (colNumber > 6) return; // 単価列は装飾しない
+                    sheet.getRow(1).eachCell(cell => {
                         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2E7D32" } };
                         cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
                         cell.alignment = { horizontal: "center" };
                     });
 
+                    // シート保護: 控除額の計算式を数式バーに表示しない
+                    sheet.protect('', { selectLockedCells: true, selectUnlockedCells: true, sort: true, autoFilter: true });
 
                     autoFitColumns(sheet);
 
@@ -409,6 +411,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
                         });
                         dataRow.getCell(7).numFmt = "¥#,##0";
+                        dataRow.getCell(7).protection = { locked: true, hidden: true };
                     });
 
                     // 合計行（行1=警告, 行2=ヘッダー → データは行3〜）
@@ -425,6 +428,8 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
+                    // シート保護: 控除額の計算式を数式バーに表示しない
+                    sheet.protect('', { selectLockedCells: true, selectUnlockedCells: true, sort: true, autoFilter: true });
 
                     // 行2以降の列幅を計算（行1の警告文は対象外）
                     sheet.columns.forEach((column, colIdx) => {
