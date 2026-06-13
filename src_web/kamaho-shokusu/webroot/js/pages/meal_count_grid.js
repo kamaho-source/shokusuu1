@@ -181,10 +181,10 @@ function mcgRegisterAll() {
             var parts = entries[i][0].split('|');
             var meal = parseInt(parts[3], 10);
             if (Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
-                var lbKey = parts[0] + '|' + parts[1] + '|' + parts[2];
+                var lbKey = parts[0] + '|' + parts[2];
                 if (!seenLB[lbKey]) {
                     seenLB[lbKey] = true;
-                    mcgSyncLunchBento(parts[0], parts[1], parts[2]);
+                    mcgSyncLunchBento(parts[0], parts[2]);
                 }
             }
         });
@@ -245,29 +245,42 @@ function mcgInitConflicts() {
 }
 
 /* ─────────────────────────────────────────────
- * 昼↔弁当 登録済み排他（同部屋・同日）
- * 昼が登録済みなら弁当セルを無効化、逆も同様
+ * 昼↔弁当 登録済み排他（全部屋・同日）
+ * 昼が登録済みなら同日の全弁当セルを無効化、逆も同様
  * ─────────────────────────────────────────── */
-function mcgSyncLunchBento(userId, roomId, date) {
-    var lunchTd = mcgFindCell(userId, roomId, date, MEAL.LUNCH);
-    var bentoTd = mcgFindCell(userId, roomId, date, MEAL.BENTO);
-    if (!lunchTd || !bentoTd) return;
+function mcgSyncLunchBento(userId, date) {
+    var allLunchCells = document.querySelectorAll(
+        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.LUNCH + '"]'
+    );
+    var allBentoCells = document.querySelectorAll(
+        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.BENTO + '"]'
+    );
 
-    if (lunchTd.dataset.reserved === '1') {
-        bentoTd.classList.add('mcg-cell-excl');
-        bentoTd.dataset.exclMsg = 'お昼が登録済みです（クリックで変更可能）';
-    } else {
-        bentoTd.classList.remove('mcg-cell-excl');
-        delete bentoTd.dataset.exclMsg;
-    }
+    var lunchReserved = false;
+    allLunchCells.forEach(function (td) { if (td.dataset.reserved === '1') lunchReserved = true; });
 
-    if (bentoTd.dataset.reserved === '1') {
-        lunchTd.classList.add('mcg-cell-excl');
-        lunchTd.dataset.exclMsg = 'お弁当が登録済みです（クリックで変更可能）';
-    } else {
-        lunchTd.classList.remove('mcg-cell-excl');
-        delete lunchTd.dataset.exclMsg;
-    }
+    var bentoReserved = false;
+    allBentoCells.forEach(function (td) { if (td.dataset.reserved === '1') bentoReserved = true; });
+
+    allBentoCells.forEach(function (td) {
+        if (lunchReserved) {
+            td.classList.add('mcg-cell-excl');
+            td.dataset.exclMsg = 'お昼が登録済みです（クリックで変更可能）';
+        } else {
+            td.classList.remove('mcg-cell-excl');
+            delete td.dataset.exclMsg;
+        }
+    });
+
+    allLunchCells.forEach(function (td) {
+        if (bentoReserved) {
+            td.classList.add('mcg-cell-excl');
+            td.dataset.exclMsg = 'お弁当が登録済みです（クリックで変更可能）';
+        } else {
+            td.classList.remove('mcg-cell-excl');
+            delete td.dataset.exclMsg;
+        }
+    });
 }
 
 function mcgInitLunchBentoExcl() {
@@ -275,10 +288,10 @@ function mcgInitLunchBentoExcl() {
     document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
         var meal = parseInt(td.dataset.meal, 10);
         if (meal !== MEAL.LUNCH && meal !== MEAL.BENTO) return;
-        var k = td.dataset.userId + '|' + td.dataset.roomId + '|' + td.dataset.date;
+        var k = td.dataset.userId + '|' + td.dataset.date;
         if (!seen[k]) {
             seen[k] = true;
-            mcgSyncLunchBento(td.dataset.userId, td.dataset.roomId, td.dataset.date);
+            mcgSyncLunchBento(td.dataset.userId, td.dataset.date);
         }
     });
 }
@@ -432,11 +445,16 @@ function mcgInitToggle() {
             var currentReserved = td.dataset.reserved === '1';
             var newValue        = currentReserved ? 0 : 1;
 
-            /* 昼↔弁当 排他: 同部屋の対立セルを pending OFF にする */
+            /* 昼↔弁当 排他: 全部屋の対立セルを pending OFF にする */
             if (newValue === 1 && Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
-                var opponentMeal     = MEAL_OPPONENT[meal];
-                var opponentTd       = mcgFindCell(userId, roomId, date, opponentMeal);
-                if (opponentTd && opponentTd.dataset.reserved === '1') {
+                var opponentMeal = MEAL_OPPONENT[meal];
+                var allOpponents = document.querySelectorAll(
+                    '.mcg-toggleable[data-user-id="' + userId + '"]' +
+                    '[data-date="' + date + '"]' +
+                    '[data-meal="' + opponentMeal + '"]'
+                );
+                allOpponents.forEach(function (opponentTd) {
+                    if (opponentTd.dataset.reserved !== '1') return;
                     var opponentKey      = _mcgKey(opponentTd);
                     var opponentEntry    = _mcgPending.get(opponentKey);
                     var opponentOriginal = opponentEntry ? opponentEntry.original : opponentTd.dataset.reserved;
@@ -450,7 +468,7 @@ function mcgInitToggle() {
                     }
                     mcgUpdateDailyTotal(date, opponentMeal);
                     mcgSyncConflicts(userId, date, String(opponentMeal));
-                }
+                });
             }
 
             /* 元の状態に戻るなら pending 解除、それ以外は pending 追加 */
@@ -467,7 +485,7 @@ function mcgInitToggle() {
             mcgUpdateDailyTotal(date, meal);
             mcgSyncConflicts(userId, date, td.dataset.meal);
             if (Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
-                mcgSyncLunchBento(userId, roomId, date);
+                mcgSyncLunchBento(userId, date);
             }
             mcgUpdateRegisterBtn();
         }
