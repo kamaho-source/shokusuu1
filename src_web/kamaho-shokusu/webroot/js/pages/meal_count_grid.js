@@ -176,6 +176,19 @@ function mcgRegisterAll() {
             }
         });
 
+        var seenLB = Object.create(null);
+        results.forEach(function (result, i) {
+            var parts = entries[i][0].split('|');
+            var meal = parseInt(parts[3], 10);
+            if (Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
+                var lbKey = parts[0] + '|' + parts[1] + '|' + parts[2];
+                if (!seenLB[lbKey]) {
+                    seenLB[lbKey] = true;
+                    mcgSyncLunchBento(parts[0], parts[1], parts[2]);
+                }
+            }
+        });
+
         if (successKeys.length > 0) {
             mcgShowToast(successKeys.length + '件を登録しました', 'success');
         }
@@ -231,20 +244,60 @@ function mcgInitConflicts() {
     });
 }
 
+/* ─────────────────────────────────────────────
+ * 昼↔弁当 登録済み排他（同部屋・同日）
+ * 昼が登録済みなら弁当セルを無効化、逆も同様
+ * ─────────────────────────────────────────── */
+function mcgSyncLunchBento(userId, roomId, date) {
+    var lunchTd = mcgFindCell(userId, roomId, date, MEAL.LUNCH);
+    var bentoTd = mcgFindCell(userId, roomId, date, MEAL.BENTO);
+    if (!lunchTd || !bentoTd) return;
+
+    if (lunchTd.dataset.reserved === '1') {
+        bentoTd.classList.add('mcg-cell-excl');
+        bentoTd.dataset.exclMsg = 'お昼が登録済みのため選択できません';
+    } else {
+        bentoTd.classList.remove('mcg-cell-excl');
+        delete bentoTd.dataset.exclMsg;
+    }
+
+    if (bentoTd.dataset.reserved === '1') {
+        lunchTd.classList.add('mcg-cell-excl');
+        lunchTd.dataset.exclMsg = 'お弁当が登録済みのため選択できません';
+    } else {
+        lunchTd.classList.remove('mcg-cell-excl');
+        delete lunchTd.dataset.exclMsg;
+    }
+}
+
+function mcgInitLunchBentoExcl() {
+    var seen = Object.create(null);
+    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+        var meal = parseInt(td.dataset.meal, 10);
+        if (meal !== MEAL.LUNCH && meal !== MEAL.BENTO) return;
+        var k = td.dataset.userId + '|' + td.dataset.roomId + '|' + td.dataset.date;
+        if (!seen[k]) {
+            seen[k] = true;
+            mcgSyncLunchBento(td.dataset.userId, td.dataset.roomId, td.dataset.date);
+        }
+    });
+}
+
 /* ── コンフリクトツールチップ ── */
 
 var _mcgConflictTip = null;
 
 function mcgInitConflictTip() {
     document.addEventListener('mouseover', function (e) {
-        var cell = e.target.closest('.mcg-cell-conflict');
-        if (cell && cell.dataset.conflictMsg) {
+        var cell = e.target.closest('.mcg-cell-conflict, .mcg-cell-excl');
+        var msg  = cell ? (cell.dataset.conflictMsg || cell.dataset.exclMsg) : null;
+        if (cell && msg) {
             if (!_mcgConflictTip) {
                 _mcgConflictTip = document.createElement('div');
                 _mcgConflictTip.className = 'mcg-conflict-tip';
                 document.body.appendChild(_mcgConflictTip);
             }
-            _mcgConflictTip.textContent = cell.dataset.conflictMsg;
+            _mcgConflictTip.textContent = msg;
             _mcgConflictTip.style.display = 'block';
             _mcgConflictTip.style.left = (e.clientX + 12) + 'px';
             _mcgConflictTip.style.top  = (e.clientY - 36) + 'px';
@@ -334,6 +387,7 @@ function mcgInitToggle() {
             if (td.classList.contains('is-past')) return;
             if (td.classList.contains('mcg-cell-conflict')) return;
             if (td.classList.contains('mcg-cell-saved')) return;
+            if (td.classList.contains('mcg-cell-excl')) return;
 
             var userId = td.dataset.userId;
             var roomId = td.dataset.roomId;
@@ -378,6 +432,9 @@ function mcgInitToggle() {
 
             mcgUpdateDailyTotal(date, meal);
             mcgSyncConflicts(userId, date, td.dataset.meal);
+            if (Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
+                mcgSyncLunchBento(userId, roomId, date);
+            }
             mcgUpdateRegisterBtn();
         });
     });
@@ -458,6 +515,7 @@ function mcgApplyHolidays() {
 document.addEventListener('DOMContentLoaded', function () {
     mcgApplyHolidays();
     mcgInitConflicts();
+    mcgInitLunchBentoExcl();
     mcgInitConflictTip();
     mcgInitToggle();
     mcgInitBeforeUnload();

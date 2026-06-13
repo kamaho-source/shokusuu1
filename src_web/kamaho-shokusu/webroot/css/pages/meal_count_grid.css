@@ -672,6 +672,24 @@ html, body {
     position: relative;
 }
 
+/* =====================================================================
+ * 排他制御: 昼↔弁当 登録済み排他セル
+ * ===================================================================== */
+
+.mcg-grid tbody td.mcg-cell-excl {
+    background: repeating-linear-gradient(
+        45deg,
+        #fff8e1,
+        #fff8e1 4px,
+        #ffe082 4px,
+        #ffe082 8px
+    ) !important;
+    cursor: not-allowed !important;
+    color: transparent !important;
+    pointer-events: auto !important;
+    position: relative;
+}
+
 /* コンフリクトツールチップ（JS で生成・配置） */
 .mcg-conflict-tip {
     position: fixed;
