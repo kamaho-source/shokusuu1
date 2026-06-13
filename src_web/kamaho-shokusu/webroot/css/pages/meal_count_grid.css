@@ -625,6 +625,17 @@ html, body {
  * Pending セル（未保存変更）
  * ===================================================================== */
 
+/* =====================================================================
+ * 保存済みセル（登録後無効化）
+ * ===================================================================== */
+
+/* 登録直後に無効化 — 誤操作防止。ホバー・クリック不可 */
+.mcg-grid tbody td.mcg-cell-saved {
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+    opacity: 0.55;
+}
+
 /* pending ON: 緑 ● */
 .mcg-grid tbody td.mcg-pending-on {
     background: #c6efce !important;

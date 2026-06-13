@@ -143,6 +143,9 @@ function mcgRegisterAll() {
                 } else {
                     entry.td.textContent = '';
                 }
+                /* 保存済みセルを無効化して誤操作を防ぐ */
+                entry.td.classList.add('mcg-cell-saved');
+                entry.td.setAttribute('aria-disabled', 'true');
                 mcgFlashCell(entry.td, entry.desired === 1);
             } else {
                 failCount++;
@@ -323,12 +326,14 @@ function mcgUpdateDailyTotal(date, meal) {
 function mcgInitToggle() {
     document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
         td.addEventListener('keydown', function (e) {
+            if (td.classList.contains('mcg-cell-saved')) return;
             if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); td.click(); }
         });
 
         td.addEventListener('click', function () {
             if (td.classList.contains('is-past')) return;
             if (td.classList.contains('mcg-cell-conflict')) return;
+            if (td.classList.contains('mcg-cell-saved')) return;
 
             var userId = td.dataset.userId;
             var roomId = td.dataset.roomId;
