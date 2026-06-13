@@ -317,6 +317,46 @@ function mcgInitConflictTip() {
 }
 
 /* ─────────────────────────────────────────────
+ * 登録済みセル変更確認ポップアップ
+ * ─────────────────────────────────────────── */
+function mcgShowConfirm(message, onOk) {
+    var overlay = document.createElement('div');
+    overlay.className = 'mcg-confirm-overlay';
+
+    var dialog = document.createElement('div');
+    dialog.className = 'mcg-confirm-dialog';
+
+    var msg = document.createElement('p');
+    msg.className = 'mcg-confirm-msg';
+    msg.textContent = message;
+
+    var btnWrap = document.createElement('div');
+    btnWrap.className = 'mcg-confirm-btns';
+
+    var okBtn = document.createElement('button');
+    okBtn.className = 'mcg-confirm-btn mcg-confirm-btn--ok';
+    okBtn.textContent = '変更する';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'mcg-confirm-btn mcg-confirm-btn--cancel';
+    cancelBtn.textContent = 'キャンセル';
+
+    function close() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+
+    okBtn.addEventListener('click', function () { close(); onOk(); });
+    cancelBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+
+    btnWrap.appendChild(cancelBtn);
+    btnWrap.appendChild(okBtn);
+    dialog.appendChild(msg);
+    dialog.appendChild(btnWrap);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    okBtn.focus();
+}
+
+/* ─────────────────────────────────────────────
  * Toast 通知
  * ─────────────────────────────────────────── */
 function mcgShowToast(message, type) {
@@ -379,16 +419,10 @@ function mcgUpdateDailyTotal(date, meal) {
 function mcgInitToggle() {
     document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
         td.addEventListener('keydown', function (e) {
-            if (td.classList.contains('mcg-cell-saved')) return;
             if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); td.click(); }
         });
 
-        td.addEventListener('click', function () {
-            if (td.classList.contains('is-past')) return;
-            if (td.classList.contains('mcg-cell-conflict')) return;
-            if (td.classList.contains('mcg-cell-saved')) return;
-            if (td.classList.contains('mcg-cell-excl')) return;
-
+        function doToggle() {
             var userId = td.dataset.userId;
             var roomId = td.dataset.roomId;
             var date   = td.dataset.date;
@@ -400,11 +434,11 @@ function mcgInitToggle() {
 
             /* 昼↔弁当 排他: 同部屋の対立セルを pending OFF にする */
             if (newValue === 1 && Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
-                var opponentMeal = MEAL_OPPONENT[meal];
-                var opponentTd   = mcgFindCell(userId, roomId, date, opponentMeal);
+                var opponentMeal     = MEAL_OPPONENT[meal];
+                var opponentTd       = mcgFindCell(userId, roomId, date, opponentMeal);
                 if (opponentTd && opponentTd.dataset.reserved === '1') {
-                    var opponentKey     = _mcgKey(opponentTd);
-                    var opponentEntry   = _mcgPending.get(opponentKey);
+                    var opponentKey      = _mcgKey(opponentTd);
+                    var opponentEntry    = _mcgPending.get(opponentKey);
                     var opponentOriginal = opponentEntry ? opponentEntry.original : opponentTd.dataset.reserved;
 
                     if (opponentOriginal === '0') {
@@ -436,6 +470,23 @@ function mcgInitToggle() {
                 mcgSyncLunchBento(userId, roomId, date);
             }
             mcgUpdateRegisterBtn();
+        }
+
+        td.addEventListener('click', function () {
+            if (td.classList.contains('is-past')) return;
+            if (td.classList.contains('mcg-cell-conflict')) return;
+            if (td.classList.contains('mcg-cell-excl')) return;
+
+            if (td.classList.contains('mcg-cell-saved')) {
+                mcgShowConfirm('登録済みのデータを変更しますか？', function () {
+                    td.classList.remove('mcg-cell-saved');
+                    td.removeAttribute('aria-disabled');
+                    doToggle();
+                });
+                return;
+            }
+
+            doToggle();
         });
     });
 }
