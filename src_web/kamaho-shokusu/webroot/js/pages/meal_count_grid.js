@@ -143,6 +143,9 @@ function mcgRegisterAll() {
                 } else {
                     entry.td.textContent = '';
                 }
+                /* 保存済みセルを無効化して誤操作を防ぐ */
+                entry.td.classList.add('mcg-cell-saved');
+                entry.td.setAttribute('aria-disabled', 'true');
                 mcgFlashCell(entry.td, entry.desired === 1);
             } else {
                 failCount++;
@@ -170,6 +173,19 @@ function mcgRegisterAll() {
                 seen[k] = true;
                 mcgUpdateDailyTotal(parts[2], parseInt(parts[3], 10));
                 mcgSyncConflicts(parts[0], parts[2], parts[3]);
+            }
+        });
+
+        var seenLB = Object.create(null);
+        results.forEach(function (result, i) {
+            var parts = entries[i][0].split('|');
+            var meal = parseInt(parts[3], 10);
+            if (Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
+                var lbKey = parts[0] + '|' + parts[2];
+                if (!seenLB[lbKey]) {
+                    seenLB[lbKey] = true;
+                    mcgSyncLunchBento(parts[0], parts[2]);
+                }
             }
         });
 
@@ -228,20 +244,73 @@ function mcgInitConflicts() {
     });
 }
 
+/* ─────────────────────────────────────────────
+ * 昼↔弁当 登録済み排他（全部屋・同日）
+ * 昼が登録済みなら同日の全弁当セルを無効化、逆も同様
+ * ─────────────────────────────────────────── */
+function mcgSyncLunchBento(userId, date) {
+    var allLunchCells = document.querySelectorAll(
+        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.LUNCH + '"]'
+    );
+    var allBentoCells = document.querySelectorAll(
+        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.BENTO + '"]'
+    );
+
+    var lunchReserved = false;
+    allLunchCells.forEach(function (td) { if (td.dataset.reserved === '1') lunchReserved = true; });
+
+    var bentoReserved = false;
+    allBentoCells.forEach(function (td) { if (td.dataset.reserved === '1') bentoReserved = true; });
+
+    allBentoCells.forEach(function (td) {
+        if (lunchReserved) {
+            td.classList.add('mcg-cell-excl');
+            td.dataset.exclMsg = 'お昼が登録済みです（クリックで変更可能）';
+        } else {
+            td.classList.remove('mcg-cell-excl');
+            delete td.dataset.exclMsg;
+        }
+    });
+
+    allLunchCells.forEach(function (td) {
+        if (bentoReserved) {
+            td.classList.add('mcg-cell-excl');
+            td.dataset.exclMsg = 'お弁当が登録済みです（クリックで変更可能）';
+        } else {
+            td.classList.remove('mcg-cell-excl');
+            delete td.dataset.exclMsg;
+        }
+    });
+}
+
+function mcgInitLunchBentoExcl() {
+    var seen = Object.create(null);
+    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+        var meal = parseInt(td.dataset.meal, 10);
+        if (meal !== MEAL.LUNCH && meal !== MEAL.BENTO) return;
+        var k = td.dataset.userId + '|' + td.dataset.date;
+        if (!seen[k]) {
+            seen[k] = true;
+            mcgSyncLunchBento(td.dataset.userId, td.dataset.date);
+        }
+    });
+}
+
 /* ── コンフリクトツールチップ ── */
 
 var _mcgConflictTip = null;
 
 function mcgInitConflictTip() {
     document.addEventListener('mouseover', function (e) {
-        var cell = e.target.closest('.mcg-cell-conflict');
-        if (cell && cell.dataset.conflictMsg) {
+        var cell = e.target.closest('.mcg-cell-conflict, .mcg-cell-excl');
+        var msg  = cell ? (cell.dataset.conflictMsg || cell.dataset.exclMsg) : null;
+        if (cell && msg) {
             if (!_mcgConflictTip) {
                 _mcgConflictTip = document.createElement('div');
                 _mcgConflictTip.className = 'mcg-conflict-tip';
                 document.body.appendChild(_mcgConflictTip);
             }
-            _mcgConflictTip.textContent = cell.dataset.conflictMsg;
+            _mcgConflictTip.textContent = msg;
             _mcgConflictTip.style.display = 'block';
             _mcgConflictTip.style.left = (e.clientX + 12) + 'px';
             _mcgConflictTip.style.top  = (e.clientY - 36) + 'px';
@@ -258,6 +327,46 @@ function mcgInitConflictTip() {
     document.addEventListener('mouseleave', function () {
         if (_mcgConflictTip) _mcgConflictTip.style.display = 'none';
     }, true);
+}
+
+/* ─────────────────────────────────────────────
+ * 登録済みセル変更確認ポップアップ
+ * ─────────────────────────────────────────── */
+function mcgShowConfirm(message, onOk) {
+    var overlay = document.createElement('div');
+    overlay.className = 'mcg-confirm-overlay';
+
+    var dialog = document.createElement('div');
+    dialog.className = 'mcg-confirm-dialog';
+
+    var msg = document.createElement('p');
+    msg.className = 'mcg-confirm-msg';
+    msg.textContent = message;
+
+    var btnWrap = document.createElement('div');
+    btnWrap.className = 'mcg-confirm-btns';
+
+    var okBtn = document.createElement('button');
+    okBtn.className = 'mcg-confirm-btn mcg-confirm-btn--ok';
+    okBtn.textContent = '変更する';
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.className = 'mcg-confirm-btn mcg-confirm-btn--cancel';
+    cancelBtn.textContent = 'キャンセル';
+
+    function close() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+
+    okBtn.addEventListener('click', function () { close(); onOk(); });
+    cancelBtn.addEventListener('click', close);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+
+    btnWrap.appendChild(cancelBtn);
+    btnWrap.appendChild(okBtn);
+    dialog.appendChild(msg);
+    dialog.appendChild(btnWrap);
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    okBtn.focus();
 }
 
 /* ─────────────────────────────────────────────
@@ -326,10 +435,7 @@ function mcgInitToggle() {
             if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); td.click(); }
         });
 
-        td.addEventListener('click', function () {
-            if (td.classList.contains('is-past')) return;
-            if (td.classList.contains('mcg-cell-conflict')) return;
-
+        function doToggle() {
             var userId = td.dataset.userId;
             var roomId = td.dataset.roomId;
             var date   = td.dataset.date;
@@ -339,13 +445,18 @@ function mcgInitToggle() {
             var currentReserved = td.dataset.reserved === '1';
             var newValue        = currentReserved ? 0 : 1;
 
-            /* 昼↔弁当 排他: 同部屋の対立セルを pending OFF にする */
+            /* 昼↔弁当 排他: 全部屋の対立セルを pending OFF にする */
             if (newValue === 1 && Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
                 var opponentMeal = MEAL_OPPONENT[meal];
-                var opponentTd   = mcgFindCell(userId, roomId, date, opponentMeal);
-                if (opponentTd && opponentTd.dataset.reserved === '1') {
-                    var opponentKey     = _mcgKey(opponentTd);
-                    var opponentEntry   = _mcgPending.get(opponentKey);
+                var allOpponents = document.querySelectorAll(
+                    '.mcg-toggleable[data-user-id="' + userId + '"]' +
+                    '[data-date="' + date + '"]' +
+                    '[data-meal="' + opponentMeal + '"]'
+                );
+                allOpponents.forEach(function (opponentTd) {
+                    if (opponentTd.dataset.reserved !== '1') return;
+                    var opponentKey      = _mcgKey(opponentTd);
+                    var opponentEntry    = _mcgPending.get(opponentKey);
                     var opponentOriginal = opponentEntry ? opponentEntry.original : opponentTd.dataset.reserved;
 
                     if (opponentOriginal === '0') {
@@ -357,7 +468,7 @@ function mcgInitToggle() {
                     }
                     mcgUpdateDailyTotal(date, opponentMeal);
                     mcgSyncConflicts(userId, date, String(opponentMeal));
-                }
+                });
             }
 
             /* 元の状態に戻るなら pending 解除、それ以外は pending 追加 */
@@ -373,7 +484,39 @@ function mcgInitToggle() {
 
             mcgUpdateDailyTotal(date, meal);
             mcgSyncConflicts(userId, date, td.dataset.meal);
+            if (Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
+                mcgSyncLunchBento(userId, date);
+            }
             mcgUpdateRegisterBtn();
+        }
+
+        td.addEventListener('click', function () {
+            if (td.classList.contains('is-past')) return;
+            if (td.classList.contains('mcg-cell-conflict')) return;
+
+            if (td.classList.contains('mcg-cell-excl')) {
+                var exclMeal = parseInt(td.dataset.meal, 10);
+                var exclConfirmMsg = exclMeal === MEAL.BENTO
+                    ? 'お昼が登録されています。\nお弁当を選択するとお昼がキャンセルされます。\n変更してもよろしいですか？'
+                    : 'お弁当が登録されています。\nお昼を選択するとお弁当がキャンセルされます。\n変更してもよろしいですか？';
+                mcgShowConfirm(exclConfirmMsg, function () {
+                    td.classList.remove('mcg-cell-saved');
+                    td.removeAttribute('aria-disabled');
+                    doToggle();
+                });
+                return;
+            }
+
+            if (td.classList.contains('mcg-cell-saved')) {
+                mcgShowConfirm('登録済みのデータを変更しますか？', function () {
+                    td.classList.remove('mcg-cell-saved');
+                    td.removeAttribute('aria-disabled');
+                    doToggle();
+                });
+                return;
+            }
+
+            doToggle();
         });
     });
 }
@@ -453,6 +596,7 @@ function mcgApplyHolidays() {
 document.addEventListener('DOMContentLoaded', function () {
     mcgApplyHolidays();
     mcgInitConflicts();
+    mcgInitLunchBentoExcl();
     mcgInitConflictTip();
     mcgInitToggle();
     mcgInitBeforeUnload();
