@@ -743,17 +743,15 @@ html, body {
  * ===================================================================== */
 
 .mcg-grid tbody td.mcg-cell-excl {
-    background: repeating-linear-gradient(
-        45deg,
-        #fff8e1,
-        #fff8e1 4px,
-        #ffe082 4px,
-        #ffe082 8px
-    ) !important;
-    cursor: not-allowed !important;
-    color: transparent !important;
+    background: #fff8e1 !important;
+    border-bottom: 2px solid #ffa000 !important;
+    cursor: pointer !important;
     pointer-events: auto !important;
     position: relative;
+}
+
+.mcg-grid tbody td.mcg-cell-excl:hover {
+    background: #ffecb3 !important;
 }
 
 /* コンフリクトツールチップ（JS で生成・配置） */

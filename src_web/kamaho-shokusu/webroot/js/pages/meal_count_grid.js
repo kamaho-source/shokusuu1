@@ -475,7 +475,15 @@ function mcgInitToggle() {
         td.addEventListener('click', function () {
             if (td.classList.contains('is-past')) return;
             if (td.classList.contains('mcg-cell-conflict')) return;
-            if (td.classList.contains('mcg-cell-excl')) return;
+
+            if (td.classList.contains('mcg-cell-excl')) {
+                var exclMeal = parseInt(td.dataset.meal, 10);
+                var exclConfirmMsg = exclMeal === MEAL.BENTO
+                    ? 'お昼がすでに予約されています。\nお弁当に変更しますか？'
+                    : 'お弁当がすでに予約されています。\nお昼に変更しますか？';
+                mcgShowConfirm(exclConfirmMsg, function () { doToggle(); });
+                return;
+            }
 
             if (td.classList.contains('mcg-cell-saved')) {
                 mcgShowConfirm('登録済みのデータを変更しますか？', function () {
