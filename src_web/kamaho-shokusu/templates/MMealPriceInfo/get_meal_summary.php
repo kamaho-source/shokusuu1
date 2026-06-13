@@ -212,7 +212,6 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
                     const raw     = await response.json();
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
-                    const prices  = (raw && raw.data?.meal_prices) ? raw.data.meal_prices : {};
                     const data    = (raw && typeof raw === 'object' && raw.ok !== undefined)
                         ? (Array.isArray(raw.data?.rows) ? raw.data.rows : (Array.isArray(raw.data) ? raw.data : []))
                         : (Array.isArray(payload) ? payload : []);
@@ -232,15 +231,9 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     // ヘッダー行
                     sheet.addRow(["職員情報", "弁当", "朝食", "昼食", "夕食", "控除額合計"]);
 
-                    // データ行
-                    const pb = prices.bento   || 0;
-                    const pm = prices.morning || 0;
-                    const pl = prices.lunch   || 0;
-                    const pd = prices.dinner  || 0;
-
-                    data.forEach((employeeData, index) => {
-                        const mc     = employeeData.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
-                        const rowNum = index + 2; // 行1=ヘッダー
+                    // データ行（控除額はサーバー計算済みの値をそのまま使用）
+                    data.forEach(employeeData => {
+                        const mc = employeeData.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
 
                         const excelRow = sheet.addRow([
                             `${employeeData.staff_id || ""} ${employeeData.name || ""}`,
@@ -248,17 +241,16 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                             mc.morning || 0,
                             mc.lunch   || 0,
                             mc.dinner  || 0,
-                            { formula: `=B${rowNum}*${pb}+C${rowNum}*${pm}+D${rowNum}*${pl}+E${rowNum}*${pd}` },
+                            employeeData.total_price || 0,
                         ]);
 
                         excelRow.getCell(6).numFmt = "¥#,##0";
-                        excelRow.getCell(6).protection = { locked: true, hidden: true };
                         for (let c = 1; c <= 6; c++) {
                             excelRow.getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5E9" } };
                         }
                     });
 
-                    // 合計行
+                    // 合計行（SUM数式）
                     const lastDataRow = data.length + 1;
                     const sumRow = sheet.addRow([
                         "合計",
@@ -277,9 +269,6 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
                         cell.alignment = { horizontal: "center" };
                     });
-
-                    // シート保護: 控除額の計算式を数式バーに表示しない
-                    sheet.protect('', { selectLockedCells: true, selectUnlockedCells: true, sort: true, autoFilter: true });
 
                     autoFitColumns(sheet);
 
@@ -346,9 +335,8 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
-                    const raw    = await response.json();
-                    const prices = (raw && raw.data?.meal_prices) ? raw.data.meal_prices : {};
-                    const data   = (raw && typeof raw === "object" && raw.ok !== undefined)
+                    const raw  = await response.json();
+                    const data = (raw && typeof raw === "object" && raw.ok !== undefined)
                         ? (Array.isArray(raw.data?.rows) ? raw.data.rows : [])
                         : [];
 
@@ -379,24 +367,18 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         cell.alignment = { horizontal: "center" };
                     });
 
-                    // 行3〜: データ（職員×ステータスで1行）
+                    // 行3〜: データ（職員×ステータスで1行、控除額はサーバー計算済み値を使用）
                     const STATUS_LABELS = { 0: "未承認", 1: "ブロック長承認済" };
                     const STATUS_COLORS = {
                         0: "FFFFF3CD", // 薄い黄: 未承認
                         1: "FFE0F2FE", // 薄い青: BL承認済
                     };
 
-                    const qb = prices.bento   || 0;
-                    const qm = prices.morning || 0;
-                    const ql = prices.lunch   || 0;
-                    const qd = prices.dinner  || 0;
-
-                    data.forEach((row, index) => {
+                    data.forEach(row => {
                         const mc     = row.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
                         const status = row.approval_status ?? 0;
                         const label  = STATUS_LABELS[status] ?? `status:${status}`;
                         const color  = STATUS_COLORS[status] ?? "FFFFFFFF";
-                        const rowNum = index + 3; // 行1=警告, 行2=ヘッダー
 
                         const dataRow = sheet.addRow([
                             `${row.staff_id ?? ""} ${row.name ?? ""}`.trim(),
@@ -405,13 +387,12 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                             mc.morning || 0,
                             mc.lunch   || 0,
                             mc.dinner  || 0,
-                            { formula: `=C${rowNum}*${qb}+D${rowNum}*${qm}+E${rowNum}*${ql}+F${rowNum}*${qd}` },
+                            row.total_price || 0,
                         ]);
                         dataRow.eachCell(cell => {
                             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
                         });
                         dataRow.getCell(7).numFmt = "¥#,##0";
-                        dataRow.getCell(7).protection = { locked: true, hidden: true };
                     });
 
                     // 合計行（行1=警告, 行2=ヘッダー → データは行3〜）
@@ -427,9 +408,6 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     ]);
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
-
-                    // シート保護: 控除額の計算式を数式バーに表示しない
-                    sheet.protect('', { selectLockedCells: true, selectUnlockedCells: true, sort: true, autoFilter: true });
 
                     // 行2以降の列幅を計算（行1の警告文は対象外）
                     sheet.columns.forEach((column, colIdx) => {
