@@ -229,11 +229,15 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
                     const sheet = workbook.addWorksheet(`控除データ_${selectedYear}_${selectedMonth}`);
 
-                    // ヘッダー行（A〜F 表示列、G〜J 単価列は非表示）
-                    sheet.addRow(["職員情報", "弁当", "朝食", "昼食", "夕食", "控除額合計",
-                                  "弁当単価", "朝食単価", "昼食単価", "夕食単価"]);
+                    // ヘッダー行
+                    sheet.addRow(["職員情報", "弁当", "朝食", "昼食", "夕食", "控除額合計"]);
 
                     // データ行
+                    const pb = prices.bento   || 0;
+                    const pm = prices.morning || 0;
+                    const pl = prices.lunch   || 0;
+                    const pd = prices.dinner  || 0;
+
                     data.forEach((employeeData, index) => {
                         const mc     = employeeData.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
                         const rowNum = index + 2; // 行1=ヘッダー
@@ -244,11 +248,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                             mc.morning || 0,
                             mc.lunch   || 0,
                             mc.dinner  || 0,
-                            { formula: `=B${rowNum}*G${rowNum}+C${rowNum}*H${rowNum}+D${rowNum}*I${rowNum}+E${rowNum}*J${rowNum}` },
-                            prices.bento   || 0,
-                            prices.morning || 0,
-                            prices.lunch   || 0,
-                            prices.dinner  || 0,
+                            { formula: `=B${rowNum}*${pb}+C${rowNum}*${pm}+D${rowNum}*${pl}+E${rowNum}*${pd}` },
                         ]);
 
                         excelRow.getCell(6).numFmt = "¥#,##0";
@@ -278,8 +278,6 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         cell.alignment = { horizontal: "center" };
                     });
 
-                    // 単価列（G〜J）を非表示
-                    ["G","H","I","J"].forEach(col => { sheet.getColumn(col).hidden = true; });
 
                     autoFitColumns(sheet);
 
@@ -369,13 +367,11 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     warnRow.getCell(1).font = { bold: true, color: { argb: "FFCC0000" } };
                     warnRow.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF2F2" } };
 
-                    // 行2: ヘッダー（A〜G 表示列、H〜K 単価列は非表示）
+                    // 行2: ヘッダー
                     const headerRow = sheet.addRow([
                         "職員情報", "承認ステータス", "弁当(回)", "朝食(回)", "昼食(回)", "夕食(回)", "控除額合計",
-                        "弁当単価", "朝食単価", "昼食単価", "夕食単価",
                     ]);
-                    headerRow.eachCell((cell, colNumber) => {
-                        if (colNumber > 7) return;
+                    headerRow.eachCell(cell => {
                         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFC107" } };
                         cell.font = { bold: true };
                         cell.alignment = { horizontal: "center" };
@@ -387,6 +383,11 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                         0: "FFFFF3CD", // 薄い黄: 未承認
                         1: "FFE0F2FE", // 薄い青: BL承認済
                     };
+
+                    const qb = prices.bento   || 0;
+                    const qm = prices.morning || 0;
+                    const ql = prices.lunch   || 0;
+                    const qd = prices.dinner  || 0;
 
                     data.forEach((row, index) => {
                         const mc     = row.meal_counts || { bento: 0, morning: 0, lunch: 0, dinner: 0 };
@@ -402,14 +403,9 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                             mc.morning || 0,
                             mc.lunch   || 0,
                             mc.dinner  || 0,
-                            { formula: `=C${rowNum}*H${rowNum}+D${rowNum}*I${rowNum}+E${rowNum}*J${rowNum}+F${rowNum}*K${rowNum}` },
-                            prices.bento   || 0,
-                            prices.morning || 0,
-                            prices.lunch   || 0,
-                            prices.dinner  || 0,
+                            { formula: `=C${rowNum}*${qb}+D${rowNum}*${qm}+E${rowNum}*${ql}+F${rowNum}*${qd}` },
                         ]);
-                        dataRow.eachCell((cell, colNumber) => {
-                            if (colNumber > 7) return;
+                        dataRow.eachCell(cell => {
                             cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
                         });
                         dataRow.getCell(7).numFmt = "¥#,##0";
@@ -429,12 +425,9 @@ $this->assign('title', __('食事給与控除データエクスポート'));
                     totalRow.font = { bold: true };
                     totalRow.getCell(7).numFmt = "¥#,##0";
 
-                    // 単価列（H〜K）を非表示
-                    ["H","I","J","K"].forEach(col => { sheet.getColumn(col).hidden = true; });
 
-                    // 行2以降の列幅を計算（行1の警告文は対象外、非表示列はスキップ）
+                    // 行2以降の列幅を計算（行1の警告文は対象外）
                     sheet.columns.forEach((column, colIdx) => {
-                        if (colIdx >= 7) return; // 単価列はスキップ
                         let max = 10;
                         sheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
                             if (rowNumber === 1) return;
