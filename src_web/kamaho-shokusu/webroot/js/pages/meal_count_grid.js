@@ -255,7 +255,7 @@ function mcgSyncLunchBento(userId, roomId, date) {
 
     if (lunchTd.dataset.reserved === '1') {
         bentoTd.classList.add('mcg-cell-excl');
-        bentoTd.dataset.exclMsg = 'お昼が登録済みのため選択できません';
+        bentoTd.dataset.exclMsg = 'お昼が登録済みです（クリックで変更可能）';
     } else {
         bentoTd.classList.remove('mcg-cell-excl');
         delete bentoTd.dataset.exclMsg;
@@ -263,7 +263,7 @@ function mcgSyncLunchBento(userId, roomId, date) {
 
     if (bentoTd.dataset.reserved === '1') {
         lunchTd.classList.add('mcg-cell-excl');
-        lunchTd.dataset.exclMsg = 'お弁当が登録済みのため選択できません';
+        lunchTd.dataset.exclMsg = 'お弁当が登録済みです（クリックで変更可能）';
     } else {
         lunchTd.classList.remove('mcg-cell-excl');
         delete lunchTd.dataset.exclMsg;
@@ -479,9 +479,13 @@ function mcgInitToggle() {
             if (td.classList.contains('mcg-cell-excl')) {
                 var exclMeal = parseInt(td.dataset.meal, 10);
                 var exclConfirmMsg = exclMeal === MEAL.BENTO
-                    ? 'お昼がすでに予約されています。\nお弁当に変更しますか？'
-                    : 'お弁当がすでに予約されています。\nお昼に変更しますか？';
-                mcgShowConfirm(exclConfirmMsg, function () { doToggle(); });
+                    ? 'お昼が登録されています。\nお弁当を選択するとお昼がキャンセルされます。\n変更してもよろしいですか？'
+                    : 'お弁当が登録されています。\nお昼を選択するとお弁当がキャンセルされます。\n変更してもよろしいですか？';
+                mcgShowConfirm(exclConfirmMsg, function () {
+                    td.classList.remove('mcg-cell-saved');
+                    td.removeAttribute('aria-disabled');
+                    doToggle();
+                });
                 return;
             }
 
