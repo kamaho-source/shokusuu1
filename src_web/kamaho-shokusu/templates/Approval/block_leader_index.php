@@ -8,10 +8,10 @@ $filterStatus  = $filterStatus ?? '';
 $dateFrom      = $dateFrom ?? date('Y-m-d', strtotime('monday this week'));
 $dateTo        = $dateTo   ?? date('Y-m-d', strtotime('sunday this week'));
 
-$fmtDate = static function (\DateTime|string $d): string {
+$fmtDate = static function ($d): string {
     $dow = ['日', '月', '火', '水', '木', '金', '土'];
     if (is_string($d)) {
-        $d = new \DateTime($d);
+        $d = new \DateTimeImmutable($d);
     }
     return $d->format('Y年n月j日') . '（' . $dow[(int)$d->format('w')] . '）';
 };
