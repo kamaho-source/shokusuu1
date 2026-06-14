@@ -107,10 +107,6 @@ class TReservationInfoController extends AppController
         // $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
-        // JSON ボディを受け取る AJAX エンドポイントは FormProtection のフォームトークン検証対象外にする。
-        // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
-        // view・bulkChangeEditForm は GET アクションだが、FormProtection は POST にのみ適用されるため
-        // 実質無害。将来的にリストから除外可能。
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
             'toggle',
@@ -1009,7 +1005,7 @@ class TReservationInfoController extends AppController
             if ($this->request->is(['post', 'put'])) {
                 $earlyData = $this->request->getData();
                 if (empty($earlyData)) {
-                    $earlyParsed = json_decode((string)$this->request->getBody(), true);
+                    $earlyParsed = $this->request->input('json_decode', true);
                     if (is_array($earlyParsed)) $earlyData = $earlyParsed;
                 }
                 if (($earlyData['reservation_type'] ?? '2') === '1') {
@@ -1125,7 +1121,7 @@ class TReservationInfoController extends AppController
             if ($this->request->is(['post','put'])) {
                 $data = $this->request->getData();
                 if (empty($data)) {
-                    $parsed = json_decode((string)$this->request->getBody(), true);
+                    $parsed = $this->request->input('json_decode', true);
                     if (is_array($parsed)) $data = $parsed;
                 }
                 $usersData = (isset($data['users']) && is_array($data['users'])) ? $data['users'] : [];
@@ -1302,7 +1298,7 @@ class TReservationInfoController extends AppController
         // ペイロード（form→JSON）
         $payload = (array)$this->request->getData();
         if (empty($payload)) {
-            $payload = (array)(json_decode((string)$this->request->getBody(), true) ?? []);
+            $payload = (array)($this->request->input('json_decode', true) ?? []);
         }
         if ($roomId === null) {
             $roomId = isset($payload['roomId']) ? (int)$payload['roomId'] : (int)($payload['i_id_room'] ?? 0);
