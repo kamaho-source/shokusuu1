@@ -8,54 +8,38 @@ use Cake\ORM\TableRegistry;
 /**
  * 部屋使用率集計サービス
  *
- * 使用率の分母は m_user_group の有効所属人数（定員ベース）。
- * 複数部屋所属ユーザーはそれぞれの部屋の定員に含まれ、
- * 実際に食べた部屋のみ eat_count にカウントされる。
+ * 使用率 = 食べる件数 / (期間中に部屋に存在したユーザー数 × 日数 × 食種数) × 100
  *
- * 使用率 = 食べる件数 / (部屋の有効所属人数 × 日数 × 食種数) × 100
+ * 分母の「ユーザー数」は t_individual_reservation_info の DISTINCT ユーザー数を使う。
+ * - m_user_group の active_flag（現在状態）ではなく実績ベースのため
+ *   退出済みユーザーの eat_count が capacity を超える問題が発生しない。
+ * - 複数部屋所属ユーザーは各部屋の DISTINCT ユーザー集合に独立して含まれる。
+ * - 未提出の日がある場合も「1件でも記録がある = その部屋の利用者」とみなし、
+ *   提出漏れ分は食べない扱いとして分母に算入する。
  */
 class RoomUsageService
 {
     /**
      * 部屋ごとの使用率一覧を返す。
      *
-     * @param string|null $dateFrom   開始日 (Y-m-d)
-     * @param string|null $dateTo     終了日 (Y-m-d)
-     * @param int|null    $mealType   食種 (1=朝 2=昼 3=夕 4=弁当, null=全て)
-     * @return array{room_id:int, room_name:string, capacity:int, eat_count:int, usage_rate:float}[]
+     * @param string|null $dateFrom 開始日 (Y-m-d)
+     * @param string|null $dateTo   終了日 (Y-m-d)
+     * @param int|null    $mealType 食種 (1=朝 2=昼 3=夕 4=弁当, null=全て)
+     * @return array{room_id:int, room_name:string, user_count:int, capacity:int, eat_count:int, usage_rate:float}[]
      */
     public function getRoomUsage(
         ?string $dateFrom = null,
         ?string $dateTo   = null,
         ?int    $mealType = null
     ): array {
-        $resolvedFrom = $dateFrom ?? date('Y-m-01');
-        $resolvedTo   = $dateTo   ?? date('Y-m-d');
-
-        // 日数・食種数から1部屋あたりのスロット乗数を算出
+        $resolvedFrom  = $dateFrom ?? date('Y-m-01');
+        $resolvedTo    = $dateTo   ?? date('Y-m-d');
         $days          = (int)(new \DateTimeImmutable($resolvedFrom))->diff(new \DateTimeImmutable($resolvedTo))->days + 1;
         $mealTypeCount = $mealType !== null ? 1 : 4;
-        $slotMultiple  = $days * $mealTypeCount;
 
-        // m_user_group から有効所属人数を部屋別に集計
-        $groupTable = TableRegistry::getTableLocator()->get('MUserGroup');
-        $groupRows  = $groupTable->find()
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $query = $table->find()
             ->contain(['MRoomInfo'])
-            ->where(['active_flag' => 1])
-            ->all()
-            ->toArray();
-
-        $roomCapacity = [];
-        $roomNames    = [];
-        foreach ($groupRows as $row) {
-            $roomId = (int)$row->i_id_room;
-            $roomCapacity[$roomId] = ($roomCapacity[$roomId] ?? 0) + 1;
-            $roomNames[$roomId]    = $row->m_room_info->c_room_name ?? '';
-        }
-
-        // t_individual_reservation_info から食べる件数を部屋別に集計
-        $resTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $query    = $resTable->find()
             ->where([
                 'TIndividualReservationInfo.d_reservation_date >=' => $resolvedFrom,
                 'TIndividualReservationInfo.d_reservation_date <=' => $resolvedTo,
@@ -65,9 +49,18 @@ class RoomUsageService
             $query->where(['TIndividualReservationInfo.i_reservation_type' => $mealType]);
         }
 
-        $eatCounts = [];
+        // 部屋ごとに「期間中の DISTINCT ユーザー集合」と「食べる件数」を集計
+        $usersByRoom = [];
+        $eatCounts   = [];
+        $roomNames   = [];
+
         foreach ($query->all()->toArray() as $row) {
-            $roomId       = (int)$row->i_id_room;
+            $roomId = (int)$row->i_id_room;
+            $userId = (int)$row->i_id_user;
+
+            $usersByRoom[$roomId][$userId] = true;
+            $roomNames[$roomId]            = $row->m_room_info->c_room_name ?? '';
+
             $effectiveEat = $row->i_change_flag !== null
                 ? (int)$row->i_change_flag
                 : (int)($row->eat_flag ?? 0);
@@ -76,14 +69,15 @@ class RoomUsageService
             }
         }
 
-        // 部屋ごとに使用率を算出
         $result = [];
-        foreach ($roomCapacity as $roomId => $userCount) {
-            $capacity = $userCount * $slotMultiple;
-            $eatCount = $eatCounts[$roomId] ?? 0;
-            $result[] = [
+        foreach ($usersByRoom as $roomId => $users) {
+            $userCount = count($users);
+            $capacity  = $userCount * $days * $mealTypeCount;
+            $eatCount  = $eatCounts[$roomId] ?? 0;
+            $result[]  = [
                 'room_id'    => $roomId,
                 'room_name'  => $roomNames[$roomId],
+                'user_count' => $userCount,
                 'capacity'   => $capacity,
                 'eat_count'  => $eatCount,
                 'usage_rate' => $capacity > 0 ? round($eatCount / $capacity * 100, 1) : 0.0,
