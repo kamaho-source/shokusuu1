@@ -125,6 +125,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\NotificationsController::class => \App\Policy\NotificationPolicy::class,
             \App\Controller\ContactsController::class      => \App\Policy\ContactsPolicy::class,
             \App\Controller\AuditLogController::class      => \App\Policy\AuditLogPolicy::class,
+            \App\Controller\RoomUsageController::class    => \App\Policy\RoomUsagePolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック

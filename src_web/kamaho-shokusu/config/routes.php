@@ -160,6 +160,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);
 
+        // 部屋使用率 API（システム管理者専用）
+        $builder->connect('/RoomUsage/roomUsage', ['controller' => 'RoomUsage', 'action' => 'roomUsage'])->setMethods(['GET']);
+        $builder->connect('/RoomUsage/lowUsageRooms', ['controller' => 'RoomUsage', 'action' => 'lowUsageRooms'])->setMethods(['GET']);
+
         // MRoomTransferSchedule（部屋異動予約）
         $builder->connect('/MRoomTransferSchedule', ['controller' => 'MRoomTransferSchedule', 'action' => 'index']);
         $builder->connect('/MRoomTransferSchedule/add', ['controller' => 'MRoomTransferSchedule', 'action' => 'add']);
