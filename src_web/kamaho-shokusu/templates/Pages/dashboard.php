@@ -357,6 +357,11 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-title-text">監査ログ</div>
                         <div class="menu-desc">全操作履歴を検索・CSVエクスポート</div>
                     </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/RoomUsage') ?>">
+                        <div class="menu-icon" style="background:#e8f5e9;color:#2e7d32;">📈</div>
+                        <div class="menu-title-text">部屋使用率</div>
+                        <div class="menu-desc">部屋ごとの食事利用率・低使用率部屋のピックアップ</div>
+                    </a>
                 </div>
             <?php endif; ?>
         </main>

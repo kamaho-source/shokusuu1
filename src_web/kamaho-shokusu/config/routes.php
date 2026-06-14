@@ -160,7 +160,8 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);
 
-        // 部屋使用率 API（システム管理者専用）
+        // 部屋使用率（システム管理者専用）
+        $builder->connect('/RoomUsage', ['controller' => 'RoomUsage', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/RoomUsage/roomUsage', ['controller' => 'RoomUsage', 'action' => 'roomUsage'])->setMethods(['GET']);
         $builder->connect('/RoomUsage/lowUsageRooms', ['controller' => 'RoomUsage', 'action' => 'lowUsageRooms'])->setMethods(['GET']);
 

@@ -13,6 +13,11 @@ use Authorization\IdentityInterface;
  */
 class RoomUsagePolicy
 {
+    public function canIndex(?IdentityInterface $user, mixed $resource): bool
+    {
+        return $this->isSystemAdmin($user);
+    }
+
     public function canRoomUsage(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->isSystemAdmin($user);

@@ -8,7 +8,7 @@ use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 
 /**
- * 部屋使用率 API コントローラー
+ * 部屋使用率コントローラー
  *
  * システム管理者専用。部屋ごとの使用率集計・低使用率部屋のピックアップを提供する。
  */
@@ -20,6 +20,35 @@ class RoomUsageController extends AppController
     {
         parent::initialize();
         $this->roomUsageService = new RoomUsageService();
+        $this->viewBuilder()->setLayout('default');
+    }
+
+    /**
+     * GET /RoomUsage — 部屋使用率一覧ページ（HTML）
+     */
+    public function index(): ?Response
+    {
+        try {
+            $this->Authorization->authorize($this, 'index');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error('この機能はシステム管理者のみ利用できます。');
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
+        }
+
+        $dateFrom  = $this->request->getQuery('date_from') ?: date('Y-m-01');
+        $dateTo    = $this->request->getQuery('date_to')   ?: date('Y-m-d');
+        $mealType  = $this->request->getQuery('meal_type') !== null && $this->request->getQuery('meal_type') !== ''
+            ? (int)$this->request->getQuery('meal_type')
+            : null;
+        $threshold = $this->request->getQuery('threshold') !== null && $this->request->getQuery('threshold') !== ''
+            ? (float)$this->request->getQuery('threshold')
+            : 50.0;
+
+        $rooms    = $this->roomUsageService->getRoomUsage($dateFrom, $dateTo, $mealType);
+        $lowRooms = $this->roomUsageService->getLowUsageRooms($threshold, $dateFrom, $dateTo, $mealType);
+
+        $this->set(compact('rooms', 'lowRooms', 'dateFrom', 'dateTo', 'mealType', 'threshold'));
+        return null;
     }
 
     /**
