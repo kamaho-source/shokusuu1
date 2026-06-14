@@ -105,17 +105,16 @@ class ApprovalServiceTest extends TestCase
     }
 
     /**
-     * バグ再現テスト:
-     * STATUS_PENDING(0) のレコードを adminApprove しても STATUS_ADMIN(2) にならないこと。
+     * 管理者は緊急時にブロック長承認ステップを経ずに直接最終承認できること。
      */
-    public function testAdminApprove_fails_when_status_is_pending(): void
+    public function testAdminApprove_succeeds_from_pending(): void
     {
         $this->setStatus(ApprovalService::STATUS_PENDING);
 
         $result = $this->service->adminApprove([$this->key1], 99, 'tester');
 
-        $this->assertFalse($result);
-        $this->assertSame(ApprovalService::STATUS_PENDING, $this->getStatus(), '承認ルートを経由せず承認済みになってはならない');
+        $this->assertTrue($result);
+        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), '管理者は未承認レコードを直接最終承認できる');
     }
 
     // ----------------------------------------------------------------
