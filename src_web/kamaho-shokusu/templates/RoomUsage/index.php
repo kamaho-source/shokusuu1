@@ -83,7 +83,7 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                 <thead class="table-light">
                 <tr>
                     <th>部屋名</th>
-                    <th class="text-end">定員数</th>
+                    <th class="text-end">総食数</th>
                     <th class="text-end">食べる</th>
                     <th>使用率</th>
                 </tr>
@@ -123,7 +123,7 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                 <thead class="table-light">
                 <tr>
                     <th>部屋名</th>
-                    <th class="text-end">定員数</th>
+                    <th class="text-end">総食数</th>
                     <th class="text-end">食べる</th>
                     <th class="text-end">食べない</th>
                     <th>使用率</th>
