@@ -83,7 +83,7 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                 <thead class="table-light">
                 <tr>
                     <th>部屋名</th>
-                    <th class="text-end">総予約数</th>
+                    <th class="text-end">定員スロット数</th>
                     <th class="text-end">食べる</th>
                     <th>使用率</th>
                 </tr>
@@ -92,7 +92,7 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                 <?php foreach ($lowRooms as $r): ?>
                     <tr>
                         <td><?= h($r['room_name']) ?></td>
-                        <td class="text-end"><?= h($r['total_reservations']) ?></td>
+                        <td class="text-end"><?= h($r['capacity']) ?></td>
                         <td class="text-end"><?= h($r['eat_count']) ?></td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
@@ -123,15 +123,15 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                 <thead class="table-light">
                 <tr>
                     <th>部屋名</th>
-                    <th class="text-end">総予約数</th>
+                    <th class="text-end">定員スロット数</th>
                     <th class="text-end">食べる</th>
-                    <th class="text-end">食べない</th>
+                    <th class="text-end">食べない・未提出</th>
                     <th>使用率</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php foreach ($rooms as $r): ?>
-                    <?php $isLow = $r['usage_rate'] <= $threshold && $r['total_reservations'] > 0; ?>
+                    <?php $isLow = $r['usage_rate'] <= $threshold && $r['capacity'] > 0; ?>
                     <tr class="<?= $isLow ? 'table-warning' : '' ?>">
                         <td>
                             <?= h($r['room_name']) ?>
@@ -139,9 +139,9 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                                 <span class="badge bg-warning text-dark low-badge ms-1">低</span>
                             <?php endif; ?>
                         </td>
-                        <td class="text-end"><?= h($r['total_reservations']) ?></td>
+                        <td class="text-end"><?= h($r['capacity']) ?></td>
                         <td class="text-end"><?= h($r['eat_count']) ?></td>
-                        <td class="text-end"><?= h($r['total_reservations'] - $r['eat_count']) ?></td>
+                        <td class="text-end"><?= h($r['capacity'] - $r['eat_count']) ?></td>
                         <td>
                             <div class="d-flex align-items-center gap-2">
                                 <div class="usage-bar-wrap">
