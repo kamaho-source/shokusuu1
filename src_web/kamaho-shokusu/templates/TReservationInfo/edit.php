@@ -1,5 +1,6 @@
 <?php
-$loginUser = $this->request->getAttribute('identity'); // 認証済みユーザー情報
+$this->assign('title', '食数予約の編集');
+$loginUser = $this->request->getAttribute('identity');
 ?>
 
 <div class="row">

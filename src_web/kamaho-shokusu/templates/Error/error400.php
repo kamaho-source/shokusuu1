@@ -10,6 +10,16 @@ use Cake\Error\Debugger;
 
 $this->layout = 'error';
 
+$messageMap = [
+    'Bad Request'           => '不正なリクエスト',
+    'Forbidden'             => 'アクセス権限がありません',
+    'Not Found'             => 'ページが見つかりません',
+    'Method Not Allowed'    => '許可されていないメソッドです',
+    'Gone'                  => 'このページは削除されました',
+    'Unauthorized'          => '認証が必要です',
+];
+$japaneseTitle = $messageMap[$message] ?? 'エラーが発生しました';
+
 if (Configure::read('debug')) :
     $this->layout = 'dev_error';
 
@@ -34,9 +44,11 @@ if (Configure::read('debug')) :
 
     $this->end();
 endif;
+
+$this->assign('title', $japaneseTitle);
 ?>
-<h2><?= h($message) ?></h2>
+<h2><?= h($japaneseTitle) ?></h2>
 <p class="error">
-    <strong><?= __d('cake', 'Error') ?>: </strong>
-    <?= __d('cake', 'The requested address {0} was not found on this server.', "<strong>'{$url}'</strong>") ?>
+    <strong>エラー: </strong>
+    <?= sprintf('リクエストされたアドレス <strong>\'%s\'</strong> はこのサーバーで見つかりませんでした。', h($url)) ?>
 </p>
