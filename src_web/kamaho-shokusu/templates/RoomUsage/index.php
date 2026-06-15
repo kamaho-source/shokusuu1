@@ -30,6 +30,12 @@ $basePath   = $this->request->getAttribute('base') ?? '';
         .usage-bar { height: 8px; border-radius: 4px; background: #e9ecef; overflow: hidden; }
         .usage-bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
         .low-badge { font-size: .7rem; padding: 2px 6px; }
+        .staff-row { background: #f8f9fa; }
+        .staff-row td { font-size: .85rem; padding-top: 4px !important; padding-bottom: 4px !important; }
+        .staff-toggle { cursor: pointer; user-select: none; }
+        .staff-toggle .toggle-icon { font-size: .75rem; transition: transform .2s; display: inline-block; }
+        .staff-toggle.collapsed .toggle-icon { transform: rotate(-90deg); }
+        .staff-indent { padding-left: 1.5rem !important; }
     </style>
 </head>
 <body>
@@ -130,10 +136,15 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                 </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($rooms as $r): ?>
+                <?php foreach ($rooms as $idx => $r): ?>
                     <?php $isLow = $r['usage_rate'] <= $threshold && $r['capacity'] > 0; ?>
-                    <tr class="<?= $isLow ? 'table-warning' : '' ?>">
+                    <?php $hasStaff = !empty($r['staff']); ?>
+                    <tr class="<?= $isLow ? 'table-warning' : '' ?><?= $hasStaff ? ' staff-toggle' : '' ?>"
+                        <?= $hasStaff ? 'data-bs-toggle="collapse" data-bs-target="#staff-' . $idx . '" aria-expanded="true"' : '' ?>>
                         <td>
+                            <?php if ($hasStaff): ?>
+                                <span class="toggle-icon me-1">▾</span>
+                            <?php endif; ?>
                             <?= h($r['room_name']) ?>
                             <?php if ($isLow): ?>
                                 <span class="badge bg-warning text-dark low-badge ms-1">低</span>
@@ -157,6 +168,47 @@ $basePath   = $this->request->getAttribute('base') ?? '';
                             </div>
                         </td>
                     </tr>
+                    <?php if ($hasStaff): ?>
+                    <tr class="collapse show" id="staff-<?= $idx ?>">
+                        <td colspan="5" class="p-0">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-secondary">
+                                <tr>
+                                    <th class="staff-indent">職員名</th>
+                                    <th class="text-end">総食数</th>
+                                    <th class="text-end">食べる</th>
+                                    <th class="text-end">食べない</th>
+                                    <th>使用率</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($r['staff'] as $s): ?>
+                                    <?php
+                                        $sPct   = (float)$s['usage_rate'];
+                                        $sColor = $sPct >= 70 ? '#198754' : ($sPct >= 50 ? '#ffc107' : '#dc3545');
+                                    ?>
+                                    <tr class="staff-row">
+                                        <td class="staff-indent"><?= h($s['user_name']) ?></td>
+                                        <td class="text-end"><?= h($s['capacity']) ?></td>
+                                        <td class="text-end"><?= h($s['eat_count']) ?></td>
+                                        <td class="text-end"><?= h($s['capacity'] - $s['eat_count']) ?></td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="usage-bar-wrap">
+                                                    <div class="usage-bar">
+                                                        <div class="usage-bar-fill" style="width:<?= h(min(100, $sPct)) ?>%;background:<?= h($sColor) ?>"></div>
+                                                    </div>
+                                                </div>
+                                                <span class="fw-semibold" style="color:<?= h($sColor) ?>"><?= h($sPct) ?>%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                 <?php endforeach; ?>
                 </tbody>
             </table>
@@ -165,5 +217,12 @@ $basePath   = $this->request->getAttribute('base') ?? '';
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+document.querySelectorAll('.staff-toggle').forEach(function(row) {
+    row.addEventListener('click', function() {
+        this.classList.toggle('collapsed');
+    });
+});
+</script>
 </body>
 </html>
