@@ -15,7 +15,7 @@
  */
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
     <?= $this->Html->charset() ?>
     <title>
@@ -33,7 +33,7 @@
     <div class="error-container">
         <?= $this->Flash->render() ?>
         <?= $this->fetch('content') ?>
-        <?= $this->Html->link(__('Back'), 'javascript:history.back()') ?>
+        <?= $this->Html->link('戻る', 'javascript:history.back()') ?>
     </div>
 </body>
 </html>

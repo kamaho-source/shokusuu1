@@ -31,7 +31,7 @@ if (Configure::read('debug')) :
     <?php if ($error instanceof Error) : ?>
     <?php $file = $error->getFile() ?>
     <?php $line = $error->getLine() ?>
-    <strong>Error in: </strong>
+    <strong>エラー箇所: </strong>
     <?= $this->Html->link(sprintf('%s, line %s', Debugger::trimPath($file), $line), Debugger::editorUrl($file, $line)); ?>
 <?php endif; ?>
     <?php
@@ -39,9 +39,11 @@ if (Configure::read('debug')) :
 
     $this->end();
 endif;
+
+$this->assign('title', '内部エラーが発生しました');
 ?>
-<h2><?= __d('cake', 'An Internal Error Has Occurred.') ?></h2>
+<h2>内部エラーが発生しました。</h2>
 <p class="error">
-    <strong><?= __d('cake', 'Error') ?>: </strong>
+    <strong>エラー: </strong>
     <?= h($message) ?>
 </p>
