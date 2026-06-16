@@ -57,7 +57,7 @@ echo $this->Html->css('pages/t_reservation_view.css');
 
             <div class="tabs">
                 <?php
-                $viewFormAction = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'view', 'date' => $date]);
+                $viewFormAction = $this->Url->build('/TReservationInfo/view/' . rawurlencode((string)$date));
                 $csrfToken = (string)($this->request->getAttribute('csrfToken') ?? '');
                 foreach ($roomsForTabs as $rid => $rname):
                     $activeClass = ((int)$rid === (int)$activeRoomId) ? 'active' : '';
