@@ -65,6 +65,33 @@ if (!empty($dates)) {
     </div>
 </div>
 
+<?php if (!empty($rejectionBanner)): ?>
+<div class="alert alert-danger alert-dismissible d-flex gap-3 align-items-start mx-3 mt-3 mb-0" id="rejection-banner" role="alert">
+    <span style="font-size:1.3rem;line-height:1;">⚠️</span>
+    <div class="flex-grow-1">
+        <div class="fw-bold mb-1">この週の実食申請が差し戻されました</div>
+        <div class="mb-1">
+            <?php if (!empty($rejectionBanner['reason'])): ?>
+                <span class="fw-semibold">差し戻し理由：</span><?= h($rejectionBanner['reason']) ?>
+            <?php else: ?>
+                差し戻し理由は入力されていません。内容を確認して再提出してください。
+            <?php endif; ?>
+        </div>
+        <?php if (!empty($rejectionBanner['approver']) || !empty($rejectionBanner['date'])): ?>
+        <div class="small text-muted">
+            <?php if (!empty($rejectionBanner['approver'])): ?>
+                差し戻し者：<?= h($rejectionBanner['approver']) ?>
+            <?php endif; ?>
+            <?php if (!empty($rejectionBanner['date'])): ?>
+                ／ <?= h($rejectionBanner['date']) ?>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="閉じる"></button>
+</div>
+<?php endif; ?>
+
 <div class="page-shell">
     <div class="layout-grid">
         <aside class="sidebar-stack">
@@ -142,33 +169,6 @@ if (!empty($dates)) {
         </aside>
 
         <main class="content-stack">
-            <?php if (!empty($rejectionBanner)): ?>
-            <div class="alert alert-danger alert-dismissible d-flex gap-3 align-items-start mb-0" id="rejection-banner" role="alert">
-                <span style="font-size:1.3rem;line-height:1;">⚠️</span>
-                <div class="flex-grow-1">
-                    <div class="fw-bold mb-1">この週の実食申請が差し戻されました</div>
-                    <div class="mb-1">
-                        <?php if (!empty($rejectionBanner['reason'])): ?>
-                            <span class="fw-semibold">差し戻し理由：</span><?= h($rejectionBanner['reason']) ?>
-                        <?php else: ?>
-                            差し戻し理由は入力されていません。内容を確認して再提出してください。
-                        <?php endif; ?>
-                    </div>
-                    <?php if (!empty($rejectionBanner['approver']) || !empty($rejectionBanner['date'])): ?>
-                    <div class="small text-muted">
-                        <?php if (!empty($rejectionBanner['approver'])): ?>
-                            差し戻し者：<?= h($rejectionBanner['approver']) ?>
-                        <?php endif; ?>
-                        <?php if (!empty($rejectionBanner['date'])): ?>
-                            ／ <?= h($rejectionBanner['date']) ?>
-                        <?php endif; ?>
-                    </div>
-                    <?php endif; ?>
-                </div>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="閉じる"></button>
-            </div>
-            <?php endif; ?>
-
             <div class="week-nav-bar">
                 <?php if ($canGoPrev): ?>
                     <a class="btn btn-outline-secondary btn-sm"
