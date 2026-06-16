@@ -19,6 +19,7 @@ namespace App\Controller;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
+use Cake\Http\Response;
 
 /**
  * Application Controller
@@ -75,6 +76,18 @@ class AppController extends Controller
 
         // '/' から始まる内部パスのみ許可
         return str_starts_with($url, '/');
+    }
+
+    /**
+     * 文字列URLに対してオープンリダイレクト検証を自動適用する。
+     * 外部ドメインへのリダイレクトはルートにフォールバックする。
+     */
+    public function redirect(array|string $url, int $status = 302): Response
+    {
+        if (is_string($url) && !$this->isSafeRedirect($url)) {
+            $url = '/';
+        }
+        return parent::redirect($url, $status);
     }
 
     /**
