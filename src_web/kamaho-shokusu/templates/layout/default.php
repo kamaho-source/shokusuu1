@@ -3,7 +3,7 @@
 <head>
     <?= $this->Html->charset() ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= $this->fetch('title') ?></title>
+    <title><?= $this->fetch('title') ?: '食数管理システム' ?></title>
     <?= $this->Html->css('bootstrap.min.css') ?>
     <?= $this->Html->meta('icon') ?>
     <?= $this->Html->meta('description', '食数管理システム') ?>

@@ -20,12 +20,12 @@ use Cake\ORM\TableRegistry;
 class RoomUsageService
 {
     /**
-     * 部屋ごとの使用率一覧を返す。
+     * 部屋ごとの使用率一覧を返す。職員（i_user_level=0）の個別使用率も含む。
      *
      * @param string|null $dateFrom 開始日 (Y-m-d)
      * @param string|null $dateTo   終了日 (Y-m-d)
      * @param int|null    $mealType 食種 (1=朝 2=昼 3=夕 4=弁当, null=全て)
-     * @return array{room_id:int, room_name:string, user_count:int, capacity:int, eat_count:int, usage_rate:float}[]
+     * @return array{room_id:int, room_name:string, user_count:int, capacity:int, eat_count:int, usage_rate:float, staff:array}[]
      */
     public function getRoomUsage(
         ?string $dateFrom = null,
@@ -39,7 +39,7 @@ class RoomUsageService
 
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $query = $table->find()
-            ->contain(['MRoomInfo'])
+            ->contain(['MRoomInfo', 'MUserInfo'])
             ->where([
                 'TIndividualReservationInfo.d_reservation_date >=' => $resolvedFrom,
                 'TIndividualReservationInfo.d_reservation_date <=' => $resolvedTo,
@@ -50,13 +50,17 @@ class RoomUsageService
         }
 
         // 部屋ごとに「期間中の DISTINCT ユーザー集合」と「食べる件数」を集計
-        $usersByRoom = [];
-        $eatCounts   = [];
-        $roomNames   = [];
+        $usersByRoom    = [];
+        $eatCounts      = [];
+        $roomNames      = [];
+        $staffByRoom    = [];
+        $staffEatCounts = [];
+        $staffNames     = [];
 
         foreach ($query->all()->toArray() as $row) {
-            $roomId = (int)$row->i_id_room;
-            $userId = (int)$row->i_id_user;
+            $roomId    = (int)$row->i_id_room;
+            $userId    = (int)$row->i_id_user;
+            $userLevel = (int)($row->m_user_info->i_user_level ?? -1);
 
             $usersByRoom[$roomId][$userId] = true;
             $roomNames[$roomId]            = $row->m_room_info->c_room_name ?? '';
@@ -67,6 +71,15 @@ class RoomUsageService
             if ($effectiveEat === 1) {
                 $eatCounts[$roomId] = ($eatCounts[$roomId] ?? 0) + 1;
             }
+
+            // 職員（i_user_level=0）のみ別途集計
+            if ($userLevel === 0) {
+                $staffByRoom[$roomId][$userId] = true;
+                $staffNames[$userId]           = $row->m_user_info->c_user_name ?? '';
+                if ($effectiveEat === 1) {
+                    $staffEatCounts[$roomId][$userId] = ($staffEatCounts[$roomId][$userId] ?? 0) + 1;
+                }
+            }
         }
 
         $result = [];
@@ -74,13 +87,29 @@ class RoomUsageService
             $userCount = count($users);
             $capacity  = $userCount * $days * $mealTypeCount;
             $eatCount  = $eatCounts[$roomId] ?? 0;
-            $result[]  = [
+
+            $staffList = [];
+            foreach (array_keys($staffByRoom[$roomId] ?? []) as $staffId) {
+                $staffCapacity = $days * $mealTypeCount;
+                $staffEatCount = $staffEatCounts[$roomId][$staffId] ?? 0;
+                $staffList[]   = [
+                    'user_id'    => $staffId,
+                    'user_name'  => $staffNames[$staffId],
+                    'capacity'   => $staffCapacity,
+                    'eat_count'  => $staffEatCount,
+                    'usage_rate' => $staffCapacity > 0 ? round($staffEatCount / $staffCapacity * 100, 1) : 0.0,
+                ];
+            }
+            usort($staffList, static fn(array $a, array $b): int => strcmp((string)$a['user_name'], (string)$b['user_name']));
+
+            $result[] = [
                 'room_id'    => $roomId,
                 'room_name'  => $roomNames[$roomId],
                 'user_count' => $userCount,
                 'capacity'   => $capacity,
                 'eat_count'  => $eatCount,
                 'usage_rate' => $capacity > 0 ? round($eatCount / $capacity * 100, 1) : 0.0,
+                'staff'      => $staffList,
             ];
         }
 

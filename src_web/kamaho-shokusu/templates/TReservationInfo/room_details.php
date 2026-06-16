@@ -1,3 +1,4 @@
+<?php $this->assign('title', '部屋詳細'); ?>
 <div class="container">
     <h1>部屋詳細</h1>
     <h2>部屋名: <?= h($room->c_room_name) ?></h2> <!-- 部屋名 -->

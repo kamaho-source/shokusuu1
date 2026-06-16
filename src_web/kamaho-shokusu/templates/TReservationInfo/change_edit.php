@@ -2,6 +2,7 @@
 /**
  * 直前編集ビュー
  */
+$this->assign('title', '直前編集');
 
 $selectedRoomId = null;
 $selectedRoomName = '';
