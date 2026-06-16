@@ -53,7 +53,7 @@ window.__BASE_PATH = window.__TRESP.basePath;
                         instance?.show();
                         toastEl.addEventListener('hidden.bs.toast', function(){ toastEl.remove(); });
                     } catch (e) {
-                        console.log('[pageToast]', message);
+                        console.error('[pageToast]', e);
                     }
                 }
 
@@ -67,7 +67,7 @@ function notifyUser(message, type) {
         window.pageToast(message, tone);
         return;
     }
-    try { console.log('[notify]', message); } catch (_) {}
+    alert(message);
 }
 
 (function(){
@@ -1073,21 +1073,11 @@ function unlockForChildren(wrap){
 
         // 複数部屋所属の場合の情報表示
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.__USER_INFO) {
-                console.log('ユーザー情報:', window.__USER_INFO);
-                if (window.__USER_INFO.roomCount > 1) {
-                    console.log('複数部屋所属:', window.__USER_INFO.roomIds);
-                    console.log('表示される食数は', window.__USER_INFO.roomCount, '部屋の合計です');
-                    // 必要に応じて、複数部屋所属の旨をユーザーに表示
-                    if (typeof window.pageToast === 'function') {
-                        setTimeout(function() {
-                            window.pageToast('複数部屋(' + window.__USER_INFO.roomCount + '部屋)の合計数を表示中', 'info');
-                        }, 1000);
-                    }
-                } else if (window.__USER_INFO.roomCount === 1) {
-                    console.log('単一部屋所属:', window.__USER_INFO.roomIds);
-                } else {
-                    console.log('部屋所属なし');
+            if (window.__USER_INFO && window.__USER_INFO.roomCount > 1) {
+                if (typeof window.pageToast === 'function') {
+                    setTimeout(function() {
+                        window.pageToast('複数部屋(' + window.__USER_INFO.roomCount + '部屋)の合計数を表示中', 'info');
+                    }, 1000);
                 }
             }
         });
@@ -1448,7 +1438,6 @@ function unlockForChildren(wrap){
                 // add.js の初期化関数を明示的に呼び出すことで、表示崩れを解消する
                 if (window.ADD_RESERVATION && typeof window.ADD_RESERVATION.init === 'function') {
                     try {
-                        console.log('[loadInto] Explicitly calling ADD_RESERVATION.init()');
                         window.ADD_RESERVATION.init(host);
                     } catch (e) {
                         console.error('Error during ADD_RESERVATION.init():', e);
@@ -2964,8 +2953,6 @@ function isWithin14(dateStr){
             })
                 .then(response => response.json())
                 .then(data => {
-                    // 成功時の処理
-                    console.log('コピー完了', data);
                     // 必要ならリロードやUI更新
                 })
                 .catch(error => {
@@ -3106,9 +3093,6 @@ function isWithin14(dateStr){
             
             // 直前編集モーダル（change_edit.php）: data-reservation-type属性を使用
             var changeEditRows = root.querySelectorAll('#ce-tbody tr[data-user-id], tbody tr[data-user-id]');
-            if (changeEditRows.length > 0) {
-                console.log('[applyLunchBentoExclusion] 直前編集モーダルの排他制御を適用します。対象行数:', changeEditRows.length);
-            }
             changeEditRows.forEach(function(tr){
                 var lunchCb = tr.querySelector('input.meal-checkbox[data-reservation-type="2"]');
                 var bentoCb = tr.querySelector('input.meal-checkbox[data-reservation-type="4"]');
