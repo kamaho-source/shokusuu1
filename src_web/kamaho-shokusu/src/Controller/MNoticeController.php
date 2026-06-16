@@ -75,16 +75,40 @@ class MNoticeController extends AppController
         $isSysAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 3;
 
         if ($this->request->is('post')) {
-            $data     = $this->request->getData();
-            $rawType  = (int)($data['i_type'] ?? 0);
+            $data       = $this->request->getData();
+            $importance = (int)($data['i_importance'] ?? 0);
+            $rawType    = (int)($data['i_type'] ?? 0);
+            $dStart     = ($data['d_start'] ?? '') !== '' ? (string)$data['d_start'] : null;
+            $dEnd       = ($data['d_end']   ?? '') !== '' ? (string)$data['d_end']   : null;
+
+            if (!in_array($importance, [0, 1], true)) {
+                $this->Flash->error(__('重要度の値が不正です。'));
+                $this->set(compact('resource', 'isSysAdmin'));
+                return null;
+            }
+            if (!in_array($rawType, [0, 1], true)) {
+                $this->Flash->error(__('種別の値が不正です。'));
+                $this->set(compact('resource', 'isSysAdmin'));
+                return null;
+            }
+            if ($dStart !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dStart)) {
+                $this->Flash->error(__('開始日の形式が不正です。'));
+                $this->set(compact('resource', 'isSysAdmin'));
+                return null;
+            }
+            if ($dEnd !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dEnd)) {
+                $this->Flash->error(__('終了日の形式が不正です。'));
+                $this->set(compact('resource', 'isSysAdmin'));
+                return null;
+            }
 
             $notice = $table->newEmptyEntity();
             $notice = $table->patchEntity($notice, [
                 'c_title'      => trim((string)($data['c_title'] ?? '')),
                 'c_body'       => ($data['c_body'] ?? '') !== '' ? $data['c_body'] : null,
-                'd_start'      => ($data['d_start'] ?? '') !== '' ? $data['d_start'] : null,
-                'd_end'        => ($data['d_end']   ?? '') !== '' ? $data['d_end']   : null,
-                'i_importance' => (int)($data['i_importance'] ?? 0),
+                'd_start'      => $dStart,
+                'd_end'        => $dEnd,
+                'i_importance' => $importance,
                 'i_type'       => $isSysAdmin ? $rawType : 0,
             ]);
 
@@ -93,6 +117,17 @@ class MNoticeController extends AppController
             $notice->c_update_user     = $loginUser?->get('c_user_name') ?? 'system';
 
             if ($table->save($notice)) {
+                \App\Service\AuditLogService::record(
+                    'notice',
+                    'notice_add',
+                    $loginUser?->get('c_user_name') ?? 'system',
+                    (int)($loginUser?->get('i_id_user') ?? 0),
+                    'm_notice',
+                    (string)$notice->i_id_notice,
+                    ['title' => $notice->c_title],
+                    $this->getClientIp(),
+                    1
+                );
                 $this->Flash->success(__('お知らせを登録しました。'));
                 return $this->redirect(['action' => 'index']);
             }
@@ -129,21 +164,56 @@ class MNoticeController extends AppController
         $isSysAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 3;
 
         if ($this->request->is('post')) {
-            $data    = $this->request->getData();
-            $rawType = (int)($data['i_type'] ?? 0);
+            $data       = $this->request->getData();
+            $importance = (int)($data['i_importance'] ?? 0);
+            $rawType    = (int)($data['i_type'] ?? 0);
+            $dStart     = ($data['d_start'] ?? '') !== '' ? (string)$data['d_start'] : null;
+            $dEnd       = ($data['d_end']   ?? '') !== '' ? (string)$data['d_end']   : null;
+
+            if (!in_array($importance, [0, 1], true)) {
+                $this->Flash->error(__('重要度の値が不正です。'));
+                $this->set(compact('notice', 'isSysAdmin'));
+                return null;
+            }
+            if (!in_array($rawType, [0, 1], true)) {
+                $this->Flash->error(__('種別の値が不正です。'));
+                $this->set(compact('notice', 'isSysAdmin'));
+                return null;
+            }
+            if ($dStart !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dStart)) {
+                $this->Flash->error(__('開始日の形式が不正です。'));
+                $this->set(compact('notice', 'isSysAdmin'));
+                return null;
+            }
+            if ($dEnd !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dEnd)) {
+                $this->Flash->error(__('終了日の形式が不正です。'));
+                $this->set(compact('notice', 'isSysAdmin'));
+                return null;
+            }
 
             $notice = $table->patchEntity($notice, [
                 'c_title'      => trim((string)($data['c_title'] ?? '')),
                 'c_body'       => ($data['c_body'] ?? '') !== '' ? $data['c_body'] : null,
-                'd_start'      => ($data['d_start'] ?? '') !== '' ? $data['d_start'] : null,
-                'd_end'        => ($data['d_end']   ?? '') !== '' ? $data['d_end']   : null,
-                'i_importance' => (int)($data['i_importance'] ?? 0),
+                'd_start'      => $dStart,
+                'd_end'        => $dEnd,
+                'i_importance' => $importance,
                 'i_type'       => $isSysAdmin ? $rawType : (int)$notice->i_type,
             ]);
 
             $notice->c_update_user = $loginUser?->get('c_user_name') ?? 'system';
 
             if ($table->save($notice)) {
+                \App\Service\AuditLogService::record(
+                    'notice',
+                    'notice_edit',
+                    $loginUser?->get('c_user_name') ?? 'system',
+                    (int)($loginUser?->get('i_id_user') ?? 0),
+                    'm_notice',
+                    (string)$notice->i_id_notice,
+                    ['title' => $notice->c_title],
+                    $this->getClientIp(),
+                    1
+                );
                 $this->Flash->success(__('お知らせを更新しました。'));
                 return $this->redirect(['action' => 'index']);
             }
@@ -174,9 +244,23 @@ class MNoticeController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $notice = $table->get($id);
+        $notice     = $table->get($id);
+        $loginUser  = $this->request->getAttribute('identity');
+        $noticeId    = $notice->i_id_notice;
+        $noticeTitle = $notice->c_title;
 
         if ($table->delete($notice)) {
+            \App\Service\AuditLogService::record(
+                'notice',
+                'notice_delete',
+                $loginUser?->get('c_user_name') ?? 'system',
+                (int)($loginUser?->get('i_id_user') ?? 0),
+                'm_notice',
+                (string)$noticeId,
+                ['title' => $noticeTitle],
+                $this->getClientIp(),
+                1
+            );
             $this->Flash->success(__('お知らせを削除しました。'));
         } else {
             $this->Flash->error(__('お知らせの削除に失敗しました。'));
