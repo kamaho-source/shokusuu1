@@ -198,8 +198,6 @@
                         const emitDate = payload.date || date || '';
                         
                         if (modalEl) {
-                            console.log('Modal found, attempting to close:', modalEl.id);
-                            
                             // 複数の方法でモーダルを閉じる試行
                             // 1. reservation:savedイベントを発火（既存の仕組み）
                             modalEl.dispatchEvent(new CustomEvent('reservation:saved', { detail: { date: emitDate } }));
