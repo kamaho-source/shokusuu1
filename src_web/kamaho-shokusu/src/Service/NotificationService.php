@@ -84,9 +84,11 @@ class NotificationService
                 $message .= ' / 理由: ' . trim($reason);
             }
 
-            $deepLink = !empty($group['earliest_date'])
-                ? '/TReservationInfo/bulk-change-edit-form?date=' . $group['earliest_date']
-                : '/TReservationInfo';
+            $deepLink = '/TReservationInfo/my-actual-meal';
+            if (!empty($group['earliest_date'])) {
+                $monday = (new \DateTimeImmutable($group['earliest_date']))->modify('monday this week')->format('Y-m-d');
+                $deepLink .= '?week=' . $monday;
+            }
 
             $notification = $notificationTable->newEntity([
                 'i_id_user' => $userId,
