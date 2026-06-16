@@ -20,6 +20,7 @@ use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
 use Cake\Http\Response;
+use Psr\Http\Message\UriInterface;
 
 /**
  * Application Controller
@@ -82,7 +83,7 @@ class AppController extends Controller
      * 文字列URLに対してオープンリダイレクト検証を自動適用する。
      * 外部ドメインへのリダイレクトはルートにフォールバックする。
      */
-    public function redirect(array|string $url, int $status = 302): Response
+    public function redirect(UriInterface|array|string $url, int $status = 302): ?Response
     {
         if (is_string($url) && !$this->isSafeRedirect($url)) {
             $url = '/';
