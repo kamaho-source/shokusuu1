@@ -55,9 +55,8 @@ class TReservationInfoPolicy
 
         $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
         if ($requestedUserId <= 0) {
-            // i_id_user が未指定（0）の場合は「全員向けトグル」として許可する。
-            // 部屋アクセスチェックは上で通過済みのため、認証さえ通っていれば操作可能とする。
-            return true;
+            // i_id_user が 0 の場合は全員向けトグルとして扱うが、管理者・職員のみに限定する（IDOR防止）。
+            return $this->isStaffOrAdmin($user);
         }
 
         $loginUserId = $this->getUserId($user);
