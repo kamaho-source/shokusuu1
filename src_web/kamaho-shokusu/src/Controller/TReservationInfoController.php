@@ -1646,10 +1646,32 @@ class TReservationInfoController extends AppController
             $gridData = $service->buildWeekGrid($this->TIndividualReservationInfo, $selectedUsers, $weekMondayStr);
         }
 
+        // 表示週の差し戻し理由（最新1件）を取得してバナー表示に使う
+        $rejectionBanner = null;
+        $weekSundayStr = (new \DateTimeImmutable($weekMondayStr))->modify('+6 days')->format('Y-m-d');
+        $latestRejection = $this->fetchTable('TApprovalLog')->find()
+            ->contain(['Approvers'])
+            ->where([
+                'TApprovalLog.i_id_user'         => $selectedUserId,
+                'TApprovalLog.i_approval_status'  => 3,
+                'TApprovalLog.d_reservation_date >=' => $weekMondayStr,
+                'TApprovalLog.d_reservation_date <=' => $weekSundayStr,
+            ])
+            ->orderDesc('TApprovalLog.dt_create')
+            ->first();
+        if ($latestRejection !== null) {
+            $rejectionBanner = [
+                'reason'   => (string)($latestRejection->c_reject_reason ?: ''),
+                'approver' => (string)($latestRejection->approver->c_user_name ?? ''),
+                'date'     => $latestRejection->dt_create?->format('Y-m-d H:i') ?? '',
+            ];
+        }
+
         $this->set(compact(
             'rooms', 'selectedRoomId', 'gridData', 'targetUsers', 'selectedUserId', 'selectedTargetUser',
             'weekMondayStr', 'prevMonday', 'nextMonday',
-            'canGoPrev', 'canGoNext', 'isAdmin', 'isBlockLeader', 'canProxyActualMeal'
+            'canGoPrev', 'canGoNext', 'isAdmin', 'isBlockLeader', 'canProxyActualMeal',
+            'rejectionBanner'
         ));
         return null;
     }
