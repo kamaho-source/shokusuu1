@@ -134,6 +134,10 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user) && $this->canAccessRoom($user, $resource);
     }
 
+    /**
+     * ログインユーザー自身の予約データ取得のみ許可。
+     * コントローラーはリクエストから userId を受け取らず、identity から強制取得するため IDOR 不可。
+     */
     public function canGetPersonalReservation(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
@@ -154,11 +158,19 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user);
     }
 
+    /**
+     * 実食なし報告はログインユーザー自身にのみ作用する。
+     * Trait 実装が identity から userId を強制取得するため IDOR 不可。
+     */
     public function canReportNoMeal(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
     }
 
+    /**
+     * 実食あり報告はログインユーザー自身にのみ作用する。
+     * Trait 実装が identity から userId を強制取得するため IDOR 不可。
+     */
     public function canReportEat(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
