@@ -209,16 +209,7 @@ class TReservationInfoPolicy
 
     public function canMyActualMeal(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        if (!$this->isAuthenticated($user)) {
-            return false;
-        }
-
-        $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
-        if ($requestedUserId <= 0) {
-            return true;
-        }
-
-        return $requestedUserId === $this->getUserId($user);
+        return $this->isAuthenticated($user);
     }
 
     public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool
