@@ -58,6 +58,13 @@ class NotificationService
             $userId = (int)$row->i_id_user;
             $grouped[$userId]['user_name'] = (string)($row->m_user_info->c_user_name ?? '');
             $grouped[$userId]['items'][] = $this->formatItemSummary($row);
+
+            $dateStr = method_exists($row->d_reservation_date, 'format')
+                ? $row->d_reservation_date->format('Y-m-d')
+                : (string)$row->d_reservation_date;
+            if (empty($grouped[$userId]['earliest_date']) || $dateStr < $grouped[$userId]['earliest_date']) {
+                $grouped[$userId]['earliest_date'] = $dateStr;
+            }
         }
 
         foreach ($grouped as $userId => $group) {
@@ -77,12 +84,18 @@ class NotificationService
                 $message .= ' / 理由: ' . trim($reason);
             }
 
+            $deepLink = '/TReservationInfo/my-actual-meal';
+            if (!empty($group['earliest_date'])) {
+                $monday = (new \DateTimeImmutable($group['earliest_date']))->modify('monday this week')->format('Y-m-d');
+                $deepLink .= '?week=' . $monday;
+            }
+
             $notification = $notificationTable->newEntity([
                 'i_id_user' => $userId,
                 'c_notification_type' => self::TYPE_APPROVAL_REJECTED,
                 'c_title' => '予約が差し戻されました',
                 'c_message' => mb_strimwidth($message, 0, 255, '...'),
-                'c_link' => '/TReservationInfo',
+                'c_link' => $deepLink,
                 'i_is_read' => 0,
                 'dt_create' => $createdAt,
             ]);
