@@ -420,6 +420,9 @@ return [
      */
     'Session' => [
         'defaults' => 'php',
-        'timeout' => 60, // 60分でセッションを失効させる
+        'timeout' => 720, // 720分（12時間）
+        'ini' => [
+            'session.gc_maxlifetime' => 43200, // 43200秒（12時間）: timeout と整合させる
+        ],
     ],
 ];

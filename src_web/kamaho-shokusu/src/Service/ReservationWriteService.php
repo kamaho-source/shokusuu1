@@ -29,16 +29,19 @@ class ReservationWriteService
         string $userName,
         callable $dateValidator
     ): array {
-        if (empty($jsonData) || (!is_string($jsonData) && !is_array($jsonData))) {
-            Log::error('入力データが無効です。空文字列または期待しない形式です。');
-            return $this->err('入力データが無効です。', 400);
-        }
-
         try {
-            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+            $data = $this->decodeJsonInput($jsonData);
+        } catch (\InvalidArgumentException $e) {
+            Log::error($e->getMessage());
+            return $this->err($e->getMessage(), 400);
         } catch (\JsonException $e) {
             Log::error('JSONデコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
+        }
+
+        if (!isset($data['meals']) || !is_array($data['meals'])) {
+            Log::error('データ構造が不正: "meals" キーが存在しない、または配列ではありません。データ: ' . json_encode($data));
+            return $this->err('データ構造が不正です。', 422);
         }
 
         $dateValidation = $dateValidator($reservationDate);
@@ -47,142 +50,30 @@ class ReservationWriteService
             return $this->err((string)$dateValidation, 422);
         }
 
-        if (!isset($data['meals']) || !is_array($data['meals'])) {
-            Log::error('データ構造が不正: "meals" キーが存在しない、または配列ではありません。データ: ' . json_encode($data));
-            return $this->err('データ構造が不正です。', 422);
+        try {
+            $selectedRoomPerMeal = $this->resolveSelectedRoomsPerMeal($data['meals'], $rooms);
+        } catch (\OverflowException $e) {
+            Log::error($e->getMessage());
+            return $this->err($e->getMessage(), 409);
+        } catch (\DomainException $e) {
+            Log::error($e->getMessage());
+            return $this->err($e->getMessage(), 403);
         }
 
-        $reservationsToSave  = [];
-        $operationPerformed  = false;
-        $selectedRoomPerMeal = [];
-        $duplicates          = [];
-        $connection = $this->reservationTable->getConnection();
+        $existingMap        = [];
+        $duplicates         = [];
+        $operationPerformed = false;
+        $connection         = $this->reservationTable->getConnection();
         $connection->begin();
         try {
-            $existingRows = $this->reservationTable->find()
-                ->enableAutoFields(false)
-                ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
-                ->where([
-                    'i_id_user' => $userId,
-                    'd_reservation_date' => $reservationDate,
-                    'i_reservation_type IN' => [1, 2, 3, 4],
-                ])
-                ->all();
-            $existingMap = [];
-            $existingByMeal = [];
-            foreach ($existingRows as $row) {
-                $existingMap[(int)$row->i_reservation_type][(int)$row->i_id_room] = $row;
-                $existingByMeal[(int)$row->i_reservation_type][] = $row;
-            }
+            ['byRoom' => $existingMap, 'byMeal' => $existingByMeal] = $this->buildIndividualExistingMaps($reservationDate, $userId);
+            $changes            = $this->applyIndividualMealChanges($selectedRoomPerMeal, $existingByMeal, $existingMap, $reservationDate, $userId, $userName);
+            $duplicates         = $changes['duplicates'];
+            $operationPerformed = $changes['performed'];
 
-            foreach ($data['meals'] as $mealType => $selectedRooms) {
-                $selectedRoomPerMeal[$mealType] = null;
-                foreach ($selectedRooms as $roomId => $value) {
-                    $valueInt = is_bool($value) ? ($value ? 1 : 0) : (int)$value;
-                    if ($valueInt !== 1) {
-                        continue;
-                    }
-
-                    if (isset($selectedRoomPerMeal[$mealType]) && $selectedRoomPerMeal[$mealType] !== $roomId) {
-                        Log::error("同一食事区分で複数部屋が選択されました。MealType={$mealType}");
-                        $connection->rollback();
-                        return $this->err('同じ食事区分に対して複数の部屋を選択することはできません。', 409);
-                    }
-
-                    if (!array_key_exists($roomId, $rooms)) {
-                        Log::error('権限のない部屋が指定されました。Room ID: ' . $roomId);
-                        $connection->rollback();
-                        return $this->err('選択された部屋は権限がありません。', 403);
-                    }
-
-                    $selectedRoomPerMeal[$mealType] = $roomId;
-                }
-            }
-
-            foreach ($selectedRoomPerMeal as $mealType => $roomId) {
-                if ($roomId === null) {
-                    foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
-                        if ((int)$row->eat_flag !== 1) {
-                            continue;
-                        }
-                        $ok = $this->updateReservationRowWithVersion($row, [
-                            'eat_flag'      => 0,
-                            'i_change_flag' => 0,
-                            'c_update_user' => $userName,
-                            'dt_update'     => DateTime::now(),
-                        ]);
-                        if (!$ok) {
-                            $connection->rollback();
-                            return $this->err('他の操作と競合しました。画面を再読み込みして再実行してください。', 409);
-                        }
-                        $operationPerformed = true;
-                    }
-                    continue;
-                }
-
-                foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
-                    if ((int)$row->i_id_room === (int)$roomId || (int)$row->eat_flag !== 1) {
-                        continue;
-                    }
-                    $ok = $this->updateReservationRowWithVersion($row, [
-                        'eat_flag'      => 0,
-                        'i_change_flag' => 0,
-                        'c_update_user' => $userName,
-                        'dt_update'     => DateTime::now(),
-                    ]);
-                    if (!$ok) {
-                        $connection->rollback();
-                        return $this->err('他の操作と競合しました。画面を再読み込みして再実行してください。', 409);
-                    }
-                    $operationPerformed = true;
-                }
-
-                $existingReservation = $existingMap[(int)$mealType][(int)$roomId] ?? null;
-
-                if ($existingReservation) {
-                    if ((int)$existingReservation->eat_flag === 0) {
-                        $updateFields = [
-                            'eat_flag'      => 1,
-                            'i_change_flag' => 1,
-                            'c_update_user' => $userName,
-                            'dt_update'     => DateTime::now(),
-                        ];
-                        $ok = $this->updateReservationRowWithVersion($existingReservation, $updateFields);
-                        if (!$ok) {
-                            $connection->rollback();
-                            return $this->err('他の操作と競合しました。画面を再読み込みして再実行してください。', 409);
-                        }
-                        $operationPerformed = true;
-                    } else {
-                        $duplicates[] = [
-                            'reservation_date' => $reservationDate,
-                            'meal_type'        => $mealType,
-                            'room_id'          => $roomId,
-                        ];
-                    }
-                    continue;
-                }
-
-                $newReservation = $this->reservationTable->patchEntity(
-                    $this->reservationTable->newEmptyEntity(),
-                    [
-                        'i_id_user'          => $userId,
-                        'd_reservation_date' => $reservationDate,
-                        'i_id_room'          => $roomId,
-                        'i_reservation_type' => $mealType,
-                        'eat_flag'           => 1,
-                        'i_change_flag'      => 1,
-                        'i_version'          => 1,
-                        'c_create_user'      => $userName,
-                        'dt_create'          => DateTime::now(),
-                    ]
-                );
-                $reservationsToSave[] = $newReservation;
-            }
-
-            if (!empty($reservationsToSave)) {
+            if (!empty($changes['toSave'])) {
                 try {
-                    $this->reservationTable->saveManyOrFail($reservationsToSave);
+                    $this->reservationTable->saveManyOrFail($changes['toSave']);
                 } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
                     $connection->rollback();
                     Log::error('個人予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
@@ -192,6 +83,9 @@ class ReservationWriteService
                 $operationPerformed = true;
             }
             $connection->commit();
+        } catch (\RuntimeException $e) {
+            $connection->rollback();
+            return $this->err($e->getMessage(), 409);
         } catch (\Throwable $e) {
             if ($connection->inTransaction()) {
                 $connection->rollback();
@@ -201,53 +95,30 @@ class ReservationWriteService
         }
 
         $affectedRooms = [];
-        foreach ($selectedRoomPerMeal as $roomId) {
-            if ($roomId !== null) {
-                $affectedRooms[(int)$roomId] = true;
-            }
+        foreach (array_filter($selectedRoomPerMeal) as $roomId) {
+            $affectedRooms[(int)$roomId] = true;
         }
         foreach ($existingMap as $roomsMap) {
-            foreach ($roomsMap as $roomId => $_row) {
+            foreach (array_keys($roomsMap) as $roomId) {
                 $affectedRooms[(int)$roomId] = true;
             }
         }
         $this->invalidateCachesForDateRooms($reservationDate, array_keys($affectedRooms), [$userId]);
 
-        $finalStates = [
-            'breakfast' => false,
-            'lunch'     => false,
-            'dinner'    => false,
-            'bento'     => false,
-        ];
-        $type2key = [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
-
-        $rows = $this->reservationTable->find()
-            ->select(['i_reservation_type', 'eat_flag'])
-            ->where([
-                'i_id_user'          => $userId,
-                'd_reservation_date' => $reservationDate,
-            ])
-            ->all();
-
-        foreach ($rows as $r) {
-            $k = $type2key[(int)$r->i_reservation_type] ?? null;
-            if ($k) {
-                $finalStates[$k] = ((int)$r->eat_flag === 1);
-            }
-        }
+        $finalStates = $this->buildFinalReservationStates($reservationDate, $userId);
 
         if (!empty($duplicates)) {
             return $this->ok('一部の予約は既に存在するため、スキップされました。', [
                 'skipped' => $duplicates,
                 'details' => $finalStates,
-                'date' => $reservationDate,
+                'date'    => $reservationDate,
             ], $this->redirectToIndex());
         }
 
         if ($operationPerformed) {
             return $this->ok('個人予約が正常に登録されました。', [
                 'details' => $finalStates,
-                'date' => $reservationDate,
+                'date'    => $reservationDate,
             ], $this->redirectToIndex());
         }
 
@@ -261,16 +132,19 @@ class ReservationWriteService
         string $creatorName,
         callable $dateValidator
     ): array {
-        if (empty($jsonData) || (!is_string($jsonData) && !is_array($jsonData))) {
-            Log::error('入力データが無効です。空文字列または想定しない形式です。');
-            return $this->err('入力データが無効です。', 400);
-        }
-
         try {
-            $data = is_string($jsonData) ? json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR) : $jsonData;
+            $data = $this->decodeJsonInput($jsonData);
+        } catch (\InvalidArgumentException $e) {
+            Log::error($e->getMessage());
+            return $this->err($e->getMessage(), 400);
         } catch (\JsonException $e) {
             Log::error('JSON デコードエラー: ' . $e->getMessage());
             return $this->err('データの形式が不正です。', 400);
+        }
+
+        if (!isset($data['users']) || !is_array($data['users'])) {
+            Log::error('データ構造が不正: "users" キーが存在しない、または配列ではありません。データ: ' . json_encode($data));
+            return $this->err('データ構造が不正です。', 422);
         }
 
         $dateValidation = $dateValidator($reservationDate);
@@ -279,168 +153,33 @@ class ReservationWriteService
             return $this->err((string)$dateValidation, 422);
         }
 
-        if (!isset($data['users']) || !is_array($data['users'])) {
-            Log::error('データ構造が不正: "users" キーが存在しない、または配列ではありません。データ: ' . json_encode($data));
-            return $this->err('データ構造が不正です。', 422);
-        }
+        $roomId  = isset($data['i_id_room']) ? (int)$data['i_id_room'] : null;
+        $userIds = array_map('intval', array_keys($data['users']));
 
-        $reservationsToSave = [];
+        $existingMap = $this->buildGroupExistingMap($reservationDate, $userIds);
+        $userNameMap = $this->fetchUserNames($userIds);
+
+        $roomIdsForName = $roomId !== null ? [$roomId => true] : [];
+        foreach ($existingMap as $userMap) {
+            foreach ($userMap as $mealMap) {
+                foreach (array_keys($mealMap) as $rid) {
+                    $roomIdsForName[(int)$rid] = true;
+                }
+            }
+        }
+        $allRoomIds  = array_keys($roomIdsForName);
+        $roomNameMap = $this->fetchRoomNames($allRoomIds);
+
         $duplicates = [];
         $connection = $this->reservationTable->getConnection();
         $connection->begin();
         try {
-            $mealTypeNames = [
-                '1' => '朝食',
-                '2' => '昼食',
-                '3' => '夕食',
-                '4' => '弁当',
-            ];
+            $changes    = $this->applyGroupMealChanges($data['users'], $rooms, $roomId, $existingMap, $userNameMap, $roomNameMap, $reservationDate, $creatorName);
+            $duplicates = $changes['duplicates'];
 
-            $roomId = $data['i_id_room'] ?? null;
-            $userIds = array_map('intval', array_keys($data['users']));
-            $mealTypes = [1, 2, 3, 4];
-
-            $existingRows = [];
-            $existingMap = [];
-            if (!empty($userIds)) {
-                $existingRows = $this->reservationTable->find()
-                    ->enableAutoFields(false)
-                    ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
-                    ->where([
-                        'd_reservation_date' => $reservationDate,
-                        'i_id_user IN' => $userIds,
-                        'i_reservation_type IN' => $mealTypes,
-                    ])
-                    ->all();
-                foreach ($existingRows as $row) {
-                    $existingMap[(int)$row->i_id_user][(int)$row->i_reservation_type][(int)$row->i_id_room] = $row;
-                }
-            }
-
-            $userNameMap = [];
-            if (!empty($userIds)) {
-                $userRows = $this->userTable->find()
-                    ->enableAutoFields(false)
-                    ->select(['i_id_user', 'c_user_name'])
-                    ->where(['i_id_user IN' => $userIds])
-                    ->all();
-                foreach ($userRows as $row) {
-                    $userNameMap[(int)$row->i_id_user] = $row->c_user_name;
-                }
-            }
-
-            $roomNameMap = [];
-            $roomIdsForName = [];
-            if ($roomId !== null) {
-                $roomIdsForName[(int)$roomId] = true;
-            }
-            foreach ($existingRows as $row) {
-                $roomIdsForName[(int)$row->i_id_room] = true;
-            }
-            $roomIdsForName = array_keys($roomIdsForName);
-            if (!empty($roomIdsForName)) {
-                $roomRows = $this->roomTable->find()
-                    ->enableAutoFields(false)
-                    ->select(['i_id_room', 'c_room_name'])
-                    ->where(['i_id_room IN' => $roomIdsForName])
-                    ->all();
-                foreach ($roomRows as $row) {
-                    $roomNameMap[(int)$row->i_id_room] = $row->c_room_name;
-                }
-            }
-
-            foreach ($data['users'] as $targetUserId => $meals) {
-                foreach ($meals as $mealType => $selected) {
-                    $valueInt = is_bool($selected) ? ($selected ? 1 : 0) : (int)$selected;
-
-                    if (!isset($rooms[$roomId])) {
-                        $connection->rollback();
-                        return $this->err('選択された部屋は権限がありません。', 403);
-                    }
-
-                    if ($valueInt !== 1) {
-                        $existingReservation = $existingMap[(int)$targetUserId][(int)$mealType][(int)$roomId] ?? null;
-                        if ($existingReservation && (int)$existingReservation->eat_flag === 1) {
-                            $ok = $this->updateReservationRowWithVersion($existingReservation, [
-                                'eat_flag'      => 0,
-                                'i_change_flag' => 0,
-                                'c_update_user' => $creatorName,
-                                'dt_update'     => DateTime::now(),
-                            ]);
-                            if (!$ok) {
-                                $connection->rollback();
-                                return $this->err('他の操作と競合しました。画面を再読み込みして再実行してください。', 409);
-                            }
-                        }
-                        continue;
-                    }
-
-                    $userMealRows = $existingMap[(int)$targetUserId][(int)$mealType] ?? [];
-                    $existingReservation = $userMealRows[(int)$roomId] ?? null;
-
-                    foreach ($userMealRows as $existingRoomId => $row) {
-                        if ((int)$existingRoomId === (int)$roomId || (int)$row->eat_flag !== 1) {
-                            continue;
-                        }
-                        $ok = $this->updateReservationRowWithVersion($row, [
-                            'eat_flag'      => 0,
-                            'i_change_flag' => 0,
-                            'c_update_user' => $creatorName,
-                            'dt_update'     => DateTime::now(),
-                        ]);
-                        if (!$ok) {
-                            $connection->rollback();
-                            return $this->err('他の操作と競合しました。画面を再読み込みして再実行してください。', 409);
-                        }
-                    }
-
-                    if ($existingReservation) {
-                        if ((int)$existingReservation->eat_flag === 0) {
-                            $ok = $this->updateReservationRowWithVersion($existingReservation, [
-                                'eat_flag'      => 1,
-                                'i_change_flag' => 1,
-                                'c_update_user' => $creatorName,
-                                'dt_update'     => DateTime::now(),
-                            ]);
-                            if (!$ok) {
-                                $connection->rollback();
-                                return $this->err('他の操作と競合しました。画面を再読み込みして再実行してください。', 409);
-                            }
-                            continue;
-                        }
-
-                        $reservedUserName = $userNameMap[(int)$targetUserId] ?? '不明なユーザー名';
-                        $reservedRoomName = $roomNameMap[(int)$existingReservation->i_id_room] ?? '不明な部屋名';
-
-                        $duplicates[] = [
-                            'user_name' => $reservedUserName,
-                            'meal_type' => $mealTypeNames[$mealType] ?? $mealType,
-                            'room_name' => $reservedRoomName
-                        ];
-                        continue;
-                    }
-
-                    $newReservation = $this->reservationTable->patchEntity(
-                        $this->reservationTable->newEmptyEntity(),
-                        [
-                            'i_id_user'          => $targetUserId,
-                            'd_reservation_date' => $reservationDate,
-                            'i_id_room'          => $roomId,
-                            'i_reservation_type' => $mealType,
-                            'eat_flag'           => 1,
-                            'i_change_flag'      => 1,
-                            'i_version'          => 1,
-                            'c_create_user'      => $creatorName,
-                            'dt_create'          => DateTime::now(),
-                        ]
-                    );
-                    $reservationsToSave[] = $newReservation;
-                }
-            }
-
-            if (!empty($reservationsToSave)) {
+            if (!empty($changes['toSave'])) {
                 try {
-                    $this->reservationTable->saveManyOrFail($reservationsToSave);
+                    $this->reservationTable->saveManyOrFail($changes['toSave']);
                 } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
                     $connection->rollback();
                     Log::error('グループ予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
@@ -449,6 +188,12 @@ class ReservationWriteService
                 }
             }
             $connection->commit();
+        } catch (\DomainException $e) {
+            $connection->rollback();
+            return $this->err($e->getMessage(), 403);
+        } catch (\RuntimeException $e) {
+            $connection->rollback();
+            return $this->err($e->getMessage(), 409);
         } catch (\Throwable $e) {
             if ($connection->inTransaction()) {
                 $connection->rollback();
@@ -457,16 +202,12 @@ class ReservationWriteService
             return $this->err('予約処理中に内部エラーが発生しました。', 500);
         }
 
-        $affectedRooms = $roomIdsForName ?: [];
-        if ($roomId !== null) {
-            $affectedRooms[] = (int)$roomId;
-        }
-        $this->invalidateCachesForDateRooms($reservationDate, $affectedRooms, $userIds);
+        $this->invalidateCachesForDateRooms($reservationDate, $allRoomIds, $userIds);
 
         if (!empty($duplicates)) {
             return $this->ok('一部の予約はすでに存在していたためスキップされました。', [
                 'skipped' => $duplicates,
-                'date' => $reservationDate,
+                'date'    => $reservationDate,
             ], $this->redirectToIndex());
         }
 
@@ -516,17 +257,12 @@ class ReservationWriteService
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
 
-        if ($targetUserId !== $loginUserId) {
-            if ($isAdmin) {
-                // 管理者は全員を編集可能
-            } elseif (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1) {
-                // 職員レベルユーザー・ブロック長は子供（i_user_level=1）のみ編集可能
-            } else {
-                return [
-                    'status' => 403,
-                    'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
-                ];
-            }
+        $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1);
+        if ($targetUserId !== $loginUserId && !$canEditOther) {
+            return [
+                'status' => 403,
+                'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
+            ];
         }
 
         // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
@@ -588,37 +324,8 @@ class ReservationWriteService
             ];
         }
 
-        if ($exists) {
-            $existingEatFlag = null;
-            if ($isLastMinute) {
-                $existingEntity = $this->reservationTable->find()
-                    ->select(['eat_flag'])
-                    ->where([
-                        'i_id_user'          => $targetUserId,
-                        'i_id_room'          => $roomId,
-                        'd_reservation_date' => $dateStr,
-                        'i_reservation_type' => $meal,
-                    ])
-                    ->first();
-                $existingEatFlag = $existingEntity ? (int)$existingEntity->eat_flag : 0;
-            }
-
-            if ($value === 1) {
-                $eatFlag = $isLastMinute ? (int)$existingEatFlag : 1;
-                $changeFlag = 1;
-            } else {
-                $eatFlag = $isLastMinute ? (int)$existingEatFlag : 0;
-                $changeFlag = 0;
-            }
-        } else {
-            if ($value === 1) {
-                $eatFlag    = $isLastMinute ? 0 : 1;
-                $changeFlag = 1;
-            } else {
-                $eatFlag    = 0;
-                $changeFlag = 0;
-            }
-        }
+        $changeFlag = $value;
+        $eatFlag    = $this->resolveEatFlag($value, $isLastMinute, $exists, $targetUserId, $roomId, $dateStr, $meal);
 
         try {
             $result = $this->reservationTable->toggleMeal(
@@ -645,16 +352,15 @@ class ReservationWriteService
             $errors = $e->getEntity()?->getErrors() ?? [];
             $flat   = json_encode($errors, JSON_UNESCAPED_UNICODE);
 
-            $isMealConflict = (is_string($flat) && preg_match('/(昼|弁|bento|lunch|unique.*bento|unique.*lunch)/ui', $flat));
-            $isOptimisticConflict = (is_string($flat) && preg_match('/(conflict|optimistic)/ui', $flat));
+            $isMealConflict       = is_string($flat) && preg_match('/(昼|弁|bento|lunch|unique.*bento|unique.*lunch)/ui', $flat);
+            $isOptimisticConflict = is_string($flat) && preg_match('/(conflict|optimistic)/ui', $flat);
             $isConflict = $isMealConflict || $isOptimisticConflict;
-            $status = $isConflict ? 409 : 422;
-            $message = 'Validation failed.';
-            if ($isMealConflict) {
-                $message = '昼食と弁当は同時に予約できません。';
-            } elseif ($isOptimisticConflict) {
-                $message = '他の操作と競合しました。画面を再読み込みして再実行してください。';
-            }
+            $status  = $isConflict ? 409 : 422;
+            $message = match(true) {
+                $isMealConflict       => '昼食と弁当は同時に予約できません。',
+                $isOptimisticConflict => '他の操作と競合しました。画面を再読み込みして再実行してください。',
+                default               => 'Validation failed.',
+            };
 
             return [
                 'status' => $status,
@@ -679,6 +385,359 @@ class ReservationWriteService
                 ],
             ];
         }
+    }
+
+    /**
+     * isLastMinute・既存有無・選択値から eat_flag を決定する。
+     *
+     * - 直前編集かつ既存レコードあり: DB の現在値を維持（変更不可）
+     * - 直前編集かつ既存レコードなし: 0 固定（当日分は未実食扱い）
+     * - 通常編集: $value をそのまま使用
+     */
+    private function resolveEatFlag(
+        int    $value,
+        bool   $isLastMinute,
+        bool   $exists,
+        int    $targetUserId,
+        int    $roomId,
+        string $dateStr,
+        int    $meal
+    ): int {
+        if (!$isLastMinute) {
+            return $value;
+        }
+
+        if (!$exists) {
+            return 0;
+        }
+
+        $entity = $this->reservationTable->find()
+            ->select(['eat_flag'])
+            ->where([
+                'i_id_user'          => $targetUserId,
+                'i_id_room'          => $roomId,
+                'd_reservation_date' => $dateStr,
+                'i_reservation_type' => $meal,
+            ])
+            ->first();
+
+        return $entity ? (int)$entity->eat_flag : 0;
+    }
+
+    // -------------------------------------------------------------------------
+    // 共通ヘルパー
+    // -------------------------------------------------------------------------
+
+    /**
+     * JSON 入力のバリデーションとデコードを行う。
+     *
+     * @throws \InvalidArgumentException 入力が空または不正な型の場合
+     * @throws \JsonException JSON デコード失敗時
+     */
+    private function decodeJsonInput(array|string $jsonData): array
+    {
+        if (empty($jsonData) || (!is_string($jsonData) && !is_array($jsonData))) {
+            throw new \InvalidArgumentException('入力データが無効です。');
+        }
+        if (is_array($jsonData)) {
+            return $jsonData;
+        }
+        return json_decode($jsonData, true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    // -------------------------------------------------------------------------
+    // 個人予約ヘルパー
+    // -------------------------------------------------------------------------
+
+    /**
+     * 食事区分ごとに選択された部屋IDを確定する（DB不要・純粋バリデーション）。
+     *
+     * @param array $meals    リクエストの meals データ
+     * @param array $rooms    アクセス可能な部屋マップ
+     * @return array          [mealType => roomId|null]
+     * @throws \OverflowException  同一食事区分に複数部屋が選択された場合（→ 409）
+     * @throws \DomainException    権限のない部屋が指定された場合（→ 403）
+     */
+    private function resolveSelectedRoomsPerMeal(array $meals, array $rooms): array
+    {
+        $selectedRoomPerMeal = [];
+        foreach ($meals as $mealType => $selectedRooms) {
+            $selectedRoomPerMeal[$mealType] = null;
+            foreach ($selectedRooms as $roomId => $value) {
+                $valueInt = is_bool($value) ? ($value ? 1 : 0) : (int)$value;
+                if ($valueInt !== 1) {
+                    continue;
+                }
+                if (isset($selectedRoomPerMeal[$mealType]) && $selectedRoomPerMeal[$mealType] !== $roomId) {
+                    throw new \OverflowException("同じ食事区分に対して複数の部屋を選択することはできません。");
+                }
+                if (!array_key_exists($roomId, $rooms)) {
+                    throw new \DomainException('選択された部屋は権限がありません。');
+                }
+                $selectedRoomPerMeal[$mealType] = $roomId;
+            }
+        }
+        return $selectedRoomPerMeal;
+    }
+
+    /**
+     * 指定ユーザー・日付の既存予約を取得し、2種のマップを返す。
+     *
+     * @return array{byRoom: array, byMeal: array}
+     */
+    private function buildIndividualExistingMaps(string $date, int $userId): array
+    {
+        $rows = $this->reservationTable->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
+            ->where([
+                'i_id_user'             => $userId,
+                'd_reservation_date'    => $date,
+                'i_reservation_type IN' => [1, 2, 3, 4],
+            ])
+            ->all();
+
+        $byRoom = [];
+        $byMeal = [];
+        foreach ($rows as $row) {
+            $byRoom[(int)$row->i_reservation_type][(int)$row->i_id_room] = $row;
+            $byMeal[(int)$row->i_reservation_type][]                     = $row;
+        }
+        return ['byRoom' => $byRoom, 'byMeal' => $byMeal];
+    }
+
+    /**
+     * 個人予約の eat_flag 変更・新規作成エンティティを生成する。
+     *
+     * @return array{toSave: array, duplicates: array, performed: bool}
+     * @throws \RuntimeException 楽観的ロック競合時（→ 409）
+     */
+    private function applyIndividualMealChanges(
+        array  $selectedRoomPerMeal,
+        array  $existingByMeal,
+        array  $existingMap,
+        string $reservationDate,
+        int    $userId,
+        string $userName
+    ): array {
+        $toSave     = [];
+        $duplicates = [];
+        $performed  = false;
+
+        foreach ($selectedRoomPerMeal as $mealType => $roomId) {
+            if ($roomId === null) {
+                foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
+                    if ((int)$row->eat_flag !== 1) {
+                        continue;
+                    }
+                    if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                        throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
+                    }
+                    $performed = true;
+                }
+                continue;
+            }
+
+            foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
+                if ((int)$row->i_id_room === (int)$roomId || (int)$row->eat_flag !== 1) {
+                    continue;
+                }
+                if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                    throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
+                }
+                $performed = true;
+            }
+
+            $existing = $existingMap[(int)$mealType][(int)$roomId] ?? null;
+
+            if ($existing) {
+                if ((int)$existing->eat_flag === 0) {
+                    if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                        throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
+                    }
+                    $performed = true;
+                } else {
+                    $duplicates[] = ['reservation_date' => $reservationDate, 'meal_type' => $mealType, 'room_id' => $roomId];
+                }
+                continue;
+            }
+
+            $toSave[] = $this->reservationTable->patchEntity($this->reservationTable->newEmptyEntity(), [
+                'i_id_user'          => $userId,
+                'd_reservation_date' => $reservationDate,
+                'i_id_room'          => $roomId,
+                'i_reservation_type' => $mealType,
+                'eat_flag'           => 1,
+                'i_change_flag'      => 1,
+                'i_version'          => 1,
+                'c_create_user'      => $userName,
+                'dt_create'          => DateTime::now(),
+            ]);
+        }
+
+        return ['toSave' => $toSave, 'duplicates' => $duplicates, 'performed' => $performed];
+    }
+
+    /**
+     * 変更後の最終予約状態（朝/昼/夕/弁当）を返す。
+     *
+     * @return array{breakfast: bool, lunch: bool, dinner: bool, bento: bool}
+     */
+    private function buildFinalReservationStates(string $date, int $userId): array
+    {
+        $states   = ['breakfast' => false, 'lunch' => false, 'dinner' => false, 'bento' => false];
+        $type2key = [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
+
+        $rows = $this->reservationTable->find()
+            ->select(['i_reservation_type', 'eat_flag'])
+            ->where(['i_id_user' => $userId, 'd_reservation_date' => $date])
+            ->all();
+
+        foreach ($rows as $r) {
+            $k = $type2key[(int)$r->i_reservation_type] ?? null;
+            if ($k) {
+                $states[$k] = ((int)$r->eat_flag === 1);
+            }
+        }
+        return $states;
+    }
+
+    // -------------------------------------------------------------------------
+    // グループ予約ヘルパー
+    // -------------------------------------------------------------------------
+
+    /**
+     * 複数ユーザー・日付の既存予約を [userId][mealType][roomId] マップで返す。
+     */
+    private function buildGroupExistingMap(string $date, array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+        $rows = $this->reservationTable->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
+            ->where([
+                'd_reservation_date'    => $date,
+                'i_id_user IN'          => $userIds,
+                'i_reservation_type IN' => [1, 2, 3, 4],
+            ])
+            ->all();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(int)$row->i_id_user][(int)$row->i_reservation_type][(int)$row->i_id_room] = $row;
+        }
+        return $map;
+    }
+
+    /** @return array<int, string> userId => c_user_name */
+    private function fetchUserNames(array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+        $map = [];
+        foreach ($this->userTable->find()->enableAutoFields(false)->select(['i_id_user', 'c_user_name'])->where(['i_id_user IN' => $userIds])->all() as $row) {
+            $map[(int)$row->i_id_user] = $row->c_user_name;
+        }
+        return $map;
+    }
+
+    /** @return array<int, string> roomId => c_room_name */
+    private function fetchRoomNames(array $roomIds): array
+    {
+        if (empty($roomIds)) {
+            return [];
+        }
+        $map = [];
+        foreach ($this->roomTable->find()->enableAutoFields(false)->select(['i_id_room', 'c_room_name'])->where(['i_id_room IN' => $roomIds])->all() as $row) {
+            $map[(int)$row->i_id_room] = $row->c_room_name;
+        }
+        return $map;
+    }
+
+    /**
+     * グループ予約の eat_flag 変更・新規作成エンティティを生成する。
+     *
+     * @return array{toSave: array, duplicates: array}
+     * @throws \DomainException    権限のない部屋が指定された場合（→ 403）
+     * @throws \RuntimeException   楽観的ロック競合時（→ 409）
+     */
+    private function applyGroupMealChanges(
+        array    $users,
+        array    $rooms,
+        int|null $roomId,
+        array    $existingMap,
+        array    $userNameMap,
+        array    $roomNameMap,
+        string   $reservationDate,
+        string   $creatorName
+    ): array {
+        $mealTypeNames = ['1' => '朝食', '2' => '昼食', '3' => '夕食', '4' => '弁当'];
+        $toSave        = [];
+        $duplicates    = [];
+
+        foreach ($users as $targetUserId => $meals) {
+            foreach ($meals as $mealType => $selected) {
+                $valueInt = is_bool($selected) ? ($selected ? 1 : 0) : (int)$selected;
+
+                if (!isset($rooms[$roomId])) {
+                    throw new \DomainException('選択された部屋は権限がありません。');
+                }
+
+                if ($valueInt !== 1) {
+                    $existing = $existingMap[(int)$targetUserId][(int)$mealType][(int)$roomId] ?? null;
+                    if ($existing && (int)$existing->eat_flag === 1) {
+                        if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                            throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
+                        }
+                    }
+                    continue;
+                }
+
+                $userMealRows = $existingMap[(int)$targetUserId][(int)$mealType] ?? [];
+                $existing     = $userMealRows[(int)$roomId] ?? null;
+
+                foreach ($userMealRows as $existingRoomId => $row) {
+                    if ((int)$existingRoomId === (int)$roomId || (int)$row->eat_flag !== 1) {
+                        continue;
+                    }
+                    if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                        throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
+                    }
+                }
+
+                if ($existing) {
+                    if ((int)$existing->eat_flag === 0) {
+                        if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                            throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
+                        }
+                        continue;
+                    }
+                    $duplicates[] = [
+                        'user_name' => $userNameMap[(int)$targetUserId] ?? '不明なユーザー名',
+                        'meal_type' => $mealTypeNames[$mealType] ?? $mealType,
+                        'room_name' => $roomNameMap[(int)$existing->i_id_room] ?? '不明な部屋名',
+                    ];
+                    continue;
+                }
+
+                $toSave[] = $this->reservationTable->patchEntity($this->reservationTable->newEmptyEntity(), [
+                    'i_id_user'          => $targetUserId,
+                    'd_reservation_date' => $reservationDate,
+                    'i_id_room'          => $roomId,
+                    'i_reservation_type' => $mealType,
+                    'eat_flag'           => 1,
+                    'i_change_flag'      => 1,
+                    'i_version'          => 1,
+                    'c_create_user'      => $creatorName,
+                    'dt_create'          => DateTime::now(),
+                ]);
+            }
+        }
+
+        return ['toSave' => $toSave, 'duplicates' => $duplicates];
     }
 
     private function ok(string $message, array $data = [], ?string $redirect = null): array
