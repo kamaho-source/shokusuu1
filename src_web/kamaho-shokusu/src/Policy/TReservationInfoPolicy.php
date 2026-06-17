@@ -134,6 +134,10 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user) && $this->canAccessRoom($user, $resource);
     }
 
+    /**
+     * ログインユーザー自身の予約データ取得のみ許可。
+     * コントローラーはリクエストから userId を受け取らず、identity から強制取得するため IDOR 不可。
+     */
     public function canGetPersonalReservation(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
@@ -154,11 +158,19 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user);
     }
 
+    /**
+     * 実食なし報告はログインユーザー自身にのみ作用する。
+     * Trait 実装が identity から userId を強制取得するため IDOR 不可。
+     */
     public function canReportNoMeal(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
     }
 
+    /**
+     * 実食あり報告はログインユーザー自身にのみ作用する。
+     * Trait 実装が identity から userId を強制取得するため IDOR 不可。
+     */
     public function canReportEat(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
@@ -181,17 +193,44 @@ class TReservationInfoPolicy
 
     public function canActualMealSave(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        if (!$this->isAuthenticated($user)) {
+            return false;
+        }
+
+        $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
+        $loginUserId = $this->getUserId($user);
+
+        // 管理者は常に許可
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+
+        // ブロック長は担当部屋のユーザーであれば許可
+        if ($this->isBlockLeader($user)) {
+            return $this->canAccessRoom($user, $resource);
+        }
+
+        // それ以外は本人のみ許可
+        return $requestedUserId > 0 && $requestedUserId === $loginUserId;
     }
 
     public function canActualMealRequestApproval(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->canActualMealSave($user, $resource);
     }
 
     public function canMyActualMeal(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        if (!$this->isAuthenticated($user)) {
+            return false;
+        }
+
+        $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
+        if ($requestedUserId <= 0) {
+            return true;
+        }
+
+        return $requestedUserId === $this->getUserId($user);
     }
 
     public function canMealCountGrid(?IdentityInterface $user, TReservationInfo $resource): bool

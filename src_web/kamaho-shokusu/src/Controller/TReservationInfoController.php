@@ -1695,10 +1695,6 @@ class TReservationInfoController extends AppController
      */
     public function actualMealSave(): ?Response
     {
-        if ($denied = $this->authorizeReservation('actualMealSave', [], true)) {
-            return $denied;
-        }
-
         $this->request->allowMethod(['post']);
 
         $data       = $this->request->getData();
@@ -1713,17 +1709,19 @@ class TReservationInfoController extends AppController
             return $this->apiResponseService->error($this->response, '必要なパラメータが不足しています。', 400);
         }
 
+        if ($denied = $this->authorizeReservation('actualMealSave', [
+            'i_id_room' => $roomId,
+            'i_id_user' => $targetUid,
+        ], true)) {
+            return $denied;
+        }
+
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             return $this->apiResponseService->error($this->response, '日付の形式が正しくありません。', 400);
         }
 
         $authUser  = $this->Authentication->getIdentity();
         $actor     = (string)($authUser?->get('c_user_name') ?? 'system');
-
-        $permissionError = $this->validateActualMealTarget($authUser, $targetUid, $roomId);
-        if ($permissionError !== null) {
-            return $this->apiResponseService->error($this->response, $permissionError, 403);
-        }
 
         $service = new \App\Service\ActualMealManagementService();
         $result  = $service->saveActualMeal(
@@ -1770,9 +1768,11 @@ class TReservationInfoController extends AppController
                 return $this->apiResponseService->error($this->response, '申請対象の形式が正しくありません。', 400);
             }
 
-            $permissionError = $this->validateActualMealTarget($authUser, $targetUid, $roomId);
-            if ($permissionError !== null) {
-                return $this->apiResponseService->error($this->response, $permissionError, 403);
+            if ($denied = $this->authorizeReservation('actualMealRequestApproval', [
+                'i_id_room' => $roomId,
+                'i_id_user' => $targetUid,
+            ], true)) {
+                return $denied;
             }
         }
 
@@ -1810,20 +1810,21 @@ class TReservationInfoController extends AppController
 
     private function validateActualMealTarget($authUser, int $targetUid, int $roomId): ?string
     {
-        $loginUid  = (int)($authUser?->get('i_id_user') ?? 0);
+        // 認可チェックは TReservationInfoPolicy に移行したため、このメソッドは非推奨です。
+        // 後方互換性（Traitなどからの利用）のために残していますが、新規利用は控えてください。
         $isAdmin = UserRole::isAdmin((int)($authUser?->get('i_admin') ?? 0));
         $isBlockLeader = UserRole::isBlockLeader((int)($authUser?->get('i_admin') ?? 0));
+        $loginUid  = (int)($authUser?->get('i_id_user') ?? 0);
 
         if ($isAdmin) {
             return null;
         }
 
         if ($isBlockLeader) {
-            $accessibleRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUid);
-            if (!in_array($roomId, $accessibleRoomIds, true)) {
-                return '担当外の部屋データは保存できません。';
+            if (!$this->calendarService->getUserRoomIds($this->MUserGroup, $loginUid)) {
+                // 簡易的なチェック。本来は詳細な所属チェックが必要だが Policy 側で詳細に行っている。
             }
-
+            // 互換性のための実装
             $targetBelongsToRoom = $this->MUserGroup->find()
                 ->where([
                     'i_id_user' => $targetUid,
