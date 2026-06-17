@@ -24,6 +24,7 @@ class RoomUsageService
      * @param string|null $dateTo   終了日 (Y-m-d)
      * @param int|null    $mealType 食種 (1=朝 2=昼 3=夕 4=弁当, null=全て)
      * @return array{room_id:int, room_name:string, user_count:int, capacity:int, eat_count:int, usage_rate:float, staff:array}[]
+     * @throws \Exception 日付文字列が無効な場合
      */
     public function getRoomUsage(
         ?string $dateFrom = null,
@@ -51,14 +52,14 @@ class RoomUsageService
         foreach ($masterRows as $row) {
             $roomId    = (int)$row->i_id_room;
             $userId    = (int)$row->i_id_user;
-            $userLevel = (int)($row->m_user_info->i_user_level ?? -1);
+            $userLevel = (int)($row->m_user_info?->i_user_level ?? -1);
 
             $masterUsers[$roomId][$userId] = true;
-            $roomNames[$roomId]            = $row->m_room_info->c_room_name ?? '';
+            $roomNames[$roomId]            = $row->m_room_info?->c_room_name ?? '';
 
             if ($userLevel === 0) {
                 $staffMaster[$roomId][$userId] = true;
-                $staffNames[$userId]           = $row->m_user_info->c_user_name ?? '';
+                $staffNames[$userId]           = $row->m_user_info?->c_user_name ?? '';
             }
         }
 
