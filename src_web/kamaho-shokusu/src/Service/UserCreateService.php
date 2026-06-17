@@ -46,7 +46,7 @@ class UserCreateService
      * @param string $ipAddress  操作元IPアドレス
      * @return bool
      */
-    public function saveWithRooms(mixed $entity, array $groupData, string $createdBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function saveWithRooms(\Cake\ORM\Entity $entity, array $groupData, string $createdBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
