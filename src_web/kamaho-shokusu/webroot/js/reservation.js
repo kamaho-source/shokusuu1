@@ -65,17 +65,39 @@
 
         function validateForm(reservationType){
             if (reservationType === 2) {
-                if (userSelectionTable && userSelectionTable.querySelector('tbody input[type="checkbox"]:checked')) {
-                    return true;
+                const hasChecked  = userSelectionTable?.querySelector('tbody input[type="checkbox"]:checked');
+                const hasExisting = userSelectionTable?.querySelector('tbody input[type="checkbox"][data-existing="1"]');
+                if (!hasChecked && !hasExisting) {
+                    return '集団予約は利用者行でいずれかの食事にチェックが必要です。';
                 }
-                if (userSelectionTable && userSelectionTable.querySelector('tbody input[type="checkbox"][data-existing="1"]')) {
-                    return true;
-                }
-                return false;
+            }
+            const lunchChecked = roomCheckboxes && roomCheckboxes.querySelector('input[name^="meals[2]"]:checked');
+            const bentoChecked = roomCheckboxes && roomCheckboxes.querySelector('input[name^="meals[4]"]:checked');
+            if (lunchChecked && bentoChecked) {
+                return '昼食と弁当は同時に予約できません。どちらか一方を選択してください。';
             }
             return true;
         }
         window.validateForm = validateForm;
+
+        function bindLunchBentoExclusion() {
+            if (!roomCheckboxes) return;
+            roomCheckboxes.querySelectorAll('input[name^="meals[2]"]').forEach(function(lunch) {
+                lunch.addEventListener('change', function() {
+                    if (this.checked) {
+                        roomCheckboxes.querySelectorAll('input[name^="meals[4]"]').forEach(function(b) { b.checked = false; });
+                    }
+                });
+            });
+            roomCheckboxes.querySelectorAll('input[name^="meals[4]"]').forEach(function(bento) {
+                bento.addEventListener('change', function() {
+                    if (this.checked) {
+                        roomCheckboxes.querySelectorAll('input[name^="meals[2]"]').forEach(function(l) { l.checked = false; });
+                    }
+                });
+            });
+        }
+        window.bindLunchBentoExclusion = bindLunchBentoExclusion;
 
         window.toggleAllRooms = function(mealType, checked){
             if (!roomCheckboxes) return;
@@ -130,10 +152,10 @@
 
             form.addEventListener('submit', function(event){
                 event.preventDefault();
-                const reservationType   = parseInt(reservationTypeSelect?.value, 10);
-                const validationSuccess = validateForm(reservationType);
-                if (!validationSuccess) {
-                    toast('エラー: 必須項目を確認してください。（集団予約は利用者行でいずれかの食事にチェックが必要です）', 'danger');
+                const reservationType  = parseInt(reservationTypeSelect?.value, 10);
+                const validationResult = validateForm(reservationType);
+                if (validationResult !== true) {
+                    toast(typeof validationResult === 'string' ? validationResult : '必須項目を確認してください。', 'danger');
                     return;
                 }
                 const formData = new FormData(form);
@@ -182,6 +204,8 @@
                     .finally(hideLoading);
             });
         }
+
+        bindLunchBentoExclusion();
 
         (function autoFetchOnModal(){
             if (!initRoomInput) return;
