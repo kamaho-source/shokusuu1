@@ -16,6 +16,9 @@ use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
 use Authorization\Policy\OrmResolver;
 use Authorization\Policy\ResolverCollection;
+use App\Controller\RoomUsageController;
+use App\Service\RoomUsageService;
+use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
 use Psr\Http\Message\ServerRequestInterface;
 use Cake\Core\Configure;
@@ -114,7 +117,10 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function services(ContainerInterface $container): void
     {
-        // 必要に応じて DI サービスを登録
+        $container->add(RoomUsageService::class);
+        $container->add(RoomUsageController::class)
+            ->addArgument(RoomUsageService::class)
+            ->addArgument(ServerRequest::class);
     }
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
