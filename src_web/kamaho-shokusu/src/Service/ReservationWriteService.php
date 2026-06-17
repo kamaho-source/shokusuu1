@@ -516,17 +516,12 @@ class ReservationWriteService
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
 
-        if ($targetUserId !== $loginUserId) {
-            if ($isAdmin) {
-                // 管理者は全員を編集可能
-            } elseif (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1) {
-                // 職員レベルユーザー・ブロック長は子供（i_user_level=1）のみ編集可能
-            } else {
-                return [
-                    'status' => 403,
-                    'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
-                ];
-            }
+        $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1);
+        if ($targetUserId !== $loginUserId && !$canEditOther) {
+            return [
+                'status' => 403,
+                'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
+            ];
         }
 
         // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
