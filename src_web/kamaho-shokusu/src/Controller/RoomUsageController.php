@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Service\RoomUsageService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
+use Cake\Http\ServerRequest;
 
 /**
  * 部屋使用率コントローラー
@@ -14,12 +15,16 @@ use Cake\Http\Response;
  */
 class RoomUsageController extends AppController
 {
-    private RoomUsageService $roomUsageService;
+    public function __construct(
+        private RoomUsageService $roomUsageService,
+        ServerRequest $request
+    ) {
+        parent::__construct($request);
+    }
 
     public function initialize(): void
     {
         parent::initialize();
-        $this->roomUsageService = new RoomUsageService();
         $this->viewBuilder()->setLayout('default');
     }
 
