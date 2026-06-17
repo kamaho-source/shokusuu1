@@ -77,16 +77,22 @@
             }
         }
 
-        // 個人テーブルのヘッダ「全選択」チェックと行内昼⇔弁当の排他
+        // 個人テーブルの昼⇔弁当の排他（全部屋またぎ）
         function bindRoomTableGuards(){
             if (!roomCheckboxesTbody) return;
-            roomCheckboxesTbody.querySelectorAll('tr').forEach(tr => {
-                const lunch = tr.querySelector('input[name^="meals[2]"]');
-                const bento = tr.querySelector('input[name^="meals[4]"]');
-                if (lunch && bento) {
-                    lunch.addEventListener('change', () => { if (lunch.checked) bento.checked = false; });
-                    bento.addEventListener('change', () => { if (bento.checked) lunch.checked = false; });
-                }
+            roomCheckboxesTbody.querySelectorAll('input[name^="meals[2]"]').forEach(lunch => {
+                lunch.addEventListener('change', () => {
+                    if (lunch.checked) {
+                        roomCheckboxesTbody.querySelectorAll('input[name^="meals[4]"]').forEach(b => { b.checked = false; });
+                    }
+                });
+            });
+            roomCheckboxesTbody.querySelectorAll('input[name^="meals[4]"]').forEach(bento => {
+                bento.addEventListener('change', () => {
+                    if (bento.checked) {
+                        roomCheckboxesTbody.querySelectorAll('input[name^="meals[2]"]').forEach(l => { l.checked = false; });
+                    }
+                });
             });
         }
 

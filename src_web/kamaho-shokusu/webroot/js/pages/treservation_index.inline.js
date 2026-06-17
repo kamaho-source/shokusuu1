@@ -3024,38 +3024,40 @@ function isWithin14(dateStr){
         function applyLunchBentoExclusion(scope){
             var root = scope || document;
 
-            // 個人予約
-            var lunchCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name*="lunch"]'));
-            var bentoCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name*="bento"]'));
-            lunchCbs.forEach(function(lunchCb, idx){
-                var bentoCb = bentoCbs[idx];
-                if (!bentoCb) return;
-                if (lunchCb.dataset._paired || bentoCb.dataset._paired) return;
-                
-                // 初期状態での排他適用
-                if (lunchCb.checked && bentoCb.checked) {
-                    bentoCb.checked = false;
+            // 個人予約（add フォーム）: meals[2][roomId] = 昼食, meals[4][roomId] = 弁当
+            // 全部屋またぎで排他制御する（同じ部屋内だけでなく異なる部屋間も排他）
+            var addLunchCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name^="meals[2]"]'));
+            var addBentoCbs = Array.from(root.querySelectorAll('input[type="checkbox"][name^="meals[4]"]'));
+            if (addLunchCbs.length > 0 || addBentoCbs.length > 0) {
+                addLunchCbs.forEach(function(lunchCb) {
+                    if (lunchCb.dataset._mealPaired) return;
+                    lunchCb.addEventListener('change', function() {
+                        if (lunchCb.checked && !lunchCb.disabled) {
+                            root.querySelectorAll('input[type="checkbox"][name^="meals[4]"]').forEach(function(b) {
+                                if (!b.disabled) { b.checked = false; }
+                            });
+                        }
+                    });
+                    lunchCb.dataset._mealPaired = '1';
+                });
+                addBentoCbs.forEach(function(bentoCb) {
+                    if (bentoCb.dataset._mealPaired) return;
+                    bentoCb.addEventListener('change', function() {
+                        if (bentoCb.checked && !bentoCb.disabled) {
+                            root.querySelectorAll('input[type="checkbox"][name^="meals[2]"]').forEach(function(l) {
+                                if (!l.disabled) { l.checked = false; }
+                            });
+                        }
+                    });
+                    bentoCb.dataset._mealPaired = '1';
+                });
+                // 初期状態で両方チェックされていれば弁当を優先して解除
+                var anyLunch = addLunchCbs.some(function(cb) { return cb.checked; });
+                var anyBento = addBentoCbs.some(function(cb) { return cb.checked; });
+                if (anyLunch && anyBento) {
+                    addBentoCbs.forEach(function(cb) { cb.checked = false; });
                 }
-                
-                lunchCb.addEventListener('change', function(){
-                    if (lunchCb.checked && !lunchCb.disabled) {
-                        if (bentoCb && !bentoCb.disabled) {
-                            bentoCb.checked = false;
-                            bentoCb.dispatchEvent(new Event('change'));
-                        }
-                    }
-                });
-                bentoCb.addEventListener('change', function(){
-                    if (bentoCb.checked && !bentoCb.disabled) {
-                        if (lunchCb && !lunchCb.disabled) {
-                            lunchCb.checked = false;
-                            lunchCb.dispatchEvent(new Event('change'));
-                        }
-                    }
-                });
-                lunchCb.dataset._paired = '1';
-                bentoCb.dataset._paired = '1';
-            });
+            }
 
             // 集団予約（利用者別）- users[userId][2] と users[userId][4]
             var groupRows = root.querySelectorAll('#user-checkboxes tr, tbody tr');
