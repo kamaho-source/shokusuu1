@@ -10,9 +10,9 @@ use Cake\ORM\TableRegistry;
  *
  * 使用率 = 食べる件数 / (部屋の登録ユーザー数 × 日数 × 食種数) × 100
  *
- * 分母の「ユーザー数」は m_user_group.active_flag=1 の登録ユーザー数を使う。
+ * 分母の「ユーザー数」は m_user_group.active_flag=0（現役）の登録ユーザー数を使う。
  * - 1度も入力していない入居者も分母に算入されるため、実績ベースより正確。
- * - 退出済みユーザー（active_flag=0）は分母・分子ともに除外する。
+ * - 退出済みユーザー（active_flag=1）は分母・分子ともに除外する。
  * - 複数部屋所属ユーザーは各部屋の登録集合に独立して含まれる。
  */
 class RoomUsageService
@@ -35,11 +35,11 @@ class RoomUsageService
         $days          = (int)(new \DateTimeImmutable($resolvedFrom))->diff(new \DateTimeImmutable($resolvedTo))->days + 1;
         $mealTypeCount = $mealType !== null ? 1 : 4;
 
-        // m_user_group から active_flag=1 の登録ユーザーを部屋ごとに取得（分母）
+        // m_user_group から active_flag=0（現役）の登録ユーザーを部屋ごとに取得（分母）
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
         $masterRows = $userGroupTable->find()
             ->contain(['MUserInfo', 'MRoomInfo'])
-            ->where(['MUserGroup.active_flag' => 1])
+            ->where(['MUserGroup.active_flag' => 0])
             ->all()
             ->toArray();
 
@@ -85,7 +85,7 @@ class RoomUsageService
             $roomId = (int)$row->i_id_room;
             $userId = (int)$row->i_id_user;
 
-            // マスターに存在しないユーザー（退出済み等）はスキップ
+            // マスターに存在しないユーザー（退出済み: active_flag=1 等）はスキップ
             if (!isset($masterUsers[$roomId][$userId])) {
                 continue;
             }
