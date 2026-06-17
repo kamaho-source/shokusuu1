@@ -1536,6 +1536,10 @@ class TReservationInfoController extends AppController
     /**
      * 個人向け実食入力画面（職員が自分の実食を入力する）。
      *
+     * 表示週に差し戻し（i_approval_status=3）がある場合、
+     * 差し戻し理由と差し戻し者をバナー表示する。
+     *
+     * @throws \Cake\Http\Exception\UnauthorizedException ログインしていない場合
      * @return Response|null
      */
     public function myActualMeal(): ?Response
@@ -1662,7 +1666,7 @@ class TReservationInfoController extends AppController
         if ($latestRejection !== null) {
             $rejectionBanner = [
                 'reason'   => (string)($latestRejection->c_reject_reason ?: ''),
-                'approver' => (string)($latestRejection->approver->c_user_name ?? ''),
+                'approver' => (string)($latestRejection->approver?->c_user_name ?? ''),
                 'date'     => $latestRejection->dt_create?->format('Y-m-d H:i') ?? '',
             ];
         }
