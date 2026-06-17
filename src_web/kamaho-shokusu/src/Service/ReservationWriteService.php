@@ -257,17 +257,12 @@ class ReservationWriteService
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
 
-        if ($targetUserId !== $loginUserId) {
-            if ($isAdmin) {
-                // 管理者は全員を編集可能
-            } elseif (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1) {
-                // 職員レベルユーザー・ブロック長は子供（i_user_level=1）のみ編集可能
-            } else {
-                return [
-                    'status' => 403,
-                    'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
-                ];
-            }
+        $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1);
+        if ($targetUserId !== $loginUserId && !$canEditOther) {
+            return [
+                'status' => 403,
+                'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
+            ];
         }
 
         // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
@@ -329,37 +324,8 @@ class ReservationWriteService
             ];
         }
 
-        if ($exists) {
-            $existingEatFlag = null;
-            if ($isLastMinute) {
-                $existingEntity = $this->reservationTable->find()
-                    ->select(['eat_flag'])
-                    ->where([
-                        'i_id_user'          => $targetUserId,
-                        'i_id_room'          => $roomId,
-                        'd_reservation_date' => $dateStr,
-                        'i_reservation_type' => $meal,
-                    ])
-                    ->first();
-                $existingEatFlag = $existingEntity ? (int)$existingEntity->eat_flag : 0;
-            }
-
-            if ($value === 1) {
-                $eatFlag = $isLastMinute ? (int)$existingEatFlag : 1;
-                $changeFlag = 1;
-            } else {
-                $eatFlag = $isLastMinute ? (int)$existingEatFlag : 0;
-                $changeFlag = 0;
-            }
-        } else {
-            if ($value === 1) {
-                $eatFlag    = $isLastMinute ? 0 : 1;
-                $changeFlag = 1;
-            } else {
-                $eatFlag    = 0;
-                $changeFlag = 0;
-            }
-        }
+        $changeFlag = $value;
+        $eatFlag    = $this->resolveEatFlag($value, $isLastMinute, $exists, $targetUserId, $roomId, $dateStr, $meal);
 
         try {
             $result = $this->reservationTable->toggleMeal(
@@ -386,16 +352,15 @@ class ReservationWriteService
             $errors = $e->getEntity()?->getErrors() ?? [];
             $flat   = json_encode($errors, JSON_UNESCAPED_UNICODE);
 
-            $isMealConflict = (is_string($flat) && preg_match('/(昼|弁|bento|lunch|unique.*bento|unique.*lunch)/ui', $flat));
-            $isOptimisticConflict = (is_string($flat) && preg_match('/(conflict|optimistic)/ui', $flat));
+            $isMealConflict       = is_string($flat) && preg_match('/(昼|弁|bento|lunch|unique.*bento|unique.*lunch)/ui', $flat);
+            $isOptimisticConflict = is_string($flat) && preg_match('/(conflict|optimistic)/ui', $flat);
             $isConflict = $isMealConflict || $isOptimisticConflict;
-            $status = $isConflict ? 409 : 422;
-            $message = 'Validation failed.';
-            if ($isMealConflict) {
-                $message = '昼食と弁当は同時に予約できません。';
-            } elseif ($isOptimisticConflict) {
-                $message = '他の操作と競合しました。画面を再読み込みして再実行してください。';
-            }
+            $status  = $isConflict ? 409 : 422;
+            $message = match(true) {
+                $isMealConflict       => '昼食と弁当は同時に予約できません。',
+                $isOptimisticConflict => '他の操作と競合しました。画面を再読み込みして再実行してください。',
+                default               => 'Validation failed.',
+            };
 
             return [
                 'status' => $status,
@@ -420,6 +385,43 @@ class ReservationWriteService
                 ],
             ];
         }
+    }
+
+    /**
+     * isLastMinute・既存有無・選択値から eat_flag を決定する。
+     *
+     * - 直前編集かつ既存レコードあり: DB の現在値を維持（変更不可）
+     * - 直前編集かつ既存レコードなし: 0 固定（当日分は未実食扱い）
+     * - 通常編集: $value をそのまま使用
+     */
+    private function resolveEatFlag(
+        int    $value,
+        bool   $isLastMinute,
+        bool   $exists,
+        int    $targetUserId,
+        int    $roomId,
+        string $dateStr,
+        int    $meal
+    ): int {
+        if (!$isLastMinute) {
+            return $value;
+        }
+
+        if (!$exists) {
+            return 0;
+        }
+
+        $entity = $this->reservationTable->find()
+            ->select(['eat_flag'])
+            ->where([
+                'i_id_user'          => $targetUserId,
+                'i_id_room'          => $roomId,
+                'd_reservation_date' => $dateStr,
+                'i_reservation_type' => $meal,
+            ])
+            ->first();
+
+        return $entity ? (int)$entity->eat_flag : 0;
     }
 
     // -------------------------------------------------------------------------
