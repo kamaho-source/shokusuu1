@@ -121,7 +121,8 @@ class MUserInfoController extends AppController
         try {
             $results = $this->userBulkImportService->import($records, $createUser, $actorId, $this->getClientIp());
         } catch (\Throwable $e) {
-            throw new BadRequestException('インポート処理でエラー: ' . $e->getMessage());
+            $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
+            throw new BadRequestException('インポート処理中にエラーが発生しました。');
         }
 
         $this->set(['ok' => true, 'summary' => $results, '_serialize' => ['ok', 'summary']]);
@@ -225,6 +226,7 @@ class MUserInfoController extends AppController
                     }
                     $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
                 } catch (\Exception $e) {
+                    $this->log('userCreate error: ' . $e->getMessage(), 'error');
                     $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
                 }
             }
@@ -279,6 +281,7 @@ class MUserInfoController extends AppController
                 }
                 $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
             } catch (\Exception $e) {
+                $this->log('userEdit error: ' . $e->getMessage(), 'error');
                 $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
@@ -779,7 +782,8 @@ class MUserInfoController extends AppController
             $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->c_user_name));
             return $this->redirect(['action' => 'index']);
         } catch (\Exception $e) {
-            $this->Flash->error(__('ユーザーの復元に失敗しました: {0}', $e->getMessage()));
+            $this->log('userRestore error: ' . $e->getMessage(), 'error');
+            $this->Flash->error(__('ユーザーの復元に失敗しました。もう一度お試しください。'));
             return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
         }
     }
