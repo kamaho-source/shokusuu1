@@ -36,10 +36,10 @@ class DashboardService
      *   - fmtWeekRange        : 月曜〜金曜の期間文字列を返すクロージャ
      *                           例: 「2/23(月) 〜 2/27(金)」
      *
-     * @param mixed $user 認証済みユーザーオブジェクト(未ログイン時は null)
+     * @param \Authentication\IdentityInterface|null $user 認証済みユーザーオブジェクト(未ログイン時は null)
      * @return array<string, mixed>
      */
-    public function buildHomeContext($user): array
+    public function buildHomeContext(?\Authentication\IdentityInterface $user): array
     {
         // 現在日時をアジア/東京タイムゾーンで取得する
         $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));

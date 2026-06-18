@@ -366,10 +366,7 @@ class MealCountGridService
         return $categories;
     }
 
-    /**
-     * @param mixed $value
-     */
-    private function normalizeDateString($value): string
+    private function normalizeDateString(object|string|int|null $value): string
     {
         if ($value instanceof \DateTimeInterface) {
             return $value->format('Y-m-d');

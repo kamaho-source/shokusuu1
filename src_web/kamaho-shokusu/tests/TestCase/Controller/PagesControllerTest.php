@@ -42,7 +42,12 @@ class PagesControllerTest extends TestCase
     public function testDisplay()
     {
         Configure::write('debug', true);
+        // /pages/home は / (ダッシュボード) へリダイレクトされる
         $this->get('/pages/home');
+        $this->assertRedirect('/');
+
+        // ダッシュボード本体: 未ログイン時はログイン促進メッセージが表示される
+        $this->get('/');
         $this->assertResponseOk();
         $this->assertResponseContains('ログインが必要です');
         $this->assertResponseContains('ログイン');

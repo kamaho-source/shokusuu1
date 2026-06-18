@@ -139,7 +139,7 @@ class ApprovalPolicy
         return 0;
     }
 
-    private function getOriginalIdentity(?IdentityInterface $user): mixed
+    private function getOriginalIdentity(?IdentityInterface $user): object|array|null
     {
         if ($user === null) {
             return null;

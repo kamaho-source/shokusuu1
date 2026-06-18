@@ -39,7 +39,7 @@ class UserCreateService
     /**
      * ユーザー情報と部屋所属情報をまとめて保存する。
      *
-     * @param mixed  $entity     MUserInfo エンティティ（patchEntity 済み）
+     * @param \Cake\ORM\Entity $entity     MUserInfo エンティティ（patchEntity 済み）
      * @param array  $groupData  MUserGroup の入力データ配列（'i_id_room' を含む）
      * @param string $createdBy  作成者ユーザー名
      * @param int    $actorId    操作者ユーザーID
