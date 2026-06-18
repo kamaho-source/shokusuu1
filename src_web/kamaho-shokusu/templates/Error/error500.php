@@ -8,7 +8,7 @@
 use Cake\Core\Configure;
 use Cake\Error\Debugger;
 
-$this->layout = 'default';
+$this->layout = 'error';
 
 // デバッグ時は CakePHP 既定の開発用レイアウトを使用する
 if (Configure::read('debug')) {
