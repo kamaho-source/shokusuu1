@@ -213,6 +213,11 @@ $bizSectionVars = [
 <?= $this->Html->script('index.global.min.js') ?>
 <?= $this->Html->script('japanese-holidays.min.js') ?>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
-<?= $this->Html->script('pages/treservation_index.inline.js') ?>
+<?= $this->Html->script('pages/treservation_config.js') ?>
+<?= $this->Html->script('pages/treservation_toast.js') ?>
+<?= $this->Html->script('pages/treservation_lunch_bento.js') ?>
+<?= $this->Html->script('pages/treservation_export.js') ?>
+<?= $this->Html->script('pages/treservation_index.js') ?>
+<?= $this->Html->script('pages/treservation_meal_cal.js') ?>
 </body>
 </html>
