@@ -13,13 +13,13 @@ use Cake\ORM\TableRegistry;
 class UserDeletionService
 {
     /**
-     * @param mixed  $user      MUserInfo エンティティ
+     * @param \App\Model\Entity\MUserInfo $user      MUserInfo エンティティ
      * @param string $updatedBy 操作者ユーザー名
      * @param int    $actorId   操作者ユーザーID
      * @param string $ipAddress 操作元IPアドレス
      * @return bool
      */
-    public function softDelete(mixed $user, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function softDelete(\App\Model\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');

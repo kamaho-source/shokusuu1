@@ -123,17 +123,17 @@ vendor/bin/phpunit tests/TestCase/Domain/   # 層ごと
 ## 9. ブランチ戦略
 
 ```
-main     ← 本番リリース用（ブランチの起点）
-develop  ← 統合ブランチ（PRのベース）
+main     ← 本番リリース用（develop からのみマージ）
+develop  ← 統合ブランチ（ブランチの起点・PRのベース）
 feature/ ← 機能開発
 fix/     ← バグ修正
 hotfix/  ← 緊急本番修正
 ```
 
-**ブランチは必ず `main` から切ること。PRのベースブランチは必ず `develop` を指定すること。**
+**ブランチは必ず `develop` から切ること。PRのベースブランチは必ず `develop` を指定すること。**
 
 ```bash
-git checkout -b feature/xxx main
+git checkout -b feature/xxx develop
 gh pr create --base develop --title "feat: 機能名" --body "..."
 ```
 

@@ -7,22 +7,22 @@ use Authorization\IdentityInterface;
 
 class MNoticePolicy
 {
-    public function canIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canIndex(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
-    public function canAdd(?IdentityInterface $user, mixed $resource): bool
+    public function canAdd(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
-    public function canEdit(?IdentityInterface $user, mixed $resource): bool
+    public function canEdit(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
-    public function canDelete(?IdentityInterface $user, mixed $resource): bool
+    public function canDelete(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }

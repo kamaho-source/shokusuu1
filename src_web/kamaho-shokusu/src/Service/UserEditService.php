@@ -13,7 +13,7 @@ use Cake\ORM\TableRegistry;
 class UserEditService
 {
     /**
-     * @param mixed  $entity    MUserInfo エンティティ（contain MUserGroup 済み）
+     * @param \App\Model\Entity\MUserInfo $entity    MUserInfo エンティティ（contain MUserGroup 済み）
      * @param array  $data      リクエストデータ
      * @param int[]  $roomIds   新しく所属させる部屋IDの配列
      * @param string $updatedBy 操作者ユーザー名
@@ -22,7 +22,7 @@ class UserEditService
      * @return bool
      * @throws \Exception
      */
-    public function updateWithRooms(mixed $entity, array $data, array $roomIds, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function updateWithRooms(\App\Model\Entity\MUserInfo $entity, array $data, array $roomIds, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');

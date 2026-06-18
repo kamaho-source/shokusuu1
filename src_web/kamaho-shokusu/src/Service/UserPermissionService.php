@@ -13,14 +13,14 @@ use Cake\ORM\TableRegistry;
 class UserPermissionService
 {
     /**
-     * @param mixed  $user      MUserInfo エンティティ（取得・認可済み）
+     * @param \App\Model\Entity\MUserInfo $user      MUserInfo エンティティ（取得・認可済み）
      * @param int    $value     新しい権限値
      * @param string $updatedBy 操作者ユーザー名
      * @param int    $actorId   操作者ユーザーID
      * @param string $ipAddress 操作元IPアドレス
      * @return bool
      */
-    public function updatePermission(mixed $user, int $value, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function updatePermission(\App\Model\Entity\MUserInfo $user, int $value, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
     {
         $table = TableRegistry::getTableLocator()->get('MUserInfo');
 

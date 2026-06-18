@@ -19,7 +19,7 @@ class RoomService
      * @param \App\Model\Entity\MRoomInfo $roomInfo MUserGroup を contain 済みのエンティティ
      * @return array
      */
-    public function getUsersForRoom(mixed $roomInfo): array
+    public function getUsersForRoom(\App\Model\Entity\MRoomInfo $roomInfo): array
     {
         $userGroups = $roomInfo->m_user_group ?: [];
 
@@ -59,7 +59,7 @@ class RoomService
      * @param string|null                 $updatedBy 更新者名
      * @return bool
      */
-    public function softDelete(mixed $roomInfo, ?string $updatedBy): bool
+    public function softDelete(\App\Model\Entity\MRoomInfo $roomInfo, ?string $updatedBy): bool
     {
         $table = TableRegistry::getTableLocator()->get('MRoomInfo');
 

@@ -26,7 +26,7 @@ class MealSummaryExportService
      *
      * @param int $year  年度
      * @param int $month 月（1〜12）
-     * @return array{name: string, staff_id: mixed, meal_counts: array, total_price: int}[]
+     * @return array{name: string, staff_id: int|string|null, meal_counts: array, total_price: int}[]
      */
     public function aggregate(int $year, int $month): array
     {
@@ -58,7 +58,7 @@ class MealSummaryExportService
      * @param int $month 月（1〜12）
      * @return array{
      *   meal_prices: array{morning:int, lunch:int, dinner:int, bento:int},
-     *   rows: array{name:string, staff_id:mixed, approval_status:int, meal_counts:array, total_price:int}[]
+     *   rows: array{name:string, staff_id:int|string|null, approval_status:int, meal_counts:array, total_price:int}[]
      * }
      */
     public function aggregatePreview(int $year, int $month): array

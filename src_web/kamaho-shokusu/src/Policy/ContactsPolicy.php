@@ -16,19 +16,19 @@ use Authorization\IdentityInterface;
 final class ContactsPolicy
 {
     /** お問い合わせフォーム（全認証ユーザー） */
-    public function canIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canIndex(?IdentityInterface $user, \App\Controller\ContactsController $resource): bool
     {
         return $this->isAuthenticated($user);
     }
 
     /** 管理者：問い合わせ一覧 */
-    public function canAdminIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canAdminIndex(?IdentityInterface $user, \App\Controller\ContactsController $resource): bool
     {
         return $this->isAdmin($user);
     }
 
     /** 管理者：問い合わせ詳細・返信 */
-    public function canAdminDetail(?IdentityInterface $user, mixed $resource): bool
+    public function canAdminDetail(?IdentityInterface $user, \App\Controller\ContactsController $resource): bool
     {
         return $this->isAdmin($user);
     }
