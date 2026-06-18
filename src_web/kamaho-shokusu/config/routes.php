@@ -32,20 +32,19 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
         $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
 
-        // bulkAddSubmit（POST 専用）
+        // ── 一括予約（ReservationBulkController） ──
         $builder->connect(
             '/TReservationInfo/bulkAddSubmit',
-            ['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit']
+            ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit']
         )->setMethods(['POST']);
 
-        // 週一括フォーム・関連 API
-        $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm']);
-        $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'TReservationInfo', 'action' => 'bulkChangeEditForm']);
-        $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'TReservationInfo', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
+        $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm']);
+        $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditForm']);
+        $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForBulk/:roomId',
-            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForBulk']
+            ['controller' => 'ReservationBulk', 'action' => 'getUsersByRoomForBulk']
         )
             ->setPass(['roomId'])
             ->setPatterns(['roomId' => '\d+'])
@@ -73,7 +72,7 @@ return function (RouteBuilder $routes): void {
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForEdit/:roomId',
-            ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoomForEdit']
+            ['controller' => 'ReservationReport', 'action' => 'getUsersByRoomForEdit']
         )
             ->setPass(['roomId'])
             ->setPatterns(['roomId' => '\d+'])
@@ -91,7 +90,7 @@ return function (RouteBuilder $routes): void {
 
         $builder->connect(
             '/TReservationInfo/getReservationSnapshots',
-            ['controller' => 'TReservationInfo', 'action' => 'getReservationSnapshots']
+            ['controller' => 'ReservationBulk', 'action' => 'getReservationSnapshots']
         )->setMethods(['POST']);
 
         $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
@@ -185,10 +184,10 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'view']
         )->setPass(['date']);
 
-        // === 予約トグル（POST）: roomId あり版 と なし版 の両方を受け付ける ===
+        // ── 予約トグル（ReservationToggleController） ──
         $builder->connect(
             '/TReservationInfo/toggle/:roomId',
-            ['controller' => 'TReservationInfo', 'action' => 'toggle']
+            ['controller' => 'ReservationToggle', 'action' => 'toggle']
         )
             ->setPatterns(['roomId' => '\d+'])
             ->setPass(['roomId'])
@@ -196,13 +195,13 @@ return function (RouteBuilder $routes): void {
 
         $builder->connect(
             '/TReservationInfo/toggle',
-            ['controller' => 'TReservationInfo', 'action' => 'toggle']
+            ['controller' => 'ReservationToggle', 'action' => 'toggle']
         )->setMethods(['POST']);
 
-        // 部屋別食数取得API（職員用）
+        // ── 食数レポート（ReservationReportController） ──
         $builder->connect(
             '/TReservationInfo/getRoomMealCounts/:roomId',
-            ['controller' => 'TReservationInfo', 'action' => 'getRoomMealCounts']
+            ['controller' => 'ReservationReport', 'action' => 'getRoomMealCounts']
         )
             ->setPatterns(['roomId' => '\d+'])
             ->setPass(['roomId'])
@@ -210,46 +209,76 @@ return function (RouteBuilder $routes): void {
 
         $builder->connect(
             '/TReservationInfo/getRoomMealCounts',
-            ['controller' => 'TReservationInfo', 'action' => 'getRoomMealCounts']
+            ['controller' => 'ReservationReport', 'action' => 'getRoomMealCounts']
         )->setMethods(['GET']);
 
-        // 全部屋食数取得API（管理者用）
         $builder->connect(
             '/TReservationInfo/getAllRoomsMealCounts',
-            ['controller' => 'TReservationInfo', 'action' => 'getAllRoomsMealCounts']
+            ['controller' => 'ReservationReport', 'action' => 'getAllRoomsMealCounts']
         )->setMethods(['GET']);
 
-        // 実食確認管理（大人限定）
+        $builder->connect(
+            '/TReservationInfo/getMealCounts/:date',
+            ['controller' => 'ReservationReport', 'action' => 'getMealCounts']
+        )
+            ->setPass(['date'])
+            ->setPatterns(['date' => '\d{4}-\d{2}-\d{2}']);
+
+        $builder->connect(
+            '/TReservationInfo/exportJson',
+            ['controller' => 'ReservationReport', 'action' => 'exportJson']
+        )->setMethods(['GET']);
+
+        $builder->connect(
+            '/TReservationInfo/exportJsonrank',
+            ['controller' => 'ReservationReport', 'action' => 'exportJsonrank']
+        )->setMethods(['GET']);
+
+        $builder->connect(
+            '/TReservationInfo/reportNoMeal',
+            ['controller' => 'ReservationReport', 'action' => 'reportNoMeal']
+        )->setMethods(['POST']);
+
+        $builder->connect(
+            '/TReservationInfo/reportEat',
+            ['controller' => 'ReservationReport', 'action' => 'reportEat']
+        )->setMethods(['POST']);
+
+        // ── 実食確認管理（ReservationActualMealController） ──
         $builder->connect(
             '/TReservationInfo/actual-meal-management',
-            ['controller' => 'TReservationInfo', 'action' => 'actualMealManagement']
+            ['controller' => 'ReservationActualMeal', 'action' => 'actualMealManagement']
         )->setMethods(['GET']);
 
         $builder->connect(
             '/TReservationInfo/actual-meal-save',
-            ['controller' => 'TReservationInfo', 'action' => 'actualMealSave']
+            ['controller' => 'ReservationActualMeal', 'action' => 'actualMealSave']
         )->setMethods(['POST']);
 
         $builder->connect(
             '/TReservationInfo/actual-meal-request-approval',
-            ['controller' => 'TReservationInfo', 'action' => 'actualMealRequestApproval']
+            ['controller' => 'ReservationActualMeal', 'action' => 'actualMealRequestApproval']
         )->setMethods(['POST']);
 
         $builder->connect(
             '/TReservationInfo/my-actual-meal',
-            ['controller' => 'TReservationInfo', 'action' => 'myActualMeal']
+            ['controller' => 'ReservationActualMeal', 'action' => 'myActualMeal']
         )->setMethods(['GET']);
 
-        // 食数予約 Excel グリッド画面（28日）
         $builder->connect(
             '/TReservationInfo/meal-count-grid',
-            ['controller' => 'TReservationInfo', 'action' => 'mealCountGrid']
+            ['controller' => 'ReservationActualMeal', 'action' => 'mealCountGrid']
         )->setMethods(['GET']);
 
-        // 予約コピープレビューAPI
+        // ── 予約コピー（ReservationCopyController） ──
+        $builder->connect(
+            '/TReservationInfo/copy',
+            ['controller' => 'ReservationCopy', 'action' => 'copy']
+        )->setMethods(['POST']);
+
         $builder->connect(
             '/TReservationInfo/copyPreview',
-            ['controller' => 'TReservationInfo', 'action' => 'copyPreview']
+            ['controller' => 'ReservationCopy', 'action' => 'copyPreview']
         )->setMethods(['GET', 'POST']);
 
         // ------------------------------------------------------------------

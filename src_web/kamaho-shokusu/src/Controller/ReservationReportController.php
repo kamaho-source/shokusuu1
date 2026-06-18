@@ -1,27 +1,59 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controller\Traits;
+namespace App\Controller;
 
-use Cake\Http\Exception\NotFoundException;
+use App\Service\MealReportingService;
+use App\Service\ReservationReportService;
+use Cake\Http\Response;
 use Cake\Log\Log;
 
-trait ReservationReportActionsTrait
+/**
+ * 食数レポート・エクスポート専用コントローラー。
+ *
+ * 食数取得API・JSONエクスポート・欠食/実食報告を担当する。
+ */
+class ReservationReportController extends ReservationBaseController
 {
-    protected function runGetMealCounts($date)
+    private ReservationReportService $reportService;
+    private MealReportingService $mealReportingService;
+
+    public function initialize(): void
     {
-        $reportService = $this->reportService;
-        return $reportService->getMealCounts($this->TIndividualReservationInfo, $date);
+        parent::initialize();
+
+        $this->reportService        = new ReservationReportService();
+        $this->mealReportingService = new MealReportingService();
     }
 
-    protected function runGetUsersByRoomForEdit($roomId)
+    /**
+     * 日別食数取得API。
+     *
+     * @param string $date YYYY-MM-DD
+     * @return Response|null
+     */
+    public function getMealCounts($date): ?Response
     {
+        return $this->reportService->getMealCounts($this->TIndividualReservationInfo, $date);
+    }
+
+    /**
+     * 部屋別利用者一覧（直前編集用）取得API。
+     *
+     * @param int $roomId
+     * @return Response|null
+     */
+    public function getUsersByRoomForEdit($roomId): ?Response
+    {
+        if ($denied = $this->authorizeReservation('getUsersByRoomForEdit', ['i_id_room' => (int)$roomId], true)) {
+            return $denied;
+        }
+
         $date = $this->request->getQuery('date');
         $this->request->allowMethod(['get']);
         $this->autoRender = false;
 
-        $reportService = $this->reportService;
-        $completeUserInfo = $reportService->getUsersByRoomForEdit(
+        $completeUserInfo = $this->reportService->getUsersByRoomForEdit(
             $this->MUserGroup,
             $this->TIndividualReservationInfo,
             (int)$roomId,
@@ -31,16 +63,23 @@ trait ReservationReportActionsTrait
         return $this->apiResponseService->success($this->response, ['usersByRoom' => $completeUserInfo]);
     }
 
-    protected function runExportJson()
+    /**
+     * 月次予約データJSONエクスポートAPI。
+     *
+     * @return Response
+     */
+    public function exportJson(): Response
     {
+        if ($denied = $this->authorizeReservation('exportJson', [], true)) {
+            return $denied;
+        }
+
         try {
             $from = $this->request->getQuery('from');
             $to   = $this->request->getQuery('to');
 
             if (!$from || !$to) {
-                throw new \InvalidArgumentException(
-                    '開始日・終了日を指定してください (例: from=2025-07-01&to=2025-07-15)'
-                );
+                throw new \InvalidArgumentException('開始日・終了日を指定してください (例: from=2025-07-01&to=2025-07-15)');
             }
 
             try {
@@ -54,8 +93,7 @@ trait ReservationReportActionsTrait
                 throw new \InvalidArgumentException('開始日は終了日以前の日付を指定してください');
             }
 
-            $reportService = $this->reportService;
-            $result = $reportService->buildExportJson(
+            $result = $this->reportService->buildExportJson(
                 $this->TIndividualReservationInfo,
                 $startDate->format('Y-m-d'),
                 $endDate->format('Y-m-d')
@@ -67,13 +105,21 @@ trait ReservationReportActionsTrait
             if ($e instanceof \InvalidArgumentException) {
                 return $this->apiResponseService->error($this->response, $e->getMessage(), 400);
             }
-
             return $this->apiResponseService->error($this->response, 'エクスポート処理中にエラーが発生しました。', 500);
         }
     }
 
-    protected function runExportJsonrank()
+    /**
+     * ランク別食数JSONエクスポートAPI。
+     *
+     * @return Response
+     */
+    public function exportJsonrank(): Response
     {
+        if ($denied = $this->authorizeReservation('exportJsonrank', [], true)) {
+            return $denied;
+        }
+
         $this->autoRender = false;
 
         $from  = $this->request->getQuery('from');
@@ -101,8 +147,7 @@ trait ReservationReportActionsTrait
             $emptyMsg  = '指定された月にデータが見つかりませんでした。';
         }
 
-        $reportService = $this->reportService;
-        $finalOutput = $reportService->buildExportJsonRank(
+        $finalOutput = $this->reportService->buildExportJsonRank(
             $this->TIndividualReservationInfo,
             $startDate,
             $endDate,
@@ -112,8 +157,17 @@ trait ReservationReportActionsTrait
         return $this->apiResponseService->success($this->response, $finalOutput);
     }
 
-    protected function runReportNoMeal()
+    /**
+     * 欠食報告API。
+     *
+     * @return Response|null
+     */
+    public function reportNoMeal(): ?Response
     {
+        if ($denied = $this->authorizeReservation('reportNoMeal', [], true)) {
+            return $denied;
+        }
+
         $this->request->allowMethod(['post']);
 
         $loginUser = $this->request->getAttribute('identity');
@@ -138,8 +192,17 @@ trait ReservationReportActionsTrait
         return $this->apiResponseService->success($this->response, [], $result['message']);
     }
 
-    protected function runReportEat()
+    /**
+     * 実食報告API。
+     *
+     * @return Response|null
+     */
+    public function reportEat(): ?Response
     {
+        if ($denied = $this->authorizeReservation('reportEat', [], true)) {
+            return $denied;
+        }
+
         $this->request->allowMethod(['post']);
 
         $loginUser = $this->request->getAttribute('identity');
@@ -164,39 +227,56 @@ trait ReservationReportActionsTrait
         return $this->apiResponseService->success($this->response, [], $result['message']);
     }
 
-    protected function runGetAllRoomsMealCounts()
+    /**
+     * 全部屋食数取得API（管理者用）。
+     *
+     * @return Response|null
+     */
+    public function getAllRoomsMealCounts(): ?Response
     {
+        if ($denied = $this->authorizeReservation('getAllRoomsMealCounts', [], true)) {
+            return $denied;
+        }
+
         $this->request->allowMethod(['get']);
         $this->autoRender = false;
 
         $fromDate = $this->request->getQuery('from');
-        $toDate = $this->request->getQuery('to');
+        $toDate   = $this->request->getQuery('to');
 
         if (!$fromDate || !$toDate) {
             $fromDate = date('Y-m-01', strtotime('-1 month'));
-            $toDate = date('Y-m-t', strtotime('+1 month'));
+            $toDate   = date('Y-m-t', strtotime('+1 month'));
         }
 
         try {
-            $reportService = $this->reportService;
-            $result = $reportService->buildAllRoomsMealCounts(
+            $result = $this->reportService->buildAllRoomsMealCounts(
                 $this->TIndividualReservationInfo,
                 $fromDate,
                 $toDate
             );
-
             return $this->apiResponseService->success($this->response, ['result' => $result]);
         } catch (\Exception $e) {
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
     }
 
-    protected function runGetRoomMealCounts($roomId = null)
+    /**
+     * 部屋別食数取得API（職員用）。
+     *
+     * @param int|null $roomId
+     * @return Response|null
+     */
+    public function getRoomMealCounts($roomId = null): ?Response
     {
+        if ($denied = $this->authorizeReservation('getRoomMealCounts', ['i_id_room' => (int)$roomId], true)) {
+            return $denied;
+        }
+
         $this->request->allowMethod(['get']);
         $this->autoRender = false;
 
-        $user = $this->request->getAttribute('identity');
+        $user   = $this->request->getAttribute('identity');
         $userId = (int)($user?->get('i_id_user') ?? 0);
         if ($userId <= 0) {
             return $this->apiResponseService->error($this->response, 'ログインが必要です。', 401);
@@ -214,37 +294,30 @@ trait ReservationReportActionsTrait
             }
         }
 
-        if ($roomId) {
-            $targetRoomIds = [(int)$roomId];
-        } else {
-            $targetRoomIds = $userRoomIds;
-        }
+        $targetRoomIds = $roomId ? [(int)$roomId] : $userRoomIds;
 
         if (empty($targetRoomIds)) {
             return $this->apiResponseService->error($this->response, '所属部屋が見つかりません。', 400);
         }
 
         $fromDate = $this->request->getQuery('from');
-        $toDate = $this->request->getQuery('to');
+        $toDate   = $this->request->getQuery('to');
 
         if (!$fromDate || !$toDate) {
             $fromDate = date('Y-m-01', strtotime('-1 month'));
-            $toDate = date('Y-m-t', strtotime('+1 month'));
+            $toDate   = date('Y-m-t', strtotime('+1 month'));
         }
 
         try {
-            $reportService = $this->reportService;
-            $result = $reportService->buildRoomMealCounts(
+            $result = $this->reportService->buildRoomMealCounts(
                 $this->TIndividualReservationInfo,
                 $targetRoomIds,
                 $fromDate,
                 $toDate
             );
-
             return $this->apiResponseService->success($this->response, ['result' => $result]);
         } catch (\Exception $e) {
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
     }
-
 }
