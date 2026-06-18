@@ -498,22 +498,32 @@ class TReservationInfoController extends ReservationBaseController
             }
 
             $reservationType = $data['reservation_type'] ?? '1';
-            $result = ((string)$reservationType === '1')
-                ? $this->writeService->processIndividualReservation(
-                    $data['d_reservation_date'],
-                    $data,
-                    $rooms,
-                    (int)$userId,
-                    (string)$user->get('c_user_name'),
-                    fn($d) => $this->datePolicy->validateReservationDate((string)$d)
-                )
-                : $this->writeService->processGroupReservation(
-                    $data['d_reservation_date'],
-                    $data,
-                    $rooms,
-                    (string)$user->get('c_user_name'),
-                    fn($d) => $this->datePolicy->validateReservationDate((string)$d)
-                );
+            $auditSuccess = 0;
+            try {
+                $result = ((string)$reservationType === '1')
+                    ? $this->writeService->processIndividualReservation(
+                        $data['d_reservation_date'],
+                        $data,
+                        $rooms,
+                        (int)$userId,
+                        (string)$user->get('c_user_name'),
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
+                    )
+                    : $this->writeService->processGroupReservation(
+                        $data['d_reservation_date'],
+                        $data,
+                        $rooms,
+                        (string)$user->get('c_user_name'),
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
+                    );
+                $auditSuccess = 1;
+                $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
+            } catch (\App\Domain\Exception\DomainException $e) {
+                $resultResponse = $this->jsonErrorResponse($e->getMessage(), $e->getStatusCode());
+            } catch (\Throwable $e) {
+                $this->log('予約登録エラー: ' . $e->getMessage(), 'error');
+                $resultResponse = $this->jsonErrorResponse('内部エラーが発生しました。', 500);
+            }
 
             \App\Service\AuditLogService::record(
                 'reservation',
@@ -524,13 +534,10 @@ class TReservationInfoController extends ReservationBaseController
                 $data['d_reservation_date'] ?? null,
                 ['date' => $data['d_reservation_date'] ?? null],
                 $this->getClientIp(),
-                ($result['ok'] ?? false) ? 1 : 0
+                $auditSuccess
             );
 
-            $resultResponse = $result['ok']
-                ? $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null)
-                : $this->jsonErrorResponse($result['message'], $result['status'] ?? 400, $result['data'] ?? []);
-
+            // ★ ここからが重要：非AJAXでは「常にサーバ側で配列ルート→redirect()」に集約
             if ($this->request->is('ajax')) {
                 return $resultResponse instanceof Response ? $resultResponse : $this->response;
             }
@@ -703,13 +710,21 @@ class TReservationInfoController extends ReservationBaseController
                         }
                         $this->Flash->success($payload['message']);
                         return $this->redirect(['action' => 'index']);
+                    } catch (\App\Domain\Exception\DomainException $e) {
+                        $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'warning');
+                        if ($wantsJson) {
+                            return $this->response->withStatus($e->getStatusCode())->withType('application/json')
+                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+                        }
+                        $this->Flash->error($e->getMessage());
+                        return $this->redirect(['action' => 'index']);
                     } catch (\Throwable $e) {
                         $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'error');
                         if ($wantsJson) {
                             return $this->response->withStatus(500)->withType('application/json')
-                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => '予約の更新中にエラーが発生しました。'], JSON_UNESCAPED_UNICODE));
                         }
-                        $this->Flash->error($e->getMessage());
+                        $this->Flash->error('予約の更新中にエラーが発生しました。');
                         return $this->redirect(['action' => 'index']);
                     }
                 }

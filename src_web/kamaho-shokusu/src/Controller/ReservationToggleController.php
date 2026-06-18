@@ -66,42 +66,28 @@ class ReservationToggleController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $result = $this->writeService->processToggle(
-            roomId: $roomId,
-            payload: $payload,
-            loginUserId: $loginUserId,
-            loginUserName: $loginUserName
-        );
+        $auditContext = ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null];
+        try {
+            $result = $this->writeService->processToggle(
+                roomId: $roomId,
+                payload: $payload,
+                loginUserId: $loginUserId,
+                loginUserName: $loginUserName
+            );
 
-        $status = (int)($result['status'] ?? 200);
-        $body   = (array)($result['body'] ?? []);
-        $ok     = (bool)($body['ok'] ?? ($status >= 200 && $status < 300));
+            \App\Service\AuditLogService::record(
+                'reservation', 'reservation_toggle', $loginUserName, $loginUserId,
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 1
+            );
 
-        \App\Service\AuditLogService::record(
-            'reservation',
-            'reservation_toggle',
-            $loginUserName,
-            $loginUserId,
-            't_reservation_info',
-            "room:{$roomId}",
-            ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null],
-            $this->getClientIp(),
-            $ok ? 1 : 0
-        );
+            return $this->apiResponseService->success($this->response, $result, null, 200);
+        } catch (\App\Domain\Exception\DomainException $e) {
+            \App\Service\AuditLogService::record(
+                'reservation', 'reservation_toggle', $loginUserName, $loginUserId,
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0
+            );
 
-        $message = (string)($body['message'] ?? '');
-        $data = $body;
-        unset($data['ok'], $data['message']);
-
-        if ($ok) {
-            return $this->apiResponseService->success($this->response, $data, $message !== '' ? $message : null, $status);
+            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         }
-
-        return $this->apiResponseService->error(
-            $this->response,
-            $message !== '' ? $message : '処理に失敗しました。',
-            $status,
-            $data
-        );
     }
 }

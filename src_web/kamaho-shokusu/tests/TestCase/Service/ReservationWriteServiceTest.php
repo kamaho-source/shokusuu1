@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Service;
 
+use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\InvalidInputException;
+use App\Domain\Exception\UnauthorizedException;
 use App\Service\ReservationWriteService;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\DateTime;
@@ -178,52 +181,60 @@ class ReservationWriteServiceTest extends TestCase
 
     public function testIndividualInvalidJsonReturnsError400(): void
     {
-        $result = $this->service->processIndividualReservation(
-            '2026-07-01',
-            'invalid-json{{{',
-            $this->rooms(),
-            1,
-            'テストユーザー',
-            $this->alwaysValid()
-        );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(400, $result['status']);
+        try {
+            $this->service->processIndividualReservation(
+                '2026-07-01',
+                'invalid-json{{{',
+                $this->rooms(),
+                1,
+                'テストユーザー',
+                $this->alwaysValid()
+            );
+            $this->fail('InvalidInputException が投げられていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame(400, $e->getStatusCode());
+        }
     }
 
     public function testIndividualMissingMealsKeyReturnsError422(): void
     {
-        $result = $this->service->processIndividualReservation(
-            '2026-07-01',
-            json_encode(['wrong_key' => []]),
-            $this->rooms(),
-            1,
-            'テストユーザー',
-            $this->alwaysValid()
-        );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(422, $result['status']);
+        try {
+            $this->service->processIndividualReservation(
+                '2026-07-01',
+                json_encode(['wrong_key' => []]),
+                $this->rooms(),
+                1,
+                'テストユーザー',
+                $this->alwaysValid()
+            );
+            $this->fail('InvalidInputException が投げられていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
     }
 
     public function testIndividualDateValidationFailureReturnsError422(): void
     {
-        $result = $this->service->processIndividualReservation(
-            '2020-01-01',
-            json_encode(['meals' => ['1' => ['1' => 1]]]),
-            $this->rooms(),
-            1,
-            'テストユーザー',
-            $this->alwaysFail()
-        );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(422, $result['status']);
+        try {
+            $this->service->processIndividualReservation(
+                '2020-01-01',
+                json_encode(['meals' => ['1' => ['1' => 1]]]),
+                $this->rooms(),
+                1,
+                'テストユーザー',
+                $this->alwaysFail()
+            );
+            $this->fail('InvalidInputException が投げられていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
     }
 
     public function testIndividualMultipleRoomsSameMealReturnsError409(): void
     {
-        $result = $this->service->processIndividualReservation(
+        $this->expectException(ConflictException::class);
+
+        $this->service->processIndividualReservation(
             '2026-07-01',
             json_encode(['meals' => ['1' => ['1' => 1, '2' => 1]]]),
             [1 => [], 2 => []],
@@ -231,14 +242,13 @@ class ReservationWriteServiceTest extends TestCase
             'テストユーザー',
             $this->alwaysValid()
         );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(409, $result['status']);
     }
 
     public function testIndividualUnauthorizedRoomReturnsError403(): void
     {
-        $result = $this->service->processIndividualReservation(
+        $this->expectException(UnauthorizedException::class);
+
+        $this->service->processIndividualReservation(
             '2026-07-01',
             json_encode(['meals' => ['1' => ['99' => 1]]]),
             $this->rooms(),
@@ -246,9 +256,6 @@ class ReservationWriteServiceTest extends TestCase
             'テストユーザー',
             $this->alwaysValid()
         );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(403, $result['status']);
     }
 
     // =========================================================================
@@ -290,44 +297,50 @@ class ReservationWriteServiceTest extends TestCase
 
     public function testGroupInvalidJsonReturnsError400(): void
     {
-        $result = $this->service->processGroupReservation(
-            '2026-07-01',
-            'bad-json{{{',
-            $this->rooms(),
-            'システム管理者',
-            $this->alwaysValid()
-        );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(400, $result['status']);
+        try {
+            $this->service->processGroupReservation(
+                '2026-07-01',
+                'bad-json{{{',
+                $this->rooms(),
+                'システム管理者',
+                $this->alwaysValid()
+            );
+            $this->fail('InvalidInputException が投げられていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame(400, $e->getStatusCode());
+        }
     }
 
     public function testGroupMissingUsersKeyReturnsError422(): void
     {
-        $result = $this->service->processGroupReservation(
-            '2026-07-01',
-            json_encode(['wrong_key' => []]),
-            $this->rooms(),
-            'システム管理者',
-            $this->alwaysValid()
-        );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(422, $result['status']);
+        try {
+            $this->service->processGroupReservation(
+                '2026-07-01',
+                json_encode(['wrong_key' => []]),
+                $this->rooms(),
+                'システム管理者',
+                $this->alwaysValid()
+            );
+            $this->fail('InvalidInputException が投げられていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
     }
 
     public function testGroupDateValidationFailureReturnsError422(): void
     {
-        $result = $this->service->processGroupReservation(
-            '2020-01-01',
-            json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
-            $this->rooms(),
-            'システム管理者',
-            $this->alwaysFail()
-        );
-
-        $this->assertFalse($result['ok']);
-        $this->assertSame(422, $result['status']);
+        try {
+            $this->service->processGroupReservation(
+                '2020-01-01',
+                json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
+                $this->rooms(),
+                'システム管理者',
+                $this->alwaysFail()
+            );
+            $this->fail('InvalidInputException が投げられていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
     }
 
     public function testGroupDeactivatesExistingReservationOnDeselect(): void
