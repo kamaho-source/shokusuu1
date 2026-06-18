@@ -626,22 +626,32 @@ class TReservationInfoController extends AppController
             }
 
             $reservationType = $data['reservation_type'] ?? '1';
-            $result = ((string)$reservationType === '1')
-                ? $this->writeService->processIndividualReservation(
-                    $data['d_reservation_date'],
-                    $data,
-                    $rooms,
-                    (int)$userId,
-                    (string)$user->get('c_user_name'),
-                    fn($d) => $this->datePolicy->validateReservationDate((string)$d)
-                )
-                : $this->writeService->processGroupReservation(
-                    $data['d_reservation_date'],
-                    $data,
-                    $rooms,
-                    (string)$user->get('c_user_name'),
-                    fn($d) => $this->datePolicy->validateReservationDate((string)$d)
-                );
+            $auditSuccess = 0;
+            try {
+                $result = ((string)$reservationType === '1')
+                    ? $this->writeService->processIndividualReservation(
+                        $data['d_reservation_date'],
+                        $data,
+                        $rooms,
+                        (int)$userId,
+                        (string)$user->get('c_user_name'),
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
+                    )
+                    : $this->writeService->processGroupReservation(
+                        $data['d_reservation_date'],
+                        $data,
+                        $rooms,
+                        (string)$user->get('c_user_name'),
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
+                    );
+                $auditSuccess = 1;
+                $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
+            } catch (\App\Domain\Exception\DomainException $e) {
+                $resultResponse = $this->jsonErrorResponse($e->getMessage(), $e->getStatusCode());
+            } catch (\Throwable $e) {
+                $this->log('予約登録エラー: ' . $e->getMessage(), 'error');
+                $resultResponse = $this->jsonErrorResponse('内部エラーが発生しました。', 500);
+            }
 
             \App\Service\AuditLogService::record(
                 'reservation',
@@ -652,12 +662,8 @@ class TReservationInfoController extends AppController
                 $data['d_reservation_date'] ?? null,
                 ['date' => $data['d_reservation_date'] ?? null],
                 $this->getClientIp(),
-                ($result['ok'] ?? false) ? 1 : 0
+                $auditSuccess
             );
-
-            $resultResponse = $result['ok']
-                ? $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null)
-                : $this->jsonErrorResponse($result['message'], $result['status'] ?? 400, $result['data'] ?? []);
 
             // ★ ここからが重要：非AJAXでは「常にサーバ側で配列ルート→redirect()」に集約
             if ($this->request->is('ajax')) {
@@ -1040,13 +1046,21 @@ class TReservationInfoController extends AppController
                         }
                         $this->Flash->success($payload['message']);
                         return $this->redirect(['action' => 'index']);
+                    } catch (\App\Domain\Exception\DomainException $e) {
+                        $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'warning');
+                        if ($wantsJson) {
+                            return $this->response->withStatus($e->getStatusCode())->withType('application/json')
+                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+                        }
+                        $this->Flash->error($e->getMessage());
+                        return $this->redirect(['action' => 'index']);
                     } catch (\Throwable $e) {
                         $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'error');
                         if ($wantsJson) {
                             return $this->response->withStatus(500)->withType('application/json')
-                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+                                ->withStringBody(json_encode(['ok' => false, 'status' => 'error', 'message' => '予約の更新中にエラーが発生しました。'], JSON_UNESCAPED_UNICODE));
                         }
-                        $this->Flash->error($e->getMessage());
+                        $this->Flash->error('予約の更新中にエラーが発生しました。');
                         return $this->redirect(['action' => 'index']);
                     }
                 }
@@ -1323,42 +1337,29 @@ class TReservationInfoController extends AppController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $result = $this->writeService->processToggle(
-            roomId: $roomId,
-            payload: $payload,
-            loginUserId: $loginUserId,
-            loginUserName: $loginUserName
-        );
+        $auditContext = ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null];
+        try {
+            $result = $this->writeService->processToggle(
+                roomId: $roomId,
+                payload: $payload,
+                loginUserId: $loginUserId,
+                loginUserName: $loginUserName
+            );
 
-        $status = (int)($result['status'] ?? 200);
-        $body = (array)($result['body'] ?? []);
-        $ok = (bool)($body['ok'] ?? ($status >= 200 && $status < 300));
+            \App\Service\AuditLogService::record(
+                'reservation', 'reservation_toggle', $loginUserName, $loginUserId,
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 1
+            );
 
-        \App\Service\AuditLogService::record(
-            'reservation',
-            'reservation_toggle',
-            $loginUserName,
-            $loginUserId,
-            't_reservation_info',
-            "room:{$roomId}",
-            ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null],
-            $this->getClientIp(),
-            $ok ? 1 : 0
-        );
-        $message = (string)($body['message'] ?? '');
-        $data = $body;
-        unset($data['ok'], $data['message']);
+            return $this->apiResponseService->success($this->response, $result, null, 200);
+        } catch (\App\Domain\Exception\DomainException $e) {
+            \App\Service\AuditLogService::record(
+                'reservation', 'reservation_toggle', $loginUserName, $loginUserId,
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0
+            );
 
-        if ($ok) {
-            return $this->apiResponseService->success($this->response, $data, $message !== '' ? $message : null, $status);
+            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         }
-
-        return $this->apiResponseService->error(
-            $this->response,
-            $message !== '' ? $message : '処理に失敗しました。',
-            $status,
-            $data
-        );
     }
 
     public function reportNoMeal(): ?Response
