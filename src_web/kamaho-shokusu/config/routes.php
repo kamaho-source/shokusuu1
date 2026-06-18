@@ -3,13 +3,13 @@
  * Routes configuration.
  */
 
-use Cake\Routing\Route\DashedRoute;
+use Cake\Routing\Route\Route;
 use Cake\Routing\RouteBuilder;
 use Cake\Routing\Router;
 
 return function (RouteBuilder $routes): void {
 
-    $routes->setRouteClass(DashedRoute::class);
+    $routes->setRouteClass(Route::class);
 
     $routes->scope('/', function (RouteBuilder $builder): void {
 
@@ -43,7 +43,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
 
         $builder->connect(
-            '/TReservationInfo/getUsersByRoomForBulk/:roomId',
+            '/TReservationInfo/getUsersByRoomForBulk/{roomId}',
             ['controller' => 'ReservationBulk', 'action' => 'getUsersByRoomForBulk']
         )
             ->setPass(['roomId'])
@@ -51,7 +51,7 @@ return function (RouteBuilder $routes): void {
             ->setMethods(['GET']);
 
         $builder->connect(
-            '/TReservationInfo/getUsersByRoom/:roomId',
+            '/TReservationInfo/getUsersByRoom/{roomId}',
             ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom']
         )
             ->setPass(['roomId'])
@@ -59,7 +59,7 @@ return function (RouteBuilder $routes): void {
             ->setMethods(['GET']);
 
         $builder->connect(
-            '/TReservationInfo/roomDetails/:roomId/:date/:mealType',
+            '/TReservationInfo/roomDetails/{roomId}/{date}/{mealType}',
             ['controller' => 'TReservationInfo', 'action' => 'roomDetails']
         )
             ->setPass(['roomId', 'date', 'mealType'])
@@ -71,7 +71,7 @@ return function (RouteBuilder $routes): void {
             ->setMethods(['GET']);
 
         $builder->connect(
-            '/TReservationInfo/getUsersByRoomForEdit/:roomId',
+            '/TReservationInfo/getUsersByRoomForEdit/{roomId}',
             ['controller' => 'ReservationReport', 'action' => 'getUsersByRoomForEdit']
         )
             ->setPass(['roomId'])
@@ -95,7 +95,7 @@ return function (RouteBuilder $routes): void {
 
         $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
         $builder->connect(
-            '/TReservationInfo/changeEdit/:roomId/:date/:mealType',
+            '/TReservationInfo/changeEdit/{roomId}/{date}/{mealType}',
             ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
@@ -109,7 +109,7 @@ return function (RouteBuilder $routes): void {
         // 3セグメント版（従来：{roomId}/{date}/{mealType}）
         // ※ changeEdit は TReservationInfoController に実装されているため controller を揃える
         $builder->connect(
-            '/t-individual-reservation-info/change-edit/:roomId/:date/:mealType',
+            '/t-individual-reservation-info/change-edit/{roomId}/{date}/{mealType}',
             ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
@@ -123,7 +123,7 @@ return function (RouteBuilder $routes): void {
         // ★ 2セグメント版（ALL モード：{roomId}/{date}）
         // Accept: application/json 付きの GET は JSON を返却。拡張子なしアクセスにも対応。
         $builder->connect(
-            '/t-individual-reservation-info/change-edit/:roomId/:date',
+            '/t-individual-reservation-info/change-edit/{roomId}/{date}',
             ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date'])
@@ -171,7 +171,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MRoomTransferSchedule', ['controller' => 'MRoomTransferSchedule', 'action' => 'index']);
         $builder->connect('/MRoomTransferSchedule/add', ['controller' => 'MRoomTransferSchedule', 'action' => 'add']);
         $builder->connect(
-            '/MRoomTransferSchedule/cancel/:id',
+            '/MRoomTransferSchedule/cancel/{id}',
             ['controller' => 'MRoomTransferSchedule', 'action' => 'cancel']
         )
             ->setPass(['id'])
@@ -183,13 +183,13 @@ return function (RouteBuilder $routes): void {
 
         // 日付別ビュー
         $builder->connect(
-            '/TReservationInfo/view/:date',
+            '/TReservationInfo/view/{date}',
             ['controller' => 'TReservationInfo', 'action' => 'view']
         )->setPass(['date']);
 
         // ── 予約トグル（ReservationToggleController） ──
         $builder->connect(
-            '/TReservationInfo/toggle/:roomId',
+            '/TReservationInfo/toggle/{roomId}',
             ['controller' => 'ReservationToggle', 'action' => 'toggle']
         )
             ->setPatterns(['roomId' => '\d+'])
@@ -203,7 +203,7 @@ return function (RouteBuilder $routes): void {
 
         // ── 食数レポート（ReservationReportController） ──
         $builder->connect(
-            '/TReservationInfo/getRoomMealCounts/:roomId',
+            '/TReservationInfo/getRoomMealCounts/{roomId}',
             ['controller' => 'ReservationReport', 'action' => 'getRoomMealCounts']
         )
             ->setPatterns(['roomId' => '\d+'])
@@ -221,7 +221,7 @@ return function (RouteBuilder $routes): void {
         )->setMethods(['GET']);
 
         $builder->connect(
-            '/TReservationInfo/getMealCounts/:date',
+            '/TReservationInfo/getMealCounts/{date}',
             ['controller' => 'ReservationReport', 'action' => 'getMealCounts']
         )
             ->setPass(['date'])
@@ -274,10 +274,11 @@ return function (RouteBuilder $routes): void {
         )->setMethods(['GET']);
 
         // ── 予約コピー（ReservationCopyController） ──
+        // メソッド制限をルーターで行わずコントローラーの allowMethod() に委ねる（405 を正しく返すため）
         $builder->connect(
             '/TReservationInfo/copy',
             ['controller' => 'ReservationCopy', 'action' => 'copy']
-        )->setMethods(['POST']);
+        );
 
         $builder->connect(
             '/TReservationInfo/copyPreview',
@@ -355,6 +356,6 @@ return function (RouteBuilder $routes): void {
             ->setPatterns(['id' => '\d+']);
 
         // フォールバック
-        $builder->fallbacks();
+        $builder->fallbacks(Route::class);
     });
 };

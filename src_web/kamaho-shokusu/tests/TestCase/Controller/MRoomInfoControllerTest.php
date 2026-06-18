@@ -48,7 +48,7 @@ class MRoomInfoControllerTest extends TestCase
     public function testIndex(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/m-room-info');
+        $this->get('/MRoomInfo');
         $this->assertResponseOk();
     }
 
@@ -61,7 +61,7 @@ class MRoomInfoControllerTest extends TestCase
     public function testView(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/m-room-info/view/1');
+        $this->get('/MRoomInfo/view/1');
         $this->assertResponseOk();
     }
 
@@ -76,7 +76,7 @@ class MRoomInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-room-info/add', [
+        $this->post('/MRoomInfo/add', [
             'c_room_name' => 'テスト部屋',
             'i_enable' => 1,
         ]);
@@ -95,7 +95,7 @@ class MRoomInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-room-info/edit/1', [
+        $this->post('/MRoomInfo/edit/1', [
             'c_room_name' => '編集済み部屋',
             'i_enable' => 1,
         ]);
@@ -114,7 +114,7 @@ class MRoomInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-room-info/delete/1');
+        $this->post('/MRoomInfo/delete/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 

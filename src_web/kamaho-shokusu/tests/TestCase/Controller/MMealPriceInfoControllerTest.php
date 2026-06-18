@@ -48,7 +48,7 @@ class MMealPriceInfoControllerTest extends TestCase
     public function testIndex(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/m-meal-price-info');
+        $this->get('/MMealPriceInfo');
         $this->assertResponseOk();
     }
 
@@ -61,7 +61,7 @@ class MMealPriceInfoControllerTest extends TestCase
     public function testView(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/m-meal-price-info/view/1');
+        $this->get('/MMealPriceInfo/view/1');
         $this->assertResponseOk();
     }
 
@@ -76,7 +76,7 @@ class MMealPriceInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-meal-price-info/add', [
+        $this->post('/MMealPriceInfo/add', [
             'i_fiscal_year' => 2025,
             'i_morning_price' => 320,
             'i_lunch_price' => 520,
@@ -98,7 +98,7 @@ class MMealPriceInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-meal-price-info/edit/1', [
+        $this->post('/MMealPriceInfo/edit/1', [
             'i_morning_price' => 350,
         ]);
         $this->assertResponseSuccess();
@@ -116,7 +116,7 @@ class MMealPriceInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-meal-price-info/delete/1');
+        $this->post('/MMealPriceInfo/delete/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
     }

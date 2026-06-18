@@ -36,6 +36,9 @@ class MUserGroupTable extends Table
             ->requirePresence('i_id_room', 'create')
             ->notEmptyString('i_id_room', '部屋IDを入力してください。');
 
+        // active_flag の値は通常の慣習とは逆順になっている点に注意:
+        //   0 = 現役（在籍中）
+        //   1 = 退出済み（退出処理済み）
         $validator
             ->integer('active_flag')
             ->requirePresence('active_flag', 'create')

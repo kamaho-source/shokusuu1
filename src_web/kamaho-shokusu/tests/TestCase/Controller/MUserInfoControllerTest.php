@@ -47,7 +47,7 @@ class MUserInfoControllerTest extends TestCase
     public function testIndex(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/m-user-info');
+        $this->get('/MUserInfo');
         $this->assertResponseOk();
     }
 
@@ -60,7 +60,7 @@ class MUserInfoControllerTest extends TestCase
     public function testView(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/m-user-info/view/1');
+        $this->get('/MUserInfo/view/1');
         $this->assertResponseOk();
     }
 
@@ -75,7 +75,7 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-user-info/add', [
+        $this->post('/MUserInfo/add', [
             'c_login_account' => 'test_login_2',
             'c_login_passwd' => 'password123',
             'c_user_name' => '追加テストユーザー',
@@ -100,7 +100,7 @@ class MUserInfoControllerTest extends TestCase
     public function testEdit(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/m-user-info/edit/1');
+        $this->get('/MUserInfo/edit/1');
         $this->assertResponseOk();
     }
 
@@ -115,7 +115,7 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-user-info/delete/1');
+        $this->post('/MUserInfo/delete/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
     }
@@ -125,7 +125,7 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-user-info/restore/1');
+        $this->post('/MUserInfo/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
@@ -138,7 +138,7 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/m-user-info/restore/1');
+        $this->post('/MUserInfo/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
