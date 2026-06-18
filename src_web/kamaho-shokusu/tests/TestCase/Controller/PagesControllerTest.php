@@ -59,7 +59,7 @@ class PagesControllerTest extends TestCase
         $this->get('/pages/not_existing');
 
         $this->assertResponseError();
-        $this->assertResponseContains('Error');
+        $this->assertResponseContains('見つかりません');
     }
 
     /**
@@ -85,9 +85,10 @@ class PagesControllerTest extends TestCase
      */
     public function testDirectoryTraversalProtection()
     {
+        Configure::write('debug', false);
         $this->get('/pages/../Layout/ajax');
         $this->assertResponseCode(403);
-        $this->assertResponseContains('Forbidden');
+        $this->assertResponseContains('アクセス権限がありません');
     }
 
     /**
@@ -97,10 +98,11 @@ class PagesControllerTest extends TestCase
      */
     public function testCsrfAppliedError()
     {
+        Configure::write('debug', false);
         $this->post('/pages/home', ['hello' => 'world']);
 
         $this->assertResponseCode(403);
-        $this->assertResponseContains('CSRF');
+        $this->assertResponseContains('アクセス権限がありません');
     }
 
     /**

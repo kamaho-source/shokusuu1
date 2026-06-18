@@ -3,6 +3,11 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\InvalidInputException;
+use App\Domain\Exception\NotFoundException;
+use App\Domain\Exception\PersistenceException;
+use App\Domain\Exception\UnauthorizedException;
 use App\Domain\ValueObject\UserRole;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
@@ -33,31 +38,31 @@ class ReservationWriteService
             $data = $this->decodeJsonInput($jsonData);
         } catch (\InvalidArgumentException $e) {
             Log::error($e->getMessage());
-            return $this->err($e->getMessage(), 400);
+            throw new InvalidInputException($e->getMessage(), 400);
         } catch (\JsonException $e) {
             Log::error('JSONデコードエラー: ' . $e->getMessage());
-            return $this->err('データの形式が不正です。', 400);
+            throw new InvalidInputException('データの形式が不正です。', 400);
         }
 
         if (!isset($data['meals']) || !is_array($data['meals'])) {
             Log::error('データ構造が不正: "meals" キーが存在しない、または配列ではありません。データ: ' . json_encode($data));
-            return $this->err('データ構造が不正です。', 422);
+            throw new InvalidInputException('データ構造が不正です。');
         }
 
         $dateValidation = $dateValidator($reservationDate);
         if ($dateValidation !== true) {
             Log::error('日付検証エラー: ' . $dateValidation);
-            return $this->err((string)$dateValidation, 422);
+            throw new InvalidInputException((string)$dateValidation);
         }
 
         try {
             $selectedRoomPerMeal = $this->resolveSelectedRoomsPerMeal($data['meals'], $rooms);
         } catch (\OverflowException $e) {
             Log::error($e->getMessage());
-            return $this->err($e->getMessage(), 409);
+            throw new ConflictException($e->getMessage());
         } catch (\DomainException $e) {
             Log::error($e->getMessage());
-            return $this->err($e->getMessage(), 403);
+            throw new UnauthorizedException($e->getMessage());
         }
 
         $existingMap        = [];
@@ -78,20 +83,22 @@ class ReservationWriteService
                     $connection->rollback();
                     Log::error('個人予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
                     $detail = Configure::read('debug') ? ' 詳細: ' . implode('、', array_merge(...array_values(array_map('array_values', $e->getEntity()?->getErrors() ?? [[]])))) : '';
-                    return $this->err('予約の登録中にエラーが発生しました。' . $detail, 500);
+                    throw new PersistenceException('予約の登録中にエラーが発生しました。' . $detail);
                 }
                 $operationPerformed = true;
             }
             $connection->commit();
+        } catch (\App\Domain\Exception\DomainException $e) {
+            throw $e;
         } catch (\RuntimeException $e) {
             $connection->rollback();
-            return $this->err($e->getMessage(), 409);
+            throw new ConflictException($e->getMessage());
         } catch (\Throwable $e) {
             if ($connection->inTransaction()) {
                 $connection->rollback();
             }
             Log::error('個人予約処理で予期しない例外: ' . $e->getMessage());
-            return $this->err('予約処理中に内部エラーが発生しました。', 500);
+            throw new PersistenceException('予約処理中に内部エラーが発生しました。');
         }
 
         $affectedRooms = [];
@@ -122,7 +129,7 @@ class ReservationWriteService
             ], $this->redirectToIndex());
         }
 
-        return $this->err('システムエラーが発生しました。', 500);
+        throw new PersistenceException('システムエラーが発生しました。');
     }
 
     public function processGroupReservation(
@@ -136,21 +143,21 @@ class ReservationWriteService
             $data = $this->decodeJsonInput($jsonData);
         } catch (\InvalidArgumentException $e) {
             Log::error($e->getMessage());
-            return $this->err($e->getMessage(), 400);
+            throw new InvalidInputException($e->getMessage(), 400);
         } catch (\JsonException $e) {
             Log::error('JSON デコードエラー: ' . $e->getMessage());
-            return $this->err('データの形式が不正です。', 400);
+            throw new InvalidInputException('データの形式が不正です。', 400);
         }
 
         if (!isset($data['users']) || !is_array($data['users'])) {
             Log::error('データ構造が不正: "users" キーが存在しない、または配列ではありません。データ: ' . json_encode($data));
-            return $this->err('データ構造が不正です。', 422);
+            throw new InvalidInputException('データ構造が不正です。');
         }
 
         $dateValidation = $dateValidator($reservationDate);
         if ($dateValidation !== true) {
             Log::error('日付検証エラー: ' . $dateValidation);
-            return $this->err((string)$dateValidation, 422);
+            throw new InvalidInputException((string)$dateValidation);
         }
 
         $roomId  = isset($data['i_id_room']) ? (int)$data['i_id_room'] : null;
@@ -184,22 +191,24 @@ class ReservationWriteService
                     $connection->rollback();
                     Log::error('グループ予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
                     $detail = Configure::read('debug') ? ' 詳細: ' . implode('、', array_merge(...array_values(array_map('array_values', $e->getEntity()?->getErrors() ?? [[]])))) : '';
-                    return $this->err('予約の登録中にエラーが発生しました。' . $detail, 500);
+                    throw new PersistenceException('予約の登録中にエラーが発生しました。' . $detail);
                 }
             }
             $connection->commit();
+        } catch (\App\Domain\Exception\DomainException $e) {
+            throw $e;
         } catch (\DomainException $e) {
             $connection->rollback();
-            return $this->err($e->getMessage(), 403);
+            throw new UnauthorizedException($e->getMessage());
         } catch (\RuntimeException $e) {
             $connection->rollback();
-            return $this->err($e->getMessage(), 409);
+            throw new ConflictException($e->getMessage());
         } catch (\Throwable $e) {
             if ($connection->inTransaction()) {
                 $connection->rollback();
             }
             Log::error('一括予約処理で予期しない例外: ' . $e->getMessage());
-            return $this->err('予約処理中に内部エラーが発生しました。', 500);
+            throw new PersistenceException('予約処理中に内部エラーが発生しました。');
         }
 
         $this->invalidateCachesForDateRooms($reservationDate, $allRoomIds, $userIds);
@@ -221,10 +230,7 @@ class ReservationWriteService
         string $loginUserName
     ): array {
         if (empty($payload)) {
-            return [
-                'status' => 400,
-                'body' => ['ok' => false, 'message' => 'Empty request body.'],
-            ];
+            throw new InvalidInputException('Empty request body.', 400);
         }
 
         $targetUserId = isset($payload['userId']) ? (int)$payload['userId'] : $loginUserId;
@@ -250,19 +256,13 @@ class ReservationWriteService
             ->where(['i_id_user' => $targetUserId])
             ->first();
         if ($targetUser === null) {
-            return [
-                'status' => 404,
-                'body' => ['ok' => false, 'message' => '対象ユーザーが存在しません。'],
-            ];
+            throw new NotFoundException('対象ユーザーが存在しません。');
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
 
         $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1);
         if ($targetUserId !== $loginUserId && !$canEditOther) {
-            return [
-                'status' => 403,
-                'body' => ['ok' => false, 'message' => '他ユーザーの予約を更新する権限がありません。'],
-            ];
+            throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
         }
 
         // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
@@ -272,37 +272,22 @@ class ReservationWriteService
             'i_id_room' => $roomId,
         ]);
         if (!$belongsToRoom) {
-            return [
-                'status' => 403,
-                'body' => ['ok' => false, 'message' => '対象ユーザーは指定された部屋に所属していません。'],
-            ];
+            throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
         }
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
-            return [
-                'status' => 422,
-                'body' => ['ok' => false, 'message' => 'Invalid date format (Y-m-d).'],
-            ];
+            throw new InvalidInputException('Invalid date format (Y-m-d).');
         }
         try {
             new Date($dateStr);
         } catch (\Throwable $e) {
-            return [
-                'status' => 422,
-                'body' => ['ok' => false, 'message' => 'Invalid date value.'],
-            ];
+            throw new InvalidInputException('Invalid date value.');
         }
         if (!in_array($meal, [1, 2, 3, 4], true)) {
-            return [
-                'status' => 422,
-                'body' => ['ok' => false, 'message' => 'Invalid meal type (1..4).'],
-            ];
+            throw new InvalidInputException('Invalid meal type (1..4).');
         }
         if (!in_array($value, [0, 1], true)) {
-            return [
-                'status' => 422,
-                'body' => ['ok' => false, 'message' => 'Invalid value (0 or 1).'],
-            ];
+            throw new InvalidInputException('Invalid value (0 or 1).');
         }
 
         $targetDate   = new Date($dateStr);
@@ -318,10 +303,7 @@ class ReservationWriteService
         ]);
 
         if (!$isAdmin && $isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
-            return [
-                'status' => 403,
-                'body' => ['ok' => false, 'message' => '職員は直前編集でのキャンセルはできません。'],
-            ];
+            throw new UnauthorizedException('職員は直前編集でのキャンセルはできません。');
         }
 
         $changeFlag = $value;
@@ -341,12 +323,8 @@ class ReservationWriteService
             $this->invalidateCachesForDateRooms($dateStr, [$roomId], [$targetUserId]);
 
             return [
-                'status' => 200,
-                'body' => [
-                    'ok'      => true,
-                    'value'   => (bool)($result['value'] ?? false),
-                    'details' => $result['details'] ?? [],
-                ],
+                'value'   => (bool)($result['value'] ?? false),
+                'details' => $result['details'] ?? [],
             ];
         } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
             $errors = $e->getEntity()?->getErrors() ?? [];
@@ -354,36 +332,21 @@ class ReservationWriteService
 
             $isMealConflict       = is_string($flat) && preg_match('/(昼|弁|bento|lunch|unique.*bento|unique.*lunch)/ui', $flat);
             $isOptimisticConflict = is_string($flat) && preg_match('/(conflict|optimistic)/ui', $flat);
-            $isConflict = $isMealConflict || $isOptimisticConflict;
-            $status  = $isConflict ? 409 : 422;
             $message = match(true) {
                 $isMealConflict       => '昼食と弁当は同時に予約できません。',
                 $isOptimisticConflict => '他の操作と競合しました。画面を再読み込みして再実行してください。',
                 default               => 'Validation failed.',
             };
 
-            return [
-                'status' => $status,
-                'body' => [
-                    'ok'      => false,
-                    'message' => $message,
-                    'errors'  => \Cake\Core\Configure::read('debug') ? $errors : null,
-                ],
-            ];
+            if ($isMealConflict || $isOptimisticConflict) {
+                throw new ConflictException($message);
+            }
+            throw new InvalidInputException($message);
         } catch (\InvalidArgumentException $e) {
-            return [
-                'status' => 422,
-                'body' => ['ok' => false, 'message' => $e->getMessage()],
-            ];
+            throw new InvalidInputException($e->getMessage());
         } catch (\Throwable $e) {
-            return [
-                'status' => 500,
-                'body' => [
-                    'ok' => false,
-                    'message' => 'Internal Server Error',
-                    'debug' => \Cake\Core\Configure::read('debug') ? $e->getMessage() : null,
-                ],
-            ];
+            Log::error('toggle処理で予期しない例外: ' . $e->getMessage());
+            throw new PersistenceException('Internal Server Error');
         }
     }
 
@@ -743,11 +706,6 @@ class ReservationWriteService
     private function ok(string $message, array $data = [], ?string $redirect = null): array
     {
         return ['ok' => true, 'message' => $message, 'data' => $data, 'redirect' => $redirect];
-    }
-
-    private function err(string $message, int $status, array $data = []): array
-    {
-        return ['ok' => false, 'message' => $message, 'status' => $status, 'data' => $data];
     }
 
     private function updateReservationRowWithVersion(object $row, array $updateFields): bool

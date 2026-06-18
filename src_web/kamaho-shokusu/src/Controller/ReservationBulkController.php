@@ -1,26 +1,58 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controller\Traits;
+namespace App\Controller;
 
 use App\Domain\ValueObject\UserRole;
+use App\Service\BulkReservationFormService;
+use App\Service\ReservationBulkService;
+use Cake\Http\Response;
 
-trait ReservationBulkActionsTrait
+/**
+ * 一括予約操作専用コントローラー。
+ *
+ * 週次一括登録・直前一括編集フォームおよびその送信を担当する。
+ */
+class ReservationBulkController extends ReservationBaseController
 {
-    protected function runGetUsersByRoomForBulk($roomId)
+    private BulkReservationFormService $bulkFormService;
+    private ReservationBulkService $bulkService;
+
+    public function initialize(): void
     {
-        $date = $this->request->getQuery('date');
-        $page = (int)$this->request->getQuery('page', 1);
+        parent::initialize();
+
+        $this->bulkFormService = new BulkReservationFormService();
+        $this->bulkService     = new ReservationBulkService();
+
+        $this->FormProtection->setConfig('unlockedActions', [
+            'bulkAddForm',
+            'bulkChangeEditForm',
+            'bulkChangeEditSubmit',
+            'bulkAddSubmit',
+            'getReservationSnapshots',
+        ]);
+    }
+
+    /**
+     * 部屋別利用者一覧（一括登録用）取得API。
+     *
+     * @param int $roomId
+     * @return Response|null
+     */
+    public function getUsersByRoomForBulk($roomId): ?Response
+    {
+        if ($denied = $this->authorizeReservation('getUsersByRoomForBulk', ['i_id_room' => (int)$roomId], true)) {
+            return $denied;
+        }
+
+        $date  = $this->request->getQuery('date');
+        $page  = (int)$this->request->getQuery('page', 1);
         $limit = (int)$this->request->getQuery('limit', 100);
         if ($page < 1) {
             $page = 1;
         }
-        if ($limit < 1) {
-            $limit = 100;
-        }
-        if ($limit > 500) {
-            $limit = 500;
-        }
+        $limit = max(1, min(500, $limit));
 
         $payload = $this->queryService->getUsersByRoomForBulk(
             $this->MUserGroup,
@@ -34,12 +66,22 @@ trait ReservationBulkActionsTrait
         return $this->apiResponseService->success($this->response, $payload);
     }
 
-    protected function runGetReservationSnapshots()
+    /**
+     * 予約スナップショット取得API（楽観的ロック用）。
+     *
+     * @return Response|null
+     */
+    public function getReservationSnapshots(): ?Response
     {
-        $data = $this->request->getData();
+        $roomId = (int)($this->request->getData('room_id') ?? 0);
+        if ($denied = $this->authorizeReservation('getReservationSnapshots', ['i_id_room' => $roomId], true)) {
+            return $denied;
+        }
+
+        $data   = $this->request->getData();
         $roomId = (int)($data['room_id'] ?? 0);
-        $dates = isset($data['dates']) && is_array($data['dates']) ? $data['dates'] : [];
-        $dates = array_values(array_filter($dates, static fn($d) => is_string($d) && $d !== ''));
+        $dates  = isset($data['dates']) && is_array($data['dates']) ? $data['dates'] : [];
+        $dates  = array_values(array_filter($dates, static fn($d) => is_string($d) && $d !== ''));
 
         if (!$roomId || empty($dates)) {
             return $this->apiResponseService->error($this->response, 'room_id または dates が不足しています。', 400);
@@ -54,14 +96,19 @@ trait ReservationBulkActionsTrait
         return $this->apiResponseService->success($this->response, ['snapshots' => $map], 'ok');
     }
 
-    protected function runBulkAddForm()
+    /**
+     * 週次一括登録フォーム画面。
+     *
+     * @return Response|null
+     */
+    public function bulkAddForm(): ?Response
     {
-        $selectedDate = $this->request->getQuery('date');
-        $bulkFormService = $this->bulkFormService;
+        $this->authorizeReservation('bulkAddForm');
 
+        $selectedDate = $this->request->getQuery('date');
         if (!$selectedDate) {
             $this->Flash->error(__('日付が指定されていません。'));
-            return $this->redirect(['action' => 'index']);
+            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
 
         try {
@@ -69,65 +116,69 @@ trait ReservationBulkActionsTrait
             $startDate->modify('monday this week');
         } catch (\Exception $e) {
             $this->Flash->error(__('無効な日付が指定されました。'));
-            return $this->redirect(['action' => 'index']);
+            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms = $bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
-        $baseWeekParam = $this->request->getQuery('base_week');
-        $formData = $bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
-        $canGroup = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
+        $baseWeekParam  = $this->request->getQuery('base_week');
+        $formData       = $this->bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
+        $canGroup       = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
             || (int)$this->request->getAttribute('identity')->get('i_user_level') === 0);
 
-        $this->set(compact(
-            'rooms',
-            'selectedDate',
-            'selectedRoomId',
-            'canGroup'
-        ) + $formData);
+        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'canGroup') + $formData);
 
+        $this->viewBuilder()->setTemplatePath('TReservationInfo');
         return null;
     }
 
-    protected function runBulkChangeEditForm()
+    /**
+     * 直前一括編集フォーム画面。
+     *
+     * @return Response|null
+     */
+    public function bulkChangeEditForm(): ?Response
     {
+        $this->authorizeReservation('bulkChangeEditForm');
+
         $selectedDate = $this->request->getQuery('date');
-        $bulkFormService = $this->bulkFormService;
         if (!$selectedDate) {
             $this->Flash->error(__('日付が指定されていません。'));
-            return $this->redirect(['action' => 'index']);
+            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms = $bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
-        $baseWeekParam = $this->request->getQuery('base_week');
-        $formData = $bulkFormService->buildBulkChangeEditData((string)$selectedDate, $baseWeekParam);
+        $baseWeekParam  = $this->request->getQuery('base_week');
+        $formData       = $this->bulkFormService->buildBulkChangeEditData((string)$selectedDate, $baseWeekParam);
 
-        $this->set(compact(
-            'rooms',
-            'selectedDate',
-            'selectedRoomId'
-        ) + $formData);
+        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId') + $formData);
 
+        $this->viewBuilder()->setTemplatePath('TReservationInfo');
         return null;
     }
 
-    protected function runBulkChangeEditSubmit()
+    /**
+     * 直前一括編集送信API。
+     *
+     * @return Response|null
+     */
+    public function bulkChangeEditSubmit(): ?Response
     {
         if ($denied = $this->authorizeReservation('bulkChangeEditSubmit', [], true)) {
             return $denied;
         }
 
-        $data = $this->request->getData();
+        $data     = $this->request->getData();
         $dayUsers = isset($data['day_users']) && is_array($data['day_users']) ? $data['day_users'] : [];
         $snapshots = isset($data['reservation_snapshot']) && is_array($data['reservation_snapshot'])
             ? $data['reservation_snapshot']
             : [];
-        $roomId = $data['i_id_room'] ?? null;
+        $roomId   = $data['i_id_room'] ?? null;
 
         if (!$roomId || empty($dayUsers)) {
             return $this->apiResponseService->error(
@@ -140,8 +191,7 @@ trait ReservationBulkActionsTrait
         $loginUser = $this->request->getAttribute('identity');
         $loginName = $loginUser?->get('c_user_name') ?? 'system';
 
-        $bulkService = $this->bulkService;
-        $result = $bulkService->processBulkChangeEdit(
+        $result = $this->bulkService->processBulkChangeEdit(
             $dayUsers,
             (int)$roomId,
             (string)$loginName,
@@ -163,15 +213,20 @@ trait ReservationBulkActionsTrait
         return $this->apiResponseService->success(
             $this->response,
             [
-                'updated' => $result['updated'] ?? 0,
-                'created' => $result['created'] ?? 0,
+                'updated'  => $result['updated'] ?? 0,
+                'created'  => $result['created'] ?? 0,
                 'redirect' => './',
             ],
             '直前編集を保存しました。'
         );
     }
 
-    protected function runBulkAddSubmit()
+    /**
+     * 週次一括登録送信API。
+     *
+     * @return Response|null
+     */
+    public function bulkAddSubmit(): ?Response
     {
         if ($denied = $this->authorizeReservation('bulkAddSubmit', [], true)) {
             return $denied;
@@ -181,10 +236,9 @@ trait ReservationBulkActionsTrait
 
         try {
             $userName = $this->request->getAttribute('identity')->get('c_user_name');
-            $userId = $this->request->getAttribute('identity')->get('i_id_user');
+            $userId   = $this->request->getAttribute('identity')->get('i_id_user');
 
-            $bulkService = $this->bulkService;
-            $result = $bulkService->processBulkAdd(
+            $result = $this->bulkService->processBulkAdd(
                 $data,
                 (int)$userId,
                 (string)$userName,
