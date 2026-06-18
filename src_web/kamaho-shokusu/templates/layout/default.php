@@ -93,8 +93,22 @@ $recentNotifications     = $recentNotifications ?? [];
                     <?php endif; ?>
 
                     <?php if ($user && $isSysAdmin): ?>
-                        <li class="nav-item">
-                            <a class="nav-link fw-bold" href="<?= $this->Url->build('/AuditLog') ?>">監査ログ</a>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                管理
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/AuditLog') ?>">
+                                        <i class="bi bi-shield-lock me-2 text-danger"></i>監査ログ
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/FeatureUsageSummary') ?>">
+                                        <i class="bi bi-bar-chart me-2 text-warning"></i>機能使用頻度
+                                    </a>
+                                </li>
+                            </ul>
                         </li>
                     <?php endif; ?>
                 </ul>
