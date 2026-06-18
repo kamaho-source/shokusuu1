@@ -16,57 +16,31 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
 
 /**
- * Error Handling Controller
+ * エラーレンダリング専用コントローラー。
  *
- * Controller used by ExceptionRenderer to render error responses.
+ * 認証・認可の要求なしにアクセスできる必要があるため、
+ * AppController ではなく CakePHP 基底の Controller を直接継承する。
  */
-class ErrorController extends AppController
+class ErrorController extends Controller
 {
-    /**
-     * Initialization hook method.
-     *
-     * @return void
-     */
     public function initialize(): void
     {
         parent::initialize();
+        $this->loadComponent('Flash');
+
+        // レイアウト側で参照される変数を安全なデフォルト値で初期化する
+        $this->set('notificationUnreadCount', 0);
+        $this->set('recentNotifications', []);
+        $this->set('user', null);
     }
 
-    /**
-     * beforeFilter callback.
-     *
-     * @param \Cake\Event\EventInterface<\Cake\Controller\Controller> $event Event.
-     * @return \Cake\Http\Response|null|void
-     */
-    public function beforeFilter(EventInterface $event)
-    {
-        parent::beforeFilter($event);
-        $this->Authorization->skipAuthorization();
-    }
-
-    /**
-     * beforeRender callback.
-     *
-     * @param \Cake\Event\EventInterface<\Cake\Controller\Controller> $event Event.
-     * @return \Cake\Http\Response|null|void
-     */
-    public function beforeRender(EventInterface $event)
+    public function beforeRender(EventInterface $event): void
     {
         parent::beforeRender($event);
-
         $this->viewBuilder()->setTemplatePath('Error');
-    }
-
-    /**
-     * afterFilter callback.
-     *
-     * @param \Cake\Event\EventInterface<\Cake\Controller\Controller> $event Event.
-     * @return \Cake\Http\Response|null|void
-     */
-    public function afterFilter(EventInterface $event)
-    {
     }
 }
