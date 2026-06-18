@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
+use App\Controller\AuditLogController;
 use App\Policy\AuditLogPolicy;
 use Cake\TestSuite\TestCase;
 
@@ -14,13 +15,13 @@ use Cake\TestSuite\TestCase;
 class AuditLogPolicyTest extends TestCase
 {
     private AuditLogPolicy $policy;
-    private object $resource;
+    private AuditLogController $resource;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->policy   = new AuditLogPolicy();
-        $this->resource = new \stdClass();
+        $this->resource = $this->createMock(AuditLogController::class);
     }
 
     // ----------------------------------------------------------------

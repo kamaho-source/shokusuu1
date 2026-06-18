@@ -23,43 +23,43 @@ class ApprovalPolicy
     }
 
     /** ブロック長用承認一覧 */
-    public function canBlockLeaderIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canBlockLeaderIndex(?IdentityInterface $user, \App\Controller\ApprovalController $resource): bool
     {
         return $this->isBlockLeaderOrAdmin($user);
     }
 
     /** ブロック長による承認操作 */
-    public function canBlockLeaderApprove(?IdentityInterface $user, mixed $resource): bool
+    public function canBlockLeaderApprove(?IdentityInterface $user, \App\Controller\ApprovalController $resource): bool
     {
         return $this->isBlockLeaderOrAdmin($user);
     }
 
     /** ブロック長による差し戻し操作 */
-    public function canBlockLeaderReject(?IdentityInterface $user, mixed $resource): bool
+    public function canBlockLeaderReject(?IdentityInterface $user, \App\Controller\ApprovalController $resource): bool
     {
         return $this->isBlockLeaderOrAdmin($user);
     }
 
     /** 管理者用承認一覧 */
-    public function canAdminIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canAdminIndex(?IdentityInterface $user, \App\Controller\ApprovalController $resource): bool
     {
         return $this->isAdmin($user);
     }
 
     /** 管理者による最終承認 */
-    public function canAdminApprove(?IdentityInterface $user, mixed $resource): bool
+    public function canAdminApprove(?IdentityInterface $user, \App\Controller\ApprovalController $resource): bool
     {
         return $this->isAdmin($user);
     }
 
     /** 管理者による差し戻し */
-    public function canAdminReject(?IdentityInterface $user, mixed $resource): bool
+    public function canAdminReject(?IdentityInterface $user, \App\Controller\ApprovalController $resource): bool
     {
         return $this->isAdmin($user);
     }
 
     /** 承認済みレコードを t_reservation_info へ反映 */
-    public function canAdminReflect(?IdentityInterface $user, mixed $resource): bool
+    public function canAdminReflect(?IdentityInterface $user, \App\Controller\ApprovalController $resource): bool
     {
         return $this->isAdmin($user);
     }

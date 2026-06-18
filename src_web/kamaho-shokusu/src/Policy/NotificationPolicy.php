@@ -14,19 +14,19 @@ use Authorization\IdentityInterface;
 final class NotificationPolicy
 {
     /** 通知一覧の閲覧 */
-    public function canIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canIndex(?IdentityInterface $user, \App\Controller\NotificationsController $resource): bool
     {
         return $this->isAuthenticated($user);
     }
 
     /** 通知の既読化 */
-    public function canMarkRead(?IdentityInterface $user, mixed $resource): bool
+    public function canMarkRead(?IdentityInterface $user, \App\Controller\NotificationsController $resource): bool
     {
         return $this->isAuthenticated($user);
     }
 
     /** 全通知の既読化 */
-    public function canMarkAllRead(?IdentityInterface $user, mixed $resource): bool
+    public function canMarkAllRead(?IdentityInterface $user, \App\Controller\NotificationsController $resource): bool
     {
         return $this->isAuthenticated($user);
     }
