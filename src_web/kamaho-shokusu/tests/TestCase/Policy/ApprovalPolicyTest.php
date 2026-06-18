@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
+use App\Controller\ApprovalController;
 use App\Policy\ApprovalPolicy;
 use Authorization\IdentityInterface;
 use Authorization\Policy\ResultInterface;
@@ -13,7 +14,7 @@ class ApprovalPolicyTest extends TestCase
     public function testBlockLeaderActionsAllowBlockLeaderAndAdmin(): void
     {
         $policy = new ApprovalPolicy();
-        $resource = null;
+        $resource = $this->createMock(ApprovalController::class);
 
         $admin = new ApprovalTestIdentity(['i_id_user' => 1, 'i_admin' => 1]);
         $blockLeader = new ApprovalTestIdentity(['i_id_user' => 2, 'i_admin' => 2]);
@@ -36,7 +37,7 @@ class ApprovalPolicyTest extends TestCase
     public function testAdminActionsAllowOnlyAdmin(): void
     {
         $policy = new ApprovalPolicy();
-        $resource = null;
+        $resource = $this->createMock(ApprovalController::class);
 
         $admin = new ApprovalTestIdentity(['i_id_user' => 1, 'i_admin' => 1]);
         $blockLeader = new ApprovalTestIdentity(['i_id_user' => 2, 'i_admin' => 2]);

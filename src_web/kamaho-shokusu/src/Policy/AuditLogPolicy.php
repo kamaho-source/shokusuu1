@@ -14,12 +14,12 @@ use Authorization\IdentityInterface;
  */
 class AuditLogPolicy
 {
-    public function canIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canIndex(?IdentityInterface $user, \App\Controller\AuditLogController $resource): bool
     {
         return $this->isSystemAdmin($user);
     }
 
-    public function canExport(?IdentityInterface $user, mixed $resource): bool
+    public function canExport(?IdentityInterface $user, \App\Controller\AuditLogController $resource): bool
     {
         return $this->isSystemAdmin($user);
     }

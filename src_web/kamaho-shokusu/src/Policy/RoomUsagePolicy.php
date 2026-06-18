@@ -13,17 +13,17 @@ use Authorization\IdentityInterface;
  */
 class RoomUsagePolicy
 {
-    public function canIndex(?IdentityInterface $user, mixed $resource): bool
+    public function canIndex(?IdentityInterface $user, \App\Controller\RoomUsageController $resource): bool
     {
         return $this->isSystemAdmin($user);
     }
 
-    public function canRoomUsage(?IdentityInterface $user, mixed $resource): bool
+    public function canRoomUsage(?IdentityInterface $user, \App\Controller\RoomUsageController $resource): bool
     {
         return $this->isSystemAdmin($user);
     }
 
-    public function canLowUsageRooms(?IdentityInterface $user, mixed $resource): bool
+    public function canLowUsageRooms(?IdentityInterface $user, \App\Controller\RoomUsageController $resource): bool
     {
         return $this->isSystemAdmin($user);
     }
