@@ -9,7 +9,7 @@ function loadScript() {
         'utf8'
     );
     // eslint-disable-next-line no-new-func
-    new Function('window', 'document', src)(global, global.document);
+    new Function('window', 'document', src)(global.window, global.document);
 }
 
 describe('treservation_lunch_bento.js', () => {
@@ -222,12 +222,13 @@ describe('treservation_lunch_bento.js', () => {
         });
 
         test('data-locked="1" の昼食は変更されない', () => {
-            const { lunch, bento } = buildChangeEditRow({ bentoChecked: true });
+            const { lunch, bento } = buildChangeEditRow({ lunchChecked: true, bentoChecked: true });
             lunch.dataset.locked = '1';
+            // 初期補正で bento が unchecked になる → 改めて bento をチェックして change を発火
             bento.checked = true;
             bento.dispatchEvent(new Event('change'));
-            // locked なので昼食は変更されない（既に未チェックでも disabled されない）
-            expect(lunch.checked).toBe(false); // 元々未チェック → 変わらない
+            // lunch は locked なので unchecked にならず true のまま
+            expect(lunch.checked).toBe(true);
         });
     });
 });
