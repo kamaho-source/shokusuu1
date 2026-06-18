@@ -12,7 +12,7 @@ function loadScript() {
         'utf8'
     );
     // eslint-disable-next-line no-new-func
-    new Function('window', 'document', src)(global, global.document);
+    new Function('window', 'document', src)(global.window, global.document);
 }
 
 // ----------------------------------------------------------------
