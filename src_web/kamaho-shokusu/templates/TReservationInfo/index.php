@@ -180,12 +180,18 @@ $kidSectionVars = compact(
 $calRoomId = isset($calRoomId) ? $calRoomId : null;
 /** @noinspection PhpUndefinedVariableInspection */
 $canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : $isAdmin;
+$calMonthStr = (string)($this->request->getQuery('cal_month', date('Y-m')));
+/** @noinspection PhpUndefinedVariableInspection */
+$calMealDataArray = $mealDataArray ?? [];
 $bizSectionVars = [
     'user' => $user,
     'rooms' => $rooms ?? [],
     'isAdmin' => $isAdmin,
     'canViewAllRooms' => $canViewAllRooms,
     'calRoomId' => $calRoomId,
+    'calMonthStr' => $calMonthStr,
+    'calMealDataArray' => $calMealDataArray,
+    'mkUrl' => $mkUrl,
 ];
 ?>
 <!DOCTYPE html>

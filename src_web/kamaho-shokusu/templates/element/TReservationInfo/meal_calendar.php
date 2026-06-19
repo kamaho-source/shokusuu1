@@ -91,12 +91,12 @@ $today = date('Y-m-d');
     <div class="card-body p-2 p-md-3">
         <!-- カレンダー本体 -->
         <div class="meal-cal-table-wrap">
-            <table class="meal-cal-table w-100">
+            <table class="meal-cal-table w-100" role="grid" aria-label="<?= h($calMonthLabel) ?>の食数カレンダー">
                 <thead>
-                    <tr>
+                    <tr role="row">
                         <?php $dowLabels = ['日','月','火','水','木','金','土']; ?>
                         <?php foreach ($dowLabels as $i => $dl): ?>
-                        <th class="meal-cal-dow <?= $i===0 ? 'dow-sun' : ($i===6 ? 'dow-sat' : '') ?>"><?= h($dl) ?></th>
+                        <th class="meal-cal-dow <?= $i===0 ? 'dow-sun' : ($i===6 ? 'dow-sat' : '') ?>" role="columnheader" scope="col" aria-label="<?= h($dl) ?>曜日"><?= h($dl) ?></th>
                         <?php endforeach; ?>
                     </tr>
                 </thead>
@@ -107,12 +107,12 @@ $today = date('Y-m-d');
                 $rows = (int)ceil($totalCells / 7);
                 for ($row = 0; $row < $rows; $row++):
                 ?>
-                    <tr>
+                    <tr role="row">
                     <?php for ($col = 0; $col < 7; $col++):
                         $cellIndex = $row * 7 + $col;
                         if ($cellIndex < $startDow || $day > $daysInMonth):
                     ?>
-                        <td class="meal-cal-cell meal-cal-empty"></td>
+                        <td class="meal-cal-cell meal-cal-empty" role="gridcell" aria-disabled="true"></td>
                     <?php else:
                         $dateStr = sprintf('%04d-%02d-%02d', $calYear, $calMon, $day);
                         $isToday = ($dateStr === $today);
@@ -125,18 +125,31 @@ $today = date('Y-m-d');
                         if ($isSun)    $cellClass .= ' meal-cal-sun';
                         if ($isSat)    $cellClass .= ' meal-cal-sat';
                         $dataCalRoomId = $calRoomId !== null ? $calRoomId : '';
+
+                        // スクリーンリーダー向け：日付＋食数を読み上げる
+                        $ariaDateLabel = sprintf('%d年%d月%d日', $calYear, $calMon, $day);
+                        $mealAriaFullNames = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'];
+                        $ariaCountParts = [];
+                        foreach ($mealLabels as $mt => $ml) {
+                            $cnt = (int)($counts[$mt] ?? 0);
+                            if ($cnt > 0) {
+                                $ariaCountParts[] = $mealAriaFullNames[$mt] . $cnt . '件';
+                            }
+                        }
+                        $ariaLabel = $ariaDateLabel . (empty($ariaCountParts) ? ' 予約なし' : ' ' . implode(' ', $ariaCountParts));
                     ?>
                         <td class="<?= h($cellClass) ?>"
                             data-date="<?= h($dateStr) ?>"
                             data-room-id="<?= h($dataCalRoomId) ?>"
-                            role="button"
+                            role="gridcell"
                             tabindex="0"
-                            aria-label="<?= h($dateStr) ?>の食数">
-                            <div class="meal-cal-day"><?= $day ?></div>
+                            aria-label="<?= h($ariaLabel) ?>">
+                            <div class="meal-cal-day" aria-hidden="true"><?= $day ?></div>
                             <?php foreach ($mealLabels as $mt => $ml): ?>
                                 <?php $cnt = (int)($counts[$mt] ?? 0); ?>
                                 <div class="meal-cal-badge <?= $cnt === 0 ? 'meal-cal-badge-zero' : '' ?>"
-                                     style="--meal-color:<?= h($mealColors[$mt]) ?>;">
+                                     style="--meal-color:<?= h($mealColors[$mt]) ?>;"
+                                     aria-hidden="true">
                                     <span class="meal-cal-badge-label"><?= h($ml) ?></span>
                                     <span class="meal-cal-badge-count"><?= $cnt ?></span>
                                 </div>

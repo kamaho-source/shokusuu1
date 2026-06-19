@@ -493,10 +493,12 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             const openModal = () => {
                 modal.classList.add('is-open');
                 modal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
             };
             const closeModal = () => {
                 modal.classList.remove('is-open');
                 modal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
             };
 
             trigger.addEventListener('click', openModal);

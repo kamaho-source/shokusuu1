@@ -10,16 +10,34 @@
 /** @var bool $canViewAllRooms */
 /** @noinspection PhpUndefinedVariableInspection */
 /** @var int|string|null $calRoomId */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var string $calMonthStr */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var array<string, array<int, int>> $calMealDataArray */
+/** @noinspection PhpUndefinedVariableInspection */
+/** @var callable|null $mkUrl */
 $user = isset($user) ? $user : null;
 $rooms = isset($rooms) ? $rooms : [];
 $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
 $canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : $isAdmin;
 $calRoomId = isset($calRoomId) ? $calRoomId : null;
+$calMonthStr = isset($calMonthStr) ? (string)$calMonthStr : date('Y-m');
+$calMealDataArray = isset($calMealDataArray) ? $calMealDataArray : [];
+$mkUrl = isset($mkUrl) ? $mkUrl : null;
 $copyModalVars = [
     'rooms' => $rooms,
     'isAdmin' => $isAdmin,
     'canViewAllRooms' => $canViewAllRooms,
     'calRoomId' => $calRoomId,
+];
+$mealCalVars = [
+    'rooms' => $rooms,
+    'isAdmin' => $isAdmin,
+    'canViewAllRooms' => $canViewAllRooms,
+    'calRoomId' => $calRoomId,
+    'calMonthStr' => $calMonthStr,
+    'calMealDataArray' => $calMealDataArray,
+    'mkUrl' => $mkUrl,
 ];
 ?>
 <?php if ($user && in_array((int)$user->get('i_admin'), [1, 3])): ?>
@@ -87,5 +105,7 @@ $copyModalVars = [
         </div>
     </div>
 <?php endif; ?>
+
+<?= $this->element('TReservationInfo/meal_calendar', $mealCalVars) ?>
 
 <?= $this->element('TReservationInfo/copy_modal', $copyModalVars) ?>

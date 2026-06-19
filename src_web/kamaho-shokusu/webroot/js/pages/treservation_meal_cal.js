@@ -92,4 +92,62 @@
     }
 
     window.openMealCalUserModal = openMealCalUserModal;
+
+    // ===== 月別食数カレンダーのインタラクション =====
+    document.addEventListener('DOMContentLoaded', function () {
+        var calCard = document.getElementById('mealCalCard');
+        if (!calCard) return;
+
+        // クリック: セルを押したらモーダルを開く
+        calCard.addEventListener('click', function (e) {
+            var cell = e.target.closest('.meal-cal-cell');
+            if (!cell || cell.classList.contains('meal-cal-empty')) return;
+            var date = cell.getAttribute('data-date');
+            var roomId = cell.getAttribute('data-room-id');
+            if (date) {
+                openMealCalUserModal(date, roomId || null);
+            }
+        });
+
+        // キーボード: 矢印キーでグリッド移動、Enter/Space で選択
+        calCard.addEventListener('keydown', function (e) {
+            var cell = e.target;
+            if (!cell.classList || !cell.classList.contains('meal-cal-cell')) return;
+
+            var tbody = calCard.querySelector('tbody');
+            if (!tbody) return;
+            var tr = cell.parentElement;
+            var rows = Array.from(tbody.querySelectorAll('tr'));
+            var rowIdx = rows.indexOf(tr);
+            var cols = Array.from(tr.querySelectorAll('td'));
+            var colIdx = cols.indexOf(cell);
+
+            var nextCell = null;
+
+            if (e.key === 'ArrowRight') {
+                nextCell = cols[colIdx + 1] || (rows[rowIdx + 1] && rows[rowIdx + 1].querySelectorAll('td')[0]);
+            } else if (e.key === 'ArrowLeft') {
+                nextCell = cols[colIdx - 1] || (rows[rowIdx - 1] && rows[rowIdx - 1].querySelectorAll('td')[6]);
+            } else if (e.key === 'ArrowDown') {
+                var nextRow = rows[rowIdx + 1];
+                nextCell = nextRow && nextRow.querySelectorAll('td')[colIdx];
+            } else if (e.key === 'ArrowUp') {
+                var prevRow = rows[rowIdx - 1];
+                nextCell = prevRow && prevRow.querySelectorAll('td')[colIdx];
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                if (!cell.classList.contains('meal-cal-empty')) {
+                    cell.click();
+                }
+                e.preventDefault();
+                return;
+            } else {
+                return;
+            }
+
+            if (nextCell) {
+                e.preventDefault();
+                nextCell.focus();
+            }
+        });
+    });
 })();
