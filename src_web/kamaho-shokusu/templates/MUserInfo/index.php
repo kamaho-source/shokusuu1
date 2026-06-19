@@ -195,6 +195,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 </div>
 
 <script>
+    const BASE_PATH = <?= json_encode(rtrim($this->request->getAttribute('base') ?? '', '/'), JSON_UNESCAPED_SLASHES) ?>;
     document.addEventListener('DOMContentLoaded', () => {
         const toggleNormal  = document.getElementById('toggleNormal');
         const toggleDeleted = document.getElementById('toggleDeleted');
@@ -216,7 +217,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 const ok = await window.ConfirmPopup.show(message);
                 if (!ok) { this.checked = !this.checked; return; }
 
-                fetch('/kamaho-shokusu/MUserInfo/update-admin-status', {
+                fetch(BASE_PATH + '/MUserInfo/update-admin-status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                     body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
@@ -250,7 +251,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 const ok = await window.ConfirmPopup.show(message);
                 if (!ok) { this.checked = !this.checked; return; }
 
-                fetch('/kamaho-shokusu/MUserInfo/update-user-level', {
+                fetch(BASE_PATH + '/MUserInfo/update-user-level', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                     body: JSON.stringify({ i_id_user: userId, i_admin: newAdmin })
@@ -283,7 +284,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 const ok = await window.ConfirmPopup.show(message);
                 if (!ok) { this.checked = !this.checked; return; }
 
-                fetch('/kamaho-shokusu/MUserInfo/update-system-admin-status', {
+                fetch(BASE_PATH + '/MUserInfo/update-system-admin-status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
                     body: JSON.stringify({ i_id_user: userId, i_system_admin: isSystemAdmin })
@@ -324,14 +325,14 @@ $csrfToken = $this->request->getAttribute('csrfToken');
         if (toggleNormal) {
             toggleNormal.addEventListener('click', () => {
                 if (!toggleNormal.classList.contains('active')) {
-                    window.location.href = '/kamaho-shokusu/MUserInfo/';
+                    window.location.href = BASE_PATH + '/MUserInfo/';
                 }
             });
         }
         if (toggleDeleted) {
             toggleDeleted.addEventListener('click', () => {
                 if (!toggleDeleted.classList.contains('active')) {
-                    window.location.href = '/kamaho-shokusu/MUserInfo?show_deleted=1';
+                    window.location.href = BASE_PATH + '/MUserInfo?show_deleted=1';
                 }
             });
         }
