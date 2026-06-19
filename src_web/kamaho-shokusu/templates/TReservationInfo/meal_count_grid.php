@@ -29,7 +29,7 @@
 $this->assign('title', 'エクセル食数予約');
 
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
-$basePath  = $this->request->getAttribute('base') ?? '';
+$basePath  = rtrim($this->request->getAttribute('base') ?? '', '/');
 
 $dates          = $gridData['dates']       ?? [];
 $meals          = $gridData['meals']       ?? [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁'];
