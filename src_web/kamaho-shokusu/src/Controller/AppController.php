@@ -59,7 +59,7 @@ class AppController extends Controller
      * リダイレクト先が安全な内部パスかどうかを検証する。
      * 外部ドメインやプロトコル相対URLへのオープンリダイレクトを防ぐ。
      */
-    protected function isSafeRedirect(string|array $url): bool
+    protected function isSafeRedirect(string|array|null $url): bool
     {
         if (!is_string($url) || $url === '') {
             return false;

@@ -33,7 +33,8 @@ if ($isChild) {
 $here = $this->request->getPath();
 $qs = $this->request->getQueryParams();
 // CakePHPのベースパス（プロジェクト名）を常に先頭へ付与する
-$basePath = $this->request->getAttribute('base') ?? $this->request->getAttribute('webroot') ?? '';
+// rtrim で末尾スラッシュを除去し $here（先頭 / あり）との二重スラッシュを防ぐ
+$basePath = rtrim($this->request->getAttribute('base') ?? $this->request->getAttribute('webroot') ?? '', '/');
 $mkUrl = function (array $merge) use ($here, $qs, $basePath) {
     $q = array_merge($qs, $merge);
     foreach ($q as $k => $v) if ($v === null) unset($q[$k]);
@@ -195,15 +196,18 @@ $bizSectionVars = [
     <?= $this->element('TReservationInfo/head_assets', ['jsConfigVars' => $jsConfigVars]) ?>
 </head>
 <body>
+<a href="#main-content" class="visually-hidden-focusable">メインコンテンツへスキップ</a>
 <div class="container">
     <?= $this->element('TReservationInfo/toolbar', $toolbarVars) ?>
-    <?php if ($useKidUI): ?>
-        <?= $this->element('TReservationInfo/kid_section', $kidSectionVars) ?>
+    <main id="main-content">
+        <?php if ($useKidUI): ?>
+            <?= $this->element('TReservationInfo/kid_section', $kidSectionVars) ?>
 
-    <?php else: ?>
-        <?= $this->element('TReservationInfo/biz_section', $bizSectionVars) ?>
+        <?php else: ?>
+            <?= $this->element('TReservationInfo/biz_section', $bizSectionVars) ?>
 
-    <?php endif; ?>
+        <?php endif; ?>
+    </main>
 </div>
 
 <?= $this->element('TReservationInfo/modals', $modalVars) ?>

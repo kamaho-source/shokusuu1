@@ -151,6 +151,19 @@ main.container { max-width: 100%; padding: 0; }
 .menu-title-text { font-weight: 800; font-size: 1rem; }
 .menu-desc { color: #5f6b78; font-size: .95rem; }
 
+/* ========== キーボードフォーカスリング（WCAG 2.4.11） ========== */
+.btn-soft:focus-visible,
+.btn-teal:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
+}
+.menu-card:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 3px;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, .18);
+    text-decoration: none;
+}
+
 @media (max-width: 992px) {
     .dash-main { padding: 24px 20px 40px; }
     .card-grid { grid-template-columns: 1fr; }

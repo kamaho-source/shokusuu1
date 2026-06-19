@@ -1,4 +1,23 @@
 /* ============================================================
+   グローバル フォーカスリング（WCAG 2.4.11 / 2.4.12 対応）
+   マウス操作ではリングを非表示にし、キーボード操作時のみ表示する
+   ============================================================ */
+:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
+}
+/* Bootstrap が outline:0 で上書きする場合の救済 */
+.btn:focus-visible,
+.nav-link:focus-visible,
+.form-control:focus-visible,
+.form-select:focus-visible,
+[tabindex]:focus-visible {
+    outline: 3px solid #2563eb !important;
+    outline-offset: 2px !important;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, .2) !important;
+}
+
+/* ============================================================
    Bootstrap 4 → 5 互換シム
    Bootstrap 5 で削除されたユーティリティクラスを補完する
    ============================================================ */

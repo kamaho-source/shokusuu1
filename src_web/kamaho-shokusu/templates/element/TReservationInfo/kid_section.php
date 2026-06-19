@@ -58,7 +58,7 @@ $kidMeals = [
     <div class="card-body d-flex flex-wrap align-items-center gap-2">
         <div class="fw-bold"><i class="bi bi-door-open"></i> 利用する部屋</div>
         <div class="ms-2">
-            <select id="kid-room-select" class="form-select form-select-sm" style="min-width: 220px;" title="利用する部屋を選択">
+            <select id="kid-room-select" class="form-select form-select-sm" style="min-width: 220px;" aria-label="利用する部屋を選択">
                 <option value="">部屋を選択してください</option>
                 <?php foreach (($authorizedRooms) as $rid => $rname): ?>
                     <option value="<?= h($rid) ?>" <?= (string)$currentRoomId === (string)$rid ? 'selected' : '' ?>>
@@ -173,10 +173,10 @@ for ($i=0; $i<$daysToShow; $i++):
                 <?php endforeach; ?>
             </div>
 
-            <div class="mt-2">
+            <div class="mt-2" aria-live="polite" aria-atomic="true">
                 <?php $selfAny = ($myDetail['breakfast']??false)||($myDetail['lunch']??false)||($myDetail['bento']??false)||($myDetail['dinner']??false); ?>
-                <span class="status-flag ok"  style="display:<?= $selfAny?'inline-flex':'none' ?>"><i class="bi bi-check-circle-fill"></i>現在：予約あり</span>
-                <span class="status-flag none" style="display:<?= $selfAny?'none':'inline-flex' ?>"><i class="bi bi-dash-circle"></i>現在：未予約</span>
+                <span class="status-flag ok"  style="display:<?= $selfAny?'inline-flex':'none' ?>"><i class="bi bi-check-circle-fill" aria-hidden="true"></i>現在：予約あり</span>
+                <span class="status-flag none" style="display:<?= $selfAny?'none':'inline-flex' ?>"><i class="bi bi-dash-circle" aria-hidden="true"></i>現在：未予約</span>
             </div>
 
             <?php if ($isLastMinute): ?>

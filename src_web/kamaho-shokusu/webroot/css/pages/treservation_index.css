@@ -1,8 +1,27 @@
+/* カレンダーラッパー: モバイルで横スクロール対応 */
+#calendar-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
 #calendar { max-width:130%; margin:0 auto; }
+
         @media (max-width: 768px){
             .fc-toolbar button{font-size:12px;}
             .fc-toolbar-title{font-size:14px;}
-            #calendar{font-size:12px;}
+            #calendar{font-size:12px; min-width: 480px;}
+            /* FullCalendar ツールバーボタンのタップターゲット（WCAG 2.5.5: 44px 以上） */
+            .fc-toolbar .fc-button {
+                min-height: 44px;
+                padding-left: .5rem;
+                padding-right: .5rem;
+            }
+            /* 部屋セレクタもモバイルで 44px 確保 */
+            .cal-room-select {
+                height: 44px;
+                font-size: 1rem;
+                padding-top: .25rem;
+                padding-bottom: .25rem;
+            }
         }
         @media (min-width:769px) and (max-width:1024px){
             .fc-toolbar button{font-size:14px;}
@@ -63,7 +82,8 @@
         .legend-orange{ background:#fd7e14; }
         .legend-red   { background:#dc3545; }
         .legend-gray  { background:#6c757d; }
-        .biz-note { color:#6c757d; font-size:.9rem; }
+        /* #6c757d は白背景で 4.36:1（WCAG AA 4.5:1 未達）→ #5a5f64 (5.65:1) に変更 */
+        .biz-note { color:#5a5f64; font-size:.9rem; }
 
         /* 週まとめ予約の小さなリボン */
         .week-ribbon {
@@ -95,7 +115,7 @@
 
         /* 直前編集モーダル：同意エリア */
         .late-notice-agree { background:#fff; }
-        .late-notice-agree .form-text { color:#6c757d; font-size:.82rem; }
+        .late-notice-agree .form-text { color:#5a5f64; font-size:.82rem; }
 
         /* ネストモーダル（quickDayModal内から開く場合）のz-index対応 */
         #lateNoticeModal { z-index: 1065; }
@@ -224,7 +244,7 @@
 
         /* 直前期間での削除不可表示 */
         .deletion-blocked {
-            color: #6c757d !important;
+            color: #5a5f64 !important;
             font-style: italic;
         }
 
@@ -295,26 +315,24 @@
             max-width: 160px;
         }
 
-        /* ================= 食数イベントモーダル ================= */
-        /* モーダル内の食数一覧 */
-        .meal-cal-modal-section { margin-bottom: 1rem; }
-        .meal-cal-modal-section-title {
-            font-weight: 700;
-            font-size: .9rem;
-            border-left: 4px solid;
-            padding-left: .5rem;
-            margin-bottom: .5rem;
+        /* ========== 44px タップターゲット確保（WCAG 2.5.5） ========== */
+        [aria-label="UIモード切替"] .btn,
+        [aria-label="期間プリセット"] .btn {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        .meal-cal-user-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .35rem;
+
+        /* ========== FullCalendar セルのキーボードフォーカスリング ========== */
+        .fc-daygrid-day-frame[tabindex]:focus-visible {
+            outline: 3px solid #2563eb;
+            outline-offset: -3px;
+            z-index: 1;
+            position: relative;
         }
-        .meal-cal-user-chip {
-            font-size: .82rem;
-            padding: .2rem .55rem;
-            border-radius: 999px;
-            background: #f0f4ff;
-            border: 1px solid #c7d2fe;
-            color: #3730a3;
+        .fc-event:focus-visible {
+            outline: 3px solid #2563eb;
+            outline-offset: 1px;
         }
+
