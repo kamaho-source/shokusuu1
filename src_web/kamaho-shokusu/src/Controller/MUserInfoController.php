@@ -48,10 +48,13 @@ class MUserInfoController extends AppController
         $this->userRestoreService       = new UserRestoreService();
         $this->userRoomAssignmentService = new UserRoomAssignmentService();
 
-        // これらのアクションは JSON ボディを受け取る AJAX エンドポイントのため
-        // FormProtection のフォームトークン検証対象外にする。
+        // これらのアクションは FormProtection のフォームトークン検証対象外にする。
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
+        // login/logout: セッション切れや複数タブでトークンが失効し「不正なアクセス」になるため除外。
+        // importJson 等: JSON ボディを受け取る AJAX エンドポイントのため除外。
         $this->FormProtection->setConfig('unlockedActions', [
+            'login',
+            'logout',
             'importJson',
             'updateAdminStatus',
             'updateUserLevel',
