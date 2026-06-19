@@ -33,7 +33,7 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testIndex(): void
     {
-        $this->get('/m-menu-info');
+        $this->get('/MMenuInfo');
         $this->assertRedirectContains('/MUserInfo/login');
     }
 
@@ -45,7 +45,7 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testView(): void
     {
-        $this->get('/m-menu-info/view/1');
+        $this->get('/MMenuInfo/view/1');
         $this->assertRedirectContains('/MUserInfo/login');
     }
 
@@ -57,7 +57,7 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testAdd(): void
     {
-        $this->get('/m-menu-info/add');
+        $this->get('/MMenuInfo/add');
         $this->assertRedirectContains('/MUserInfo/login');
     }
 
@@ -69,7 +69,7 @@ class MMenuInfoControllerTest extends TestCase
      */
     public function testEdit(): void
     {
-        $this->get('/m-menu-info/edit/1');
+        $this->get('/MMenuInfo/edit/1');
         $this->assertRedirectContains('/MUserInfo/login');
     }
 
@@ -82,7 +82,7 @@ class MMenuInfoControllerTest extends TestCase
     public function testDelete(): void
     {
         $this->enableCsrfToken();
-        $this->post('/m-menu-info/delete/1');
+        $this->post('/MMenuInfo/delete/1');
         $this->assertRedirectContains('/MUserInfo/login');
     }
 }

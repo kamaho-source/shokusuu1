@@ -49,7 +49,8 @@ class ReservationCopyController extends ReservationBaseController
                         $data = $json;
                     }
                 }
-            } catch (\Throwable $e) {
+            } catch (\JsonException $e) {
+                Log::warning('copy: invalid JSON body: ' . $e->getMessage());
             }
         }
 
@@ -111,7 +112,8 @@ class ReservationCopyController extends ReservationBaseController
                         $data = $json;
                     }
                 }
-            } catch (\Throwable $e) {
+            } catch (\JsonException $e) {
+                Log::warning('copyPreview: invalid JSON body: ' . $e->getMessage());
             }
         }
 
