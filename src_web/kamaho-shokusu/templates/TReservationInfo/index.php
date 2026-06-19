@@ -33,7 +33,8 @@ if ($isChild) {
 $here = $this->request->getPath();
 $qs = $this->request->getQueryParams();
 // CakePHPのベースパス（プロジェクト名）を常に先頭へ付与する
-$basePath = $this->request->getAttribute('base') ?? $this->request->getAttribute('webroot') ?? '';
+// rtrim で末尾スラッシュを除去し $here（先頭 / あり）との二重スラッシュを防ぐ
+$basePath = rtrim($this->request->getAttribute('base') ?? $this->request->getAttribute('webroot') ?? '', '/');
 $mkUrl = function (array $merge) use ($here, $qs, $basePath) {
     $q = array_merge($qs, $merge);
     foreach ($q as $k => $v) if ($v === null) unset($q[$k]);

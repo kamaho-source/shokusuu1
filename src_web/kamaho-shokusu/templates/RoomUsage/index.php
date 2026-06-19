@@ -8,7 +8,7 @@ $mealType  = $mealType  ?? null;
 $threshold = $threshold ?? 50.0;
 
 $mealLabels = ['' => '全食種', 1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁当'];
-$basePath   = $this->request->getAttribute('base') ?? '';
+$basePath   = rtrim($this->request->getAttribute('base') ?? '', '/');
 ?>
 <!DOCTYPE html>
 <html lang="ja">

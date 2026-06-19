@@ -23,7 +23,7 @@ $statusLabels = [
     3 => ['label' => '差し戻し',         'class' => 'bg-danger text-white'],
 ];
 $mealLabels = [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁当'];
-$basePath = $this->request->getAttribute('base') ?? '';
+$basePath = rtrim($this->request->getAttribute('base') ?? '', '/');
 $pendingCount = 0;
 $approvedCount = 0;
 foreach ($records as $record) {
