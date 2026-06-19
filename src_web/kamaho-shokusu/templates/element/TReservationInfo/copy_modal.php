@@ -21,7 +21,7 @@
             if ($qk === 'cal_room_id') continue; ?>
         <input type="hidden" name="<?= h($qk) ?>" value="<?= h($qv) ?>">
         <?php endforeach; ?>
-        <select name="cal_room_id" class="form-select form-select-sm cal-room-select" onchange="this.form.submit()">
+        <select name="cal_room_id" class="form-select form-select-sm cal-room-select" aria-label="部屋フィルタ" onchange="this.form.submit()">
             <?php if ($canViewAllRooms): ?>
             <option value="" <?= ($calRoomId === null) ? 'selected' : '' ?>>全部屋</option>
             <?php endif; ?>
@@ -33,8 +33,10 @@
 </div>
 <?php endif; ?>
 
-<!-- カレンダー -->
-<div id="calendar" aria-label="食数予約カレンダー（業務）"></div>
+<!-- カレンダー（横スクロール対応ラッパー） -->
+<div id="calendar-wrap">
+    <div id="calendar" aria-label="食数予約カレンダー（業務）"></div>
+</div>
 
 <!-- 凡例 -->
 <div class="biz-note mt-3">

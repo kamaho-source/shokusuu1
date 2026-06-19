@@ -1,8 +1,14 @@
+/* カレンダーラッパー: モバイルで横スクロール対応 */
+#calendar-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
 #calendar { max-width:130%; margin:0 auto; }
+
         @media (max-width: 768px){
             .fc-toolbar button{font-size:12px;}
             .fc-toolbar-title{font-size:14px;}
-            #calendar{font-size:12px;}
+            #calendar{font-size:12px; min-width: 480px;}
         }
         @media (min-width:769px) and (max-width:1024px){
             .fc-toolbar button{font-size:14px;}
@@ -295,26 +301,24 @@
             max-width: 160px;
         }
 
-        /* ================= 食数イベントモーダル ================= */
-        /* モーダル内の食数一覧 */
-        .meal-cal-modal-section { margin-bottom: 1rem; }
-        .meal-cal-modal-section-title {
-            font-weight: 700;
-            font-size: .9rem;
-            border-left: 4px solid;
-            padding-left: .5rem;
-            margin-bottom: .5rem;
+        /* ========== 44px タップターゲット確保（WCAG 2.5.5） ========== */
+        [aria-label="UIモード切替"] .btn,
+        [aria-label="期間プリセット"] .btn {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        .meal-cal-user-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .35rem;
+
+        /* ========== FullCalendar セルのキーボードフォーカスリング ========== */
+        .fc-daygrid-day-frame[tabindex]:focus-visible {
+            outline: 3px solid #2563eb;
+            outline-offset: -3px;
+            z-index: 1;
+            position: relative;
         }
-        .meal-cal-user-chip {
-            font-size: .82rem;
-            padding: .2rem .55rem;
-            border-radius: 999px;
-            background: #f0f4ff;
-            border: 1px solid #c7d2fe;
-            color: #3730a3;
+        .fc-event:focus-visible {
+            outline: 3px solid #2563eb;
+            outline-offset: 1px;
         }
+

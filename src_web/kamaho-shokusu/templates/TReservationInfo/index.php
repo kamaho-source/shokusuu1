@@ -195,15 +195,18 @@ $bizSectionVars = [
     <?= $this->element('TReservationInfo/head_assets', ['jsConfigVars' => $jsConfigVars]) ?>
 </head>
 <body>
+<a href="#main-content" class="visually-hidden-focusable">メインコンテンツへスキップ</a>
 <div class="container">
     <?= $this->element('TReservationInfo/toolbar', $toolbarVars) ?>
-    <?php if ($useKidUI): ?>
-        <?= $this->element('TReservationInfo/kid_section', $kidSectionVars) ?>
+    <main id="main-content">
+        <?php if ($useKidUI): ?>
+            <?= $this->element('TReservationInfo/kid_section', $kidSectionVars) ?>
 
-    <?php else: ?>
-        <?= $this->element('TReservationInfo/biz_section', $bizSectionVars) ?>
+        <?php else: ?>
+            <?= $this->element('TReservationInfo/biz_section', $bizSectionVars) ?>
 
-    <?php endif; ?>
+        <?php endif; ?>
+    </main>
 </div>
 
 <?= $this->element('TReservationInfo/modals', $modalVars) ?>

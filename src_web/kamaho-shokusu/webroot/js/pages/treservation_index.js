@@ -551,6 +551,35 @@ function openModalById(id){
                             info.el.appendChild(badge);
                         }
                     }
+                    // キーボードフォーカスでセルを選択できるようにする
+                    var frame = info.el.querySelector('.fc-daygrid-day-frame') || info.el;
+                    frame.setAttribute('tabindex', '0');
+                    var dateStr = info.date.toISOString().slice(0, 10);
+                    var wday = ['日','月','火','水','木','金','土'][info.date.getDay()];
+                    var label = y + '年' + (m+1) + '月' + d + '日（' + wday + '）';
+                    if (name) label += '（' + name + '）';
+                    frame.setAttribute('aria-label', label + ' クリックで詳細');
+                    frame.setAttribute('role', 'button');
+                    frame.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            try { window.quickOpenDayModal(dateStr); } catch(ex) {}
+                        }
+                    });
+                },
+
+                eventDidMount: function(info) {
+                    var ep = info.event.extendedProps || {};
+                    var dateStr = info.event.startStr ? info.event.startStr.slice(0, 10) : '';
+                    var label = info.event.title || '';
+                    if (ep.isMealCount) {
+                        label = dateStr + ' ' + label + ' 人数';
+                    } else if (ep.displayOrder === -10) {
+                        label = dateStr + ' 未予約';
+                    } else {
+                        label = dateStr + ' ' + label;
+                    }
+                    info.el.setAttribute('aria-label', label);
                 },
 
                 datesSet: function(arg){ updateInputsByCalendar(arg.view); },
