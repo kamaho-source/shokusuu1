@@ -21,7 +21,7 @@
             if ($qk === 'cal_room_id') continue; ?>
         <input type="hidden" name="<?= h($qk) ?>" value="<?= h($qv) ?>">
         <?php endforeach; ?>
-        <select name="cal_room_id" class="form-select form-select-sm cal-room-select" onchange="this.form.submit()">
+        <select name="cal_room_id" class="form-select form-select-sm cal-room-select" aria-label="部屋フィルタ" onchange="this.form.submit()">
             <?php if ($canViewAllRooms): ?>
             <option value="" <?= ($calRoomId === null) ? 'selected' : '' ?>>全部屋</option>
             <?php endif; ?>

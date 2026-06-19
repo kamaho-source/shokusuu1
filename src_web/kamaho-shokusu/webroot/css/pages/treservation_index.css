@@ -295,3 +295,12 @@
             max-width: 160px;
         }
 
+        /* ========== 44px タップターゲット確保（WCAG 2.5.5） ========== */
+        [aria-label="UIモード切替"] .btn,
+        [aria-label="期間プリセット"] .btn {
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
