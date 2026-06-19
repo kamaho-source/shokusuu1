@@ -143,10 +143,10 @@ return function (RouteBuilder $routes): void {
         // MUserInfo
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
         $builder->connect('/MUserInfo/admin_change_password', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
-        $builder->connect('/MUserInfo/changePassword', ['controller' => 'MUserInfo', 'action' => 'changePassword']);
-        $builder->connect('/MUserInfo/AdminChangePassword', ['controller' => 'MUserInfo', 'action' => 'AdminChangePassword']);
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-user-level', ['controller' => 'MUserInfo', 'action' => 'updateUserLevel'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
