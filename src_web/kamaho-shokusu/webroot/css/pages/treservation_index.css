@@ -1,8 +1,14 @@
+/* カレンダーラッパー: モバイルで横スクロール対応 */
+#calendar-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
 #calendar { max-width:130%; margin:0 auto; }
+
         @media (max-width: 768px){
             .fc-toolbar button{font-size:12px;}
             .fc-toolbar-title{font-size:14px;}
-            #calendar{font-size:12px;}
+            #calendar{font-size:12px; min-width: 480px;}
         }
         @media (min-width:769px) and (max-width:1024px){
             .fc-toolbar button{font-size:14px;}
@@ -302,5 +308,17 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+        }
+
+        /* ========== FullCalendar セルのキーボードフォーカスリング ========== */
+        .fc-daygrid-day-frame[tabindex]:focus-visible {
+            outline: 3px solid #2563eb;
+            outline-offset: -3px;
+            z-index: 1;
+            position: relative;
+        }
+        .fc-event:focus-visible {
+            outline: 3px solid #2563eb;
+            outline-offset: 1px;
         }
 

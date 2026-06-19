@@ -33,8 +33,10 @@
 </div>
 <?php endif; ?>
 
-<!-- カレンダー -->
-<div id="calendar" aria-label="食数予約カレンダー（業務）"></div>
+<!-- カレンダー（横スクロール対応ラッパー） -->
+<div id="calendar-wrap">
+    <div id="calendar" aria-label="食数予約カレンダー（業務）"></div>
+</div>
 
 <!-- 凡例 -->
 <div class="biz-note mt-3">

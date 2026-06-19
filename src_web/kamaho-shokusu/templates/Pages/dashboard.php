@@ -490,7 +490,9 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 return;
             }
 
+            let previousBodyOverflow = '';
             const openModal = () => {
+                previousBodyOverflow = document.body.style.overflow;
                 modal.classList.add('is-open');
                 modal.setAttribute('aria-hidden', 'false');
                 document.body.style.overflow = 'hidden';
@@ -498,7 +500,7 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             const closeModal = () => {
                 modal.classList.remove('is-open');
                 modal.setAttribute('aria-hidden', 'true');
-                document.body.style.overflow = '';
+                document.body.style.overflow = previousBodyOverflow;
             };
 
             trigger.addEventListener('click', openModal);
