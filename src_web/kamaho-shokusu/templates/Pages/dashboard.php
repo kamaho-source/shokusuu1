@@ -56,8 +56,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
 <?php if (!$isLoggedIn): ?>
     <?php /* 未ログイン時: ログイン促進メッセージとログインボタンを表示する */ ?>
     <div class="p-4">
-        <div class="alert alert-warning">利用するにはログインが必要です。</div>
-        <a class="btn btn-primary" href="<?= $this->Url->build('/MUserInfo/login') ?>">ログイン</a>
+        <div class="alert alert-warning" role="status">利用するにはログインが必要です。</div>
+        <a class="btn btn-primary" href="<?= $this->Url->build('/MUserInfo/login') ?>" aria-label="ログインページへ移動">ログイン</a>
     </div>
 <?php else: ?>
     <?php /* ログイン済み: ダッシュボード本体を表示する */ ?>
