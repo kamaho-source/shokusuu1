@@ -3,13 +3,13 @@
  * Routes configuration.
  */
 
-use Cake\Routing\Route\Route;
+use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
 use Cake\Routing\Router;
 
 return function (RouteBuilder $routes): void {
 
-    $routes->setRouteClass(Route::class);
+    $routes->setRouteClass(DashedRoute::class);
 
     $routes->scope('/', function (RouteBuilder $builder): void {
 
