@@ -90,7 +90,7 @@ class TReservationInfoControllerTest extends TestCase
     {
         // ユーザー認証モック
         $this->setAuthenticatedSession();
-        $this->get('/t-reservation-info/index');
+        $this->get('/TReservationInfo/index');
         $this->assertResponseOk();
         $this->assertResponseContains('食数予約');
     }
@@ -102,7 +102,7 @@ class TReservationInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $date = (new Date('+1 month'))->format('Y-m-d');
-        $this->get('/t-reservation-info/view?date=' . $date);
+        $this->get('/TReservationInfo/view?date=' . $date);
         $this->assertResponseOk();
     }
 
@@ -112,7 +112,7 @@ class TReservationInfoControllerTest extends TestCase
     public function testViewNoDate()
     {
         $this->setAuthenticatedSession();
-        $this->get('/t-reservation-info/view');
+        $this->get('/TReservationInfo/view');
         $this->assertResponseOk();
     }
 
@@ -122,7 +122,7 @@ class TReservationInfoControllerTest extends TestCase
     public function testEvents()
     {
         $this->setAuthenticatedSession();
-        $this->get('/t-reservation-info/events');
+        $this->get('/TReservationInfo/events');
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -134,7 +134,7 @@ class TReservationInfoControllerTest extends TestCase
     public function testCalendarEventsInvalidRangeContract(): void
     {
         $this->setAuthenticatedSession();
-        $this->get('/t-reservation-info/calendar-events?start=invalid&end=invalid');
+        $this->get('/TReservationInfo/calendarEvents?start=invalid&end=invalid');
         $this->assertResponseCode(400);
 
         $responseJson = json_decode((string)$this->_response->getBody(), true);
@@ -149,7 +149,7 @@ class TReservationInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         // 有効なルームIDでテスト
-        $this->get('/t-reservation-info/getUsersByRoomForBulk/1');
+        $this->get('/TReservationInfo/getUsersByRoomForBulk/1');
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -159,7 +159,7 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertArrayHasKey('users', $responseJson['data'] ?? []);
 
         // 無効なルームIDでテスト（ユーザーが存在しない場合）
-        $this->get('/t-reservation-info/getUsersByRoomForBulk/999');
+        $this->get('/TReservationInfo/getUsersByRoomForBulk/999');
         $this->assertResponseOk(); // エラーではなく空の結果を返すべき
         $responseJson = json_decode((string)$this->_response->getBody(), true);
         $this->assertSame(true, $responseJson['ok'] ?? null);
@@ -175,7 +175,7 @@ class TReservationInfoControllerTest extends TestCase
         $date = Date::today()->addDays(14)->format('Y-m-d');
         $this->insertReservation(11, 1, $date, 1, 0, 1);
 
-        $this->get('/t-reservation-info/get-users-by-room/1?date=' . $date);
+        $this->get('/TReservationInfo/getUsersByRoom/1?date=' . $date);
         $this->assertResponseOk();
 
         $responseJson = json_decode((string)$this->_response->getBody(), true);
@@ -191,7 +191,7 @@ class TReservationInfoControllerTest extends TestCase
         $date = Date::today()->addDays(15)->format('Y-m-d');
         $this->insertReservation(12, 1, $date, 1, 0, 1);
 
-        $this->get('/t-reservation-info/get-users-by-room/1?date=' . $date);
+        $this->get('/TReservationInfo/getUsersByRoom/1?date=' . $date);
         $this->assertResponseOk();
 
         $responseJson = json_decode((string)$this->_response->getBody(), true);
@@ -208,7 +208,7 @@ class TReservationInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
 
         $date = (new Date('+1 month'))->format('Y-m-d');
-        $this->get('/t-reservation-info/bulk-add-form?date=' . $date);
+        $this->get('/TReservationInfo/bulk-add-form?date=' . $date);
         $this->assertResponseOk();
         $this->assertResponseContains('部屋を選択');
         $this->assertResponseContains('確定・保存');
@@ -222,9 +222,9 @@ class TReservationInfoControllerTest extends TestCase
         // ユーザー認証モック
         $this->setAuthenticatedSession();
 
-        $this->get('/t-reservation-info/bulk-add-form');
+        $this->get('/TReservationInfo/bulk-add-form');
         $this->assertResponseSuccess(); // リダイレクトも成功レスポンス
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
     }
 
     /**
@@ -250,7 +250,7 @@ class TReservationInfoControllerTest extends TestCase
             ]
         ];
 
-        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->post('/TReservationInfo/bulkAddSubmit', $data);
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -284,7 +284,7 @@ class TReservationInfoControllerTest extends TestCase
             ]
         ];
 
-        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->post('/TReservationInfo/bulkAddSubmit', $data);
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -305,7 +305,7 @@ class TReservationInfoControllerTest extends TestCase
 
         $data = []; // 予約タイプなし
 
-        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->post('/TReservationInfo/bulkAddSubmit', $data);
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -335,7 +335,7 @@ class TReservationInfoControllerTest extends TestCase
             ]
         ];
 
-        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->post('/TReservationInfo/bulkAddSubmit', $data);
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -364,7 +364,7 @@ class TReservationInfoControllerTest extends TestCase
             // 食事タイプなし
         ];
 
-        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->post('/TReservationInfo/bulkAddSubmit', $data);
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -398,7 +398,7 @@ class TReservationInfoControllerTest extends TestCase
             ]
         ];
 
-        $this->post('/t-reservation-info/bulk-add-submit', $data);
+        $this->post('/TReservationInfo/bulkAddSubmit', $data);
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -413,7 +413,7 @@ class TReservationInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false, 1);
         $this->enableCsrfToken();
 
-        $this->post('/t-reservation-info/copy', [
+        $this->post('/TReservationInfo/copy', [
             'mode' => 'week',
             'source' => (new Date('+2 months'))->format('Y-m-d'),
             'target' => (new Date('+3 months'))->format('Y-m-d'),
@@ -430,7 +430,7 @@ class TReservationInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true, 0);
         $this->enableCsrfToken();
 
-        $this->post('/t-reservation-info/copy', [
+        $this->post('/TReservationInfo/copy', [
             'mode' => 'week',
             'source' => (new Date('+2 months'))->format('Y-m-d'),
             'target' => (new Date('+3 months'))->format('Y-m-d'),
@@ -450,7 +450,7 @@ class TReservationInfoControllerTest extends TestCase
         $this->enableCsrfToken();
 
         $date = (new Date('+2 months'))->format('Y-m-d');
-        $this->post('/t-reservation-info/bulk-add-submit', [
+        $this->post('/TReservationInfo/bulkAddSubmit', [
             'reservation_type' => 'personal',
             'dates' => [$date => 1],
             'meals' => ['morning' => ['1' => 1]],
@@ -465,7 +465,7 @@ class TReservationInfoControllerTest extends TestCase
         $this->enableCsrfToken();
 
         $date = (new Date('+2 months'))->format('Y-m-d');
-        $this->post('/t-reservation-info/bulk-add-submit', [
+        $this->post('/TReservationInfo/bulkAddSubmit', [
             'reservation_type' => 'personal',
             'dates' => [$date => 1],
             'meals' => ['morning' => ['1' => 1]],
@@ -478,28 +478,28 @@ class TReservationInfoControllerTest extends TestCase
     public function testGetAllRoomsMealCountsAsNonAdminDenied(): void
     {
         $this->setAuthenticatedSession(false, 0);
-        $this->get('/t-reservation-info/get-all-rooms-meal-counts');
+        $this->get('/TReservationInfo/getAllRoomsMealCounts');
         $this->assertResponseCode(403);
     }
 
     public function testGetUsersByRoomAsStaffOtherRoomDenied(): void
     {
         $this->setAuthenticatedSession(false, 0);
-        $this->get('/t-reservation-info/get-users-by-room/2');
+        $this->get('/TReservationInfo/getUsersByRoom/2');
         $this->assertResponseCode(403);
     }
 
     public function testExportJsonAsNonStaffDenied(): void
     {
         $this->setAuthenticatedSession(false, 1);
-        $this->get('/t-reservation-info/export-json?from=2025-01-01&to=2025-01-02');
+        $this->get('/TReservationInfo/exportJson?from=2025-01-01&to=2025-01-02');
         $this->assertResponseCode(403);
     }
 
     public function testExportJsonrankAsStaffAllowed(): void
     {
         $this->setAuthenticatedSession(false, 0);
-        $this->get('/t-reservation-info/export-jsonrank?month=2025-01');
+        $this->get('/TReservationInfo/exportJsonrank?month=2025-01');
         $this->assertNotSame(403, $this->_response->getStatusCode());
         if ($this->_response->getStatusCode() === 200) {
             $responseJson = json_decode((string)$this->_response->getBody(), true);
@@ -511,7 +511,7 @@ class TReservationInfoControllerTest extends TestCase
     public function testExportJsonContractNoData(): void
     {
         $this->setAuthenticatedSession(false, 0);
-        $this->get('/t-reservation-info/export-json?from=2099-01-01&to=2099-01-02');
+        $this->get('/TReservationInfo/exportJson?from=2099-01-01&to=2099-01-02');
         $this->assertResponseOk();
 
         $responseJson = json_decode((string)$this->_response->getBody(), true);
@@ -523,7 +523,7 @@ class TReservationInfoControllerTest extends TestCase
     public function testExportJsonInvalidRangeContract(): void
     {
         $this->setAuthenticatedSession(false, 0);
-        $this->get('/t-reservation-info/export-json?from=2025-01-10&to=2025-01-01');
+        $this->get('/TReservationInfo/exportJson?from=2025-01-10&to=2025-01-01');
         $this->assertResponseCode(400);
 
         $responseJson = json_decode((string)$this->_response->getBody(), true);
@@ -534,7 +534,7 @@ class TReservationInfoControllerTest extends TestCase
     public function testExportJsonrankInvalidMonthContract(): void
     {
         $this->setAuthenticatedSession(false, 0);
-        $this->get('/t-reservation-info/export-jsonrank?month=2025-13');
+        $this->get('/TReservationInfo/exportJsonrank?month=2025-13');
         $this->assertResponseCode(400);
 
         $responseJson = json_decode((string)$this->_response->getBody(), true);
@@ -555,14 +555,14 @@ class TReservationInfoControllerTest extends TestCase
     public static function authorizationGetMatrixProvider(): array
     {
         return [
-            'index staff allowed' => ['/t-reservation-info/index', false, 0, 200],
-            'events staff allowed' => ['/t-reservation-info/events', false, 0, 200],
-            'copy endpoint denied by method as get' => ['/t-reservation-info/copy', true, 0, 405],
-            'events non staff denied' => ['/t-reservation-info/events', false, 1, 403],
-            'calendar events non staff denied' => ['/t-reservation-info/calendar-events?start=2025-01-01&end=2025-01-31', false, 1, 403],
-            'all rooms non admin denied' => ['/t-reservation-info/get-all-rooms-meal-counts', false, 0, 403],
-            'room users other room denied' => ['/t-reservation-info/get-users-by-room/2', false, 0, 403],
-            'export non staff denied' => ['/t-reservation-info/export-json?from=2025-01-01&to=2025-01-02', false, 1, 403],
+            'index staff allowed' => ['/TReservationInfo/index', false, 0, 200],
+            'events staff allowed' => ['/TReservationInfo/events', false, 0, 200],
+            'copy endpoint denied by method as get' => ['/TReservationInfo/copy', true, 0, 405],
+            'events non staff denied' => ['/TReservationInfo/events', false, 1, 403],
+            'calendar events non staff denied' => ['/TReservationInfo/calendarEvents?start=2025-01-01&end=2025-01-31', false, 1, 403],
+            'all rooms non admin denied' => ['/TReservationInfo/getAllRoomsMealCounts', false, 0, 403],
+            'room users other room denied' => ['/TReservationInfo/getUsersByRoom/2', false, 0, 403],
+            'export non staff denied' => ['/TReservationInfo/exportJson?from=2025-01-01&to=2025-01-02', false, 1, 403],
         ];
     }
 
@@ -583,42 +583,42 @@ class TReservationInfoControllerTest extends TestCase
 
         return [
             'copy admin allowed' => [
-                '/t-reservation-info/copy',
+                '/TReservationInfo/copy',
                 ['mode' => 'week', 'source' => $date, 'target' => (new Date('+3 months'))->format('Y-m-d'), 'room_id' => 1],
                 true,
                 0,
                 200,
             ],
             'copy non admin denied' => [
-                '/t-reservation-info/copy',
+                '/TReservationInfo/copy',
                 ['mode' => 'week', 'source' => $date, 'target' => (new Date('+3 months'))->format('Y-m-d'), 'room_id' => 1],
                 false,
                 1,
                 403,
             ],
             'bulk add staff allowed' => [
-                '/t-reservation-info/bulk-add-submit',
+                '/TReservationInfo/bulkAddSubmit',
                 ['reservation_type' => 'personal', 'dates' => [$date => 1], 'meals' => ['morning' => ['1' => 1]]],
                 false,
                 0,
                 200,
             ],
             'bulk add non staff denied' => [
-                '/t-reservation-info/bulk-add-submit',
+                '/TReservationInfo/bulkAddSubmit',
                 ['reservation_type' => 'personal', 'dates' => [$date => 1], 'meals' => ['morning' => ['1' => 1]]],
                 false,
                 1,
                 403,
             ],
             'check duplicate other room denied' => [
-                '/t-reservation-info/check-duplicate-reservation',
+                '/TReservationInfo/checkDuplicateReservation',
                 ['d_reservation_date' => $date, 'i_id_room' => 2, 'reservation_type' => 1],
                 false,
                 0,
                 403,
             ],
             'reservation snapshots other room denied' => [
-                '/t-reservation-info/get-reservation-snapshots',
+                '/TReservationInfo/getReservationSnapshots',
                 ['room_id' => 2, 'dates' => [$date]],
                 false,
                 0,

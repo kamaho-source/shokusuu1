@@ -10,6 +10,10 @@ use Cake\ORM\TableRegistry;
  *
  * 既存の所属（active_flag=0）を無効化し、指定部屋名で新規所属を登録する。
  * 処理はトランザクション内で実行される。最大2部屋まで。
+ *
+ * active_flag の値は通常の慣習とは逆順になっている点に注意:
+ *   - 0 = 現役（在籍中）
+ *   - 1 = 退出済み（退出処理済み）
  */
 class UserRoomAssignmentService
 {

@@ -266,8 +266,8 @@ class ReservationBulkController extends ReservationBaseController
             $this->log('Error occurred: ' . $e->getMessage(), 'error');
             return $this->apiResponseService->error(
                 $this->response,
-                'エラーが発生しました: ' . $e->getMessage(),
-                200
+                '一括予約の登録中にエラーが発生しました。',
+                500
             );
         }
     }
