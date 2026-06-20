@@ -255,22 +255,23 @@ class ReservationQueryService
         string $date
     ): array {
         $reservations = $reservationTable->find()
-            ->select(['i_reservation_type'])
+            ->select(['i_reservation_type', 'i_id_room'])
             ->where([
-                'i_id_user'            => $userId,
-                'd_reservation_date'   => $date,
-                'eat_flag'             => 1,
+                'i_id_user'          => $userId,
+                'd_reservation_date' => $date,
+                'eat_flag'           => 1,
             ])
             ->toArray();
 
-        $mealTypes = [1, 2, 3, 4];
+        // reservation[roomId][mealType] = true の形で返す
         $result = [];
-        foreach ($mealTypes as $mealType) {
-            $result[(string)$mealType] = false;
-        }
         foreach ($reservations as $reservation) {
-            $type = $reservation->i_reservation_type;
-            $result[(string)$type] = true;
+            $roomId = (string)$reservation->i_id_room;
+            $type   = (string)$reservation->i_reservation_type;
+            if (!isset($result[$roomId])) {
+                $result[$roomId] = [];
+            }
+            $result[$roomId][$type] = true;
         }
 
         $authorizedRooms = $this->getAuthorizedRooms($roomTable, $userGroupTable, $userId);

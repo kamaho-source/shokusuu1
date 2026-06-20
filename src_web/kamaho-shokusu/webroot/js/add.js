@@ -85,13 +85,14 @@
                 const r = await fetch(url, { credentials: 'same-origin' });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 const d = await r.json();
+                // reservation: { roomId: { mealType: true } }
                 const res = (d && d.data && d.data.reservation) ? d.data.reservation : {};
                 if (roomCheckboxesTbody) {
                     roomCheckboxesTbody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                        const m = cb.getAttribute('name').match(/^meals\[(\d+)]/);
+                        const m = cb.getAttribute('name').match(/^meals\[(\d+)\]\[(\d+)\]/);
                         if (!m) return;
-                        const type = m[1];
-                        cb.checked = res[type] == true || Number(res[type]) === 1;
+                        const [, mealType, roomId] = m;
+                        cb.checked = !!(res[roomId] && res[roomId][mealType]);
                         cb.dispatchEvent(new Event('change'));
                     });
                 }
