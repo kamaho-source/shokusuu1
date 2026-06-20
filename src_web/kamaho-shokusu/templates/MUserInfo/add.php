@@ -27,13 +27,15 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     'novalidate' => true,
                     'id'         => 'reservation-form'
                 ]) ?>
+                <p class="text-muted small mb-3"><span class="text-danger" aria-hidden="true">*</span> は必須項目です</p>
                 <fieldset>
                     <!-- ログインID -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_login_account', [
-                            'label'             => ['text' => 'ログインID', 'class' => 'form-label'],
+                            'label'             => ['text' => 'ログインID <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'id'                => 'c_login_account',
+                            'aria-required'     => 'true',
                             'data-validate'     => 'required',
                             'data-msg-required' => 'ログインIDを入力してください。',
                         ]) ?>
@@ -55,9 +57,10 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
 
                     <!-- パスワード -->
                     <div class="mb-3">
-                        <?= $this->Form->label('c_login_passwd', 'パスワード', [
-                            'class' => 'form-label',
-                            'for'   => 'inputPassword'
+                        <?= $this->Form->label('c_login_passwd', 'パスワード <span class="text-danger" aria-hidden="true">*</span>', [
+                            'class'  => 'form-label',
+                            'for'    => 'inputPassword',
+                            'escape' => false,
                         ]) ?>
                         <div class="position-relative">
                             <?= $this->Form->control('c_login_passwd', [
@@ -66,6 +69,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                 'id'                => 'inputPassword',
                                 'label'             => false,
                                 'div'               => false,
+                                'aria-required'     => 'true',
                                 'data-validate'     => 'required',
                                 'data-msg-required' => 'パスワードを入力してください。',
                             ]) ?>
@@ -81,8 +85,9 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     <!-- ユーザー名 -->
                     <div class="mb-3">
                         <?= $this->Form->control('c_user_name', [
-                            'label'             => ['text' => 'ユーザー名', 'class' => 'form-label'],
+                            'label'             => ['text' => 'ユーザー名 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
+                            'aria-required'     => 'true',
                             'data-validate'     => 'required',
                             'data-msg-required' => 'ユーザー名を入力してください。',
                         ]) ?>
@@ -94,9 +99,10 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                         <?= $this->Form->control('i_user_gender', [
                             'type'              => 'select',
                             'options'           => [1 => '男性', 2 => '女性'],
-                            'label'             => ['text' => '性別', 'class' => 'form-label'],
+                            'label'             => ['text' => '性別 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
+                            'aria-required'     => 'true',
                             'data-validate'     => 'required',
                             'data-msg-required' => '性別を選択してください。',
                         ]) ?>
@@ -116,9 +122,10 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                 6 => '高校生',
                                 7 => '大人'
                             ],
-                            'label'             => ['text' => '年代選択', 'class' => 'form-label'],
+                            'label'             => ['text' => '年代選択 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
+                            'aria-required'     => 'true',
                             'data-validate'     => 'required',
                             'data-msg-required' => '年代を選択してください。',
                         ]) ?>
@@ -141,9 +148,10 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                         <?= $this->Form->control('role', [
                             'type'              => 'select',
                             'options'           => [0 => '職員', 1 => '児童', 3 => 'その他'],
-                            'label'             => ['text' => '役職', 'class' => 'form-label'],
+                            'label'             => ['text' => '役職 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
+                            'aria-required'     => 'true',
                             'data-validate'     => 'required',
                             'data-msg-required' => '役職を選択してください。',
                         ]) ?>
