@@ -174,6 +174,11 @@ jobs:
             docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --no-build --remove-orphans
             docker image prune -f
 
+            # ── OPcache クリアのためコンテナを再起動 ─────────────────────────
+            # Dockerfileが変わらない場合イメージSHAが同一になり up -d がコンテナを
+            # 再作成しない。OPcacheが古いバイトコードを保持し続けるためリスタートが必要。
+            docker restart stg_web
+
             # ── Composer install (composer.lock が変わった時のみ実行) ─────────
             LOCK_FILE="${DEPLOY_PATH}/src_web/kamaho-shokusu/composer.lock"
             HASH_CACHE="/tmp/shokusuu1_composer_lock_hash"
