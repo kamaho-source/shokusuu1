@@ -498,72 +498,26 @@ class TReservationInfoController extends ReservationBaseController
             }
 
             $reservationType = $data['reservation_type'] ?? '1';
-            $isLastMinute    = ($data['last_minute'] ?? '') === '1';
             $auditSuccess = 0;
             try {
-                if ($isLastMinute && (string)$reservationType === '2') {
-                    // 直前期間の集団予約: i_change_flag のみ更新・職員キャンセル禁止
-                    $roomId = (int)($data['i_id_room'] ?? 0);
-                    $allUserIds = array_values(array_map('intval', array_filter(
-                        $this->MUserGroup->find()
-                            ->select(['i_id_user'])
-                            ->contain(['MUserInfo'])
-                            ->where([
-                                'MUserGroup.i_id_room'   => $roomId,
-                                'MUserGroup.active_flag' => 0,
-                                'MUserInfo.i_del_flag'   => 0,
-                            ])
-                            ->enableHydration(false)->all()->extract('i_id_user')->toList(),
-                        fn($id) => $id !== null && (int)$id > 0
-                    )));
-                    $submittedUsers = is_array($data['users'] ?? null) ? $data['users'] : [];
-                    $usersData = [];
-                    foreach ($allUserIds as $uid) {
-                        $mealsRow = $submittedUsers[$uid] ?? $submittedUsers[(string)$uid] ?? null;
-                        if (!is_array($mealsRow)) {
-                            continue; // フォームに表示されていないユーザーはスキップ
-                        }
-                        foreach ([1, 2, 3, 4] as $mealType) {
-                            $val = $mealsRow[$mealType] ?? $mealsRow[(string)$mealType] ?? null;
-                            $usersData[$uid][$mealType] = ['i_change_flag' => ($val !== null && (int)$val === 1) ? 1 : 0];
-                        }
-                    }
-                    $updateResult = $this->changeEditService->processUpdate(
-                        $usersData,
-                        $allUserIds,
-                        (string)($data['d_reservation_date'] ?? $date),
-                        $roomId,
-                        $user,
-                        $this->TIndividualReservationInfo,
-                        $this->MUserInfo
+                $result = ((string)$reservationType === '1')
+                    ? $this->writeService->processIndividualReservation(
+                        $data['d_reservation_date'],
+                        $data,
+                        $rooms,
+                        (int)$userId,
+                        (string)$user->get('c_user_name'),
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
+                    )
+                    : $this->writeService->processGroupReservation(
+                        $data['d_reservation_date'],
+                        $data,
+                        $rooms,
+                        (string)$user->get('c_user_name'),
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
                     );
-                    $auditSuccess = 1;
-                    $skippedMsg = !empty($updateResult['skipped']) ? ' ' . implode(' ', $updateResult['skipped']) : '';
-                    $resultResponse = $this->jsonSuccessResponse('予約が更新されました。' . $skippedMsg, [
-                        'date' => $data['d_reservation_date'] ?? $date,
-                    ]);
-                } else {
-                    $result = ((string)$reservationType === '1')
-                        ? $this->writeService->processIndividualReservation(
-                            $data['d_reservation_date'],
-                            $data,
-                            $rooms,
-                            (int)$userId,
-                            (string)$user->get('c_user_name'),
-                            fn($d) => $this->datePolicy->validateReservationDate((string)$d)
-                        )
-                        : $this->writeService->processGroupReservation(
-                            $data['d_reservation_date'],
-                            $data,
-                            $rooms,
-                            (string)$user->get('c_user_name'),
-                            fn($d) => $this->datePolicy->validateReservationDate((string)$d)
-                        );
-                    $auditSuccess = 1;
-                    $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
-                }
-            } catch (\App\Exception\OptimisticLockConflictException $e) {
-                $resultResponse = $this->jsonErrorResponse('他の操作と競合しました。画面を再読み込みして再実行してください。', 409);
+                $auditSuccess = 1;
+                $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
             } catch (\App\Domain\Exception\DomainException $e) {
                 $resultResponse = $this->jsonErrorResponse($e->getMessage(), $e->getStatusCode());
             } catch (\Throwable $e) {

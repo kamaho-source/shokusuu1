@@ -21,9 +21,6 @@ $date = $this->request->getQuery('date') ?? date('Y-m-d');
 // ✅ モーダル判定
 $isModal = (string)($this->request->getQuery('modal') ?? '') === '1';
 
-// ✅ 直前期間判定（14日以内）
-$isLastMinute = (string)($this->request->getQuery('last_minute') ?? '') === '1';
-
 // ✅ 既定の部屋（?room= があれば優先。なければログインユーザーの所属部屋を採用）
 $defaultRoomId = $this->request->getQuery('room') ?? ($user ? $user->get('i_id_room') : null);
 if (!isset($rooms[$defaultRoomId])) {
@@ -49,16 +46,6 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
     data-personal-url="<?= h($URL_GET_PERSONAL) ?>"
     <?= $isModal ? 'data-modal="1"' : '' ?>>
 
-    <?php if ($isLastMinute): ?>
-    <div class="alert alert-warning d-flex align-items-start gap-2 mb-3 py-2" role="alert">
-        <i class="bi bi-exclamation-triangle-fill mt-1 flex-shrink-0"></i>
-        <div>
-            <strong>直前編集（当日〜14日以内）</strong>：発注済みです。変更内容をよく確認してください。<br>
-            職員の既存予約の削除はできません。新規追加のみ可能です。
-        </div>
-    </div>
-    <?php endif; ?>
-
     <div class="row">
         <aside class="col-md-3" <?= $isModal ? 'style="display:none;"' : '' ?>>
             <div class="list-group">
@@ -78,9 +65,6 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                 </div>
                 <div class="card-body">
                     <?= $this->Form->create($tReservationInfo, ['id' => 'reservation-form']) ?>
-                    <?php if ($isLastMinute): ?>
-                        <?= $this->Form->hidden('last_minute', ['value' => '1']) ?>
-                    <?php endif; ?>
                     <fieldset class="form-section">
                         <legend><?= __("食数予約") ?></legend>
 
