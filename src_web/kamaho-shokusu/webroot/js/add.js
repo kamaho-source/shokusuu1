@@ -77,6 +77,35 @@
             }
         }
 
+        async function fetchPersonalReservationData(){
+            const url = window.GET_PERSONAL_URL;
+            if (!url) return;
+            showLoading();
+            try {
+                const r = await fetch(url, { credentials: 'same-origin' });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const d = await r.json();
+                const res = (d && d.data && d.data.reservation) ? d.data.reservation : {};
+                if (roomCheckboxesTbody) {
+                    roomCheckboxesTbody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                        const m = cb.getAttribute('name').match(/^meals\[(\d+)]/);
+                        if (!m) return;
+                        const type = m[1];
+                        cb.checked = res[type] == true || Number(res[type]) === 1;
+                        cb.dispatchEvent(new Event('change'));
+                    });
+                }
+                if (typeof window.setupAllRoomPairs === 'function') {
+                    window.setupAllRoomPairs();
+                }
+            } catch(e) {
+                console.error('[ADD_RESERVATION] 個人予約取得失敗:', e);
+            } finally {
+                hideLoading();
+            }
+        }
+        window.fetchPersonalReservationData = fetchPersonalReservationData;
+
         // 個人テーブルの昼⇔弁当の排他（全部屋またぎ）
         function bindRoomTableGuards(){
             if (!roomCheckboxesTbody) return;
@@ -102,7 +131,9 @@
                 const val = e.target.value;
                 toggleReservationTypeDisplay(val);
 
-                if (String(val) === '2') { // 集団
+                if (String(val) === '1') { // 個人
+                    fetchPersonalReservationData();
+                } else if (String(val) === '2') { // 集団
                     const rid = roomSelect?.value || '';
                     if (rid) fetchAndRenderUsers(rid);
                 }
@@ -264,9 +295,27 @@
         // ★★★ 修正: 初期表示ロジックの修正 ★★★
         bindRoomTableGuards();
         const initialTypeRaw = reservationTypeSel?.value;
-        // 予約タイプが未選択の場合でも `toggleReservationTypeDisplay` を呼び出すことで、
-        // デフォルト（個人）の表示が適用されるようにする
         toggleReservationTypeDisplay(initialTypeRaw);
+
+        // ヘッダーの "全選択" チェックボックス昼⇄弁当排他
+        if (typeof window.setupLunchBentoPair === 'function') {
+            window.setupLunchBentoPair(
+                root.querySelector('#select-all-room-2'),
+                root.querySelector('#select-all-room-4')
+            );
+            window.setupLunchBentoPair(
+                root.querySelector('#select-all-user-noon'),
+                root.querySelector('#select-all-user-bento')
+            );
+        }
+        if (typeof window.setupAllRoomPairs === 'function') {
+            window.setupAllRoomPairs();
+        }
+
+        // 個人モード（type=1 または未選択のデフォルト）なら既存予約を取得して反映
+        if (!initialTypeRaw || String(initialTypeRaw) === '1') {
+            fetchPersonalReservationData();
+        }
 
         // もし初期タイプが集団なら、利用者取得を試みる
         if (String(initialTypeRaw) === '2') {
