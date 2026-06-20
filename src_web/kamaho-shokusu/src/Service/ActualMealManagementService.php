@@ -359,7 +359,7 @@ class ActualMealManagementService
     /**
      * 日付の正規化（YYYY-MM-DD 文字列に変換する）。
      */
-    private function normalizeDateString(\DateTimeInterface|string|int|null $value): ?string
+    private function normalizeDateString(\DateTimeInterface|Date|string|int|null $value): ?string
     {
         if ($value instanceof Date) {
             return $value->format('Y-m-d');
