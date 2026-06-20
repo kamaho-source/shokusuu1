@@ -44,7 +44,10 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
 );
 ?>
 <!-- ★ 親の抽出ロジックが最優先で拾うラッパー -->
-<div id="ce-root" <?= $isModal ? 'data-modal="1"' : '' ?>>
+<div id="ce-root"
+    data-personal-url="<?= h($URL_GET_PERSONAL) ?>"
+    <?= $isModal ? 'data-modal="1"' : '' ?>>
+
     <div class="row">
         <aside class="col-md-3" <?= $isModal ? 'style="display:none;"' : '' ?>>
             <div class="list-group">
@@ -92,8 +95,8 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                         <div class="mb-3">
                             <label for="c_reservation_type" class="form-label">予約タイプ(個人/集団)</label>
                             <select id="c_reservation_type" name="reservation_type" class="form-select">
-                                <option value="" selected disabled>-- 予約タイプを選択 --</option>
-                                <option value="1">個人</option>
+                                <option value="" disabled>-- 予約タイプを選択 --</option>
+                                <option value="1" selected>個人</option>
                                 <?php if (in_array((int)$user->get('i_admin'), [1, 3]) || $user->get('i_user_level') == 0): ?>
                                     <option value="2">集団</option>
                                 <?php endif; ?>
@@ -219,9 +222,11 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                             }
 
                             // DOMContentLoaded 依存だとモーダル挿入時に動かないため、即時・冪等バインド
+                            // executeScriptsFrom により再実行されるため DOM スコープフラグで防御する
                             (function bindRoomHeaderSyncOnce(){
-                                if (window.__ADD_BIND_ROOM_SYNC__) return;
-                                window.__ADD_BIND_ROOM_SYNC__ = true;
+                                const ceRootEl = document.getElementById('ce-root');
+                                if (ceRootEl && ceRootEl.dataset.addBindSyncDone) return;
+                                if (ceRootEl) ceRootEl.dataset.addBindSyncDone = '1';
 
                                 const mealTypes = [1, 2, 3, 4];
                                 mealTypes.forEach(mealType => {

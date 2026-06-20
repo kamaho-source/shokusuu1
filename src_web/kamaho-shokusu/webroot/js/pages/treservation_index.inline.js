@@ -1831,7 +1831,9 @@ function unlockForChildren(wrap){
                         return r.json();
                     })
                     .then(function(d){
-                        var users = d && d.usersByRoom;
+                        var users = (d && d.data && Array.isArray(d.data.usersByRoom))
+                            ? d.data.usersByRoom
+                            : (d && Array.isArray(d.usersByRoom) ? d.usersByRoom : null);
                         if (!Array.isArray(users)) {
                             throw new Error('usersByRoom が配列ではありません');
                         }
