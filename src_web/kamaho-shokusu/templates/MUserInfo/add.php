@@ -134,13 +134,17 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
 
                     <!-- 年齢 -->
                     <div class="mb-3">
-                        <label for="ageSelect" class="form-label">年齢</label>
-                        <select id="ageSelect" name="age" class="form-control">
+                        <label for="ageSelect" class="form-label">年齢 <span class="text-danger" aria-hidden="true">*</span></label>
+                        <select id="ageSelect" name="age" class="form-control"
+                                aria-required="true"
+                                data-validate="required"
+                                data-msg-required="年齢を選択してください。">
                             <option value="">選択してください</option>
                             <?php for ($i = 1; $i <= 80; $i++): ?>
                                 <option value="<?= $i ?>"><?= $i ?>歳</option>
                             <?php endfor; ?>
                         </select>
+                        <div class="invalid-feedback">年齢を選択してください。</div>
                     </div>
 
                     <!-- 役職 -->
