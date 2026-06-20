@@ -134,7 +134,7 @@ class ReservationChangeEditService
                 'room_id'       => (int)$r->i_id_room,
                 'eat_flag'      => (int)$r->eat_flag,
                 'room_name'     => (string)($r->m_room_info->c_room_name ?? '不明な部屋'),
-                'i_change_flag' => (int)$r->i_change_flag,
+                'i_change_flag' => $r->i_change_flag !== null ? (int)$r->i_change_flag : null,
             ];
         }
 

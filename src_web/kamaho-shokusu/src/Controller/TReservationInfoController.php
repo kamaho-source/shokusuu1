@@ -660,12 +660,17 @@ class TReservationInfoController extends ReservationBaseController
                 }
                 $users = new \Cake\Collection\Collection([]);
                 $userReservations = [];
-                $individualReservations = ($loginUid && $date)
-                    ? $this->TIndividualReservationInfo->find()
-                        ->select(['i_reservation_type', 'i_id_room'])
-                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date, 'eat_flag' => 1])
-                        ->toArray()
-                    : [];
+                $individualReservations = [];
+                if ($loginUid && $date) {
+                    $allIndiv = $this->TIndividualReservationInfo->find()
+                        ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
+                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date])
+                        ->toArray();
+                    $individualReservations = array_values(array_filter($allIndiv, function ($r) {
+                        $effective = $r->i_change_flag !== null ? (int)$r->i_change_flag : (int)$r->eat_flag;
+                        return $effective === 1;
+                    }));
+                }
                 $this->set(compact('room', 'rooms', 'date', 'users', 'userReservations', 'individualReservations'));
                 return $this->render('change_edit');
             }
@@ -780,12 +785,17 @@ class TReservationInfoController extends ReservationBaseController
                 }
 
                 $rooms = $allowedRooms;
-                $individualReservations = ($loginUid && $date)
-                    ? $this->TIndividualReservationInfo->find()
-                        ->select(['i_reservation_type', 'i_id_room'])
-                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date, 'eat_flag' => 1])
-                        ->toArray()
-                    : [];
+                $individualReservations = [];
+                if ($loginUid && $date) {
+                    $allIndiv = $this->TIndividualReservationInfo->find()
+                        ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
+                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date])
+                        ->toArray();
+                    $individualReservations = array_values(array_filter($allIndiv, function ($r) {
+                        $effective = $r->i_change_flag !== null ? (int)$r->i_change_flag : (int)$r->eat_flag;
+                        return $effective === 1;
+                    }));
+                }
                 $this->set(compact('room', 'rooms', 'date', 'users', 'userReservations', 'individualReservations'));
                 return $this->render('change_edit');
             }
