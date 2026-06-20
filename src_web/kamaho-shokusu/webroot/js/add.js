@@ -2,16 +2,66 @@
 /* eslint-disable no-console */
 /* eslint-env browser */
 (function(){
-    function init(container){
-        // 多重初期化防止
-        const root = (container && container.querySelector) ? (container.querySelector('#ce-root') || container) : document;
-        if (root.__ADD_FORM_BOOTED__) return;
-        
-        // If reservation.js has already initialized, skip our form handling
-        if (window.__reservationFormInited && root.querySelector('#reservation-form')) {
+    // モジュールレベルの個人予約取得（毎回フレッシュなDOM参照を使用）
+    async function fetchPersonalReservationData(){
+        // 表示中モーダル内の #ce-root を優先検索
+        const ceRoot = document.querySelector('.modal.show #ce-root')
+            || document.querySelector('.modal #ce-root')
+            || document.getElementById('ce-root')
+            || document;
+
+        // URL: data属性 → window.GET_PERSONAL_URL の順で取得
+        const url = (ceRoot && ceRoot.dataset && ceRoot.dataset.personalUrl)
+            ? ceRoot.dataset.personalUrl
+            : window.GET_PERSONAL_URL;
+
+        if (!url) {
+            console.warn('[ADD_RESERVATION] personal reservation URL が見つかりません');
             return;
         }
-        
+
+        // フレッシュな DOM 参照
+        const roomCheckboxesTbody = ceRoot.querySelector
+            ? ceRoot.querySelector('#room-checkboxes')
+            : document.getElementById('room-checkboxes');
+        const overlay      = ceRoot.querySelector ? ceRoot.querySelector('#loading-overlay')                       : null;
+        const submitButton = ceRoot.querySelector ? ceRoot.querySelector('#reservation-form button[type="submit"]') : null;
+
+        const showLoad = () => { if (overlay) overlay.style.display = 'block'; if (submitButton) submitButton.disabled = true;  };
+        const hideLoad = () => { if (overlay) overlay.style.display = 'none';  if (submitButton) submitButton.disabled = false; };
+
+        showLoad();
+        try {
+            const r = await fetch(url, { credentials: 'same-origin' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const d = await r.json();
+            // reservation: { roomId: { mealType: true } }
+            const res = (d && d.data && d.data.reservation) ? d.data.reservation : {};
+            if (roomCheckboxesTbody) {
+                roomCheckboxesTbody.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                    const m = cb.getAttribute('name').match(/^meals\[(\d+)\]\[(\d+)\]/);
+                    if (!m) return;
+                    const [, mealType, roomId] = m;
+                    cb.checked = !!(res[roomId] && res[roomId][mealType]);
+                    cb.dispatchEvent(new Event('change'));
+                });
+            }
+            if (typeof window.setupAllRoomPairs === 'function') {
+                window.setupAllRoomPairs();
+            }
+        } catch(e) {
+            console.error('[ADD_RESERVATION] 個人予約取得失敗:', e);
+        } finally {
+            hideLoad();
+        }
+    }
+    window.fetchPersonalReservationData = fetchPersonalReservationData;
+
+    function init(container){
+        // 多重初期化防止（DOM要素スコープなので毎回モーダル開放時はリセットされる）
+        const root = (container && container.querySelector) ? (container.querySelector('#ce-root') || container) : document;
+        if (root.__ADD_FORM_BOOTED__) return;
+
         root.__ADD_FORM_BOOTED__ = true;
 
         // DOM 参照
@@ -102,7 +152,9 @@
                 const val = e.target.value;
                 toggleReservationTypeDisplay(val);
 
-                if (String(val) === '2') { // 集団
+                if (String(val) === '1') { // 個人
+                    fetchPersonalReservationData();
+                } else if (String(val) === '2') { // 集団
                     const rid = roomSelect?.value || '';
                     if (rid) fetchAndRenderUsers(rid);
                 }
@@ -122,8 +174,7 @@
             });
         }
 
-        // Only handle form submission if reservation.js hasn't already initialized it
-        if (form && !window.__reservationFormInited) {
+        if (form) {
             form.addEventListener('submit', (ev) => {
                 ev.preventDefault();
                 
@@ -264,15 +315,36 @@
         // ★★★ 修正: 初期表示ロジックの修正 ★★★
         bindRoomTableGuards();
         const initialTypeRaw = reservationTypeSel?.value;
-        // 予約タイプが未選択の場合でも `toggleReservationTypeDisplay` を呼び出すことで、
-        // デフォルト（個人）の表示が適用されるようにする
         toggleReservationTypeDisplay(initialTypeRaw);
+
+        // ヘッダーの "全選択" チェックボックス昼⇄弁当排他
+        if (typeof window.setupLunchBentoPair === 'function') {
+            window.setupLunchBentoPair(
+                root.querySelector('#select-all-room-2'),
+                root.querySelector('#select-all-room-4')
+            );
+            window.setupLunchBentoPair(
+                root.querySelector('#select-all-user-noon'),
+                root.querySelector('#select-all-user-bento')
+            );
+        }
+        if (typeof window.setupAllRoomPairs === 'function') {
+            window.setupAllRoomPairs();
+        }
+
+        // 個人モード（type=1 または未選択のデフォルト）なら既存予約を取得して反映
+        if (!initialTypeRaw || String(initialTypeRaw) === '1') {
+            fetchPersonalReservationData();
+        }
 
         // もし初期タイプが集団なら、利用者取得を試みる
         if (String(initialTypeRaw) === '2') {
             const rid = roomSelect?.value || '';
             if (rid) fetchAndRenderUsers(rid);
         }
+
+        // reservation.js が二重バインドしないようにフラグをセット
+        window.__reservationFormInited = true;
     }
 
     // safety wrapper: 明示的呼び出し用のラッパー（loadInto 等から安全に呼べる）
@@ -302,11 +374,10 @@
     document.addEventListener('shown.bs.modal', (ev) => {
         const modal = ev.target;
         if (!modal) return;
-        // Only handle if reservation.js hasn't already initialized
-        if (modal.querySelector?.('#reservation-form') && !window.__reservationFormInited) {
+        if (modal.querySelector?.('#reservation-form')) {
+            // loadInto() で既に init 済みの場合は root.__ADD_FORM_BOOTED__ で防がれる
             window.ADD_RESERVATION.safeInit(modal);
-            
-            // 排他制御を適用
+
             requestAnimationFrame(() => {
                 if (typeof window.applyLunchBentoExclusion === 'function') {
                     window.applyLunchBentoExclusion(modal);
