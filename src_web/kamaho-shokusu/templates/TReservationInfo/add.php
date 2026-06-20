@@ -33,14 +33,12 @@ if (!isset($rooms[$defaultRoomId])) {
 
 // ✅ サーバ側でフルURLを作成（モーダル/サブディレクトリ対応）
 $URL_GET_PERSONAL = $this->Url->build(
-        ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation', '?' => ['date' => $date]],
-        ['fullBase' => true]
+        ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation', '?' => ['date' => $date]]
 );
 
 // ✅ 「:roomId」ではなく無害なトークン __RID__ を含むテンプレURLを生成（JS で置換）
 $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
-        ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom', '__RID__'],
-        ['fullBase' => true]
+        ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom', '__RID__']
 );
 ?>
 <!-- ★ 親の抽出ロジックが最優先で拾うラッパー -->
