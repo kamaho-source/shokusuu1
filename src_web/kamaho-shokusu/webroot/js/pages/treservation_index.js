@@ -1054,6 +1054,10 @@ function unlockForChildren(wrap){
                     if (!window.__IS_STAFF) { observeChildUnlock(container); }
                 }
 
+                // innerHTML はスクリプトを実行しないため、注入されたインラインスクリプトを手動実行する
+                // change_edit.php の INDIV_DATA/setType 初期化、add.php の変数設定が対象
+                await executeScriptsFrom(container);
+
                 var host = container.closest('.modal') || container;
 
                 // ★★★★★ ここからが修正箇所 ★★★★★
@@ -1453,7 +1457,9 @@ function unlockForChildren(wrap){
                         return r.json();
                     })
                     .then(function(d){
-                        var users = d && d.usersByRoom;
+                        var users = (d && d.data && Array.isArray(d.data.usersByRoom))
+                            ? d.data.usersByRoom
+                            : (d && Array.isArray(d.usersByRoom) ? d.usersByRoom : null);
                         if (!Array.isArray(users)) {
                             throw new Error('usersByRoom が配列ではありません');
                         }

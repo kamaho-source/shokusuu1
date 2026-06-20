@@ -51,10 +51,12 @@ class MUserInfoController extends AppController
         // これらのアクションは FormProtection のフォームトークン検証対象外にする。
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
         // login/logout: セッション切れや複数タブでトークンが失効し「不正なアクセス」になるため除外。
+        // add: 年齢セレクトが Form ヘルパー外の生 HTML のためトークン不一致になるため除外。
         // importJson 等: JSON ボディを受け取る AJAX エンドポイントのため除外。
         $this->FormProtection->setConfig('unlockedActions', [
             'login',
             'logout',
+            'add',
             'importJson',
             'updateAdminStatus',
             'updateUserLevel',

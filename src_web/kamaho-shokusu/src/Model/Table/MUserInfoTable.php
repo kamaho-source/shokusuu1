@@ -85,8 +85,8 @@ class MUserInfoTable extends Table
         // ユーザー年齢（i_user_age）のバリデーション
         $validator
             ->integer('i_user_age')
-            ->allowEmptyString('i_user_age', 'create')
-            ->greaterThanOrEqual('i_user_age', 0, '年齢は0以上で指定してください。')
+            ->notEmptyString('i_user_age', '年齢を入力してください。')
+            ->greaterThan('i_user_age', 0, '年齢は1以上で指定してください。')
             ->lessThanOrEqual('i_user_age', 80, '年齢は80以下で指定してください。');
 
         // ユーザーレベル（i_user_level）のバリデーション

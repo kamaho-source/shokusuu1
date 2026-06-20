@@ -33,18 +33,19 @@ if (!isset($rooms[$defaultRoomId])) {
 
 // ✅ サーバ側でフルURLを作成（モーダル/サブディレクトリ対応）
 $URL_GET_PERSONAL = $this->Url->build(
-        ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation', '?' => ['date' => $date]],
-        ['fullBase' => true]
+        ['controller' => 'TReservationInfo', 'action' => 'getPersonalReservation', '?' => ['date' => $date]]
 );
 
 // ✅ 「:roomId」ではなく無害なトークン __RID__ を含むテンプレURLを生成（JS で置換）
 $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
-        ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom', '__RID__'],
-        ['fullBase' => true]
+        ['controller' => 'TReservationInfo', 'action' => 'getUsersByRoom', '__RID__']
 );
 ?>
 <!-- ★ 親の抽出ロジックが最優先で拾うラッパー -->
-<div id="ce-root" <?= $isModal ? 'data-modal="1"' : '' ?>>
+<div id="ce-root"
+    data-personal-url="<?= h($URL_GET_PERSONAL) ?>"
+    <?= $isModal ? 'data-modal="1"' : '' ?>>
+
     <div class="row">
         <aside class="col-md-3" <?= $isModal ? 'style="display:none;"' : '' ?>>
             <div class="list-group">
@@ -92,8 +93,8 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                         <div class="mb-3">
                             <label for="c_reservation_type" class="form-label">予約タイプ(個人/集団)</label>
                             <select id="c_reservation_type" name="reservation_type" class="form-select">
-                                <option value="" selected disabled>-- 予約タイプを選択 --</option>
-                                <option value="1">個人</option>
+                                <option value="" disabled>-- 予約タイプを選択 --</option>
+                                <option value="1" selected>個人</option>
                                 <?php if (in_array((int)$user->get('i_admin'), [1, 3]) || $user->get('i_user_level') == 0): ?>
                                     <option value="2">集団</option>
                                 <?php endif; ?>
@@ -199,7 +200,7 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                             // PHP から安全にフルURLを受け取る（reservation-users.js が使用）
                             window.GET_USERS_BY_ROOM_TPL = <?= json_encode($URL_GET_USERS_BY_ROOM_TPL, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
                             window.QUERY_DATE            = <?= json_encode($date, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
-                            const GET_PERSONAL_URL       = <?= json_encode($URL_GET_PERSONAL, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
+                            window.GET_PERSONAL_URL      = <?= json_encode($URL_GET_PERSONAL, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE) ?>;
 
                             function toggleAllRooms(mealType, isChecked) {
                                 const checkboxes = document.querySelectorAll(
@@ -219,9 +220,11 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                             }
 
                             // DOMContentLoaded 依存だとモーダル挿入時に動かないため、即時・冪等バインド
+                            // executeScriptsFrom により再実行されるため DOM スコープフラグで防御する
                             (function bindRoomHeaderSyncOnce(){
-                                if (window.__ADD_BIND_ROOM_SYNC__) return;
-                                window.__ADD_BIND_ROOM_SYNC__ = true;
+                                const ceRootEl = document.getElementById('ce-root');
+                                if (ceRootEl && ceRootEl.dataset.addBindSyncDone) return;
+                                if (ceRootEl) ceRootEl.dataset.addBindSyncDone = '1';
 
                                 const mealTypes = [1, 2, 3, 4];
                                 mealTypes.forEach(mealType => {
@@ -375,34 +378,6 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                     });
                             }
 
-                            /* --------------------------------------------------------- */
-                            function fetchPersonalReservationData() {
-                                const url = GET_PERSONAL_URL; // ✅ サーバ生成URLを使用
-                                showLoading();
-                                fetch(url, { credentials: 'same-origin' })
-                                    .then(r => {
-                                        if (!r.ok) throw new Error('HTTP ' + r.status);
-                                        return r.json();
-                                    })
-                                    .then(d => {
-                                        const res = (d && d.data && d.data.reservation) ? d.data.reservation : {};
-                                        document
-                                            .querySelectorAll('#room-checkboxes input[type="checkbox"]')
-                                            .forEach(cb => {
-                                                const m = cb.getAttribute('name').match(/^meals\[(\d+)]/);
-                                                if (!m) return;
-                                                const type = m[1];
-                                                cb.checked = res[type] == true || Number(res[type]) === 1;
-                                                cb.dispatchEvent(new Event('change')); // 排他制御のため
-                                            });
-                                        setupAllRoomPairs();
-                                    })
-                                    .catch(e => {
-                                        console.error('個人予約取得失敗', e);
-                                    })
-                                    .finally(hideLoading);
-                            }
-
                             function fetchUserData(roomId) {
                                 // ✅ ここで __RID__ を確実に置換してからアクセス（%3AroomId のまま飛ばさない）
                                 const url = buildGetUsersByRoomUrl(roomId);
@@ -464,38 +439,6 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                                 if (btn) btn.disabled = false;
                             }
 
-                            // --- 初期化（DOM Ready 依存せず即時も呼べるように） ---
-                            function __add_init_once() {
-                                if (window.__ADD_INIT_DONE__) return;
-                                window.__ADD_INIT_DONE__ = true;
-
-                                /* 個人予約テーブル（部屋名エリア）の昼⇄弁当排他 */
-                                document.querySelectorAll('#room-checkboxes tr').forEach(tr => {
-                                    setupLunchBentoPair(
-                                        tr.querySelector('input[name^="meals[2]"]'), // 昼
-                                        tr.querySelector('input[name^="meals[4]"]')  // 弁当
-                                    );
-                                });
-
-                                /* roomId ごとのペアリング（行外にあっても機能） */
-                                setupAllRoomPairs();
-
-                                /* ヘッダーの “全選択” チェックボックス排他 */
-                                setupLunchBentoPair(
-                                    document.getElementById('select-all-room-2'),
-                                    document.getElementById('select-all-room-4')
-                                );
-                                setupLunchBentoPair(
-                                    document.getElementById('select-all-user-noon'),
-                                    document.getElementById('select-all-user-bento')
-                                );
-
-                                /* 個人予約データを取得して反映（排他処理と連動） */
-                                fetchPersonalReservationData();
-                            }
-
-                            // DOM がある環境では直ちに初期化（モーダルでも動く）
-                            try { __add_init_once(); } catch (e) {}
 
                         </script>
                         <!-- ====================== /Script ======================== -->
