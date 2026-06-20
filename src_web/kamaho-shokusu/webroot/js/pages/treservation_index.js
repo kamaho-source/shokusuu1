@@ -1216,9 +1216,10 @@ function unlockForChildren(wrap){
 
         window.quickOpenDayModal = function(dateStr){
             try{
-                applyQuickModalMode(dateStr, false);
+                var useChange = typeof isWithin14 === 'function' ? isWithin14(dateStr) : false;
+                applyQuickModalMode(dateStr, useChange);
                 openModalById('quickDayModal');
-                loadViewIntoModal(dateStr, false).catch(function(){});
+                loadViewIntoModal(dateStr, useChange).catch(function(){});
             } catch(e){
                 openModalById('quickDayModal');
             }
