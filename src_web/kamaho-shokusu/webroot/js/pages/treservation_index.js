@@ -1166,9 +1166,8 @@ function unlockForChildren(wrap){
                     return;
                 }
 
-                var url = useChangeEdit
-                    ? CHANGEEDIT_URL + '?date=' + encodeURIComponent(dateStr) + '&modal=1'
-                    : ADD_URL + '?date=' + encodeURIComponent(dateStr) + '&modal=1';
+                var url = ADD_URL + '?date=' + encodeURIComponent(dateStr) + '&modal=1'
+                    + (useChangeEdit ? '&last_minute=1' : '');
 
                 loadInto(container, url, modal).then(resolve).catch(reject);
             });
