@@ -43,9 +43,9 @@ $indivJson = json_encode(
     <div class="ce-type-selector">
         <span class="ce-type-label">予約タイプ：</span>
         <div class="btn-group btn-group-sm" role="group" aria-label="予約タイプの選択">
-            <input type="radio" class="btn-check" name="ce-type-radio" id="ce-type-group-radio" value="2" checked autocomplete="off">
+            <input type="radio" class="btn-check" name="ce-type-radio" id="ce-type-group-radio" value="2" autocomplete="off">
             <label class="btn btn-outline-primary" for="ce-type-group-radio">集団（利用者別）</label>
-            <input type="radio" class="btn-check" name="ce-type-radio" id="ce-type-individual-radio" value="1" autocomplete="off">
+            <input type="radio" class="btn-check" name="ce-type-radio" id="ce-type-individual-radio" value="1" checked autocomplete="off">
             <label class="btn btn-outline-primary" for="ce-type-individual-radio">個人（部屋別）</label>
         </div>
     </div>
@@ -181,7 +181,7 @@ $indivJson = json_encode(
             radio.addEventListener('change', function() { setType(this.value); });
         });
 
-        setType('2');
+        setType('1');
     })();
     </script>
 
