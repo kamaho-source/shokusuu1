@@ -23,8 +23,8 @@ $isModal  = (string)($this->request->getQuery('modal') ?? '') === '1';
 $weekMap = ['日','月','火','水','木','金','土'];
 $weekday = isset($date) ? ($weekMap[(int)date('w', strtotime($date))] ?? '') : '';
 
-echo $this->Html->css('pages/t_reservation_add.css');
-echo $this->Html->css('pages/t_reservation_change_edit.css');
+$this->Html->css('pages/t_reservation_add.css', ['block' => 'css']);
+$this->Html->css('pages/t_reservation_change_edit.css', ['block' => 'css']);
 echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 
 $indivJson = json_encode(
