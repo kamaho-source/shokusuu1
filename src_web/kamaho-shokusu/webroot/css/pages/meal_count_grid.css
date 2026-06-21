@@ -659,13 +659,34 @@ html, body {
 }
 
 /* =====================================================================
- * 他職員セル（非管理者職員が他の職員行を閲覧中）
+ * 閲覧専用行（非管理者職員が他の職員行を閲覧中）
  * ===================================================================== */
 
-.mcg-grid tbody td[data-no-edit-msg] {
-    cursor: not-allowed !important;
-    pointer-events: auto !important; /* hover 検知のため維持 */
-    opacity: 0.45;
+.mcg-grid tbody tr.mcg-row-readonly td {
+    background-color: #f3f3f3 !important;
+    color: #888;
+    pointer-events: none; /* セルへのクリック・ホバー効果を無効化 */
+}
+
+/* data-no-edit-msg を持つセルだけ pointer-events を戻してホバーを検知できるようにする */
+.mcg-grid tbody tr.mcg-row-readonly td[data-no-edit-msg] {
+    pointer-events: auto;
+    cursor: default;
+}
+
+/* 閲覧バッジ */
+.mcg-badge-readonly {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 4px;
+    font-size: 10px;
+    line-height: 16px;
+    border-radius: 3px;
+    background: #d0d0d0;
+    color: #555;
+    vertical-align: middle;
+    font-weight: normal;
+    letter-spacing: 0.02em;
 }
 
 /* =====================================================================

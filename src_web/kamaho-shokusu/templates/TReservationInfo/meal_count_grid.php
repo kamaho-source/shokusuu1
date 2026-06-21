@@ -244,10 +244,16 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                             // 非管理者職員が他の職員行を見ている場合はホバー注意文を付与
                             $isOtherStaff = !$isAdmin && $uLevel === 0 && $uid !== $loginUserId;
                         ?>
-                        <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>">
+                        <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>"
+                            <?= $isOtherStaff ? 'class="mcg-row-readonly"' : '' ?>>
                             <td class="col-row"><?= h($rowNum++) ?></td>
                             <td class="col-room" title="<?= h($roomName) ?>"><?= h($roomName) ?></td>
-                            <td class="col-name" title="<?= h($u['name']) ?>"><?= h($u['name']) ?></td>
+                            <td class="col-name" title="<?= h($u['name']) ?>">
+                                <?= h($u['name']) ?>
+                                <?php if ($isOtherStaff): ?>
+                                <span class="mcg-badge-readonly" title="他の職員の予約は操作できません。">閲覧</span>
+                                <?php endif; ?>
+                            </td>
                             <?php foreach ($dates as $d):
                                 $dt      = new \DateTimeImmutable($d);
                                 $dowIdx  = (int)$dt->format('w');
@@ -276,11 +282,11 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     data-date="<?= h($d) ?>"
                                     data-meal="<?= h($mealType) ?>"
                                     data-reserved="<?= $reserved ? '1' : '0' ?>"
-                                    title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
                                     <?php if ($isOtherStaff && !$isPast): ?>
                                     data-no-edit-msg="他の職員の予約は操作できません。"
                                     <?php endif; ?>
                                     <?php if ($toggleable): ?>
+                                    title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
                                     role="checkbox"
                                     aria-checked="<?= $reserved ? 'true' : 'false' ?>"
                                     tabindex="0"
