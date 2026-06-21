@@ -36,8 +36,22 @@ jobs:
               -e "SHOW TABLES;" 2>&1
 
             echo ""
+            echo "=== git log (staging) ==="
+            cd /home/ubuntu/shokusuu1 && git log --oneline -5
+
+            echo ""
+            echo "=== change_edit.php の新UI確認 ==="
+            docker exec stg_web grep -c "alert-warning" /var/www/html/kamaho-shokusu/templates/TReservationInfo/change_edit.php 2>&1 || echo "not found"
+            docker exec stg_web grep -c "card-header" /var/www/html/kamaho-shokusu/templates/TReservationInfo/change_edit.php 2>&1 || echo "not found"
+
+            echo ""
+            echo "=== m_user_group の active_flag 分布 ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "SELECT active_flag, COUNT(*) as cnt FROM m_user_group GROUP BY active_flag;" 2>&1
+
+            echo ""
             echo "=== 最新エラーログ (DebugKit除外) ==="
-            docker exec stg_web grep -v "DebugKit" /var/www/html/kamaho-shokusu/logs/error.log 2>&1 | tail -60
+            docker exec stg_web grep -v "DebugKit" /var/www/html/kamaho-shokusu/logs/error.log 2>&1 | tail -30
 
             echo ""
             echo "=== m_room_transfer_schedule の現在のデータ ==="
