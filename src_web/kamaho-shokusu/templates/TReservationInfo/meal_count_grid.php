@@ -241,6 +241,8 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                             $canEditRow   = $isAdmin
                                 || ($uid === $loginUserId)
                                 || ($canViewRoom && $uLevel === 1);
+                            // 非管理者職員が他の職員行を見ている場合はホバー注意文を付与
+                            $isOtherStaff = !$isAdmin && $uLevel === 0 && $uid !== $loginUserId;
                         ?>
                         <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>">
                             <td class="col-row"><?= h($rowNum++) ?></td>
@@ -275,6 +277,9 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     data-meal="<?= h($mealType) ?>"
                                     data-reserved="<?= $reserved ? '1' : '0' ?>"
                                     title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
+                                    <?php if ($isOtherStaff && !$isPast): ?>
+                                    data-no-edit-msg="他の職員の予約は操作できません。"
+                                    <?php endif; ?>
                                     <?php if ($toggleable): ?>
                                     role="checkbox"
                                     aria-checked="<?= $reserved ? 'true' : 'false' ?>"
