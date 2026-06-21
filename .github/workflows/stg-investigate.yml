@@ -50,6 +50,19 @@ jobs:
               -e "SELECT active_flag, COUNT(*) as cnt FROM m_user_group GROUP BY active_flag;" 2>&1
 
             echo ""
+            echo "=== m_user_group ユーザー詳細（active_flag=0） ==="
+            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+              -e "SELECT ug.i_id_user, ui.c_user_name, ui.i_user_level, ui.i_admin, ug.i_id_room, ri.c_room_name, ug.active_flag FROM m_user_group ug LEFT JOIN m_user_info ui ON ug.i_id_user = ui.i_id_user LEFT JOIN m_room_info ri ON ug.i_id_room = ri.i_id_room WHERE ug.active_flag = 0 ORDER BY ug.i_id_user;" 2>&1
+
+            echo ""
+            echo "=== Apacheアクセスログ (changeEdit 最新10件) ==="
+            docker exec stg_web bash -c "grep -i 'changeEdit\|change-edit\|change_edit' /var/log/apache2/access.log 2>/dev/null | tail -10 || grep -i 'changeEdit\|change-edit\|change_edit' /proc/1/fd/1 2>/dev/null | tail -10 || echo 'not found'" 2>&1
+
+            echo ""
+            echo "=== 最新エラーログ changeEdit関連 ==="
+            docker exec stg_web grep -i "changeEdit\|change.edit\|allowed.*room\|403\|forbidden" /var/www/html/kamaho-shokusu/logs/error.log 2>&1 | tail -20
+
+            echo ""
             echo "=== 最新エラーログ (DebugKit除外) ==="
             docker exec stg_web grep -v "DebugKit" /var/www/html/kamaho-shokusu/logs/error.log 2>&1 | tail -30
 
