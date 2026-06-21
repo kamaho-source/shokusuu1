@@ -137,7 +137,10 @@ class ReservationWriteService
         array|string $jsonData,
         array $rooms,
         string $creatorName,
-        callable $dateValidator
+        callable $dateValidator,
+        int $loginUserId = 0,
+        bool $isAdmin = false,
+        int $loginUserLevel = 0
     ): array {
         try {
             $data = $this->decodeJsonInput($jsonData);
@@ -162,6 +165,18 @@ class ReservationWriteService
 
         $roomId  = isset($data['i_id_room']) ? (int)$data['i_id_room'] : null;
         $userIds = array_map('intval', array_keys($data['users']));
+
+        if ($loginUserId !== 0) {
+            $isLoginStaff    = in_array($loginUserLevel, [0, 7], true);
+            $targetUserLevels = $this->fetchUserLevels($userIds);
+            foreach ($userIds as $targetUserId) {
+                $targetUserLevel = $targetUserLevels[$targetUserId] ?? 0;
+                $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1);
+                if ($targetUserId !== $loginUserId && !$canEditOther) {
+                    throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
+                }
+            }
+        }
 
         $existingMap = $this->buildGroupExistingMap($reservationDate, $userIds);
         $userNameMap = $this->fetchUserNames($userIds);
@@ -616,6 +631,19 @@ class ReservationWriteService
         $map = [];
         foreach ($this->roomTable->find()->enableAutoFields(false)->select(['i_id_room', 'c_room_name'])->where(['i_id_room IN' => $roomIds])->all() as $row) {
             $map[(int)$row->i_id_room] = $row->c_room_name;
+        }
+        return $map;
+    }
+
+    /** @return array<int, int> userId => i_user_level */
+    private function fetchUserLevels(array $userIds): array
+    {
+        if (empty($userIds)) {
+            return [];
+        }
+        $map = [];
+        foreach ($this->userTable->find()->enableAutoFields(false)->select(['i_id_user', 'i_user_level'])->where(['i_id_user IN' => $userIds])->all() as $row) {
+            $map[(int)$row->i_id_user] = (int)$row->i_user_level;
         }
         return $map;
     }

@@ -197,7 +197,10 @@ class ReservationBulkController extends ReservationBaseController
             (string)$loginName,
             $this->TIndividualReservationInfo,
             $this->MUserInfo,
-            $snapshots
+            $snapshots,
+            (int)($loginUser?->get('i_id_user') ?? 0),
+            UserRole::isAdmin((int)($loginUser?->get('i_admin') ?? 0)),
+            (int)($loginUser?->get('i_user_level') ?? 0)
         );
 
         if (!$result['ok']) {
@@ -244,7 +247,9 @@ class ReservationBulkController extends ReservationBaseController
                 (string)$userName,
                 $this->TIndividualReservationInfo,
                 $this->MUserInfo,
-                $this->MRoomInfo
+                $this->MRoomInfo,
+                UserRole::isAdmin((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
+                (int)($this->request->getAttribute('identity')->get('i_user_level') ?? 0)
             );
 
             if (!$result['ok']) {

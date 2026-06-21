@@ -514,7 +514,10 @@ class TReservationInfoController extends ReservationBaseController
                         $data,
                         $rooms,
                         (string)$user->get('c_user_name'),
-                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d),
+                        (int)$userId,
+                        UserRole::isAdmin((int)$user->get('i_admin')),
+                        (int)$user->get('i_user_level')
                     );
                 $auditSuccess = 1;
                 $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
