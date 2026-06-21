@@ -5,6 +5,9 @@ $this->Html->script('reservation-users.js', ['block' => true]);
 $this->Html->script('reservation.js', ['block' => true]);
 $this->Html->script('ce-change-edit.js', ['block' => true]);
 $this->Html->script('add.js', ['block' => true]);
+// モーダルで add.php / change_edit.php のコンテンツを描画する際に必要な CSS
+$this->Html->css('pages/t_reservation_add.css', ['block' => 'css']);
+$this->Html->css('pages/t_reservation_change_edit.css', ['block' => 'css']);
 $user = $this->request->getAttribute('identity');
 $isChild = ($user && (int)$user->get('i_user_level') === 1);
 $isStaff = ($user && (int)$user->get('i_user_level') === 0);
