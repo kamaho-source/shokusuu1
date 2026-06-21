@@ -148,16 +148,17 @@ class ReservationChangeEditService
 
     public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false): array
     {
-        // 管理者・職員・所属グループユーザーは部屋内の全ユーザーを編集できる
-        $canEditAll = $isRoomManager || ($loginUser && (
-            UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0)) ||
-            (int)($loginUser->get('i_user_level') ?? -1) === 0
-        ));
-        $loginUid = $loginUser?->get('i_id_user');
+        $isAdmin       = $loginUser && UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
+        $isLoginStaff  = $loginUser && in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
+        $loginUid      = $loginUser?->get('i_id_user');
+        // 管理者・部屋管理者はすべてのユーザーを編集できる（職員は子供のみ）
+        $canEditAll    = $isRoomManager || $isAdmin;
 
         $usersForJson = [];
         foreach ($users as $u) {
-            $allowEdit = $canEditAll || ($loginUid && (int)$loginUid === (int)$u['id']);
+            $isTargetChild = ((int)($u['i_user_level'] ?? 1) === 1);
+            $isSelf        = $loginUid && ((int)$loginUid === (int)$u['id']);
+            $allowEdit     = $canEditAll || $isSelf || ($isLoginStaff && $isTargetChild);
             $usersForJson[] = [
                 'id'           => $u['id'],
                 'name'         => $u['name'],

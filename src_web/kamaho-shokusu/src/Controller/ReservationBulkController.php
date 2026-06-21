@@ -125,10 +125,12 @@ class ReservationBulkController extends ReservationBaseController
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam  = $this->request->getQuery('base_week');
         $formData       = $this->bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
-        $canGroup       = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
+        $canGroup = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
             || (int)$this->request->getAttribute('identity')->get('i_user_level') === 0);
+        $isAdmin  = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
+        $user     = $this->request->getAttribute('identity');
 
-        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'canGroup') + $formData);
+        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'canGroup', 'isAdmin', 'user') + $formData);
 
         $this->viewBuilder()->setTemplatePath('TReservationInfo');
         return null;
@@ -155,8 +157,10 @@ class ReservationBulkController extends ReservationBaseController
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam  = $this->request->getQuery('base_week');
         $formData       = $this->bulkFormService->buildBulkChangeEditData((string)$selectedDate, $baseWeekParam);
+        $isAdmin        = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
+        $user           = $this->request->getAttribute('identity');
 
-        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId') + $formData);
+        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'isAdmin', 'user') + $formData);
 
         $this->viewBuilder()->setTemplatePath('TReservationInfo');
         return null;

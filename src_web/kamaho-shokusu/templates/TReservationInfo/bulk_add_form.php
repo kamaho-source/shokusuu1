@@ -26,6 +26,7 @@ $canGroup = $canGroup ?? false;
         window.__ROOM_ID = <?= json_encode($selectedRoomId, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__BASE_WEEK = <?= json_encode($baseWeek->format('Y-m-d'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__LOGIN_USER_ID = <?= json_encode($user?->get('i_id_user') ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+        window.__IS_ADMIN = <?= json_encode($isAdmin, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <?= $this->Html->css('pages/bulk_add_form.pc.css') ?>
 <?= $this->Html->css('pages/bulk_add_form.mobile.css') ?>
