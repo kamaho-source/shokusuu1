@@ -140,7 +140,8 @@ class ReservationWriteService
         callable $dateValidator,
         int $loginUserId = 0,
         bool $isAdmin = false,
-        int $loginUserLevel = 0
+        int $loginUserLevel = 0,
+        bool $isBlockLeader = false
     ): array {
         try {
             $data = $this->decodeJsonInput($jsonData);
@@ -169,9 +170,17 @@ class ReservationWriteService
         if ($loginUserId !== 0) {
             $isLoginStaff    = in_array($loginUserLevel, [0, 7], true);
             $targetUserLevels = $this->fetchUserLevels($userIds);
+            $blockLeaderInRoom = false;
+            if ($isBlockLeader && $roomId !== null) {
+                $userGroupTable    = TableRegistry::getTableLocator()->get('MUserGroup');
+                $blockLeaderInRoom = (bool)$userGroupTable->exists([
+                    'i_id_user' => $loginUserId,
+                    'i_id_room' => $roomId,
+                ]);
+            }
             foreach ($userIds as $targetUserId) {
                 $targetUserLevel = $targetUserLevels[$targetUserId] ?? 0;
-                $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1);
+                $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
                 if ($targetUserId !== $loginUserId && !$canEditOther) {
                     throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
                 }
@@ -275,14 +284,18 @@ class ReservationWriteService
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
 
-        $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1);
+        $userGroupTable    = TableRegistry::getTableLocator()->get('MUserGroup');
+        $blockLeaderInRoom = $isBlockLeader && (bool)$userGroupTable->exists([
+            'i_id_user' => $loginUserId,
+            'i_id_room' => $roomId,
+        ]);
+        $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1) || $blockLeaderInRoom;
         if ($targetUserId !== $loginUserId && !$canEditOther) {
             throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
         }
 
         // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
-        $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
-        $belongsToRoom  = $userGroupTable->exists([
+        $belongsToRoom = $userGroupTable->exists([
             'i_id_user' => $targetUserId,
             'i_id_room' => $roomId,
         ]);

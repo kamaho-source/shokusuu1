@@ -125,12 +125,14 @@ class ReservationBulkController extends ReservationBaseController
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam  = $this->request->getQuery('base_week');
         $formData       = $this->bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
-        $canGroup = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
+        $canGroup       = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
             || (int)$this->request->getAttribute('identity')->get('i_user_level') === 0);
-        $isAdmin  = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
-        $user     = $this->request->getAttribute('identity');
+        $isAdmin        = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
+        $isBlockLeader  = UserRole::isBlockLeader((int)$this->request->getAttribute('identity')->get('i_admin'));
+        $loginRoomIds   = array_keys($rooms);
+        $user           = $this->request->getAttribute('identity');
 
-        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'canGroup', 'isAdmin', 'user') + $formData);
+        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'canGroup', 'isAdmin', 'isBlockLeader', 'loginRoomIds', 'user') + $formData);
 
         $this->viewBuilder()->setTemplatePath('TReservationInfo');
         return null;
@@ -158,9 +160,11 @@ class ReservationBulkController extends ReservationBaseController
         $baseWeekParam  = $this->request->getQuery('base_week');
         $formData       = $this->bulkFormService->buildBulkChangeEditData((string)$selectedDate, $baseWeekParam);
         $isAdmin        = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
+        $isBlockLeader  = UserRole::isBlockLeader((int)$this->request->getAttribute('identity')->get('i_admin'));
+        $loginRoomIds   = array_keys($rooms);
         $user           = $this->request->getAttribute('identity');
 
-        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'isAdmin', 'user') + $formData);
+        $this->set(compact('rooms', 'selectedDate', 'selectedRoomId', 'isAdmin', 'isBlockLeader', 'loginRoomIds', 'user') + $formData);
 
         $this->viewBuilder()->setTemplatePath('TReservationInfo');
         return null;
@@ -204,7 +208,8 @@ class ReservationBulkController extends ReservationBaseController
             $snapshots,
             (int)($loginUser?->get('i_id_user') ?? 0),
             UserRole::isAdmin((int)($loginUser?->get('i_admin') ?? 0)),
-            (int)($loginUser?->get('i_user_level') ?? 0)
+            (int)($loginUser?->get('i_user_level') ?? 0),
+            UserRole::isBlockLeader((int)($loginUser?->get('i_admin') ?? 0))
         );
 
         if (!$result['ok']) {
@@ -253,7 +258,8 @@ class ReservationBulkController extends ReservationBaseController
                 $this->MUserInfo,
                 $this->MRoomInfo,
                 UserRole::isAdmin((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
-                (int)($this->request->getAttribute('identity')->get('i_user_level') ?? 0)
+                (int)($this->request->getAttribute('identity')->get('i_user_level') ?? 0),
+                UserRole::isBlockLeader((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0))
             );
 
             if (!$result['ok']) {

@@ -517,7 +517,8 @@ class TReservationInfoController extends ReservationBaseController
                         fn($d) => $this->datePolicy->validateReservationDate((string)$d),
                         (int)$userId,
                         UserRole::isAdmin((int)$user->get('i_admin')),
-                        (int)$user->get('i_user_level')
+                        (int)$user->get('i_user_level'),
+                        UserRole::isBlockLeader((int)$user->get('i_admin'))
                     );
                 $auditSuccess = 1;
                 $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
@@ -639,6 +640,7 @@ class TReservationInfoController extends ReservationBaseController
                 $this->MRoomInfo
             );
             $isRoomManager = !empty($allowedRooms);
+            $isBlockLeaderForEdit = $loginUser && UserRole::isBlockLeader((int)($loginUser->get('i_admin') ?? 0));
 
             if ($isModalShell) {
                 $rooms = $allowedRooms;
@@ -771,7 +773,11 @@ class TReservationInfoController extends ReservationBaseController
 
             if ($this->request->is('get')) {
                 if ($wantsJson) {
-                    $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser, $isRoomManager);
+                    $isBlockLeaderInRoom = $isBlockLeaderForEdit && $roomId && (bool)$this->MUserGroup->exists([
+                        'i_id_user' => $loginUid,
+                        'i_id_room' => (int)$roomId,
+                    ]);
+                    $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser, $isRoomManager, $isBlockLeaderInRoom);
 
                     return $this->response->withType('application/json')
                         ->withStringBody(json_encode([

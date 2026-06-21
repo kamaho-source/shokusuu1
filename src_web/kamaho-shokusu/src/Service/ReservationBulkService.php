@@ -9,6 +9,7 @@ use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
 use Cake\Log\Log;
 use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
 
 class ReservationBulkService
 {
@@ -28,7 +29,8 @@ class ReservationBulkService
         array $snapshots = [],
         int $loginUserId = 0,
         bool $isAdmin = false,
-        int $loginUserLevel = 0
+        int $loginUserLevel = 0,
+        bool $isBlockLeader = false
     ): array {
         if (!$roomId || empty($dayUsers)) {
             return [
@@ -78,9 +80,16 @@ class ReservationBulkService
 
             if ($loginUserId !== 0) {
                 $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+                $blockLeaderInRoom = false;
+                if ($isBlockLeader) {
+                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
+                        'i_id_user' => $loginUserId,
+                        'i_id_room' => $roomId,
+                    ]);
+                }
                 foreach ($userIds as $targetUserId) {
                     $targetUserLevel = $userLevels[$targetUserId] ?? 0;
-                    $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1);
+                    $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
                     if ($targetUserId !== $loginUserId && !$canEditOther) {
                         $connection->rollback();
                         return [
@@ -209,7 +218,8 @@ class ReservationBulkService
         Table $userTable,
         Table $roomTable,
         bool $isAdmin = false,
-        int $loginUserLevel = 0
+        int $loginUserLevel = 0,
+        bool $isBlockLeader = false
     ): array {
         $reservationType = $data['reservation_type'] ?? null;
         if (!$reservationType) {
@@ -471,9 +481,16 @@ class ReservationBulkService
 
                 if ($userId !== 0) {
                     $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+                    $blockLeaderInRoom = false;
+                    if ($isBlockLeader && $roomId !== null) {
+                        $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
+                            'i_id_user' => $userId,
+                            'i_id_room' => (int)$roomId,
+                        ]);
+                    }
                     foreach ($userIds as $targetUserId) {
                         $targetLevel  = $userLevelMapBulk[$targetUserId] ?? 0;
-                        $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1);
+                        $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
                         if ($targetUserId !== $userId && !$canEditOther) {
                             return [
                                 'ok'      => false,
@@ -597,9 +614,16 @@ class ReservationBulkService
 
                 if ($userId !== 0) {
                     $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+                    $blockLeaderInRoom = false;
+                    if ($isBlockLeader && $roomId !== null) {
+                        $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
+                            'i_id_user' => $userId,
+                            'i_id_room' => (int)$roomId,
+                        ]);
+                    }
                     foreach ($userIds as $targetUserId) {
                         $targetLevel  = $userLevelMapBulk[(int)$targetUserId] ?? 0;
-                        $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1);
+                        $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
                         if ((int)$targetUserId !== $userId && !$canEditOther) {
                             return [
                                 'ok'      => false,

@@ -27,6 +27,8 @@ $canGroup = $canGroup ?? false;
         window.__BASE_WEEK = <?= json_encode($baseWeek->format('Y-m-d'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__LOGIN_USER_ID = <?= json_encode($user?->get('i_id_user') ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__IS_ADMIN = <?= json_encode($isAdmin, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+        window.__IS_BLOCK_LEADER = <?= json_encode($isBlockLeader ?? false, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+        window.__LOGIN_ROOM_IDS = <?= json_encode(array_map('intval', $loginRoomIds ?? []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     </script>
     <?= $this->Html->css('pages/bulk_add_form.pc.css') ?>
 <?= $this->Html->css('pages/bulk_add_form.mobile.css') ?>

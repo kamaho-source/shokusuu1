@@ -18,12 +18,14 @@
  * @var bool   $canGoPrev
  * @var bool   $canGoNext
  * @var bool   $isAdmin
+ * @var bool   $isBlockLeader
  * @var bool   $canViewAll
  * @var bool   $canViewRoom
  * @var bool   $canUseAllMode
  * @var bool   $hasStaffId
  * @var int    $loginUserId
  * @var string $loginName
+ * @var int[]  $loginRoomIds
  */
 
 $this->assign('title', 'エクセル食数予約');
@@ -235,14 +237,17 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                         ?>
 
                         <?php foreach ($users as $u):
-                            $uid          = (int)$u['id'];
-                            $uLevel       = (int)($u['i_user_level'] ?? 0);
-                            // 編集可否: 管理者は全員、部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
-                            $canEditRow   = $isAdmin
+                            $uid                 = (int)$u['id'];
+                            $uLevel              = (int)($u['i_user_level'] ?? 0);
+                            // ブロック長がその部屋に所属しているか
+                            $blockLeaderHere     = $isBlockLeader && in_array($roomId, $loginRoomIds ?? [], true);
+                            // 編集可否: 管理者・部屋所属のブロック長は全員、部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
+                            $canEditRow          = $isAdmin
+                                || $blockLeaderHere
                                 || ($uid === $loginUserId)
                                 || ($canViewRoom && $uLevel === 1);
-                            // 非管理者職員が他の職員行を見ている場合はホバー注意文を付与
-                            $isOtherStaff = !$isAdmin && $uLevel === 0 && $uid !== $loginUserId;
+                            // 非管理者・非ブロック長（その部屋）の職員が他の職員行を見ている場合はホバー注意文を付与
+                            $isOtherStaff        = !$isAdmin && !$blockLeaderHere && $uLevel === 0 && $uid !== $loginUserId;
                         ?>
                         <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>"
                             <?= $isOtherStaff ? 'class="mcg-row-readonly"' : '' ?>>

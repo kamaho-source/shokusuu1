@@ -325,7 +325,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const loginUserId = window.__LOGIN_USER_ID;
         const isAdminUser = !!(window.__IS_ADMIN);
-        const isOtherStaff = !isAdminUser && isStaff && uid !== loginUserId;
+        const isBlockLeader = !!(window.__IS_BLOCK_LEADER);
+        const loginRoomIds = window.__LOGIN_ROOM_IDS || [];
+        const currentRoomId = parseInt(roomSelect?.value) || 0;
+        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(currentRoomId);
+        const isOtherStaff = !isAdminUser && !blockLeaderInRoom && isStaff && uid !== loginUserId;
 
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';

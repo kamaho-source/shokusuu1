@@ -321,8 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isAdminUser = !!(window.__IS_ADMIN);
         const loginUserId = window.__LOGIN_USER_ID;
+        const isBlockLeader = !!(window.__IS_BLOCK_LEADER);
+        const loginRoomIds = window.__LOGIN_ROOM_IDS || [];
+        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(roomId);
         const isStaff = userLevelsByRoom[roomId]?.[uid] === 0;
-        const isOtherStaff = !isAdminUser && isStaff && uid !== loginUserId;
+        const isOtherStaff = !isAdminUser && !blockLeaderInRoom && isStaff && uid !== loginUserId;
 
         // 弁当↔朝昼夜の排他はチェック変更イベントで自動解除するため、ここでは disabled にしない
         let disabledReason = '';

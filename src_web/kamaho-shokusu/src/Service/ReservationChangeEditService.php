@@ -146,13 +146,13 @@ class ReservationChangeEditService
         ];
     }
 
-    public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false): array
+    public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false, bool $isBlockLeaderInRoom = false): array
     {
         $isAdmin       = $loginUser && UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
         $isLoginStaff  = $loginUser && in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
         $loginUid      = $loginUser?->get('i_id_user');
-        // 管理者・部屋管理者はすべてのユーザーを編集できる（職員は子供のみ）
-        $canEditAll    = $isRoomManager || $isAdmin;
+        // 管理者・部屋管理者・その部屋所属のブロック長はすべてのユーザーを編集できる（職員は子供のみ）
+        $canEditAll    = $isRoomManager || $isAdmin || $isBlockLeaderInRoom;
 
         $usersForJson = [];
         foreach ($users as $u) {
