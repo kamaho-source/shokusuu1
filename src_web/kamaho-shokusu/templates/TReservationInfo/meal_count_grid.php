@@ -231,9 +231,10 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                         <?php
                         $rowNum = 1;
                         foreach ($roomsData as $roomId => $roomInfo):
-                            $roomName = $roomInfo['name'];
-                            $users    = $roomInfo['users'];
-                            $grid     = $roomInfo['grid'];
+                            $roomName  = $roomInfo['name'];
+                            $users     = $roomInfo['users'];
+                            $grid      = $roomInfo['grid'];
+                            $otherRoom = $roomInfo['otherRoom'] ?? [];
                         ?>
 
                         <?php foreach ($users as $u):
@@ -269,10 +270,17 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                 $isPast  = ($dateCat === 'past');
                                 $first   = true;
                                 foreach ($meals as $mealType => $mealLabel):
-                                    $reserved = !empty($grid[$uid][$d][$mealType]);
+                                    $reserved       = !empty($grid[$uid][$d][$mealType]);
+                                    // 他部屋で有効な予約がある場合、この部屋のセルはロック
+                                    $otherRoomId    = $otherRoom[$uid][$d][$mealType] ?? null;
+                                    $isOtherRoomLocked = !$isPast && $otherRoomId !== null;
+                                    $otherRoomName  = $isOtherRoomLocked
+                                        ? ($allRooms[$otherRoomId] ?? '他の部屋')
+                                        : '';
                                     $toggleable = !$isPast && $canEditRow;
                                     $tdClass = 'cell-meal'
-                                        . ($toggleable ? ' mcg-toggleable' : '')
+                                        . ($toggleable        ? ' mcg-toggleable'  : '')
+                                        . ($isOtherRoomLocked ? ' mcg-cell-conflict' : '')
                                         . ($first   ? ' meal-first'     : '')
                                         . ($isToday ? ' is-today'       : '')
                                         . ($isSat   ? ' is-saturday'    : '')
@@ -287,7 +295,9 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     data-date="<?= h($d) ?>"
                                     data-meal="<?= h($mealType) ?>"
                                     data-reserved="<?= $reserved ? '1' : '0' ?>"
-                                    <?php if ($isOtherStaff && !$isPast): ?>
+                                    <?php if ($isOtherRoomLocked): ?>
+                                    data-conflict-msg="<?= h($otherRoomName . 'で予約済みのため選択できません') ?>"
+                                    <?php elseif ($isOtherStaff && !$isPast): ?>
                                     data-no-edit-msg="他の職員の予約は操作できません。"
                                     <?php endif; ?>
                                     <?php if ($toggleable): ?>
