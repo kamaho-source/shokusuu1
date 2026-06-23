@@ -372,6 +372,12 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'Approval', 'action' => 'adminReflect']
         )->setMethods(['POST']);
 
+        // 承認履歴一覧
+        $builder->connect(
+            '/Approval/approval_log',
+            ['controller' => 'Approval', 'action' => 'approvalLog']
+        )->setMethods(['GET']);
+
         // フィードバック・お問い合わせ
         $builder->connect('/Contacts', ['controller' => 'Contacts', 'action' => 'index']);
         $builder->connect('/Contacts/admin', ['controller' => 'Contacts', 'action' => 'adminIndex'])->setMethods(['GET']);
