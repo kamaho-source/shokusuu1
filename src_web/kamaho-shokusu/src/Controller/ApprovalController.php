@@ -227,7 +227,7 @@ class ApprovalController extends AppController
     /**
      * 承認履歴（ログ）一覧を表示
      */
-    public function log(): ?Response
+    public function approvalLog(): ?Response
     {
         $this->Authorization->skipAuthorization();
         $user = $this->Authentication->getIdentity();

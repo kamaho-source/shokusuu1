@@ -363,7 +363,7 @@ $unreflectedCount      = (int)($approvalCounts['unreflected'] ?? 0);
                         <div class="menu-title-text">お知らせ管理</div>
                         <div class="menu-desc">掲示するお知らせの作成・編集・削除</div>
                     </a>
-                    <a class="menu-card" href="<?= $this->Url->build('/Approval/log') ?>">
+                    <a class="menu-card" href="<?= $this->Url->build('/Approval/approval_log') ?>">
                         <div class="menu-icon" style="background:#f8fafc;color:#64748b;">📜</div>
                         <div class="menu-title-text">承認履歴</div>
                         <div class="menu-desc">過去の承認・差し戻しの履歴を確認する</div>
