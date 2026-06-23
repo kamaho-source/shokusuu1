@@ -48,6 +48,7 @@ $fmtWeekRange           = $dashboard['fmtWeekRange']           ?? null; // 「n/
 $approvalCounts         = $dashboard['approvalCounts']         ?? ['blockLeader' => 0, 'admin' => 0];
 $blockLeaderPendingCount = $isAdmin ? 0 : (int)($approvalCounts['blockLeader'] ?? 0);
 $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
+$unreflectedCount      = (int)($approvalCounts['unreflected'] ?? 0);
 ?>
 
 <?= $this->Html->css('pages/home.pc.css') ?>
@@ -241,6 +242,22 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 </div>
             <?php endif; ?>
 
+            <?php /* ---- 未反映データアラート（管理者用） ---- */ ?>
+            <?php if ($isAdmin && $unreflectedCount > 0): ?>
+                <div class="alert-card" style="border-color:#fef3c7;">
+                    <div class="alert-left">
+                        <div class="alert-icon" style="background:#fef3c7;color:#d97706;">⚠️</div>
+                        <div>
+                            <div class="alert-title">未反映の承認データがあります</div>
+                            <div class="alert-sub"><?= h($unreflectedCount) ?> 件の承認済みデータがまだ予約集計に反映されていません。</div>
+                        </div>
+                    </div>
+                    <div class="alert-actions">
+                        <a class="btn-teal" href="<?= $this->Url->build('/Approval/adminIndex') ?>" style="background:#d97706;">反映処理を行う</a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php /* ---- メインメニューカード ---- */ ?>
             <div class="section-title">各種メニュー</div>
             <div class="card-grid">
@@ -345,6 +362,11 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-icon" style="background:#fff9e6;color:#d97706;">📢</div>
                         <div class="menu-title-text">お知らせ管理</div>
                         <div class="menu-desc">掲示するお知らせの作成・編集・削除</div>
+                    </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/Approval/log') ?>">
+                        <div class="menu-icon" style="background:#f8fafc;color:#64748b;">📜</div>
+                        <div class="menu-title-text">承認履歴</div>
+                        <div class="menu-desc">過去の承認・差し戻しの履歴を確認する</div>
                     </a>
                 </div>
             <?php endif; ?>

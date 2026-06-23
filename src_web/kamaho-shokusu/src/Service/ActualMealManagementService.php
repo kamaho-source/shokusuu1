@@ -55,7 +55,7 @@ class ActualMealManagementService
             ->andWhere(['MUserInfo.i_id_staff IS NOT' => null])
             ->andWhere(['MUserInfo.i_id_staff !=' => ''])
             ->enableHydration(false)
-            ->orderAsc('MUserInfo.c_user_name')
+            ->orderByAsc('MUserInfo.c_user_name')
             ->all();
 
         $result = [];
@@ -228,7 +228,7 @@ class ActualMealManagementService
             ->enableAutoFields(false)
             ->select([
                 'i_id_user', 'd_reservation_date', 'i_id_room', 'i_reservation_type',
-                'eat_flag', 'i_change_flag', 'i_version',
+                'eat_flag', 'i_change_flag', 'i_version', 'i_approval_status',
             ])
             ->where([
                 'i_id_user'          => $userId,
@@ -238,23 +238,36 @@ class ActualMealManagementService
             ])
             ->first();
 
+        if ($entity !== null) {
+            $currentStatus = (int)($entity->i_approval_status ?? 0);
+            if ($currentStatus === 1 || $currentStatus === 2) {
+                return ['ok' => false, 'message' => '承認済みのデータは変更できません。'];
+            }
+        }
+
         if ($entity === null) {
             // 新規作成
-            $newEntity = $reservationTable->newEmptyEntity();
-            $newEntity->i_id_user          = $userId;
-            $newEntity->d_reservation_date = $date;
-            $newEntity->i_id_room          = $roomId;
-            $newEntity->i_reservation_type = $mealType;
-            $newEntity->eat_flag           = $flagValue;
-            $newEntity->i_change_flag      = $flagValue;
-            $newEntity->i_version          = 1;
-            $newEntity->dt_create          = $now;
-            $newEntity->c_create_user      = $actor;
+            try {
+                $newEntity = $reservationTable->newEmptyEntity();
+                $newEntity->i_id_user          = $userId;
+                $newEntity->d_reservation_date = $date;
+                $newEntity->i_id_room          = $roomId;
+                $newEntity->i_reservation_type = $mealType;
+                $newEntity->eat_flag           = $flagValue;
+                $newEntity->i_change_flag      = $flagValue;
+                $newEntity->i_version          = 1;
+                $newEntity->dt_create          = $now;
+                $newEntity->c_create_user      = $actor;
+                $newEntity->i_approval_status  = 0;
 
-            if (!$reservationTable->save($newEntity)) {
-                return ['ok' => false, 'message' => '保存に失敗しました。'];
+                if (!$reservationTable->save($newEntity)) {
+                    return ['ok' => false, 'message' => '保存に失敗しました。'];
+                }
+                return ['ok' => true, 'message' => '保存しました。', 'version' => 1];
+            } catch (\Exception $e) {
+                // 同時実行による一意制約違反などの場合は、既にデータが存在する可能性があるため再取得を促す
+                return ['ok' => false, 'message' => 'データの状態が変わりました。画面を再読み込みしてください。'];
             }
-            return ['ok' => true, 'message' => '保存しました。', 'version' => 1];
         }
 
         // 楽観的ロック付き更新
@@ -320,6 +333,7 @@ class ActualMealManagementService
                     'i_id_room'          => (int)$key['room_id'],
                     'd_reservation_date' => (string)$key['date'],
                     'i_reservation_type' => (int)$key['meal_type'],
+                    'i_approval_status IN' => [0, 3], // 未承認または差し戻しのみ申請可能
                 ]
             );
         }
