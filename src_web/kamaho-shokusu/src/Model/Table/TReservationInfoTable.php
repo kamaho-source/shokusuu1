@@ -90,14 +90,15 @@ class TReservationInfoTable extends Table
     }
 
 
-    public function getTotalMealsByDate()
+    public function getTotalMealsByDate(): SelectQuery
     {
-        $query = $this->find()
-            ->select([
-                'd_reservation_date',
-                'total_meals' => $query->func()->sum('i_taberu_ninzuu')
-            ])
+        return $this->find()
+            ->select(function (SelectQuery $q) {
+                return [
+                    'd_reservation_date',
+                    'total_meals' => $q->func()->sum('i_taberu_ninzuu'),
+                ];
+            })
             ->groupBy('d_reservation_date');
-        return $query;
     }
 }
