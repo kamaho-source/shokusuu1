@@ -114,7 +114,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
-            
+
+            // サブディレクトリ運用（例: /kamaho-shokusu）でのベースパスを取得
+            const appBase = (window.AI_ASSISTANT_BASE_URL || '').replace(/\/$/, '');
+
             const urlRegex = /(https?:\/\/[^\s<]+|\[([^\]]+)\]\(([^\)]+)\))/g;
             const linkedAnswer = escapedAnswer.replace(urlRegex, function(match, url, label, path) {
                 if (url && !label) {
@@ -122,9 +125,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>';
                 } else if (label && path) {
                     // Markdown形式のリンク [ラベル](パス)
-                    // セキュリティのため、パスが http で始まるか / で始まるもののみ許可
-                    if (path.startsWith('http') || path.startsWith('/')) {
+                    if (path.startsWith('http')) {
                         return '<a href="' + path + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+                    }
+                    // ルート相対パス（/で始まる）にはアプリのベースパスを補完する
+                    if (path.startsWith('/')) {
+                        return '<a href="' + appBase + path + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
                     }
                     return match;
                 }
