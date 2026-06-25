@@ -15,10 +15,32 @@ permissions:
   packages: write
 
 jobs:
-  # ── ① GitHub Actions でイメージをビルド & ghcr.io に push ─────────────
+  # ── ① Dockerfile が変わったかどうかを判定 ────────────────────────────────
+  check-dockerfile:
+    name: Check if Dockerfile changed
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.filter.outputs.dockerfile }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check Dockerfile diff
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            dockerfile:
+              - 'docker/kamakura-shokusu_web/Dockerfile'
+
+  # ── ② Dockerfile 変更時のみイメージをビルド & ghcr.io に push ────────────
   build:
     name: Build & Push Docker Image
     runs-on: ubuntu-latest
+    needs: check-dockerfile
+    if: needs.check-dockerfile.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     outputs:
       image: ${{ steps.meta.outputs.tags }}
@@ -51,14 +73,17 @@ jobs:
           context: docker/kamakura-shokusu_web
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # registry モードで ghcr.io にキャッシュを保存・再利用する
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/web:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}/web:cache,mode=max
 
-  # ── ② ステージングサーバーにデプロイ ──────────────────────────────────
+  # ── ③ ステージングサーバーにデプロイ ──────────────────────────────────────
   deploy:
     name: Deploy to Staging (stg.kamaho-shokusu.jp)
     runs-on: ubuntu-latest
-    needs: build
+    needs: [check-dockerfile, build]
+    # build がスキップされた場合（Dockerfile 未変更）でも deploy は必ず実行する
+    if: always() && !failure() && !cancelled()
     timeout-minutes: 40
     env:
       SLACK_USERNAME: DeployBot
@@ -174,10 +199,10 @@ jobs:
             docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --no-build --remove-orphans
             docker image prune -f
 
-            # ── OPcache クリアのためコンテナを再起動 ─────────────────────────
-            # Dockerfileが変わらない場合イメージSHAが同一になり up -d がコンテナを
-            # 再作成しない。OPcacheが古いバイトコードを保持し続けるためリスタートが必要。
-            docker restart stg_web
+            # ── OPcache リセット（docker restart の代替・ダウンタイムなし） ──
+            # Dockerfile が変わらない場合はイメージSHAが同一でコンテナが再作成されない。
+            # restart ではなく OPcache を直接リセットすることでダウンタイムを排除する。
+            docker exec stg_web php -r "if (function_exists('opcache_reset')) { opcache_reset(); echo 'OPcache cleared'; } else { echo 'OPcache not enabled'; }" || true
 
             # ── Composer install (composer.lock が変わった時のみ実行) ─────────
             LOCK_FILE="${DEPLOY_PATH}/src_web/kamaho-shokusu/composer.lock"
@@ -216,19 +241,37 @@ jobs:
               fi
             done
 
-            # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
+            # ── SQL更新・マイグレーション（変更があった場合のみ実行） ────────
             cd /home/ubuntu/shokusuu1
-            ./scripts/apply_sql_updates.sh stg_db "${DB_NAME}" root "${DB_ROOT_PASS}" sql/updates
 
-            # ── マイグレーション失敗テーブルのクリーンアップ ───────────────────
-            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
-              -e "DROP TABLE IF EXISTS t_contact_replies;" 2>/dev/null || true
-            # phinxlog の実行済み記録も削除して再マイグレーションを強制
-            docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
-              -e "DELETE FROM phinxlog WHERE version = '20260501000000';" 2>/dev/null || true
+            MIGRATION_HASH_CACHE="/tmp/shokusuu1_migration_hash"
+            MIGRATION_CURR_HASH="$(
+              { find sql/updates -type f -name '*.sql' | sort | xargs sha256sum 2>/dev/null; \
+                find src_web/kamaho-shokusu/config/Migrations -type f | sort | xargs sha256sum 2>/dev/null; } \
+              | sha256sum | awk '{print $1}'
+            )"
+            MIGRATION_PREV_HASH="$(cat "${MIGRATION_HASH_CACHE}" 2>/dev/null || echo '')"
 
-            # ── CakePHP マイグレーション実行 ──────────────────────────────────
-            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+            if [ "${MIGRATION_CURR_HASH}" != "${MIGRATION_PREV_HASH}" ]; then
+              echo "[Migration] Migration files changed — running"
+
+              # SQL更新適用（sql/updates/*.sql を1回ずつ実行）
+              ./scripts/apply_sql_updates.sh stg_db "${DB_NAME}" root "${DB_ROOT_PASS}" sql/updates
+
+              # マイグレーション失敗テーブルのクリーンアップ
+              docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+                -e "DROP TABLE IF EXISTS t_contact_replies;" 2>/dev/null || true
+              # phinxlog の実行済み記録も削除して再マイグレーションを強制
+              docker exec stg_db mysql -u root -p"${DB_ROOT_PASS}" "${DB_NAME}" \
+                -e "DELETE FROM phinxlog WHERE version = '20260501000000';" 2>/dev/null || true
+
+              # CakePHP マイグレーション実行
+              docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+
+              printf '%s' "${MIGRATION_CURR_HASH}" > "${MIGRATION_HASH_CACHE}"
+            else
+              echo "[Migration] No migration changes — skipping"
+            fi
 
             # ── キャッシュクリア ────────────────────────────────────────────
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake cache clear_all || true
