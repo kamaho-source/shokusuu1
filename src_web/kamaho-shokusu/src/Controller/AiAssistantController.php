@@ -71,9 +71,9 @@ class AiAssistantController extends AppController
             ]), [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $apiKey,
-                    'Content-Type'  => 'application/json',
-                    'HTTP-Referer'  => 'https://github.com/kamaho-source/shokusuu1',
-                ],
+                    'Content-Type' => 'application/json',
+                    'HTTP-Referer' => 'https://github.com/kamaho-source/shokusuu1',
+                ]
             ]);
 
             if (!$response->isOk()) {
