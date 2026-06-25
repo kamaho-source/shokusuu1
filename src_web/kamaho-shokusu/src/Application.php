@@ -16,7 +16,10 @@ use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
 use Authorization\Policy\OrmResolver;
 use Authorization\Policy\ResolverCollection;
+use App\Application\AI\SystemPromptProviderInterface;
+use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
+use App\Infrastructure\AI\SystemPromptProvider;
 use App\Service\RoomUsageService;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
@@ -117,6 +120,12 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function services(ContainerInterface $container): void
     {
+        $container->add(SystemPromptProviderInterface::class, SystemPromptProvider::class);
+
+        $container->add(AiAssistantController::class)
+            ->addArgument(SystemPromptProviderInterface::class)
+            ->addArgument(ServerRequest::class);
+
         $container->add(RoomUsageService::class);
         $container->add(RoomUsageController::class)
             ->addArgument(RoomUsageService::class)
