@@ -336,3 +336,40 @@
             outline-offset: 1px;
         }
 
+        /* ========== 食数詳細モーダル ユーザーチップ ========== */
+        .meal-cal-modal-section { margin-bottom: 1rem; }
+        .meal-cal-modal-section-title {
+            font-weight: 600;
+            border-left: 4px solid;
+            padding-left: .5rem;
+            margin-bottom: .5rem;
+        }
+        .meal-cal-user-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .35rem;
+        }
+        .meal-cal-user-chip {
+            display: inline-block;
+            padding: .2rem .6rem;
+            border-radius: 1rem;
+            background: #e9ecef;
+            color: #343a40;
+            font-size: .85rem;
+            line-height: 1.4;
+        }
+        /* 編集可能チップ（管理者・スタッフ向け） */
+        button.meal-cal-user-chip--editable {
+            border: 1px solid #ced4da;
+            cursor: pointer;
+            transition: background .15s, color .15s;
+        }
+        button.meal-cal-user-chip--editable:hover,
+        button.meal-cal-user-chip--editable:focus-visible {
+            background: #ffc107;
+            color: #212529;
+            border-color: #ffc107;
+            outline: 2px solid #ffc107;
+            outline-offset: 1px;
+        }
+

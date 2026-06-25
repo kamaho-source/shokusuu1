@@ -23,7 +23,12 @@
             .replace(/"/g, '&quot;');
     }
 
-    function buildModalContent(usersByRoom) {
+    function canEditReservation() {
+        var ui = window.__USER_INFO || {};
+        return !!(ui.isAdmin || ui.isStaff);
+    }
+
+    function buildModalContent(usersByRoom, date, canEdit) {
         var html = '';
         var mealKeys = { 1: 'morning', 2: 'noon', 3: 'night', 4: 'bento' };
         [1, 2, 3, 4].forEach(function (mt) {
@@ -38,7 +43,12 @@
             } else {
                 html += '<div class="meal-cal-user-list">';
                 users.forEach(function (u) {
-                    html += '<span class="meal-cal-user-chip">' + escHtml(u.name || '') + '</span>';
+                    if (canEdit) {
+                        html += '<button type="button" class="meal-cal-user-chip meal-cal-user-chip--editable" data-date="'
+                            + escHtml(date) + '">' + escHtml(u.name || '') + '</button>';
+                    } else {
+                        html += '<span class="meal-cal-user-chip">' + escHtml(u.name || '') + '</span>';
+                    }
                 });
                 html += '</div>';
             }
@@ -53,9 +63,28 @@
         var labelEl   = document.getElementById('mealCalModalDateLabel');
         var loadingEl = document.getElementById('mealCalModalLoading');
         var contentEl = document.getElementById('mealCalModalContent');
+        var editBtn   = document.getElementById('mealCalModalEditBtn');
         if (labelEl)   labelEl.textContent = date + ' の食数詳細';
         if (loadingEl) loadingEl.classList.remove('d-none');
         if (contentEl) { contentEl.classList.add('d-none'); contentEl.innerHTML = ''; }
+
+        var canEdit = canEditReservation();
+
+        if (editBtn) {
+            if (canEdit) {
+                editBtn.classList.remove('d-none');
+                editBtn.onclick = function () {
+                    var bsModalInstance = window.bootstrap && window.bootstrap.Modal.getInstance(modalEl);
+                    if (bsModalInstance) bsModalInstance.hide();
+                    if (typeof window.quickOpenDayModal === 'function') {
+                        window.quickOpenDayModal(date);
+                    }
+                };
+            } else {
+                editBtn.classList.add('d-none');
+                editBtn.onclick = null;
+            }
+        }
 
         var bsModal = window.bootstrap && window.bootstrap.Modal.getOrCreateInstance(modalEl);
         if (bsModal) bsModal.show();
@@ -77,8 +106,23 @@
             .then(function (json) {
                 var data = (json && json.ok && json.data) ? json.data : json;
                 var usersByRoom = data.usersByRoom || data.users || [];
-                var html = buildModalContent(usersByRoom);
-                if (contentEl) { contentEl.innerHTML = html; contentEl.classList.remove('d-none'); }
+                var html = buildModalContent(usersByRoom, date, canEdit);
+                if (contentEl) {
+                    contentEl.innerHTML = html;
+                    contentEl.classList.remove('d-none');
+                    if (canEdit) {
+                        contentEl.querySelectorAll('.meal-cal-user-chip--editable').forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                var bsModalInstance = window.bootstrap && window.bootstrap.Modal.getInstance(modalEl);
+                                if (bsModalInstance) bsModalInstance.hide();
+                                var d = btn.dataset.date || date;
+                                if (typeof window.quickOpenDayModal === 'function') {
+                                    window.quickOpenDayModal(d);
+                                }
+                            });
+                        });
+                    }
+                }
                 if (loadingEl) loadingEl.classList.add('d-none');
             })
             .catch(function (err) {

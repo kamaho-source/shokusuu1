@@ -83,6 +83,9 @@ $pastDateUnavailableMessage = (string)Configure::read(
                 <div id="mealCalModalContent" class="d-none"></div>
             </div>
             <div class="modal-footer">
+                <button type="button" id="mealCalModalEditBtn" class="btn btn-warning d-none">
+                    <i class="bi bi-pencil-square me-1"></i>この日の予約を変更する
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
             </div>
         </div>
