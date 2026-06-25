@@ -1581,7 +1581,7 @@ function unlockForChildren(wrap){
 
         window.quickOpenDayModal = function(dateStr){
             try{
-                var useChange = typeof isWithin14 === 'function' ? isWithin14(dateStr) : false;
+                var useChange = isWithin14(dateStr);
                 applyQuickModalMode(dateStr, useChange);
                 openModalById('quickDayModal');
                 loadViewIntoModal(dateStr, useChange).catch(function(){});
