@@ -14,7 +14,8 @@
     <?= $this->Html->css('layout-header.css') ?>
     <?= $this->Html->script('api_response.js') ?>
     <script>
-        window.AI_ASSISTANT_ASK_URL = '<?= $this->Url->build(['controller' => 'AiAssistant', 'action' => 'ask']) ?>';
+        window.AI_ASSISTANT_ASK_URL  = '<?= $this->Url->build(['controller' => 'AiAssistant', 'action' => 'ask']) ?>';
+        window.AI_ASSISTANT_BASE_URL = '<?= rtrim($this->Url->build('/'), '/') ?>';
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?= $this->fetch('meta') ?>
