@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\AI\AiUserRole;
 use App\Application\AI\SystemPromptProviderInterface;
+use App\Domain\ValueObject\UserRole;
 use Cake\Http\Client;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
@@ -55,13 +57,14 @@ class AiAssistantController extends AppController
         }
 
         $prompt = $this->buildPrompt($question, $context);
+        $role   = $this->resolveAiUserRole();
 
         $http = new Client();
         try {
             $response = $http->post('https://openrouter.ai/api/v1/chat/completions', json_encode([
                 'model'    => 'google/gemma-4-31b-it:free',
                 'messages' => [
-                    ['role' => 'system', 'content' => $this->systemPromptProvider->get()],
+                    ['role' => 'system', 'content' => $this->systemPromptProvider->get($role)],
                     ['role' => 'user',   'content' => $prompt],
                 ],
                 'temperature' => 0.7,
@@ -88,6 +91,34 @@ class AiAssistantController extends AppController
             Log::error('AI Assistant error: ' . $e->getMessage());
             throw new InternalErrorException('通信エラーが発生しました。');
         }
+    }
+
+    /**
+     * ログイン中ユーザーの権限から AiUserRole を解決する。
+     */
+    private function resolveAiUserRole(): string
+    {
+        $user = $this->request->getAttribute('identity');
+        if (!$user) {
+            return AiUserRole::GENERAL;
+        }
+
+        $iAdmin     = (int)($user->get('i_admin')      ?? 0);
+        $iUserLevel = (int)($user->get('i_user_level') ?? 0);
+
+        if ($iUserLevel === 1) {
+            return AiUserRole::CHILD;
+        }
+
+        if (UserRole::isAdmin($iAdmin) || UserRole::isSystemAdmin($iAdmin)) {
+            return AiUserRole::ADMIN;
+        }
+
+        if (UserRole::isBlockLeader($iAdmin)) {
+            return AiUserRole::BLOCK_LEADER;
+        }
+
+        return AiUserRole::GENERAL;
     }
 
     /**

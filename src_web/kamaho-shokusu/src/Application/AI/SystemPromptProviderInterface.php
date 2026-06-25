@@ -9,7 +9,9 @@ namespace App\Application\AI;
 interface SystemPromptProviderInterface
 {
     /**
-     * システムプロンプト文字列を返す。
+     * ロールに応じたシステムプロンプト文字列を返す。
+     *
+     * @param string $role AiUserRole::* 定数
      */
-    public function get(): string;
+    public function get(string $role): string;
 }
