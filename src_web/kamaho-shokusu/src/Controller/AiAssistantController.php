@@ -60,7 +60,7 @@ class AiAssistantController extends AppController
                 'headers' => [
                     'Authorization' => 'Bearer ' . $apiKey,
                     'Content-Type' => 'application/json',
-                    'HTTP-Referer' => 'https://github.com/oohashikazuyuki/shokusuu1', // 必須
+                    'HTTP-Referer' => 'https://github.com/kamaho-source/shokusuu1',
                 ]
             ]);
 
