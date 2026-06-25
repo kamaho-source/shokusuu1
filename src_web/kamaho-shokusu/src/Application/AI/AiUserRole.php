@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Application\AI;
 
 /**
- * AI助手がシステムプロンプトを組み立てる際に使用するロール識別子。
+ * お問い合わせAIがシステムプロンプトを組み立てる際に使用するロール識別子。
  *
  * Domain の UserRole（i_admin 値）と 1:1 に対応するが、
  * AI プロンプト生成という Application 層の関心事として分離する。
