@@ -254,18 +254,32 @@ class ReservationQueryService
         string $userName,
         string $date
     ): array {
-        $reservations = $reservationTable->find()
-            ->select(['i_reservation_type', 'i_id_room'])
+        try {
+            $targetDate = new Date($date, 'Asia/Tokyo');
+            $isLastMinute = $this->datePolicy->shouldUseChangeFlag($targetDate);
+        } catch (\Throwable $e) {
+            $isLastMinute = false;
+        }
+
+        $query = $reservationTable->find()
+            ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
             ->where([
                 'i_id_user'          => $userId,
                 'd_reservation_date' => $date,
-                'eat_flag'           => 1,
-            ])
-            ->toArray();
+            ]);
+
+        if (!$isLastMinute) {
+            $query->andWhere(['eat_flag' => 1]);
+        }
+
+        $reservations = $query->toArray();
 
         // reservation[roomId][mealType] = true の形で返す
         $result = [];
         foreach ($reservations as $reservation) {
+            if ($this->effectiveFlag($reservation->eat_flag, $reservation->i_change_flag, $isLastMinute) !== 1) {
+                continue;
+            }
             $roomId = (string)$reservation->i_id_room;
             $type   = (string)$reservation->i_reservation_type;
             if (!isset($result[$roomId])) {

@@ -224,6 +224,46 @@ class ApprovalController extends AppController
         }
     }
 
+    /**
+     * 承認履歴（ログ）一覧を表示
+     */
+    public function approvalLog(): ?Response
+    {
+        $this->Authorization->skipAuthorization();
+        $user = $this->Authentication->getIdentity();
+        $isAdmin = UserRole::isAdmin((int)($user->get('i_admin') ?? 0));
+        $isBlockLeader = UserRole::isBlockLeader((int)($user->get('i_admin') ?? 0));
+
+        if (!$isAdmin && !$isBlockLeader) {
+            $this->Flash->error('この画面を表示する権限がありません。');
+            return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
+        }
+
+        $query = $this->fetchTable('TApprovalLog')->find()
+            ->contain(['MUserInfo', 'MRoomInfo', 'Approvers']);
+
+        // ブロック長の場合は自分が担当する部屋のログ、または自分が承認したログのみに制限
+        if (!$isAdmin && $isBlockLeader) {
+            $roomAccessService = new \App\Service\RoomAccessService();
+            $myRoomIds = $roomAccessService->getUserRoomIds((int)$user->get('i_id_user'));
+            $query->where([
+                'OR' => [
+                    'TApprovalLog.i_id_room IN' => $myRoomIds,
+                    'TApprovalLog.i_approver_id' => (int)$user->get('i_id_user'),
+                ]
+            ]);
+        }
+
+        $query->order(['TApprovalLog.dt_create' => 'DESC']);
+
+        $logs = $this->paginate($query, [
+            'limit' => 50,
+        ]);
+
+        $this->set(compact('logs'));
+        return null;
+    }
+
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------

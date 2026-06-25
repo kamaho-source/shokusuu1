@@ -105,6 +105,30 @@ return function (RouteBuilder $routes): void {
                 'mealType' => '\d+',
             ]);
 
+        // ce-change-edit.js が生成するURLはダッシュ区切りアクション名を使うため明示的にルートを登録する
+        $builder->connect(
+            '/TReservationInfo/change-edit/{roomId}/{date}/{mealType}',
+            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+        )
+            ->setPass(['roomId', 'date', 'mealType'])
+            ->setPatterns([
+                'roomId'   => '\d+',
+                'date'     => '\d{4}-\d{2}-\d{2}',
+                'mealType' => '[1-4]',
+            ])
+            ->setMethods(['GET', 'POST', 'PUT']);
+
+        $builder->connect(
+            '/TReservationInfo/change-edit/{roomId}/{date}',
+            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+        )
+            ->setPass(['roomId', 'date'])
+            ->setPatterns([
+                'roomId' => '\d+',
+                'date'   => '\d{4}-\d{2}-\d{2}',
+            ])
+            ->setMethods(['GET', 'POST']);
+
         // ===== 小文字パス（API） =====
         // 3セグメント版（従来：{roomId}/{date}/{mealType}）
         // ※ changeEdit は TReservationInfoController に実装されているため controller を揃える
@@ -354,6 +378,9 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/Contacts/admin/{id}', ['controller' => 'Contacts', 'action' => 'adminDetail'])
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
+
+        // ── AIアシスタント ──
+        $builder->connect('/AiAssistant/ask', ['controller' => 'AiAssistant', 'action' => 'ask'])->setMethods(['POST']);
 
         // フォールバック
         $builder->fallbacks(DashedRoute::class);

@@ -123,8 +123,10 @@
         var cells = '';
         for (var t = 1; t <= 4; t++){
             var f = flagsByType[t] || {};
-            var initiallyOn = Number(f.i_change_flag || 0) === 1;
             var eatFlag     = Number(f.eat_flag || 0);
+            var initiallyOn = (f.i_change_flag != null)
+                ? (Number(f.i_change_flag) === 1)
+                : (eatFlag === 1);
             var checked     = initiallyOn ? ' checked' : '';
             var disabled    = allow ? '' : ' disabled';
             var initAttr    = initiallyOn ? ' data-initial-checked="1"' : '';

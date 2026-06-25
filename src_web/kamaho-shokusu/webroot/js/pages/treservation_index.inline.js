@@ -1457,15 +1457,6 @@ function unlockForChildren(wrap){
                 }
                 // ★★★★★ 修正箇所ここまで ★★★★★
 
-                // 直前編集フォーム（change_edit.php）初期化
-                if (window.CE_CHANGE_EDIT && typeof window.CE_CHANGE_EDIT.init === 'function') {
-                    try {
-                        window.CE_CHANGE_EDIT.init(host);
-                    } catch (e) {
-                        console.error('Error during CE_CHANGE_EDIT.init():', e);
-                    }
-                }
-
                 ensureAddModalCompat(host);
 
                 // ★ 昼食⇔弁当排他制御をAjax描画直後にも適用
@@ -1590,9 +1581,10 @@ function unlockForChildren(wrap){
 
         window.quickOpenDayModal = function(dateStr){
             try{
-                applyQuickModalMode(dateStr, false);
+                var useChange = isWithin14(dateStr);
+                applyQuickModalMode(dateStr, useChange);
                 openModalById('quickDayModal');
-                loadViewIntoModal(dateStr, false).catch(function(){});
+                loadViewIntoModal(dateStr, useChange).catch(function(){});
             } catch(e){
                 openModalById('quickDayModal');
             }

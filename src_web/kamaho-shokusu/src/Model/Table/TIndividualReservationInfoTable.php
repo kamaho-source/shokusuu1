@@ -163,7 +163,8 @@ class TIndividualReservationInfoTable extends Table
                 ->enableAutoFields(false)
                 ->select([
                     'i_id_user','d_reservation_date','i_id_room','i_reservation_type',
-                    'eat_flag','i_change_flag','i_version','dt_create','c_create_user','dt_update','c_update_user'
+                    'eat_flag','i_change_flag','i_version','dt_create','c_create_user','dt_update','c_update_user',
+                    'i_approval_status'
                 ])
                 ->where([
                     'i_id_user'          => $userId,
@@ -172,6 +173,14 @@ class TIndividualReservationInfoTable extends Table
                     'i_reservation_type' => $meal,
                 ])
                 ->first();
+
+            if ($entity) {
+                $status = (int)($entity->i_approval_status ?? 0);
+                if ($status === 1 || $status === 2) {
+                    $entity->setError('i_approval_status', '承認済みの予約は変更できません。');
+                    throw new PersistenceFailedException($entity, 'Already approved.');
+                }
+            }
 
             $isNew = false;
             if (!$entity) {
