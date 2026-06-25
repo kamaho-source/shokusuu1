@@ -40,12 +40,15 @@ document.addEventListener('DOMContentLoaded', function() {
         appendMessage('user', question);
         aiQuestion.value = '';
         
-        // ローディング表示
-        const loadingId = appendMessage('ai', '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> 考え中...');
-        
+        // ローディング表示（IDではなく要素参照を直接保持する）
+        const loadingEl = createLoadingMessage();
+        aiChatBox.appendChild(loadingEl);
+        aiChatBox.scrollTop = aiChatBox.scrollHeight;
+
         aiSubmitBtn.disabled = true;
         if (aiLoadingFab) aiLoadingFab.classList.remove('d-none');
-        if (aiButton) aiButton.querySelector('i').classList.add('d-none');
+        const robotIcon = aiButton ? aiButton.querySelector('i') : null;
+        if (robotIcon) robotIcon.classList.add('d-none');
 
         // コンテキストの取得
         let context = `現在のページ: ${document.title}\nURL: ${window.location.href}`;
@@ -100,9 +103,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return response.json();
         })
         .then(data => {
-            removeMessage(loadingId);
+            loadingEl.remove();
             if (aiLoadingFab) aiLoadingFab.classList.add('d-none');
-            if (aiButton) aiButton.querySelector('i').classList.remove('d-none');
+            if (robotIcon) robotIcon.classList.remove('d-none');
             
             // 回答内のURLをリンクに変換（安全にHTMLをエスケープした後にリンク化）
             const escapedAnswer = data.answer
@@ -132,9 +135,9 @@ document.addEventListener('DOMContentLoaded', function() {
             appendMessage('ai', formattedAnswer);
         })
         .catch(error => {
-            removeMessage(loadingId);
+            loadingEl.remove();
             if (aiLoadingFab) aiLoadingFab.classList.add('d-none');
-            if (aiButton) aiButton.querySelector('i').classList.remove('d-none');
+            if (robotIcon) robotIcon.classList.remove('d-none');
             appendMessage('ai', `<span class="text-danger">エラー: ${error.message}</span>`);
         })
         .finally(() => {
@@ -143,19 +146,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function appendMessage(role, text) {
-        const id = 'msg-' + Date.now();
         const div = document.createElement('div');
-        div.id = id;
         div.className = `mb-3 p-2 rounded ${role === 'user' ? 'bg-light text-end' : 'bg-info bg-opacity-10'}`;
         div.innerHTML = `<strong>${role === 'user' ? 'あなた' : 'AI助手'}:</strong><br>${text}`;
         aiChatBox.appendChild(div);
         aiChatBox.scrollTop = aiChatBox.scrollHeight;
-        return id;
     }
 
-    function removeMessage(id) {
-        const el = document.getElementById(id);
-        if (el) el.remove();
+    function createLoadingMessage() {
+        const div = document.createElement('div');
+        div.className = 'mb-3 p-2 rounded bg-info bg-opacity-10';
+        div.innerHTML = '<strong>AI助手:</strong><br><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> 考え中...';
+        return div;
     }
 
     function scrollToBottom() {
