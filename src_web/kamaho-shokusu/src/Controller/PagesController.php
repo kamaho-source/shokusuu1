@@ -224,9 +224,6 @@ class PagesController extends AppController
                 'admin' => $isAdmin
                     ? $approvalService->countAdminPending($dateFrom, $dateTo)
                     : 0,
-                'unreflected' => $isAdmin
-                    ? $approvalService->countUnreflectedAdminApproved()
-                    : 0,
             ];
         } else {
             // 未ログインの場合: 報告済みフラグは false 固定にし、

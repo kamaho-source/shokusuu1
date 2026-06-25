@@ -216,17 +216,6 @@ class ApprovalService
     }
 
     /**
-     * 未反映データの件数を取得（承認済みだが、反映待ちのレコード数）
-     */
-    public function countUnreflectedAdminApproved(): int
-    {
-        $individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        return $individualTable->find()
-            ->where(['i_approval_status' => self::STATUS_ADMIN])
-            ->count();
-    }
-
-    /**
      * ブロック長向けの未承認件数を返す。
      */
     public function countBlockLeaderPending(int $userId, ?string $dateFrom = null, ?string $dateTo = null): int
