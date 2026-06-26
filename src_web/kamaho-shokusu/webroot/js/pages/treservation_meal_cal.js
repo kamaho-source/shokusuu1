@@ -24,11 +24,6 @@
             .replace(/"/g, '&quot;');
     }
 
-    function canEditReservation() {
-        var ui = window.__USER_INFO || {};
-        return !!(ui.isAdmin || ui.isStaff);
-    }
-
     function buildBadges(meals) {
         return [1, 2, 3, 4].map(function (mt) {
             var active = !!meals[mt];
@@ -38,7 +33,7 @@
         }).join('');
     }
 
-    function buildUserRow(u, date, roomId, canEdit) {
+    function buildUserRow(u, date, roomId) {
         var uid    = u.id;
         var meals  = { 1: !!u.morning, 2: !!u.noon, 3: !!u.night, 4: !!u.bento };
         var bodyId = 'mcu-body-' + uid;
@@ -54,46 +49,36 @@
 
         // 展開エリア
         html += '<div class="meal-cal-acc-body" id="' + bodyId + '" hidden>';
-
-        if (canEdit) {
-            html += '<div class="meal-cal-edit-row">';
-            [1, 2, 3, 4].forEach(function (mt) {
-                html += '<label class="meal-cal-check-label">'
-                    + '<input type="checkbox" class="form-check-input meal-cal-check" data-meal="' + mt + '"'
-                    + (meals[mt] ? ' checked' : '') + '>'
-                    + '<span class="meal-cal-check-text" style="color:' + MEAL_COLORS[mt] + '">' + escHtml(MEAL_LABELS[mt]) + '</span>'
-                    + '</label>';
-            });
-            html += '<button type="button" class="btn btn-sm btn-primary meal-cal-save-btn"'
-                + ' data-uid="' + uid + '" data-date="' + escHtml(date) + '" data-room="' + escHtml(String(roomId || '')) + '">保存</button>';
-            html += '<span class="meal-cal-save-status"></span>';
-            html += '</div>';
-        } else {
-            html += '<div class="meal-cal-ro-row">';
-            [1, 2, 3, 4].forEach(function (mt) {
-                html += '<span class="meal-cal-ro-meal' + (meals[mt] ? ' active' : '') + '">'
-                    + escHtml(MEAL_LABELS[mt]) + (meals[mt] ? '✓' : '×') + '</span>';
-            });
-            html += '</div>';
-        }
+        html += '<div class="meal-cal-edit-row">';
+        [1, 2, 3, 4].forEach(function (mt) {
+            html += '<label class="meal-cal-check-label">'
+                + '<input type="checkbox" class="form-check-input meal-cal-check" data-meal="' + mt + '"'
+                + (meals[mt] ? ' checked' : '') + '>'
+                + '<span class="meal-cal-check-text" style="color:' + MEAL_COLORS[mt] + '">' + escHtml(MEAL_LABELS[mt]) + '</span>'
+                + '</label>';
+        });
+        html += '<button type="button" class="btn btn-sm btn-primary meal-cal-save-btn"'
+            + ' data-uid="' + uid + '" data-date="' + escHtml(date) + '" data-room="' + escHtml(String(roomId || '')) + '">保存</button>';
+        html += '<span class="meal-cal-save-status"></span>';
+        html += '</div>';
 
         html += '</div></div>';
         return html;
     }
 
-    function buildModalContent(usersByRoom, date, roomId, canEdit) {
+    function buildModalContent(usersByRoom, date, roomId) {
         if (!usersByRoom.length) {
             return '<p class="text-muted py-2"><i class="bi bi-person-x me-1"></i>この日の予約者はいません。</p>';
         }
         var html = '<div class="meal-cal-accordion">';
         usersByRoom.forEach(function (u) {
-            html += buildUserRow(u, date, roomId, canEdit);
+            html += buildUserRow(u, date, roomId);
         });
         html += '</div>';
         return html;
     }
 
-    function attachHandlers(contentEl, canEdit) {
+    function attachHandlers(contentEl) {
         // アコーディオン開閉
         contentEl.querySelectorAll('.meal-cal-acc-header').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -105,8 +90,6 @@
                 if (arrow) arrow.textContent = expanded ? '▶' : '▼';
             });
         });
-
-        if (!canEdit) return;
 
         // 保存ボタン
         contentEl.querySelectorAll('.meal-cal-save-btn').forEach(function (saveBtn) {
@@ -194,18 +177,16 @@
         var url = getUsersByRoomUrl(roomId, date);
         if (!url) return;
 
-        var canEdit = canEditReservation();
-
         fetch(url, { headers: { 'Accept': 'application/json' } })
             .then(function (res) { return res.json(); })
             .then(function (json) {
                 var data = (json && json.ok && json.data) ? json.data : json;
                 var usersByRoom = data.usersByRoom || data.users || [];
-                var html = buildModalContent(usersByRoom, date, roomId, canEdit);
+                var html = buildModalContent(usersByRoom, date, roomId);
                 if (contentEl) {
                     contentEl.innerHTML = html;
                     contentEl.classList.remove('d-none');
-                    attachHandlers(contentEl, canEdit);
+                    attachHandlers(contentEl);
                 }
                 if (loadingEl) loadingEl.classList.add('d-none');
             })
