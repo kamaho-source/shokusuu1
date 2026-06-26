@@ -623,7 +623,8 @@ function openModalById(id){
                     info.jsEvent.stopPropagation();
                     var date   = info.event.startStr ? info.event.startStr.slice(0, 10) : '';
                     var roomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                        ? window.__TRESP.calRoomId : null;
+                        ? window.__TRESP.calRoomId
+                        : (window.__TRESP && window.__TRESP.roomId != null ? window.__TRESP.roomId : null);
                     if (window.openMealCalUserModal) {
                         window.openMealCalUserModal(date, roomId);
                     }
