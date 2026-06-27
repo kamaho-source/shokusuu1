@@ -911,6 +911,84 @@ function openModalById(id){
             var reservedDates  = window.__TRESP.reservedDates;
             var existingEvents = window.__TRESP.existingEvents;
 
+            var MEAL_SHORT_NAMES = { 1: '朝', 2: '昼', 3: '夜', 4: '弁' };
+            var MEAL_KEY_MAP     = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
+
+            /** トグル成功後にメモリ上の状態とカレンダーを即時更新する */
+            function applyToggleToLocalState(date, mealKey, mealType, newVal, roomId) {
+                var d = MY_DETAILS[date] || {
+                    breakfast: false, breakfastRoom: null,
+                    lunch: false,     lunchRoom: null,
+                    dinner: false,    dinnerRoom: null,
+                    bento: false,     bentoRoom: null,
+                };
+                d[mealKey] = newVal;
+                d[mealKey + 'Room'] = newVal ? (roomId || null) : null;
+                MY_DETAILS[date] = d;
+
+                var hasAny = d.breakfast || d.lunch || d.dinner || d.bento;
+                if (hasAny && reservedDates.indexOf(date) === -1) { reservedDates.push(date); }
+                else if (!hasAny) { var ri = reservedDates.indexOf(date); if (ri !== -1) reservedDates.splice(ri, 1); }
+
+                var ico = function(v) { return v ? '⚪︎' : '×'; };
+                var summaryTitle = '朝:' + ico(d.breakfast) + ' 昼:' + ico(d.lunch) + ' 夜:' + ico(d.dinner) + ' 弁:' + ico(d.bento);
+                var newMealRooms = {
+                    breakfast: d.breakfastRoom || null,
+                    lunch:     d.lunchRoom     || null,
+                    dinner:    d.dinnerRoom    || null,
+                    bento:     d.bentoRoom     || null,
+                };
+                var summaryIdx = -1;
+                for (var i = 0; i < existingEvents.length; i++) {
+                    if (existingEvents[i].start === date && existingEvents[i].extendedProps && existingEvents[i].extendedProps.displayOrder === -2) {
+                        summaryIdx = i; break;
+                    }
+                }
+                if (hasAny) {
+                    if (summaryIdx !== -1) {
+                        existingEvents[summaryIdx] = Object.assign({}, existingEvents[summaryIdx], {
+                            title: summaryTitle,
+                            extendedProps: Object.assign({}, existingEvents[summaryIdx].extendedProps, { mealRooms: newMealRooms }),
+                        });
+                    } else {
+                        existingEvents.push({ title: summaryTitle, start: date, allDay: true,
+                            backgroundColor: '#28a745', borderColor: '#28a745', textColor: 'white',
+                            extendedProps: { displayOrder: -2, mealRooms: newMealRooms } });
+                    }
+                } else if (summaryIdx !== -1) {
+                    existingEvents.splice(summaryIdx, 1);
+                }
+
+                var delta = newVal ? 1 : -1;
+                var countIdx = -1;
+                for (var j = 0; j < existingEvents.length; j++) {
+                    var mev = existingEvents[j];
+                    if (mev.start === date && mev.extendedProps && mev.extendedProps.isMealCount && mev.extendedProps.mealType === mealType) {
+                        countIdx = j; break;
+                    }
+                }
+                if (countIdx !== -1) {
+                    var cntMatch = (existingEvents[countIdx].title || '').match(/:\s*(\d+)人/);
+                    var newCount = cntMatch ? Math.max(0, parseInt(cntMatch[1], 10) + delta) : Math.max(0, delta);
+                    if (newCount <= 0) {
+                        existingEvents.splice(countIdx, 1);
+                    } else {
+                        existingEvents[countIdx] = Object.assign({}, existingEvents[countIdx], {
+                            title: (MEAL_SHORT_NAMES[mealType] || '') + ': ' + newCount + '人'
+                        });
+                    }
+                } else if (newVal) {
+                    existingEvents.push({
+                        title: (MEAL_SHORT_NAMES[mealType] || '') + ': 1人',
+                        start: date,
+                        allDay: true,
+                        extendedProps: { displayOrder: mealType, isMealCount: true, mealType: mealType }
+                    });
+                }
+
+                if (window.__reservationCalendar) window.__reservationCalendar.refetchEvents();
+            }
+
             var calendarEl    = document.getElementById('calendar');
             var fromDateInput = document.getElementById('fromDate');
             var toDateInput   = document.getElementById('toDate');
@@ -958,6 +1036,43 @@ function openModalById(id){
                             info.el.appendChild(badge);
                         }
                     }
+                },
+
+                eventDidMount: function(info) {
+                    var ep = info.event.extendedProps || {};
+                    var dateStr = info.event.startStr ? info.event.startStr.slice(0, 10) : '';
+                    var label = info.event.title || '';
+                    if (ep.isMealCount) {
+                        label = dateStr + ' ' + label + ' 人数';
+                        var mealKey = MEAL_KEY_MAP[ep.mealType];
+                        var detail  = mealKey && MY_DETAILS[dateStr];
+                        if (detail && detail[mealKey]) {
+                            var badge = document.createElement('span');
+                            badge.className = 'meal-mine-badge';
+                            badge.title = '自分の予約あり';
+                            badge.setAttribute('aria-hidden', 'true');
+                            badge.textContent = '✓';
+                            var titleEl = info.el.querySelector('.fc-event-title');
+                            if (titleEl) titleEl.appendChild(badge);
+                            var roomId = detail[mealKey + 'Room'];
+                            var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
+                            if (roomId && roomNames[roomId]) {
+                                var roomLabel = document.createElement('div');
+                                roomLabel.className = 'meal-room-label';
+                                roomLabel.setAttribute('aria-hidden', 'true');
+                                roomLabel.textContent = '📍 ' + roomNames[roomId];
+                                var mainEl = info.el.querySelector('.fc-event-main') || info.el;
+                                mainEl.appendChild(roomLabel);
+                            }
+                        }
+                    } else if (ep.displayOrder === -2) {
+                        label = dateStr + ' ' + label;
+                    } else if (ep.displayOrder === -10) {
+                        label = dateStr + ' 未予約';
+                    } else {
+                        label = dateStr + ' ' + label;
+                    }
+                    info.el.setAttribute('aria-label', label);
                 },
 
                 datesSet: function(arg){ updateInputsByCalendar(arg.view); },
@@ -1025,57 +1140,57 @@ function openModalById(id){
                     var url = toggleBase.replace('__ROOM__', encodeURIComponent(String(roomId)));
                     if (!url) return;
 
-                    fetch(url, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json; charset=utf-8',
-                            'Accept': 'application/json',
-                            'X-CSRF-Token': window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || ''
-                        },
-                        body: JSON.stringify({
-                            date:   date,
-                            meal:   mealType,
-                            value:  newVal ? 1 : 0,
-                            userId: (window.__TRESP && window.__TRESP.userId) || undefined
+                    var csrfToken = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
+                    var userId    = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
+
+                    function doToggleFetch(value, onSuccess, onFail) {
+                        fetch(url, {
+                            method: 'POST',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Content-Type': 'application/json; charset=utf-8',
+                                'Accept': 'application/json',
+                                'X-CSRF-Token': csrfToken
+                            },
+                            body: JSON.stringify({ date: date, meal: mealType, value: value, userId: userId })
                         })
-                    })
-                    .then(function(res) { return res.json(); })
-                    .then(function(data) {
-                        var ok = data.ok === true || data.status === 'success';
-                        if (!ok) {
-                            if (window.pageToast) window.pageToast(data.message || '予約の変更に失敗しました', 'danger');
-                            return;
-                        }
-                        var d = MY_DETAILS[date] || { breakfast: false, lunch: false, dinner: false, bento: false };
-                        d[mealKey] = newVal;
-                        MY_DETAILS[date] = d;
-                        var hasAny = d.breakfast || d.lunch || d.dinner || d.bento;
-                        if (hasAny && reservedDates.indexOf(date) === -1) { reservedDates.push(date); }
-                        else if (!hasAny) { var ri = reservedDates.indexOf(date); if (ri !== -1) reservedDates.splice(ri, 1); }
-                        var ico = function(v) { return v ? '⚪︎' : '×'; };
-                        var newTitle = '朝:' + ico(d.breakfast) + ' 昼:' + ico(d.lunch) + ' 夜:' + ico(d.dinner) + ' 弁:' + ico(d.bento);
-                        var found = false;
-                        for (var i = 0; i < existingEvents.length; i++) {
-                            var ev = existingEvents[i];
-                            if (ev.start === date && ev.extendedProps && ev.extendedProps.displayOrder === -2) {
-                                existingEvents[i] = Object.assign({}, ev, { title: newTitle });
-                                found = true;
-                                break;
+                        .then(function(res) { return res.json(); })
+                        .then(function(data) {
+                            var ok = data.ok === true || data.status === 'success';
+                            if (!ok) { onFail(data.message || '予約の変更に失敗しました'); return; }
+                            onSuccess();
+                        })
+                        .catch(function(err) {
+                            console.error('[mealCalToggle]', err);
+                            onFail('通信エラーが発生しました');
+                        });
+                    }
+
+                    doToggleFetch(
+                        newVal ? 1 : 0,
+                        function onOk() {
+                            applyToggleToLocalState(date, mealKey, mealType, newVal, roomId);
+                            if (!newVal) {
+                                if (window.pageToastUndo) {
+                                    window.pageToastUndo(mealName + 'の予約を取り消しました', function doUndo() {
+                                        doToggleFetch(
+                                            1,
+                                            function() {
+                                                applyToggleToLocalState(date, mealKey, mealType, true, roomId);
+                                                if (window.pageToast) window.pageToast(mealName + 'の予約を元に戻しました', 'success');
+                                            },
+                                            function(msg) { if (window.pageToast) window.pageToast(msg, 'danger'); }
+                                        );
+                                    });
+                                } else {
+                                    if (window.pageToast) window.pageToast(mealName + 'の予約を取り消しました', 'warning');
+                                }
+                            } else {
+                                if (window.pageToast) window.pageToast(mealName + 'の予約を追加しました', 'success');
                             }
-                        }
-                        if (!found && hasAny) {
-                            existingEvents.push({ title: newTitle, start: date, allDay: true,
-                                backgroundColor: '#28a745', borderColor: '#28a745', textColor: 'white',
-                                extendedProps: { displayOrder: -2 } });
-                        }
-                        if (window.__reservationCalendar) window.__reservationCalendar.refetchEvents();
-                        if (window.pageToast) window.pageToast(mealName + 'の予約を' + (newVal ? '追加' : '取り消し') + 'しました', 'success');
-                    })
-                    .catch(function(err) {
-                        if (window.pageToast) window.pageToast('通信エラーが発生しました', 'danger');
-                        console.error('[mealCalToggle]', err);
-                    });
+                        },
+                        function onFail(msg) { if (window.pageToast) window.pageToast(msg, 'danger'); }
+                    );
                 }
             });
 

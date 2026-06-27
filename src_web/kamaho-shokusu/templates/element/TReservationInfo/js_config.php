@@ -28,6 +28,7 @@ $pastDateUnavailableMessage = (string)Configure::read(
             bento: <?= $bentoReserved ? 'true' : 'false' ?>
         },
         myDetails: <?= $JS_MY_DETAILS ?>,
+        roomNames: <?= $JS_ROOM_NAMES ?? '{}' ?>,
         currentRoom: <?= $JS_CURRENT_ROOM ?>,
         toggleBase: <?= $JS_TOGGLE_BASE ?>,
         addUrl: '<?= preg_replace("#^https?:#", "", $this->Url->build(["controller"=>"TReservationInfo","action"=>"add"], ["fullBase"=>true])) ?>',

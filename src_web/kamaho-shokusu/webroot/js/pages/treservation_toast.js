@@ -33,6 +33,47 @@
     }
 
     window.pageToast = pageToast;
+
+    /**
+     * Undo ボタン付きトースト（予約取り消し後の誤操作回復用）。
+     * onUndo が呼ばれた場合はトーストを即座に閉じる。
+     */
+    function pageToastUndo(message, onUndo, delay) {
+        delay = delay || 5000;
+        try {
+            var wrap = document.getElementById('toastWrap');
+            if (!wrap) {
+                wrap = document.createElement('div');
+                wrap.id = 'toastWrap';
+                wrap.className = 'toast-container position-fixed top-0 end-0 p-3';
+                document.body.appendChild(wrap);
+            }
+            var toastEl = document.createElement('div');
+            toastEl.className = 'toast align-items-center text-bg-warning border-0';
+            toastEl.role = 'alert';
+            toastEl.innerHTML =
+                '<div class="d-flex align-items-center">'
+                + '<div class="toast-body">' + String(message) + '</div>'
+                + '<button type="button" class="btn btn-sm btn-light ms-2 me-1 flex-shrink-0 page-toast-undo-btn">元に戻す</button>'
+                + '<button type="button" class="btn-close me-2 ms-1" data-bs-dismiss="toast" aria-label="Close"></button>'
+                + '</div>';
+            wrap.appendChild(toastEl);
+            var instance = window.bootstrap && window.bootstrap.Toast.getOrCreateInstance(toastEl, { delay: delay });
+            var undoBtn = toastEl.querySelector('.page-toast-undo-btn');
+            if (undoBtn) {
+                undoBtn.addEventListener('click', function () {
+                    if (instance) instance.hide();
+                    if (typeof onUndo === 'function') onUndo();
+                });
+            }
+            if (instance) instance.show();
+            toastEl.addEventListener('hidden.bs.toast', function () { toastEl.remove(); });
+        } catch (e) {
+            console.error('[pageToastUndo]', e);
+        }
+    }
+
+    window.pageToastUndo = pageToastUndo;
 })();
 
 function notifyUser(message, type) {
