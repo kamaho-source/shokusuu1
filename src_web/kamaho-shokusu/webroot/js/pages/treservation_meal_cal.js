@@ -77,6 +77,18 @@
     }
 
     function attachHandlers(contentEl) {
+        // 昼食⇔弁当の排他制御
+        contentEl.querySelectorAll('.meal-cal-check[data-meal="2"], .meal-cal-check[data-meal="4"]').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                if (!cb.checked) return;
+                var counterpartMeal = cb.dataset.meal === '2' ? '4' : '2';
+                var item = cb.closest('.meal-cal-acc-item');
+                if (!item) return;
+                var counterpart = item.querySelector('.meal-cal-check[data-meal="' + counterpartMeal + '"]');
+                if (counterpart) counterpart.checked = false;
+            });
+        });
+
         // 保存ボタン
         contentEl.querySelectorAll('.meal-cal-save-btn').forEach(function (saveBtn) {
             saveBtn.addEventListener('click', function () {
@@ -127,6 +139,10 @@
                                     badges[i].textContent = MEAL_SHORT[mt] + (active ? '✓' : '－');
                                 }
                             });
+                            contentEl.dispatchEvent(new CustomEvent('change-edit:saved', {
+                                bubbles: true,
+                                detail: { date: d, roomId: rid, userId: uid }
+                            }));
                         }
                     })
                     .catch(function () {
@@ -151,6 +167,10 @@
         var bsModal = window.bootstrap && window.bootstrap.Modal.getOrCreateInstance(modalEl);
         if (bsModal) bsModal.show();
 
+        if (roomId == null || roomId === '') {
+            roomId = (window.__TRESP && window.__TRESP.roomId != null) ? window.__TRESP.roomId
+                   : (window.__PRIMARY_ROOM_ID != null ? window.__PRIMARY_ROOM_ID : null);
+        }
         if (roomId == null || roomId === '') {
             if (loadingEl) loadingEl.classList.add('d-none');
             if (contentEl) {

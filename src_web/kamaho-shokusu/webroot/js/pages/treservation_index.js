@@ -655,6 +655,7 @@ function openModalById(id){
                         var mealKey = MEAL_KEY_MAP[ep.mealType];
                         var detail  = mealKey && MY_DETAILS[dateStr];
                         if (detail && detail[mealKey]) {
+                            label += ' 自分の予約あり';
                             // 自分が予約中 → ✓ バッジ
                             var badge = document.createElement('span');
                             badge.className = 'meal-mine-badge';
@@ -667,6 +668,7 @@ function openModalById(id){
                             var roomId = detail[mealKey + 'Room'];
                             var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
                             if (roomId && roomNames[roomId]) {
+                                label += ' 予約部屋: ' + roomNames[roomId];
                                 var roomLabel = document.createElement('div');
                                 roomLabel.className = 'meal-room-label';
                                 roomLabel.setAttribute('aria-hidden', 'true');
@@ -753,8 +755,13 @@ function openModalById(id){
                     var csrfToken = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
                     var userId    = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
 
+                    var toggleKey = date + ':' + mealType;
+                    window.__TRESP._mealToggleInFlight = window.__TRESP._mealToggleInFlight || {};
+                    if (window.__TRESP._mealToggleInFlight[toggleKey]) return;
+                    window.__TRESP._mealToggleInFlight[toggleKey] = true;
+
                     function doToggleFetch(value, onSuccess, onFail) {
-                        fetch(url, {
+                        return fetch(url, {
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: {
@@ -773,6 +780,9 @@ function openModalById(id){
                         .catch(function(err) {
                             console.error('[mealCalToggle]', err);
                             onFail('通信エラーが発生しました');
+                        })
+                        .finally(function() {
+                            delete window.__TRESP._mealToggleInFlight[toggleKey];
                         });
                     }
 

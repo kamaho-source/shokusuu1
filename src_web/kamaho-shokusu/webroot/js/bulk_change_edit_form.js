@@ -641,7 +641,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (type === 2 || type === 4) {
                     const counterpart = type === 2 ? 4 : 2;
                     const counterpartLocked = !!(locked[activeDate]?.[uid]?.[counterpart]);
-                    if (!counterpartLocked) {
+                    const counterpartOtherRoomLocked = !!(otherRoomLocked[activeDate]?.[uid]?.[counterpart]);
+                    if (!counterpartLocked && !counterpartOtherRoomLocked) {
                         if (serverReserved[activeDate]?.[uid]?.[counterpart]) {
                             selections[activeDate][uid][counterpart] = false;
                         } else {

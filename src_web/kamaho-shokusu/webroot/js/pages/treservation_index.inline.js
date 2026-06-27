@@ -1047,6 +1047,7 @@ function openModalById(id){
                         var mealKey = MEAL_KEY_MAP[ep.mealType];
                         var detail  = mealKey && MY_DETAILS[dateStr];
                         if (detail && detail[mealKey]) {
+                            label += ' 自分の予約あり';
                             var badge = document.createElement('span');
                             badge.className = 'meal-mine-badge';
                             badge.title = '自分の予約あり';
@@ -1057,6 +1058,7 @@ function openModalById(id){
                             var roomId = detail[mealKey + 'Room'];
                             var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
                             if (roomId && roomNames[roomId]) {
+                                label += ' 予約部屋: ' + roomNames[roomId];
                                 var roomLabel = document.createElement('div');
                                 roomLabel.className = 'meal-room-label';
                                 roomLabel.setAttribute('aria-hidden', 'true');
@@ -1143,8 +1145,13 @@ function openModalById(id){
                     var csrfToken = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
                     var userId    = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
 
+                    var toggleKey = date + ':' + mealType;
+                    window.__TRESP._mealToggleInFlight = window.__TRESP._mealToggleInFlight || {};
+                    if (window.__TRESP._mealToggleInFlight[toggleKey]) return;
+                    window.__TRESP._mealToggleInFlight[toggleKey] = true;
+
                     function doToggleFetch(value, onSuccess, onFail) {
-                        fetch(url, {
+                        return fetch(url, {
                             method: 'POST',
                             credentials: 'same-origin',
                             headers: {
@@ -1163,6 +1170,9 @@ function openModalById(id){
                         .catch(function(err) {
                             console.error('[mealCalToggle]', err);
                             onFail('通信エラーが発生しました');
+                        })
+                        .finally(function() {
+                            delete window.__TRESP._mealToggleInFlight[toggleKey];
                         });
                     }
 
@@ -3400,6 +3410,18 @@ function isWithin14(dateStr){
     }
 
     function attachHandlers(contentEl) {
+        // 昼食⇔弁当の排他制御
+        contentEl.querySelectorAll('.meal-cal-check[data-meal="2"], .meal-cal-check[data-meal="4"]').forEach(function (cb) {
+            cb.addEventListener('change', function () {
+                if (!cb.checked) return;
+                var counterpartMeal = cb.dataset.meal === '2' ? '4' : '2';
+                var item = cb.closest('.meal-cal-acc-item');
+                if (!item) return;
+                var counterpart = item.querySelector('.meal-cal-check[data-meal="' + counterpartMeal + '"]');
+                if (counterpart) counterpart.checked = false;
+            });
+        });
+
         contentEl.querySelectorAll('.meal-cal-save-btn').forEach(function (saveBtn) {
             saveBtn.addEventListener('click', function () {
                 var item     = saveBtn.closest('.meal-cal-acc-item');
@@ -3446,6 +3468,10 @@ function isWithin14(dateStr){
                                     badges[i].textContent = MEAL_SHORT[mt] + (active ? '✓' : '－');
                                 }
                             });
+                            contentEl.dispatchEvent(new CustomEvent('change-edit:saved', {
+                                bubbles: true,
+                                detail: { date: d, roomId: rid, userId: uid }
+                            }));
                         }
                     })
                     .catch(function () {
@@ -3470,6 +3496,10 @@ function isWithin14(dateStr){
         var bsModal = window.bootstrap && window.bootstrap.Modal.getOrCreateInstance(modalEl);
         if (bsModal) bsModal.show();
 
+        if (roomId == null || roomId === '') {
+            roomId = (window.__TRESP && window.__TRESP.roomId != null) ? window.__TRESP.roomId
+                   : (window.__PRIMARY_ROOM_ID != null ? window.__PRIMARY_ROOM_ID : null);
+        }
         if (roomId == null || roomId === '') {
             if (loadingEl) loadingEl.classList.add('d-none');
             if (contentEl) {
