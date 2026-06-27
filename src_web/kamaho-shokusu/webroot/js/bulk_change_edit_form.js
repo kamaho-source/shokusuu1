@@ -642,11 +642,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     const counterpart = type === 2 ? 4 : 2;
                     const counterpartLocked = !!(locked[activeDate]?.[uid]?.[counterpart]);
                     if (!counterpartLocked) {
-                        delete selections[activeDate][uid][counterpart];
+                        if (serverReserved[activeDate]?.[uid]?.[counterpart]) {
+                            selections[activeDate][uid][counterpart] = false;
+                        } else {
+                            delete selections[activeDate][uid][counterpart];
+                        }
                     }
                 }
             } else {
-                delete selections[activeDate][uid][type];
+                if (serverReserved[activeDate]?.[uid]?.[type]) {
+                    selections[activeDate][uid][type] = false;
+                } else {
+                    delete selections[activeDate][uid][type];
+                }
             }
         });
         renderTable();
@@ -747,6 +755,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 Object.keys(users).forEach((uid) => {
                     const meals = users[uid] || {};
                     mealTypes.forEach((type) => {
+                        if (otherRoomLocked[date]?.[uid]?.[type]) return;
                         const isChecked = !!meals[type];
                         if (userLevels[uid] === 1) {
                             const input = document.createElement('input');

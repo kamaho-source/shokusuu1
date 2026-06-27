@@ -79,6 +79,7 @@ class ReservationBulkService
                     ->where([
                         'd_reservation_date IN' => $dates,
                         'i_id_user IN' => $userIds,
+                        'i_id_room' => $roomId,
                         'i_reservation_type IN' => [1, 2, 3, 4],
                     ])
                     ->all();
