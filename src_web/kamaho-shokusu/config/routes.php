@@ -379,6 +379,9 @@ return function (RouteBuilder $routes): void {
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
 
+        // ── AIアシスタント ──
+        $builder->connect('/AiAssistant/ask', ['controller' => 'AiAssistant', 'action' => 'ask'])->setMethods(['POST']);
+
         // フォールバック
         $builder->fallbacks(DashedRoute::class);
     });

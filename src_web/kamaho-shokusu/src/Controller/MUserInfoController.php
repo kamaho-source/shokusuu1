@@ -204,10 +204,6 @@ class MUserInfoController extends AppController
         if ($this->request->is('post')) {
             $data = $this->request->getData();
 
-            if (empty($data['c_user_name'])) {
-                $data['c_user_name'] = 'デフォルトユーザー名';
-            }
-
             if ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
                 $this->Flash->error(__('このログインIDは既に使用されています。他のIDをお試しください。'));
             } else {
@@ -262,7 +258,6 @@ class MUserInfoController extends AppController
 
         if ($this->request->is(['patch', 'post', 'put'])) {
             $data = $this->request->getData();
-            $data['c_user_name']   = $data['c_user_name'] ?? 'デフォルトユーザー名';
             $user                  = $this->request->getAttribute('identity');
             $data['c_update_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
             $data['dt_update']     = date('Y-m-d H:i:s');

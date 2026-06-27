@@ -42,6 +42,15 @@ class UserDeletionService
 
         $result = (bool)$userInfoTable->save($user);
 
+        if ($result) {
+            // 未承認の個別予約情報を削除（物理削除またはキャンセル）
+            $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+            $reservationTable->deleteAll([
+                'i_id_user' => $user->i_id_user,
+                'i_approval_status' => 0, // 未承認のみ
+            ]);
+        }
+
         AuditLogService::record(
             'user',
             'user_delete',

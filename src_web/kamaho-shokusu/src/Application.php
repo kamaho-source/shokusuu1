@@ -16,7 +16,10 @@ use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
 use Authorization\Policy\OrmResolver;
 use Authorization\Policy\ResolverCollection;
+use App\Application\AI\SystemPromptProviderInterface;
+use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
+use App\Infrastructure\AI\SystemPromptProvider;
 use App\Service\RoomUsageService;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
@@ -117,6 +120,12 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function services(ContainerInterface $container): void
     {
+        $container->add(SystemPromptProviderInterface::class, SystemPromptProvider::class);
+
+        $container->add(AiAssistantController::class)
+            ->addArgument(SystemPromptProviderInterface::class)
+            ->addArgument(ServerRequest::class);
+
         $container->add(RoomUsageService::class);
         $container->add(RoomUsageController::class)
             ->addArgument(RoomUsageService::class)
@@ -133,6 +142,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\AuditLogController::class             => \App\Policy\AuditLogPolicy::class,
             \App\Controller\RoomUsageController::class           => \App\Policy\RoomUsagePolicy::class,
             \App\Controller\FeatureUsageSummaryController::class => \App\Policy\FeatureUsageSummaryPolicy::class,
+            \App\Controller\AiAssistantController::class      => \App\Policy\AiAssistantPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック

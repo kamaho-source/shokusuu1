@@ -319,6 +319,20 @@ class ApprovalService
     public function adminApprove(array $keys, int $approverId, string $actor, string $ipAddress = ''): bool
     {
         $result = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
+        
+        if ($result) {
+            // 承認成功時、自動的に予約情報へ反映
+            // keys から対象となる roomId と 日付範囲を抽出して効率的に反映する
+            $roomIds = array_unique(array_column($keys, 'i_id_room'));
+            $dates = array_column($keys, 'd_reservation_date');
+            $dateFrom = min($dates);
+            $dateTo = max($dates);
+
+            foreach ($roomIds as $roomId) {
+                $this->reflectToReservation((int)$roomId, $dateFrom, $dateTo, $actor);
+            }
+        }
+
         AuditLogService::record(
             'approval',
             'approval_admin',
@@ -372,11 +386,16 @@ class ApprovalService
     public function reflectToReservation(?int $roomId, ?string $dateFrom, ?string $dateTo, string $actor): array
     {
         $individualTable  = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $userTable        = TableRegistry::getTableLocator()->get('MUserInfo');
         $reservationTable = TableRegistry::getTableLocator()->get('TReservationInfo');
         $now = DateTime::now();
 
         $query = $individualTable->find()
-            ->where(['i_approval_status' => self::STATUS_ADMIN]);
+            ->innerJoin(['MUserInfo' => 'm_user_info'], ['MUserInfo.i_id_user = TIndividualReservationInfo.i_id_user'])
+            ->where([
+                'TIndividualReservationInfo.i_approval_status' => self::STATUS_ADMIN,
+                'MUserInfo.i_del_flag' => 0, // 削除済みユーザーを除外
+            ]);
 
         if ($roomId !== null) {
             $query->where(['i_id_room' => $roomId]);
