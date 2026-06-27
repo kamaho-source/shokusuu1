@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\ValueObject\UserRole;
 use App\Service\ApprovalService;
 use App\Service\RoomAccessService;
 use Cake\Http\Response;
