@@ -146,18 +146,19 @@ class ReservationChangeEditService
         ];
     }
 
-    public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false): array
+    public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false, bool $isBlockLeaderInRoom = false): array
     {
-        // 管理者・職員・所属グループユーザーは部屋内の全ユーザーを編集できる
-        $canEditAll = $isRoomManager || ($loginUser && (
-            UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0)) ||
-            (int)($loginUser->get('i_user_level') ?? -1) === 0
-        ));
-        $loginUid = $loginUser?->get('i_id_user');
+        $isAdmin       = $loginUser && UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
+        $isLoginStaff  = $loginUser && in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
+        $loginUid      = $loginUser?->get('i_id_user');
+        // 管理者・部屋管理者・その部屋所属のブロック長はすべてのユーザーを編集できる（職員は子供のみ）
+        $canEditAll    = $isRoomManager || $isAdmin || $isBlockLeaderInRoom;
 
         $usersForJson = [];
         foreach ($users as $u) {
-            $allowEdit = $canEditAll || ($loginUid && (int)$loginUid === (int)$u['id']);
+            $isTargetChild = ((int)($u['i_user_level'] ?? 1) === 1);
+            $isSelf        = $loginUid && ((int)$loginUid === (int)$u['id']);
+            $allowEdit     = $canEditAll || $isSelf || ($isLoginStaff && $isTargetChild);
             $usersForJson[] = [
                 'id'           => $u['id'],
                 'name'         => $u['name'],
@@ -190,11 +191,10 @@ class ReservationChangeEditService
 
         try {
             // ログインユーザーの編集権限を確定する（buildUsersForJson と同一ロジック）
-            $loginUid    = $loginUser ? (int)$loginUser->get('i_id_user') : 0;
-            $canEditAll  = $isRoomManager || ($loginUser && (
-                UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0)) ||
-                (int)($loginUser->get('i_user_level') ?? -1) === 0
-            ));
+            $loginUid     = $loginUser ? (int)$loginUser->get('i_id_user') : 0;
+            $isAdmin      = $loginUser && UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
+            $isLoginStaff = $loginUser && in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
+            $canEditAll   = $isRoomManager || $isAdmin;
 
             $allowedMap = array_fill_keys(array_map('intval', $userIdList), true);
             $targetUserIds = [];
@@ -255,8 +255,9 @@ class ReservationChangeEditService
                     continue;
                 }
 
-                // サーバー側 allowEdit チェック: 管理者・職員以外は自分以外の予約を変更できない
-                if (!$canEditAll && $userId !== $loginUid) {
+                // サーバー側 allowEdit チェック（buildUsersForJson と同一ロジック）
+                $isTargetChild = ($userLevelMap[$userId] ?? 1) === 1;
+                if (!$canEditAll && $userId !== $loginUid && !($isLoginStaff && $isTargetChild)) {
                     $skipped[] = "利用者ID {$userId} の予約を変更する権限がありません。";
                     continue;
                 }
