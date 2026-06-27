@@ -197,7 +197,10 @@ class ReservationBulkController extends ReservationBaseController
         }
 
         $loginUser = $this->request->getAttribute('identity');
-        $loginName = $loginUser?->get('c_user_name') ?? 'system';
+        if (!$loginUser) {
+            return $this->apiResponseService->forbidden($this->response);
+        }
+        $loginName = $loginUser->get('c_user_name') ?? 'system';
 
         $result = $this->bulkService->processBulkChangeEdit(
             $dayUsers,

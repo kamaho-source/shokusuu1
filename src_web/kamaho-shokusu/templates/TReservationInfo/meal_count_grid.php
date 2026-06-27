@@ -248,7 +248,7 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                 || ($uid === $loginUserId)
                                 || ($canViewRoom && $uLevel === 1);
                             // 非管理者・非ブロック長（その部屋）の職員が他の職員行を見ている場合はホバー注意文を付与
-                            $isOtherStaff        = !$isAdmin && !$blockLeaderHere && $uLevel === 0 && $uid !== $loginUserId;
+                            $isOtherStaff        = !$isAdmin && !$blockLeaderHere && in_array($uLevel, [0, 7], true) && $uid !== $loginUserId;
                         ?>
                         <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>"
                             <?= $isOtherStaff ? 'class="mcg-row-readonly"' : '' ?>>
@@ -277,7 +277,7 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     $otherRoomName  = $isOtherRoomLocked
                                         ? ($allRooms[$otherRoomId] ?? '他の部屋')
                                         : '';
-                                    $toggleable = !$isPast && $canEditRow;
+                                    $toggleable = !$isPast && $canEditRow && !$isOtherRoomLocked;
                                     $tdClass = 'cell-meal'
                                         . ($toggleable        ? ' mcg-toggleable'  : '')
                                         . ($isOtherRoomLocked ? ' mcg-cell-conflict' : '')

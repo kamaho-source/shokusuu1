@@ -671,7 +671,7 @@ html, body {
 /* data-no-edit-msg を持つセルだけ pointer-events を戻してホバーを検知できるようにする */
 .mcg-grid tbody tr.mcg-row-readonly td[data-no-edit-msg] {
     pointer-events: auto;
-    cursor: default;
+    cursor: not-allowed;
 }
 
 /* 閲覧バッジ */
