@@ -120,6 +120,8 @@
         var isStaff = isStaffUser(user);
         var userLevel = (user && (user.i_user_level != null ? user.i_user_level : user.userLevel));
 
+        var noEditTitle = !allow ? '他の職員の予約は操作できません。' : '';
+
         var cells = '';
         for (var t = 1; t <= 4; t++){
             var f = flagsByType[t] || {};
@@ -131,15 +133,18 @@
             var disabled    = allow ? '' : ' disabled';
             var initAttr    = initiallyOn ? ' data-initial-checked="1"' : '';
             var eatAttr     = eatFlag === 1 ? ' data-eat-flag="1"' : '';
+            var titleAttr   = noEditTitle ? ' title="' + noEditTitle + '"' : '';
 
             cells +=
                 '<td class="text-center">' +
+                (noEditTitle ? '<span class="d-inline-block" tabindex="0" title="' + noEditTitle + '" style="cursor:not-allowed;">' : '') +
                 '<input type="checkbox"' +
                 ' name="users[' + uId + '][' + t + ']"' +
                 ' class="meal-checkbox"' +
                 ' data-reservation-type="' + t + '"' +
                 ' data-user-id="' + uId + '"' +
-                ' value="1"' + checked + disabled + initAttr + eatAttr + '>' +
+                ' value="1"' + checked + disabled + initAttr + eatAttr + titleAttr + '>' +
+                (noEditTitle ? '</span>' : '') +
                 '</td>';
         }
 

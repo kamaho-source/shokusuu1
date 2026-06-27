@@ -183,7 +183,7 @@ $recentNotifications     = $recentNotifications ?? [];
     </nav>
 
     <?php if ($user): ?>
-        <button id="ai-assistant-fab" title="AI助手に質問">
+        <button id="ai-assistant-fab" title="お問い合わせAIに質問">
             <i class="bi bi-robot"></i>
             <span class="spinner-border spinner-border-sm d-none" id="ai-assistant-loading-fab" role="status"></span>
         </button>
@@ -191,13 +191,13 @@ $recentNotifications     = $recentNotifications ?? [];
         <!-- AI Assistant Chat Panel (Replaced Modal) -->
         <div id="ai-assistant-panel" class="shadow-lg border">
             <div class="panel-header bg-info text-white d-flex align-items-center justify-content-between p-3">
-                <h5 class="m-0"><i class="bi bi-robot me-2"></i>AI助手</h5>
+                <h5 class="m-0"><i class="bi bi-robot me-2"></i>お問い合わせAI</h5>
                 <button type="button" class="btn-close btn-close-white" id="ai-panel-close"></button>
             </div>
             <div class="panel-body bg-light p-3">
                 <div id="ai-chat-box" class="mb-3 p-3 border rounded bg-white shadow-sm">
                     <div class="mb-3 p-2 rounded bg-info bg-opacity-10">
-                        <strong>AI助手:</strong><br>
+                        <strong>お問い合わせAI:</strong><br>
                         こんにちは！「食数管理システム」の使い方について何でも聞いてください。<br>
                         どのようなお手伝いが必要ですか？
                     </div>
