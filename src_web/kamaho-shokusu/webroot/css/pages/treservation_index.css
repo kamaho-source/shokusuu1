@@ -346,7 +346,7 @@
             overflow: hidden;
         }
 
-        /* ヘッダー（クリックで展開） */
+        /* ヘッダー（ユーザー名＋バッジ表示のみ） */
         .meal-cal-acc-header {
             width: 100%;
             display: flex;
@@ -354,13 +354,7 @@
             gap: .5rem;
             padding: .45rem .75rem;
             background: #f8f9fa;
-            border: none;
-            text-align: left;
-            cursor: pointer;
-            transition: background .12s;
         }
-        .meal-cal-acc-header:hover { background: #e9ecef; }
-        .meal-cal-acc-header[aria-expanded="true"] { background: #e3f2fd; }
 
         .meal-cal-acc-name {
             flex: 1;

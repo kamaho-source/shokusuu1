@@ -3179,17 +3179,15 @@ function isWithin14(dateStr){
     }
 
     function buildUserRow(u, date, roomId) {
-        var uid    = u.id;
-        var meals  = { 1: !!u.morning, 2: !!u.noon, 3: !!u.night, 4: !!u.bento };
-        var bodyId = 'mcu-body-' + uid;
+        var uid   = u.id;
+        var meals = { 1: !!u.morning, 2: !!u.noon, 3: !!u.night, 4: !!u.bento };
 
         var html = '<div class="meal-cal-acc-item" data-user-id="' + uid + '">';
-        html += '<button type="button" class="meal-cal-acc-header" aria-expanded="false" aria-controls="' + bodyId + '">'
+        html += '<div class="meal-cal-acc-header">'
             + '<span class="meal-cal-acc-name">' + escHtml(u.name || '') + '</span>'
             + '<span class="meal-cal-acc-badges">' + buildBadges(meals) + '</span>'
-            + '<span class="meal-cal-acc-arrow" aria-hidden="true">▶</span>'
-            + '</button>';
-        html += '<div class="meal-cal-acc-body" id="' + bodyId + '" hidden>';
+            + '</div>';
+        html += '<div class="meal-cal-acc-body">';
         html += '<div class="meal-cal-edit-row">';
         [1, 2, 3, 4].forEach(function (mt) {
             html += '<label class="meal-cal-check-label">'
@@ -3217,17 +3215,6 @@ function isWithin14(dateStr){
     }
 
     function attachHandlers(contentEl) {
-        contentEl.querySelectorAll('.meal-cal-acc-header').forEach(function (btn) {
-            btn.addEventListener('click', function () {
-                var expanded = btn.getAttribute('aria-expanded') === 'true';
-                btn.setAttribute('aria-expanded', String(!expanded));
-                var body = document.getElementById(btn.getAttribute('aria-controls'));
-                if (body) body.hidden = expanded;
-                var arrow = btn.querySelector('.meal-cal-acc-arrow');
-                if (arrow) arrow.textContent = expanded ? '▶' : '▼';
-            });
-        });
-
         contentEl.querySelectorAll('.meal-cal-save-btn').forEach(function (saveBtn) {
             saveBtn.addEventListener('click', function () {
                 var item     = saveBtn.closest('.meal-cal-acc-item');
