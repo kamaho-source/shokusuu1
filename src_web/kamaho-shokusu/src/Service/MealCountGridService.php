@@ -195,6 +195,7 @@ class MealCountGridService
                 'MUserInfo.i_del_flag'   => 0,
             ])
             ->enableHydration(false)
+            ->orderAsc('MUserInfo.i_user_level')
             ->orderAsc('MUserInfo.c_user_name')
             ->all();
 
