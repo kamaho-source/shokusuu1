@@ -603,7 +603,7 @@ class TReservationInfoController extends ReservationBaseController
         $loginUser = $this->request->getAttribute('identity');
         if ($loginUser !== null) {
             $isAdmin  = UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
-            $isStaff  = (int)($loginUser->get('i_user_level') ?? -1) === 0;
+            $isStaff  = in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
             if (!$isAdmin && !$isStaff) {
                 $loginUidEarly = (int)($loginUser->get('i_id_user') ?? 0);
                 $hasAffiliation = $loginUidEarly > 0 && $this->changeEditService->userHasRoomAccess($loginUidEarly);
