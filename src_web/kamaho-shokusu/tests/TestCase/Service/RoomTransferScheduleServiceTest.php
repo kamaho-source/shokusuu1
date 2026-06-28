@@ -4,12 +4,17 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\RoomTransferScheduleService;
-use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * RoomTransferScheduleService テスト。
+ *
+ * applyPending() が保留スケジュールのない状態で正しく動作することを検証する。
+ */
 class RoomTransferScheduleServiceTest extends TestCase
 {
     protected array $fixtures = [
+        'app.MRoomTransferSchedule',
         'app.MUserInfo',
         'app.MUserGroup',
         'app.MRoomInfo',
@@ -26,18 +31,12 @@ class RoomTransferScheduleServiceTest extends TestCase
     }
 
     // ----------------------------------------------------------------
-    // applyPending — DB使用
+    // applyPending — 保留スケジュールなし
     // ----------------------------------------------------------------
 
     public function testApplyPending_noPendingSchedules_returnsZeroApplied(): void
     {
-        // m_room_transfer_schedule テーブルがテストDBに存在しない場合はスキップする
-        try {
-            $result = $this->service->applyPending(date('Y-m-d'));
-        } catch (\Cake\Database\Exception\DatabaseException $e) {
-            $this->markTestSkipped('m_room_transfer_schedule テーブルがテストDBに存在しません: ' . $e->getMessage());
-            return;
-        }
+        $result = $this->service->applyPending(date('Y-m-d'));
 
         $this->assertArrayHasKey('applied', $result);
         $this->assertArrayHasKey('errors', $result);
@@ -47,14 +46,23 @@ class RoomTransferScheduleServiceTest extends TestCase
 
     public function testApplyPending_dryRun_returnsRequiredKeys(): void
     {
-        try {
-            $result = $this->service->applyPending(date('Y-m-d'), dryRun: true);
-        } catch (\Cake\Database\Exception\DatabaseException $e) {
-            $this->markTestSkipped('m_room_transfer_schedule テーブルがテストDBに存在しません: ' . $e->getMessage());
-            return;
-        }
+        $result = $this->service->applyPending(date('Y-m-d'), dryRun: true);
 
         $this->assertArrayHasKey('applied', $result);
         $this->assertArrayHasKey('errors', $result);
+    }
+
+    public function testApplyPending_returnsAppliedAsInteger(): void
+    {
+        $result = $this->service->applyPending(date('Y-m-d'));
+
+        $this->assertIsInt($result['applied']);
+    }
+
+    public function testApplyPending_returnsErrorsAsArray(): void
+    {
+        $result = $this->service->applyPending(date('Y-m-d'));
+
+        $this->assertIsArray($result['errors']);
     }
 }
