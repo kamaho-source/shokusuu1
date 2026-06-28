@@ -126,6 +126,7 @@ class FeatureUsageSummaryService
      * @param string $yearMonth 対象月 (YYYY-MM)
      * @param string|null $category カテゴリ絞り込み（null = 全件）
      * @return array{hours: list<array{hour: int, label: string, total: int}>, peak_hour: int|null, peak_total: int}
+     * @throws \Cake\Database\Exception\DatabaseException DBクエリ失敗時
      */
     public function getHourlyDistribution(string $yearMonth, ?string $category = null): array
     {

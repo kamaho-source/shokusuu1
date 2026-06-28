@@ -161,14 +161,14 @@ $q = $this->request->getQueryParams();
                 <p class="mb-0">対象期間にデータがありません。</p>
             </div>
         <?php else: ?>
-            <div class="row g-1 align-items-end" style="height:140px;">
+            <div class="row g-1 align-items-end" style="height:140px;padding-top:14px;">
                 <?php foreach ($hourlyUsage['hours'] as $h):
                     $pct = $hourlyUsage['peak_total'] > 0
                         ? (int)round($h['total'] / $hourlyUsage['peak_total'] * 100)
                         : 0;
                     $isPeak = ($h['hour'] === $hourlyUsage['peak_hour'] && $h['total'] > 0);
                     $barColor = $isPeak ? '#f97316' : '#6ea8fe';
-                    $colHeight = max(4, (int)round($pct * 1.1));
+                    $colHeight = max(4, $pct);
                 ?>
                     <div class="col position-relative d-flex flex-column align-items-center justify-content-end"
                          style="height:100%;"
