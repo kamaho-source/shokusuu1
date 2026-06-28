@@ -103,8 +103,10 @@ class TReservationInfoController extends ReservationBaseController
             : ((!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null);
 
         // 初期表示は前月〜翌2ヶ月の範囲に絞る（FullCalendarの表示範囲に合わせる）
-        $viewStart = $today->subMonths(1)->format('Y-m-d');
-        $viewEnd   = $today->addMonths(2)->format('Y-m-d');
+        // サービス側が endDate を排他的（<）に扱うため、viewEnd は翌々月末の翌日（月初）を指定する
+        $firstOfMonth = new Date($today->format('Y-m') . '-01');
+        $viewStart    = $firstOfMonth->subMonths(1)->format('Y-m-d');
+        $viewEnd      = $firstOfMonth->addMonths(3)->format('Y-m-d');
 
         $mealDataArray = $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,
@@ -153,6 +155,10 @@ class TReservationInfoController extends ReservationBaseController
 
         $start = (string)$this->request->getQuery('start');
         $end   = (string)$this->request->getQuery('end');
+
+        if ($start === '' || $end === '') {
+            return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
+        }
 
         try {
             $startDate = new Date($start);
