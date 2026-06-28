@@ -102,14 +102,22 @@ class TReservationInfoController extends ReservationBaseController
             ? [$calRoomId]
             : ((!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null);
 
+        // 初期表示は前月〜翌2ヶ月の範囲に絞る（FullCalendarの表示範囲に合わせる）
+        $viewStart = $today->subMonths(1)->format('Y-m-d');
+        $viewEnd   = $today->addMonths(2)->format('Y-m-d');
+
         $mealDataArray = $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,
-            $calRoomFilter
+            $calRoomFilter,
+            $viewStart,
+            $viewEnd
         );
 
         $myReservationDetails = $this->calendarService->buildMyReservationDetails(
             $this->TIndividualReservationInfo,
-            (int)$userId
+            (int)$userId,
+            $viewStart,
+            $viewEnd
         );
         $myReservationDates = $this->calendarService->buildMyReservationDates($myReservationDetails);
         $staff_user = $this->calendarService->getStaffUserInfo($this->MUserGroup, (int)$userId);
@@ -143,7 +151,25 @@ class TReservationInfoController extends ReservationBaseController
 
         $this->request->allowMethod(['get']);
 
-        $events = $this->calendarService->buildTotalEvents($this->TIndividualReservationInfo);
+        $start = (string)$this->request->getQuery('start');
+        $end   = (string)$this->request->getQuery('end');
+
+        try {
+            $startDate = new Date($start);
+            $endDate   = new Date($end);
+        } catch (\Throwable) {
+            return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
+        }
+
+        if ($startDate->diffInDays($endDate, false) < 0 || $startDate->diffInDays($endDate, false) > 366) {
+            return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
+        }
+
+        $events = $this->calendarService->buildTotalEvents(
+            $this->TIndividualReservationInfo,
+            $startDate->format('Y-m-d'),
+            $endDate->format('Y-m-d')
+        );
 
         return $this->apiResponseService->success($this->response, ['events' => $events]);
     }
