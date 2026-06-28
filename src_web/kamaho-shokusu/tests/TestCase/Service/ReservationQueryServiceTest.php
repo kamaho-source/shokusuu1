@@ -7,6 +7,11 @@ use App\Service\ReservationQueryService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * ReservationQueryService テスト。
+ *
+ * hasDuplicateReservation・getUsersByRoom・getReservationSnapshots・getUsersByRoomForBulk の挙動を検証する。
+ */
 class ReservationQueryServiceTest extends TestCase
 {
     protected array $fixtures = [
@@ -63,6 +68,7 @@ class ReservationQueryServiceTest extends TestCase
 
         $result = $this->service->getUsersByRoom($userGroupTable, $reservationTable, 1, null);
 
+        $this->assertNotEmpty($result);
         foreach ($result as $entry) {
             $this->assertArrayHasKey('id', $entry);
             $this->assertArrayHasKey('name', $entry);
@@ -112,6 +118,7 @@ class ReservationQueryServiceTest extends TestCase
         $result = $this->service->getReservationSnapshots($reservationTable, 1, ['2099-12-31']);
 
         $this->assertIsArray($result);
+        $this->assertEmpty($result);
     }
 
     // ----------------------------------------------------------------

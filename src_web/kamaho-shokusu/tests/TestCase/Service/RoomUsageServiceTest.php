@@ -6,6 +6,11 @@ namespace App\Test\TestCase\Service;
 use App\Service\RoomUsageService;
 use Cake\TestSuite\TestCase;
 
+/**
+ * RoomUsageService テスト。
+ *
+ * getRoomUsage の戻り値構造・型・範囲と getLowUsageRooms のしきい値フィルタリングを検証する。
+ */
 class RoomUsageServiceTest extends TestCase
 {
     protected array $fixtures = [

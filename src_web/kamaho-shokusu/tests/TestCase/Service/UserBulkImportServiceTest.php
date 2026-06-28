@@ -7,6 +7,11 @@ use App\Service\UserBulkImportService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * UserBulkImportService テスト。
+ *
+ * import のバリデーション・スキップ・作成・エラー処理の挙動を検証する。
+ */
 class UserBulkImportServiceTest extends TestCase
 {
     protected array $fixtures = [

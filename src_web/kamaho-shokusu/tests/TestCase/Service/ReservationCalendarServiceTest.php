@@ -8,6 +8,11 @@ use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * ReservationCalendarService テスト。
+ *
+ * getPrimaryRoomId・buildMyReservationDates・buildCalendarEvents・getUserRoomIds・isOfficeUser・getRoomsForUser の挙動を検証する。
+ */
 class ReservationCalendarServiceTest extends TestCase
 {
     protected array $fixtures = [

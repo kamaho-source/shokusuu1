@@ -7,6 +7,11 @@ use App\Service\RoomService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * RoomService テスト。
+ *
+ * nextDisplayNo・getUsersForRoom・softDelete の挙動を検証する。
+ */
 class RoomServiceTest extends TestCase
 {
     protected array $fixtures = [
@@ -78,6 +83,19 @@ class RoomServiceTest extends TestCase
         $result = $this->service->getUsersForRoom($roomInfo);
 
         $this->assertIsArray($result);
+
+        $expectedUserIds = array_map(
+            static fn ($group) => (int)$group->i_id_user,
+            $roomInfo->m_user_group
+        );
+        $actualUserIds = array_map(
+            static fn ($user) => (int)$user->i_id_user,
+            $result
+        );
+        sort($expectedUserIds);
+        sort($actualUserIds);
+        $this->assertNotEmpty($expectedUserIds);
+        $this->assertSame($expectedUserIds, $actualUserIds);
     }
 
     // ----------------------------------------------------------------

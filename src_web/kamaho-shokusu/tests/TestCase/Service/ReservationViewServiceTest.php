@@ -8,6 +8,11 @@ use App\Service\ReservationViewService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * ReservationViewService テスト。
+ *
+ * buildViewContext の必須キー・isAdmin 判定・日付フォールバックを検証する。
+ */
 class ReservationViewServiceTest extends TestCase
 {
     protected array $fixtures = [
@@ -83,6 +88,8 @@ class ReservationViewServiceTest extends TestCase
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $queryService     = new ReservationQueryService();
 
+        $today = (new \DateTime('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
+
         $result = $this->service->buildViewContext(
             null,
             null,
@@ -93,11 +100,10 @@ class ReservationViewServiceTest extends TestCase
             $queryService
         );
 
-        $today = (new \DateTime('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
         $this->assertSame($today, $result['date']);
     }
 
-    public function testBuildViewContext_mealDataArrayHasMealTypeKeys(): void
+    public function testBuildViewContext_mealDataArrayIsArray(): void
     {
         $roomTable        = TableRegistry::getTableLocator()->get('MRoomInfo');
         $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');

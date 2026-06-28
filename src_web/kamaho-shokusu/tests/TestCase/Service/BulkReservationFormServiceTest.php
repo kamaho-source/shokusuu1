@@ -6,6 +6,11 @@ namespace App\Test\TestCase\Service;
 use App\Service\BulkReservationFormService;
 use Cake\TestSuite\TestCase;
 
+/**
+ * BulkReservationFormService テスト。
+ *
+ * buildBulkAddData と buildBulkChangeEditData の日付ウィンドウ・無効化ロジックを検証する。
+ */
 class BulkReservationFormServiceTest extends TestCase
 {
     private BulkReservationFormService $service;
@@ -103,7 +108,7 @@ class BulkReservationFormServiceTest extends TestCase
 
         $today = new \DateTimeImmutable('today', new \DateTimeZone('Asia/Tokyo'));
         foreach ($result['days'] as $day) {
-            $dayDate = new \DateTimeImmutable($day['date']);
+            $dayDate = new \DateTimeImmutable($day['date'], new \DateTimeZone('Asia/Tokyo'));
             if ($dayDate < $today) {
                 $this->assertTrue($day['is_disabled'], "past day {$day['date']} should be disabled");
             }

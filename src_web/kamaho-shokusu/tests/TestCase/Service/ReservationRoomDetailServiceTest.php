@@ -8,6 +8,11 @@ use Cake\Http\Exception\NotFoundException;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * ReservationRoomDetailService テスト。
+ *
+ * getRoomDetails の例外ガード条件と useChangeFlag の日付判定ロジックを検証する。
+ */
 class ReservationRoomDetailServiceTest extends TestCase
 {
     protected array $fixtures = [
@@ -120,7 +125,7 @@ class ReservationRoomDetailServiceTest extends TestCase
         $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
 
         // 今日から5日後 -> 14日以内 -> useChangeFlag=true
-        $nearDate = (new \DateTimeImmutable('+5 days'))->format('Y-m-d');
+        $nearDate = (new \DateTimeImmutable('+5 days', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
 
         $result = $this->service->getRoomDetails(
             1,

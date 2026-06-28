@@ -7,6 +7,11 @@ use App\Service\ActualMealManagementService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * ActualMealManagementService テスト。
+ *
+ * getAdminOldestAllowedMonday・getAdultUsers・buildWeekGrid・saveActualMeal・requestApproval の挙動を検証する。
+ */
 class ActualMealManagementServiceTest extends TestCase
 {
     protected array $fixtures = [
@@ -74,14 +79,8 @@ class ActualMealManagementServiceTest extends TestCase
 
         $result = $this->service->getAdultUsers($userGroupTable, $userTable, 1);
 
-        // フィクスチャのユーザーは i_id_staff が null なので空配列が返るはず
-        // (staff_id 未設定ユーザーは除外される)
-        $this->assertIsArray($result);
-        foreach ($result as $user) {
-            $this->assertArrayHasKey('id', $user);
-            $this->assertArrayHasKey('name', $user);
-            $this->assertArrayHasKey('staff_id', $user);
-        }
+        // フィクスチャのユーザーは i_id_staff が null なので staff_id 未設定ユーザーは除外され空配列が返る
+        $this->assertSame([], $result);
     }
 
     public function testGetAdultUsers_nonExistentRoom_returnsEmpty(): void

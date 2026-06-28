@@ -7,6 +7,11 @@ use App\Service\ReservationChangeEditService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * ReservationChangeEditService テスト。
+ *
+ * resolveDefaultRoomId のガード条件と buildUsersForJson の権限別挙動を検証する。
+ */
 class ReservationChangeEditServiceTest extends TestCase
 {
     protected array $fixtures = [
@@ -68,7 +73,7 @@ class ReservationChangeEditServiceTest extends TestCase
     {
         // i_admin=1 のユーザーはすべてを編集できる
         $loginUser = new class {
-            public function get(string $key): mixed
+            public function get(string $key): int|null
             {
                 return match ($key) {
                     'i_admin'      => 1,

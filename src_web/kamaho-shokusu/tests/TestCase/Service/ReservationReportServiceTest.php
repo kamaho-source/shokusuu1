@@ -7,6 +7,11 @@ use App\Service\ReservationReportService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * ReservationReportService テスト。
+ *
+ * getMealCounts・buildAllRoomsMealCounts・buildRoomMealCounts・buildExportJson・buildExportJsonRank の挙動を検証する。
+ */
 class ReservationReportServiceTest extends TestCase
 {
     protected array $fixtures = [
@@ -57,7 +62,7 @@ class ReservationReportServiceTest extends TestCase
 
         $result = $this->service->buildAllRoomsMealCounts($reservationTable, '2099-01-01', '2099-01-01');
 
-        $this->assertIsArray($result);
+        $this->assertSame([], $result);
     }
 
     // ----------------------------------------------------------------

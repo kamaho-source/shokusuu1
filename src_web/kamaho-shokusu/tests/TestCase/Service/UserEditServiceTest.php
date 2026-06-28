@@ -7,6 +7,11 @@ use App\Service\UserEditService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
+/**
+ * UserEditService テスト。
+ *
+ * updateWithRooms の正常更新・部屋割り当て・監査ログ記録を検証する。
+ */
 class UserEditServiceTest extends TestCase
 {
     protected array $fixtures = [

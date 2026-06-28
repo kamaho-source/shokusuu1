@@ -6,6 +6,11 @@ namespace App\Test\TestCase\Service;
 use App\Service\NotificationService;
 use Cake\TestSuite\TestCase;
 
+/**
+ * NotificationService テスト。
+ *
+ * getUnreadCount・markAsRead・markAllAsRead・getRecentNotifications・getNotifications・createRejectionNotifications のガード条件を検証する。
+ */
 class NotificationServiceTest extends TestCase
 {
     private NotificationService $service;

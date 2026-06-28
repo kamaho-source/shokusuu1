@@ -10,7 +10,7 @@ use Cake\TestSuite\TestCase;
 /**
  * UserRoomAssignmentService テスト。
  *
- * assign() が既存所属を無効化し、新しい部屋を登録することを検証する。
+ * assign の正常割り当て・既存グループ無効化・エラーハンドリングを検証する。
  */
 class UserRoomAssignmentServiceTest extends TestCase
 {
@@ -42,6 +42,23 @@ class UserRoomAssignmentServiceTest extends TestCase
             ->toArray();
     }
 
+    private function getExistingRoomName(int $userId = 1): string
+    {
+        return $this->userGroupTable()
+            ->find()
+            ->join([
+                'r' => [
+                    'table' => 'm_room_info',
+                    'type' => 'INNER',
+                    'conditions' => 'r.i_id_room = MUserGroup.i_id_room',
+                ],
+            ])
+            ->select(['r.c_room_name'])
+            ->where(['MUserGroup.i_id_user' => $userId])
+            ->enableHydration(false)
+            ->first()['c_room_name'] ?? 'Lorem ipsum dolor sit amet';
+    }
+
     // ----------------------------------------------------------------
     // 正常系
     // ----------------------------------------------------------------
@@ -70,7 +87,7 @@ class UserRoomAssignmentServiceTest extends TestCase
 
     public function testAssignDeactivatesOldGroups(): void
     {
-        $roomName = 'Lorem ipsum dolor sit amet';
+        $roomName = $this->getExistingRoomName();
 
         $this->service->assign(1, [$roomName], 'test_actor');
 
@@ -81,17 +98,19 @@ class UserRoomAssignmentServiceTest extends TestCase
 
     public function testAssignReturnsEmptyErrorsOnSuccess(): void
     {
-        $result = $this->service->assign(1, ['Lorem ipsum dolor sit amet'], 'test_actor');
+        $result = $this->service->assign(1, [$this->getExistingRoomName()], 'test_actor');
 
         $this->assertEmpty($result['errors']);
     }
 
     public function testAssignLimitsToTwoRooms(): void
     {
+        $roomName = $this->getExistingRoomName();
+
         // 3件渡しても最大2件しか処理されない
         $result = $this->service->assign(
             1,
-            ['Lorem ipsum dolor sit amet', 'Lorem ipsum dolor sit amet', 'Lorem ipsum dolor sit amet'],
+            [$roomName, $roomName, $roomName],
             'test_actor'
         );
 
