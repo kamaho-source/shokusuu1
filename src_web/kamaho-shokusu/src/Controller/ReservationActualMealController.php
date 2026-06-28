@@ -520,12 +520,14 @@ class ReservationActualMealController extends ReservationBaseController
             'canGoPrev'       => $weekNav['canGoPrev'],
             'canGoNext'       => $weekNav['canGoNext'],
             'isAdmin'         => $isAdmin,
+            'isBlockLeader'   => $isBlockLeader,
             'canViewAll'      => $canViewAll,
             'canViewRoom'     => $canViewRoom,
             'canUseAllMode'   => $canUseAllMode,
             'hasStaffId'      => $hasStaffId,
             'loginUserId'     => $loginUserId,
             'loginName'       => $loginName,
+            'loginRoomIds'    => $userRoomIds,
         ]);
 
         $this->viewBuilder()->setLayout('default');

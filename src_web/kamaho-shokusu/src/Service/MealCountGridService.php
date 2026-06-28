@@ -195,6 +195,7 @@ class MealCountGridService
                 'MUserInfo.i_del_flag'   => 0,
             ])
             ->enableHydration(false)
+            ->orderAsc('MUserInfo.i_user_level')
             ->orderAsc('MUserInfo.c_user_name')
             ->all();
 
@@ -276,6 +277,8 @@ class MealCountGridService
 
         // (userId, roomId, date, mealType) → effective フラグ
         $map = [];
+        // (userId, date, mealType) → 予約が有効な最初の roomId（他部屋ロック判定用）
+        $activeMealRooms = [];
         foreach ($rows as $row) {
             $uid    = (int)$row['i_id_user'];
             $rid    = (int)$row['i_id_room'];
@@ -291,6 +294,11 @@ class MealCountGridService
             $effective = $change !== null ? (int)$change : (int)($eat ?? 0);
 
             $map[$uid][$rid][$date][$type] = $effective === 1;
+
+            // 他部屋ロック用: 有効な予約が存在する最初の部屋を記録
+            if ($effective === 1 && !isset($activeMealRooms[$uid][$date][$type])) {
+                $activeMealRooms[$uid][$date][$type] = $rid;
+            }
         }
 
         // グリッド組み立て
@@ -305,26 +313,36 @@ class MealCountGridService
             $roomId = (int)$roomId;
             $users  = $roomUsers[$roomId] ?? [];
 
-            $grid = [];
+            $grid     = [];
+            $otherRoom = []; // [$uid][$date][$type] = 他部屋の roomId
             foreach ($users as $u) {
                 $uid = (int)$u['id'];
-                $grid[$uid] = [];
+                $grid[$uid]     = [];
+                $otherRoom[$uid] = [];
                 foreach ($dates as $date) {
-                    $grid[$uid][$date] = [];
+                    $grid[$uid][$date]      = [];
+                    $otherRoom[$uid][$date] = [];
                     foreach ($mealTypes as $mealType) {
                         $on = $map[$uid][$roomId][$date][$mealType] ?? false;
                         $grid[$uid][$date][$mealType] = $on;
                         if ($on) {
                             $dailyTotals[$date][$mealType]++;
                         }
+
+                        // 当部屋に予約がなく、別部屋に有効な予約がある場合はロック対象
+                        $activeRid = $activeMealRooms[$uid][$date][$mealType] ?? null;
+                        if (!$on && $activeRid !== null && $activeRid !== $roomId) {
+                            $otherRoom[$uid][$date][$mealType] = $activeRid;
+                        }
                     }
                 }
             }
 
             $roomsData[$roomId] = [
-                'name'  => $roomName,
-                'users' => $users,
-                'grid'  => $grid,
+                'name'      => $roomName,
+                'users'     => $users,
+                'grid'      => $grid,
+                'otherRoom' => $otherRoom,
             ];
         }
 

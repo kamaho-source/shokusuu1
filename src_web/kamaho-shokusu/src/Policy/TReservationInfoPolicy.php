@@ -71,8 +71,8 @@ class TReservationInfoPolicy
             return true;
         }
 
-        // 職員IDを持つユーザーは子供の予約編集を試みられる（サービス層で対象が子供かを検証）
-        if ($this->hasStaffId($user)) {
+        // 職員（level 0/7）は子供の予約編集を試みられる（サービス層で対象が子供かを検証）
+        if ($this->isStaff($user)) {
             return true;
         }
 
@@ -278,15 +278,15 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_user_level') === 0;
+            return in_array((int)$identity->get('i_user_level'), [0, 7], true);
         }
 
         if (is_array($identity)) {
-            return (int)($identity['i_user_level'] ?? -1) === 0;
+            return in_array((int)($identity['i_user_level'] ?? -1), [0, 7], true);
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_user_level'] ?? -1) === 0;
+            return in_array((int)($identity['i_user_level'] ?? -1), [0, 7], true);
         }
 
         return false;

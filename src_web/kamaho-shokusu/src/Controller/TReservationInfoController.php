@@ -540,7 +540,11 @@ class TReservationInfoController extends ReservationBaseController
                         $data,
                         $rooms,
                         (string)$user->get('c_user_name'),
-                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
+                        fn($d) => $this->datePolicy->validateReservationDate((string)$d),
+                        (int)$userId,
+                        UserRole::isAdmin((int)$user->get('i_admin')),
+                        (int)$user->get('i_user_level'),
+                        UserRole::isBlockLeader((int)$user->get('i_admin'))
                     );
                 $auditSuccess = 1;
                 $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
@@ -625,7 +629,7 @@ class TReservationInfoController extends ReservationBaseController
         $loginUser = $this->request->getAttribute('identity');
         if ($loginUser !== null) {
             $isAdmin  = UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
-            $isStaff  = (int)($loginUser->get('i_user_level') ?? -1) === 0;
+            $isStaff  = in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
             if (!$isAdmin && !$isStaff) {
                 $loginUidEarly = (int)($loginUser->get('i_id_user') ?? 0);
                 $hasAffiliation = $loginUidEarly > 0 && $this->changeEditService->userHasRoomAccess($loginUidEarly);
@@ -662,6 +666,7 @@ class TReservationInfoController extends ReservationBaseController
                 $this->MRoomInfo
             );
             $isRoomManager = !empty($allowedRooms);
+            $isBlockLeaderForEdit = $loginUser && UserRole::isBlockLeader((int)($loginUser->get('i_admin') ?? 0));
 
             if ($isModalShell) {
                 $rooms = $allowedRooms;
@@ -794,7 +799,11 @@ class TReservationInfoController extends ReservationBaseController
 
             if ($this->request->is('get')) {
                 if ($wantsJson) {
-                    $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser, $isRoomManager);
+                    $isBlockLeaderInRoom = $isBlockLeaderForEdit && $roomId && (bool)$this->MUserGroup->exists([
+                        'i_id_user' => $loginUid,
+                        'i_id_room' => (int)$roomId,
+                    ]);
+                    $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser, $isRoomManager, $isBlockLeaderInRoom);
 
                     return $this->response->withType('application/json')
                         ->withStringBody(json_encode([

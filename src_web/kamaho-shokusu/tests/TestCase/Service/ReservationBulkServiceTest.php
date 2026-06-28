@@ -112,7 +112,7 @@ class ReservationBulkServiceTest extends TestCase
     }
 
     /** processBulkAdd を group モードで呼び出す共通ヘルパー */
-    private function callBulkAdd(array $dayUsers, int $roomId = 1): array
+    private function callBulkAdd(array $dayUsers, int $roomId = 1, bool $isAdmin = true): array
     {
         return $this->service->processBulkAdd(
             [
@@ -124,7 +124,8 @@ class ReservationBulkServiceTest extends TestCase
             'tester',
             $this->reservationTable,
             $this->userTable,
-            $this->roomTable
+            $this->roomTable,
+            $isAdmin
         );
     }
 
@@ -225,5 +226,35 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertNotNull($noon, '昼のレコードが作成されていない');
         $this->assertSame(1, (int)$noon->eat_flag, '昼の eat_flag が 1 でない');
         $this->assertSame(1, (int)$noon->i_change_flag, '昼の i_change_flag が 1 でない');
+    }
+
+    /**
+     * 非管理者職員が他の職員ユーザー（i_user_level=0）の予約を操作しようとするとエラー
+     */
+    public function testNonAdminStaffCannotEditOtherStaffReservation(): void
+    {
+        // user 1 は i_user_level=0（職員）のため、非管理者職員 loginUserId=99 は操作不可
+        $result = $this->callBulkAdd(
+            ['2026-06-01' => ['1' => ['1' => '1']]],
+            1,
+            false  // isAdmin = false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('権限がありません', $result['message']);
+    }
+
+    /**
+     * 管理者は他の職員ユーザーの予約を操作できる
+     */
+    public function testAdminCanEditOtherStaffReservation(): void
+    {
+        $result = $this->callBulkAdd(
+            ['2026-06-01' => ['1' => ['1' => '1']]],
+            1,
+            true  // isAdmin = true
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
     }
 }
