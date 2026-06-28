@@ -210,9 +210,9 @@ class ReservationCalendarService
     {
         $dates = [];
         foreach ($details as $date => $meals) {
-            // 食事フラグ4種のいずれかがnull以外（0=食べない も予約レコードとして扱う）
-            if ($meals['breakfast'] !== null || $meals['lunch'] !== null
-                || $meals['dinner'] !== null || $meals['bento'] !== null) {
+            // 食事フラグ4種のいずれかが 1（食べる）であれば予約済みとする
+            // 0（食べない）はカレンダー上 × 表示であり未予約と同等に扱う
+            if (in_array(1, $meals, true)) {
                 $dates[] = $date;
             }
         }
