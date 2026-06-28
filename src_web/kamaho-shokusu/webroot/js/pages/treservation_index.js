@@ -607,7 +607,12 @@ function openModalById(id){
              * @param {string} dateStr YYYY-MM-DD
              * @param {number} roomId
              */
-            function registerMealsDirectly(dateStr, roomId) {
+            /**
+             * @param {string} dateStr YYYY-MM-DD
+             * @param {number} roomId
+             * @param {number[]} [mealIndices] 登録する食事IDの配列。省略時は未予約の全食事を対象とする
+             */
+            function registerMealsDirectly(dateStr, roomId, mealIndices) {
                 var toggleBase = (window.__TRESP && window.__TRESP.toggleBase) || '';
                 var csrf = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
                 var userId = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
@@ -618,11 +623,17 @@ function openModalById(id){
                     { idx: 2, key: 'lunch' },
                     { idx: 3, key: 'dinner' },
                 ];
-                // すでにONのものは除外
-                var targetMeals = allMeals.filter(function(mt) { return !detail[mt.key]; });
+                // mealIndices が指定された場合はその食事のみ対象にする（すでにONのものは除外）
+                var targetMeals = allMeals.filter(function(mt) {
+                    if (detail[mt.key]) return false;
+                    if (mealIndices && mealIndices.length > 0) {
+                        return mealIndices.indexOf(mt.idx) !== -1;
+                    }
+                    return true;
+                });
 
                 if (targetMeals.length === 0) {
-                    if (window.pageToast) window.pageToast('朝・昼・夕はすでにすべて登録済みです。', 'info');
+                    if (window.pageToast) window.pageToast('選択した食事はすでに登録済みです。', 'info');
                     return;
                 }
 
@@ -775,6 +786,125 @@ function openModalById(id){
                 }, 0);
             }
 
+            /**
+             * 食事選択ポップアップを表示する。
+             * 朝食・昼食・夕食のチェックボックスを表示し、選択した食事のみ registerMealsDirectly で登録する。
+             * @param {MouseEvent} jsEvent
+             * @param {string} dateStr YYYY-MM-DD
+             * @param {number} roomId
+             */
+            function showMealPickerForDate(jsEvent, dateStr, roomId) {
+                var existing = document.getElementById('__dateClickMealPicker');
+                if (existing) existing.remove();
+
+                var detail = MY_DETAILS[dateStr] || { breakfast: false, lunch: false, dinner: false, bento: false };
+                var meals = [
+                    { idx: 1, key: 'breakfast', label: '朝食' },
+                    { idx: 2, key: 'lunch',     label: '昼食' },
+                    { idx: 3, key: 'dinner',    label: '夕食' },
+                ];
+                var availableMeals = meals.filter(function(m) { return !detail[m.key]; });
+
+                if (availableMeals.length === 0) {
+                    if (window.pageToast) window.pageToast('朝・昼・夕はすでにすべて登録済みです。', 'info');
+                    return;
+                }
+
+                var picker = document.createElement('div');
+                picker.id = '__dateClickMealPicker';
+                picker.style.cssText = [
+                    'position:fixed',
+                    'z-index:99999',
+                    'background:#fff',
+                    'border:1px solid #ccc',
+                    'border-radius:6px',
+                    'box-shadow:0 4px 12px rgba(0,0,0,.2)',
+                    'padding:10px 14px 12px',
+                    'min-width:180px',
+                    'font-size:14px',
+                ].join(';');
+
+                var header = document.createElement('div');
+                header.textContent = dateStr + ' — 予約する食事を選択';
+                header.style.cssText = 'font-size:12px;color:#666;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:8px';
+                picker.appendChild(header);
+
+                var checkboxes = [];
+                availableMeals.forEach(function(m) {
+                    var row = document.createElement('label');
+                    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer';
+
+                    var cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.value = String(m.idx);
+                    cb.checked = true;
+                    cb.style.cssText = 'width:16px;height:16px;cursor:pointer';
+
+                    var span = document.createElement('span');
+                    span.textContent = m.label;
+
+                    row.appendChild(cb);
+                    row.appendChild(span);
+                    picker.appendChild(row);
+                    checkboxes.push(cb);
+                });
+
+                var footer = document.createElement('div');
+                footer.style.cssText = 'display:flex;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid #eee';
+
+                var cancelBtn = document.createElement('button');
+                cancelBtn.type = 'button';
+                cancelBtn.textContent = 'キャンセル';
+                cancelBtn.style.cssText = 'flex:1;padding:6px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:13px';
+
+                var confirmBtn = document.createElement('button');
+                confirmBtn.type = 'button';
+                confirmBtn.textContent = '登録する';
+                confirmBtn.style.cssText = 'flex:1;padding:6px;border:none;border-radius:4px;background:#0d6efd;color:#fff;cursor:pointer;font-size:13px;font-weight:600';
+
+                function closePicker() {
+                    picker.remove();
+                    document.removeEventListener('click', mealOutsideHandler, true);
+                }
+
+                cancelBtn.addEventListener('click', function() { closePicker(); });
+
+                confirmBtn.addEventListener('click', function() {
+                    var selectedIndices = checkboxes
+                        .filter(function(cb) { return cb.checked; })
+                        .map(function(cb) { return parseInt(cb.value, 10); });
+
+                    closePicker();
+
+                    if (selectedIndices.length === 0) {
+                        if (window.pageToast) window.pageToast('食事を1つ以上選択してください。', 'warning');
+                        return;
+                    }
+                    registerMealsDirectly(dateStr, roomId, selectedIndices);
+                });
+
+                footer.appendChild(cancelBtn);
+                footer.appendChild(confirmBtn);
+                picker.appendChild(footer);
+
+                document.body.appendChild(picker);
+                var x = jsEvent.clientX + 8;
+                var y = jsEvent.clientY + 8;
+                var pw = picker.offsetWidth;
+                var ph = picker.offsetHeight;
+                if (x + pw > window.innerWidth)  x = window.innerWidth  - pw - 8;
+                if (y + ph > window.innerHeight) y = window.innerHeight - ph - 8;
+                picker.style.left = x + 'px';
+                picker.style.top  = y + 'px';
+
+                function mealOutsideHandler(e) {
+                    if (!picker.contains(e.target)) { closePicker(); }
+                }
+                setTimeout(function() {
+                    document.addEventListener('click', mealOutsideHandler, true);
+                }, 0);
+            }
+
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 initialDate: defaultDate,
                 initialView: 'dayGridMonth',
@@ -906,7 +1036,7 @@ function openModalById(id){
                             return;
                         }
 
-                        // 誰も予約していない日 → 部屋選択ドロップダウン → 直接登録
+                        // 誰も予約していない日 → 部屋選択 → 食事選択 → 登録
                         var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
                         if (Object.keys(roomNames).length === 0) {
                             if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
@@ -915,7 +1045,10 @@ function openModalById(id){
                         var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
                             ? window.__TRESP.calRoomId
                             : null;
-                        showRoomPickerForDate(info.jsEvent, dateStr, roomNames, defaultRoomId);
+                        var capturedJsEvent = info.jsEvent;
+                        showRoomPickerForDate(info.jsEvent, dateStr, roomNames, defaultRoomId, function(selectedRoomId) {
+                            showMealPickerForDate(capturedJsEvent, dateStr, selectedRoomId);
+                        });
                     } catch (e) {
                         console.warn('dateClick error:', e);
                     }
