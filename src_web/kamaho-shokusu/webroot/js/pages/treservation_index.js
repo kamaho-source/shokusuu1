@@ -603,17 +603,13 @@ function openModalById(id){
 
             /**
              * まだOFFの食事タイプ（朝・昼・夕）だけを直接登録する。
-             * 昼(2)と弁当(4)の競合を避けるため弁当は対象外。
-             * @param {string} dateStr YYYY-MM-DD
-             * @param {number} roomId
-             */
-            /**
+             * 1リクエストで複数食事をまとめて送信する（DirectRegisterMealsUseCase 経由）。
              * @param {string} dateStr YYYY-MM-DD
              * @param {number} roomId
              * @param {number[]} [mealIndices] 登録する食事IDの配列。省略時は未予約の全食事を対象とする
              */
             function registerMealsDirectly(dateStr, roomId, mealIndices) {
-                var toggleBase = (window.__TRESP && window.__TRESP.toggleBase) || '';
+                var directRegisterUrl = (window.__TRESP && window.__TRESP.directRegisterUrl) || '';
                 var csrf = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
                 var userId = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
 
@@ -622,8 +618,8 @@ function openModalById(id){
                     { idx: 1, key: 'breakfast' },
                     { idx: 2, key: 'lunch' },
                     { idx: 3, key: 'dinner' },
+                    { idx: 4, key: 'bento' },
                 ];
-                // mealIndices が指定された場合はその食事のみ対象にする（すでにONのものは除外）
                 var targetMeals = allMeals.filter(function(mt) {
                     if (detail[mt.key]) return false;
                     if (mealIndices && mealIndices.length > 0) {
@@ -637,48 +633,39 @@ function openModalById(id){
                     return;
                 }
 
-                var pending = targetMeals.length;
-                var anyError = false;
+                var targetIndices = targetMeals.map(function(mt) { return mt.idx; });
 
-                window.__TRESP._mealToggleInFlight = window.__TRESP._mealToggleInFlight || {};
-                targetMeals.forEach(function(mt) {
-                    var url = toggleBase.replace('__ROOM__', encodeURIComponent(String(roomId)));
-                    var key = dateStr + ':' + mt.idx;
-                    if (window.__TRESP._mealToggleInFlight[key]) { pending--; return; }
-                    window.__TRESP._mealToggleInFlight[key] = true;
-                    fetch(url, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: {
-                            'Content-Type': 'application/json; charset=utf-8',
-                            'Accept': 'application/json',
-                            'X-CSRF-Token': csrf
-                        },
-                        body: JSON.stringify({ date: dateStr, meal: mt.idx, value: 1, userId: userId })
-                    })
-                    .then(function(res) { return res.json(); })
-                    .then(function(data) {
-                        if (data.ok === true || data.status === 'success') {
-                            applyToggleToLocalState(dateStr, mt.key, mt.idx, true, roomId);
-                        } else {
-                            anyError = true;
-                        }
-                    })
-                    .catch(function() { anyError = true; })
-                    .finally(function() {
-                        delete window.__TRESP._mealToggleInFlight[key];
-                        pending--;
-                        if (pending === 0) {
-                            var addedLabels = targetMeals.map(function(m) {
-                                return { 1: '朝', 2: '昼', 3: '夕' }[m.idx];
-                            }).join('・');
-                            if (anyError) {
-                                if (window.pageToast) window.pageToast('一部の予約登録に失敗しました。', 'danger');
-                            } else {
-                                if (window.pageToast) window.pageToast(addedLabels + 'の予約を登録しました。', 'success');
-                            }
-                        }
+                fetch(directRegisterUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json',
+                        'X-CSRF-Token': csrf
+                    },
+                    body: JSON.stringify({ date: dateStr, roomId: roomId, meals: targetIndices, userId: userId })
+                })
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.ok !== true && data.status !== 'success') {
+                        if (window.pageToast) window.pageToast('予約登録に失敗しました。', 'danger');
+                        return;
+                    }
+                    var registered = data.data && data.data.registered ? data.data.registered : targetIndices;
+                    registered.forEach(function(idx) {
+                        var mt = allMeals.find(function(m) { return m.idx === idx; });
+                        if (mt) applyToggleToLocalState(dateStr, mt.key, mt.idx, true, roomId);
                     });
+                    var mealNameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+                    var addedLabels = registered.map(function(idx) { return mealNameMap[idx] || idx; }).join('・');
+                    if (addedLabels) {
+                        if (window.pageToast) window.pageToast(addedLabels + 'の予約を登録しました。', 'success');
+                    } else {
+                        if (window.pageToast) window.pageToast('選択した食事はすでに登録済みです。', 'info');
+                    }
+                })
+                .catch(function() {
+                    if (window.pageToast) window.pageToast('予約登録に失敗しました。', 'danger');
                 });
             }
 
@@ -802,12 +789,23 @@ function openModalById(id){
                     { idx: 1, key: 'breakfast', label: '朝食' },
                     { idx: 2, key: 'lunch',     label: '昼食' },
                     { idx: 3, key: 'dinner',    label: '夕食' },
+                    { idx: 4, key: 'bento',     label: '弁当' },
                 ];
                 var availableMeals = meals.filter(function(m) { return !detail[m.key]; });
 
                 if (availableMeals.length === 0) {
-                    if (window.pageToast) window.pageToast('朝・昼・夕はすでにすべて登録済みです。', 'info');
+                    if (window.pageToast) window.pageToast('朝・昼・夕・弁はすでにすべて登録済みです。', 'info');
                     return;
+                }
+
+                // 昼食と弁当の競合チェック（既存予約による静的ブロック）
+                function isBlockedByConflict(idx) {
+                    return (idx === 4 && detail.lunch) || (idx === 2 && detail.bento);
+                }
+                function conflictMessageFor(idx) {
+                    if (idx === 4 && detail.lunch) return 'お昼を予約しているとお弁当は予約できません。';
+                    if (idx === 2 && detail.bento) return 'お弁当を予約しているとお昼は予約できません。';
+                    return '';
                 }
 
                 var picker = document.createElement('div');
@@ -820,7 +818,7 @@ function openModalById(id){
                     'border-radius:6px',
                     'box-shadow:0 4px 12px rgba(0,0,0,.2)',
                     'padding:10px 14px 12px',
-                    'min-width:180px',
+                    'min-width:200px',
                     'font-size:14px',
                 ].join(';');
 
@@ -829,25 +827,97 @@ function openModalById(id){
                 header.style.cssText = 'font-size:12px;color:#666;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:8px';
                 picker.appendChild(header);
 
-                var checkboxes = [];
+                // インラインエラーメッセージ領域
+                var conflictMsgEl = document.createElement('div');
+                conflictMsgEl.style.cssText = [
+                    'display:none',
+                    'font-size:11px',
+                    'color:#dc3545',
+                    'background:#fff5f5',
+                    'border:1px solid #f5c6cb',
+                    'border-radius:4px',
+                    'padding:4px 8px',
+                    'margin-bottom:6px',
+                ].join(';');
+                picker.appendChild(conflictMsgEl);
+
+                function showConflictMsg(msg) {
+                    conflictMsgEl.textContent = msg;
+                    conflictMsgEl.style.display = 'block';
+                }
+                function hideConflictMsg() {
+                    conflictMsgEl.style.display = 'none';
+                    conflictMsgEl.textContent = '';
+                }
+
+                // 初期状態で静的ブロックがあればメッセージを表示
+                var initialBlockMsg = '';
                 availableMeals.forEach(function(m) {
+                    var msg = conflictMessageFor(m.idx);
+                    if (msg && !initialBlockMsg) initialBlockMsg = msg;
+                });
+                if (initialBlockMsg) showConflictMsg(initialBlockMsg);
+
+                var checkboxEntries = [];
+                availableMeals.forEach(function(m) {
+                    var blocked = isBlockedByConflict(m.idx);
+
                     var row = document.createElement('label');
-                    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer';
+                    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;cursor:' + (blocked ? 'not-allowed' : 'pointer');
 
                     var cb = document.createElement('input');
                     cb.type = 'checkbox';
                     cb.value = String(m.idx);
-                    cb.checked = true;
-                    cb.style.cssText = 'width:16px;height:16px;cursor:pointer';
+                    cb.checked = !blocked && m.idx !== 4;
+                    cb.disabled = blocked;
+                    cb.style.cssText = 'width:16px;height:16px;cursor:' + (blocked ? 'not-allowed' : 'pointer');
 
                     var span = document.createElement('span');
                     span.textContent = m.label;
+                    if (blocked) span.style.color = '#adb5bd';
 
                     row.appendChild(cb);
                     row.appendChild(span);
                     picker.appendChild(row);
-                    checkboxes.push(cb);
+                    checkboxEntries.push({ cb: cb, idx: m.idx, span: span, row: row });
                 });
+
+                // 動的排他制御：昼食↔弁当のチェック変化を監視
+                function updateLunchBentoExclusion() {
+                    var lunchEntry = checkboxEntries.find(function(e) { return e.idx === 2; });
+                    var bentoEntry = checkboxEntries.find(function(e) { return e.idx === 4; });
+                    if (!lunchEntry || !bentoEntry) { if (!initialBlockMsg) hideConflictMsg(); return; }
+
+                    if (lunchEntry.cb.checked) {
+                        bentoEntry.cb.checked  = false;
+                        bentoEntry.cb.disabled = true;
+                        bentoEntry.cb.style.cursor  = 'not-allowed';
+                        bentoEntry.span.style.color = '#adb5bd';
+                        bentoEntry.row.style.cursor = 'not-allowed';
+                        showConflictMsg('お昼を選択しているとお弁当は予約できません。');
+                    } else if (bentoEntry.cb.checked) {
+                        lunchEntry.cb.checked  = false;
+                        lunchEntry.cb.disabled = true;
+                        lunchEntry.cb.style.cursor  = 'not-allowed';
+                        lunchEntry.span.style.color = '#adb5bd';
+                        lunchEntry.row.style.cursor = 'not-allowed';
+                        showConflictMsg('お弁当を選択しているとお昼は予約できません。');
+                    } else {
+                        [lunchEntry, bentoEntry].forEach(function(e) {
+                            e.cb.disabled = false;
+                            e.cb.style.cursor  = 'pointer';
+                            e.span.style.color = '';
+                            e.row.style.cursor = 'pointer';
+                        });
+                        if (!initialBlockMsg) hideConflictMsg();
+                    }
+                }
+
+                checkboxEntries.forEach(function(e) {
+                    e.cb.addEventListener('change', updateLunchBentoExclusion);
+                });
+
+                var checkboxes = checkboxEntries; // confirmBtn の filter で使う後方互換エイリアス
 
                 var footer = document.createElement('div');
                 footer.style.cssText = 'display:flex;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid #eee';
@@ -870,9 +940,9 @@ function openModalById(id){
                 cancelBtn.addEventListener('click', function() { closePicker(); });
 
                 confirmBtn.addEventListener('click', function() {
-                    var selectedIndices = checkboxes
-                        .filter(function(cb) { return cb.checked; })
-                        .map(function(cb) { return parseInt(cb.value, 10); });
+                    var selectedIndices = checkboxEntries
+                        .filter(function(e) { return e.cb.checked && !e.cb.disabled; })
+                        .map(function(e) { return e.idx; });
 
                     closePicker();
 
@@ -886,6 +956,24 @@ function openModalById(id){
                 footer.appendChild(cancelBtn);
                 footer.appendChild(confirmBtn);
                 picker.appendChild(footer);
+
+                var detailLinkWrap = document.createElement('div');
+                detailLinkWrap.style.cssText = 'text-align:center;margin-top:6px;padding-top:6px;border-top:1px solid #eee';
+                var detailAnchor = document.createElement('a');
+                detailAnchor.href = '#';
+                detailAnchor.textContent = '詳細フォームで登録する →';
+                detailAnchor.style.cssText = 'font-size:11px;color:#6c757d;text-decoration:none';
+                detailAnchor.addEventListener('mouseover', function() { detailAnchor.style.textDecoration = 'underline'; });
+                detailAnchor.addEventListener('mouseout',  function() { detailAnchor.style.textDecoration = 'none'; });
+                detailAnchor.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    closePicker();
+                    if (typeof window.quickOpenDayModal === 'function') {
+                        window.quickOpenDayModal(dateStr);
+                    }
+                });
+                detailLinkWrap.appendChild(detailAnchor);
+                picker.appendChild(detailLinkWrap);
 
                 document.body.appendChild(picker);
                 var x = jsEvent.clientX + 8;
@@ -1021,22 +1109,8 @@ function openModalById(id){
                 dateClick: function(info){
                     try {
                         var dateStr = info.dateStr;
-                        var cal = info.view.calendar;
 
-                        // 予約がある日は日付余白クリックでは何もしない。
-                        // 食事タイプの追加は eventClick（食数イベントをクリック）で行う。
-                        var hasMealEvent = cal.getEvents().some(function(ev) {
-                            return ev.startStr
-                                && ev.startStr.slice(0, 10) === dateStr
-                                && ev.extendedProps
-                                && ev.extendedProps.isMealCount;
-                        });
-
-                        if (hasMealEvent) {
-                            return;
-                        }
-
-                        // 誰も予約していない日 → 部屋選択 → 食事選択 → 登録
+                        // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
                         var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
                         if (Object.keys(roomNames).length === 0) {
                             if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
