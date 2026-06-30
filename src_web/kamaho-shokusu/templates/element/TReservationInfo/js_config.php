@@ -16,6 +16,7 @@ $pastDateUnavailableMessage = (string)Configure::read(
         isChild: <?= $isChild ? 'true' : 'false' ?>,
         isAdmin: <?= $isAdmin ? 'true' : 'false' ?>,
         userLevel: <?= $user ? (int)$user->get('i_user_level') : 'null' ?>,
+        userId: <?= $user ? (int)$user->get('i_id_user') : 'null' ?>,
         roomId: <?= $userRoomId !== null ? (int)$userRoomId : 'null' ?>,
         roomIds: <?= json_encode(array_values($userRoomIds ?? []), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
         roomCount: <?= count($userRoomIds ?? []) ?>,
@@ -27,8 +28,10 @@ $pastDateUnavailableMessage = (string)Configure::read(
             bento: <?= $bentoReserved ? 'true' : 'false' ?>
         },
         myDetails: <?= $JS_MY_DETAILS ?>,
+        roomNames: <?= $JS_ROOM_NAMES ?? '{}' ?>,
         currentRoom: <?= $JS_CURRENT_ROOM ?>,
         toggleBase: <?= $JS_TOGGLE_BASE ?>,
+        directRegisterUrl: <?= json_encode($this->Url->build('/TReservationInfo/direct-register'), JSON_UNESCAPED_SLASHES) ?>,
         addUrl: '<?= preg_replace("#^https?:#", "", $this->Url->build(["controller"=>"TReservationInfo","action"=>"add"], ["fullBase"=>true])) ?>',
         changeEditUrl: '<?= preg_replace("#^https?:#", "", $this->Url->build(["controller"=>"TReservationInfo","action"=>"changeEdit"], ["fullBase"=>true])) ?>',
         csrfToken: <?= json_encode($csrfToken) ?>,

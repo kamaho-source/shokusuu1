@@ -114,10 +114,28 @@ class TReservationInfoController extends ReservationBaseController
         $myReservationDates = $this->calendarService->buildMyReservationDates($myReservationDetails);
         $staff_user = $this->calendarService->getStaffUserInfo($this->MUserGroup, (int)$userId);
 
+        // 予約に登場する部屋IDを収集し、部屋名マップを取得
+        $reservationRoomIds = [];
+        foreach ($myReservationDetails as $dayDetail) {
+            foreach (['breakfastRoom', 'lunchRoom', 'dinnerRoom', 'bentoRoom'] as $rKey) {
+                if (!empty($dayDetail[$rKey])) {
+                    $reservationRoomIds[(int)$dayDetail[$rKey]] = true;
+                }
+            }
+        }
+        $reservationRoomNames = [];
+        if (!empty($reservationRoomIds)) {
+            $reservationRoomNames = $this->MRoomInfo->find('list', [
+                'keyField'   => 'i_id_room',
+                'valueField' => 'c_room_name',
+            ])->where(['i_id_room IN' => array_keys($reservationRoomIds)])->toArray();
+        }
+
         $this->set(compact(
             'mealDataArray',
             'myReservationDates',
             'myReservationDetails',
+            'reservationRoomNames',
             'user',
             'userRoomId',
             'rooms',

@@ -25,7 +25,7 @@ $myReservationDetails = $myReservationDetails ?? [];
 $mealKeys = $mealKeys ?? [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
 
 // 子供用: トグルURLテンプレート（__ROOM__ をJSで置換）
-$toggleBase = $toggleBase ?? $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'toggle', '__ROOM__']);
+$toggleBase = $toggleBase ?? $this->Url->build('/TReservationInfo/toggle/__ROOM__');
 
 // 中学生向け UI 設定
 $isChild = isset($isChild) && (bool)$isChild;
