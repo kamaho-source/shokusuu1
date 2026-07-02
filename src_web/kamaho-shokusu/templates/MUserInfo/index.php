@@ -21,7 +21,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 
 <div class="mUserInfo index content">
     <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
-        <div class="d-flex gap-2 mb-3">
+        <div class="d-flex flex-wrap gap-2 mb-3">
             <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>
             <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary']) ?>
         </div>

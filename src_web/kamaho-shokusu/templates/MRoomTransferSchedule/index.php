@@ -22,7 +22,7 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 
 
 <div class="content">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h3 class="mb-0">
             <i class="bi bi-arrow-left-right"></i> 部屋異動予約一覧
         </h3>
