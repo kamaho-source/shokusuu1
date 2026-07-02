@@ -386,6 +386,9 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
     }
     applyNavHeight();
     window.addEventListener('resize', applyNavHeight);
+    // SPでハンバーガーメニュー開閉時もナビバー高さが変わるため追従する
+    document.addEventListener('shown.bs.collapse', applyNavHeight);
+    document.addEventListener('hidden.bs.collapse', applyNavHeight);
 }());
 
 var MCG_BASE = (window.MCG_CONFIG && window.MCG_CONFIG.basePath) ? window.MCG_CONFIG.basePath : '';
