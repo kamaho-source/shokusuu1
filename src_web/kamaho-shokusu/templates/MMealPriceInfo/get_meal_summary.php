@@ -218,7 +218,7 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
 
                     // APIからデータを取得
                     const response = await fetch(
-                        `<?= h($exportSummaryUrl) ?>?year=${selectedYear}&month=${selectedMonth}`
+                        `<?= h($exportSummaryUrl) ?>?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
@@ -358,7 +358,7 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
 
                 try {
                     const response = await fetch(
-                        `<?= h($exportSummaryPreviewUrl) ?>?year=${selectedYear}&month=${selectedMonth}`
+                        `<?= h($exportSummaryPreviewUrl) ?>?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
