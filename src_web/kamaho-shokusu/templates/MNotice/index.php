@@ -19,7 +19,7 @@ $typeLabels = [
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <div class="content">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h3 class="mb-0">
             <i class="bi bi-megaphone"></i> お知らせ管理
         </h3>

@@ -23,6 +23,7 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
         <div class="card">
             <h5 class="card-header"><?= __('部屋情報') . ' ' . h($mRoomInfo->c_room_name) ?></h5>
             <div class="card-body">
+                <div class="table-responsive">
                 <table class="table table-striped">
                     <tr>
                         <th><?= __('部屋名') ?></th>
@@ -33,6 +34,7 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
                         <td><?= $this->Number->format($mRoomInfo->i_id_room) ?></td>
                     </tr>
                 </table>
+                </div>
 
                 <?php if (!empty($users)): ?>
                     <h4><?= __('所属メンバー') ?></h4>

@@ -131,7 +131,7 @@ $recentNotifications     = $recentNotifications ?? [];
                                     </span>
                                 <?php endif; ?>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end border-0 shadow animate__animated animate__fadeIn" aria-labelledby="notificationMenu" style="min-width: 24rem;">
+                            <ul class="dropdown-menu dropdown-menu-end border-0 shadow animate__animated animate__fadeIn notification-dropdown" aria-labelledby="notificationMenu">
                                 <?php if (empty($recentNotifications)): ?>
                                     <li><span class="dropdown-item-text text-muted">未読通知はありません</span></li>
                                 <?php else: ?>

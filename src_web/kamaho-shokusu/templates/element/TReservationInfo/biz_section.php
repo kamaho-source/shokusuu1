@@ -81,7 +81,7 @@ $copyModalVars = [
             <hr class="my-3">
 
             <div class="d-flex flex-wrap align-items-center gap-2">
-                <div class="小さな text-muted"><i class="bi bi-info-circle"></i> 選択中の期間：</div>
+                <div class="small text-muted"><i class="bi bi-info-circle"></i> 選択中の期間：</div>
                 <span class="badge rounded-pill text-bg-light" id="rangeChip"><?= date('Y-m-01') ?> 〜 <?= date('Y-m-t') ?></span>
             </div>
         </div>

@@ -166,6 +166,8 @@ main.container { max-width: 100%; padding: 0; }
 
 @media (max-width: 992px) {
     .dash-main { padding: 24px 20px 40px; }
+    .dash-header { flex-wrap: wrap; }
+    .date-pill { font-size: .85rem; padding: 6px 10px; }
     .card-grid { grid-template-columns: 1fr; }
     .alert-card { grid-template-columns: 1fr; }
     .alert-actions { justify-content: flex-start; }
