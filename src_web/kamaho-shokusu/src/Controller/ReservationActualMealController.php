@@ -465,14 +465,10 @@ class ReservationActualMealController extends ReservationBaseController
             $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
 
             if ($viewMode === 'individual') {
-                if (!$canViewAll && $isStaffUser) {
-                    $users = array_values(array_filter(
-                        $users,
-                        fn($u) => (int)$u['id'] === $loginUserId || (int)($u['i_user_level'] ?? 0) === 1
-                    ));
-                } else {
-                    $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
-                }
+                // 個人モードは権限にかかわらず選択ユーザーのみ表示する
+                // （非 canViewAll は $selectedUserId がログインユーザーに固定済み。
+                //   部屋内の子供の管理は「部屋」モードで行う）
+                $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
             }
 
             $roomUsers[$roomId] = $users;
