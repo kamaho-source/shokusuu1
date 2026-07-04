@@ -121,6 +121,67 @@ class FeatureUsageSummaryService
     }
 
     /**
+     * 時間帯別使用頻度を集計して返す。
+     *
+     * @param string $yearMonth 対象月 (YYYY-MM)
+     * @param string|null $category カテゴリ絞り込み（null = 全件）
+     * @return array{hours: list<array{hour: int, label: string, total: int}>, peak_hour: int|null, peak_total: int}
+     * @throws \Cake\Database\Exception\DatabaseException DBクエリ失敗時
+     */
+    public function getHourlyDistribution(string $yearMonth, ?string $category = null): array
+    {
+        $table    = TableRegistry::getTableLocator()->get('TAuditLog');
+        $dateFrom = $yearMonth . '-01 00:00:00';
+        $dateTo   = date('Y-m-t', (int)strtotime($yearMonth . '-01')) . ' 23:59:59';
+
+        $query = $table->find()
+            ->select([
+                'hour'  => 'HOUR(dt_create)',
+                'total' => 'COUNT(*)',
+            ])
+            ->where([
+                'dt_create >=' => $dateFrom,
+                'dt_create <=' => $dateTo,
+                'i_result'     => 1,
+            ])
+            ->group('HOUR(dt_create)')
+            ->order('HOUR(dt_create)')
+            ->disableHydration();
+
+        if ($category !== null && $category !== '') {
+            $query->andWhere(['c_category' => $category]);
+        }
+
+        $rawByHour = [];
+        foreach ($query->toArray() as $row) {
+            $rawByHour[(int)$row['hour']] = (int)$row['total'];
+        }
+
+        $hours     = [];
+        $peakHour  = null;
+        $peakTotal = 0;
+
+        for ($h = 0; $h < 24; $h++) {
+            $total = $rawByHour[$h] ?? 0;
+            $hours[] = [
+                'hour'  => $h,
+                'label' => sprintf('%02d:00', $h),
+                'total' => $total,
+            ];
+            if ($total > $peakTotal) {
+                $peakTotal = $total;
+                $peakHour  = $h;
+            }
+        }
+
+        return [
+            'hours'      => $hours,
+            'peak_hour'  => $peakHour,
+            'peak_total' => $peakTotal,
+        ];
+    }
+
+    /**
      * 選択可能な月一覧（過去12ヶ月）を返す。
      *
      * @return array<string, string>

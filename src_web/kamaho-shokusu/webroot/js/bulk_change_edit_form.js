@@ -323,6 +323,14 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         const staffMealBlocksBento = (type === 4) && hasMealLocked;
 
+        const loginUserId = window.__LOGIN_USER_ID;
+        const isAdminUser = !!(window.__IS_ADMIN);
+        const isBlockLeader = !!(window.__IS_BLOCK_LEADER);
+        const loginRoomIds = window.__LOGIN_ROOM_IDS || [];
+        const currentRoomId = parseInt(roomSelect?.value) || 0;
+        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(currentRoomId);
+        const isOtherStaff = !isAdminUser && !blockLeaderInRoom && isStaff && uid !== loginUserId;
+
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';
         let disabledReason = '';
@@ -331,7 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!disabledReason && disabledByDate) disabledReason = '過去日付のため編集できません。';
         if (!disabledReason && bentoBlocksNoon) disabledReason = 'お弁当が予約済みのためお昼は予約できません。';
         if (!disabledReason && staffMealBlocksBento) disabledReason = '朝・昼・夜が予約済みのためお弁当は予約できません。';
-        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || bentoBlocksNoon || staffMealBlocksBento;
+        if (!disabledReason && isOtherStaff) disabledReason = '他の職員の予約は操作できません。';
+        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || bentoBlocksNoon || staffMealBlocksBento || isOtherStaff;
         return `
             <label class="d-inline-flex align-items-center justify-content-center">
                 <input class="meal-toggle" type="checkbox" id="${id}" data-uid="${uid}" data-type="${type}"

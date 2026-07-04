@@ -319,13 +319,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const isOtherRoomLocked = !!(otherRoomLockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const disabledByDate = isActiveDisabled();
 
+        const isAdminUser = !!(window.__IS_ADMIN);
+        const loginUserId = window.__LOGIN_USER_ID;
+        const isBlockLeader = !!(window.__IS_BLOCK_LEADER);
+        const loginRoomIds = window.__LOGIN_ROOM_IDS || [];
+        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(roomId);
+        const targetLevel = userLevelsByRoom[roomId]?.[uid];
+        const isStaff = targetLevel === 0 || targetLevel === 7;
+        const isOtherStaff = !isAdminUser && !blockLeaderInRoom && isStaff && uid !== loginUserId;
+
         // 弁当↔朝昼夜の排他はチェック変更イベントで自動解除するため、ここでは disabled にしない
         let disabledReason = '';
         if (isOtherRoomLocked) disabledReason = '他の部屋で予約されています。';
+        if (!disabledReason && isOtherStaff) disabledReason = '他の職員の予約は操作できません。';
 
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';
-        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate;
+        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || isOtherStaff;
         return `
             <label class="d-inline-flex align-items-center justify-content-center">
                 <input class="meal-toggle" type="checkbox" id="${id}" data-uid="${uid}" data-type="${type}"

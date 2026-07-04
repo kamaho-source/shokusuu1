@@ -302,8 +302,8 @@ var _mcgConflictTip = null;
 
 function mcgInitConflictTip() {
     document.addEventListener('mouseover', function (e) {
-        var cell = e.target.closest('.mcg-cell-conflict, .mcg-cell-excl');
-        var msg  = cell ? (cell.dataset.conflictMsg || cell.dataset.exclMsg) : null;
+        var cell = e.target.closest('.mcg-cell-conflict, .mcg-cell-excl, [data-no-edit-msg]');
+        var msg  = cell ? (cell.dataset.conflictMsg || cell.dataset.exclMsg || cell.dataset.noEditMsg) : null;
         if (cell && msg) {
             if (!_mcgConflictTip) {
                 _mcgConflictTip = document.createElement('div');

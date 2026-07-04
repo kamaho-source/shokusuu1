@@ -18,12 +18,14 @@
  * @var bool   $canGoPrev
  * @var bool   $canGoNext
  * @var bool   $isAdmin
+ * @var bool   $isBlockLeader
  * @var bool   $canViewAll
  * @var bool   $canViewRoom
  * @var bool   $canUseAllMode
  * @var bool   $hasStaffId
  * @var int    $loginUserId
  * @var string $loginName
+ * @var int[]  $loginRoomIds
  */
 
 $this->assign('title', 'エクセル食数予約');
@@ -229,23 +231,35 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                         <?php
                         $rowNum = 1;
                         foreach ($roomsData as $roomId => $roomInfo):
-                            $roomName = $roomInfo['name'];
-                            $users    = $roomInfo['users'];
-                            $grid     = $roomInfo['grid'];
+                            $roomName  = $roomInfo['name'];
+                            $users     = $roomInfo['users'];
+                            $grid      = $roomInfo['grid'];
+                            $otherRoom = $roomInfo['otherRoom'] ?? [];
                         ?>
 
                         <?php foreach ($users as $u):
-                            $uid          = (int)$u['id'];
-                            $uLevel       = (int)($u['i_user_level'] ?? 0);
-                            // 編集可否: 管理者は全員、部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
-                            $canEditRow   = $isAdmin
+                            $uid                 = (int)$u['id'];
+                            $uLevel              = (int)($u['i_user_level'] ?? 0);
+                            // ブロック長がその部屋に所属しているか
+                            $blockLeaderHere     = $isBlockLeader && in_array($roomId, $loginRoomIds ?? [], true);
+                            // 編集可否: 管理者・部屋所属のブロック長は全員、部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
+                            $canEditRow          = $isAdmin
+                                || $blockLeaderHere
                                 || ($uid === $loginUserId)
                                 || ($canViewRoom && $uLevel === 1);
+                            // 非管理者・非ブロック長（その部屋）の職員が他の職員行を見ている場合はホバー注意文を付与
+                            $isOtherStaff        = !$isAdmin && !$blockLeaderHere && in_array($uLevel, [0, 7], true) && $uid !== $loginUserId;
                         ?>
-                        <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>">
+                        <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>"
+                            <?= $isOtherStaff ? 'class="mcg-row-readonly"' : '' ?>>
                             <td class="col-row"><?= h($rowNum++) ?></td>
                             <td class="col-room" title="<?= h($roomName) ?>"><?= h($roomName) ?></td>
-                            <td class="col-name" title="<?= h($u['name']) ?>"><?= h($u['name']) ?></td>
+                            <td class="col-name" title="<?= h($u['name']) ?>">
+                                <?= h($u['name']) ?>
+                                <?php if ($isOtherStaff): ?>
+                                <span class="mcg-badge-readonly" title="他の職員の予約は操作できません。">閲覧</span>
+                                <?php endif; ?>
+                            </td>
                             <?php foreach ($dates as $d):
                                 $dt      = new \DateTimeImmutable($d);
                                 $dowIdx  = (int)$dt->format('w');
@@ -256,10 +270,17 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                 $isPast  = ($dateCat === 'past');
                                 $first   = true;
                                 foreach ($meals as $mealType => $mealLabel):
-                                    $reserved = !empty($grid[$uid][$d][$mealType]);
-                                    $toggleable = !$isPast && $canEditRow;
+                                    $reserved       = !empty($grid[$uid][$d][$mealType]);
+                                    // 他部屋で有効な予約がある場合、この部屋のセルはロック
+                                    $otherRoomId    = $otherRoom[$uid][$d][$mealType] ?? null;
+                                    $isOtherRoomLocked = !$isPast && $otherRoomId !== null;
+                                    $otherRoomName  = $isOtherRoomLocked
+                                        ? ($allRooms[$otherRoomId] ?? '他の部屋')
+                                        : '';
+                                    $toggleable = !$isPast && $canEditRow && !$isOtherRoomLocked;
                                     $tdClass = 'cell-meal'
-                                        . ($toggleable ? ' mcg-toggleable' : '')
+                                        . ($toggleable        ? ' mcg-toggleable'  : '')
+                                        . ($isOtherRoomLocked ? ' mcg-cell-conflict' : '')
                                         . ($first   ? ' meal-first'     : '')
                                         . ($isToday ? ' is-today'       : '')
                                         . ($isSat   ? ' is-saturday'    : '')
@@ -274,8 +295,13 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     data-date="<?= h($d) ?>"
                                     data-meal="<?= h($mealType) ?>"
                                     data-reserved="<?= $reserved ? '1' : '0' ?>"
-                                    title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
+                                    <?php if ($isOtherRoomLocked): ?>
+                                    data-conflict-msg="<?= h($otherRoomName . 'で予約済みのため選択できません') ?>"
+                                    <?php elseif ($isOtherStaff && !$isPast): ?>
+                                    data-no-edit-msg="他の職員の予約は操作できません。"
+                                    <?php endif; ?>
                                     <?php if ($toggleable): ?>
+                                    title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
                                     role="checkbox"
                                     aria-checked="<?= $reserved ? 'true' : 'false' ?>"
                                     tabindex="0"
