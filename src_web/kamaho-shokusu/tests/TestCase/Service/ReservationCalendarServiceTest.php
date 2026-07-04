@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ReservationCalendarService;
+use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
@@ -174,5 +175,49 @@ class ReservationCalendarServiceTest extends TestCase
         $result = $this->service->getRoomsForUser($roomTable, [], isAdmin: false);
 
         $this->assertSame([], $result);
+    }
+
+    /** 複数部屋所属のブロック長には所属している全部屋を返す */
+    public function testGetRoomsForUser_blockLeaderReturnsAllBelongingRooms(): void
+    {
+        $this->insertRoom(2, '第二の部屋', 0);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
+
+        $this->assertSame([1, 2], array_keys($result));
+    }
+
+    /** ブロック長でも削除済みの部屋は返さない */
+    public function testGetRoomsForUser_blockLeaderExcludesDeletedRooms(): void
+    {
+        $this->insertRoom(3, '削除済みの部屋', 1);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [1, 3], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
+
+        $this->assertSame([1], array_keys($result));
+    }
+
+    /** ブロック長以外の一般ユーザーは従来どおり primary room のみ */
+    public function testGetRoomsForUser_regularUserReturnsPrimaryRoomOnly(): void
+    {
+        $this->insertRoom(2, '第二の部屋', 0);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false);
+
+        $this->assertSame([1], array_keys($result));
+    }
+
+    private function insertRoom(int $roomId, string $roomName, int $delFlg): void
+    {
+        ConnectionManager::get('test')->insert('m_room_info', [
+            'i_id_room'   => $roomId,
+            'c_room_name' => $roomName,
+            'i_disp_no'   => $roomId,
+            'i_enable'    => 1,
+            'i_del_flg'   => $delFlg,
+        ]);
     }
 }
