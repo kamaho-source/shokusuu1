@@ -41,11 +41,12 @@ class ReservationActualMealController extends ReservationBaseController
 
         $userId  = (int)$authUser->get('i_id_user');
         $isAdmin = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
+        $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
 
         $userRoomIds    = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
-        $rooms          = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser);
+        $rooms          = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser, $isBlockLeader);
 
         $selectedRoomId = $this->request->getQuery('room_id')
             ? (int)$this->request->getQuery('room_id')
@@ -413,7 +414,8 @@ class ReservationActualMealController extends ReservationBaseController
             $this->MRoomInfo,
             $userRoomIds,
             $canViewAll,
-            $isOfficeUser
+            $isOfficeUser,
+            $isBlockLeader
         );
 
         if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
