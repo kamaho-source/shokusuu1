@@ -24,6 +24,13 @@ class ReservationReportController extends ReservationBaseController
 
         $this->reportService        = new ReservationReportService();
         $this->mealReportingService = new MealReportingService();
+
+        // fetch から直接 POST される API のため FormProtection のフォームトークン検証対象外にする。
+        // CSRF は X-CSRF-Token ヘッダで別途検証される。
+        $this->FormProtection->setConfig('unlockedActions', [
+            'reportNoMeal',
+            'reportEat',
+        ]);
     }
 
     /**
