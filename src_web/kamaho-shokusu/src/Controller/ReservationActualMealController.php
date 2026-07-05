@@ -41,11 +41,12 @@ class ReservationActualMealController extends ReservationBaseController
 
         $userId  = (int)$authUser->get('i_id_user');
         $isAdmin = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
+        $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
         $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
 
         $userRoomIds    = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
-        $rooms          = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser);
+        $rooms          = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser, $isBlockLeader);
 
         $selectedRoomId = $this->request->getQuery('room_id')
             ? (int)$this->request->getQuery('room_id')
@@ -413,7 +414,8 @@ class ReservationActualMealController extends ReservationBaseController
             $this->MRoomInfo,
             $userRoomIds,
             $canViewAll,
-            $isOfficeUser
+            $isOfficeUser,
+            $isBlockLeader
         );
 
         if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
@@ -463,14 +465,10 @@ class ReservationActualMealController extends ReservationBaseController
             $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
 
             if ($viewMode === 'individual') {
-                if (!$canViewAll && $isStaffUser) {
-                    $users = array_values(array_filter(
-                        $users,
-                        fn($u) => (int)$u['id'] === $loginUserId || (int)($u['i_user_level'] ?? 0) === 1
-                    ));
-                } else {
-                    $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
-                }
+                // 個人モードは権限にかかわらず選択ユーザーのみ表示する
+                // （非 canViewAll は $selectedUserId がログインユーザーに固定済み。
+                //   部屋内の子供の管理は「部屋」モードで行う）
+                $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
             }
 
             $roomUsers[$roomId] = $users;

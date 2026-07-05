@@ -14,8 +14,11 @@
     <?= $this->Html->css('layout-header.css') ?>
     <?= $this->Html->script('api_response.js') ?>
     <script>
-        window.AI_ASSISTANT_ASK_URL  = '<?= $this->Url->build(['controller' => 'AiAssistant', 'action' => 'ask']) ?>';
-        window.AI_ASSISTANT_BASE_URL = '<?= rtrim($this->Url->build('/'), '/') ?>';
+        window.AI_ASSISTANT_ASK_URL      = '<?= $this->Url->build(['controller' => 'AiAssistant', 'action' => 'ask']) ?>';
+        window.AI_ASSISTANT_STREAM_URL   = '<?= $this->Url->build(['controller' => 'AiAssistant', 'action' => 'askStream']) ?>';
+        window.AI_ASSISTANT_SUGGEST_URL  = '<?= $this->Url->build(['controller' => 'AiAssistant', 'action' => 'suggestions']) ?>';
+        window.AI_ASSISTANT_FEEDBACK_URL = '<?= $this->Url->build(['controller' => 'AiAssistant', 'action' => 'feedback']) ?>';
+        window.AI_ASSISTANT_BASE_URL     = '<?= rtrim($this->Url->build('/'), '/') ?>';
     </script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <?= $this->fetch('meta') ?>
@@ -131,7 +134,7 @@ $recentNotifications     = $recentNotifications ?? [];
                                     </span>
                                 <?php endif; ?>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end border-0 shadow animate__animated animate__fadeIn" aria-labelledby="notificationMenu" style="min-width: 24rem;">
+                            <ul class="dropdown-menu dropdown-menu-end border-0 shadow animate__animated animate__fadeIn notification-dropdown" aria-labelledby="notificationMenu">
                                 <?php if (empty($recentNotifications)): ?>
                                     <li><span class="dropdown-item-text text-muted">未読通知はありません</span></li>
                                 <?php else: ?>
@@ -192,7 +195,12 @@ $recentNotifications     = $recentNotifications ?? [];
         <div id="ai-assistant-panel" class="shadow-lg border">
             <div class="panel-header bg-info text-white d-flex align-items-center justify-content-between p-3">
                 <h5 class="m-0"><i class="bi bi-robot me-2"></i>お問い合わせAI</h5>
-                <button type="button" class="btn-close btn-close-white" id="ai-panel-close"></button>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" id="ai-reset-btn" class="btn btn-sm btn-outline-light py-0 px-2" title="会話をリセット">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </button>
+                    <button type="button" class="btn-close btn-close-white" id="ai-panel-close"></button>
+                </div>
             </div>
             <div class="panel-body bg-light p-3">
                 <div id="ai-chat-box" class="mb-3 p-3 border rounded bg-white shadow-sm">
