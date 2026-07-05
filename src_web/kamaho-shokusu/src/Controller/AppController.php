@@ -65,6 +65,12 @@ class AppController extends Controller
             return false;
         }
 
+        // バックスラッシュはブラウザ側で / に正規化されるため、
+        // `/\evil.com` → `//evil.com` となるオープンリダイレクトバイパスを拒否する（CVE-2026-55590 と同種）
+        if (str_contains($url, '\\')) {
+            return false;
+        }
+
         $parsed = parse_url($url);
         if ($parsed === false) {
             return false;
