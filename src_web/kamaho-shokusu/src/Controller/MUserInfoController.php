@@ -162,14 +162,12 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            if (!empty($u->m_user_group)) {
-                foreach ($u->m_user_group as $group) {
-                    if (!empty($group->m_room_info)) {
-                        $userRooms[$u->i_id_user][] = $group->m_room_info->c_room_name;
-                    }
+            $userRooms[$u->i_id_user] = [];
+            foreach ($u->m_user_group ?? [] as $group) {
+                // 削除済み部屋は表示・全部屋所属判定に含めない
+                if (!empty($group->m_room_info) && (int)($group->m_room_info->i_del_flg ?? 0) === 0) {
+                    $userRooms[$u->i_id_user][] = $group->m_room_info->c_room_name;
                 }
-            } else {
-                $userRooms[$u->i_id_user] = [];
             }
         }
 
