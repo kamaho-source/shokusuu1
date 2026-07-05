@@ -381,6 +381,9 @@ return function (RouteBuilder $routes): void {
 
         // ── AIアシスタント ──
         $builder->connect('/AiAssistant/ask', ['controller' => 'AiAssistant', 'action' => 'ask'])->setMethods(['POST']);
+        $builder->connect('/AiAssistant/askStream', ['controller' => 'AiAssistant', 'action' => 'askStream'])->setMethods(['POST']);
+        $builder->connect('/AiAssistant/suggestions', ['controller' => 'AiAssistant', 'action' => 'suggestions'])->setMethods(['GET']);
+        $builder->connect('/AiAssistant/feedback', ['controller' => 'AiAssistant', 'action' => 'feedback'])->setMethods(['POST']);
 
         // フォールバック
         $builder->fallbacks(DashedRoute::class);
