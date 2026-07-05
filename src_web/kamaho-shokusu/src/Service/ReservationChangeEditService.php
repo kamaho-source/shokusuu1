@@ -156,7 +156,8 @@ class ReservationChangeEditService
 
         $usersForJson = [];
         foreach ($users as $u) {
-            $isTargetChild = ((int)($u['i_user_level'] ?? 1) === 1);
+            // レベル不明時は職員扱いにして編集不可へ倒す（fail-closed）
+            $isTargetChild = ((int)($u['i_user_level'] ?? 0) === 1);
             $isSelf        = $loginUid && ((int)$loginUid === (int)$u['id']);
             $allowEdit     = $canEditAll || $isSelf || ($isLoginStaff && $isTargetChild);
             $usersForJson[] = [
@@ -256,7 +257,8 @@ class ReservationChangeEditService
                 }
 
                 // サーバー側 allowEdit チェック（buildUsersForJson と同一ロジック）
-                $isTargetChild = ($userLevelMap[$userId] ?? 1) === 1;
+                // レベル不明（対象ユーザーが存在しない等）は職員扱いにして編集不可へ倒す（fail-closed）
+                $isTargetChild = ($userLevelMap[$userId] ?? 0) === 1;
                 if (!$canEditAll && $userId !== $loginUid && !($isLoginStaff && $isTargetChild)) {
                     $skipped[] = "利用者ID {$userId} の予約を変更する権限がありません。";
                     continue;

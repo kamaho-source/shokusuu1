@@ -37,6 +37,8 @@ class FeatureUsageSummaryService
         'room_create'                 => '部屋作成',
         'room_update'                 => '部屋更新',
         'room_delete'                 => '部屋削除',
+        'ai_assistant_ask'            => 'AI問い合わせ',
+        'ai_assistant_feedback'       => 'AIフィードバック',
     ];
 
     /** @var array<string, string> カテゴリ → 表示用ラベル */
