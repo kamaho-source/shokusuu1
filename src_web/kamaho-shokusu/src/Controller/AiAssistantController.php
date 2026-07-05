@@ -25,6 +25,9 @@ class AiAssistantController extends AppController
     private const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
     private const HTTP_REFERER        = 'https://github.com/kamaho-source/shokusuu1';
     private const MESSAGE_LIMIT       = 20;
+    /** 監査ログに保存する質問・回答の最大文字数（c_detail の肥大化防止） */
+    private const LOG_QUESTION_MAX    = 2000;
+    private const LOG_ANSWER_MAX      = 4000;
 
     public function __construct(
         private readonly SystemPromptProviderInterface $systemPromptProvider,
@@ -68,16 +71,51 @@ class AiAssistantController extends AppController
         $prompt = $this->buildPrompt($question, $context);
         $role   = $this->resolveAiUserRole();
 
+        $identity  = $this->request->getAttribute('identity');
+        $actorName = (string)($identity?->get('c_user_name') ?? 'unknown');
+        $actorId   = (int)($identity?->get('i_id_user') ?? 0);
+        $ipAddress = $this->request->clientIp();
+
         try {
             $answer = $this->callOpenRouter([
                 ['role' => 'system', 'content' => $this->systemPromptProvider->get($role)],
                 ['role' => 'user',   'content' => $prompt],
             ], $apiKey);
 
+            AuditLogService::record(
+                'system',
+                'ai_assistant_ask',
+                $actorName,
+                $actorId,
+                null,
+                null,
+                [
+                    'question' => mb_substr((string)$question, 0, self::LOG_QUESTION_MAX),
+                    'answer'   => mb_substr((string)$answer, 0, self::LOG_ANSWER_MAX),
+                    'role'     => $role,
+                ],
+                $ipAddress
+            );
+
             return $this->response->withType('application/json')
                 ->withStringBody(json_encode(['ok' => true, 'answer' => $answer]));
         } catch (\Exception $e) {
             Log::error('AI Assistant error: ' . $e->getMessage());
+            AuditLogService::record(
+                'system',
+                'ai_assistant_ask',
+                $actorName,
+                $actorId,
+                null,
+                null,
+                [
+                    'question' => mb_substr((string)$question, 0, self::LOG_QUESTION_MAX),
+                    'error'    => mb_substr($e->getMessage(), 0, 500),
+                    'role'     => $role,
+                ],
+                $ipAddress,
+                0
+            );
             throw new InternalErrorException('通信エラーが発生しました。');
         }
     }
@@ -162,11 +200,14 @@ class AiAssistantController extends AppController
             null,
             null,
             [
+                'question'        => mb_substr($lastQuestion, 0, self::LOG_QUESTION_MAX),
+                'answer'          => mb_substr($fullResponse, 0, self::LOG_ANSWER_MAX),
                 'question_length' => mb_strlen($lastQuestion),
                 'response_length' => mb_strlen($fullResponse),
                 'role'            => $role,
             ],
-            $ipAddress
+            $ipAddress,
+            $success ? 1 : 0
         );
 
         exit(0);
