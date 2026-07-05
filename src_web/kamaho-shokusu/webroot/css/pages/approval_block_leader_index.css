@@ -211,11 +211,17 @@ body {
 }
 
 .mui-btn {
+    /* a タグはボタンと違い自動で垂直中央揃えされないため inline-flex で中央寄せする */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 38px;
     border-radius: 12px;
     padding: 0 16px;
     font-weight: 700;
     letter-spacing: .01em;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .badge-status { font-size: .75rem; padding: .3em .6em; border-radius: .4rem; }
