@@ -11,7 +11,7 @@ $this->Html->css('pages/m_room_info_index.css', ['block' => true]);
 $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
 ?>
 <div class="mRoomInfo index content">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
         <h3 class="mb-0"><?= __('部屋情報一覧') ?></h3>
         <?php if ($isAdmin): ?>
         <?= $this->Html->link(__('+ 新しい部屋を追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>

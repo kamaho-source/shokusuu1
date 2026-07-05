@@ -13,7 +13,7 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <!-- ページヘッダー -->
-<div class="rounded-3 shadow-sm mb-4 px-4 py-3 d-flex align-items-center justify-content-between"
+<div class="rounded-3 shadow-sm mb-4 px-4 py-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
      style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); color:#fff;">
     <div class="d-flex align-items-center gap-3">
         <div class="d-flex align-items-center justify-content-center rounded-circle bg-danger shadow"
@@ -112,7 +112,7 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
 </div>
 
 <!-- 件数 & 上部ページネーション -->
-<div class="d-flex justify-content-between align-items-center mb-2">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
     <p class="text-muted small mb-0">
         <i class="bi bi-list-ul me-1"></i>
         <?= $this->Paginator->counter('全 {{count}} 件中 {{start}}〜{{end}} 件を表示') ?>

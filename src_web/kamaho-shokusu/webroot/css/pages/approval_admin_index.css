@@ -302,4 +302,6 @@ body {
 @media (max-width: 760px) {
     .summary-grid { grid-template-columns: 1fr; }
     .page-shell { padding-inline: 14px; }
+    .approval-action-btns { width: 100%; flex-direction: column; }
+    .approval-action-btns .mui-btn { width: 100%; }
 }

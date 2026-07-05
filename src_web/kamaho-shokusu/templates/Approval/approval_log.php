@@ -15,7 +15,7 @@ $mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁'];
 ?>
 
 <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
         <h1 class="h3 mb-0">承認履歴</h1>
         <a href="<?= $this->Url->build(['action' => 'adminIndex']) ?>" class="btn btn-outline-secondary btn-sm">承認管理へ戻る</a>
     </div>

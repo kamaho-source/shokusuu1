@@ -6,6 +6,8 @@
  * @var array $mealDataArray 食数データの配列
  */
 $this->assign('title', __('食事給与控除データエクスポート'));
+$exportSummaryUrl        = $this->Url->build(['controller' => 'MMealPriceInfo', 'action' => 'exportMealSummary']);
+$exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 'action' => 'exportMealSummaryPreview']);
 ?>
 <!-- Example Form with Bootstrap -->
 <div class="container mt-5">
@@ -216,7 +218,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
                     // APIからデータを取得
                     const response = await fetch(
-                        `/kamaho-shokusu/MMealPriceInfo/exportMealSummary?year=${selectedYear}&month=${selectedMonth}`
+                        `<?= h($exportSummaryUrl) ?>?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
@@ -356,7 +358,7 @@ $this->assign('title', __('食事給与控除データエクスポート'));
 
                 try {
                     const response = await fetch(
-                        `/kamaho-shokusu/MMealPriceInfo/exportMealSummaryPreview?year=${selectedYear}&month=${selectedMonth}`
+                        `<?= h($exportSummaryPreviewUrl) ?>?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`
                     );
                     if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
 
