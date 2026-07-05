@@ -3,6 +3,7 @@
  * @var \App\View\AppView $this
  * @var iterable<\App\Model\Entity\MUserInfo> $mUserInfo
  * @var array $userRooms
+ * @var array<int, string> $userRoomLabels
  * @var \App\Model\Entity\User $user
  */
 
@@ -66,7 +67,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     <td class="d-none d-md-table-cell text-muted small"><?= h($userInfo->i_id_user) ?></td>
                     <td><?= h($userInfo->c_user_name) ?></td>
                     <td class="d-none d-md-table-cell text-center"><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
-                    <td><?= !empty($userRooms[$userInfo->i_id_user]) ? h(implode(', ', $userRooms[$userInfo->i_id_user])) : '未所属' ?></td>
+                    <td><?= h($userRoomLabels[$userInfo->i_id_user] ?? '未所属') ?></td>
                     <?php if ($isAdmin || $isSystemAdmin): ?>
                         <td class="text-center">
                             <div class="form-check form-switch d-inline-block">

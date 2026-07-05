@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
+use App\Service\RoomService;
 use App\Service\UserBulkImportService;
 use App\Service\UserCreateService;
 use App\Service\UserDeletionService;
@@ -172,7 +173,14 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted'));
+        $roomService      = new RoomService();
+        $totalActiveRooms = $roomService->countActiveRooms();
+        $userRoomLabels   = [];
+        foreach ($userRooms as $uid => $roomNames) {
+            $userRoomLabels[$uid] = $roomService->buildAffiliationLabel($roomNames, $totalActiveRooms);
+        }
+
+        $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted'));
     }
 
     public function add()
