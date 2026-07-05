@@ -23,7 +23,9 @@ use App\Infrastructure\AI\SystemPromptProvider;
 use App\Service\RoomUsageService;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
@@ -70,6 +72,22 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $middlewareQueue->add(new AuthorizationMiddleware($this, [
             'requireAuthorizationCheck' => true,
         ]));
+
+        // DebugKit（開発環境のみ）のコントローラーは authorize() を呼ばないため、
+        // requireAuthorizationCheck により AuthorizationRequiredException が
+        // error.log に記録され続ける。DebugKit のリクエストに限り認可チェックを免除する。
+        if (Configure::read('debug')) {
+            $middlewareQueue->add(function (ServerRequest $request, RequestHandlerInterface $handler): ResponseInterface {
+                if ($request->getParam('plugin') === 'DebugKit') {
+                    $authorization = $request->getAttribute('authorization');
+                    if ($authorization !== null) {
+                        $authorization->skipAuthorization();
+                    }
+                }
+
+                return $handler->handle($request);
+            });
+        }
 
         return $middlewareQueue;
     }

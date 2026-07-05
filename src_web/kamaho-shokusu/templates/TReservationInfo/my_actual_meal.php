@@ -337,11 +337,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // トグルクリック
+    // トグル切替（label クリックによるネイティブトグルを change イベントで受ける。
+    // click ハンドラで手動フリップすると label→checkbox のクリック転送と二重処理になるため）
     document.querySelectorAll('.meal-toggle').forEach(label => {
-        label.addEventListener('click', () => {
-            const cb       = label.querySelector('input[type=checkbox]');
-            cb.checked     = !cb.checked;
+        const cb = label.querySelector('input[type=checkbox]');
+        if (!cb) return;
+        cb.addEventListener('change', () => {
             const key      = `${label.dataset.uid}-${label.dataset.date}-${label.dataset.meal}`;
             const original = label.dataset.original === '1';
             const isChanged = cb.checked !== original;
