@@ -21,10 +21,11 @@
 | # | 深刻度 | 内容 |
 |---|--------|------|
 | 1 | 中 | **パスワード最小文字数**: テーブルバリデーションに最小長なし。変更フローも `adminChangePassword` は6文字・`generalPasswordReset` は4文字と不整合。→ **施設側の運用への影響があるためスコープ外（ユーザー判断）**。将来的に方針が決まれば8文字程度への統一を推奨 |
-| 2 | 低 | `AppController::getClientIp()` が `X-Forwarded-For` を無条件に信頼するため、監査ログのIPがクライアント側ヘッダーで偽装可能。信頼できるプロキシのIPのみ許可する構成を推奨 |
-| 3 | 低 | 未ログインでダッシュボード（`/`）の `activeNotices`（お知らせ）と週次カレンダー枠が閲覧可能。仕様であれば問題ないが、お知らせに内部情報を書く運用なら要制限 |
-| 4 | 低 | HSTS（`Strict-Transport-Security`）未設定。HTTPS 常時化済みであれば nginx か `HttpsEnforcerMiddleware` での付与を推奨 |
-| 5 | 情報 | `config/app_local.php`（Git管理外）にDBパスワードが直書きされている。環境変数化を推奨 |
+| 2 | 中 | `docker/docker-compose.yml`（Git管理下）にMySQLの認証情報（`MYSQL_PASSWORD`・`MYSQL_ROOT_PASSWORD`）がハードコードされている。ローカル開発用だが、`.env` 参照への移行を推奨 |
+| 3 | 低 | `AppController::getClientIp()` が `X-Forwarded-For` を無条件に信頼するため、監査ログのIPがクライアント側ヘッダーで偽装可能。信頼できるプロキシのIPのみ許可する構成を推奨 |
+| 4 | 低 | 未ログインでダッシュボード（`/`)の `activeNotices`（お知らせ）と週次カレンダー枠が閲覧可能。仕様であれば問題ないが、お知らせに内部情報を書く運用なら要制限 |
+| 5 | 低 | HSTS（`Strict-Transport-Security`）未設定。HTTPS 常時化済みであれば nginx か `HttpsEnforcerMiddleware` での付与を推奨 |
+| 6 | 情報 | `config/app_local.php`（Git管理外）にDBパスワードが直書きされている。環境変数化を推奨 |
 
 ## 調査結果詳細
 
@@ -62,3 +63,27 @@
 - 弱い箇所: `TReservationInfoTable`・`MRoomInfoTable`・`MMealPriceInfoTable` はほぼ全フィールドが `allowEmptyString` で、範囲チェック（例: 食数・価格の非負制約）がない。実際の入力経路はサービス層で制御されているため即時のリスクは低いが、多層防御としては追加を推奨。
 - パスワード最小長 → 推奨事項#1（スコープ外）。
 - **アーキテクチャ上の注記**: CLAUDE.md はドメイン層（Entity/ValueObject）でのバリデーション完結を掲げるが、現状の Domain 層は `UserRole` と例外クラスのみで、バリデーションは CakePHP の Table 層に集中している。クリーンアーキテクチャ移行を進める場合は値オブジェクト化が必要（別Issue推奨）。
+
+## E2Eテスト結果（2026-07-08 / Playwright + Chromium）
+
+ローカル環境（`http://localhost:8091`）に対して実行。**6 passed / 1 skipped（設計上の自動スキップ）/ 0 failed**。
+
+- `tests/e2e/audit.spec.mjs`（本監査で追加）
+  - セキュリティヘッダーが全レスポンスに付与される ✅
+  - 予約カレンダー画面がJSエラーなく表示される（JSON_HEXフラグ変更後の動作確認）✅
+  - SP幅375pxで承認画面・ログイン・ダッシュボードが横はみ出ししない ✅
+- `tests/e2e/reservation.spec.mjs`（既存。ログインヘルパーが旧URL `/users/login`・旧フィールド名を参照していたため現行実装に合わせて修正）
+  - 集団予約: 部屋選択で利用者一覧が表示される ✅
+  - 集団予約: 予約タイプ切替で個人/集団セクションが切り替わる ✅
+  - quickDayModal: 予約追加ボタン非表示時は自動スキップする設計のため skipped
+
+実行方法:
+
+```bash
+npm install && npx playwright install chromium
+E2E_BASE_URL=http://localhost:8091 npx playwright test
+```
+
+前提: E2E用ユーザー `e2e_admin`（管理者・部屋1所属）がローカルDBに必要。
+
+視覚版レポート: [docs/audit-507.html](audit-507.html)
