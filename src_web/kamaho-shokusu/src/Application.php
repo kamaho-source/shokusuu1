@@ -33,6 +33,7 @@ use Cake\Error\Middleware\ErrorHandlerMiddleware;
 use Cake\Http\BaseApplication;
 use Cake\Http\Middleware\BodyParserMiddleware;
 use Cake\Http\Middleware\CsrfProtectionMiddleware;
+use Cake\Http\Middleware\SecurityHeadersMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
@@ -60,7 +61,15 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
+        // 全レスポンス共通のセキュリティヘッダー
+        // （クリックジャッキング・MIMEスニッフィング・リファラ漏洩対策）
+        $securityHeaders = (new SecurityHeadersMiddleware())
+            ->setXFrameOptions('sameorigin')
+            ->noSniff()
+            ->setReferrerPolicy('same-origin');
+
         $middlewareQueue
+            ->add($securityHeaders)
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
             ->add(new AssetMiddleware(['cacheTime' => Configure::read('Asset.cacheTime')]))
             ->add(new RoutingMiddleware($this))
