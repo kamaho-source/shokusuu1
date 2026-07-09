@@ -41,7 +41,7 @@
 
 ### 2. セキュリティ脆弱性
 
-- **XSS**: テンプレートの変数出力はほぼ `h()` 済み。Flash要素は `$params['escape']` を尊重してエスケープ。唯一 `js_config.php` へ渡す JSON にタグ脱出の余地があった → **修正済み**。
+- **XSS**: テンプレートの変数出力はほぼ `h()` 済み。Flash要素は `$params['escape']` を尊重してエスケープ。唯一 `templates/TReservationInfo/index.php` で生成し `element/TReservationInfo/js_config.php` の `<script>` 内に出力する JSON にタグ脱出の余地があった → **修正済み（`index.php` の `json_encode` に HEX フラグを付与）**。
 - **SQLインジェクション**: 生SQL・文字列結合クエリなし。全て ORM 経由。
 - **CSRF**: `CsrfProtectionMiddleware`（httponly）+ `FormProtection` 適用済み。`unlockedActions` はJSON APIエンドポイント等に限定されており、いずれもCSRFミドルウェアの保護下にある。
 - **依存パッケージ**: `composer audit` 指摘なし（CakePHP 5系、Authentication/Authorization 更新済み）。
