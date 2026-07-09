@@ -7,7 +7,7 @@ use App\Domain\ValueObject\UserRole;
 use Authorization\IdentityInterface;
 
 /**
- * 統計AI画面のアクセスポリシー。管理者（ADMIN / SYSTEM_ADMIN）のみ許可する。
+ * 統計AI画面のアクセスポリシー。システム管理者（SYSTEM_ADMIN）のみ許可する。
  */
 class StatsAiPolicy
 {
@@ -16,7 +16,7 @@ class StatsAiPolicy
      */
     public function canIndex(IdentityInterface $user, $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isSystemAdmin($user);
     }
 
     /**
@@ -24,11 +24,11 @@ class StatsAiPolicy
      */
     public function canAskStream(IdentityInterface $user, $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isSystemAdmin($user);
     }
 
-    private function isAdmin(IdentityInterface $user): bool
+    private function isSystemAdmin(IdentityInterface $user): bool
     {
-        return UserRole::isAdmin((int)($user->get('i_admin') ?? 0));
+        return UserRole::isSystemAdmin((int)($user->get('i_admin') ?? 0));
     }
 }
