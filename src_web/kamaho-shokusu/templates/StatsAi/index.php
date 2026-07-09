@@ -29,6 +29,20 @@
     .stats-ai-msg.user .bubble { background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
     .stats-ai-msg.assistant .bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
     .stats-ai-msg.error .bubble { background: #fee2e2; color: #b91c1c; }
+    /* Markdownレンダリング時の調整（AI回答のみ） */
+    .stats-ai-msg.assistant .bubble.md { white-space: normal; }
+    .bubble.md > :last-child { margin-bottom: 0; }
+    .bubble.md p { margin: 0 0 8px; }
+    .bubble.md h1, .bubble.md h2, .bubble.md h3, .bubble.md h4 {
+        font-size: 1rem; font-weight: 700; margin: 10px 0 6px;
+    }
+    .bubble.md ul, .bubble.md ol { margin: 0 0 8px; padding-left: 1.4em; }
+    .bubble.md li { margin-bottom: 2px; }
+    .bubble.md table { border-collapse: collapse; margin: 8px 0; font-size: .85rem; }
+    .bubble.md th, .bubble.md td { border: 1px solid #cbd5e1; padding: 4px 10px; text-align: left; }
+    .bubble.md thead th { background: #e2e8f0; }
+    .bubble.md code { background: #e2e8f0; border-radius: 4px; padding: 1px 5px; font-size: .85em; }
+    .bubble.md hr { margin: 8px 0; }
     .stats-ai-suggest .btn { margin: 0 6px 6px 0; }
     .stats-ai-thinking { color: #64748b; font-size: .85rem; }
 </style>
@@ -71,4 +85,7 @@
     // AI回答内の [U:<ID>] トークンを氏名へ変換するためのマップ（氏名は外部AIへ送信されない）
     window.STATS_AI_USER_MAP = <?= json_encode($userMap ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
+<?php /* AI回答のMarkdown表示用。DOMPurifyでサニタイズしてから描画する（XSS対策） */ ?>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <?= $this->Html->script('stats-ai') ?>

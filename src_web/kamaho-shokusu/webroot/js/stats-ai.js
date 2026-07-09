@@ -96,12 +96,30 @@
         return meta ? meta.getAttribute('content') || '' : '';
     }
 
+    /**
+     * AI回答をMarkdownとして描画する。
+     * 外部AIの出力は信頼できないため、必ずDOMPurifyでサニタイズしてから挿入する。
+     * ライブラリ未読込時はプレーンテキスト表示にフォールバックする。
+     */
+    function renderAssistant(bubble, text) {
+        if (window.marked && window.DOMPurify) {
+            bubble.classList.add('md');
+            bubble.innerHTML = window.DOMPurify.sanitize(window.marked.parse(text));
+            return;
+        }
+        bubble.textContent = text;
+    }
+
     function appendMessage(role, text) {
         const wrap = document.createElement('div');
         wrap.className = 'stats-ai-msg ' + role;
         const bubble = document.createElement('div');
         bubble.className = 'bubble';
-        bubble.textContent = text;
+        if (role === 'assistant' && text !== '') {
+            renderAssistant(bubble, text);
+        } else {
+            bubble.textContent = text;
+        }
         wrap.appendChild(bubble);
         messagesEl.appendChild(wrap);
         messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -188,7 +206,7 @@
                             bubble.textContent = '';
                         }
                         answer += data.content;
-                        bubble.textContent = resolveUserTokens(answer);
+                        renderAssistant(bubble, resolveUserTokens(answer));
                         messagesEl.scrollTop = messagesEl.scrollHeight;
                     }
                 }
