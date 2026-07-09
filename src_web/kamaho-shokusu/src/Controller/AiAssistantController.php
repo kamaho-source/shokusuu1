@@ -22,7 +22,7 @@ use Cake\Log\Log;
  */
 class AiAssistantController extends AppController
 {
-    private const OPENROUTER_MODEL    = 'google/gemma-4-31b-it:free';
+    private const OPENROUTER_MODEL    = 'openai/gpt-oss-20b:free';
     private const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
     private const HTTP_REFERER        = 'https://github.com/kamaho-source/shokusuu1';
     private const MESSAGE_LIMIT       = 20;
@@ -488,8 +488,9 @@ class AiAssistantController extends AppController
                     if (!is_array($decoded)) {
                         continue;
                     }
+                    // 推論型モデル（gpt-oss等）は思考中に空のcontentを大量に送るため、空チャンクは転送しない
                     $content = $decoded['choices'][0]['delta']['content'] ?? null;
-                    if ($content !== null) {
+                    if ($content !== null && $content !== '') {
                         $fullResponse .= $content;
                         echo 'data: ' . json_encode(
                             ['content' => $content],
