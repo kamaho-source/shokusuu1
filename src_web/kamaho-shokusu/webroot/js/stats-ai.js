@@ -74,18 +74,18 @@
     const userMap = window.STATS_AI_USER_MAP || {};
 
     function resolveUserTokens(text) {
-        return text.replace(/\[U:(\d+)\]/g, function (match, id) {
-            return Object.prototype.hasOwnProperty.call(userMap, id) ? userMap[id] : match;
+        return text.replace(/\[U:([0-9a-f]+)\]/g, function (match, token) {
+            return Object.prototype.hasOwnProperty.call(userMap, token) ? userMap[token] : match;
         });
     }
 
-    /** 質問文に含まれる既知の氏名をIDトークンへ変換し、氏名を外部AIへ送らない */
+    /** 質問文に含まれる既知の氏名をハッシュトークンへ変換し、氏名を外部AIへ送らない */
     function maskUserNames(text) {
         let masked = text;
-        for (const id of Object.keys(userMap)) {
-            const name = userMap[id];
+        for (const token of Object.keys(userMap)) {
+            const name = userMap[token];
             if (name && masked.indexOf(name) !== -1) {
-                masked = masked.split(name).join('[U:' + id + ']');
+                masked = masked.split(name).join('[U:' + token + ']');
             }
         }
         return masked;

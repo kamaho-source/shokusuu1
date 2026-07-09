@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Infrastructure\AI\OpenRouterClient;
+use App\Infrastructure\AI\UserTokenizer;
 use App\Service\AiStatsContextService;
 use App\Service\AuditLogService;
 use Cake\Http\Exception\BadRequestException;
@@ -41,17 +42,24 @@ class StatsAiController extends AppController
     /**
      * 統計AIチャット画面を表示する。
      *
-     * AI回答内の [U:<ユーザーID>] トークンを画面側で氏名に変換するため、
-     * ID→氏名マップをビューに渡す（氏名は外部AI APIへは送信されない）。
+     * AI回答内の [U:<ハッシュ>] トークンを画面側で氏名に変換するため、
+     * ハッシュトークン→氏名マップをビューに渡す（氏名・内部IDは外部AI APIへは送信されない）。
      */
     public function index(): void
     {
         $this->Authorization->authorize($this, 'index');
 
-        $userMap = $this->fetchTable('MUserInfo')->find('list', [
+        $tokenizer = new UserTokenizer();
+        $users = $this->fetchTable('MUserInfo')->find('list', [
             'keyField'   => 'i_id_user',
             'valueField' => 'c_user_name',
         ])->where(['i_del_flag' => 0])->toArray();
+
+        // キーを内部IDからハッシュトークンへ付け替える（画面には内部IDを露出しない）
+        $userMap = [];
+        foreach ($users as $id => $name) {
+            $userMap[$tokenizer->tokenize((int)$id)] = $name;
+        }
 
         $this->set('title', '統計AI');
         $this->set('userMap', $userMap);

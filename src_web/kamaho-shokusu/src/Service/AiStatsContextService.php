@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Infrastructure\AI\UserTokenizer;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -31,10 +32,14 @@ class AiStatsContextService
     ];
 
     private FeatureUsageSummaryService $featureUsageSummaryService;
+    private UserTokenizer $userTokenizer;
 
-    public function __construct(?FeatureUsageSummaryService $featureUsageSummaryService = null)
-    {
+    public function __construct(
+        ?FeatureUsageSummaryService $featureUsageSummaryService = null,
+        ?UserTokenizer $userTokenizer = null
+    ) {
         $this->featureUsageSummaryService = $featureUsageSummaryService ?? new FeatureUsageSummaryService();
+        $this->userTokenizer = $userTokenizer ?? new UserTokenizer();
     }
 
     /**
@@ -240,8 +245,9 @@ class AiStatsContextService
     /**
      * 利用者別の申告集計を構築する。
      *
-     * 仮名化方針: 利用者は [U:<ユーザーID>] トークンでのみ表現し、氏名は含めない。
-     * トークンから氏名への変換は画面側（ブラウザ）で行うため、外部AI APIに個人名は渡らない。
+     * 仮名化方針: 利用者は [U:<ハッシュ>] トークンでのみ表現し、氏名・内部IDは含めない。
+     * トークンはSECURITY_SALTを鍵としたHMACで、外部からは元IDを逆算できない。
+     * トークンから氏名への変換は画面側（ブラウザ）で行うため、外部AI APIに個人情報は渡らない。
      */
     private function buildUserSummary(string $dateFrom, string $dateTo): string
     {
@@ -263,12 +269,12 @@ class AiStatsContextService
 
         $lines = [
             '### 利用者別の申告集計',
-            '利用者は [U:<ユーザーID>] トークンで表す。回答で利用者に言及するときは必ずこのトークン表記をそのまま使うこと（氏名は不明であり、勝手に作らない）。',
+            '利用者は [U:<ハッシュ>] トークンで表す。回答で利用者に言及するときは必ずこのトークン表記をそのまま使うこと（氏名は不明であり、勝手に作らない）。',
         ];
         foreach ($rows as $row) {
             $lines[] = sprintf(
-                '- [U:%d]: 食べる%d件 / 食べない%d件 / 直前変更%d件',
-                (int)$row['user_id'],
+                '- [U:%s]: 食べる%d件 / 食べない%d件 / 直前変更%d件',
+                $this->userTokenizer->tokenize((int)$row['user_id']),
                 (int)$row['eat'],
                 (int)$row['no_eat'],
                 (int)$row['changed']
