@@ -347,6 +347,12 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-title-text">お知らせ管理</div>
                         <div class="menu-desc">掲示するお知らせの作成・編集・削除</div>
                     </a>
+                    <?php /* 統計AI: 集計データをもとにAIへ質問できる（管理者のみ） */ ?>
+                    <a class="menu-card" href="<?= $this->Url->build('/StatsAi') ?>">
+                        <div class="menu-icon" style="background:#eef2ff;color:#4f46e5;">📊</div>
+                        <div class="menu-title-text">統計AI</div>
+                        <div class="menu-desc">食数・承認・利用状況の集計をAIに質問する</div>
+                    </a>
                     <a class="menu-card" href="<?= $this->Url->build('/Approval/approval_log') ?>">
                         <div class="menu-icon" style="background:#f8fafc;color:#64748b;">📜</div>
                         <div class="menu-title-text">承認履歴</div>

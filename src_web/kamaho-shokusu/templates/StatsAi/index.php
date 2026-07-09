@@ -1,0 +1,68 @@
+<?php
+/**
+ * 統計AIチャット画面（管理者専用）
+ *
+ * @var \App\View\AppView $this
+ */
+?>
+<style>
+    .stats-ai-shell { max-width: 860px; margin: 0 auto; }
+    .stats-ai-messages {
+        min-height: 320px;
+        max-height: 60vh;
+        overflow-y: auto;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+    }
+    .stats-ai-msg { margin-bottom: 12px; display: flex; }
+    .stats-ai-msg .bubble {
+        max-width: 85%;
+        padding: 10px 14px;
+        border-radius: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: .95rem;
+    }
+    .stats-ai-msg.user { justify-content: flex-end; }
+    .stats-ai-msg.user .bubble { background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
+    .stats-ai-msg.assistant .bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
+    .stats-ai-msg.error .bubble { background: #fee2e2; color: #b91c1c; }
+    .stats-ai-suggest .btn { margin: 0 6px 6px 0; }
+    .stats-ai-thinking { color: #64748b; font-size: .85rem; }
+</style>
+
+<div class="stats-ai-shell">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h1 class="fs-3 m-0">📊 統計AI</h1>
+        <span class="badge bg-secondary">管理者専用</span>
+    </div>
+    <p class="text-muted small">
+        食数・承認・利用状況の集計データをもとにAIが回答します。AIに渡されるのは集計値のみで、個人単位の情報は含まれません。
+    </p>
+
+    <div id="stats-ai-messages" class="stats-ai-messages mb-3" aria-live="polite">
+        <div class="stats-ai-msg assistant">
+            <div class="bubble">こんにちは。直近4週間と今後1週間の統計データを参照できます。食数の傾向・部屋別の集計・承認状況などについて質問してください。</div>
+        </div>
+    </div>
+
+    <div class="stats-ai-suggest mb-2" id="stats-ai-suggest">
+        <button type="button" class="btn btn-sm btn-outline-primary">今週の食数を食種別に教えて</button>
+        <button type="button" class="btn btn-sm btn-outline-primary">部屋別の食数が多い順に教えて</button>
+        <button type="button" class="btn btn-sm btn-outline-primary">食べる率と直前変更の傾向は？</button>
+        <button type="button" class="btn btn-sm btn-outline-primary">承認待ちは何件ある？</button>
+    </div>
+
+    <form id="stats-ai-form" class="d-flex gap-2">
+        <input type="text" id="stats-ai-input" class="form-control"
+               placeholder="統計について質問を入力…" autocomplete="off" maxlength="500">
+        <button type="submit" id="stats-ai-send" class="btn btn-primary flex-shrink-0">送信</button>
+    </form>
+</div>
+
+<script>
+    window.STATS_AI_STREAM_URL = <?= json_encode($this->Url->build(['controller' => 'StatsAi', 'action' => 'askStream']), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+</script>
+<?= $this->Html->script('stats-ai') ?>
