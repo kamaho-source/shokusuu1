@@ -73,6 +73,7 @@
         <button type="button" class="btn btn-sm btn-outline-primary">食べない申告が多い利用者は？</button>
         <button type="button" class="btn btn-sm btn-outline-primary">部屋別の子供の使用率は？</button>
         <button type="button" class="btn btn-sm btn-outline-primary">大人（職員）の使用率を教えて</button>
+        <button type="button" class="btn btn-sm btn-outline-primary">最も入力していない職員は？</button>
     </div>
 
     <form id="stats-ai-form" class="d-flex gap-2">

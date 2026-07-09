@@ -73,6 +73,7 @@ class AiStatsContextService
             $this->buildEatFlagSummary($dateFrom, $dateTo),
             $this->buildApprovalSummary($dateFrom, $dateTo),
             $this->buildRoomUsageRateSummary($dateFrom, $dateTo),
+            $this->buildStaffInputSummary($dateFrom, $dateTo),
             $this->buildUserSummary($dateFrom, $dateTo),
             $this->buildFeatureUsageSummary(),
         ];
@@ -286,6 +287,69 @@ class AiStatsContextService
                     (int)$row['capacity']
                 );
             }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * 職員（大人）別の入力状況を構築する。未入力（0件）の職員も含める。
+     *
+     * 「最も入力していない職員」を判定できるよう、在籍職員（i_user_level=0）全員を
+     * 分母とし、期間内の申告レコード件数を入力の少ない順に並べる。
+     * 職員は [U:<ハッシュ>] トークンで仮名化し、氏名・内部IDは外部AIへ渡さない。
+     */
+    private function buildStaffInputSummary(string $dateFrom, string $dateTo): string
+    {
+        $userTable = TableRegistry::getTableLocator()->get('MUserInfo');
+        $staff = $userTable->find()
+            ->select(['i_id_user'])
+            ->where([
+                'i_user_level' => self::LEVEL_STAFF,
+                'i_del_flag'   => 0,
+            ])
+            ->disableHydration()
+            ->toArray();
+
+        if (empty($staff)) {
+            return "### 職員別の入力状況\n- データなし";
+        }
+
+        // 期間内の職員別の申告レコード件数（食べる・食べない両方）を集計する
+        $counts = $this->individualTable()->find()
+            ->select(['user_id' => 'i_id_user', 'total' => 'COUNT(*)'])
+            ->where([
+                'd_reservation_date >=' => $dateFrom,
+                'd_reservation_date <=' => $dateTo,
+            ])
+            ->group(['i_id_user'])
+            ->disableHydration()
+            ->toArray();
+
+        $countByUser = [];
+        foreach ($counts as $row) {
+            $countByUser[(int)$row['user_id']] = (int)$row['total'];
+        }
+
+        // 未入力（0件）の職員も含めて入力件数の少ない順に並べる
+        $staffCounts = [];
+        foreach ($staff as $row) {
+            $userId = (int)$row['i_id_user'];
+            $staffCounts[$userId] = $countByUser[$userId] ?? 0;
+        }
+        asort($staffCounts);
+
+        $lines = [
+            '### 職員別の入力状況（入力の少ない順・未入力を含む）',
+            '入力件数は期間内の申告レコード数（食べる・食べない両方）。職員は [U:<ハッシュ>] トークンで表し、回答でもトークン表記をそのまま使う。',
+        ];
+        foreach ($staffCounts as $userId => $total) {
+            $lines[] = sprintf(
+                '- [U:%s]: 入力%d件%s',
+                $this->userTokenizer->tokenize($userId),
+                $total,
+                $total === 0 ? '（未入力）' : ''
+            );
         }
 
         return implode("\n", $lines);
