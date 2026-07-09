@@ -36,14 +36,17 @@
 <div class="stats-ai-shell">
     <div class="d-flex justify-content-between align-items-center mb-2">
         <h1 class="fs-3 m-0">📊 統計AI</h1>
-        <span class="badge bg-secondary">管理者専用</span>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" id="stats-ai-clear" class="btn btn-sm btn-outline-secondary">🗑 会話をクリア</button>
+            <span class="badge bg-secondary">管理者専用</span>
+        </div>
     </div>
     <p class="text-muted small">
         食数・承認・利用状況の集計データをもとにAIが回答します。個人名は外部AIへ送信されず、IDトークンをこの画面上で氏名に変換して表示します。
     </p>
 
     <div id="stats-ai-messages" class="stats-ai-messages mb-3" aria-live="polite">
-        <div class="stats-ai-msg assistant">
+        <div class="stats-ai-msg assistant greeting">
             <div class="bubble">こんにちは。直近4週間と今後1週間の統計データを参照できます。食数の傾向・部屋別の集計・承認状況などについて質問してください。</div>
         </div>
     </div>

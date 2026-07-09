@@ -19,6 +19,57 @@
     const history = [];
     let busy = false;
 
+    /**
+     * 会話履歴の保存先。sessionStorage のためリロードしても消えず、
+     * タブを閉じると破棄される（共用PCに会話を残さない）。
+     */
+    const STORAGE_KEY = 'statsAiHistory';
+    /** 保存する最大メッセージ数（サーバー側の送信上限より余裕をもたせる） */
+    const STORAGE_LIMIT = 40;
+
+    function saveHistory() {
+        try {
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-STORAGE_LIMIT)));
+        } catch (e) {
+            /* 容量超過等は無視（保存できなくても会話は継続できる） */
+        }
+    }
+
+    function restoreHistory() {
+        let stored;
+        try {
+            stored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '[]');
+        } catch (e) {
+            stored = [];
+        }
+        if (!Array.isArray(stored)) {
+            return;
+        }
+        for (const msg of stored) {
+            if (!msg || typeof msg.content !== 'string') {
+                continue;
+            }
+            if (msg.role !== 'user' && msg.role !== 'assistant') {
+                continue;
+            }
+            history.push({ role: msg.role, content: msg.content });
+            appendMessage(msg.role, resolveUserTokens(msg.content));
+        }
+    }
+
+    function clearHistory() {
+        try {
+            sessionStorage.removeItem(STORAGE_KEY);
+        } catch (e) {
+            /* noop */
+        }
+        history.length = 0;
+        messagesEl.querySelectorAll('.stats-ai-msg:not(.greeting)').forEach(function (el) {
+            el.remove();
+        });
+        inputEl.focus();
+    }
+
     /** ID→氏名マップ。AI回答の [U:<ID>] トークンを表示時のみ氏名へ変換する */
     const userMap = window.STATS_AI_USER_MAP || {};
 
@@ -73,6 +124,7 @@
         const question = maskUserNames(rawQuestion);
         appendMessage('user', rawQuestion);
         history.push({ role: 'user', content: question });
+        saveHistory();
 
         const bubble = appendMessage('assistant', '');
         bubble.classList.add('stats-ai-thinking');
@@ -150,6 +202,7 @@
 
         if (!errored && answer !== '') {
             history.push({ role: 'assistant', content: answer });
+            saveHistory();
         }
         if (!errored && answer === '') {
             bubble.classList.remove('stats-ai-thinking');
@@ -175,4 +228,16 @@
             }
         });
     }
+
+    const clearEl = document.getElementById('stats-ai-clear');
+    if (clearEl) {
+        clearEl.addEventListener('click', function () {
+            if (!busy) {
+                clearHistory();
+            }
+        });
+    }
+
+    // リロード時に前回までの会話を復元する
+    restoreHistory();
 })();
