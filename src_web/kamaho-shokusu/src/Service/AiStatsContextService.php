@@ -23,6 +23,11 @@ class AiStatsContextService
     /** @var array<int, string> 食種コード → ラベル */
     private const MEAL_LABELS = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'];
 
+    /** i_user_level: 子供（施設利用児童） */
+    private const LEVEL_CHILD = 1;
+    /** i_user_level: 職員（大人） */
+    private const LEVEL_STAFF = 0;
+
     /** @var array<int, string> 承認ステータス → ラベル */
     private const APPROVAL_LABELS = [
         ApprovalService::STATUS_PENDING      => '未承認',
@@ -33,13 +38,16 @@ class AiStatsContextService
 
     private FeatureUsageSummaryService $featureUsageSummaryService;
     private UserTokenizer $userTokenizer;
+    private RoomUsageService $roomUsageService;
 
     public function __construct(
         ?FeatureUsageSummaryService $featureUsageSummaryService = null,
-        ?UserTokenizer $userTokenizer = null
+        ?UserTokenizer $userTokenizer = null,
+        ?RoomUsageService $roomUsageService = null
     ) {
         $this->featureUsageSummaryService = $featureUsageSummaryService ?? new FeatureUsageSummaryService();
         $this->userTokenizer = $userTokenizer ?? new UserTokenizer();
+        $this->roomUsageService = $roomUsageService ?? new RoomUsageService();
     }
 
     /**
@@ -64,6 +72,7 @@ class AiStatsContextService
             $this->buildWeeklyTrend($dateFrom, $dateTo),
             $this->buildEatFlagSummary($dateFrom, $dateTo),
             $this->buildApprovalSummary($dateFrom, $dateTo),
+            $this->buildRoomUsageRateSummary($dateFrom, $dateTo),
             $this->buildUserSummary($dateFrom, $dateTo),
             $this->buildFeatureUsageSummary(),
         ];
@@ -237,6 +246,46 @@ class AiStatsContextService
         }
         if (count($lines) === 1) {
             $lines[] = '- データなし';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * 子供（児童）・大人（職員）別の部屋使用率を構築する。
+     *
+     * 使用率の定義は既存の「部屋使用率」画面（RoomUsageService）と同一:
+     * 食べた回数 ÷（在籍人数 × 日数 × 食種数）× 100。
+     */
+    private function buildRoomUsageRateSummary(string $dateFrom, string $dateTo): string
+    {
+        $groups = [
+            '子供（児童）' => self::LEVEL_CHILD,
+            '大人（職員）' => self::LEVEL_STAFF,
+        ];
+
+        $lines = [
+            '### 部屋別の使用率（子供・大人別）',
+            '使用率 = 食べた回数 ÷（在籍人数 × 日数 × 食種数）× 100。子供=児童、大人=職員。',
+        ];
+
+        foreach ($groups as $label => $level) {
+            $rows = $this->roomUsageService->getRoomUsage($dateFrom, $dateTo, null, $level);
+            $lines[] = sprintf('#### %s', $label);
+            if (empty($rows)) {
+                $lines[] = '- データなし';
+                continue;
+            }
+            foreach ($rows as $row) {
+                $lines[] = sprintf(
+                    '- %s: 使用率%.1f%%（在籍%d人 / 食べた%d回 / 上限%d回）',
+                    (string)$row['room_name'],
+                    (float)$row['usage_rate'],
+                    (int)$row['user_count'],
+                    (int)$row['eat_count'],
+                    (int)$row['capacity']
+                );
+            }
         }
 
         return implode("\n", $lines);

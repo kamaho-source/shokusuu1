@@ -71,6 +71,8 @@
         <button type="button" class="btn btn-sm btn-outline-primary">食べる率と直前変更の傾向は？</button>
         <button type="button" class="btn btn-sm btn-outline-primary">承認待ちは何件ある？</button>
         <button type="button" class="btn btn-sm btn-outline-primary">食べない申告が多い利用者は？</button>
+        <button type="button" class="btn btn-sm btn-outline-primary">部屋別の子供の使用率は？</button>
+        <button type="button" class="btn btn-sm btn-outline-primary">大人（職員）の使用率を教えて</button>
     </div>
 
     <form id="stats-ai-form" class="d-flex gap-2">
