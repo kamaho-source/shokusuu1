@@ -15,9 +15,30 @@
         return;
     }
 
-    /** @type {{role: string, content: string}[]} 会話履歴 */
+    /** @type {{role: string, content: string}[]} 会話履歴（AIとの往復はIDトークンのまま保持する） */
     const history = [];
     let busy = false;
+
+    /** ID→氏名マップ。AI回答の [U:<ID>] トークンを表示時のみ氏名へ変換する */
+    const userMap = window.STATS_AI_USER_MAP || {};
+
+    function resolveUserTokens(text) {
+        return text.replace(/\[U:(\d+)\]/g, function (match, id) {
+            return Object.prototype.hasOwnProperty.call(userMap, id) ? userMap[id] : match;
+        });
+    }
+
+    /** 質問文に含まれる既知の氏名をIDトークンへ変換し、氏名を外部AIへ送らない */
+    function maskUserNames(text) {
+        let masked = text;
+        for (const id of Object.keys(userMap)) {
+            const name = userMap[id];
+            if (name && masked.indexOf(name) !== -1) {
+                masked = masked.split(name).join('[U:' + id + ']');
+            }
+        }
+        return masked;
+    }
 
     function csrfToken() {
         const meta = document.querySelector('meta[name="csrfToken"]');
@@ -43,12 +64,14 @@
         sendEl.textContent = state ? '回答中…' : '送信';
     }
 
-    async function ask(question) {
-        if (busy || question === '') {
+    async function ask(rawQuestion) {
+        if (busy || rawQuestion === '') {
             return;
         }
         setBusy(true);
-        appendMessage('user', question);
+        // 表示は入力どおり、AIへはIDトークンへマスクした質問を送る
+        const question = maskUserNames(rawQuestion);
+        appendMessage('user', rawQuestion);
         history.push({ role: 'user', content: question });
 
         const bubble = appendMessage('assistant', '');
@@ -113,7 +136,7 @@
                             bubble.textContent = '';
                         }
                         answer += data.content;
-                        bubble.textContent = answer;
+                        bubble.textContent = resolveUserTokens(answer);
                         messagesEl.scrollTop = messagesEl.scrollHeight;
                     }
                 }

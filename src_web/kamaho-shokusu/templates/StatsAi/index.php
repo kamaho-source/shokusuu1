@@ -39,7 +39,7 @@
         <span class="badge bg-secondary">管理者専用</span>
     </div>
     <p class="text-muted small">
-        食数・承認・利用状況の集計データをもとにAIが回答します。AIに渡されるのは集計値のみで、個人単位の情報は含まれません。
+        食数・承認・利用状況の集計データをもとにAIが回答します。個人名は外部AIへ送信されず、IDトークンをこの画面上で氏名に変換して表示します。
     </p>
 
     <div id="stats-ai-messages" class="stats-ai-messages mb-3" aria-live="polite">
@@ -53,6 +53,7 @@
         <button type="button" class="btn btn-sm btn-outline-primary">部屋別の食数が多い順に教えて</button>
         <button type="button" class="btn btn-sm btn-outline-primary">食べる率と直前変更の傾向は？</button>
         <button type="button" class="btn btn-sm btn-outline-primary">承認待ちは何件ある？</button>
+        <button type="button" class="btn btn-sm btn-outline-primary">食べない申告が多い利用者は？</button>
     </div>
 
     <form id="stats-ai-form" class="d-flex gap-2">
@@ -64,5 +65,7 @@
 
 <script>
     window.STATS_AI_STREAM_URL = <?= json_encode($this->Url->build(['controller' => 'StatsAi', 'action' => 'askStream']), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    // AI回答内の [U:<ID>] トークンを氏名へ変換するためのマップ（氏名は外部AIへ送信されない）
+    window.STATS_AI_USER_MAP = <?= json_encode($userMap ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
 <?= $this->Html->script('stats-ai') ?>

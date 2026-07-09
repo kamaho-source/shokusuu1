@@ -59,6 +59,7 @@ class AiStatsContextService
             $this->buildWeeklyTrend($dateFrom, $dateTo),
             $this->buildEatFlagSummary($dateFrom, $dateTo),
             $this->buildApprovalSummary($dateFrom, $dateTo),
+            $this->buildUserSummary($dateFrom, $dateTo),
             $this->buildFeatureUsageSummary(),
         ];
 
@@ -230,6 +231,50 @@ class AiStatsContextService
             $lines[] = sprintf('- %s: %d件', $label, (int)$row['total']);
         }
         if (count($lines) === 1) {
+            $lines[] = '- データなし';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * 利用者別の申告集計を構築する。
+     *
+     * 仮名化方針: 利用者は [U:<ユーザーID>] トークンでのみ表現し、氏名は含めない。
+     * トークンから氏名への変換は画面側（ブラウザ）で行うため、外部AI APIに個人名は渡らない。
+     */
+    private function buildUserSummary(string $dateFrom, string $dateTo): string
+    {
+        $rows = $this->individualTable()->find()
+            ->select([
+                'user_id'  => 'i_id_user',
+                'eat'      => 'SUM(CASE WHEN eat_flag = 1 THEN 1 ELSE 0 END)',
+                'no_eat'   => 'SUM(CASE WHEN eat_flag = 1 THEN 0 ELSE 1 END)',
+                'changed'  => 'SUM(CASE WHEN i_change_flag = 1 THEN 1 ELSE 0 END)',
+            ])
+            ->where([
+                'd_reservation_date >=' => $dateFrom,
+                'd_reservation_date <=' => $dateTo,
+            ])
+            ->group(['i_id_user'])
+            ->orderDesc('no_eat')
+            ->disableHydration()
+            ->toArray();
+
+        $lines = [
+            '### 利用者別の申告集計',
+            '利用者は [U:<ユーザーID>] トークンで表す。回答で利用者に言及するときは必ずこのトークン表記をそのまま使うこと（氏名は不明であり、勝手に作らない）。',
+        ];
+        foreach ($rows as $row) {
+            $lines[] = sprintf(
+                '- [U:%d]: 食べる%d件 / 食べない%d件 / 直前変更%d件',
+                (int)$row['user_id'],
+                (int)$row['eat'],
+                (int)$row['no_eat'],
+                (int)$row['changed']
+            );
+        }
+        if (count($lines) === 2) {
             $lines[] = '- データなし';
         }
 
