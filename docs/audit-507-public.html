@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全面監査サマリ | 食数管理システム</title>
+<style>
+    :root {
+        --bg: #f4f6fa;
+        --surface: #ffffff;
+        --text: #1e293b;
+        --muted: #64748b;
+        --border: #e2e8f0;
+        --primary: #2563eb;
+        --ok: #16a34a;
+        --ok-bg: #dcfce7;
+        --warn: #d97706;
+        --warn-bg: #fef3c7;
+        --info: #0891b2;
+        --info-bg: #cffafe;
+        --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.7;
+        padding-bottom: 64px;
+    }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    header.hero {
+        background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%);
+        color: #fff;
+        padding: 40px 0 88px;
+    }
+    .hero .eyebrow { font-size: 13px; letter-spacing: .12em; opacity: .85; }
+    .hero h1 { font-size: 28px; margin: 8px 0 4px; }
+    .hero .meta { font-size: 14px; opacity: .9; }
+
+    .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 14px;
+        margin-top: -56px;
+    }
+    .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+    }
+    .card .label { font-size: 12.5px; color: var(--muted); }
+    .card .value { font-size: 30px; font-weight: 700; margin-top: 2px; }
+    .card .value.ok { color: var(--ok); }
+    .card .value.info { color: var(--info); }
+    .card .sub { font-size: 12px; color: var(--muted); }
+
+    section { margin-top: 40px; }
+    section > h2 {
+        font-size: 20px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--primary);
+        margin-bottom: 18px;
+    }
+    section > h2 .num {
+        display: inline-block;
+        background: var(--primary);
+        color: #fff;
+        font-size: 13px;
+        border-radius: 6px;
+        padding: 2px 9px;
+        margin-right: 8px;
+        vertical-align: 2px;
+    }
+
+    .badge {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: 999px;
+        padding: 2px 12px;
+        white-space: nowrap;
+    }
+    .badge.ok   { background: var(--ok-bg);  color: var(--ok); }
+    .badge.mid  { background: var(--warn-bg); color: var(--warn); }
+    .badge.na   { background: #e2e8f0; color: #475569; }
+
+    .panel {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px 22px;
+        margin-bottom: 16px;
+    }
+    .panel h3 { font-size: 16px; margin-bottom: 10px; }
+
+    ul.check { list-style: none; }
+    ul.check li { padding: 5px 0 5px 30px; position: relative; font-size: 14.5px; }
+    ul.check li::before {
+        content: "✔";
+        position: absolute;
+        left: 4px;
+        color: var(--ok);
+        font-weight: 700;
+    }
+    ul.check li.fixed::before { content: "🔧"; }
+
+    .e2e-row { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 14.5px; flex-wrap: wrap; }
+    .e2e-row:last-child { border-bottom: none; }
+    .e2e-row .name { flex: 1; min-width: 260px; }
+    .e2e-row .time { color: var(--muted); font-size: 12.5px; }
+
+    .note {
+        background: var(--info-bg);
+        border: 1px solid #a5f3fc;
+        border-radius: var(--radius);
+        padding: 14px 18px;
+        font-size: 13.5px;
+        color: #155e75;
+        margin-top: 24px;
+    }
+
+    footer { margin-top: 48px; text-align: center; color: var(--muted); font-size: 12.5px; }
+    @media (max-width: 640px) {
+        .hero h1 { font-size: 22px; }
+        .card .value { font-size: 24px; }
+    }
+</style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="container">
+        <div class="eyebrow">SECURITY &amp; QUALITY AUDIT SUMMARY</div>
+        <h1>食数管理システム 全面監査サマリ</h1>
+        <div class="meta">実施日: 2026-07-08｜対象: 食数管理システム（CakePHP 5 / Bootstrap 5）</div>
+    </div>
+</header>
+
+<div class="container">
+
+    <div class="cards">
+        <div class="card"><div class="label">総合評価</div><div class="value ok">良好</div><div class="sub">重大な脆弱性なし</div></div>
+        <div class="card"><div class="label">監査観点</div><div class="value info">4分野</div><div class="sub">セキュリティ・認証認可・バリデーション・SP表示</div></div>
+        <div class="card"><div class="label">改善対応</div><div class="value ok">4件 完了</div><div class="sub">同ブランチで修正済み</div></div>
+        <div class="card"><div class="label">依存パッケージ監査</div><div class="value ok">0件</div><div class="sub">既知脆弱性なし</div></div>
+        <div class="card"><div class="label">E2Eテスト</div><div class="value ok">6 passed</div><div class="sub">0 failed</div></div>
+    </div>
+
+    <section>
+        <h2><span class="num">1</span>実施した改善（概要）</h2>
+        <div class="panel">
+            <ul class="check">
+                <li class="fixed">画面に埋め込むデータのエスケープ処理を強化（多層防御としてのXSS対策）</li>
+                <li class="fixed">セキュリティ関連HTTPヘッダーをアプリ全体へ一括適用</li>
+                <li class="fixed">環境設定の既定値をより安全側（本番想定）に変更</li>
+                <li class="fixed">スマートフォン表示のレイアウト改善（横スクロール対応）</li>
+            </ul>
+            <p style="font-size:13px;color:var(--muted);margin-top:10px;">※ 詳細（対象箇所・技術的内容）は内部レポートにて管理しています。</p>
+        </div>
+    </section>
+
+    <section>
+        <h2><span class="num">2</span>監査結果サマリ</h2>
+
+        <div class="panel">
+            <h3>🛡 セキュリティ <span class="badge ok">良好</span></h3>
+            <ul class="check">
+                <li>テンプレート出力のエスケープ（XSS対策）が全体に適用されていることを確認</li>
+                <li>SQLは全てORM経由で、インジェクションにつながる記述なし</li>
+                <li>CSRF対策（ミドルウェア＋フォーム保護）の適用を確認</li>
+                <li>依存パッケージの既知脆弱性ゼロ（composer audit）</li>
+                <li>公開リポジトリのコードに認証情報のハードコードなし（機密は環境変数で管理）</li>
+                <li>オープンリダイレクト対策・操作の監査ログ記録を確認</li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h3>🔐 認証・認可 <span class="badge ok">良好</span></h3>
+            <ul class="check">
+                <li>認証ミドルウェアが全リクエストに適用され、未認証で閲覧できるのは意図された画面のみ</li>
+                <li>認可チェックの実装漏れが構造的に検出される設計（チェック必須化）を確認</li>
+                <li>他ユーザーのデータへのアクセス制御（IDOR対策）がポリシーで明示的に実装されていることを確認</li>
+                <li>ログイン時のセッション再生成・権限変更の即時反映・無効アカウントの拒否を確認</li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h3>📝 バリデーション <span class="badge ok">概ね良好</span></h3>
+            <ul class="check">
+                <li>全テーブルにサーバーサイドバリデーションが定義済み</li>
+                <li>主要な入力（ユーザー・お問い合わせ・通知等）は必須・一意・範囲チェックあり</li>
+                <li>一部の強化余地は内部レポートで改善提案として管理</li>
+            </ul>
+        </div>
+
+        <div class="panel">
+            <h3>📱 スマートフォン表示 <span class="badge ok">対応済み</span></h3>
+            <ul class="check">
+                <li>レスポンシブ基盤（Bootstrap 5・ビューポート設定・折りたたみナビ）を確認</li>
+                <li>全画面のテーブルを確認し、未対応だった1画面を修正</li>
+                <li>375px幅での横はみ出しがないことをE2Eテストで自動検証</li>
+            </ul>
+        </div>
+    </section>
+
+    <section>
+        <h2><span class="num">3</span>E2Eテスト結果（Playwright / Chromium）</h2>
+        <div class="panel">
+            <div class="e2e-row"><span class="badge ok">PASS</span><span class="name">セキュリティヘッダーが全レスポンスに付与される</span><span class="time">0.4s</span></div>
+            <div class="e2e-row"><span class="badge ok">PASS</span><span class="name">予約カレンダー画面がJSエラーなく表示される</span><span class="time">0.9s</span></div>
+            <div class="e2e-row"><span class="badge ok">PASS</span><span class="name">SP表示: 承認画面が横スクロール対応で画面幅を超えない</span><span class="time">0.9s</span></div>
+            <div class="e2e-row"><span class="badge ok">PASS</span><span class="name">SP表示: ログイン画面・ダッシュボードが375pxで崩れない</span><span class="time">1.7s</span></div>
+            <div class="e2e-row"><span class="badge ok">PASS</span><span class="name">集団予約: 部屋選択で利用者一覧が表示される</span><span class="time">1.4s</span></div>
+            <div class="e2e-row"><span class="badge ok">PASS</span><span class="name">集団予約: 予約タイプ切替で個人/集団セクションが切り替わる</span><span class="time">3.2s</span></div>
+            <div class="e2e-row"><span class="badge na">SKIP</span><span class="name">モーダル予約（対象ボタン非表示時は自動スキップする設計）</span><span class="time">—</span></div>
+        </div>
+    </section>
+
+    <div class="note">
+        本サマリは共有用に技術詳細を省略した公開版です。対象箇所・改善提案を含む完全版レポートはプロジェクト内部で管理しています。
+    </div>
+
+    <footer>食数管理システム 全面監査サマリ（2026-07-08）</footer>
+</div>
+</body>
+</html>
