@@ -9,6 +9,7 @@ use App\Domain\ValueObject\UserRole;
 use App\Service\AuditLogService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
+use Cake\Http\Exception\ServiceUnavailableException;
 use Cake\Http\Response;
 use Cake\Http\ServerRequest;
 use Cake\Log\Log;
@@ -21,17 +22,21 @@ use Cake\Log\Log;
  */
 class AiAssistantController extends AppController
 {
-    private const OPENROUTER_MODEL    = 'google/gemma-4-31b-it:free';
+    private const OPENROUTER_MODEL    = 'openai/gpt-oss-20b:free';
     private const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
     private const HTTP_REFERER        = 'https://github.com/kamaho-source/shokusuu1';
     private const MESSAGE_LIMIT       = 20;
+    /** 接続確立までの上限秒数（全体タイムアウトとは別に短く制限する） */
+    private const CONNECT_TIMEOUT_SEC = 10;
+    /** レート制限（429）時にユーザーへ返すメッセージ */
+    private const RATE_LIMIT_MESSAGE  = '現在AIが混雑しています。しばらく待ってからお試しください。';
     /** 監査ログに保存する質問・回答の最大文字数（c_detail の肥大化防止） */
     private const LOG_QUESTION_MAX    = 2000;
     private const LOG_ANSWER_MAX      = 4000;
 
     public function __construct(
         private readonly SystemPromptProviderInterface $systemPromptProvider,
-        ServerRequest $request = null,
+        ?ServerRequest $request = null,
         ?string $name = null,
     ) {
         parent::__construct($request, $name);
@@ -116,6 +121,9 @@ class AiAssistantController extends AppController
                 $ipAddress,
                 0
             );
+            if ($e->getCode() === 429) {
+                throw new ServiceUnavailableException(self::RATE_LIMIT_MESSAGE);
+            }
             throw new InternalErrorException('通信エラーが発生しました。');
         }
     }
@@ -184,13 +192,9 @@ class AiAssistantController extends AppController
         header('X-Accel-Buffering: no');
         header('Connection: keep-alive');
 
+        // 失敗時のSSEエラー送出は streamFromOpenRouter 内で行う
         $fullResponse = '';
         $success      = $this->streamFromOpenRouter($apiMessages, $apiKey, $fullResponse);
-
-        if (!$success) {
-            echo 'data: ' . json_encode(['error' => '通信エラーが発生しました。']) . "\n\n";
-            flush();
-        }
 
         AuditLogService::record(
             'system',
@@ -372,19 +376,63 @@ class AiAssistantController extends AppController
                 'HTTP-Referer: ' . self::HTTP_REFERER,
             ],
             CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
             CURLOPT_TIMEOUT        => 60,
         ]);
 
+        $startedAt = microtime(true);
         $result    = curl_exec($ch);
+        $duration  = microtime(true) - $startedAt;
+        $httpCode  = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $curlError = curl_error($ch);
         curl_close($ch);
+
+        Log::info(sprintf(
+            'AI OpenRouter call: status=%d duration=%.3fs model=%s',
+            $httpCode,
+            $duration,
+            self::OPENROUTER_MODEL
+        ));
 
         if ($result === false || $curlError !== '') {
             throw new \RuntimeException('curl error: ' . $curlError);
         }
 
-        $json = json_decode((string)$result, true);
-        return (string)($json['choices'][0]['message']['content'] ?? '回答を取得できませんでした。');
+        if ($httpCode >= 400) {
+            throw new \RuntimeException(
+                sprintf('OpenRouter HTTP %d: %s', $httpCode, $this->extractApiError((string)$result)),
+                $httpCode
+            );
+        }
+
+        $json    = json_decode((string)$result, true);
+        $content = $json['choices'][0]['message']['content'] ?? null;
+        if (!is_string($content) || $content === '') {
+            throw new \RuntimeException(
+                'OpenRouter response has no content: ' . mb_substr((string)$result, 0, 300)
+            );
+        }
+
+        return $content;
+    }
+
+    /**
+     * OpenRouter のエラーレスポンスボディから人間可読なエラーメッセージを抽出する。
+     *
+     * @param string $body レスポンスボディ（JSON想定）
+     * @return string 抽出したメッセージ（最大500文字）
+     */
+    private function extractApiError(string $body): string
+    {
+        $json    = json_decode($body, true);
+        $message = is_array($json)
+            ? ($json['error']['metadata']['raw'] ?? $json['error']['message'] ?? '')
+            : '';
+        if (!is_string($message) || $message === '') {
+            $message = $body;
+        }
+
+        return mb_substr($message, 0, 500);
     }
 
     /**
@@ -397,6 +445,7 @@ class AiAssistantController extends AppController
      */
     private function streamFromOpenRouter(array $apiMessages, string $apiKey, string &$fullResponse): bool
     {
+        $errorBody = '';
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => self::OPENROUTER_ENDPOINT,
@@ -413,7 +462,16 @@ class AiAssistantController extends AppController
                 'HTTP-Referer: ' . self::HTTP_REFERER,
             ],
             CURLOPT_RETURNTRANSFER => false,
-            CURLOPT_WRITEFUNCTION  => function ($ch, string $data) use (&$fullResponse): int {
+            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
+            CURLOPT_WRITEFUNCTION  => function ($ch, string $data) use (&$fullResponse, &$errorBody): int {
+                // 4xx/5xx のボディは SSE ではなく JSON エラーのため、クライアントへ流さず蓄積してログに使う
+                $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+                if ($status >= 400) {
+                    $errorBody .= $data;
+
+                    return strlen($data);
+                }
+
                 $lines = explode("\n", $data);
                 foreach ($lines as $line) {
                     $trimmed = trim($line);
@@ -430,8 +488,9 @@ class AiAssistantController extends AppController
                     if (!is_array($decoded)) {
                         continue;
                     }
+                    // 推論型モデル（gpt-oss等）は思考中に空のcontentを大量に送るため、空チャンクは転送しない
                     $content = $decoded['choices'][0]['delta']['content'] ?? null;
-                    if ($content !== null) {
+                    if ($content !== null && $content !== '') {
                         $fullResponse .= $content;
                         echo 'data: ' . json_encode(
                             ['content' => $content],
@@ -445,14 +504,53 @@ class AiAssistantController extends AppController
             CURLOPT_TIMEOUT        => 60,
         ]);
 
+        $startedAt  = microtime(true);
         $execResult = curl_exec($ch);
+        $duration   = microtime(true) - $startedAt;
+        $httpCode   = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
         $curlError  = curl_error($ch);
         curl_close($ch);
 
-        if ($execResult === false) {
+        Log::info(sprintf(
+            'AI OpenRouter stream: status=%d duration=%.3fs model=%s response_length=%d',
+            $httpCode,
+            $duration,
+            self::OPENROUTER_MODEL,
+            mb_strlen($fullResponse)
+        ));
+
+        if ($execResult === false || $curlError !== '') {
             Log::error('AI stream curl error: ' . $curlError);
+            $this->emitSseError('通信エラーが発生しました。');
+
+            return false;
         }
 
-        return $execResult !== false && $curlError === '';
+        if ($httpCode >= 400) {
+            Log::error(sprintf(
+                'AI stream HTTP %d: %s',
+                $httpCode,
+                $this->extractApiError($errorBody)
+            ));
+            $this->emitSseError(
+                $httpCode === 429 ? self::RATE_LIMIT_MESSAGE : '通信エラーが発生しました。'
+            );
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * SSE 形式でエラーメッセージをクライアントへ送出する。
+     *
+     * @param string $message ユーザー向けメッセージ
+     * @return void
+     */
+    private function emitSseError(string $message): void
+    {
+        echo 'data: ' . json_encode(['error' => $message], JSON_UNESCAPED_UNICODE) . "\n\n";
+        flush();
     }
 }

@@ -161,6 +161,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\RoomUsageController::class           => \App\Policy\RoomUsagePolicy::class,
             \App\Controller\FeatureUsageSummaryController::class => \App\Policy\FeatureUsageSummaryPolicy::class,
             \App\Controller\AiAssistantController::class      => \App\Policy\AiAssistantPolicy::class,
+            \App\Controller\StatsAiController::class          => \App\Policy\StatsAiPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック
