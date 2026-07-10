@@ -13,12 +13,14 @@ use Cake\ORM\TableRegistry;
  *   外部AI API へ送信されるため、ここで生成するデータは人数・件数・割合などの
  *   集計値のみとする。個人名・個人単位の予約内容は絶対に含めない。
  */
-class AiStatsContextService
+final class AiStatsContextService
 {
     /** 集計対象: 過去何日分か */
     private const PAST_DAYS = 28;
     /** 集計対象: 未来何日分か */
     private const FUTURE_DAYS = 7;
+    /** 利用者別サマリの出力上限（コンテキスト肥大化防止） */
+    private const USER_SUMMARY_LIMIT = 50;
 
     /** @var array<int, string> 食種コード → ラベル */
     private const MEAL_LABELS = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'];
@@ -36,18 +38,11 @@ class AiStatsContextService
         ApprovalService::STATUS_REJECTED     => '差し戻し',
     ];
 
-    private FeatureUsageSummaryService $featureUsageSummaryService;
-    private UserTokenizer $userTokenizer;
-    private RoomUsageService $roomUsageService;
-
     public function __construct(
-        ?FeatureUsageSummaryService $featureUsageSummaryService = null,
-        ?UserTokenizer $userTokenizer = null,
-        ?RoomUsageService $roomUsageService = null
+        private readonly FeatureUsageSummaryService $featureUsageSummaryService,
+        private readonly UserTokenizer $userTokenizer,
+        private readonly RoomUsageService $roomUsageService,
     ) {
-        $this->featureUsageSummaryService = $featureUsageSummaryService ?? new FeatureUsageSummaryService();
-        $this->userTokenizer = $userTokenizer ?? new UserTokenizer();
-        $this->roomUsageService = $roomUsageService ?? new RoomUsageService();
     }
 
     /**
@@ -380,11 +375,14 @@ class AiStatsContextService
             ->disableHydration()
             ->toArray();
 
+        $totalCount  = count($rows);
+        $displayRows = array_slice($rows, 0, self::USER_SUMMARY_LIMIT);
+
         $lines = [
             '### 利用者別の申告集計',
             '利用者は [U:<ハッシュ>] トークンで表す。回答で利用者に言及するときは必ずこのトークン表記をそのまま使うこと（氏名は不明であり、勝手に作らない）。',
         ];
-        foreach ($rows as $row) {
+        foreach ($displayRows as $row) {
             $lines[] = sprintf(
                 '- [U:%s]: 食べる%d件 / 食べない%d件 / 直前変更%d件',
                 $this->userTokenizer->tokenize((int)$row['user_id']),
@@ -393,8 +391,10 @@ class AiStatsContextService
                 (int)$row['changed']
             );
         }
-        if (count($lines) === 2) {
+        if ($totalCount === 0) {
             $lines[] = '- データなし';
+        } elseif ($totalCount > self::USER_SUMMARY_LIMIT) {
+            $lines[] = sprintf('（他 %d 名は省略）', $totalCount - self::USER_SUMMARY_LIMIT);
         }
 
         return implode("\n", $lines);

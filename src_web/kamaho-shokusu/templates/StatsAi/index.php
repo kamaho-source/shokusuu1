@@ -78,6 +78,7 @@
 
     <form id="stats-ai-form" class="d-flex gap-2">
         <input type="text" id="stats-ai-input" class="form-control"
+               aria-label="統計AIへの質問"
                placeholder="統計について質問を入力…" autocomplete="off" maxlength="500">
         <button type="submit" id="stats-ai-send" class="btn btn-primary flex-shrink-0">送信</button>
     </form>
@@ -90,5 +91,7 @@
 </script>
 <?php /* AI回答のMarkdown表示用。DOMPurifyでサニタイズしてから描画する（XSS対策） */ ?>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.11/dist/purify.min.js"
+        integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K"
+        crossorigin="anonymous"></script>
 <?= $this->Html->script('stats-ai') ?>

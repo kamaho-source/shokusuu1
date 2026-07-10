@@ -24,10 +24,15 @@ final class UserTokenizer
 
     /**
      * @param string|null $salt 省略時は Security.salt を使用する
+     * @throws \RuntimeException Security.salt が未設定または空の場合
      */
     public function __construct(?string $salt = null)
     {
-        $this->salt = $salt ?? (string)Configure::read('Security.salt');
+        $resolved = $salt ?? (string)Configure::read('Security.salt');
+        if ($resolved === '') {
+            throw new \RuntimeException('UserTokenizer: Security.salt が設定されていません。');
+        }
+        $this->salt = $resolved;
     }
 
     /**

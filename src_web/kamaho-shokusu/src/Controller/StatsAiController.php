@@ -9,6 +9,7 @@ use App\Service\AiStatsContextService;
 use App\Service\AuditLogService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
+use Cake\Http\ServerRequest;
 use Cake\Log\Log;
 
 /**
@@ -16,27 +17,44 @@ use Cake\Log\Log;
  *
  * 集計統計データをコンテキストとして持つAIチャットを提供する。
  * 外部APIへは集計値のみを送信し、個人単位のデータは含めない。
- *
- * @throws \Cake\Http\Exception\BadRequestException 入力不正時
- * @throws \Cake\Http\Exception\InternalErrorException API設定不備時
  */
 class StatsAiController extends AppController
 {
-    private const OPENROUTER_MODEL = 'openai/gpt-oss-20b:free';
-    private const MESSAGE_LIMIT    = 20;
+    private const OPENROUTER_MODEL   = 'openai/gpt-oss-20b:free';
+    private const MESSAGE_LIMIT      = 20;
     /** 監査ログに保存する質問・回答の最大文字数 */
-    private const LOG_QUESTION_MAX = 2000;
-    private const LOG_ANSWER_MAX   = 4000;
+    private const LOG_QUESTION_MAX   = 2000;
+    private const LOG_ANSWER_MAX     = 4000;
+    /** サニタイズ時のメッセージ本文最大文字数 */
+    private const CONTENT_MAX_LENGTH = 2000;
 
-    private AiStatsContextService $statsContextService;
+    /** @var array<string, string> 氏名→トークン逆引きマップ（サーバー側マスク用） */
+    private array $nameToToken = [];
+
+    public function __construct(
+        private readonly AiStatsContextService $statsContextService,
+        private readonly UserTokenizer $userTokenizer,
+        ?ServerRequest $request = null,
+        ?string $name = null,
+    ) {
+        parent::__construct($request, $name);
+    }
 
     public function initialize(): void
     {
         parent::initialize();
-        $this->statsContextService = new AiStatsContextService();
         // JSONボディを受け取るAJAXエンドポイントのためフォームトークン検証対象外にする。
         // CSRF保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
         $this->FormProtection->setConfig('unlockedActions', ['askStream']);
+
+        // 氏名→トークンの逆引きマップを構築（askStream でのサーバー側マスクに使用）
+        $users = $this->fetchTable('MUserInfo')->find('list', [
+            'keyField'   => 'i_id_user',
+            'valueField' => 'c_user_name',
+        ])->where(['i_del_flag' => 0])->toArray();
+        foreach ($users as $id => $name) {
+            $this->nameToToken[(string)$name] = $this->userTokenizer->tokenize((int)$id);
+        }
     }
 
     /**
@@ -49,7 +67,6 @@ class StatsAiController extends AppController
     {
         $this->Authorization->authorize($this, 'index');
 
-        $tokenizer = new UserTokenizer();
         $users = $this->fetchTable('MUserInfo')->find('list', [
             'keyField'   => 'i_id_user',
             'valueField' => 'c_user_name',
@@ -58,7 +75,7 @@ class StatsAiController extends AppController
         // キーを内部IDからハッシュトークンへ付け替える（画面には内部IDを露出しない）
         $userMap = [];
         foreach ($users as $id => $name) {
-            $userMap[$tokenizer->tokenize((int)$id)] = $name;
+            $userMap[$this->userTokenizer->tokenize((int)$id)] = $name;
         }
 
         $this->set('title', '統計AI');
@@ -69,6 +86,8 @@ class StatsAiController extends AppController
      * 統計コンテキスト付きでAIへの質問をSSEストリーミング処理する。
      *
      * @return never
+     * @throws \Cake\Http\Exception\BadRequestException 入力不正時
+     * @throws \Cake\Http\Exception\InternalErrorException API設定不備時
      */
     public function askStream(): never
     {
@@ -161,17 +180,26 @@ class StatsAiController extends AppController
 
     /**
      * システムプロンプト（役割定義＋最新の統計コンテキスト）を構築する。
+     *
+     * @throws \Cake\Http\Exception\InternalErrorException プロンプトファイルが見つからない場合
      */
     private function buildSystemPrompt(): string
     {
         $promptFile = __DIR__ . '/../Infrastructure/AI/Prompts/stats_ai.md';
-        $basePrompt = file_exists($promptFile) ? (string)file_get_contents($promptFile) : '';
+        if (!file_exists($promptFile)) {
+            Log::error('stats_ai.md が見つかりません: ' . $promptFile);
+            throw new InternalErrorException('AI機能の設定ファイルが見つかりません。');
+        }
+        $basePrompt = (string)file_get_contents($promptFile);
 
         return $basePrompt . "\n\n" . $this->statsContextService->build();
     }
 
     /**
      * メッセージ配列を検証・サニタイズして返す。
+     *
+     * user ロールのメッセージは既知の氏名をトークンへ置換し、
+     * 個人情報が外部 AI API へ渡らないようにする。
      *
      * @param array<mixed> $messages
      * @return list<array{role: string, content: string}>
@@ -191,9 +219,34 @@ class StatsAiController extends AppController
             if (!is_string($msgContent) || $msgContent === '') {
                 continue;
             }
-            $sanitized[] = ['role' => $msgRole, 'content' => $msgContent];
+            $content = mb_substr($msgContent, 0, self::CONTENT_MAX_LENGTH);
+            if ($msgRole === 'user') {
+                $content = $this->maskPersonalNames($content);
+            }
+            $sanitized[] = ['role' => $msgRole, 'content' => $content];
         }
 
         return $sanitized;
+    }
+
+    /**
+     * テキスト内の既知の利用者氏名を [U:<トークン>] に置換する。
+     *
+     * 長い名前を先に置換することで、部分一致による置換崩れを防ぐ。
+     */
+    private function maskPersonalNames(string $content): string
+    {
+        if (empty($this->nameToToken)) {
+            return $content;
+        }
+        $names = array_keys($this->nameToToken);
+        usort($names, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+        foreach ($names as $name) {
+            if (str_contains($content, $name)) {
+                $content = str_replace($name, '[U:' . $this->nameToToken[$name] . ']', $content);
+            }
+        }
+
+        return $content;
     }
 }

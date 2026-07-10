@@ -82,10 +82,14 @@
     /** 質問文に含まれる既知の氏名をハッシュトークンへ変換し、氏名を外部AIへ送らない */
     function maskUserNames(text) {
         let masked = text;
-        for (const token of Object.keys(userMap)) {
-            const name = userMap[token];
-            if (name && masked.indexOf(name) !== -1) {
-                masked = masked.split(name).join('[U:' + token + ']');
+        // 長い名前を先に置換することで、部分一致による置換崩れ（例: 「山田」が「山田太郎」より先にマッチ）を防ぐ
+        const entries = Object.keys(userMap)
+            .map(function (token) { return { token: token, name: userMap[token] }; })
+            .filter(function (e) { return !!e.name; })
+            .sort(function (a, b) { return b.name.length - a.name.length; });
+        for (const entry of entries) {
+            if (masked.indexOf(entry.name) !== -1) {
+                masked = masked.split(entry.name).join('[U:' + entry.token + ']');
             }
         }
         return masked;

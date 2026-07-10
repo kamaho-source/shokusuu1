@@ -445,7 +445,8 @@ class AiAssistantController extends AppController
      */
     private function streamFromOpenRouter(array $apiMessages, string $apiKey, string &$fullResponse): bool
     {
-        $errorBody = '';
+        $errorBody  = '';
+        $lineBuffer = '';
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => self::OPENROUTER_ENDPOINT,
@@ -463,7 +464,7 @@ class AiAssistantController extends AppController
             ],
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
-            CURLOPT_WRITEFUNCTION  => function ($ch, string $data) use (&$fullResponse, &$errorBody): int {
+            CURLOPT_WRITEFUNCTION  => function ($ch, string $data) use (&$fullResponse, &$errorBody, &$lineBuffer): int {
                 // 4xx/5xx のボディは SSE ではなく JSON エラーのため、クライアントへ流さず蓄積してログに使う
                 $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
                 if ($status >= 400) {
@@ -472,7 +473,12 @@ class AiAssistantController extends AppController
                     return strlen($data);
                 }
 
-                $lines = explode("\n", $data);
+                // cURL は SSE の行境界を跨いでコールバックを呼ぶことがあるため、
+                // 前回の未完了行と結合してから改行単位で処理する
+                $lineBuffer .= $data;
+                $lines       = explode("\n", $lineBuffer);
+                $lineBuffer  = (string)array_pop($lines);
+
                 foreach ($lines as $line) {
                     $trimmed = trim($line);
                     if ($trimmed === '' || !str_starts_with($trimmed, 'data: ')) {
