@@ -109,12 +109,14 @@ final class AiStatsContextService
 
     /**
      * 部屋別の予約食数（食べる申告のみ）を集計する。
+     *
+     * 部屋名は外部AIへ渡さず、部屋IDをHMACハッシュ化した [R:<ハッシュ>] トークンで表す。
      */
     private function buildRoomSummary(string $dateFrom, string $dateTo): string
     {
         $rows = $this->individualTable()->find()
             ->select([
-                'room_name' => 'MRoomInfo.c_room_name',
+                'room_id'   => 'MRoomInfo.i_id_room',
                 'total'     => 'COUNT(*)',
             ])
             ->innerJoin(
@@ -126,14 +128,18 @@ final class AiStatsContextService
                 'd_reservation_date <=' => $dateTo,
                 'eat_flag'              => 1,
             ])
-            ->group(['MRoomInfo.i_id_room', 'MRoomInfo.c_room_name'])
+            ->group(['MRoomInfo.i_id_room'])
             ->orderDesc('total')
             ->disableHydration()
             ->toArray();
 
         $lines = ['### 部屋別の予約食数（食べる申告）'];
         foreach ($rows as $row) {
-            $lines[] = sprintf('- %s: %d食', (string)$row['room_name'], (int)$row['total']);
+            $lines[] = sprintf(
+                '- [R:%s]: %d食',
+                $this->userTokenizer->tokenize((int)$row['room_id']),
+                (int)$row['total']
+            );
         }
         if (count($lines) === 1) {
             $lines[] = '- データなし';
@@ -252,6 +258,7 @@ final class AiStatsContextService
      *
      * 使用率の定義は既存の「部屋使用率」画面（RoomUsageService）と同一:
      * 食べた回数 ÷（在籍人数 × 日数 × 食種数）× 100。
+     * 部屋名は外部AIへ渡さず [R:<ハッシュ>] トークンで表す。
      */
     private function buildRoomUsageRateSummary(string $dateFrom, string $dateTo): string
     {
@@ -274,8 +281,8 @@ final class AiStatsContextService
             }
             foreach ($rows as $row) {
                 $lines[] = sprintf(
-                    '- %s: 使用率%.1f%%（在籍%d人 / 食べた%d回 / 上限%d回）',
-                    (string)$row['room_name'],
+                    '- [R:%s]: 使用率%.1f%%（在籍%d人 / 食べた%d回 / 上限%d回）',
+                    $this->userTokenizer->tokenize((int)$row['room_id']),
                     (float)$row['usage_rate'],
                     (int)$row['user_count'],
                     (int)$row['eat_count'],

@@ -86,8 +86,10 @@
 
 <script>
     window.STATS_AI_STREAM_URL = <?= json_encode($this->Url->build(['controller' => 'StatsAi', 'action' => 'askStream']), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    // AI回答内の [U:<ID>] トークンを氏名へ変換するためのマップ（氏名は外部AIへ送信されない）
+    // AI回答内の [U:<ハッシュ>] トークンを氏名へ変換するためのマップ（氏名は外部AIへ送信されない）
     window.STATS_AI_USER_MAP = <?= json_encode($userMap ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    // AI回答内の [R:<ハッシュ>] トークンを部屋名へ変換するためのマップ（部屋名は外部AIへ送信されない）
+    window.STATS_AI_ROOM_MAP = <?= json_encode($roomMap ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 </script>
 <?php /* AI回答のMarkdown表示用。DOMPurifyでサニタイズしてから描画する（XSS対策） */ ?>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"

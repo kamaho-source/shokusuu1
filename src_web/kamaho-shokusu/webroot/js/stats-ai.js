@@ -70,26 +70,38 @@
         inputEl.focus();
     }
 
-    /** ID→氏名マップ。AI回答の [U:<ID>] トークンを表示時のみ氏名へ変換する */
+    /** ハッシュトークン→氏名マップ。AI回答の [U:<ハッシュ>] を表示時のみ氏名へ変換する */
     const userMap = window.STATS_AI_USER_MAP || {};
+    /** ハッシュトークン→部屋名マップ。AI回答の [R:<ハッシュ>] を表示時のみ部屋名へ変換する */
+    const roomMap = window.STATS_AI_ROOM_MAP || {};
 
     function resolveUserTokens(text) {
-        return text.replace(/\[U:([0-9a-f]+)\]/g, function (match, token) {
+        // [U:<ハッシュ>] → 氏名
+        text = text.replace(/\[U:([0-9a-f]+)\]/g, function (match, token) {
             return Object.prototype.hasOwnProperty.call(userMap, token) ? userMap[token] : match;
         });
+        // [R:<ハッシュ>] → 部屋名
+        text = text.replace(/\[R:([0-9a-f]+)\]/g, function (match, token) {
+            return Object.prototype.hasOwnProperty.call(roomMap, token) ? roomMap[token] : match;
+        });
+        return text;
     }
 
-    /** 質問文に含まれる既知の氏名をハッシュトークンへ変換し、氏名を外部AIへ送らない */
+    /** 質問文に含まれる既知の氏名・部屋名をハッシュトークンへ変換し、外部AIへ送らない */
     function maskUserNames(text) {
         let masked = text;
-        // 長い名前を先に置換することで、部分一致による置換崩れ（例: 「山田」が「山田太郎」より先にマッチ）を防ぐ
-        const entries = Object.keys(userMap)
-            .map(function (token) { return { token: token, name: userMap[token] }; })
-            .filter(function (e) { return !!e.name; })
+        // 長い文字列を先に置換することで、部分一致による置換崩れを防ぐ
+        const userEntries = Object.keys(userMap)
+            .map(function (token) { return { token: token, name: userMap[token], prefix: 'U' }; })
+            .filter(function (e) { return !!e.name; });
+        const roomEntries = Object.keys(roomMap)
+            .map(function (token) { return { token: token, name: roomMap[token], prefix: 'R' }; })
+            .filter(function (e) { return !!e.name; });
+        const allEntries = userEntries.concat(roomEntries)
             .sort(function (a, b) { return b.name.length - a.name.length; });
-        for (const entry of entries) {
+        for (const entry of allEntries) {
             if (masked.indexOf(entry.name) !== -1) {
-                masked = masked.split(entry.name).join('[U:' + entry.token + ']');
+                masked = masked.split(entry.name).join('[' + entry.prefix + ':' + entry.token + ']');
             }
         }
         return masked;

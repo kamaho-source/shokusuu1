@@ -30,6 +30,8 @@ final class StatsAiController extends AppController
 
     /** @var array<string, string> 氏名→トークン逆引きマップ（サーバー側マスク用） */
     private array $nameToToken = [];
+    /** @var array<string, string> 部屋名→トークン逆引きマップ（サーバー側マスク用） */
+    private array $roomToToken = [];
 
     public function __construct(
         private readonly AiStatsContextService $statsContextService,
@@ -55,6 +57,15 @@ final class StatsAiController extends AppController
         foreach ($users as $id => $name) {
             $this->nameToToken[(string)$name] = $this->userTokenizer->tokenize((int)$id);
         }
+
+        // 部屋名→トークンの逆引きマップを構築（askStream でのサーバー側マスクに使用）
+        $rooms = $this->fetchTable('MRoomInfo')->find('list', [
+            'keyField'   => 'i_id_room',
+            'valueField' => 'c_room_name',
+        ])->toArray();
+        foreach ($rooms as $id => $name) {
+            $this->roomToToken[(string)$name] = $this->userTokenizer->tokenize((int)$id);
+        }
     }
 
     /**
@@ -78,8 +89,18 @@ final class StatsAiController extends AppController
             $userMap[$this->userTokenizer->tokenize((int)$id)] = $name;
         }
 
+        $rooms = $this->fetchTable('MRoomInfo')->find('list', [
+            'keyField'   => 'i_id_room',
+            'valueField' => 'c_room_name',
+        ])->toArray();
+        $roomMap = [];
+        foreach ($rooms as $id => $name) {
+            $roomMap[$this->userTokenizer->tokenize((int)$id)] = $name;
+        }
+
         $this->set('title', '統計AI');
         $this->set('userMap', $userMap);
+        $this->set('roomMap', $roomMap);
     }
 
     /**
@@ -230,20 +251,29 @@ final class StatsAiController extends AppController
     }
 
     /**
-     * テキスト内の既知の利用者氏名を [U:<トークン>] に置換する。
+     * テキスト内の既知の利用者氏名・部屋名をトークンに置換する。
      *
-     * 長い名前を先に置換することで、部分一致による置換崩れを防ぐ。
+     * 長い文字列を先に置換することで、部分一致による置換崩れを防ぐ。
      */
     private function maskPersonalNames(string $content): string
     {
-        if (empty($this->nameToToken)) {
-            return $content;
+        if (!empty($this->nameToToken)) {
+            $names = array_keys($this->nameToToken);
+            usort($names, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+            foreach ($names as $name) {
+                if (str_contains($content, $name)) {
+                    $content = str_replace($name, '[U:' . $this->nameToToken[$name] . ']', $content);
+                }
+            }
         }
-        $names = array_keys($this->nameToToken);
-        usort($names, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
-        foreach ($names as $name) {
-            if (str_contains($content, $name)) {
-                $content = str_replace($name, '[U:' . $this->nameToToken[$name] . ']', $content);
+
+        if (!empty($this->roomToToken)) {
+            $roomNames = array_keys($this->roomToToken);
+            usort($roomNames, static fn(string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+            foreach ($roomNames as $name) {
+                if (str_contains($content, $name)) {
+                    $content = str_replace($name, '[R:' . $this->roomToToken[$name] . ']', $content);
+                }
             }
         }
 
