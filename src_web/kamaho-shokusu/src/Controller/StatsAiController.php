@@ -18,7 +18,7 @@ use Cake\Log\Log;
  * 集計統計データをコンテキストとして持つAIチャットを提供する。
  * 外部APIへは集計値のみを送信し、個人単位のデータは含めない。
  */
-class StatsAiController extends AppController
+final class StatsAiController extends AppController
 {
     private const OPENROUTER_MODEL   = 'openai/gpt-oss-20b:free';
     private const MESSAGE_LIMIT      = 20;
@@ -201,7 +201,7 @@ class StatsAiController extends AppController
      * user ロールのメッセージは既知の氏名をトークンへ置換し、
      * 個人情報が外部 AI API へ渡らないようにする。
      *
-     * @param array<mixed> $messages
+     * @param list<array<string, mixed>> $messages
      * @return list<array{role: string, content: string}>
      */
     private function sanitizeMessages(array $messages): array

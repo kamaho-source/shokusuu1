@@ -20,7 +20,7 @@ final class UserTokenizer
     /** トークンに使うハッシュの文字数（衝突しにくく、かつ短く保つ） */
     private const TOKEN_LENGTH = 12;
 
-    private string $salt;
+    private readonly string $salt;
 
     /**
      * @param string|null $salt 省略時は Security.salt を使用する

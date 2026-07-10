@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Application\AI\AiUserRole;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\AI\OpenRouterClient;
 use App\Service\AuditLogService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
@@ -400,7 +401,7 @@ class AiAssistantController extends AppController
 
         if ($httpCode >= 400) {
             throw new \RuntimeException(
-                sprintf('OpenRouter HTTP %d: %s', $httpCode, $this->extractApiError((string)$result)),
+                sprintf('OpenRouter HTTP %d: %s', $httpCode, OpenRouterClient::extractApiError((string)$result)),
                 $httpCode
             );
         }
@@ -414,25 +415,6 @@ class AiAssistantController extends AppController
         }
 
         return $content;
-    }
-
-    /**
-     * OpenRouter のエラーレスポンスボディから人間可読なエラーメッセージを抽出する。
-     *
-     * @param string $body レスポンスボディ（JSON想定）
-     * @return string 抽出したメッセージ（最大500文字）
-     */
-    private function extractApiError(string $body): string
-    {
-        $json    = json_decode($body, true);
-        $message = is_array($json)
-            ? ($json['error']['metadata']['raw'] ?? $json['error']['message'] ?? '')
-            : '';
-        if (!is_string($message) || $message === '') {
-            $message = $body;
-        }
-
-        return mb_substr($message, 0, 500);
     }
 
     /**
@@ -536,7 +518,7 @@ class AiAssistantController extends AppController
             Log::error(sprintf(
                 'AI stream HTTP %d: %s',
                 $httpCode,
-                $this->extractApiError($errorBody)
+                OpenRouterClient::extractApiError($errorBody)
             ));
             $this->emitSseError(
                 $httpCode === 429 ? self::RATE_LIMIT_MESSAGE : '通信エラーが発生しました。'

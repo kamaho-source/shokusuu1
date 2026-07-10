@@ -9,7 +9,7 @@ use Authorization\IdentityInterface;
 /**
  * 統計AI画面のアクセスポリシー。システム管理者（SYSTEM_ADMIN）のみ許可する。
  */
-class StatsAiPolicy
+final class StatsAiPolicy
 {
     /**
      * 統計AI画面の表示を許可するか。

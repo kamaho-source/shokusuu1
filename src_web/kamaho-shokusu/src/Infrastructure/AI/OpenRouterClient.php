@@ -45,6 +45,7 @@ final class OpenRouterClient
     {
         $fullResponse = '';
         $errorBody    = '';
+        $lineBuffer   = '';
 
         $ch = curl_init();
         curl_setopt_array($ch, [
@@ -64,7 +65,7 @@ final class OpenRouterClient
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
             CURLOPT_TIMEOUT        => self::TIMEOUT_SEC,
-            CURLOPT_WRITEFUNCTION  => function ($ch, string $data) use (&$fullResponse, &$errorBody, $onContent): int {
+            CURLOPT_WRITEFUNCTION  => function ($ch, string $data) use (&$fullResponse, &$errorBody, &$lineBuffer, $onContent): int {
                 // 4xx/5xx のボディは SSE ではなく JSON エラーのため、コールバックへ流さず蓄積してログに使う
                 $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
                 if ($status >= 400) {
@@ -73,7 +74,13 @@ final class OpenRouterClient
                     return strlen($data);
                 }
 
-                foreach (explode("\n", $data) as $line) {
+                // cURL は SSE の行境界を跨いでコールバックを呼ぶことがあるため、
+                // 前回の未完了行と結合してから改行単位で処理する
+                $lineBuffer .= $data;
+                $lines       = explode("\n", $lineBuffer);
+                $lineBuffer  = (string)array_pop($lines);
+
+                foreach ($lines as $line) {
                     $trimmed = trim($line);
                     if ($trimmed === '' || !str_starts_with($trimmed, 'data: ')) {
                         continue;
@@ -124,7 +131,7 @@ final class OpenRouterClient
         }
 
         if ($httpCode >= 400) {
-            Log::error(sprintf('AI stream HTTP %d: %s', $httpCode, $this->extractApiError($errorBody)));
+            Log::error(sprintf('AI stream HTTP %d: %s', $httpCode, self::extractApiError($errorBody)));
 
             return [
                 'success'      => false,
@@ -148,7 +155,7 @@ final class OpenRouterClient
      * @param string $body レスポンスボディ（JSON想定）
      * @return string 抽出したメッセージ（最大500文字）
      */
-    private function extractApiError(string $body): string
+    public static function extractApiError(string $body): string
     {
         $json    = json_decode($body, true);
         $message = is_array($json)
