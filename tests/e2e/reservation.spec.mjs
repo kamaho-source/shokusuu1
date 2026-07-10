@@ -6,13 +6,14 @@ import { test, expect } from '@playwright/test';
  * E2E_USER / E2E_PASS 環境変数で認証情報を渡す。
  */
 async function login(page) {
-    const user = process.env.E2E_USER ?? 'admin';
-    const pass = process.env.E2E_PASS ?? 'admin';
-    await page.goto('/kamaho-shokusu/users/login');
-    await page.fill('input[name="username"]', user);
-    await page.fill('input[name="password"]', pass);
-    await page.click('button[type="submit"]');
-    await page.waitForURL(/\/(index|home|dashboard)/);
+    const user = process.env.E2E_USER ?? 'e2e_admin';
+    const pass = process.env.E2E_PASS ?? 'E2eTest#2026';
+    await page.goto('/kamaho-shokusu/MUserInfo/login');
+    await page.fill('input[name="c_login_account"]', user);
+    await page.fill('input[name="c_login_passwd"]', pass);
+    await page.click('button[type="submit"], input[type="submit"]');
+    // 管理者は TReservationInfo、一般は Pages/display(home) へリダイレクトされる
+    await page.waitForURL(/TReservationInfo|pages|dashboard|\/kamaho-shokusu\/?$/);
 }
 
 test.describe('予約フォーム - 集団予約', () => {

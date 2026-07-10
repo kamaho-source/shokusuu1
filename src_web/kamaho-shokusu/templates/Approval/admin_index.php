@@ -135,6 +135,7 @@ foreach ($summary as $row) {
             <span class="text-secondary small fw-semibold">▼ 開閉</span>
         </div>
         <div class="px-2 pb-2" id="summary-body">
+            <div class="table-responsive">
             <table class="table table-sm table-bordered summary-table mb-0">
                 <thead class="table-light">
                 <tr>
@@ -168,6 +169,7 @@ foreach ($summary as $row) {
                 </tr>
                 </tfoot>
             </table>
+            </div>
         </div>
     </div>
     <?php endif; ?>
