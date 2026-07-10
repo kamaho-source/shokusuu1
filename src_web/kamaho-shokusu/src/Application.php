@@ -19,7 +19,11 @@ use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
+use App\Controller\StatsAiController;
 use App\Infrastructure\AI\SystemPromptProvider;
+use App\Infrastructure\AI\UserTokenizer;
+use App\Service\AiStatsContextService;
+use App\Service\FeatureUsageSummaryService;
 use App\Service\RoomUsageService;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
@@ -148,6 +152,17 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(RoomUsageController::class)
             ->addArgument(RoomUsageService::class)
             ->addArgument(ServerRequest::class);
+
+        $container->add(UserTokenizer::class);
+        $container->add(FeatureUsageSummaryService::class);
+        $container->add(AiStatsContextService::class)
+            ->addArgument(FeatureUsageSummaryService::class)
+            ->addArgument(UserTokenizer::class)
+            ->addArgument(RoomUsageService::class);
+        $container->add(StatsAiController::class)
+            ->addArgument(AiStatsContextService::class)
+            ->addArgument(UserTokenizer::class)
+            ->addArgument(ServerRequest::class);
     }
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
@@ -161,6 +176,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\RoomUsageController::class           => \App\Policy\RoomUsagePolicy::class,
             \App\Controller\FeatureUsageSummaryController::class => \App\Policy\FeatureUsageSummaryPolicy::class,
             \App\Controller\AiAssistantController::class      => \App\Policy\AiAssistantPolicy::class,
+            \App\Controller\StatsAiController::class          => \App\Policy\StatsAiPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック
