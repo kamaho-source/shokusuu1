@@ -379,10 +379,6 @@ return function (RouteBuilder $routes): void {
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
 
-        // ── 統計AI（管理者専用） ──
-        $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);
-        $builder->connect('/StatsAi/askStream', ['controller' => 'StatsAi', 'action' => 'askStream'])->setMethods(['POST']);
-
         // ── AIアシスタント ──
         $builder->connect('/AiAssistant/ask', ['controller' => 'AiAssistant', 'action' => 'ask'])->setMethods(['POST']);
         $builder->connect('/AiAssistant/askStream', ['controller' => 'AiAssistant', 'action' => 'askStream'])->setMethods(['POST']);
