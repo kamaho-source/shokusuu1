@@ -144,7 +144,10 @@ $JS_MY_DETAILS       = json_encode($myReservationDetails, $jsonFlags);
 $JS_RESERVED_DATES   = json_encode($js_reservedDates, $jsonFlags);
 $JS_EXISTING_EVENTS  = json_encode($events, $jsonFlags);
 $JS_TODAY            = json_encode($today, $jsonFlags);
+// 既存予約に登場する部屋名（カレンダー上の予約部屋ラベル表示用）
 $JS_ROOM_NAMES       = json_encode($reservationRoomNames, $jsonFlags);
+// このユーザーが新規予約できる部屋名（カレンダークリック時の部屋選択ピッカー用）
+$JS_AVAILABLE_ROOM_NAMES = json_encode($rooms ?? [], $jsonFlags);
 
 // 子供用: トグルURLテンプレートと初期room
 $JS_TOGGLE_BASE      = json_encode($toggleBase ?? '', $jsonFlags);
@@ -173,6 +176,7 @@ $jsConfigVars = compact(
     'JS_CURRENT_ROOM',
     'JS_TOGGLE_BASE',
     'JS_ROOM_NAMES',
+    'JS_AVAILABLE_ROOM_NAMES',
     'csrfToken',
     'serverToday',
     'copyApi',
