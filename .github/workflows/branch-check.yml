@@ -13,8 +13,9 @@ jobs:
       - name: Check source branch for PR to main
         if: github.base_ref == 'main'
         run: |
-          if [[ "${{ github.head_ref }}" != release/* ]]; then
-            echo "ERROR: main へのPRは release/* ブランチからのみ許可されています。"
+          if [[ "${{ github.head_ref }}" != release/* ]] && \
+             [[ "${{ github.head_ref }}" != develop ]]; then
+            echo "ERROR: main へのPRは develop または release/* ブランチからのみ許可されています。"
             echo "現在のブランチ: ${{ github.head_ref }}"
             exit 1
           fi
