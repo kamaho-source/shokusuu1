@@ -9,6 +9,10 @@ body { background: #f8f9fa; }
 .sat-col th, .sat-col td { background: #eff6ff; }
 .sun-col th, .sun-col td { background: #fff0f0; }
 .check-cell { min-width: 32px; }
+/* 曜日区切り：日付グループの左端に太い縦線を入れて視認性を上げる */
+.grid-table th.day-start,
+.grid-table td.day-start { border-left: 2px solid #94a3b8 !important; }
+.grid-table th.date-header { border-left: 2px solid #94a3b8 !important; }
 .actual-cb { width: 18px; height: 18px; cursor: pointer; }
 .actual-cb:disabled { cursor: not-allowed; opacity: 0.4; }
 .user-name { white-space: nowrap; min-width: 100px; }
