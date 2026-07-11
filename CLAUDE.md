@@ -123,18 +123,28 @@ vendor/bin/phpunit tests/TestCase/Domain/   # 層ごと
 ## 9. ブランチ戦略
 
 ```
-main     ← 本番リリース用（develop からのみマージ）
-develop  ← 統合ブランチ（ブランチの起点・PRのベース）
+main     ← 本番リリース用（release/* からのみマージ）
+release/ ← リリース準備用（develop から作成し main へマージ。マージ後 main→develop を同期）
+develop  ← 統合ブランチ（feature/・fix/ の起点・PRのベース）
 feature/ ← 機能開発
 fix/     ← バグ修正
-hotfix/  ← 緊急本番修正
+hotfix/  ← 緊急本番修正（main から作成し main・develop の両方へ反映）
 ```
 
-**ブランチは必ず `develop` から切ること。PRのベースブランチは必ず `develop` を指定すること。**
+**通常の開発ブランチ（feature/・fix/）は必ず `develop` から切ること。PRのベースブランチは必ず `develop` を指定すること。**
 
 ```bash
 git checkout -b feature/xxx develop
 gh pr create --base develop --title "feat: 機能名" --body "..."
+```
+
+**本番リリースは `release/*` ブランチを介して行うこと。develop から直接 main へはマージしない**（`branch-check` が `release/*` 以外の main 向けPRを弾く）。
+
+```bash
+# リリース時: develop から release ブランチを作成し main へPR
+git checkout -b release/2026-07-11 develop
+gh pr create --base main --title "release: 2026-07-11" --body "..."
+# main へマージ後、release で入れた修正を develop へ戻す（main → develop 同期）
 ```
 
 コミットメッセージは Conventional Commits に従う（`feat:` / `fix:` / `refactor:` / `test:` / `docs:`）。
