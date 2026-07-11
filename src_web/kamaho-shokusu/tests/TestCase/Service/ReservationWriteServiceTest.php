@@ -269,7 +269,9 @@ class ReservationWriteServiceTest extends TestCase
             json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
             $this->rooms(),
             'システム管理者',
-            $this->alwaysValid()
+            $this->alwaysValid(),
+            loginUserId: 99,
+            isAdmin: true
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
@@ -288,7 +290,9 @@ class ReservationWriteServiceTest extends TestCase
             json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
             $this->rooms(),
             'システム管理者',
-            $this->alwaysValid()
+            $this->alwaysValid(),
+            loginUserId: 99,
+            isAdmin: true
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
@@ -352,11 +356,26 @@ class ReservationWriteServiceTest extends TestCase
             json_encode(['users' => ['1' => ['1' => 0]], 'i_id_room' => 1]),
             $this->rooms(),
             'システム管理者',
-            $this->alwaysValid()
+            $this->alwaysValid(),
+            loginUserId: 99,
+            isAdmin: true
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
         $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
         $this->assertSame(0, (int)$row->eat_flag, 'eat_flag が 0 になっていない');
+    }
+
+    public function testGroupWithoutLoginUserIsRejected(): void
+    {
+        $this->expectException(UnauthorizedException::class);
+
+        $this->service->processGroupReservation(
+            '2026-07-01',
+            json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
+            $this->rooms(),
+            'システム管理者',
+            $this->alwaysValid()
+        );
     }
 }

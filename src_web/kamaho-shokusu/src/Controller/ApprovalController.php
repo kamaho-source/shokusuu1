@@ -37,6 +37,28 @@ class ApprovalController extends AppController
         ]);
     }
 
+    /**
+     * GET /Approval
+     *
+     * 直アクセス時のフォールバック。権限に応じた承認画面へリダイレクトする。
+     */
+    public function index(): Response
+    {
+        $this->Authorization->skipAuthorization();
+        $user  = $this->Authentication->getIdentity();
+        $admin = (int)($user?->get('i_admin') ?? 0);
+
+        if (UserRole::isAdmin($admin)) {
+            return $this->redirect(['action' => 'adminIndex']);
+        }
+        if (UserRole::isBlockLeader($admin)) {
+            return $this->redirect(['action' => 'blockLeaderIndex']);
+        }
+
+        $this->Flash->error('この画面を表示する権限がありません。');
+        return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
+    }
+
     // ------------------------------------------------------------------
     // ブロック長用 承認一覧
     // ------------------------------------------------------------------

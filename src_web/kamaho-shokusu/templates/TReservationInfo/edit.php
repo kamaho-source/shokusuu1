@@ -11,6 +11,7 @@ $loginUser = $this->request->getAttribute('identity');
         <?= $this->Form->create(null, ['url' => ['action' => 'edit', $room->i_id_room ?? '0', $date, $mealType]]) ?>
         <fieldset>
             <legend><?= __('利用者と予約情報') ?></legend>
+            <div class="table-responsive">
             <table class="table table-bordered">
                 <thead>
                 <tr>
@@ -163,6 +164,7 @@ $loginUser = $this->request->getAttribute('identity');
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         </fieldset>
         <?= $this->Form->button(__('保存'), ['class' => 'btn btn-primary']) ?>
         <?= $this->Form->end() ?>

@@ -46,11 +46,12 @@ class FeatureUsageSummaryController extends AppController
             $yearMonth = date('Y-m');
         }
 
-        $summary      = $this->summaryService->getSummary($yearMonth, $category ?: null);
-        $monthOptions = $this->summaryService->getMonthOptions();
-        $categories   = FeatureUsageSummaryService::CATEGORY_LABELS;
+        $summary          = $this->summaryService->getSummary($yearMonth, $category ?: null);
+        $hourlyUsage      = $this->summaryService->getHourlyDistribution($yearMonth, $category ?: null);
+        $monthOptions     = $this->summaryService->getMonthOptions();
+        $categories       = FeatureUsageSummaryService::CATEGORY_LABELS;
 
-        $this->set(compact('summary', 'monthOptions', 'categories', 'yearMonth', 'category'));
+        $this->set(compact('summary', 'hourlyUsage', 'monthOptions', 'categories', 'yearMonth', 'category'));
         return null;
     }
 }

@@ -25,6 +25,7 @@ $currentUserId = $user->get('i_id_user');
                 <h3><?= 'ユーザー情報:'.h($mUserInfo->c_user_name) ?></h3>
             </div>
             <div class="card-body">
+                <div class="table-responsive">
                 <table class="table table-striped">
                     <?php if($mUserInfo->i_id_user === $currentUserId || in_array((int)$user->get('i_admin'), [1, 3])): ?>
                     <tr>
@@ -46,6 +47,7 @@ $currentUserId = $user->get('i_id_user');
 
 
                 </table>
+                </div>
             </div>
         </div>
     </div>

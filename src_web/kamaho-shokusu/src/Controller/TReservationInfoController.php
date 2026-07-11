@@ -84,9 +84,10 @@ class TReservationInfoController extends ReservationBaseController
         $userRoomId  = $this->calendarService->getPrimaryRoomId($userRoomIds);
 
         $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
+        $isBlockLeader = UserRole::isBlockLeader((int)($user->i_admin ?? 0));
         $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
         $canViewAllRooms = $isAdmin || $isOfficeUser;
-        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser);
+        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser, $isBlockLeader);
 
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
         $calRoomId = null;

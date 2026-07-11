@@ -37,6 +37,8 @@ class FeatureUsageSummaryService
         'room_create'                 => '部屋作成',
         'room_update'                 => '部屋更新',
         'room_delete'                 => '部屋削除',
+        'ai_assistant_ask'            => 'AI問い合わせ',
+        'ai_assistant_feedback'       => 'AIフィードバック',
     ];
 
     /** @var array<string, string> カテゴリ → 表示用ラベル */
@@ -117,6 +119,67 @@ class FeatureUsageSummaryService
             'rows'             => $rows,
             'total_operations' => $totalOperations,
             'top_feature'      => $topFeature,
+        ];
+    }
+
+    /**
+     * 時間帯別使用頻度を集計して返す。
+     *
+     * @param string $yearMonth 対象月 (YYYY-MM)
+     * @param string|null $category カテゴリ絞り込み（null = 全件）
+     * @return array{hours: list<array{hour: int, label: string, total: int}>, peak_hour: int|null, peak_total: int}
+     * @throws \Cake\Database\Exception\DatabaseException DBクエリ失敗時
+     */
+    public function getHourlyDistribution(string $yearMonth, ?string $category = null): array
+    {
+        $table    = TableRegistry::getTableLocator()->get('TAuditLog');
+        $dateFrom = $yearMonth . '-01 00:00:00';
+        $dateTo   = date('Y-m-t', (int)strtotime($yearMonth . '-01')) . ' 23:59:59';
+
+        $query = $table->find()
+            ->select([
+                'hour'  => 'HOUR(dt_create)',
+                'total' => 'COUNT(*)',
+            ])
+            ->where([
+                'dt_create >=' => $dateFrom,
+                'dt_create <=' => $dateTo,
+                'i_result'     => 1,
+            ])
+            ->group('HOUR(dt_create)')
+            ->order('HOUR(dt_create)')
+            ->disableHydration();
+
+        if ($category !== null && $category !== '') {
+            $query->andWhere(['c_category' => $category]);
+        }
+
+        $rawByHour = [];
+        foreach ($query->toArray() as $row) {
+            $rawByHour[(int)$row['hour']] = (int)$row['total'];
+        }
+
+        $hours     = [];
+        $peakHour  = null;
+        $peakTotal = 0;
+
+        for ($h = 0; $h < 24; $h++) {
+            $total = $rawByHour[$h] ?? 0;
+            $hours[] = [
+                'hour'  => $h,
+                'label' => sprintf('%02d:00', $h),
+                'total' => $total,
+            ];
+            if ($total > $peakTotal) {
+                $peakTotal = $total;
+                $peakHour  = $h;
+            }
+        }
+
+        return [
+            'hours'      => $hours,
+            'peak_hour'  => $peakHour,
+            'peak_total' => $peakTotal,
         ];
     }
 

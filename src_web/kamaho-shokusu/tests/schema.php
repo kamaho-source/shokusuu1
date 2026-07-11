@@ -198,4 +198,21 @@ return [
             'primary' => ['type' => 'primary', 'columns' => ['i_id_audit']],
         ],
     ],
+    'm_room_transfer_schedule' => [
+        'columns' => [
+            'i_id'           => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'i_id_user'      => ['type' => 'integer', 'null' => false],
+            'i_id_room_from' => ['type' => 'integer', 'null' => true, 'default' => null],
+            'i_id_room_to'   => ['type' => 'integer', 'null' => false],
+            'd_effective_date' => ['type' => 'date', 'null' => false],
+            'i_status'       => ['type' => 'integer', 'null' => false, 'default' => 0],
+            'c_create_user'  => ['type' => 'string', 'length' => 50, 'null' => true],
+            'dt_create'      => ['type' => 'datetime', 'null' => true],
+            'c_update_user'  => ['type' => 'string', 'length' => 50, 'null' => true],
+            'dt_update'      => ['type' => 'datetime', 'null' => true],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['i_id']],
+        ],
+    ],
 ];

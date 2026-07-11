@@ -183,10 +183,16 @@ body {
 .meal-chip.skip { background: #f1f5f9; color: #475569; }
 
 .mui-btn {
+    /* a タグはボタンと違い自動で垂直中央揃えされないため inline-flex で中央寄せする */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-height: 38px;
     border-radius: 12px;
     padding: 0 16px;
     font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .badge-status { font-size: .75rem; padding: .3em .6em; border-radius: .4rem; }
@@ -296,4 +302,6 @@ body {
 @media (max-width: 760px) {
     .summary-grid { grid-template-columns: 1fr; }
     .page-shell { padding-inline: 14px; }
+    .approval-action-btns { width: 100%; flex-direction: column; }
+    .approval-action-btns .mui-btn { width: 100%; }
 }

@@ -6,9 +6,9 @@
     "license": "MIT",
     "require": {
         "php": ">=8.1",
-        "cakephp/authentication": "^3.0",
+        "cakephp/authentication": "^3.3.6",
         "cakephp/authorization": "^3.2",
-        "cakephp/cakephp": "^5.0.0",
+        "cakephp/cakephp": "^5.1.7",
         "cakephp/migrations": "^4.0.0",
         "cakephp/plugin-installer": "^2.0",
         "mobiledetect/mobiledetectlib": "^3.74"
