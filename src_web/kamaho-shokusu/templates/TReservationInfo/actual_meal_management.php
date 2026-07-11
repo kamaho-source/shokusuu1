@@ -205,9 +205,12 @@ if (!empty($dates)) {
                             <?php foreach ($dates as $d):
                                 $dow_idx = (int)(new \DateTimeImmutable($d))->format('w');
                                 $colClass = $dow_idx === 6 ? 'sat-col' : ($dow_idx === 0 ? 'sun-col' : '');
+                                $firstMealOfDay = true;
                                 foreach ($meals as $mealType => $mealLabel):
+                                    $dayStartClass = $firstMealOfDay ? 'day-start' : '';
+                                    $firstMealOfDay = false;
                             ?>
-                                <th class="text-center meal-header check-cell <?= $colClass ?>"><?= h($mealLabel) ?></th>
+                                <th class="text-center meal-header check-cell <?= $colClass ?> <?= $dayStartClass ?>"><?= h($mealLabel) ?></th>
                             <?php endforeach; endforeach; ?>
                         </tr>
                         </thead>
@@ -234,11 +237,14 @@ if (!empty($dates)) {
                                 <?php foreach ($dates as $d):
                                     $dow_idx = (int)(new \DateTimeImmutable($d))->format('w');
                                     $colClass = $dow_idx === 6 ? 'sat-col' : ($dow_idx === 0 ? 'sun-col' : '');
+                                    $firstMealOfDay = true;
                                     foreach ($meals as $mealType => $mealLabel):
                                         $checked  = !empty($grid[$uid][$d][$mealType]);
                                         $version  = (int)($versions[$uid][$d][$mealType] ?? 1);
+                                        $dayStartClass = $firstMealOfDay ? 'day-start' : '';
+                                        $firstMealOfDay = false;
                                 ?>
-                                    <td class="text-center check-cell <?= $colClass ?>">
+                                    <td class="text-center check-cell <?= $colClass ?> <?= $dayStartClass ?>">
                                         <input type="checkbox"
                                                class="actual-cb"
                                                data-uid="<?= (int)$uid ?>"
