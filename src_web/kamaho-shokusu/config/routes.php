@@ -211,6 +211,12 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'view']
         )->setPass(['date']);
 
+        // ── カレンダークリック直接登録（ReservationDirectRegisterController） ──
+        $builder->connect(
+            '/TReservationInfo/direct-register',
+            ['controller' => 'ReservationDirectRegister', 'action' => 'register']
+        )->setMethods(['POST']);
+
         // ── 予約トグル（ReservationToggleController） ──
         $builder->connect(
             '/TReservationInfo/toggle/{roomId}',
