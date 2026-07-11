@@ -57,8 +57,9 @@ $getUsersByRoomTpl = $getUsersByRoomTpl ?? $this->Url->build(
 // 今日
 $today = date('Y-m-d');
 // 今日の予約情報（参考用）
-$myReservationDates = $myReservationDates ?? [];
+$myReservationDates   = $myReservationDates   ?? [];
 $myReservationDetails = $myReservationDetails ?? [];
+$reservationRoomNames = $reservationRoomNames ?? [];
 $mealDataArray = $mealDataArray ?? [];
 
 $todayReservation = $myReservationDetails[$today] ?? [];
@@ -74,7 +75,7 @@ $mealKeys   = [1=>'breakfast',2=>'lunch',3=>'dinner',4=>'bento'];
 // 子供用UIで使う初期値を先に確定（JS埋め込みで参照）
 $authorizedRooms = $authorizedRooms ?? ($rooms ?? []);
 $currentRoomId = $currentRoomId ?? ($this->request->getQuery('room') ?: ($userRoomId ?? (array_key_first($authorizedRooms) ?: '')));
-$toggleBase = $toggleBase ?? $this->Url->build(['controller'=>'TReservationInfo','action'=>'toggle','__ROOM__']);
+$toggleBase = $toggleBase ?? $this->Url->build('/TReservationInfo/toggle/__ROOM__');
 
 // ===== JS埋め込み用データを先に生成（head内で参照するため） =====
 $lunchReserved  = (bool)($todayReservation['lunch'] ?? false);
@@ -103,7 +104,15 @@ foreach ($myReservationDates as $reservedDate) {
             'backgroundColor' => '#28a745',
             'borderColor' => '#28a745',
             'textColor' => 'white',
-            'extendedProps' => ['displayOrder' => -2],
+            'extendedProps' => [
+                'displayOrder' => -2,
+                'mealRooms' => [
+                    'breakfast' => $detail['breakfastRoom'] ?? null,
+                    'lunch'     => $detail['lunchRoom']     ?? null,
+                    'dinner'    => $detail['dinnerRoom']    ?? null,
+                    'bento'     => $detail['bentoRoom']     ?? null,
+                ],
+            ],
     ];
 }
 
@@ -135,6 +144,7 @@ $JS_MY_DETAILS       = json_encode($myReservationDetails, $jsonFlags);
 $JS_RESERVED_DATES   = json_encode($js_reservedDates, $jsonFlags);
 $JS_EXISTING_EVENTS  = json_encode($events, $jsonFlags);
 $JS_TODAY            = json_encode($today, $jsonFlags);
+$JS_ROOM_NAMES       = json_encode($reservationRoomNames, $jsonFlags);
 
 // 子供用: トグルURLテンプレートと初期room
 $JS_TOGGLE_BASE      = json_encode($toggleBase ?? '', $jsonFlags);
@@ -162,6 +172,7 @@ $jsConfigVars = compact(
     'JS_MY_DETAILS',
     'JS_CURRENT_ROOM',
     'JS_TOGGLE_BASE',
+    'JS_ROOM_NAMES',
     'csrfToken',
     'serverToday',
     'copyApi',

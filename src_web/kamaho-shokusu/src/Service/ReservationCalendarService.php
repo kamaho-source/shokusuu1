@@ -199,6 +199,7 @@ class ReservationCalendarService
                 'i_reservation_type',
                 'eat_flag',
                 'i_change_flag',
+                'i_id_room',
             ])
             ->where(['i_id_user' => $userId]);
 
@@ -222,10 +223,14 @@ class ReservationCalendarService
 
             if (!isset($details[$dateStr])) {
                 $details[$dateStr] = [
-                    'breakfast' => null,
-                    'lunch'     => null,
-                    'dinner'    => null,
-                    'bento'     => null,
+                    'breakfast'     => null,
+                    'breakfastRoom' => null,
+                    'lunch'         => null,
+                    'lunchRoom'     => null,
+                    'dinner'        => null,
+                    'dinnerRoom'    => null,
+                    'bento'         => null,
+                    'bentoRoom'     => null,
                 ];
             }
 
@@ -233,7 +238,8 @@ class ReservationCalendarService
                 ? (int)$r->i_change_flag
                 : (int)$r->eat_flag;
 
-            $details[$dateStr][$key] = $effective;
+            $details[$dateStr][$key]          = $effective;
+            $details[$dateStr][$key . 'Room'] = ($effective === 1) ? (int)$r->i_id_room : null;
         }
 
         return $details;
