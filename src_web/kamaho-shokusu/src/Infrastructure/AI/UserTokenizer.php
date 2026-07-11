@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\AI;
 
 use Cake\Core\Configure;
+use Cake\Utility\Security;
 
 /**
  * 利用者IDを外部AIへ渡すための仮名トークンへ変換する。
@@ -23,14 +24,19 @@ final class UserTokenizer
     private readonly string $salt;
 
     /**
-     * @param string|null $salt 省略時は Security.salt を使用する
-     * @throws \RuntimeException Security.salt が未設定または空の場合
+     * @param string|null $salt 省略時はアプリの Security ソルトを使用する
+     * @throws \RuntimeException Security ソルトが未設定または空の場合
      */
     public function __construct(?string $salt = null)
     {
-        $resolved = $salt ?? (string)Configure::read('Security.salt');
+        // CakePHP は bootstrap で Security.salt を Configure::consume() し、
+        // Cake\Utility\Security へ移し替える。そのため実行時に
+        // Configure::read('Security.salt') は空になる。まず Security::getSalt()
+        // を参照し、（bootstrap 前の CLI 等の）フォールバックとして Configure を見る。
+        $resolved = $salt
+            ?? (Security::getSalt() ?: (string)Configure::read('Security.salt'));
         if ($resolved === '') {
-            throw new \RuntimeException('UserTokenizer: Security.salt が設定されていません。');
+            throw new \RuntimeException('UserTokenizer: Security ソルトが設定されていません。');
         }
         $this->salt = $resolved;
     }
