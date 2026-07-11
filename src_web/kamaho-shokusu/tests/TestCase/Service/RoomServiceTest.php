@@ -133,4 +133,53 @@ class RoomServiceTest extends TestCase
         $updated = $roomTable->get(1);
         $this->assertSame('test_admin', $updated->c_update_user);
     }
+
+    // ----------------------------------------------------------------
+    // buildAffiliationLabel — DB不要
+    // ----------------------------------------------------------------
+
+    public function testBuildAffiliationLabel_empty_returnsMishozoku(): void
+    {
+        $this->assertSame('未所属', $this->service->buildAffiliationLabel([], 3));
+    }
+
+    public function testBuildAffiliationLabel_partial_returnsCommaSeparated(): void
+    {
+        $result = $this->service->buildAffiliationLabel(['部屋A', '部屋B'], 3);
+        $this->assertSame('部屋A, 部屋B', $result);
+    }
+
+    public function testBuildAffiliationLabel_allRooms_returnsZenbuya(): void
+    {
+        $result = $this->service->buildAffiliationLabel(['部屋A', '部屋B', '部屋C'], 3);
+        $this->assertSame('全部屋所属', $result);
+    }
+
+    public function testBuildAffiliationLabel_duplicateNamesAreUniqued(): void
+    {
+        // 同一部屋の重複行があっても全部屋所属と誤判定しない
+        $result = $this->service->buildAffiliationLabel(['部屋A', '部屋A', '部屋B'], 3);
+        $this->assertSame('部屋A, 部屋B', $result);
+    }
+
+    public function testBuildAffiliationLabel_zeroTotalRooms_neverReturnsZenbuya(): void
+    {
+        $result = $this->service->buildAffiliationLabel(['部屋A'], 0);
+        $this->assertSame('部屋A', $result);
+    }
+
+    // ----------------------------------------------------------------
+    // countActiveRooms — DB使用
+    // ----------------------------------------------------------------
+
+    public function testCountActiveRooms_excludesDeletedRooms(): void
+    {
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+        $before = $this->service->countActiveRooms();
+
+        $room = $roomTable->get(1);
+        $this->service->softDelete($room, 'test_admin');
+
+        $this->assertSame($before - 1, $this->service->countActiveRooms());
+    }
 }

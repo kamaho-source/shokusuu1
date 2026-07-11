@@ -53,6 +53,37 @@ class RoomService
     }
 
     /**
+     * 有効な部屋数（i_del_flg = 0）を返す。
+     */
+    public function countActiveRooms(): int
+    {
+        return TableRegistry::getTableLocator()->get('MRoomInfo')
+            ->find()
+            ->where(['i_del_flg' => 0])
+            ->count();
+    }
+
+    /**
+     * 所属部屋の表示ラベルを組み立てる。
+     *
+     * @param list<string> $roomNames 所属部屋名の一覧
+     * @param int $totalActiveRoomCount 有効な全部屋数
+     * @return string 未所属時は「未所属」、全部屋に所属している場合は「全部屋所属」、それ以外は部屋名のカンマ区切り
+     */
+    public function buildAffiliationLabel(array $roomNames, int $totalActiveRoomCount): string
+    {
+        $uniqueNames = array_values(array_unique($roomNames));
+        if ($uniqueNames === []) {
+            return '未所属';
+        }
+        if ($totalActiveRoomCount > 0 && count($uniqueNames) >= $totalActiveRoomCount) {
+            return '全部屋所属';
+        }
+
+        return implode(', ', $uniqueNames);
+    }
+
+    /**
      * 部屋をソフトデリートする（i_del_flg = 1）。
      *
      * @param \App\Model\Entity\MRoomInfo $roomInfo

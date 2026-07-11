@@ -35,7 +35,7 @@ class TReservationInfoPolicy
 
     public function canBulkChangeEditSubmit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isAdmin($user) || $this->isStaff($user);
+        return $this->isAuthenticated($user);
     }
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -121,7 +121,7 @@ class TReservationInfoPolicy
 
     public function canGetUsersByRoom(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user) && $this->canAccessRoom($user, $resource);
+        return $this->isAuthenticated($user) && $this->canAccessRoom($user, $resource);
     }
 
     public function canGetUsersByRoomForBulk(?IdentityInterface $user, TReservationInfo $resource): bool

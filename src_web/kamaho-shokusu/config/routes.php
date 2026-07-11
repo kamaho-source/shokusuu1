@@ -211,6 +211,12 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'TReservationInfo', 'action' => 'view']
         )->setPass(['date']);
 
+        // ── カレンダークリック直接登録（ReservationDirectRegisterController） ──
+        $builder->connect(
+            '/TReservationInfo/direct-register',
+            ['controller' => 'ReservationDirectRegister', 'action' => 'register']
+        )->setMethods(['POST']);
+
         // ── 予約トグル（ReservationToggleController） ──
         $builder->connect(
             '/TReservationInfo/toggle/{roomId}',
@@ -379,8 +385,15 @@ return function (RouteBuilder $routes): void {
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
 
+        // ── 統計AI（管理者専用） ──
+        $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/StatsAi/askStream', ['controller' => 'StatsAi', 'action' => 'askStream'])->setMethods(['POST']);
+
         // ── AIアシスタント ──
         $builder->connect('/AiAssistant/ask', ['controller' => 'AiAssistant', 'action' => 'ask'])->setMethods(['POST']);
+        $builder->connect('/AiAssistant/askStream', ['controller' => 'AiAssistant', 'action' => 'askStream'])->setMethods(['POST']);
+        $builder->connect('/AiAssistant/suggestions', ['controller' => 'AiAssistant', 'action' => 'suggestions'])->setMethods(['GET']);
+        $builder->connect('/AiAssistant/feedback', ['controller' => 'AiAssistant', 'action' => 'feedback'])->setMethods(['POST']);
 
         // フォールバック
         $builder->fallbacks(DashedRoute::class);

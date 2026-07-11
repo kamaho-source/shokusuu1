@@ -25,7 +25,7 @@ $myReservationDetails = $myReservationDetails ?? [];
 $mealKeys = $mealKeys ?? [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
 
 // 子供用: トグルURLテンプレート（__ROOM__ をJSで置換）
-$toggleBase = $toggleBase ?? $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'toggle', '__ROOM__']);
+$toggleBase = $toggleBase ?? $this->Url->build('/TReservationInfo/toggle/__ROOM__');
 
 // 中学生向け UI 設定
 $isChild = isset($isChild) && (bool)$isChild;
@@ -77,7 +77,7 @@ $kidMeals = [
 <?= $this->Flash->render() ?>
 
 <!-- ★ モード切替（自動 / 直前 / 通常） -->
-<div class="mode-bar d-flex align-items-center justify-content-between mb-3">
+<div class="mode-bar d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
     <div class="small text-muted">
         <i class="bi bi-sliders"></i>
         モードを切り替えると、クリック時の挙動を切り替えられます（<u>画面表示のみ切替</u>）。

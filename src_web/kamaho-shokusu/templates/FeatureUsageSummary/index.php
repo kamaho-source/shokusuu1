@@ -14,7 +14,7 @@ $q = $this->request->getQueryParams();
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <!-- ページヘッダー -->
-<div class="rounded-3 shadow-sm mb-4 px-4 py-3 d-flex align-items-center justify-content-between"
+<div class="rounded-3 shadow-sm mb-4 px-4 py-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
      style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); color:#fff;">
     <div class="d-flex align-items-center gap-3">
         <div class="d-flex align-items-center justify-content-center rounded-circle shadow"

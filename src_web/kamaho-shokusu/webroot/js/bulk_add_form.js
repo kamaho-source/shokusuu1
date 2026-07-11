@@ -323,7 +323,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const loginUserId = window.__LOGIN_USER_ID;
         const isBlockLeader = !!(window.__IS_BLOCK_LEADER);
         const loginRoomIds = window.__LOGIN_ROOM_IDS || [];
-        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(roomId);
+        // roomId は select の value 由来で文字列のため、数値化してから所属部屋と照合する
+        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(parseInt(roomId, 10));
         const targetLevel = userLevelsByRoom[roomId]?.[uid];
         const isStaff = targetLevel === 0 || targetLevel === 7;
         const isOtherStaff = !isAdminUser && !blockLeaderInRoom && isStaff && uid !== loginUserId;

@@ -4,7 +4,7 @@ $this->assign('title', '通知一覧');
 $notifications = $notifications ?? [];
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h2 class="mb-1">通知一覧</h2>
         <div class="text-muted small">差し戻し通知などのアプリ内通知を表示します。</div>

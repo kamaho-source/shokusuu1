@@ -56,26 +56,11 @@ class ReservationCalendarService
             ->count() > 0;
     }
 
-    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false): array
+    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false, bool $isBlockLeader = false): array
     {
         if ($isAdmin) {
-            $roomOrder = ['i_id_room' => 'ASC'];
-            try {
-                $schema = $roomTable->getSchema();
-                if (method_exists($schema, 'hasColumn')) {
-                    if ($schema->hasColumn('i_sort')) {
-                        $roomOrder = ['i_sort' => 'ASC', 'i_id_room' => 'ASC'];
-                    } elseif ($schema->hasColumn('display_order')) {
-                        $roomOrder = ['display_order' => 'ASC', 'i_id_room' => 'ASC'];
-                    } elseif ($schema->hasColumn('i_disp_no')) {
-                        $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
-                    } elseif ($schema->hasColumn('c_room_name')) {
-                        $roomOrder = ['c_room_name' => 'ASC', 'i_id_room' => 'ASC'];
-                    }
-                }
-            } catch (\Throwable $e) {
-                $roomOrder = ['i_id_room' => 'ASC'];
-            }
+            // m_room_info には i_disp_no カラムが存在するため固定使用
+            $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
             return $roomTable->find('list', [
                 'keyField'   => 'i_id_room',
@@ -99,6 +84,24 @@ class ReservationCalendarService
                     'c_room_name LIKE' => '%事務所%',
                 ])
                 ->orderBy(['c_room_name' => 'ASC', 'i_id_room' => 'ASC'])
+                ->toArray();
+        }
+
+        // ブロック長は複数部屋に所属しうるため、所属している全部屋を返す
+        if ($isBlockLeader) {
+            if (empty($userRoomIds)) {
+                return [];
+            }
+
+            return $roomTable->find('list', [
+                'keyField'   => 'i_id_room',
+                'valueField' => 'c_room_name',
+            ])
+                ->where([
+                    'i_id_room IN' => $userRoomIds,
+                    'i_del_flg'    => 0,
+                ])
+                ->orderBy(['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'])
                 ->toArray();
         }
 
@@ -181,6 +184,7 @@ class ReservationCalendarService
                 'i_reservation_type',
                 'eat_flag',
                 'i_change_flag',
+                'i_id_room',
             ])
             ->where(['i_id_user' => $userId]);
 
@@ -204,10 +208,14 @@ class ReservationCalendarService
 
             if (!isset($details[$dateStr])) {
                 $details[$dateStr] = [
-                    'breakfast' => null,
-                    'lunch'     => null,
-                    'dinner'    => null,
-                    'bento'     => null,
+                    'breakfast'     => null,
+                    'breakfastRoom' => null,
+                    'lunch'         => null,
+                    'lunchRoom'     => null,
+                    'dinner'        => null,
+                    'dinnerRoom'    => null,
+                    'bento'         => null,
+                    'bentoRoom'     => null,
                 ];
             }
 
@@ -215,7 +223,8 @@ class ReservationCalendarService
                 ? (int)$r->i_change_flag
                 : (int)$r->eat_flag;
 
-            $details[$dateStr][$key] = $effective;
+            $details[$dateStr][$key]          = $effective;
+            $details[$dateStr][$key . 'Room'] = ($effective === 1) ? (int)$r->i_id_room : null;
         }
 
         return $details;
@@ -225,6 +234,8 @@ class ReservationCalendarService
     {
         $dates = [];
         foreach ($details as $date => $meals) {
+            // 食事フラグ4種のいずれかが 1（食べる）であれば予約済みとする
+            // 0（食べない）はカレンダー上 × 表示であり未予約と同等に扱う
             if (in_array(1, $meals, true)) {
                 $dates[] = $date;
             }
@@ -303,12 +314,18 @@ class ReservationCalendarService
         return $events;
     }
 
-    public function buildTotalEvents(Table $reservationTable, ?Date $borderDate = null): array
-    {
+    public function buildTotalEvents(
+        Table $reservationTable,
+        string $startDate,
+        string $endDate,
+        ?Date $borderDate = null
+    ): array {
         $borderDate = $borderDate ?? $this->datePolicy->changeBoundaryDate();
 
         $rows = $reservationTable->find()
             ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
+            ->where(['d_reservation_date >=' => $startDate])
+            ->where(['d_reservation_date <' => $endDate])
             ->toArray();
 
         $dateCounts = [];

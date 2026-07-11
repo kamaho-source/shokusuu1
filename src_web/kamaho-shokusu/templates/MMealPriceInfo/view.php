@@ -23,6 +23,7 @@ $this->assign('title', __('食事単価情報表示'));
                 <h3 class="card-title"><?= h($mMealPriceInfo->i_id) ?> <?= __('詳細') ?></h3>
             </div>
             <div class="card-body">
+                <div class="table-responsive">
                 <table class="table table-bordered table-striped">
                     <tr>
                         <th><?= __('対象年度') ?></th>
@@ -46,6 +47,7 @@ $this->assign('title', __('食事単価情報表示'));
                     </tr>
 
                 </table>
+                </div>
             </div>
         </div>
     </div>
