@@ -117,6 +117,14 @@
         .late-notice-agree { background:#fff; }
         .late-notice-agree .form-text { color:#5a5f64; font-size:.82rem; }
 
+        /* SPで直前警告モーダルを全幅表示（modals.php の modal-sm-fullwidth と対） */
+        @media (max-width: 575.98px) {
+            .modal-dialog.modal-sm-fullwidth {
+                max-width: none;
+                margin: .5rem;
+            }
+        }
+
         /* ネストモーダル（quickDayModal内から開く場合）のz-index対応 */
         #lateNoticeModal { z-index: 1065; }
         #lateNoticeModal + .modal-backdrop { z-index: 1060; }

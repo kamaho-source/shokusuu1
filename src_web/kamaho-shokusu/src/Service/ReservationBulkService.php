@@ -39,6 +39,14 @@ class ReservationBulkService
             ];
         }
 
+        // ログインユーザーを特定できない場合は権限判定できないため拒否する（fail-closed）
+        if ($loginUserId <= 0) {
+            return [
+                'ok'      => false,
+                'message' => 'ログインユーザーを特定できないため処理を中断しました。',
+            ];
+        }
+
         $connection = $reservationTable->getConnection();
         $connection->begin();
         try {
@@ -78,25 +86,23 @@ class ReservationBulkService
                 }
             }
 
-            if ($loginUserId !== 0) {
-                $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
-                $blockLeaderInRoom = false;
-                if ($isBlockLeader) {
-                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                        'i_id_user' => $loginUserId,
-                        'i_id_room' => $roomId,
-                    ]);
-                }
-                foreach ($userIds as $targetUserId) {
-                    $targetUserLevel = $userLevels[$targetUserId] ?? 0;
-                    $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
-                    if ($targetUserId !== $loginUserId && !$canEditOther) {
-                        $connection->rollback();
-                        return [
-                            'ok'      => false,
-                            'message' => '他ユーザーの予約を更新する権限がありません。',
-                        ];
-                    }
+            $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+            $blockLeaderInRoom = false;
+            if ($isBlockLeader) {
+                $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
+                    'i_id_user' => $loginUserId,
+                    'i_id_room' => $roomId,
+                ]);
+            }
+            foreach ($userIds as $targetUserId) {
+                $targetUserLevel = $userLevels[$targetUserId] ?? 0;
+                $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
+                if ($targetUserId !== $loginUserId && !$canEditOther) {
+                    $connection->rollback();
+                    return [
+                        'ok'      => false,
+                        'message' => '他ユーザーの予約を更新する権限がありません。',
+                    ];
                 }
             }
 
@@ -227,6 +233,14 @@ class ReservationBulkService
             return [
                 'ok' => false,
                 'message' => '予約タイプが選択されていません。',
+            ];
+        }
+
+        // ログインユーザーを特定できない場合は権限判定できないため拒否する（fail-closed）
+        if ($userId <= 0) {
+            return [
+                'ok'      => false,
+                'message' => 'ログインユーザーを特定できないため処理を中断しました。',
             ];
         }
 
@@ -480,24 +494,22 @@ class ReservationBulkService
                     }
                 }
 
-                if ($userId !== 0) {
-                    $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
-                    $blockLeaderInRoom = false;
-                    if ($isBlockLeader && $roomId !== null) {
-                        $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                            'i_id_user' => $userId,
-                            'i_id_room' => (int)$roomId,
-                        ]);
-                    }
-                    foreach ($userIds as $targetUserId) {
-                        $targetLevel  = $userLevelMapBulk[$targetUserId] ?? 0;
-                        $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
-                        if ($targetUserId !== $userId && !$canEditOther) {
-                            return [
-                                'ok'      => false,
-                                'message' => '他ユーザーの予約を更新する権限がありません。',
-                            ];
-                        }
+                $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+                $blockLeaderInRoom = false;
+                if ($isBlockLeader && $roomId !== null) {
+                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
+                        'i_id_user' => $userId,
+                        'i_id_room' => (int)$roomId,
+                    ]);
+                }
+                foreach ($userIds as $targetUserId) {
+                    $targetLevel  = $userLevelMapBulk[$targetUserId] ?? 0;
+                    $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
+                    if ($targetUserId !== $userId && !$canEditOther) {
+                        return [
+                            'ok'      => false,
+                            'message' => '他ユーザーの予約を更新する権限がありません。',
+                        ];
                     }
                 }
             }
@@ -613,24 +625,22 @@ class ReservationBulkService
                     }
                 }
 
-                if ($userId !== 0) {
-                    $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
-                    $blockLeaderInRoom = false;
-                    if ($isBlockLeader && $roomId !== null) {
-                        $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                            'i_id_user' => $userId,
-                            'i_id_room' => (int)$roomId,
-                        ]);
-                    }
-                    foreach ($userIds as $targetUserId) {
-                        $targetLevel  = $userLevelMapBulk[(int)$targetUserId] ?? 0;
-                        $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
-                        if ((int)$targetUserId !== $userId && !$canEditOther) {
-                            return [
-                                'ok'      => false,
-                                'message' => '他ユーザーの予約を更新する権限がありません。',
-                            ];
-                        }
+                $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+                $blockLeaderInRoom = false;
+                if ($isBlockLeader && $roomId !== null) {
+                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
+                        'i_id_user' => $userId,
+                        'i_id_room' => (int)$roomId,
+                    ]);
+                }
+                foreach ($userIds as $targetUserId) {
+                    $targetLevel  = $userLevelMapBulk[(int)$targetUserId] ?? 0;
+                    $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
+                    if ((int)$targetUserId !== $userId && !$canEditOther) {
+                        return [
+                            'ok'      => false,
+                            'message' => '他ユーザーの予約を更新する権限がありません。',
+                        ];
                     }
                 }
 

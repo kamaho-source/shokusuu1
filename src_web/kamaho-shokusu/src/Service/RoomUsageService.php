@@ -27,13 +27,15 @@ class RoomUsageService
      * @param string|null $dateFrom 開始日 (Y-m-d)
      * @param string|null $dateTo   終了日 (Y-m-d)
      * @param int|null    $mealType 食種 (1=朝 2=昼 3=夕 4=弁当, null=全て)
+     * @param int|null    $filterLevel i_user_level 絞り込み (0=職員 1=子供 等, null=全員)
      * @return array{room_id:int, room_name:string, user_count:int, capacity:int, eat_count:int, usage_rate:float, staff:array}[]
      * @throws \Exception 日付文字列が無効な場合
      */
     public function getRoomUsage(
         ?string $dateFrom = null,
         ?string $dateTo   = null,
-        ?int    $mealType = null
+        ?int    $mealType = null,
+        ?int    $filterLevel = null
     ): array {
         $resolvedFrom  = $dateFrom ?? date('Y-m-01');
         $resolvedTo    = $dateTo   ?? date('Y-m-d');
@@ -57,6 +59,11 @@ class RoomUsageService
             $roomId    = (int)$row->i_id_room;
             $userId    = (int)$row->i_id_user;
             $userLevel = (int)($row->m_user_info?->i_user_level ?? -1);
+
+            // レベル絞り込み指定時は該当レベルのユーザーのみ分母・分子に含める
+            if ($filterLevel !== null && $userLevel !== $filterLevel) {
+                continue;
+            }
 
             $masterUsers[$roomId][$userId] = true;
             $roomNames[$roomId]            = $row->m_room_info?->c_room_name ?? '';

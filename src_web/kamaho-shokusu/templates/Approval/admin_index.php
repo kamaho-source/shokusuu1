@@ -135,6 +135,7 @@ foreach ($summary as $row) {
             <span class="text-secondary small fw-semibold">▼ 開閉</span>
         </div>
         <div class="px-2 pb-2" id="summary-body">
+            <div class="table-responsive">
             <table class="table table-sm table-bordered summary-table mb-0">
                 <thead class="table-light">
                 <tr>
@@ -168,6 +169,7 @@ foreach ($summary as $row) {
                 </tr>
                 </tfoot>
             </table>
+            </div>
         </div>
     </div>
     <?php endif; ?>
@@ -235,11 +237,11 @@ foreach ($summary as $row) {
         </table>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mt-2">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-2">
             <div>
                 <label class="small text-secondary fw-semibold"><input type="checkbox" id="check-all-bottom"> 全選択</label>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex flex-wrap gap-2 approval-action-btns">
                 <button type="button" id="reject-btn"  class="btn btn-outline-danger mui-btn">差し戻し</button>
                 <button type="button" id="approve-block-leader-btn" class="btn btn-outline-success mui-btn">ブロック長承認済を承認</button>
                 <button type="button" id="approve-btn" class="btn btn-primary mui-btn">選択項目を一括承認</button>

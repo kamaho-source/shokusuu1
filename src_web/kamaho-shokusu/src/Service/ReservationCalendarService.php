@@ -56,7 +56,7 @@ class ReservationCalendarService
             ->count() > 0;
     }
 
-    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false): array
+    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false, bool $isBlockLeader = false): array
     {
         if ($isAdmin) {
             $roomOrder = ['i_id_room' => 'ASC'];
@@ -99,6 +99,24 @@ class ReservationCalendarService
                     'c_room_name LIKE' => '%事務所%',
                 ])
                 ->orderBy(['c_room_name' => 'ASC', 'i_id_room' => 'ASC'])
+                ->toArray();
+        }
+
+        // ブロック長は複数部屋に所属しうるため、所属している全部屋を返す
+        if ($isBlockLeader) {
+            if (empty($userRoomIds)) {
+                return [];
+            }
+
+            return $roomTable->find('list', [
+                'keyField'   => 'i_id_room',
+                'valueField' => 'c_room_name',
+            ])
+                ->where([
+                    'i_id_room IN' => $userRoomIds,
+                    'i_del_flg'    => 0,
+                ])
+                ->orderBy(['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'])
                 ->toArray();
         }
 

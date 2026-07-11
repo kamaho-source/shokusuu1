@@ -148,5 +148,4 @@ echo $this->Html->css('pages/t_reservation_view.css');
                 <a class="btn-teal" href="<?= $this->Url->build('/') ?>">ダッシュボードへ戻る</a>
             </div>
         </div>
-    </div>
 </div>

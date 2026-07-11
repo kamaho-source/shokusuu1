@@ -137,15 +137,18 @@ if (!$useKidUI && !empty($mealDataArray)) {
     }
 }
 
-$JS_MY_DETAILS       = json_encode($myReservationDetails, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-$JS_RESERVED_DATES   = json_encode($js_reservedDates, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-$JS_EXISTING_EVENTS  = json_encode($events, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-$JS_TODAY            = json_encode($today, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-$JS_ROOM_NAMES       = json_encode($reservationRoomNames, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+// <script> 内に埋め込むため、"</script>" 等でのタグ脱出による XSS を防ぐ HEX フラグを必須とする
+$jsonFlags = JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT;
+
+$JS_MY_DETAILS       = json_encode($myReservationDetails, $jsonFlags);
+$JS_RESERVED_DATES   = json_encode($js_reservedDates, $jsonFlags);
+$JS_EXISTING_EVENTS  = json_encode($events, $jsonFlags);
+$JS_TODAY            = json_encode($today, $jsonFlags);
+$JS_ROOM_NAMES       = json_encode($reservationRoomNames, $jsonFlags);
 
 // 子供用: トグルURLテンプレートと初期room
-$JS_TOGGLE_BASE      = json_encode($toggleBase ?? '', JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-$JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+$JS_TOGGLE_BASE      = json_encode($toggleBase ?? '', $jsonFlags);
+$JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', $jsonFlags);
 
 // 予約コピーAPI（JSON）
 $copyApi = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'copy', '_ext' => 'json'], ['fullBase' => false]);

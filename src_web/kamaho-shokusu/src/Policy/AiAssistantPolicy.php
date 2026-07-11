@@ -14,4 +14,28 @@ class AiAssistantPolicy
     {
         return true;
     }
+
+    /**
+     * ストリーミングAI問い合わせを許可する。ログインしていれば許可する。
+     */
+    public function canAskStream(IdentityInterface $user, $resource): bool
+    {
+        return true;
+    }
+
+    /**
+     * サジェスト質問一覧取得を許可する。ログインしていれば許可する。
+     */
+    public function canSuggestions(IdentityInterface $user, $resource): bool
+    {
+        return true;
+    }
+
+    /**
+     * AI回答へのフィードバック記録を許可する。ログインしていれば許可する。
+     */
+    public function canFeedback(IdentityInterface $user, $resource): bool
+    {
+        return true;
+    }
 }

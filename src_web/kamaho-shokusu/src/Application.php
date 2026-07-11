@@ -19,11 +19,17 @@ use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
+use App\Controller\StatsAiController;
 use App\Infrastructure\AI\SystemPromptProvider;
+use App\Infrastructure\AI\UserTokenizer;
+use App\Service\AiStatsContextService;
+use App\Service\FeatureUsageSummaryService;
 use App\Service\RoomUsageService;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
@@ -31,6 +37,7 @@ use Cake\Error\Middleware\ErrorHandlerMiddleware;
 use Cake\Http\BaseApplication;
 use Cake\Http\Middleware\BodyParserMiddleware;
 use Cake\Http\Middleware\CsrfProtectionMiddleware;
+use Cake\Http\Middleware\SecurityHeadersMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
@@ -58,7 +65,15 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
+        // 全レスポンス共通のセキュリティヘッダー
+        // （クリックジャッキング・MIMEスニッフィング・リファラ漏洩対策）
+        $securityHeaders = (new SecurityHeadersMiddleware())
+            ->setXFrameOptions('sameorigin')
+            ->noSniff()
+            ->setReferrerPolicy('same-origin');
+
         $middlewareQueue
+            ->add($securityHeaders)
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
             ->add(new AssetMiddleware(['cacheTime' => Configure::read('Asset.cacheTime')]))
             ->add(new RoutingMiddleware($this))
@@ -70,6 +85,22 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $middlewareQueue->add(new AuthorizationMiddleware($this, [
             'requireAuthorizationCheck' => true,
         ]));
+
+        // DebugKit（開発環境のみ）のコントローラーは authorize() を呼ばないため、
+        // requireAuthorizationCheck により AuthorizationRequiredException が
+        // error.log に記録され続ける。DebugKit のリクエストに限り認可チェックを免除する。
+        if (Configure::read('debug')) {
+            $middlewareQueue->add(function (ServerRequest $request, RequestHandlerInterface $handler): ResponseInterface {
+                if ($request->getParam('plugin') === 'DebugKit') {
+                    $authorization = $request->getAttribute('authorization');
+                    if ($authorization !== null) {
+                        $authorization->skipAuthorization();
+                    }
+                }
+
+                return $handler->handle($request);
+            });
+        }
 
         return $middlewareQueue;
     }
@@ -130,6 +161,17 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(RoomUsageController::class)
             ->addArgument(RoomUsageService::class)
             ->addArgument(ServerRequest::class);
+
+        $container->add(UserTokenizer::class);
+        $container->add(FeatureUsageSummaryService::class);
+        $container->add(AiStatsContextService::class)
+            ->addArgument(FeatureUsageSummaryService::class)
+            ->addArgument(UserTokenizer::class)
+            ->addArgument(RoomUsageService::class);
+        $container->add(StatsAiController::class)
+            ->addArgument(AiStatsContextService::class)
+            ->addArgument(UserTokenizer::class)
+            ->addArgument(ServerRequest::class);
     }
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
@@ -143,6 +185,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\RoomUsageController::class           => \App\Policy\RoomUsagePolicy::class,
             \App\Controller\FeatureUsageSummaryController::class => \App\Policy\FeatureUsageSummaryPolicy::class,
             \App\Controller\AiAssistantController::class      => \App\Policy\AiAssistantPolicy::class,
+            \App\Controller\StatsAiController::class          => \App\Policy\StatsAiPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック

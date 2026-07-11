@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var array{rows: list<array{action: string, label: string, category: string, category_label: string, total: int, unique_users: int, last_used: string}>, total_operations: int, top_feature: string} $summary
+ * @var array{hours: list<array{hour: int, label: string, total: int}>, peak_hour: int|null, peak_total: int} $hourlyUsage
  * @var array<string, string> $monthOptions
  * @var array<string, string> $categories
  * @var string $yearMonth
@@ -13,7 +14,7 @@ $q = $this->request->getQueryParams();
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <!-- ページヘッダー -->
-<div class="rounded-3 shadow-sm mb-4 px-4 py-3 d-flex align-items-center justify-content-between"
+<div class="rounded-3 shadow-sm mb-4 px-4 py-3 d-flex flex-wrap align-items-center justify-content-between gap-2"
      style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%); color:#fff;">
     <div class="d-flex align-items-center gap-3">
         <div class="d-flex align-items-center justify-content-center rounded-circle shadow"
@@ -29,7 +30,7 @@ $q = $this->request->getQueryParams();
 
 <!-- サマリーカード -->
 <div class="row g-3 mb-4">
-    <div class="col-sm-4">
+    <div class="col-sm-3">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <div class="rounded-circle d-flex align-items-center justify-content-center bg-primary bg-opacity-10"
@@ -43,7 +44,7 @@ $q = $this->request->getQueryParams();
             </div>
         </div>
     </div>
-    <div class="col-sm-4">
+    <div class="col-sm-3">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <div class="rounded-circle d-flex align-items-center justify-content-center bg-success bg-opacity-10"
@@ -57,7 +58,7 @@ $q = $this->request->getQueryParams();
             </div>
         </div>
     </div>
-    <div class="col-sm-4">
+    <div class="col-sm-3">
         <div class="card border-0 shadow-sm h-100">
             <div class="card-body d-flex align-items-center gap-3">
                 <div class="rounded-circle d-flex align-items-center justify-content-center bg-info bg-opacity-10"
@@ -67,6 +68,26 @@ $q = $this->request->getQueryParams();
                 <div>
                     <div class="text-muted small">操作種別数</div>
                     <div class="fw-bold fs-4"><?= count($summary['rows']) ?> <span class="fs-6 text-muted fw-normal">種</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body d-flex align-items-center gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width:48px;height:48px;flex-shrink:0;background:rgba(249,115,22,.1);">
+                    <i class="bi bi-clock-fill fs-5" style="color:#f97316;"></i>
+                </div>
+                <div>
+                    <div class="text-muted small">最も使われる時間帯</div>
+                    <div class="fw-bold fs-5">
+                        <?php if ($hourlyUsage['peak_hour'] !== null && $hourlyUsage['peak_total'] > 0): ?>
+                            <?= sprintf('%02d:00〜%02d:59', $hourlyUsage['peak_hour'], $hourlyUsage['peak_hour']) ?>
+                        <?php else: ?>
+                            —
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
@@ -114,6 +135,87 @@ $q = $this->request->getQueryParams();
             <?php endif; ?>
         </div>
         <?= $this->Form->end() ?>
+    </div>
+</div>
+
+<!-- 時間帯別使用頻度グラフ -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-2">
+        <span class="fw-semibold text-secondary small">
+            <i class="bi bi-clock-history me-1"></i>
+            時間帯別使用頻度
+            <span class="badge bg-secondary ms-1"><?= h($yearMonth) ?></span>
+        </span>
+        <?php if ($hourlyUsage['peak_hour'] !== null): ?>
+            <span class="text-muted small">
+                ピーク:
+                <strong class="text-primary"><?= sprintf('%02d:00〜%02d:59', $hourlyUsage['peak_hour'], $hourlyUsage['peak_hour']) ?></strong>
+                （<?= number_format($hourlyUsage['peak_total']) ?> 回）
+            </span>
+        <?php endif; ?>
+    </div>
+    <div class="card-body pb-3">
+        <?php if ($hourlyUsage['peak_total'] === 0): ?>
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                <p class="mb-0">対象期間にデータがありません。</p>
+            </div>
+        <?php else: ?>
+            <div class="row g-1 align-items-end" style="height:140px;padding-top:14px;">
+                <?php foreach ($hourlyUsage['hours'] as $h):
+                    $pct = $hourlyUsage['peak_total'] > 0
+                        ? (int)round($h['total'] / $hourlyUsage['peak_total'] * 100)
+                        : 0;
+                    $isPeak = ($h['hour'] === $hourlyUsage['peak_hour'] && $h['total'] > 0);
+                    $barColor = $isPeak ? '#f97316' : '#6ea8fe';
+                    $colHeight = max(4, $pct);
+                ?>
+                    <div class="col position-relative d-flex flex-column align-items-center justify-content-end"
+                         style="height:100%;"
+                         title="<?= h($h['label']) ?>: <?= number_format($h['total']) ?> 回">
+                        <?php if ($h['total'] > 0 && $isPeak): ?>
+                            <div class="position-absolute top-0 w-100 text-center" style="font-size:10px;color:#f97316;font-weight:700;">
+                                <?= number_format($h['total']) ?>
+                            </div>
+                        <?php endif; ?>
+                        <div class="w-100 rounded-top"
+                             style="height:<?= $colHeight ?>%;background:<?= $barColor ?>;min-height:<?= $h['total'] > 0 ? '4px' : '0' ?>;">
+                        </div>
+                        <div class="text-center text-muted" style="font-size:9px;margin-top:2px;white-space:nowrap;">
+                            <?= $h['hour'] % 3 === 0 ? sprintf('%02d', $h['hour']) : '' ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <div class="d-flex justify-content-between text-muted mt-1 px-1" style="font-size:10px;">
+                <span>0時</span>
+                <span>6時</span>
+                <span>12時</span>
+                <span>18時</span>
+                <span>23時</span>
+            </div>
+            <!-- 上位3時間帯 -->
+            <?php
+            $sortedHours = $hourlyUsage['hours'];
+            usort($sortedHours, fn($a, $b) => $b['total'] - $a['total']);
+            $topHours = array_filter($sortedHours, fn($h) => $h['total'] > 0);
+            $topHours = array_slice(array_values($topHours), 0, 3);
+            ?>
+            <?php if (!empty($topHours)): ?>
+                <div class="d-flex gap-2 mt-3 flex-wrap">
+                    <?php foreach ($topHours as $rank => $th): ?>
+                        <div class="d-flex align-items-center gap-2 px-3 py-2 rounded"
+                             style="background:#f8f9fa;border:1px solid #e9ecef;">
+                            <span class="fw-bold" style="color:<?= $rank === 0 ? '#f97316' : ($rank === 1 ? '#6c757d' : '#cd7f32') ?>;">
+                                <?= ['1st', '2nd', '3rd'][$rank] ?>
+                            </span>
+                            <span class="fw-semibold"><?= sprintf('%02d:00〜%02d:59', $th['hour'], $th['hour']) ?></span>
+                            <span class="badge bg-secondary"><?= number_format($th['total']) ?> 回</span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        <?php endif; ?>
     </div>
 </div>
 
