@@ -29,6 +29,7 @@ $pastDateUnavailableMessage = (string)Configure::read(
         },
         myDetails: <?= $JS_MY_DETAILS ?>,
         roomNames: <?= $JS_ROOM_NAMES ?? '{}' ?>,
+        availableRoomNames: <?= $JS_AVAILABLE_ROOM_NAMES ?? '{}' ?>,
         currentRoom: <?= $JS_CURRENT_ROOM ?>,
         toggleBase: <?= $JS_TOGGLE_BASE ?>,
         directRegisterUrl: <?= json_encode($this->Url->build('/TReservationInfo/direct-register'), JSON_UNESCAPED_SLASHES) ?>,

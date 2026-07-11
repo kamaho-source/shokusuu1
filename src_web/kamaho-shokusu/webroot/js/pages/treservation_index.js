@@ -1111,7 +1111,8 @@ function openModalById(id){
                         var dateStr = info.dateStr;
 
                         // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
-                        var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
+                        // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
+                        var roomNames = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
                         if (Object.keys(roomNames).length === 0) {
                             if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
                             return;
@@ -1184,7 +1185,8 @@ function openModalById(id){
 
                     if (newVal) {
                         // 予約ON → 部屋選択ドロップダウンを経由して登録
-                        var roomNames    = (window.__TRESP && window.__TRESP.roomNames) || {};
+                        // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
+                        var roomNames    = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
                         var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
                             ? window.__TRESP.calRoomId : null;
                         if (Object.keys(roomNames).length === 0) {
