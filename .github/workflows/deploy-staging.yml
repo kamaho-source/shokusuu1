@@ -1,10 +1,15 @@
 name: Deploy to Staging
 
 on:
-  push:
-    branches:
-      - 'develop'
+  workflow_run:
+    workflows: ["PHPUnit"]
+    branches: [develop]
+    types: [completed]
   workflow_dispatch:
+
+# workflow_run 経由の場合は head_branch を、手動実行の場合は ref_name を使う
+env:
+  DEPLOY_BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
 
 concurrency:
   group: deploy-to-staging
@@ -19,12 +24,15 @@ jobs:
   check-dockerfile:
     name: Check if Dockerfile changed
     runs-on: ubuntu-latest
+    # workflow_run 経由の場合は PHPUnit が成功した場合のみ実行、手動は常に実行
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       changed: ${{ steps.filter.outputs.dockerfile }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 2
 
       - name: Check Dockerfile diff
@@ -103,7 +111,7 @@ jobs:
           RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
           SLACK_CONTACT_WEBHOOK: ${{ secrets.SLACK_CONTACT_WEBHOOK }}
           REPO_URL:              ${{ secrets.REPO_URL }}
-          BRANCH:                ${{ github.ref_name }}
+          BRANCH:                ${{ env.DEPLOY_BRANCH }}
           DEPLOY_KEY:            ${{ secrets.STG_SSH_PRIVATE_KEY }}
           GHCR_TOKEN:            ${{ secrets.GITHUB_TOKEN }}
           GHCR_USER:             ${{ github.actor }}
@@ -288,18 +296,76 @@ jobs:
 
             echo "✅ Staging deployed: $(git rev-parse --short HEAD) @ $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-      - name: Slack Notification on Success
-        uses: rtCamp/action-slack-notify@v2
-        if: ${{ success() }}
-        env:
-          SLACK_TITLE: Staging Deploy / Success
-          SLACK_COLOR: good
-          SLACK_MESSAGE: "ステージングへのデプロイ完了🚀 branch: ${{ github.ref_name }}"
-
-      - name: Slack Notification on Failure
+      - name: Slack Notification on Deploy Failure
         uses: rtCamp/action-slack-notify@v2
         if: ${{ failure() }}
         env:
           SLACK_TITLE: Staging Deploy / Failure
           SLACK_COLOR: danger
-          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> ステージングデプロイ失敗しました😢 branch: ${{ github.ref_name }}"
+          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> ステージングデプロイ失敗しました😢 branch: ${{ env.DEPLOY_BRANCH }}"
+
+  # ── ④ Staging Deploy後にPlaywrightスモークテストを実行 ──────────────────
+  e2e:
+    name: Playwright Smoke Test
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: npm run test:e2e
+        env:
+          E2E_BASE_URL: ${{ vars.E2E_BASE_URL }}
+          E2E_USER: ${{ vars.E2E_USER }}
+          E2E_PASS: ${{ secrets.E2E_PASS }}
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 14
+
+  # ── ⑤ 全ジョブ完了後にSlack通知 ────────────────────────────────────────
+  notify:
+    name: Slack Notification
+    runs-on: ubuntu-latest
+    needs: [deploy, e2e]
+    if: always() && needs.deploy.result != 'skipped'
+    env:
+      SLACK_USERNAME: DeployBot
+      SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+    steps:
+      - name: Slack on Success
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ needs.deploy.result == 'success' && needs.e2e.result == 'success' }}
+        env:
+          SLACK_TITLE: Staging Deploy & Smoke Test / Success
+          SLACK_COLOR: good
+          SLACK_MESSAGE: "ステージングへのデプロイ＆スモークテスト完了🚀 branch: ${{ env.DEPLOY_BRANCH }}"
+
+      - name: Slack on Playwright Failure
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ needs.deploy.result == 'success' && needs.e2e.result == 'failure' }}
+        env:
+          SLACK_TITLE: Playwright Smoke Test / Failure
+          SLACK_COLOR: danger
+          SLACK_MESSAGE: "<@${{ secrets.SLACK_MENTION_USER_ID }}> Playwrightスモークテストが失敗しました😢 branch: ${{ env.DEPLOY_BRANCH }}"
