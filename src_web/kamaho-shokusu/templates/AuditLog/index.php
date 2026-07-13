@@ -60,10 +60,10 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
                 ]) ?>
             </div>
             <div class="col-sm-6 col-md-3 col-lg-2">
-                <label class="form-label small fw-semibold text-muted mb-1">操作者名</label>
+                <label class="form-label small fw-semibold text-muted mb-1">操作者</label>
                 <?= $this->Form->text('actor', [
                     'class'       => 'form-control form-control-sm',
-                    'placeholder' => 'ユーザー名',
+                    'placeholder' => 'ユーザー名 または ログインID',
                     'value'       => $q['actor'] ?? '',
                 ]) ?>
             </div>

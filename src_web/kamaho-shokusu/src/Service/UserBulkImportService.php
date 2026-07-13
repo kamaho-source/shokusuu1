@@ -204,7 +204,7 @@ class UserBulkImportService
                 'failed'    => $results['failed'],
             ],
             $ipAddress ?: null,
-            $results['failed'] === 0 ? 1 : 1,
+            $results['failed'] === 0 ? 1 : 0,
             $actorLoginId
         );
 
