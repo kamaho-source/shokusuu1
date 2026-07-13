@@ -99,17 +99,18 @@ class ApprovalController extends AppController
         $this->Authorization->authorize($this, 'blockLeaderApprove');
         $this->request->allowMethod('post');
 
-        $user     = $this->Authentication->getIdentity();
-        $approver = (int)$user->get('i_id_user');
-        $actor    = $user->get('c_login_account') ?? (string)$approver;
-        $keys     = (array)($this->request->getData('keys') ?? []);
+        $user         = $this->Authentication->getIdentity();
+        $approver     = (int)$user->get('i_id_user');
+        $actor        = (string)($user->get('c_user_name') ?? '不明');
+        $actorLoginId = (string)($user->get('c_login_account') ?? '');
+        $keys         = (array)($this->request->getData('keys') ?? []);
 
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor, $this->getClientIp());
+            $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor, $this->getClientIp(), $actorLoginId);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderApprove error: ' . $e->getMessage(), 'error');
@@ -125,18 +126,19 @@ class ApprovalController extends AppController
         $this->Authorization->authorize($this, 'blockLeaderReject');
         $this->request->allowMethod('post');
 
-        $user     = $this->Authentication->getIdentity();
-        $approver = (int)$user->get('i_id_user');
-        $actor    = $user->get('c_login_account') ?? (string)$approver;
-        $keys     = (array)($this->request->getData('keys') ?? []);
-        $reason   = $this->request->getData('reason');
+        $user         = $this->Authentication->getIdentity();
+        $approver     = (int)$user->get('i_id_user');
+        $actor        = (string)($user->get('c_user_name') ?? '不明');
+        $actorLoginId = (string)($user->get('c_login_account') ?? '');
+        $keys         = (array)($this->request->getData('keys') ?? []);
+        $reason       = $this->request->getData('reason');
 
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp());
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
@@ -179,17 +181,18 @@ class ApprovalController extends AppController
         $this->Authorization->authorize($this, 'adminApprove');
         $this->request->allowMethod('post');
 
-        $user     = $this->Authentication->getIdentity();
-        $approver = (int)$user->get('i_id_user');
-        $actor    = $user->get('c_login_account') ?? (string)$approver;
-        $keys     = (array)($this->request->getData('keys') ?? []);
+        $user         = $this->Authentication->getIdentity();
+        $approver     = (int)$user->get('i_id_user');
+        $actor        = (string)($user->get('c_user_name') ?? '不明');
+        $actorLoginId = (string)($user->get('c_login_account') ?? '');
+        $keys         = (array)($this->request->getData('keys') ?? []);
 
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->adminApprove($keys, $approver, $actor, $this->getClientIp());
+            $ok = $this->approvalService->adminApprove($keys, $approver, $actor, $this->getClientIp(), $actorLoginId);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('adminApprove error: ' . $e->getMessage(), 'error');
@@ -205,18 +208,19 @@ class ApprovalController extends AppController
         $this->Authorization->authorize($this, 'adminReject');
         $this->request->allowMethod('post');
 
-        $user     = $this->Authentication->getIdentity();
-        $approver = (int)$user->get('i_id_user');
-        $actor    = $user->get('c_login_account') ?? (string)$approver;
-        $keys     = (array)($this->request->getData('keys') ?? []);
-        $reason   = $this->request->getData('reason');
+        $user         = $this->Authentication->getIdentity();
+        $approver     = (int)$user->get('i_id_user');
+        $actor        = (string)($user->get('c_user_name') ?? '不明');
+        $actorLoginId = (string)($user->get('c_login_account') ?? '');
+        $keys         = (array)($this->request->getData('keys') ?? []);
+        $reason       = $this->request->getData('reason');
 
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp());
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('adminReject error: ' . $e->getMessage(), 'error');
@@ -232,8 +236,8 @@ class ApprovalController extends AppController
         $this->Authorization->authorize($this, 'adminReflect');
         $this->request->allowMethod('post');
 
-        $user     = $this->Authentication->getIdentity();
-        $actor    = $user->get('c_login_account') ?? (string)$user->get('i_id_user');
+        $user  = $this->Authentication->getIdentity();
+        $actor = (string)($user->get('c_user_name') ?? '不明');
         $roomId   = $this->request->getData('room_id') ? (int)$this->request->getData('room_id') : null;
         $dateFrom = $this->request->getData('date_from') ?: null;
         $dateTo   = $this->request->getData('date_to') ?: null;

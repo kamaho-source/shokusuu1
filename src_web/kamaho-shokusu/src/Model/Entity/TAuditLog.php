@@ -14,6 +14,7 @@ use Cake\ORM\Entity;
  * @property string|null $c_target_table
  * @property string|null $c_target_id
  * @property int|null $i_actor_user_id
+ * @property string|null $c_actor_login_id  ログインID
  * @property string $c_actor_user_name
  * @property string|null $c_ip_address
  * @property int $i_result             1:成功 0:失敗
@@ -28,6 +29,7 @@ class TAuditLog extends Entity
         'c_target_table'    => true,
         'c_target_id'       => true,
         'i_actor_user_id'   => true,
+        'c_actor_login_id'  => true,
         'c_actor_user_name' => true,
         'c_ip_address'      => true,
         'i_result'          => true,

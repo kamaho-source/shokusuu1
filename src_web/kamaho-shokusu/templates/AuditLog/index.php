@@ -159,7 +159,8 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
                 <th style="width:195px;">操作種別</th>
                 <th style="width:130px;">対象テーブル</th>
                 <th style="width:115px;">対象ID</th>
-                <th style="width:110px;">操作者</th>
+                <th style="width:110px;">ログインID</th>
+                <th style="width:110px;">操作者名</th>
                 <th style="width:125px;">IPアドレス</th>
                 <th style="width:55px;" class="text-center">結果</th>
                 <th>詳細</th>
@@ -189,6 +190,7 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
                 <td class="font-monospace"><?= h($log->c_action) ?></td>
                 <td class="text-muted font-monospace small"><?= h($log->c_target_table ?? '—') ?></td>
                 <td class="font-monospace small"><?= h($log->c_target_id ?? '—') ?></td>
+                <td class="font-monospace small"><?= h($log->c_actor_login_id ?? '—') ?></td>
                 <td>
                     <?php if ($log->i_actor_user_id): ?>
                         <span class="text-muted small">#<?= h($log->i_actor_user_id) ?>&nbsp;</span>
@@ -223,7 +225,7 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
         <?php endforeach; ?>
         <?php if (iterator_count($logs) === 0): ?>
             <tr>
-                <td colspan="10" class="text-center text-muted py-5">
+                <td colspan="11" class="text-center text-muted py-5">
                     <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
                     条件に一致するログがありません
                 </td>
