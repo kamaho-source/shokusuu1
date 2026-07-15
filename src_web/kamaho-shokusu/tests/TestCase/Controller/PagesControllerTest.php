@@ -46,11 +46,10 @@ class PagesControllerTest extends TestCase
         $this->get('/pages/home');
         $this->assertRedirect('/');
 
-        // ダッシュボード本体: 未ログイン時はログイン促進メッセージが表示される
+        // ダッシュボード本体: 未ログイン時はログイン画面へリダイレクトされる
+        // (LP =ランディングページ= はドメイン直下の静的ページとして表示される)
         $this->get('/');
-        $this->assertResponseOk();
-        $this->assertResponseContains('ログインが必要です');
-        $this->assertResponseContains('ログイン');
+        $this->assertRedirect('/MUserInfo/login');
     }
 
     /**

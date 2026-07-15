@@ -1,0 +1,281 @@
+/**
+ * LP（ランディングページ）専用スタイル
+ *
+ * ドメイン直下の静的LP（src_web/index.php）から読み込まれる。
+ * 白基調にブランドカラー（#0dcaf0 / bg-info）をアクセントとして使い、
+ * 斜めの装飾・ピル型CTA・大きな見出しで構成する。
+ */
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800;900&display=swap');
+
+.lp {
+    font-family: "M PLUS Rounded 1c", "Noto Sans JP", sans-serif;
+    color: #1f2a33;
+    background: #ffffff;
+}
+
+/* ---- LPヘッダー ---- */
+.lp-header {
+    background: #ffffff;
+    border-bottom: 1px solid #eef3f7;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.lp-header-brand {
+    font-size: 1.15rem;
+    color: #16212a;
+}
+.lp-header-brand .bi {
+    color: #0dcaf0;
+    font-size: 1.4rem;
+}
+
+/* ---- ヒーロー ---- */
+.lp-hero {
+    background: #ffffff;
+}
+.lp-hero .container {
+    padding-top: 4.5rem;
+    padding-bottom: 4.5rem;
+}
+
+/* 斜めの装飾（コーナーの帯） */
+.lp-deco {
+    position: absolute;
+    background: linear-gradient(135deg, #0dcaf0, #66dff7);
+    opacity: 0.9;
+    z-index: 0;
+}
+.lp-deco-top-left {
+    width: 220px;
+    height: 220px;
+    top: -110px;
+    left: -110px;
+    transform: rotate(45deg);
+}
+.lp-deco-bottom-left {
+    width: 160px;
+    height: 160px;
+    bottom: -80px;
+    left: -80px;
+    transform: rotate(45deg);
+    opacity: 0.35;
+}
+.lp-deco-right {
+    width: 300px;
+    height: 300px;
+    top: -150px;
+    right: -150px;
+    transform: rotate(45deg);
+    opacity: 0.18;
+}
+
+/* バッジ・ラベル */
+.lp-badge {
+    display: inline-block;
+    background: #0dcaf0;
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 0.85rem;
+    padding: 0.3rem 0.9rem;
+    border-radius: 999px;
+    letter-spacing: 0.1em;
+}
+.lp-hero-label {
+    font-size: 1.05rem;
+    color: #38505f;
+    line-height: 1.5;
+    border-left: 4px solid #0dcaf0;
+    padding-left: 0.75rem;
+}
+
+/* 円形バッジ（申告はワンタップ） */
+.lp-stat-circle {
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
+    background: #0dcaf0;
+    color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px rgba(13, 202, 240, 0.35);
+    transform: rotate(6deg);
+}
+.lp-stat-circle-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.lp-stat-circle-value {
+    font-size: 1.05rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+}
+
+/* 見出し */
+.lp-hero-title {
+    font-size: 3.2rem;
+    line-height: 1.25;
+    letter-spacing: 0.03em;
+    color: #16212a;
+}
+.lp-hero-title-sub {
+    font-size: 2.2rem;
+}
+.lp-hero-lead {
+    font-size: 1.02rem;
+    color: #38505f;
+}
+
+/* CTAボタン（ピル型） */
+.lp-cta-btn {
+    background: linear-gradient(135deg, #0dcaf0, #0aa9c9);
+    color: #ffffff;
+    font-weight: 800;
+    border: none;
+    border-radius: 999px;
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+    box-shadow: 0 6px 16px rgba(13, 202, 240, 0.4);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.lp-cta-btn:hover,
+.lp-cta-btn:focus {
+    color: #ffffff;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 22px rgba(13, 202, 240, 0.5);
+}
+.lp-cta-btn-light {
+    background: #ffffff;
+    color: #0aa9c9;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+.lp-cta-btn-light:hover,
+.lp-cta-btn-light:focus {
+    color: #0aa9c9;
+}
+
+/* アプリ画面イメージ（ブラウザ風フレーム＋実画面スクリーンショット） */
+.lp-mock {
+    background: #ffffff;
+    border: 1px solid #e8edf3;
+    border-radius: 14px;
+    overflow: hidden;
+}
+.lp-mock-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    background: #f2f6f9;
+    border-bottom: 1px solid #e8edf3;
+}
+.lp-mock-bar span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #d6dfe7;
+}
+.lp-mock-bar span:first-child { background: #0dcaf0; }
+.lp-mock-img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* ---- ブランドステートメント ---- */
+.lp-statement {
+    background: #f6fbfd;
+}
+.lp-statement-icon {
+    font-size: 2.4rem;
+    color: #0dcaf0;
+    line-height: 1;
+}
+.lp-statement-text {
+    font-size: 1.25rem;
+    color: #1f2a33;
+}
+.lp-brand-name {
+    color: #0aa9c9;
+}
+
+/* ---- セクション見出し（英字の添え字） ---- */
+.lp-section-eyebrow {
+    color: #0dcaf0;
+    font-weight: 800;
+    letter-spacing: 0.35em;
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+/* ---- 主な機能 ---- */
+.lp-feature-card {
+    border-radius: 16px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.lp-feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1) !important;
+}
+.lp-feature-icon {
+    font-size: 2.2rem;
+    line-height: 1;
+    color: #0dcaf0;
+}
+.lp-feature-title {
+    font-size: 1.1rem;
+}
+
+/* ---- 利用の流れ ---- */
+.lp-steps {
+    background: #f6fbfd;
+}
+.lp-step-number {
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #0dcaf0;
+    color: #ffffff;
+    font-size: 1.5rem;
+    font-weight: 800;
+    box-shadow: 0 4px 12px rgba(13, 202, 240, 0.35);
+}
+
+/* ---- フッターCTA ---- */
+.lp-footer-cta {
+    background: linear-gradient(135deg, #0dcaf0 0%, #0d6efd 100%);
+    color: #ffffff;
+}
+
+/* ---- フッター ---- */
+.lp-footer {
+    background: #16212a;
+    color: #cfe6ee;
+}
+
+/* ---- レスポンシブ調整 ---- */
+@media (max-width: 767.98px) {
+    .lp-hero .container {
+        padding-top: 2.5rem;
+        padding-bottom: 2.5rem;
+    }
+    .lp-hero-title {
+        font-size: 2rem;
+    }
+    .lp-hero-title-sub {
+        font-size: 1.5rem;
+    }
+    .lp-hero-lead {
+        font-size: 0.95rem;
+    }
+    .lp-deco-top-left {
+        width: 140px;
+        height: 140px;
+        top: -70px;
+        left: -70px;
+    }
+}
