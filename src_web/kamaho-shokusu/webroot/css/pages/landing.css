@@ -227,6 +227,73 @@
     font-size: 1.1rem;
 }
 
+/* ---- LPヘッダーのテキストリンク ---- */
+.lp-header-link {
+    color: #38505f;
+    font-weight: 700;
+    text-decoration: none;
+}
+.lp-header-link:hover,
+.lp-header-link:focus {
+    color: #0aa9c9;
+}
+
+/* ---- 具体事例（Before → After） ---- */
+.lp-cases {
+    background: #ffffff;
+}
+.lp-case-card {
+    border-radius: 16px;
+}
+.lp-case-label {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 0.15rem 0.7rem;
+    border-radius: 999px;
+    margin-bottom: 0.4rem;
+}
+.lp-case-label-before {
+    background: #eef3f7;
+    color: #6b7d8a;
+}
+.lp-case-label-after {
+    background: #0dcaf0;
+    color: #ffffff;
+}
+.lp-case-before p {
+    color: #6b7d8a;
+    font-size: 0.95rem;
+}
+.lp-case-after p {
+    font-weight: 700;
+    font-size: 0.98rem;
+}
+.lp-case-arrow {
+    color: #0dcaf0;
+    font-size: 1.3rem;
+    margin: 0.4rem 0;
+}
+
+/* ---- 画面イメージ（ギャラリー） ---- */
+.lp-gallery {
+    background: #f6fbfd;
+}
+.lp-gallery-img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid #e8edf3;
+    background: #ffffff;
+}
+
+/* ---- お問い合わせ ---- */
+.lp-contact {
+    background: #ffffff;
+}
+
 /* ---- 利用の流れ ---- */
 .lp-steps {
     background: #f6fbfd;

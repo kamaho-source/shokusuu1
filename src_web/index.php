@@ -5,7 +5,62 @@
 // CakePHPアプリ(/kamaho-shokusu/)の外に置いた静的コンテンツで、
 // CSS等のアセットはアプリの webroot(/kamaho-shokusu/...)を共用する。
 // ログイン導線は /kamaho-shokusu/MUserInfo/login へ誘導する。
-$loginUrl = '/kamaho-shokusu/MUserInfo/login';
+//
+// 掲載画像は管理画面（/kamaho-shokusu/LpImage）から登録されたものを
+// m_lp_image テーブルから取得して表示する（DB未接続時は既定画像で表示継続）。
+$loginUrl   = '/kamaho-shokusu/MUserInfo/login';
+$contactUrl = '/kamaho-shokusu/Contacts';
+
+/**
+ * m_lp_image テーブルからLPに表示する画像（i_display=1）を取得する。
+ *
+ * アプリのDB設定（config/app_local.php）を再利用して接続する。
+ * DB未接続・テーブル未作成などの場合は空配列を返し、LPの表示自体は継続する。
+ *
+ * @return array<int, array{c_title: string, c_section: string, c_file_path: string}>
+ */
+function lpFetchImages(): array
+{
+    if (!function_exists('env')) {
+        // app_local.php 内で使用される CakePHP の env() 互換関数
+        function env(string $key, $default = null)
+        {
+            $value = getenv($key);
+
+            return $value !== false ? $value : $default;
+        }
+    }
+
+    try {
+        $config = include __DIR__ . '/kamaho-shokusu/config/app_local.php';
+        $ds = $config['Datasources']['default'] ?? null;
+        if (!is_array($ds)) {
+            return [];
+        }
+
+        $pdo = new PDO(
+            sprintf('mysql:host=%s;dbname=%s;charset=utf8mb4', $ds['host'] ?? 'localhost', $ds['database'] ?? ''),
+            (string)($ds['username'] ?? ''),
+            (string)($ds['password'] ?? ''),
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 2]
+        );
+        $rows = $pdo->query(
+            'SELECT c_title, c_section, c_file_path FROM m_lp_image WHERE i_display = 1 ORDER BY i_sort ASC, i_id ASC'
+        )->fetchAll(PDO::FETCH_ASSOC);
+
+        return is_array($rows) ? $rows : [];
+    } catch (Throwable) {
+        return [];
+    }
+}
+
+$lpImages      = lpFetchImages();
+$heroImages    = array_values(array_filter($lpImages, fn(array $r): bool => $r['c_section'] === 'hero'));
+$galleryImages = array_values(array_filter($lpImages, fn(array $r): bool => $r['c_section'] === 'gallery'));
+
+// ヒーロー画像: 管理画面で登録があればそれを、なければ既定のカレンダー画面を使う
+$heroImagePath = '/kamaho-shokusu/' . ($heroImages[0]['c_file_path'] ?? 'img/lp/calendar.png');
+$heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面のスクリーンショット';
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -28,9 +83,12 @@ $loginUrl = '/kamaho-shokusu/MUserInfo/login';
                 <i class="bi bi-calendar-check-fill" aria-hidden="true"></i>
                 <span class="fw-bold">食数管理システム</span>
             </div>
-            <a class="btn lp-cta-btn px-4" href="<?= $loginUrl ?>" aria-label="ログインページへ移動">
-                <i class="bi bi-box-arrow-in-right me-1"></i>ログイン
-            </a>
+            <div class="d-flex align-items-center gap-3">
+                <a class="lp-header-link d-none d-sm-inline" href="#contact">お問い合わせ</a>
+                <a class="btn lp-cta-btn px-4" href="<?= $loginUrl ?>" aria-label="ログインページへ移動">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>ログイン
+                </a>
+            </div>
         </div>
     </header>
 
@@ -70,13 +128,13 @@ $loginUrl = '/kamaho-shokusu/MUserInfo/login';
                     </p>
                 </div>
                 <div class="col-12 col-lg-5 d-none d-md-block">
-                    <?php /* 実際のアプリ画面（食数予約カレンダー） */ ?>
+                    <?php /* 実際のアプリ画面（管理画面から差し替え可能） */ ?>
                     <div class="lp-mock shadow">
                         <div class="lp-mock-bar" aria-hidden="true">
                             <span></span><span></span><span></span>
                         </div>
-                        <img class="lp-mock-img" src="/kamaho-shokusu/img/lp/calendar.png"
-                             alt="食数予約カレンダー画面のスクリーンショット" loading="lazy">
+                        <img class="lp-mock-img" src="<?= htmlspecialchars($heroImagePath, ENT_QUOTES) ?>"
+                             alt="<?= htmlspecialchars($heroImageAlt, ENT_QUOTES) ?>">
                     </div>
                 </div>
             </div>
@@ -152,6 +210,93 @@ $loginUrl = '/kamaho-shokusu/MUserInfo/login';
         </div>
     </section>
 
+    <?php /* ---- 具体事例セクション ---- */ ?>
+    <section class="lp-cases py-5">
+        <div class="container">
+            <div class="lp-section-eyebrow text-center">CASE</div>
+            <h2 class="text-center fw-bold mb-2">導入でこう変わる</h2>
+            <p class="text-center text-muted mb-5">紙やExcelで行っていた作業が、こんなふうに変わります。</p>
+            <div class="row g-4">
+                <div class="col-12 col-lg-4">
+                    <div class="card lp-case-card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h3 class="lp-feature-title fw-bold mb-3">
+                                <i class="bi bi-clipboard-check me-2 text-primary" aria-hidden="true"></i>毎日の食数取りまとめ
+                            </h3>
+                            <div class="lp-case-before">
+                                <span class="lp-case-label lp-case-label-before">Before</span>
+                                <p class="mb-0">紙の申告用紙を各部屋から回収し、担当者が1件ずつ手作業で集計。</p>
+                            </div>
+                            <div class="lp-case-arrow text-center" aria-hidden="true"><i class="bi bi-arrow-down"></i></div>
+                            <div class="lp-case-after">
+                                <span class="lp-case-label lp-case-label-after">After</span>
+                                <p class="mb-0">各自がスマホ・PCからワンタップで申告。集計はリアルタイムに自動反映。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-4">
+                    <div class="card lp-case-card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h3 class="lp-feature-title fw-bold mb-3">
+                                <i class="bi bi-people me-2 text-success" aria-hidden="true"></i>申告内容の確認・承認
+                            </h3>
+                            <div class="lp-case-before">
+                                <span class="lp-case-label lp-case-label-before">Before</span>
+                                <p class="mb-0">口頭やメモでの確認のため、聞き漏れ・記入漏れが発生しがち。</p>
+                            </div>
+                            <div class="lp-case-arrow text-center" aria-hidden="true"><i class="bi bi-arrow-down"></i></div>
+                            <div class="lp-case-after">
+                                <span class="lp-case-label lp-case-label-after">After</span>
+                                <p class="mb-0">ブロック長・管理者による段階承認フローで、漏れなくダブルチェック。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-4">
+                    <div class="card lp-case-card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h3 class="lp-feature-title fw-bold mb-3">
+                                <i class="bi bi-file-earmark-spreadsheet me-2 text-warning" aria-hidden="true"></i>月次の集計・控除計算
+                            </h3>
+                            <div class="lp-case-before">
+                                <span class="lp-case-label lp-case-label-before">Before</span>
+                                <p class="mb-0">月末にExcelへ転記して集計。計算ミスの確認にも時間がかかる。</p>
+                            </div>
+                            <div class="lp-case-arrow text-center" aria-hidden="true"><i class="bi bi-arrow-down"></i></div>
+                            <div class="lp-case-after">
+                                <span class="lp-case-label lp-case-label-after">After</span>
+                                <p class="mb-0">食事控除表をワンクリックで出力。転記も再計算も不要に。</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <?php if ($galleryImages !== []): ?>
+    <?php /* ---- 画面イメージ（管理画面から登録された画像を表示） ---- */ ?>
+    <section class="lp-gallery py-5">
+        <div class="container">
+            <div class="lp-section-eyebrow text-center">SCREENSHOT</div>
+            <h2 class="text-center fw-bold mb-5">画面イメージ</h2>
+            <div class="row g-4 justify-content-center">
+                <?php foreach ($galleryImages as $galleryImage): ?>
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <figure class="lp-gallery-item mb-0">
+                            <img class="lp-gallery-img shadow-sm"
+                                 src="/kamaho-shokusu/<?= htmlspecialchars($galleryImage['c_file_path'], ENT_QUOTES) ?>"
+                                 alt="<?= htmlspecialchars($galleryImage['c_title'], ENT_QUOTES) ?>" loading="lazy">
+                            <figcaption class="text-center text-muted small mt-2"><?= htmlspecialchars($galleryImage['c_title'], ENT_QUOTES) ?></figcaption>
+                        </figure>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
+
     <?php /* ---- 利用の流れセクション ---- */ ?>
     <section class="lp-steps py-5">
         <div class="container">
@@ -180,6 +325,21 @@ $loginUrl = '/kamaho-shokusu/MUserInfo/login';
                     </div>
                 </div>
             </div>
+        </div>
+    </section>
+
+    <?php /* ---- お問い合わせセクション ---- */ ?>
+    <section class="lp-contact py-5" id="contact">
+        <div class="container text-center">
+            <div class="lp-section-eyebrow">CONTACT</div>
+            <h2 class="fw-bold mb-2">お問い合わせ</h2>
+            <p class="text-muted mb-4">
+                サービスに関するご質問・ご意見・不具合のご報告は、お問い合わせフォームからお送りください。<br>
+                ログインしていなくてもご利用いただけます。
+            </p>
+            <a class="btn lp-cta-btn btn-lg px-5" href="<?= $contactUrl ?>" aria-label="お問い合わせフォームへ移動">
+                <i class="bi bi-envelope me-2"></i>お問い合わせフォームへ
+            </a>
         </div>
     </section>
 
