@@ -25,13 +25,15 @@ class ContactsController extends AppController
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
+        // お問い合わせフォームはLPからの導線のため未ログインでも利用可能にする
+        $this->Authentication->allowUnauthenticated(['index']);
         if ($this->request->getParam('action') === 'index') {
             $this->FormProtection->setConfig('unlockedFields', ['name', 'email', 'category', 'body']);
         }
     }
 
     /**
-     * フィードバック・お問い合わせフォーム（全ユーザー共通）
+     * フィードバック・お問い合わせフォーム（未ログインを含む全ユーザー共通）
      */
     public function index(): ?Response
     {
@@ -40,13 +42,13 @@ class ContactsController extends AppController
         $user = $this->Authentication->getIdentity();
         $categories = TContactsTable::CATEGORIES;
 
-        // ログインユーザーの情報を初期値として渡す
-        $defaultName  = $user->get('c_user_name') ?? '';
+        // ログインユーザーの情報を初期値として渡す(未ログイン時は空)
+        $defaultName  = $user?->get('c_user_name') ?? '';
         $defaultEmail = ''; // メールカラムがあれば取得
 
         if ($this->request->is('post')) {
             $data = (array)$this->request->getData();
-            $userId = (int)$user->get('i_id_user');
+            $userId = $user ? (int)$user->get('i_id_user') : null;
 
             $result = $this->contactService->submit($data, $userId);
 
