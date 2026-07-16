@@ -37,7 +37,7 @@ class LpImageController extends AppController
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
-        $this->FormProtection->setConfig('unlockedFields', ['c_title', 'c_section', 'i_sort', 'image_file']);
+        $this->FormProtection->setConfig('unlockedFields', ['image_file', 'image_source', 'existing_image_id']);
     }
 
     /**
@@ -68,7 +68,10 @@ class LpImageController extends AppController
     }
 
     /**
-     * LP画像アップロード
+     * LP画像の追加
+     *
+     * 新しい画像ファイルのアップロードに加え、データベースに登録済みの画像を
+     * 選択して別セクション・別タイトルで追加（再利用）できる。
      *
      * @throws \Cake\Http\Exception\MethodNotAllowedException POST以外のリクエスト時
      */
@@ -86,15 +89,79 @@ class LpImageController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
+        $useExisting = (string)$this->request->getData('image_source', 'upload') === 'existing';
+
+        $filePath = $useExisting
+            ? $this->resolveExistingImagePath($table)
+            : $this->saveUploadedImage();
+
+        if ($filePath === null) {
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $entity = $table->newEntity([
+            'c_title'     => trim((string)$this->request->getData('c_title')),
+            'c_section'   => (string)$this->request->getData('c_section', 'gallery'),
+            'c_file_path' => $filePath,
+            'i_display'   => 1,
+            'i_sort'      => (int)$this->request->getData('i_sort', 0),
+        ]);
+
+        if (!$table->save($entity)) {
+            // 新規アップロード時のみ、保存に失敗したファイルを残さない（既存画像の再利用時は消さない）
+            if (!$useExisting) {
+                @unlink(WWW_ROOT . str_replace('/', DS, $filePath));
+            }
+            $errors = $entity->getErrors();
+            $message = $errors ? implode(' ', array_map(fn($e) => implode(' ', (array)$e), $errors)) : '保存に失敗しました。';
+            $this->Flash->error($message);
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $this->Flash->success('LP画像を追加しました。');
+        return $this->redirect(['action' => 'index']);
+    }
+
+    /**
+     * データベースに登録済みの画像から、選択された画像のファイルパスを解決する。
+     *
+     * 失敗した場合は Flash にエラーメッセージを設定して null を返す。
+     *
+     * @param \App\Model\Table\MLpImageTable $table LP画像テーブル
+     * @return string|null 選択された画像の相対パス（webroot 起点）
+     */
+    private function resolveExistingImagePath(MLpImageTable $table): ?string
+    {
+        $existingId = (int)$this->request->getData('existing_image_id');
+
+        /** @var \App\Model\Entity\MLpImage|null $existing */
+        $existing = $table->find()->where(['i_id' => $existingId])->first();
+        if ($existing === null) {
+            $this->Flash->error('登録済みの画像を選択してください。');
+            return null;
+        }
+
+        return $existing->c_file_path;
+    }
+
+    /**
+     * アップロードされた画像ファイルを検証して webroot/img/lp/uploads/ に保存する。
+     *
+     * 失敗した場合は Flash にエラーメッセージを設定して null を返す。
+     *
+     * @return string|null 保存した画像の相対パス（webroot 起点）
+     */
+    private function saveUploadedImage(): ?string
+    {
         $file = $this->request->getData('image_file');
         if (!$file instanceof UploadedFileInterface || $file->getError() !== UPLOAD_ERR_OK) {
             $this->Flash->error('画像ファイルを選択してください。');
-            return $this->redirect(['action' => 'index']);
+            return null;
         }
 
         if ((int)$file->getSize() > self::MAX_FILE_SIZE) {
             $this->Flash->error('画像サイズは5MB以下にしてください。');
-            return $this->redirect(['action' => 'index']);
+            return null;
         }
 
         // クライアント申告のMIMEではなく実ファイルの内容から判定する
@@ -102,7 +169,7 @@ class LpImageController extends AppController
         $mime    = (string)(new \finfo(FILEINFO_MIME_TYPE))->file($tmpPath);
         if (!isset(self::ALLOWED_MIME_TYPES[$mime])) {
             $this->Flash->error('PNG・JPEG・WebP・GIF形式の画像のみアップロードできます。');
-            return $this->redirect(['action' => 'index']);
+            return null;
         }
 
         // 推測されにくいランダムなファイル名で保存する
@@ -113,25 +180,7 @@ class LpImageController extends AppController
         }
         $file->moveTo($saveDir . DS . $fileName);
 
-        $entity = $table->newEntity([
-            'c_title'     => trim((string)$this->request->getData('c_title')),
-            'c_section'   => (string)$this->request->getData('c_section', 'gallery'),
-            'c_file_path' => 'img/lp/uploads/' . $fileName,
-            'i_display'   => 1,
-            'i_sort'      => (int)$this->request->getData('i_sort', 0),
-        ]);
-
-        if (!$table->save($entity)) {
-            // 保存に失敗した場合はアップロード済みファイルを残さない
-            @unlink($saveDir . DS . $fileName);
-            $errors = $entity->getErrors();
-            $message = $errors ? implode(' ', array_map(fn($e) => implode(' ', (array)$e), $errors)) : '保存に失敗しました。';
-            $this->Flash->error($message);
-            return $this->redirect(['action' => 'index']);
-        }
-
-        $this->Flash->success('LP画像を追加しました。');
-        return $this->redirect(['action' => 'index']);
+        return 'img/lp/uploads/' . $fileName;
     }
 
     /**
@@ -192,10 +241,14 @@ class LpImageController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
+        // 同じファイルを参照する別レコード（既存画像の再利用）が残っている間はファイルを消さない
+        // delete() 後なので、他に同じパスを持つレコードがなければ count() は 0 になる
+        $stillReferenced = $table->find()->where(['c_file_path' => $image->c_file_path])->count() > 0;
+
         // アップロードディレクトリ配下のファイルのみ削除する（パス改ざん対策）
         $uploadsDir = realpath(WWW_ROOT . 'img' . DS . 'lp' . DS . 'uploads');
         $filePath   = realpath(WWW_ROOT . $image->c_file_path);
-        if ($uploadsDir !== false && $filePath !== false && str_starts_with($filePath, $uploadsDir . DS)) {
+        if (!$stillReferenced && $uploadsDir !== false && $filePath !== false && str_starts_with($filePath, $uploadsDir . DS)) {
             @unlink($filePath);
         }
 
