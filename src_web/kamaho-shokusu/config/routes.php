@@ -385,18 +385,6 @@ return function (RouteBuilder $routes): void {
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
 
-        // ── LP画像管理（管理者専用） ──
-        $builder->connect('/LpImage', ['controller' => 'LpImage', 'action' => 'index'])->setMethods(['GET']);
-        $builder->connect('/LpImage/add', ['controller' => 'LpImage', 'action' => 'add'])->setMethods(['POST']);
-        $builder->connect('/LpImage/toggle/{id}', ['controller' => 'LpImage', 'action' => 'toggle'])
-            ->setMethods(['POST'])
-            ->setPass(['id'])
-            ->setPatterns(['id' => '\d+']);
-        $builder->connect('/LpImage/delete/{id}', ['controller' => 'LpImage', 'action' => 'delete'])
-            ->setMethods(['POST', 'DELETE'])
-            ->setPass(['id'])
-            ->setPatterns(['id' => '\d+']);
-
         // ── 統計AI（管理者専用） ──
         $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/StatsAi/askStream', ['controller' => 'StatsAi', 'action' => 'askStream'])->setMethods(['POST']);
