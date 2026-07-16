@@ -34,7 +34,6 @@ use Cake\View\Exception\MissingTemplateException;
  *
  * 主な役割:
  *   - dashboard() アクション: 新ホーム(ダッシュボード)画面を表示する
- *                            (未ログイン時はログイン画面へリダイレクトする)
  *   - display()   アクション: URL パスに対応するテンプレートを汎用的に表示する
  *   - buildDashboardViewVars(): ダッシュボードに必要なビュー変数を組み立てる(共通処理)
  *
@@ -72,11 +71,8 @@ class PagesController extends AppController
      *
      * 処理の流れ:
      *   1. 認可チェックをスキップする(ロールによるアクセス制限なし)
-     *   2. 未ログインの場合はログイン画面へリダイレクトする
-     *      (LP =ランディングページ= はドメイン直下の静的ページ
-     *       =src_web/index.php= として表示される)
-     *   3. ログイン済みの場合は buildDashboardViewVars() でビュー変数を組み立て、
-     *      templates/Pages/dashboard.php を描画して返す
+     *   2. buildDashboardViewVars() でビュー変数を組み立てる
+     *   3. templates/Pages/dashboard.php を描画して返す
      *
      * @return \Cake\Http\Response|null
      */
@@ -84,11 +80,6 @@ class PagesController extends AppController
     {
         // 認可ポリシーの適用をスキップする(誰でもアクセス可能)
         $this->Authorization->skipAuthorization();
-
-        // 未ログイン時はログイン画面へ誘導する
-        if (!$this->Authentication->getIdentity()) {
-            return $this->redirect('/MUserInfo/login');
-        }
 
         // ダッシュボード用ビュー変数($dashboard, $hasTodayReport)をセットする
         $this->set($this->buildDashboardViewVars());
