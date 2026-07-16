@@ -163,7 +163,11 @@ jobs:
               echo "[ERROR] Deploy SHA ${DEPLOY_SHA} not found. The commit may not be pushed yet." >&2
               exit 1
             fi
-            git checkout "$DEPLOY_SHA"
+            # サーバー上でマイグレーション実行時に再生成される生成物
+            # （config/Migrations/schema-dump-default.lock 等）が残っていると
+            # checkout が中断するため、追跡ファイルのローカル変更は破棄する
+            # （.env などの未追跡ファイルには影響しない）
+            git checkout --force "$DEPLOY_SHA"
 
             # ── .env 生成 (アプリ用) ────────────────────────────────────────
             printf 'OPENROUTER_API_KEY=%s\nSLACK_CONTACT_WEBHOOK=%s\n' \
