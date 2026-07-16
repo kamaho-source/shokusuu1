@@ -46,13 +46,13 @@ class UserCreateService
      * @param string $ipAddress  操作元IPアドレス
      * @return bool
      */
-    public function saveWithRooms(\Cake\ORM\Entity $entity, array $groupData, string $createdBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function saveWithRooms(\Cake\ORM\Entity $entity, array $groupData, string $createdBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
 
         if (!$userInfoTable->save($entity)) {
-            AuditLogService::record('user', 'user_create', $createdBy, $actorId, 'm_user_info', null, ['error' => 'save failed'], $ipAddress ?: null, 0);
+            AuditLogService::record('user', 'user_create', $createdBy, $actorId, 'm_user_info', null, ['error' => 'save failed'], $ipAddress ?: null, 0, $actorLoginId);
             return false;
         }
 
@@ -84,7 +84,8 @@ class UserCreateService
             (string)$userId,
             ['user_name' => $entity->c_user_name, 'login_account' => $entity->c_login_account],
             $ipAddress ?: null,
-            1
+            1,
+            $actorLoginId
         );
 
         return true;

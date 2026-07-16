@@ -19,7 +19,7 @@ class UserDeletionService
      * @param string $ipAddress 操作元IPアドレス
      * @return bool
      */
-    public function softDelete(\App\Model\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function softDelete(\App\Model\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -60,7 +60,8 @@ class UserDeletionService
             (string)$user->i_id_user,
             ['target_user_name' => $user->c_user_name],
             $ipAddress ?: null,
-            $result ? 1 : 0
+            $result ? 1 : 0,
+            $actorLoginId
         );
 
         return $result;

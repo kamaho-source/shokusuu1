@@ -61,7 +61,8 @@ class ReservationToggleController extends ReservationBaseController
 
         $loginUser = $this->request->getAttribute('identity');
         $loginUserId   = (int)($loginUser?->get('i_id_user') ?? $loginUser?->get('id') ?? 0);
-        $loginUserName = (string)($loginUser?->get('c_login_account') ?? $loginUser?->get('c_user_name') ?? $loginUserId);
+        $loginUserName = (string)($loginUser?->get('c_user_name') ?? '不明');
+        $loginAccount  = (string)($loginUser?->get('c_login_account') ?? '');
         if ($loginUserId <= 0) {
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
@@ -77,14 +78,14 @@ class ReservationToggleController extends ReservationBaseController
 
             \App\Service\AuditLogService::record(
                 'reservation', 'reservation_toggle', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 1
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 1, $loginAccount
             );
 
             return $this->apiResponseService->success($this->response, $result, null, 200);
         } catch (\App\Domain\Exception\DomainException $e) {
             \App\Service\AuditLogService::record(
                 'reservation', 'reservation_toggle', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0, $loginAccount
             );
 
             return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());

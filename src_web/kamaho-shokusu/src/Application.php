@@ -118,7 +118,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             'resolver' => [
                 'className' => 'Authentication.Orm',
                 'userModel' => 'MUserInfo',
-                'fields'    => ['i_id_user', 'c_login_account', 'i_admin', 'i_user_level'],
+                'fields'    => ['i_id_user', 'c_login_account', 'c_user_name', 'i_admin', 'i_user_level'],
             ],
             'fields' => [
                 'username' => 'c_login_account',
