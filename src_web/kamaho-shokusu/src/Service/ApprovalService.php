@@ -290,7 +290,7 @@ class ApprovalService
      * @param string $ipAddress 操作元IPアドレス
      * @return bool
      */
-    public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = ''): bool
+    public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $result = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
         AuditLogService::record(
@@ -302,7 +302,8 @@ class ApprovalService
             implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
             ['count' => count($keys)],
             $ipAddress ?: null,
-            $result ? 1 : 0
+            $result ? 1 : 0,
+            $actorLoginId
         );
         return $result;
     }
@@ -316,7 +317,7 @@ class ApprovalService
      * @param string $ipAddress
      * @return bool
      */
-    public function adminApprove(array $keys, int $approverId, string $actor, string $ipAddress = ''): bool
+    public function adminApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $result = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
         
@@ -342,7 +343,8 @@ class ApprovalService
             implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
             ['count' => count($keys)],
             $ipAddress ?: null,
-            $result ? 1 : 0
+            $result ? 1 : 0,
+            $actorLoginId
         );
         return $result;
     }
@@ -355,9 +357,10 @@ class ApprovalService
      * @param string      $actor
      * @param string|null $reason
      * @param string      $ipAddress
+     * @param string      $actorLoginId
      * @return bool
      */
-    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = ''): bool
+    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $result = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
         AuditLogService::record(
@@ -369,7 +372,8 @@ class ApprovalService
             implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
             ['count' => count($keys), 'reason' => $reason],
             $ipAddress ?: null,
-            $result ? 1 : 0
+            $result ? 1 : 0,
+            $actorLoginId
         );
         return $result;
     }

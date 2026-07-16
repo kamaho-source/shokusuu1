@@ -589,7 +589,8 @@ class TReservationInfoController extends ReservationBaseController
                 $data['d_reservation_date'] ?? null,
                 ['date' => $data['d_reservation_date'] ?? null],
                 $this->getClientIp(),
-                $auditSuccess
+                $auditSuccess,
+                (string)($user->get('c_login_account') ?? '')
             );
 
             // ★ ここからが重要：非AJAXでは「常にサーバ側で配列ルート→redirect()」に集約

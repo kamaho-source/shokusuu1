@@ -287,6 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let checked = 0;
             currentUsers.forEach((u) => {
                 const uid = u.id;
+                if (!canEditUser(uid)) return;
                 const isLocked = !!(locked[activeDate]?.[uid]?.[type]);
                 const isOtherRoomLocked = !!(otherRoomLocked[activeDate]?.[uid]?.[type]);
                 if (isLocked || isOtherRoomLocked) return;
@@ -303,6 +304,20 @@ document.addEventListener('DOMContentLoaded', () => {
             toggle.checked = (checked === selectable);
             toggle.indeterminate = (checked > 0 && checked < selectable);
         });
+    }
+
+    // サーバー側 ReservationBulkService::canEditTargetUser と同一の編集可否判定。
+    // 判定外のユーザーは画面上で無効化し、保存時の送信対象からも除外する。
+    function canEditUser(uid) {
+        const uidNum = Number(uid);
+        if (uidNum === Number(window.__LOGIN_USER_ID)) return true;
+        if (window.__IS_ADMIN) return true;
+        const currentRoomId = parseInt(roomSelect?.value, 10) || 0;
+        const blockLeaderInRoom = !!window.__IS_BLOCK_LEADER
+            && (window.__LOGIN_ROOM_IDS || []).includes(currentRoomId);
+        if (blockLeaderInRoom) return true;
+        const isLoginStaff = [0, 7].includes(Number(window.__LOGIN_USER_LEVEL));
+        return isLoginStaff && userLevels[uidNum] === 1;
     }
 
     function buildMealCell(uid, type) {
@@ -323,13 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
         const staffMealBlocksBento = (type === 4) && hasMealLocked;
 
-        const loginUserId = window.__LOGIN_USER_ID;
-        const isAdminUser = !!(window.__IS_ADMIN);
-        const isBlockLeader = !!(window.__IS_BLOCK_LEADER);
-        const loginRoomIds = window.__LOGIN_ROOM_IDS || [];
-        const currentRoomId = parseInt(roomSelect?.value) || 0;
-        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(currentRoomId);
-        const isOtherStaff = !isAdminUser && !blockLeaderInRoom && isStaff && uid !== loginUserId;
+        const cannotEditOther = !canEditUser(uid);
 
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';
@@ -339,8 +348,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!disabledReason && disabledByDate) disabledReason = '過去日付のため編集できません。';
         if (!disabledReason && bentoBlocksNoon) disabledReason = 'お弁当が予約済みのためお昼は予約できません。';
         if (!disabledReason && staffMealBlocksBento) disabledReason = '朝・昼・夜が予約済みのためお弁当は予約できません。';
-        if (!disabledReason && isOtherStaff) disabledReason = '他の職員の予約は操作できません。';
-        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || bentoBlocksNoon || staffMealBlocksBento || isOtherStaff;
+        if (!disabledReason && cannotEditOther) disabledReason = '他のユーザーの予約は操作できません。';
+        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || bentoBlocksNoon || staffMealBlocksBento || cannotEditOther;
         return `
             <label class="d-inline-flex align-items-center justify-content-center">
                 <input class="meal-toggle" type="checkbox" id="${id}" data-uid="${uid}" data-type="${type}"
@@ -613,8 +622,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageLimit = Number(payload.limit || pageLimit);
                 currentPage = Number(payload.page || currentPage);
                 currentUsers.forEach((u) => {
-                    // i_user_level 未取得時は「子供(1)」扱いにしてロック過多を防ぐ
-                    userLevels[u.id] = (u.i_user_level == null) ? 1 : Number(u.i_user_level);
+                    // i_user_level 未取得時は -1（編集不可・ロックなし）に倒す。
+                    // サーバー側は未取得を職員(0)扱いで拒否するため、子供(1)扱いにすると
+                    // 画面では編集できるのに保存で権限エラーになる不整合が生じる
+                    userLevels[u.id] = (u.i_user_level == null) ? -1 : Number(u.i_user_level);
                 });
                 ensureState(activeDate);
                 if (payload.reservation_snapshot) {
@@ -641,6 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ensureState(activeDate);
         currentUsers.forEach((u) => {
             const uid = u.id;
+            if (!canEditUser(uid)) return;
             const isLocked = !!(locked[activeDate]?.[uid]?.[type]);
             const isOtherRoomLocked = !!(otherRoomLocked[activeDate]?.[uid]?.[type]);
             if (isLocked || isOtherRoomLocked) return;
@@ -763,6 +775,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dateList.forEach((date) => {
                 const users = selections[date] || {};
                 Object.keys(users).forEach((uid) => {
+                    // 編集権限のないユーザーは送信しない（既存予約の自動反映分が
+                    // サーバー側の権限エラーを誘発するのを防ぐ）
+                    if (!canEditUser(uid)) return;
                     const meals = users[uid] || {};
                     mealTypes.forEach((type) => {
                         if (otherRoomLocked[date]?.[uid]?.[type]) return;
