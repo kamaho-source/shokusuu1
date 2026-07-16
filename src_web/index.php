@@ -61,14 +61,57 @@ $galleryImages = array_values(array_filter($lpImages, fn(array $r): bool => $r['
 // ヒーロー画像: 管理画面で登録があればそれを、なければ既定のカレンダー画面を使う
 $heroImagePath = '/kamaho-shokusu/' . ($heroImages[0]['c_file_path'] ?? 'img/lp/calendar.png');
 $heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面のスクリーンショット';
+
+// ---- SEO / OGP ----
+// canonical・OGP は本番ドメイン固定とする（ステージング環境が重複インデックスされるのを防ぐ）
+$siteUrl         = 'https://kamaho-shokusu.jp';
+$canonicalUrl    = $siteUrl . '/';
+$pageTitle       = '食数管理システム | 施設向け食数管理ICTサービス';
+$metaDescription = '保育・福祉施設向けの食数管理システム。カレンダーからの食数申告、段階承認フロー、自動集計・食事控除表の出力までを一元化し、'
+    . '紙やExcelでの取りまとめ業務を削減します。スマホ・タブレット対応。';
+$ogImageUrl      = $siteUrl . $heroImagePath;
+
+// 構造化データ（JSON-LD）: 検索エンジンにサービス種別・機能を伝える
+$jsonLd = [
+    '@context'            => 'https://schema.org',
+    '@type'               => 'SoftwareApplication',
+    'name'                => '食数管理システム',
+    'applicationCategory' => 'BusinessApplication',
+    'operatingSystem'     => 'Web',
+    'url'                 => $canonicalUrl,
+    'description'         => $metaDescription,
+    'screenshot'          => $ogImageUrl,
+    'inLanguage'          => 'ja',
+    'featureList'         => [
+        'カレンダーからの食数申告（一括申告対応）',
+        'ブロック長・管理者による段階承認フロー',
+        '食数の自動集計・食事控除表の出力',
+        'お知らせ・承認状況の通知',
+    ],
+];
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>食数管理システム | 施設向け食数管理ICTサービス</title>
-    <meta name="description" content="食数管理システムは、施設の食数の申告・承認・集計を支援・効率化するICTツールです。">
+    <title><?= htmlspecialchars($pageTitle, ENT_QUOTES) ?></title>
+    <meta name="description" content="<?= htmlspecialchars($metaDescription, ENT_QUOTES) ?>">
+    <link rel="canonical" href="<?= htmlspecialchars($canonicalUrl, ENT_QUOTES) ?>">
+
+    <?php /* OGP（SNS・チャットでの共有時の表示） */ ?>
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="食数管理システム">
+    <meta property="og:title" content="<?= htmlspecialchars($pageTitle, ENT_QUOTES) ?>">
+    <meta property="og:description" content="<?= htmlspecialchars($metaDescription, ENT_QUOTES) ?>">
+    <meta property="og:url" content="<?= htmlspecialchars($canonicalUrl, ENT_QUOTES) ?>">
+    <meta property="og:image" content="<?= htmlspecialchars($ogImageUrl, ENT_QUOTES) ?>">
+    <meta property="og:locale" content="ja_JP">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <?php /* 構造化データ（JSON-LD） */ ?>
+    <script type="application/ld+json"><?= json_encode($jsonLd, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>
+
     <link rel="stylesheet" href="/kamaho-shokusu/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/kamaho-shokusu/css/pages/landing.css">
@@ -151,6 +194,10 @@ $heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面
                 <span class="lp-brand-name">食数管理システム</span>は、施設の食数の
                 申告・承認・集計を支援・効率化するICTツールです。
             </p>
+            <p class="lp-statement-desc text-muted mb-2">
+                保育・福祉施設などの食事提供の現場で、紙やExcelを使って行われてきた食数の取りまとめをオンラインで一元管理。<br class="d-none d-md-inline">
+                職員・利用者の申告から承認、給食数の集計までを、日々の業務の流れに沿ってひとつのシステムで完結できます。
+            </p>
             <p class="text-muted small mb-0">※ 週単位のカレンダー申告・段階承認・自動集計に対応しています。</p>
         </div>
     </section>
@@ -160,7 +207,10 @@ $heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面
         <div class="container">
             <div class="lp-section-eyebrow text-center">FEATURE</div>
             <h2 class="text-center fw-bold mb-2">主な機能</h2>
-            <p class="text-center text-muted mb-5">日々の食数管理に必要な機能をひとつのシステムで提供します。</p>
+            <p class="text-center text-muted mb-5">
+                日々の食数管理に必要な機能をひとつのシステムで提供します。<br class="d-none d-md-inline">
+                食数の申告から承認・集計・通知まで、給食業務の流れに沿った機能構成です。
+            </p>
             <div class="row g-4">
                 <div class="col-12 col-md-6 col-lg-3">
                     <div class="card lp-feature-card h-100 border-0 shadow-sm text-center">
@@ -169,7 +219,7 @@ $heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面
                                 <i class="bi bi-calendar3"></i>
                             </div>
                             <h3 class="lp-feature-title fw-bold">カレンダーでかんたん申告</h3>
-                            <p class="text-muted mb-0">週単位のカレンダーから「食べる・食べない」を選ぶだけ。まとめて一括申告にも対応しています。</p>
+                            <p class="text-muted mb-0">週単位のカレンダーから「食べる・食べない」を選ぶだけ。まとめて一括申告にも対応しています。スマホ・タブレット・PCのどれからでも申告できます。</p>
                         </div>
                     </div>
                 </div>
@@ -180,7 +230,7 @@ $heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面
                                 <i class="bi bi-check2-square"></i>
                             </div>
                             <h3 class="lp-feature-title fw-bold">承認フロー</h3>
-                            <p class="text-muted mb-0">申告内容はブロック長・管理者が段階的に承認。確認状況もひと目で把握できます。</p>
+                            <p class="text-muted mb-0">申告内容はブロック長・管理者が段階的に承認。確認状況もひと目で把握できます。承認の履歴が残るため、施設内での確認・振り返りにも役立ちます。</p>
                         </div>
                     </div>
                 </div>
@@ -191,7 +241,7 @@ $heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面
                                 <i class="bi bi-bar-chart"></i>
                             </div>
                             <h3 class="lp-feature-title fw-bold">集計・レポート</h3>
-                            <p class="text-muted mb-0">食数の集計や食事控除表の出力を自動化。手作業での集計ミスを防ぎます。</p>
+                            <p class="text-muted mb-0">食数の集計や食事控除表の出力を自動化。手作業での集計ミスを防ぎます。日々の給食数の把握や月次の締め作業にそのまま活用できます。</p>
                         </div>
                     </div>
                 </div>
@@ -202,7 +252,7 @@ $heroImageAlt  = $heroImages[0]['c_title'] ?? '食数予約カレンダー画面
                                 <i class="bi bi-bell"></i>
                             </div>
                             <h3 class="lp-feature-title fw-bold">お知らせ・通知</h3>
-                            <p class="text-muted mb-0">運営からのお知らせや承認状況の変化を通知でお届け。申告漏れを防ぎます。</p>
+                            <p class="text-muted mb-0">運営からのお知らせや承認状況の変化を通知でお届け。申告漏れを防ぎます。連絡事項の伝達もシステム上で完結します。</p>
                         </div>
                     </div>
                 </div>
