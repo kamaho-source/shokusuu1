@@ -622,8 +622,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 pageLimit = Number(payload.limit || pageLimit);
                 currentPage = Number(payload.page || currentPage);
                 currentUsers.forEach((u) => {
-                    // i_user_level 未取得時は「子供(1)」扱いにしてロック過多を防ぐ
-                    userLevels[u.id] = (u.i_user_level == null) ? 1 : Number(u.i_user_level);
+                    // i_user_level 未取得時は -1（編集不可・ロックなし）に倒す。
+                    // サーバー側は未取得を職員(0)扱いで拒否するため、子供(1)扱いにすると
+                    // 画面では編集できるのに保存で権限エラーになる不整合が生じる
+                    userLevels[u.id] = (u.i_user_level == null) ? -1 : Number(u.i_user_level);
                 });
                 ensureState(activeDate);
                 if (payload.reservation_snapshot) {

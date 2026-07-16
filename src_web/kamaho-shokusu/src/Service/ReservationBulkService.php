@@ -264,6 +264,7 @@ class ReservationBulkService
         ];
         $skippedMessages = [];
         $rowsToActivate = [];
+        $rowsToDeactivate = [];
         $dayUsers = [];
         $roomId = 0;
         $users = [];
@@ -534,6 +535,8 @@ class ReservationBulkService
                             }
 
                             // チェックOFF: 既存の有効予約を非活性化（eat_flag=0, i_change_flag=0）
+                            // 後続行の権限拒否時に部分更新が残らないよう、書き込みは
+                            // 走査完了後のトランザクション内でまとめて行う
                             if (!(int)$checked) {
                                 $activeRow = $existingActiveMap[$date][(int)$targetUserId][$mealType] ?? null;
                                 if ($activeRow !== null) {
@@ -543,15 +546,8 @@ class ReservationBulkService
                                             'message' => '他ユーザーの予約を更新する権限がありません。',
                                         ];
                                     }
-                                    $ok = $this->updateReservationRowWithVersion($reservationTable, $activeRow, [
-                                        'eat_flag'       => 0,
-                                        'i_change_flag'  => 0,
-                                        'c_update_user'  => $userName,
-                                        'dt_update'      => DateTime::now('Asia/Tokyo'),
-                                    ]);
-                                    if (!$ok) {
-                                        throw new \RuntimeException('optimistic_conflict');
-                                    }
+                                    $deactivateKey = implode(':', [$date, (int)$targetUserId, $mealType, (int)$activeRow->i_id_room]);
+                                    $rowsToDeactivate[$deactivateKey] = $activeRow;
                                 }
                                 continue;
                             }
@@ -713,10 +709,22 @@ class ReservationBulkService
             ];
         }
 
-        if (!empty($rowsToActivate) || !empty($reservations)) {
+        if (!empty($rowsToDeactivate) || !empty($rowsToActivate) || !empty($reservations)) {
             $connection = $reservationTable->getConnection();
             $connection->begin();
             try {
+                foreach ($rowsToDeactivate as $row) {
+                    $ok = $this->updateReservationRowWithVersion($reservationTable, $row, [
+                        'eat_flag'       => 0,
+                        'i_change_flag'  => 0,
+                        'c_update_user'  => $userName,
+                        'dt_update'      => DateTime::now('Asia/Tokyo'),
+                    ]);
+                    if (!$ok) {
+                        throw new \RuntimeException('optimistic_conflict');
+                    }
+                }
+
                 foreach ($rowsToActivate as $row) {
                     $ok = $this->updateReservationRowWithVersion($reservationTable, $row, [
                         'eat_flag' => 1,
