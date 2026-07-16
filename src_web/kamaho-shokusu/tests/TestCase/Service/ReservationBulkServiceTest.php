@@ -257,4 +257,138 @@ class ReservationBulkServiceTest extends TestCase
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
     }
+
+    /** processBulkChangeEdit を呼び出す共通ヘルパー（ログイン: user 2 = 非管理者職員） */
+    private function callBulkChangeEdit(array $dayUsers, bool $isAdmin = false, int $loginUserId = 2): array
+    {
+        return $this->service->processBulkChangeEdit(
+            $dayUsers,
+            1,
+            'tester',
+            $this->reservationTable,
+            $this->userTable,
+            [],
+            $loginUserId,
+            $isAdmin,
+            0,     // loginUserLevel = 0（職員）
+            false  // isBlockLeader
+        );
+    }
+
+    /**
+     * 直前一括編集: 他ユーザーの「値が変わらない行」がペイロードに含まれていても
+     * 保存が拒否されない（画面が部屋内全ユーザーの既存予約を自動送信するための回帰テスト）
+     */
+    public function testBulkChangeEditIgnoresUnchangedRowsOfOtherUsers(): void
+    {
+        // user 1（別の職員）の既存予約（i_change_flag=1）
+        $this->insertReservation([
+            'i_id_user'          => 1,
+            'd_reservation_date' => '2026-06-10',
+            'i_reservation_type' => 3,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+        ]);
+
+        // user 1 の行は値の変わらない no-op、user 2（自分）の行のみ実変更
+        $result = $this->callBulkChangeEdit([
+            '2026-06-10' => [
+                '1' => ['3' => '1'],
+                '2' => ['1' => '1'],
+            ],
+        ]);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(1, $result['created'], '自分の予約が作成されていない');
+        $this->assertSame(0, $result['updated']);
+
+        // user 1 の既存予約は更新されていない
+        $other = $this->fetchReservation(1, '2026-06-10', 3, 1);
+        $this->assertNotNull($other);
+        $this->assertSame(1, (int)$other->i_version, '他ユーザーの予約が更新されている');
+    }
+
+    /**
+     * 直前一括編集: 他の職員ユーザーへの実変更（新規作成）は引き続き拒否される
+     */
+    public function testBulkChangeEditRejectsActualChangeToOtherStaff(): void
+    {
+        $result = $this->callBulkChangeEdit([
+            '2026-06-10' => ['1' => ['1' => '1']],
+        ]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('権限がありません', $result['message']);
+        $this->assertNull($this->fetchReservation(1, '2026-06-10', 1, 1), '権限のない予約が作成されている');
+    }
+
+    /**
+     * 直前一括編集: 職員は子供（i_user_level=1）の予約を変更できる
+     */
+    public function testBulkChangeEditStaffCanEditChildReservation(): void
+    {
+        $result = $this->callBulkChangeEdit([
+            '2026-06-10' => ['3' => ['1' => '1']],
+        ]);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(1, $result['created']);
+    }
+
+    /**
+     * 週次一括登録: 他ユーザーの既存有効予約（＝スキップされる行）がペイロードに
+     * 含まれていても保存が拒否されない（回帰テスト）
+     */
+    public function testBulkAddIgnoresExistingActiveReservationOfOtherUsers(): void
+    {
+        // user 1（別の職員）の既存有効予約
+        $this->insertReservation([
+            'i_id_user'          => 1,
+            'd_reservation_date' => '2026-06-11',
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+        ]);
+
+        // user 1 の行は既存予約ありでスキップ対象、user 3（子供）の行のみ実変更
+        $result = $this->callBulkAdd(
+            ['2026-06-11' => ['1' => ['1' => '1'], '3' => ['2' => '1']]],
+            1,
+            false  // isAdmin = false
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertStringContainsString('スキップ', $result['message']);
+        $this->assertNotNull($this->fetchReservation(3, '2026-06-11', 2, 1), '子供の予約が作成されていない');
+    }
+
+    /**
+     * 週次一括登録: 他の職員ユーザーの有効予約の取り消し（実変更）は引き続き拒否される
+     */
+    public function testBulkAddRejectsDeactivatingOtherStaffReservation(): void
+    {
+        $this->insertReservation([
+            'i_id_user'          => 1,
+            'd_reservation_date' => '2026-06-12',
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+        ]);
+
+        $result = $this->callBulkAdd(
+            ['2026-06-12' => ['1' => ['1' => '0']]],
+            1,
+            false  // isAdmin = false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('権限がありません', $result['message']);
+
+        $row = $this->fetchReservation(1, '2026-06-12', 1, 1);
+        $this->assertNotNull($row);
+        $this->assertSame(1, (int)$row->eat_flag, '権限がないのに予約が取り消されている');
+    }
 }

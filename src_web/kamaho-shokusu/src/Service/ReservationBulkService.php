@@ -94,18 +94,6 @@ class ReservationBulkService
                     'i_id_room' => $roomId,
                 ]);
             }
-            foreach ($userIds as $targetUserId) {
-                $targetUserLevel = $userLevels[$targetUserId] ?? 0;
-                $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
-                if ($targetUserId !== $loginUserId && !$canEditOther) {
-                    $connection->rollback();
-                    return [
-                        'ok'      => false,
-                        'message' => '他ユーザーの予約を更新する権限がありません。',
-                    ];
-                }
-            }
-
             $existingMap = [];
             if (!empty($dates) && !empty($userIds)) {
                 $existingRows = $reservationTable->find()
@@ -149,6 +137,15 @@ class ReservationBulkService
                                 continue;
                             }
                             if ((int)$existing->i_change_flag !== $changeFlag) {
+                                // 画面は部屋内全ユーザーの既存予約を送信するため、
+                                // 権限チェックは値が実際に変わる行に限定する
+                                if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom)) {
+                                    $connection->rollback();
+                                    return [
+                                        'ok'      => false,
+                                        'message' => '他ユーザーの予約を更新する権限がありません。',
+                                    ];
+                                }
                                 $ok = $this->updateReservationRowWithVersion($reservationTable, $existing, [
                                     'i_change_flag' => $changeFlag,
                                     'c_update_user' => $loginName,
@@ -162,6 +159,13 @@ class ReservationBulkService
                         } else {
                             if ($changeFlag === 0) {
                                 continue;
+                            }
+                            if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom)) {
+                                $connection->rollback();
+                                return [
+                                    'ok'      => false,
+                                    'message' => '他ユーザーの予約を更新する権限がありません。',
+                                ];
                             }
                             $newRows[] = [
                                 'i_id_user'          => $userId,
@@ -502,16 +506,6 @@ class ReservationBulkService
                         'i_id_room' => (int)$roomId,
                     ]);
                 }
-                foreach ($userIds as $targetUserId) {
-                    $targetLevel  = $userLevelMapBulk[$targetUserId] ?? 0;
-                    $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
-                    if ($targetUserId !== $userId && !$canEditOther) {
-                        return [
-                            'ok'      => false,
-                            'message' => '他ユーザーの予約を更新する権限がありません。',
-                        ];
-                    }
-                }
             }
 
             if (!empty($dayUsers)) {
@@ -523,6 +517,16 @@ class ReservationBulkService
                         if (!is_array($mealData)) {
                             continue;
                         }
+                        // 画面は部屋内全ユーザーの既存予約を送信するため、
+                        // 権限チェックは実際に書き込みが発生する行に限定する
+                        $canEditTarget = $this->canEditTargetUser(
+                            (int)$targetUserId,
+                            $userId,
+                            $isAdmin,
+                            $isLoginStaff,
+                            (int)($userLevelMapBulk[(int)$targetUserId] ?? 0),
+                            $blockLeaderInRoom
+                        );
                         foreach ($mealData as $mealType => $checked) {
                             $mealType = (int)$mealType;
                             if (!in_array($mealType, [1, 2, 3, 4], true)) {
@@ -533,6 +537,12 @@ class ReservationBulkService
                             if (!(int)$checked) {
                                 $activeRow = $existingActiveMap[$date][(int)$targetUserId][$mealType] ?? null;
                                 if ($activeRow !== null) {
+                                    if (!$canEditTarget) {
+                                        return [
+                                            'ok'      => false,
+                                            'message' => '他ユーザーの予約を更新する権限がありません。',
+                                        ];
+                                    }
                                     $ok = $this->updateReservationRowWithVersion($reservationTable, $activeRow, [
                                         'eat_flag'       => 0,
                                         'i_change_flag'  => 0,
@@ -559,6 +569,12 @@ class ReservationBulkService
                                     $userNameDisp
                                 );
                                 continue;
+                            }
+                            if (!$canEditTarget) {
+                                return [
+                                    'ok'      => false,
+                                    'message' => '他ユーザーの予約を更新する権限がありません。',
+                                ];
                             }
                             if ($roomRow !== null) {
                                 $activateKey = implode(':', [$date, (int)$targetUserId, $mealType, (int)$roomId]);
@@ -633,22 +649,21 @@ class ReservationBulkService
                         'i_id_room' => (int)$roomId,
                     ]);
                 }
-                foreach ($userIds as $targetUserId) {
-                    $targetLevel  = $userLevelMapBulk[(int)$targetUserId] ?? 0;
-                    $canEditOther = $isAdmin || ($isLoginStaff && $targetLevel === 1) || $blockLeaderInRoom;
-                    if ((int)$targetUserId !== $userId && !$canEditOther) {
-                        return [
-                            'ok'      => false,
-                            'message' => '他ユーザーの予約を更新する権限がありません。',
-                        ];
-                    }
-                }
-
                 foreach ($dates as $date => $checkedDate) {
                     if (!$checkedDate) {
                         continue;
                     }
                     foreach ($users as $targetUserId => $mealData) {
+                        // 画面は部屋内全ユーザーの既存予約を送信するため、
+                        // 権限チェックは実際に書き込みが発生する行に限定する
+                        $canEditTarget = $this->canEditTargetUser(
+                            (int)$targetUserId,
+                            $userId,
+                            $isAdmin,
+                            $isLoginStaff,
+                            (int)($userLevelMapBulk[(int)$targetUserId] ?? 0),
+                            $blockLeaderInRoom
+                        );
                         foreach ($mealTimeDisplayNames as $mealTime => $disp) {
                             if (isset($mealData[$mealTime]) && (int)$mealData[$mealTime] === 1) {
                                 $mealType = (int)$mealTimeRevMap[$mealTime];
@@ -663,6 +678,12 @@ class ReservationBulkService
                                         $userNameDisp
                                     );
                                     continue;
+                                }
+                                if (!$canEditTarget) {
+                                    return [
+                                        'ok'      => false,
+                                        'message' => '他ユーザーの予約を更新する権限がありません。',
+                                    ];
                                 }
                                 if ($roomRow !== null) {
                                     $activateKey = implode(':', [$date, (int)$targetUserId, $mealType, (int)$roomId]);
@@ -782,6 +803,34 @@ class ReservationBulkService
                 : "すべての予約が正常に登録されました。",
             'redirect_url' => './',
         ];
+    }
+
+    /**
+     * ログインユーザーが対象ユーザーの予約を変更できるかを返す。
+     *
+     * 自分自身・管理者・（職員→子供）・対象部屋のブロック長のいずれかであれば変更可。
+     *
+     * @param int  $targetUserId      変更対象ユーザーID
+     * @param int  $loginUserId       ログインユーザーID
+     * @param bool $isAdmin           ログインユーザーが管理者かどうか
+     * @param bool $isLoginStaff      ログインユーザーが職員（i_user_level 0 or 7）かどうか
+     * @param int  $targetUserLevel   対象ユーザーの i_user_level
+     * @param bool $blockLeaderInRoom 対象部屋に所属するブロック長かどうか
+     * @return bool
+     */
+    private function canEditTargetUser(
+        int $targetUserId,
+        int $loginUserId,
+        bool $isAdmin,
+        bool $isLoginStaff,
+        int $targetUserLevel,
+        bool $blockLeaderInRoom
+    ): bool {
+        if ($targetUserId === $loginUserId) {
+            return true;
+        }
+
+        return $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
     }
 
     private function validateNormalReservationDates(array $dates, bool $enforceNormalRule): string|bool
