@@ -23,7 +23,7 @@ class UserRestoreService
      * @return bool
      * @throws \Exception
      */
-    public function restore(\App\Model\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function restore(\App\Model\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -65,7 +65,8 @@ class UserRestoreService
                 (string)$user->i_id_user,
                 ['target_user_name' => $user->c_user_name],
                 $ipAddress ?: null,
-                1
+                1,
+                $actorLoginId
             );
 
             return true;
@@ -81,7 +82,8 @@ class UserRestoreService
                 (string)$user->i_id_user,
                 ['target_user_name' => $user->c_user_name, 'error' => $e->getMessage()],
                 $ipAddress ?: null,
-                0
+                0,
+                $actorLoginId
             );
 
             throw $e;

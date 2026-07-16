@@ -215,7 +215,8 @@ class ActualMealManagementService
         int $mealType,
         bool $checked,
         int $expectedVersion,
-        string $actor
+        string $actor,
+        string $actorLoginId = ''
     ): array {
         if (!in_array($mealType, [1, 2, 3], true)) {
             return ['ok' => false, 'message' => '無効な食事タイプです。'];
@@ -302,7 +303,8 @@ class ActualMealManagementService
             "{$userId}:{$date}:{$roomId}:{$mealType}",
             ['checked' => $checked, 'meal_type' => $mealType],
             null,
-            1
+            1,
+            $actorLoginId
         );
 
         return ['ok' => true, 'message' => '保存しました。', 'version' => $nextVersion];
@@ -316,7 +318,7 @@ class ActualMealManagementService
      * @param string $actor            操作者ユーザー名
      * @return int 更新件数合計
      */
-    public function requestApproval(Table $reservationTable, array $keys, string $actor): int
+    public function requestApproval(Table $reservationTable, array $keys, string $actor, string $actorLoginId = ''): int
     {
         $now          = \Cake\I18n\DateTime::now('Asia/Tokyo');
         $affectedTotal = 0;
@@ -348,7 +350,8 @@ class ActualMealManagementService
                 null,
                 ['count' => $affectedTotal],
                 null,
-                1
+                1,
+                $actorLoginId
             );
         }
 

@@ -77,10 +77,11 @@ class AiAssistantController extends AppController
         $prompt = $this->buildPrompt($question, $context);
         $role   = $this->resolveAiUserRole();
 
-        $identity  = $this->request->getAttribute('identity');
-        $actorName = (string)($identity?->get('c_user_name') ?? 'unknown');
-        $actorId   = (int)($identity?->get('i_id_user') ?? 0);
-        $ipAddress = $this->request->clientIp();
+        $identity     = $this->request->getAttribute('identity');
+        $actorName    = (string)($identity?->get('c_user_name') ?? 'unknown');
+        $actorId      = (int)($identity?->get('i_id_user') ?? 0);
+        $actorLoginId = (string)($identity?->get('c_login_account') ?? '');
+        $ipAddress    = $this->request->clientIp();
 
         try {
             $answer = $this->callOpenRouter([
@@ -100,7 +101,9 @@ class AiAssistantController extends AppController
                     'answer'   => mb_substr((string)$answer, 0, self::LOG_ANSWER_MAX),
                     'role'     => $role,
                 ],
-                $ipAddress
+                $ipAddress,
+                1,
+                $actorLoginId
             );
 
             return $this->response->withType('application/json')
@@ -120,7 +123,8 @@ class AiAssistantController extends AppController
                     'role'     => $role,
                 ],
                 $ipAddress,
-                0
+                0,
+                $actorLoginId
             );
             if ($e->getCode() === 429) {
                 throw new ServiceUnavailableException(self::RATE_LIMIT_MESSAGE);
@@ -169,10 +173,11 @@ class AiAssistantController extends AppController
             $sanitized
         );
 
-        $identity  = $this->request->getAttribute('identity');
-        $actorName = (string)($identity?->get('c_user_name') ?? 'unknown');
-        $actorId   = (int)($identity?->get('i_id_user') ?? 0);
-        $ipAddress = $this->request->clientIp();
+        $identity     = $this->request->getAttribute('identity');
+        $actorName    = (string)($identity?->get('c_user_name') ?? 'unknown');
+        $actorId      = (int)($identity?->get('i_id_user') ?? 0);
+        $actorLoginId = (string)($identity?->get('c_login_account') ?? '');
+        $ipAddress    = $this->request->clientIp();
 
         $lastQuestion = '';
         foreach (array_reverse($sanitized) as $msg) {
@@ -212,7 +217,8 @@ class AiAssistantController extends AppController
                 'role'            => $role,
             ],
             $ipAddress,
-            $success ? 1 : 0
+            $success ? 1 : 0,
+            $actorLoginId
         );
 
         exit(0);
@@ -259,10 +265,11 @@ class AiAssistantController extends AppController
             throw new BadRequestException('フィードバック値が不正です。');
         }
 
-        $identity  = $this->request->getAttribute('identity');
-        $actorName = (string)($identity?->get('c_user_name') ?? 'unknown');
-        $actorId   = (int)($identity?->get('i_id_user') ?? 0);
-        $ipAddress = $this->request->clientIp();
+        $identity     = $this->request->getAttribute('identity');
+        $actorName    = (string)($identity?->get('c_user_name') ?? 'unknown');
+        $actorId      = (int)($identity?->get('i_id_user') ?? 0);
+        $actorLoginId = (string)($identity?->get('c_login_account') ?? '');
+        $ipAddress    = $this->request->clientIp();
 
         AuditLogService::record(
             'system',
@@ -276,7 +283,9 @@ class AiAssistantController extends AppController
                 'question_length' => (int)($body['question_length'] ?? 0),
                 'answer_length'   => (int)($body['answer_length']   ?? 0),
             ],
-            $ipAddress
+            $ipAddress,
+            1,
+            $actorLoginId
         );
 
         return $this->response->withType('application/json')

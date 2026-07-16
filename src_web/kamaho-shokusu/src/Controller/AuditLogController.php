@@ -70,7 +70,8 @@ class AuditLogController extends AppController
             null,
             ['filters' => $this->request->getQueryParams()],
             $this->getClientIp(),
-            1
+            1,
+            (string)($identity?->get('c_login_account') ?? '')
         );
 
         $conditions = $this->buildConditions();
@@ -86,7 +87,7 @@ class AuditLogController extends AppController
         $output = fopen('php://temp', 'w+');
         // BOM付きUTF-8（Excelで文字化けしない）
         fwrite($output, "\xEF\xBB\xBF");
-        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '対象テーブル', '対象ID', '操作者ID', '操作者名', 'IPアドレス', '結果', '詳細', '操作日時']);
+        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '対象テーブル', '対象ID', '操作者ID', 'ログインID', '操作者名', 'IPアドレス', '結果', '詳細', '操作日時']);
 
         foreach ($logs as $log) {
             fputcsv($output, [
@@ -96,6 +97,7 @@ class AuditLogController extends AppController
                 $log->c_target_table,
                 $log->c_target_id,
                 $log->i_actor_user_id,
+                $log->c_actor_login_id,
                 $log->c_actor_user_name,
                 $log->c_ip_address,
                 $log->i_result === 1 ? '成功' : '失敗',
@@ -133,7 +135,10 @@ class AuditLogController extends AppController
             $conditions['c_action LIKE'] = '%' . $q['action'] . '%';
         }
         if (!empty($q['actor'])) {
-            $conditions['c_actor_user_name LIKE'] = '%' . $q['actor'] . '%';
+            $conditions['OR'] = [
+                'c_actor_user_name LIKE' => '%' . $q['actor'] . '%',
+                'c_actor_login_id LIKE'  => '%' . $q['actor'] . '%',
+            ];
         }
         if (!empty($q['target_id'])) {
             $conditions['c_target_id LIKE'] = '%' . $q['target_id'] . '%';
