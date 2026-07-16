@@ -20,7 +20,7 @@ class UserPermissionService
      * @param string $ipAddress 操作元IPアドレス
      * @return bool
      */
-    public function updatePermission(\App\Model\Entity\MUserInfo $user, int $value, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function updatePermission(\App\Model\Entity\MUserInfo $user, int $value, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $table = TableRegistry::getTableLocator()->get('MUserInfo');
 
@@ -44,7 +44,8 @@ class UserPermissionService
                 'new_i_admin'      => $value,
             ],
             $ipAddress ?: null,
-            $result ? 1 : 0
+            $result ? 1 : 0,
+            $actorLoginId
         );
 
         return $result;

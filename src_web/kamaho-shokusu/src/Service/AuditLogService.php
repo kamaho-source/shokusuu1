@@ -39,13 +39,14 @@ class AuditLogService
      *
      * @param string      $category      操作カテゴリ
      * @param string      $action        操作種別
-     * @param string      $actorName     操作者ユーザー名
+     * @param string      $actorName     操作者ユーザー名（表示名 c_user_name）
      * @param int         $actorId       操作者ユーザーID (0 = 不明)
      * @param string|null $targetTable   対象テーブル名
      * @param string|null $targetId      対象レコードID（複合キーはカンマ区切り等）
      * @param array|null  $detail        操作詳細（JSON化して保存）
      * @param string|null $ipAddress     操作元IPアドレス
      * @param int         $result        1=成功 0=失敗
+     * @param string      $actorLoginId  操作者ログインID（c_login_account）
      */
     public static function record(
         string $category,
@@ -56,7 +57,8 @@ class AuditLogService
         ?string $targetId = null,
         ?array $detail = null,
         ?string $ipAddress = null,
-        int $result = 1
+        int $result = 1,
+        string $actorLoginId = ''
     ): void {
         try {
             $table = TableRegistry::getTableLocator()->get('TAuditLog');
@@ -65,6 +67,7 @@ class AuditLogService
             $log->c_category        = $category;
             $log->c_action          = $action;
             $log->c_actor_user_name = $actorName;
+            $log->c_actor_login_id  = $actorLoginId !== '' ? $actorLoginId : null;
             $log->i_actor_user_id   = $actorId > 0 ? $actorId : null;
             $log->c_target_table    = $targetTable;
             $log->c_target_id       = $targetId;

@@ -139,10 +139,11 @@ final class StatsAiController extends AppController
             $sanitized
         );
 
-        $identity  = $this->request->getAttribute('identity');
-        $actorName = (string)($identity?->get('c_user_name') ?? 'unknown');
-        $actorId   = (int)($identity?->get('i_id_user') ?? 0);
-        $ipAddress = $this->request->clientIp();
+        $identity     = $this->request->getAttribute('identity');
+        $actorName    = (string)($identity?->get('c_user_name') ?? 'unknown');
+        $actorId      = (int)($identity?->get('i_id_user') ?? 0);
+        $actorLoginId = (string)($identity?->get('c_login_account') ?? '');
+        $ipAddress    = $this->request->clientIp();
 
         $lastQuestion = '';
         foreach (array_reverse($sanitized) as $msg) {
@@ -193,7 +194,8 @@ final class StatsAiController extends AppController
                 'response_length' => mb_strlen($result['fullResponse']),
             ],
             $ipAddress,
-            $result['success'] ? 1 : 0
+            $result['success'] ? 1 : 0,
+            $actorLoginId
         );
 
         exit(0);

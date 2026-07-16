@@ -22,7 +22,7 @@ class UserEditService
      * @return bool
      * @throws \Exception
      */
-    public function updateWithRooms(\App\Model\Entity\MUserInfo $entity, array $data, array $roomIds, string $updatedBy, int $actorId = 0, string $ipAddress = ''): bool
+    public function updateWithRooms(\App\Model\Entity\MUserInfo $entity, array $data, array $roomIds, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -66,7 +66,8 @@ class UserEditService
                 (string)$userId,
                 ['user_name' => $entity->c_user_name],
                 $ipAddress ?: null,
-                1
+                1,
+                $actorLoginId
             );
 
             return true;
@@ -82,7 +83,8 @@ class UserEditService
                 (string)$userId,
                 ['error' => $e->getMessage()],
                 $ipAddress ?: null,
-                0
+                0,
+                $actorLoginId
             );
 
             throw $e;

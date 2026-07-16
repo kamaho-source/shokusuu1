@@ -300,8 +300,9 @@ class ReservationActualMealController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, '日付の形式が正しくありません。', 400);
         }
 
-        $authUser = $this->Authentication->getIdentity();
-        $actor    = (string)($authUser?->get('c_user_name') ?? 'system');
+        $authUser     = $this->Authentication->getIdentity();
+        $actor        = (string)($authUser?->get('c_user_name') ?? 'system');
+        $actorLoginId = (string)($authUser?->get('c_login_account') ?? '');
 
         $service = new ActualMealManagementService();
         $result  = $service->saveActualMeal(
@@ -312,7 +313,8 @@ class ReservationActualMealController extends ReservationBaseController
             $mealType,
             $checked,
             $version,
-            $actor
+            $actor,
+            $actorLoginId
         );
 
         if (!$result['ok']) {
@@ -340,8 +342,9 @@ class ReservationActualMealController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, '申請対象が指定されていません。', 400);
         }
 
-        $authUser = $this->Authentication->getIdentity();
-        $actor    = (string)($authUser?->get('c_user_name') ?? 'system');
+        $authUser     = $this->Authentication->getIdentity();
+        $actor        = (string)($authUser?->get('c_user_name') ?? 'system');
+        $actorLoginId = (string)($authUser?->get('c_login_account') ?? '');
 
         foreach ($keys as $key) {
             $targetUid = (int)($key['user_id']  ?? 0);
@@ -362,7 +365,7 @@ class ReservationActualMealController extends ReservationBaseController
         }
 
         $service       = new ActualMealManagementService();
-        $affectedTotal = $service->requestApproval($this->TIndividualReservationInfo, $keys, $actor);
+        $affectedTotal = $service->requestApproval($this->TIndividualReservationInfo, $keys, $actor, $actorLoginId);
 
         return $this->apiResponseService->success(
             $this->response,

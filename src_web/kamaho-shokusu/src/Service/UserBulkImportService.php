@@ -20,7 +20,7 @@ class UserBulkImportService
      * @param string $ipAddress   操作元IPアドレス
      * @return array{processed: int, created: int, skipped: int, failed: int, errors: array}
      */
-    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = ''): array
+    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): array
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -204,7 +204,8 @@ class UserBulkImportService
                 'failed'    => $results['failed'],
             ],
             $ipAddress ?: null,
-            $results['failed'] === 0 ? 1 : 1
+            $results['failed'] === 0 ? 1 : 0,
+            $actorLoginId
         );
 
         return $results;

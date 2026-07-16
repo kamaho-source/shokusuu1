@@ -126,7 +126,8 @@ class MNoticeController extends AppController
                     (string)$notice->i_id_notice,
                     ['title' => $notice->c_title],
                     $this->getClientIp(),
-                    1
+                    1,
+                    (string)($loginUser?->get('c_login_account') ?? '')
                 );
                 $this->Flash->success(__('お知らせを登録しました。'));
                 return $this->redirect(['action' => 'index']);
@@ -212,7 +213,8 @@ class MNoticeController extends AppController
                     (string)$notice->i_id_notice,
                     ['title' => $notice->c_title],
                     $this->getClientIp(),
-                    1
+                    1,
+                    (string)($loginUser?->get('c_login_account') ?? '')
                 );
                 $this->Flash->success(__('お知らせを更新しました。'));
                 return $this->redirect(['action' => 'index']);
@@ -259,7 +261,8 @@ class MNoticeController extends AppController
                 (string)$noticeId,
                 ['title' => $noticeTitle],
                 $this->getClientIp(),
-                1
+                1,
+                (string)($loginUser?->get('c_login_account') ?? '')
             );
             $this->Flash->success(__('お知らせを削除しました。'));
         } else {

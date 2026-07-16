@@ -76,7 +76,8 @@ class ReservationDirectRegisterController extends ReservationBaseController
 
         $loginUser     = $this->request->getAttribute('identity');
         $loginUserId   = (int)($loginUser?->get('i_id_user') ?? 0);
-        $loginUserName = (string)($loginUser?->get('c_login_account') ?? $loginUserId);
+        $loginUserName = (string)($loginUser?->get('c_user_name') ?? '不明');
+        $loginAccount  = (string)($loginUser?->get('c_login_account') ?? '');
         if ($loginUserId <= 0) {
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
@@ -107,7 +108,7 @@ class ReservationDirectRegisterController extends ReservationBaseController
 
             AuditLogService::record(
                 'reservation', 'direct_register_meals', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 1
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 1, $loginAccount
             );
 
             return $this->apiResponseService->success($this->response, [
@@ -119,7 +120,7 @@ class ReservationDirectRegisterController extends ReservationBaseController
         } catch (DomainException $e) {
             AuditLogService::record(
                 'reservation', 'direct_register_meals', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0, $loginAccount
             );
 
             return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
