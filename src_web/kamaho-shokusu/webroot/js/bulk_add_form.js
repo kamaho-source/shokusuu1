@@ -290,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let checked = 0;
             currentUsers.forEach((u) => {
                 const uid = u.id;
+                if (!canEditUser(roomId, uid)) return;
                 const isLocked = !!(lockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
                 const isOtherRoomLocked = !!(otherRoomLockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
                 if (isLocked || isOtherRoomLocked) return;
@@ -313,30 +314,36 @@ document.addEventListener('DOMContentLoaded', () => {
         return btn?.dataset.disabled === '1';
     }
 
+    // サーバー側 ReservationBulkService::canEditTargetUser と同一の編集可否判定。
+    // 判定外のユーザーは画面上で無効化し、保存時の送信対象からも除外する。
+    function canEditUser(roomId, uid) {
+        const uidNum = Number(uid);
+        if (uidNum === Number(window.__LOGIN_USER_ID)) return true;
+        if (window.__IS_ADMIN) return true;
+        // roomId は select の value 由来で文字列のため、数値化してから所属部屋と照合する
+        const blockLeaderInRoom = !!window.__IS_BLOCK_LEADER
+            && (window.__LOGIN_ROOM_IDS || []).includes(parseInt(roomId, 10));
+        if (blockLeaderInRoom) return true;
+        const isLoginStaff = [0, 7].includes(Number(window.__LOGIN_USER_LEVEL));
+        return isLoginStaff && userLevelsByRoom[roomId]?.[uidNum] === 1;
+    }
+
     function buildMealCell(roomId, uid, type) {
         const isChecked = !!(selectionsByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const isLocked = !!(lockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const isOtherRoomLocked = !!(otherRoomLockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
         const disabledByDate = isActiveDisabled();
 
-        const isAdminUser = !!(window.__IS_ADMIN);
-        const loginUserId = window.__LOGIN_USER_ID;
-        const isBlockLeader = !!(window.__IS_BLOCK_LEADER);
-        const loginRoomIds = window.__LOGIN_ROOM_IDS || [];
-        // roomId は select の value 由来で文字列のため、数値化してから所属部屋と照合する
-        const blockLeaderInRoom = isBlockLeader && loginRoomIds.includes(parseInt(roomId, 10));
-        const targetLevel = userLevelsByRoom[roomId]?.[uid];
-        const isStaff = targetLevel === 0 || targetLevel === 7;
-        const isOtherStaff = !isAdminUser && !blockLeaderInRoom && isStaff && uid !== loginUserId;
+        const cannotEditOther = !canEditUser(roomId, uid);
 
         // 弁当↔朝昼夜の排他はチェック変更イベントで自動解除するため、ここでは disabled にしない
         let disabledReason = '';
         if (isOtherRoomLocked) disabledReason = '他の部屋で予約されています。';
-        if (!disabledReason && isOtherStaff) disabledReason = '他の職員の予約は操作できません。';
+        if (!disabledReason && cannotEditOther) disabledReason = '他のユーザーの予約は操作できません。';
 
         const id = `cb-${activeDate}-${uid}-${type}`;
         const lockedClass = isLocked ? 'locked' : '';
-        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || isOtherStaff;
+        const isDisabled = isLocked || isOtherRoomLocked || disabledByDate || cannotEditOther;
         return `
             <label class="d-inline-flex align-items-center justify-content-center">
                 <input class="meal-toggle" type="checkbox" id="${id}" data-uid="${uid}" data-type="${type}"
@@ -628,6 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ensureState(roomId, activeDate);
         currentUsers.forEach((u) => {
             const uid = u.id;
+            if (!canEditUser(roomId, uid)) return;
             const isLocked = !!(lockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
             const isOtherRoomLocked = !!(otherRoomLockedByRoom[roomId]?.[activeDate]?.[uid]?.[type]);
             if (isLocked || isOtherRoomLocked) return;
@@ -751,6 +759,9 @@ document.addEventListener('DOMContentLoaded', () => {
             dateList.forEach((date) => {
                 const users = (roomId && selectionsByRoom[roomId]?.[date]) || {};
                 Object.keys(users).forEach((uid) => {
+                    // 編集権限のないユーザーは送信しない（既存予約の自動反映分が
+                    // サーバー側の権限エラーを誘発するのを防ぐ）
+                    if (!canEditUser(roomId, uid)) return;
                     const meals = users[uid] || {};
                     mealTypes.forEach((type) => {
                         const isChecked = !!meals[type];
