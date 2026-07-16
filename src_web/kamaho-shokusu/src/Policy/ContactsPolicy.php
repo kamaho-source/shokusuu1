@@ -10,15 +10,15 @@ use Authorization\IdentityInterface;
 /**
  * お問い合わせ機能のアクセス制御ポリシー
  *
- * - index：未ログインを含む全ユーザー（LPからの問い合わせ導線のため）
+ * - index / adminDetail の送信：認証済みユーザー全員
  * - adminIndex / adminDetail：管理者（i_admin = 1）のみ
  */
 final class ContactsPolicy
 {
-    /** お問い合わせフォーム（未ログインを含む全ユーザー） */
+    /** お問い合わせフォーム（全認証ユーザー） */
     public function canIndex(?IdentityInterface $user, \App\Controller\ContactsController $resource): bool
     {
-        return true;
+        return $this->isAuthenticated($user);
     }
 
     /** 管理者：問い合わせ一覧 */
@@ -31,6 +31,11 @@ final class ContactsPolicy
     public function canAdminDetail(?IdentityInterface $user, \App\Controller\ContactsController $resource): bool
     {
         return $this->isAdmin($user);
+    }
+
+    private function isAuthenticated(?IdentityInterface $user): bool
+    {
+        return $user !== null;
     }
 
     private function isAdmin(?IdentityInterface $user): bool
