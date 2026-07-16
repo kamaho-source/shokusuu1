@@ -118,6 +118,11 @@ $recentNotifications     = $recentNotifications ?? [];
                                         <i class="bi bi-bar-chart me-2 text-warning"></i>機能使用頻度
                                     </a>
                                 </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/LpImage') ?>">
+                                        <i class="bi bi-images me-2 text-info"></i>LP画像管理
+                                    </a>
+                                </li>
                             </ul>
                         </li>
                     <?php endif; ?>

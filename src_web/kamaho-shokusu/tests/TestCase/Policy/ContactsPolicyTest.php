@@ -10,7 +10,7 @@ use Cake\TestSuite\TestCase;
 /**
  * ContactsPolicy テスト
  *
- * - canIndex: 認証済みユーザー全員を許可する
+ * - canIndex: 未ログインを含む全ユーザーを許可する（LPからの問い合わせ導線）
  * - canAdminIndex / canAdminDetail: 管理者（i_admin = 1 or 3）のみ許可する
  */
 class ContactsPolicyTest extends TestCase
@@ -38,9 +38,9 @@ class ContactsPolicyTest extends TestCase
         $this->assertTrue($this->policy->canIndex($user, $this->resource));
     }
 
-    public function testCanIndex_nullUser_denied(): void
+    public function testCanIndex_nullUser_allowed(): void
     {
-        $this->assertFalse($this->policy->canIndex(null, $this->resource));
+        $this->assertTrue($this->policy->canIndex(null, $this->resource));
     }
 
     // ----------------------------------------------------------------
