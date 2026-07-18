@@ -81,12 +81,14 @@ class SystemReportController extends AppController
         $session = $this->request->getSession();
         $session->write('SystemReport.excludeUserIds', $excludeUserIds);
 
-        $stats = $this->reportService->getUserStats($excludeUserIds, $dateFrom, $dateTo);
+        $roomStats  = $this->reportService->getRoomStats($excludeUserIds, $dateFrom, $dateTo);
+        $dailyStats = $this->reportService->getDailyStats($excludeUserIds, $dateFrom, $dateTo);
 
         return $this->jsonResponse([
-            'stats'    => $stats,
-            'date_from' => $dateFrom,
-            'date_to'   => $dateTo,
+            'room_stats'  => $roomStats,
+            'daily_stats' => $dailyStats,
+            'date_from'   => $dateFrom,
+            'date_to'     => $dateTo,
         ]);
     }
 
