@@ -112,6 +112,30 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         </div>
     </div>
 
+    <!-- テーブル: ユーザー別ログイン集計 -->
+    <div class="mui-paper">
+        <div class="section-title">ユーザー別 ログイン集計
+            <span class="text-muted fw-normal small ms-2" id="userCount"></span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ユーザー名</th>
+                        <th>ログインID</th>
+                        <th class="text-end">成功</th>
+                        <th class="text-end">失敗</th>
+                        <th class="text-end">合計</th>
+                        <th>最終ログイン</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <tr><td colspan="6" class="text-center text-muted py-3">読み込み中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- テーブル: ログイン履歴 -->
     <div class="mui-paper">
         <div class="section-title">ログイン履歴
@@ -245,6 +269,46 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         `).join('');
     }
 
+    function renderUserTable(logs) {
+        const tbody = document.getElementById('userTableBody');
+        const userCount = document.getElementById('userCount');
+
+        if (!logs.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">データなし</td></tr>';
+            userCount.textContent = '';
+            return;
+        }
+
+        // ユーザーキーでグループ化（ユーザー名+ログインIDの組み合わせ）
+        const map = new Map();
+        for (const l of logs) {
+            const key = l.login_id || l.user_name;
+            if (!map.has(key)) {
+                map.set(key, { user_name: l.user_name, login_id: l.login_id, success: 0, failed: 0, last_dt: '' });
+            }
+            const u = map.get(key);
+            if (l.result === 1) { u.success++; } else { u.failed++; }
+            if (!u.last_dt || l.dt > u.last_dt) { u.last_dt = l.dt; }
+        }
+
+        // 合計降順でソート
+        const users = [...map.values()].sort((a, b) => (b.success + b.failed) - (a.success + a.failed));
+        userCount.textContent = `(${users.length} 人)`;
+
+        tbody.innerHTML = users.map((u, i) => `
+            <tr>
+                <td class="fw-bold">${escHtml(u.user_name)}</td>
+                <td class="text-muted small">${escHtml(u.login_id)}</td>
+                <td class="text-end"><span class="badge bg-success">${u.success}</span></td>
+                <td class="text-end">${u.failed > 0 ? `<span class="badge bg-danger">${u.failed}</span>` : '<span class="text-muted">0</span>'}</td>
+                <td class="text-end fw-bold">${u.success + u.failed}</td>
+                <td class="text-nowrap text-muted small">${escHtml(u.last_dt)}</td>
+            </tr>
+        `).join('');
+
+        return users;
+    }
+
     function escHtml(str) {
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
@@ -284,6 +348,22 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
             gs.addImage(imgId, { tl:{ col:0, row:3 }, ext:{ width:900, height:320 } });
             for (let i=0;i<20;i++) gs.addRow([]);
 
+            // ユーザー別集計シート
+            const us = wb.addWorksheet('ユーザー別集計');
+            const uh = us.addRow(['ユーザー名', 'ログインID', '成功回数', '失敗回数', '合計', '最終ログイン']);
+            uh.eachCell(cell => {
+                cell.font  = { bold:true, color:{ argb:'FFFFFFFF' } };
+                cell.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF343a40' } };
+                cell.alignment = { horizontal:'center' };
+            });
+            currentUsers.forEach((u, i) => {
+                const row = us.addRow([u.user_name, u.login_id, u.success, u.failed, u.success + u.failed, u.last_dt]);
+                if (i % 2 === 1) row.eachCell(c => { c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF2F2F2' } }; });
+                [3,4,5].forEach(c => row.getCell(c).alignment = { horizontal:'right' });
+                if (u.failed > 0) row.getCell(4).font = { color:{ argb:'FFdc3545' }, bold:true };
+            });
+            [20,20,10,10,8,20].forEach((w,i) => us.getColumn(i+1).width = w);
+
             // ログ履歴シート
             const ls = wb.addWorksheet('ログイン履歴');
             const lh = ls.addRow(['日時', 'ユーザー名', 'ログインID', '結果', 'IPアドレス']);
@@ -307,6 +387,8 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         finally { btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力'; }
     });
 
+    let currentUsers = [];
+
     async function applyStats() {
         try {
             const json   = await fetchStats();
@@ -314,6 +396,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
             currentLogs  = json.logs  ?? [];
             renderSummary(currentDaily, currentLogs);
             renderChart(currentDaily);
+            currentUsers = renderUserTable(currentLogs) ?? [];
             renderLogTable(currentLogs);
             document.getElementById('btnExcel').disabled = currentLogs.length === 0;
         } catch(e) { alert('集計エラー: '+e.message); }
