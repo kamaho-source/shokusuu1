@@ -170,6 +170,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-user-level', ['controller' => 'MUserInfo', 'action' => 'updateUserLevel'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-report-access', ['controller' => 'MUserInfo', 'action' => 'updateReportAccess'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);

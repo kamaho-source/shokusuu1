@@ -13,6 +13,7 @@ use Cake\ORM\Entity;
  * @property string|null $c_login_passwd
  * @property string|null $c_user_name
  * @property int|null $i_admin
+ * @property int $i_report_access
  * @property int|null $i_disp_no
  * @property int|null $i_enable
  * @property int|null $i_del_flag
@@ -43,6 +44,7 @@ class MUserInfo extends Entity
         'i_user_level'=> true,
         'i_user_rank'=> true,
         'i_admin' => true,
+        'i_report_access' => true,
         'i_disp_no' => true,
         'i_enable' => true,
         'i_del_flag' => true,
