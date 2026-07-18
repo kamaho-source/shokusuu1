@@ -1,0 +1,42 @@
+name: GitHub Issue → Backlog課題
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+      - closed
+      - reopened
+
+concurrency:
+  group: github-issue-to-backlog-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+  GH_REPO: ${{ github.repository }}
+  BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
+  BACKLOG_SPACE_ID: ${{ secrets.BACKLOG_SPACE_ID }}
+  BACKLOG_PROJECT_KEY: ${{ secrets.BACKLOG_PROJECT_KEY }}
+  BACKLOG_DOMAIN: ${{ secrets.BACKLOG_DOMAIN }}
+  GH_EVENT_ACTION: ${{ github.event.action }}
+  GH_ISSUE_NUMBER: ${{ github.event.issue.number }}
+  GH_ISSUE_TITLE: ${{ github.event.issue.title }}
+  GH_ISSUE_BODY: ${{ github.event.issue.body }}
+  GH_ISSUE_URL: ${{ github.event.issue.html_url }}
+  GH_ISSUE_USER: ${{ github.event.issue.user.login }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: GitHub Issue → Backlog課題 同期
+        run: python .github/scripts/github_to_backlog.py

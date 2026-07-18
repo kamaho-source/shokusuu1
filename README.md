@@ -63,3 +63,26 @@
    ```
 2. SQLを記述（`ALTER TABLE ...` など）
 3. `develop` へマージしてステージングデプロイを実行
+
+---
+
+## 🔄 Backlog ↔ GitHub Issue 双方向連携
+
+BacklogとGitHub Issueを自動同期する仕組みを導入しています。
+
+| 方向 | トリガー | 内容 |
+|------|----------|------|
+| Backlog → GitHub | 15分ごとのスケジュール | Backlog課題の作成・更新・完了をGitHub Issueに反映 |
+| GitHub → Backlog | Issue イベント | GitHub Issueの作成・編集・クローズ・再オープンをBacklog課題に反映 |
+| GitHub → Backlog | Issue Comment イベント | GitHub IssueへのコメントをBacklogコメントへ反映 |
+
+### 初期設定（初回のみ必要）
+
+以下の GitHub Secret を登録してください。
+
+```bash
+# BACKLOG_API_KEY のみ手動登録が必要（BacklogのAPIキーを取得して設定）
+gh secret set BACKLOG_API_KEY --body "YOUR_BACKLOG_API_KEY" --repo kamaho-source/shokusuu1
+```
+
+詳細は [docs/backlog-github-sync.md](docs/backlog-github-sync.md) を参照してください。
