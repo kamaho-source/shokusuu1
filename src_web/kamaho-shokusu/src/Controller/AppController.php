@@ -143,10 +143,39 @@ class AppController extends Controller
         $this->Authentication->allowUnauthenticated(['login']);
         $user = $this->Authentication->getIdentity();
 
-        // システム管理者（i_admin=3）は全テナントを横断管理できるため、
-        // ミドルウェアが設定したテナントコンテキストをクリアしてスコープを解除する
+        // システム管理者（i_admin=3）はテナントセッションに従いコンテキストを切り替える。
+        // セッション未設定（全テナントモード）の場合はコンテキストをクリアして全データを参照可能にする。
         if ($user !== null && UserRole::isSystemAdmin((int)$user->get('i_admin'))) {
-            TenantContextHolder::clear();
+            $tenantsTable = $this->fetchTable('Tenants');
+            $allTenants   = $tenantsTable->find()->orderBy(['id' => 'ASC'])->all()->toArray();
+
+            $activeTenantId = $this->request->getSession()->read('SystemAdmin.activeTenantId');
+            if ($activeTenantId !== null) {
+                $activeTenantId   = (int)$activeTenantId;
+                $activeTenantEntity = null;
+                foreach ($allTenants as $t) {
+                    if ($t->id === $activeTenantId) {
+                        $activeTenantEntity = $t;
+                        break;
+                    }
+                }
+                if ($activeTenantEntity !== null) {
+                    TenantContextHolder::set(new TenantContext(
+                        tenantId:     $activeTenantEntity->id,
+                        tenantCode:   $activeTenantEntity->tenant_code,
+                        tenantStatus: $activeTenantEntity->status,
+                    ));
+                } else {
+                    TenantContextHolder::clear();
+                    $activeTenantId = null;
+                    $this->request->getSession()->delete('SystemAdmin.activeTenantId');
+                }
+            } else {
+                TenantContextHolder::clear();
+            }
+
+            $this->set('allTenants', $allTenants);
+            $this->set('activeTenantId', $activeTenantId);
         }
 
         $this->set('user', $user);

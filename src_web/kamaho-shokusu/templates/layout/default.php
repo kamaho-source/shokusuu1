@@ -124,6 +124,25 @@ $recentNotifications     = $recentNotifications ?? [];
                 </ul>
 
                 <ul class="navbar-nav ms-auto align-items-lg-center">
+                    <?php
+                    $allTenants     = $allTenants ?? [];
+                    $activeTenantId = $activeTenantId ?? null;
+                    ?>
+                    <?php if ($isSysAdmin && !empty($allTenants)): ?>
+                        <li class="nav-item me-2">
+                            <form method="post" action="<?= $this->Url->build(['controller' => 'TenantSwitcher', 'action' => 'switchTenant']) ?>">
+                                <input type="hidden" name="_csrfToken" value="<?= h($request->getAttribute('csrfToken')) ?>">
+                                <select name="tenant_id" class="form-select form-select-sm text-dark" onchange="this.form.submit()" style="min-width: 150px;">
+                                    <option value="0" <?= $activeTenantId === null ? 'selected' : '' ?>>🌐 全テナント</option>
+                                    <?php foreach ($allTenants as $t): ?>
+                                        <option value="<?= h($t->id) ?>" <?= $activeTenantId === $t->id ? 'selected' : '' ?>>
+                                            🏢 <?= h($t->name) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </form>
+                        </li>
+                    <?php endif; ?>
                     <?php if ($user): ?>
                         <li class="nav-item dropdown me-2">
                             <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
