@@ -117,11 +117,15 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         ]);
 
         // 識別子の設定
+        // finder: 'forAuthentication' によりテナント境界・有効ユーザーの条件を付与する
+        // tenant_id / facility_id をセッションアイデンティティに含めることで
+        // Phase 2 以降の認可チェックで参照可能にする
         $authenticationService->loadIdentifier('Authentication.Password', [
             'resolver' => [
                 'className' => 'Authentication.Orm',
                 'userModel' => 'MUserInfo',
-                'fields'    => ['i_id_user', 'c_login_account', 'c_user_name', 'i_admin', 'i_user_level'],
+                'finder'    => 'forAuthentication',
+                'fields'    => ['i_id_user', 'c_login_account', 'c_user_name', 'i_admin', 'i_user_level', 'tenant_id', 'facility_id'],
             ],
             'fields' => [
                 'username' => 'c_login_account',

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Middleware;
 
 use App\Application\Tenant\TenantContext;
+use App\Application\Tenant\TenantContextHolder;
 use App\Model\Table\TenantsTable;
 use Cake\Http\Response;
 use Cake\ORM\Locator\LocatorAwareTrait;
@@ -57,6 +58,8 @@ class TenantResolutionMiddleware implements MiddlewareInterface
             tenantCode: $tenant->tenant_code,
             tenantStatus: $tenant->status,
         );
+
+        TenantContextHolder::set($context);
 
         $request = $request
             ->withAttribute('tenant', $tenant)

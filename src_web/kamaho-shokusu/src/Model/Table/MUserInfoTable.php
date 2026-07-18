@@ -3,10 +3,12 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Application\Tenant\TenantContextHolder;
 use ArrayObject;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\Event\EventInterface;
 use Cake\ORM\Query;
+use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
@@ -125,12 +127,32 @@ class MUserInfoTable extends Table
 
     public function buildRules(RulesChecker $rules): RulesChecker
     {
+        // ログインIDの一意性をテナント単位でチェックする
         $rules->add($rules->isUnique(
-            ['c_login_account'],
+            ['c_login_account', 'tenant_id'],
             'このログインIDは既に使用されています。'
         ));
 
         return $rules;
+    }
+
+    /**
+     * 認証用 Finder。テナント・有効ユーザーの条件を付与する。
+     *
+     * TenantContextHolder から現在のテナント ID を取得し、
+     * テナントが解決されていない場合（localhost 等）は tenant_id 条件を省略する。
+     * identify:true の Session Authenticator が毎リクエスト呼び出すため、
+     * サブドメインをまたいだセッション持ち越しもここで防止できる。
+     */
+    public function findForAuthentication(SelectQuery $query): SelectQuery
+    {
+        $context = TenantContextHolder::get();
+        $conditions = ['i_enable' => 0, 'i_del_flag' => 0];
+        if ($context !== null) {
+            $conditions['tenant_id'] = $context->tenantId();
+        }
+
+        return $query->where($conditions);
     }
 
     public function findAuth(Query $query, array $options)
