@@ -41,6 +41,7 @@ use Cake\Http\Middleware\SecurityHeadersMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
+use App\Middleware\TenantResolutionMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 
 class Application extends BaseApplication implements AuthenticationServiceProviderInterface, AuthorizationServiceProviderInterface
@@ -79,6 +80,8 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->add(new RoutingMiddleware($this))
             ->add(new BodyParserMiddleware())
             ->add(new CsrfProtectionMiddleware(['httponly' => true]));
+
+        $middlewareQueue->add(new TenantResolutionMiddleware());
 
         // AuthenticationMiddleware はオプションなしで登録
         $middlewareQueue->add(new AuthenticationMiddleware($this));
