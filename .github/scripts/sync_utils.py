@@ -45,6 +45,55 @@ def gh_request(token: str, method: str, path: str, data: dict | None = None):
         return None
 
 
+def get_linked_prs(token: str, repo: str, issue_number: int) -> list[dict]:
+    """Issueに紐づくPR一覧を返す（Closes/Fixes/Resolves #N パターンで検索）。"""
+    result = gh_request(
+        token, "GET",
+        f"/repos/{repo}/issues/{issue_number}/timeline?per_page=100"
+    )
+    if not result:
+        return []
+
+    pr_numbers = set()
+    for event in result:
+        if event.get("event") == "cross-referenced":
+            src = event.get("source", {})
+            if src.get("type") == "pullrequest":
+                issue_info = src.get("issue", {})
+                if issue_info.get("pull_request"):
+                    pr_numbers.add(issue_info["number"])
+
+    # PR本文で "Closes/Fixes/Resolves #N" を検索
+    search_result = gh_request(
+        token, "GET",
+        f"/search/issues?q=repo:{repo}+is:pr+{issue_number}+in:body&per_page=20"
+    )
+    if search_result:
+        for item in search_result.get("items", []):
+            body = item.get("body", "") or ""
+            if re.search(rf"(?:closes?|fixes?|resolves?)\s+#?{issue_number}\b", body, re.IGNORECASE):
+                pr_numbers.add(item["number"])
+
+    prs = []
+    for pr_num in sorted(pr_numbers):
+        pr = gh_request(token, "GET", f"/repos/{repo}/pulls/{pr_num}")
+        if pr:
+            prs.append(pr)
+    return prs
+
+
+def format_pr_section(prs: list[dict]) -> str:
+    """PR一覧をBacklog用テキストに変換する。"""
+    if not prs:
+        return ""
+    lines = ["**関連PR:**"]
+    for pr in prs:
+        state = pr.get("state", "open")
+        state_label = "✅ マージ済み" if pr.get("merged_at") else ("🔄 オープン" if state == "open" else "❌ クローズ")
+        lines.append(f"- [{state_label}] [{pr['title']}]({pr['html_url']}) (#{pr['number']})")
+    return "\n".join(lines)
+
+
 def extract_backlog_key(text: str, project_key: str) -> str | None:
     """Issue本文やタイトルからBacklog課題キーを抽出する。"""
     pattern = rf"<!--\s*backlog-key:({re.escape(project_key)}-\d+)\s*-->"
