@@ -385,6 +385,10 @@ return function (RouteBuilder $routes): void {
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
 
+        // ── システムレポート（システム管理者専用） ──
+        $builder->connect('/SystemReport', ['controller' => 'SystemReport', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/data', ['controller' => 'SystemReport', 'action' => 'data'])->setMethods(['GET']);
+
         // ── 統計AI（管理者専用） ──
         $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/StatsAi/askStream', ['controller' => 'StatsAi', 'action' => 'askStream'])->setMethods(['POST']);

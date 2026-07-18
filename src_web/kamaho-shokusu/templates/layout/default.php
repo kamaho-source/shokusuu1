@@ -118,6 +118,11 @@ $recentNotifications     = $recentNotifications ?? [];
                                         <i class="bi bi-bar-chart me-2 text-warning"></i>機能使用頻度
                                     </a>
                                 </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/SystemReport') ?>">
+                                        <i class="bi bi-graph-up-arrow me-2 text-success"></i>システムレポート
+                                    </a>
+                                </li>
                             </ul>
                         </li>
                     <?php endif; ?>
