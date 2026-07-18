@@ -151,6 +151,11 @@ class ReservationCalendarService
             $query->where(['d_reservation_date <' => $endDate]);
         }
 
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $query->where(['tenant_id' => $ctx->tenantId()]);
+        }
+
         $rows = $query->toArray();
         $mealDataArray = [];
 
