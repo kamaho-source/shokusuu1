@@ -30,7 +30,7 @@ class SystemReportService
 
         $userQuery = $userInfoTable->find()
             ->select(['i_id_user', 'c_user_name'])
-            ->where(['i_del_flag' => 0, 'i_enable' => 1]);
+            ->where(['i_del_flag' => 0]);
 
         if (!empty($excludeUserIds)) {
             $userQuery->where(['i_id_user NOT IN' => $excludeUserIds]);
@@ -107,7 +107,7 @@ class SystemReportService
         $userInfoTable = TableRegistry::getTableLocator()->get('MUserInfo');
         $rows = $userInfoTable->find()
             ->select(['i_id_user', 'c_user_name'])
-            ->where(['i_del_flag' => 0, 'i_enable' => 1])
+            ->where(['i_del_flag' => 0])
             ->orderBy(['c_user_name' => 'ASC'])
             ->all();
 
