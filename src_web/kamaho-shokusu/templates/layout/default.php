@@ -130,7 +130,7 @@ $recentNotifications     = $recentNotifications ?? [];
                     ?>
                     <?php if ($isSysAdmin && !empty($allTenants)): ?>
                         <li class="nav-item me-2">
-                            <form method="post" action="<?= $this->Url->build(['controller' => 'TenantSwitcher', 'action' => 'switchTenant']) ?>">
+                            <form method="post" action="<?= $this->Url->build('/tenant/switch') ?>">
                                 <input type="hidden" name="_csrfToken" value="<?= h($request->getAttribute('csrfToken')) ?>">
                                 <select name="tenant_id" class="form-select form-select-sm text-dark" onchange="this.form.submit()" style="min-width: 150px;">
                                     <option value="0" <?= $activeTenantId === null ? 'selected' : '' ?>>🌐 全テナント</option>
