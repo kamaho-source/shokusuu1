@@ -14,10 +14,8 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
 .mui-paper { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 20px; margin-bottom: 20px; }
 .filter-title { font-size: .8rem; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
 .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
-.chart-wrap { position: relative; height: 320px; }
+.chart-wrap { position: relative; }
 .sub-nav { display: flex; gap: 8px; margin-bottom: 20px; }
-.badge-success { background: #198754; color: #fff; font-size: .72rem; border-radius: 4px; padding: 2px 6px; }
-.badge-failed  { background: #dc3545; color: #fff; font-size: .72rem; border-radius: 4px; padding: 2px 6px; }
 #loadingOverlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 9999; align-items: center; justify-content: center; }
 #loadingOverlay.show { display: flex; }
 </style>
@@ -28,7 +26,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
     <div class="page-head">
         <div>
             <h1 class="page-title">システムレポート — ログイン情報</h1>
-            <div class="page-subtitle">システムへのログイン履歴と日別集計を表示します。システム管理者専用。</div>
+            <div class="page-subtitle">システムへのログイン履歴を表示します。システム管理者専用。</div>
         </div>
         <div class="d-flex gap-2">
             <button id="btnExcel" class="btn btn-success btn-sm" disabled>
@@ -75,25 +73,19 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
 
     <!-- サマリーカード -->
     <div class="row g-3 mb-3" id="summaryCards" style="display:none!important;">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-4">
             <div class="mui-paper text-center py-3">
-                <div class="text-muted small">総ログイン数</div>
-                <div class="fs-3 fw-bold" id="cardTotal">—</div>
+                <div class="text-muted small">ログイン成功 総数</div>
+                <div class="fs-3 fw-bold text-success" id="cardTotal">—</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-4">
             <div class="mui-paper text-center py-3">
-                <div class="text-muted small">成功</div>
-                <div class="fs-3 fw-bold text-success" id="cardSuccess">—</div>
+                <div class="text-muted small">ユニークユーザー数</div>
+                <div class="fs-3 fw-bold text-primary" id="cardUsers">—</div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="mui-paper text-center py-3">
-                <div class="text-muted small">失敗</div>
-                <div class="fs-3 fw-bold text-danger" id="cardFailed">—</div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-4">
             <div class="mui-paper text-center py-3">
                 <div class="text-muted small">集計日数</div>
                 <div class="fs-3 fw-bold" id="cardDays">—</div>
@@ -101,10 +93,10 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         </div>
     </div>
 
-    <!-- グラフ: 日別ログイン数 -->
+    <!-- グラフ: ユーザー別ログイン回数 -->
     <div class="mui-paper">
-        <div class="section-title">日別 ログイン数（成功 / 失敗）</div>
-        <div class="chart-wrap">
+        <div class="section-title">ユーザー別 ログイン回数</div>
+        <div class="chart-wrap" id="chartWrap">
             <canvas id="chartLogin"></canvas>
         </div>
         <div id="noDataMsg" class="text-center text-muted py-4" style="display:none">
@@ -123,14 +115,12 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
                     <tr>
                         <th>ユーザー名</th>
                         <th>ログインID</th>
-                        <th class="text-end">成功</th>
-                        <th class="text-end">失敗</th>
-                        <th class="text-end">合計</th>
+                        <th class="text-end">ログイン回数</th>
                         <th>最終ログイン</th>
                     </tr>
                 </thead>
                 <tbody id="userTableBody">
-                    <tr><td colspan="6" class="text-center text-muted py-3">読み込み中...</td></tr>
+                    <tr><td colspan="4" class="text-center text-muted py-3">読み込み中...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -148,12 +138,11 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
                         <th>日時</th>
                         <th>ユーザー名</th>
                         <th>ログインID</th>
-                        <th class="text-center">結果</th>
                         <th>IPアドレス</th>
                     </tr>
                 </thead>
                 <tbody id="logTableBody">
-                    <tr><td colspan="5" class="text-center text-muted py-3">読み込み中...</td></tr>
+                    <tr><td colspan="4" class="text-center text-muted py-3">読み込み中...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -166,7 +155,8 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
     const CSRF_TOKEN = document.querySelector('meta[name="csrfToken"]')?.content ?? '';
     let chartLogin   = null;
     let currentDaily = [];
-    let currentLogs  = [];
+    let currentLogs  = [];   // 成功ログのみ
+    let currentUsers = [];
 
     async function fetchStats() {
         const dateFrom = document.getElementById('dateFrom').value;
@@ -187,23 +177,36 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         }
     }
 
-    function renderSummary(daily, logs) {
-        const totalSuccess = logs.filter(l => l.result === 1).length;
-        const totalFailed  = logs.filter(l => l.result === 0).length;
-        document.getElementById('cardTotal').textContent   = logs.length;
-        document.getElementById('cardSuccess').textContent = totalSuccess;
-        document.getElementById('cardFailed').textContent  = totalFailed;
-        document.getElementById('cardDays').textContent    = daily.length;
+    // ログから成功ログのみ抽出してユーザー別に集計
+    function buildUserStats(logs) {
+        const successLogs = logs.filter(l => l.result === 1);
+        const map = new Map();
+        for (const l of successLogs) {
+            const key = l.login_id || l.user_name;
+            if (!map.has(key)) {
+                map.set(key, { user_name: l.user_name, login_id: l.login_id, count: 0, last_dt: '' });
+            }
+            const u = map.get(key);
+            u.count++;
+            if (!u.last_dt || l.dt > u.last_dt) { u.last_dt = l.dt; }
+        }
+        return [...map.values()].sort((a, b) => b.count - a.count);
+    }
+
+    function renderSummary(daily, users, successLogs) {
+        document.getElementById('cardTotal').textContent = successLogs.length;
+        document.getElementById('cardUsers').textContent = users.length;
+        document.getElementById('cardDays').textContent  = daily.length;
         document.getElementById('summaryCards').style.setProperty('display', 'flex', 'important');
     }
 
-    function renderChart(daily) {
+    function renderChart(users) {
         const canvas    = document.getElementById('chartLogin');
+        const chartWrap = document.getElementById('chartWrap');
         const noDataMsg = document.getElementById('noDataMsg');
         if (chartLogin) { chartLogin.destroy(); chartLogin = null; }
 
-        const hasData = daily.some(d => d.success > 0 || d.failed > 0);
-        if (!hasData) {
+        if (!users.length) {
             canvas.style.display = 'none';
             noDataMsg.style.display = '';
             return;
@@ -211,102 +214,77 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         canvas.style.display = '';
         noDataMsg.style.display = 'none';
 
+        // ユーザー数に応じて高さを動的に設定（最低 280px、1人あたり 36px）
+        const height = Math.max(280, users.length * 36);
+        chartWrap.style.height = height + 'px';
+
         chartLogin = new Chart(canvas, {
             type: 'bar',
             data: {
-                labels: daily.map(d => d.date),
-                datasets: [
-                    {
-                        label: 'ログイン成功',
-                        data: daily.map(d => d.success),
-                        backgroundColor: 'rgba(25, 135, 84, 0.7)',
-                        borderColor: 'rgba(25, 135, 84, 1)',
-                        borderWidth: 1,
-                    },
-                    {
-                        label: 'ログイン失敗',
-                        data: daily.map(d => d.failed),
-                        backgroundColor: 'rgba(220, 53, 69, 0.7)',
-                        borderColor: 'rgba(220, 53, 69, 1)',
-                        borderWidth: 1,
-                    },
-                ],
+                labels: users.map(u => u.user_name),
+                datasets: [{
+                    label: 'ログイン回数',
+                    data: users.map(u => u.count),
+                    backgroundColor: 'rgba(13, 110, 253, 0.7)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                }],
             },
             options: {
+                indexAxis: 'y',
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { mode: 'index', intersect: false },
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `ログイン回数: ${ctx.parsed.x} 回`,
+                        },
+                    },
                 },
                 scales: {
-                    y: { beginAtZero: true, stacked: false, ticks: { stepSize: 1 } },
-                    x: { ticks: { maxRotation: 45, maxTicksLimit: 31 } },
+                    x: { beginAtZero: true, ticks: { stepSize: 1 }, title: { display: true, text: 'ログイン回数' } },
+                    y: { ticks: { font: { size: 12 } } },
                 },
             },
         });
     }
 
-    function renderLogTable(logs) {
-        const tbody = document.getElementById('logTableBody');
-        document.getElementById('logCount').textContent = `(${logs.length} 件)`;
-        if (!logs.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">データなし</td></tr>';
+    function renderUserTable(users) {
+        const tbody     = document.getElementById('userTableBody');
+        const userCount = document.getElementById('userCount');
+        if (!users.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">データなし</td></tr>';
+            userCount.textContent = '';
             return;
         }
-        tbody.innerHTML = logs.map(l => `
+        userCount.textContent = `(${users.length} 人)`;
+        tbody.innerHTML = users.map(u => `
             <tr>
-                <td class="text-nowrap">${escHtml(l.dt)}</td>
-                <td>${escHtml(l.user_name)}</td>
-                <td>${escHtml(l.login_id)}</td>
-                <td class="text-center">
-                    ${l.result === 1
-                        ? '<span class="badge-success">成功</span>'
-                        : '<span class="badge-failed">失敗</span>'}
-                </td>
-                <td class="text-nowrap text-muted small">${escHtml(l.ip)}</td>
+                <td class="fw-bold">${escHtml(u.user_name)}</td>
+                <td class="text-muted small">${escHtml(u.login_id)}</td>
+                <td class="text-end"><span class="badge bg-primary">${u.count} 回</span></td>
+                <td class="text-nowrap text-muted small">${escHtml(u.last_dt)}</td>
             </tr>
         `).join('');
     }
 
-    function renderUserTable(logs) {
-        const tbody = document.getElementById('userTableBody');
-        const userCount = document.getElementById('userCount');
-
-        if (!logs.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">データなし</td></tr>';
-            userCount.textContent = '';
+    function renderLogTable(successLogs) {
+        const tbody = document.getElementById('logTableBody');
+        document.getElementById('logCount').textContent = `(${successLogs.length} 件)`;
+        if (!successLogs.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">データなし</td></tr>';
             return;
         }
-
-        // ユーザーキーでグループ化（ユーザー名+ログインIDの組み合わせ）
-        const map = new Map();
-        for (const l of logs) {
-            const key = l.login_id || l.user_name;
-            if (!map.has(key)) {
-                map.set(key, { user_name: l.user_name, login_id: l.login_id, success: 0, failed: 0, last_dt: '' });
-            }
-            const u = map.get(key);
-            if (l.result === 1) { u.success++; } else { u.failed++; }
-            if (!u.last_dt || l.dt > u.last_dt) { u.last_dt = l.dt; }
-        }
-
-        // 合計降順でソート
-        const users = [...map.values()].sort((a, b) => (b.success + b.failed) - (a.success + a.failed));
-        userCount.textContent = `(${users.length} 人)`;
-
-        tbody.innerHTML = users.map((u, i) => `
+        tbody.innerHTML = successLogs.map(l => `
             <tr>
-                <td class="fw-bold">${escHtml(u.user_name)}</td>
-                <td class="text-muted small">${escHtml(u.login_id)}</td>
-                <td class="text-end"><span class="badge bg-success">${u.success}</span></td>
-                <td class="text-end">${u.failed > 0 ? `<span class="badge bg-danger">${u.failed}</span>` : '<span class="text-muted">0</span>'}</td>
-                <td class="text-end fw-bold">${u.success + u.failed}</td>
-                <td class="text-nowrap text-muted small">${escHtml(u.last_dt)}</td>
+                <td class="text-nowrap">${escHtml(l.dt)}</td>
+                <td>${escHtml(l.user_name)}</td>
+                <td>${escHtml(l.login_id)}</td>
+                <td class="text-nowrap text-muted small">${escHtml(l.ip)}</td>
             </tr>
         `).join('');
-
-        return users;
     }
 
     function escHtml(str) {
@@ -315,7 +293,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
 
     // ---------- Excel出力 ----------
     document.getElementById('btnExcel').addEventListener('click', async () => {
-        if (!currentLogs.length && !currentDaily.length) return;
+        if (!currentLogs.length) return;
         const dateFrom = document.getElementById('dateFrom').value;
         const dateTo   = document.getElementById('dateTo').value;
         const btn      = document.getElementById('btnExcel');
@@ -324,59 +302,47 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
             const wb = new ExcelJS.Workbook();
             wb.creator = 'ログイン情報'; wb.created = new Date();
 
-            // 日別集計シート
-            const ds = wb.addWorksheet('日別集計');
-            const dh = ds.addRow(['日付', 'ログイン成功', 'ログイン失敗', '合計']);
-            dh.eachCell(cell => {
-                cell.font  = { bold:true, color:{ argb:'FFFFFFFF' } };
-                cell.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF343a40' } };
-                cell.alignment = { horizontal:'center' };
-            });
-            currentDaily.forEach((d, i) => {
-                const row = ds.addRow([d.date, d.success, d.failed, d.success + d.failed]);
-                if (i % 2 === 1) row.eachCell(c => { c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF2F2F2' } }; });
-                [2,3,4].forEach(c => row.getCell(c).alignment = { horizontal:'right' });
-            });
-            [16,14,14,10].forEach((w,i) => ds.getColumn(i+1).width = w);
-
-            // グラフシート
-            const gs = wb.addWorksheet('グラフ');
-            gs.addRow(['日別 ログイン数（成功 / 失敗）']).getCell(1).font = { bold:true, size:13 };
-            gs.addRow([`集計期間: ${dateFrom} ～ ${dateTo}`]).getCell(1).font = { color:{ argb:'FF666666' } };
-            gs.addRow([]);
-            const imgId = wb.addImage({ base64: document.getElementById('chartLogin').toDataURL('image/png').replace('data:image/png;base64,',''), extension:'png' });
-            gs.addImage(imgId, { tl:{ col:0, row:3 }, ext:{ width:900, height:320 } });
-            for (let i=0;i<20;i++) gs.addRow([]);
-
             // ユーザー別集計シート
             const us = wb.addWorksheet('ユーザー別集計');
-            const uh = us.addRow(['ユーザー名', 'ログインID', '成功回数', '失敗回数', '合計', '最終ログイン']);
+            const uh = us.addRow(['ユーザー名', 'ログインID', 'ログイン回数', '最終ログイン']);
             uh.eachCell(cell => {
                 cell.font  = { bold:true, color:{ argb:'FFFFFFFF' } };
-                cell.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF343a40' } };
+                cell.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF0d6efd' } };
                 cell.alignment = { horizontal:'center' };
             });
             currentUsers.forEach((u, i) => {
-                const row = us.addRow([u.user_name, u.login_id, u.success, u.failed, u.success + u.failed, u.last_dt]);
+                const row = us.addRow([u.user_name, u.login_id, u.count, u.last_dt]);
                 if (i % 2 === 1) row.eachCell(c => { c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF2F2F2' } }; });
-                [3,4,5].forEach(c => row.getCell(c).alignment = { horizontal:'right' });
-                if (u.failed > 0) row.getCell(4).font = { color:{ argb:'FFdc3545' }, bold:true };
+                row.getCell(3).alignment = { horizontal:'right' };
             });
-            [20,20,10,10,8,20].forEach((w,i) => us.getColumn(i+1).width = w);
+            [20, 20, 14, 22].forEach((w,i) => us.getColumn(i+1).width = w);
 
-            // ログ履歴シート
+            // グラフシート
+            const gs = wb.addWorksheet('グラフ');
+            gs.addRow(['ユーザー別 ログイン回数']).getCell(1).font = { bold:true, size:13 };
+            gs.addRow([`集計期間: ${dateFrom} ～ ${dateTo}`]).getCell(1).font = { color:{ argb:'FF666666' } };
+            gs.addRow([]);
+            const chartHeight = Math.max(320, currentUsers.length * 36);
+            const imgId = wb.addImage({
+                base64: document.getElementById('chartLogin').toDataURL('image/png').replace('data:image/png;base64,',''),
+                extension: 'png',
+            });
+            gs.addImage(imgId, { tl:{ col:0, row:3 }, ext:{ width:700, height:chartHeight } });
+            const rowCount = Math.ceil(chartHeight / 20) + 4;
+            for (let i = 0; i < rowCount; i++) gs.addRow([]);
+
+            // ログイン履歴シート
             const ls = wb.addWorksheet('ログイン履歴');
-            const lh = ls.addRow(['日時', 'ユーザー名', 'ログインID', '結果', 'IPアドレス']);
+            const lh = ls.addRow(['日時', 'ユーザー名', 'ログインID', 'IPアドレス']);
             lh.eachCell(cell => {
                 cell.font  = { bold:true, color:{ argb:'FFFFFFFF' } };
                 cell.fill  = { type:'pattern', pattern:'solid', fgColor:{ argb:'FF343a40' } };
             });
             currentLogs.forEach((l, i) => {
-                const row = ls.addRow([l.dt, l.user_name, l.login_id, l.result === 1 ? '成功' : '失敗', l.ip]);
+                const row = ls.addRow([l.dt, l.user_name, l.login_id, l.ip]);
                 if (i % 2 === 1) row.eachCell(c => { c.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF2F2F2' } }; });
-                if (l.result === 0) row.getCell(4).font = { color:{ argb:'FFdc3545' }, bold:true };
             });
-            [20,16,16,8,16].forEach((w,i) => ls.getColumn(i+1).width = w);
+            [22, 20, 20, 18].forEach((w,i) => ls.getColumn(i+1).width = w);
 
             const buf = await wb.xlsx.writeBuffer();
             const a = document.createElement('a');
@@ -387,16 +353,16 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         finally { btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力'; }
     });
 
-    let currentUsers = [];
-
     async function applyStats() {
         try {
-            const json   = await fetchStats();
-            currentDaily = json.daily ?? [];
-            currentLogs  = json.logs  ?? [];
-            renderSummary(currentDaily, currentLogs);
-            renderChart(currentDaily);
-            currentUsers = renderUserTable(currentLogs) ?? [];
+            const json       = await fetchStats();
+            currentDaily     = json.daily ?? [];
+            const allLogs    = json.logs  ?? [];
+            currentLogs      = allLogs.filter(l => l.result === 1);
+            currentUsers     = buildUserStats(allLogs);
+            renderSummary(currentDaily, currentUsers, currentLogs);
+            renderChart(currentUsers);
+            renderUserTable(currentUsers);
             renderLogTable(currentLogs);
             document.getElementById('btnExcel').disabled = currentLogs.length === 0;
         } catch(e) { alert('集計エラー: '+e.message); }
