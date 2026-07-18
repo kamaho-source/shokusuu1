@@ -150,12 +150,19 @@ class MUserInfoTable extends Table
     public function findForAuthentication(SelectQuery $query): SelectQuery
     {
         $context = TenantContextHolder::get();
-        $conditions = ['i_enable' => 0, 'i_del_flag' => 0];
+        $query = $query->where(['i_enable' => 0, 'i_del_flag' => 0]);
+
         if ($context !== null) {
-            $conditions['tenant_id'] = $context->tenantId();
+            // tenant_id が NULL のユーザー（SaaS システム管理者）は全テナントでログイン可能
+            $query = $query->where([
+                'OR' => [
+                    ['tenant_id' => $context->tenantId()],
+                    ['tenant_id IS' => null],
+                ],
+            ]);
         }
 
-        return $query->where($conditions);
+        return $query;
     }
 
     public function findAuth(Query $query, array $options)
