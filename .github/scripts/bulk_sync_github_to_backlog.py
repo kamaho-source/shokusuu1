@@ -20,7 +20,7 @@ import urllib.parse
 
 sys.path.insert(0, os.path.dirname(__file__))
 from backlog_client import load_backlog_env, resolve_bl_base, bl_request
-from sync_utils import get_gh_token, get_gh_repo, gh_request, extract_backlog_key, is_backlog_synced
+from sync_utils import get_gh_token, get_gh_repo, gh_request, extract_backlog_key, is_backlog_synced, get_linked_prs, format_pr_section
 
 GH_API_BASE = "https://api.github.com"
 
@@ -146,11 +146,16 @@ def main():
         # タイトルの[KEY]プレフィックスを除去
         clean_title = re.sub(r"^\[[\w]+-\d+\]\s*", "", title)
 
+        # 紐づくPRを取得
+        linked_prs = get_linked_prs(token, repo, number) if not dry_run else []
+        pr_section = format_pr_section(linked_prs)
+
         start_marker = "<!-- github-sync:start -->"
         end_marker   = "<!-- github-sync:end -->"
         description = (
             f"GitHub Issue: {url}\n\n"
-            f"{start_marker}\n\n"
+            + (f"{pr_section}\n\n" if pr_section else "")
+            + f"{start_marker}\n\n"
             f"{body}\n\n"
             f"{end_marker}"
         )
