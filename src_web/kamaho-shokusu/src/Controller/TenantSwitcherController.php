@@ -27,6 +27,7 @@ final class TenantSwitcherController extends AppController
     public function switchTenant(): ?Response
     {
         $this->request->allowMethod(['post']);
+        $this->Authorization->skipAuthorization();
 
         $user = $this->Authentication->getIdentity();
         if ($user === null || !UserRole::isSystemAdmin((int)$user->get('i_admin'))) {
