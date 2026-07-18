@@ -16,12 +16,14 @@ class CreateFacilitySettings extends AbstractMigration
         $table = $this->table('facility_settings');
         $table
             ->addColumn('facility_id', 'integer', [
-                'null' => false,
-                'comment' => '施設ID',
+                'null'     => false,
+                'signed'   => false,
+                'comment'  => '施設ID',
             ])
             ->addColumn('tenant_id', 'integer', [
-                'null' => false,
-                'comment' => 'テナントID',
+                'null'     => false,
+                'signed'   => false,
+                'comment'  => 'テナントID',
             ])
             ->addColumn('reservation_changeable_days', 'integer', [
                 'null'    => false,

@@ -71,12 +71,20 @@ class TenantResolutionMiddleware implements MiddlewareInterface
 
     /**
      * Extracts the tenant code from the hostname.
-     * Returns null for localhost or IP addresses (local development bypass).
+     *
+     * - IP アドレス: null を返してテナント解決をスキップ（認証不要ページ等）
+     * - localhost: DEV_TENANT_CODE 環境変数で指定されたテナントを使用（既定: 'default'）
+     *   → ローカル開発でサブドメインなしにテナント機能を確認できる
+     * - サブドメイン形式 (xxx.example.jp): 第1セグメントをテナントコードとして使用
      */
     private function extractTenantCode(string $host): ?string
     {
-        if ($host === 'localhost' || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
             return null;
+        }
+
+        if ($host === 'localhost') {
+            return env('DEV_TENANT_CODE', 'default');
         }
 
         $parts = explode('.', $host);

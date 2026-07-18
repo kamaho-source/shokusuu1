@@ -117,11 +117,18 @@ trait PolicyTrait
 
     /**
      * リソースがログインユーザーと同じテナントに属するかを確認する。
-     * ユーザーまたはリソースの tenant_id がどちらかでも null の場合は
-     * 移行期間として許可する（既存データへの後方互換）。
+     *
+     * - SaaS システム管理者（i_admin = 3）は全テナントに横断アクセス可能
+     * - ユーザーまたはリソースの tenant_id がどちらかでも null の場合は
+     *   移行期間として許可する（既存データへの後方互換）
      */
     protected function isSameTenant(?IdentityInterface $user, object $resource): bool
     {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity !== null && UserRole::isSystemAdmin((int)$this->extractField($identity, 'i_admin'))) {
+            return true;
+        }
+
         $userTenantId = $this->getTenantId($user);
         if ($userTenantId === null) {
             return true;
