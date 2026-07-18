@@ -9,10 +9,16 @@ use Cake\Http\Response;
 use Cake\Http\ServerRequest;
 
 /**
- * システムレポートコントローラー
+ * システムレポートコントローラー（システム管理者専用）
  *
- * システム管理者専用。ユーザー別予約数・使用数の可視化とデータ取得APIを提供する。
- * Excel出力はフロントエンド（SheetJS）が担当する。
+ * - index          : 部屋別使用率ページ
+ * - data           : 部屋別集計 JSON API
+ * - dailyChildren  : 日別子供総数ページ
+ * - dailyChildrenData : 日別子供総数 JSON API
+ * - loginReport    : ログイン情報ページ
+ * - loginReportData: ログイン情報 JSON API
+ *
+ * Excel出力はフロントエンド（ExcelJS）が担当する。
  */
 class SystemReportController extends AppController
 {
@@ -29,9 +35,11 @@ class SystemReportController extends AppController
         $this->viewBuilder()->setLayout('default');
     }
 
-    /**
-     * GET /SystemReport — グラフ表示ページ（HTML）
-     */
+    // ----------------------------------------------------------------
+    // 部屋別使用率
+    // ----------------------------------------------------------------
+
+    /** GET /SystemReport */
     public function index(): ?Response
     {
         try {
@@ -41,9 +49,7 @@ class SystemReportController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $allUsers = $this->reportService->getAllUsers();
-
-        // セッションから除外ユーザーIDを復元
+        $allUsers       = $this->reportService->getAllUsers();
         $session        = $this->request->getSession();
         $excludeUserIds = $session->read('SystemReport.excludeUserIds') ?? [];
 
@@ -51,14 +57,7 @@ class SystemReportController extends AppController
         return null;
     }
 
-    /**
-     * GET /SystemReport/data — ユーザー別集計データJSON API
-     *
-     * クエリパラメータ:
-     *   - date_from    (Y-m-d)
-     *   - date_to      (Y-m-d)
-     *   - exclude[]    除外するユーザーID（複数指定可）
-     */
+    /** GET /SystemReport/data */
     public function data(): Response
     {
         try {
@@ -69,27 +68,123 @@ class SystemReportController extends AppController
 
         $this->request->allowMethod(['get']);
 
+        [$dateFrom, $dateTo, $excludeUserIds] = $this->resolveParams();
+
+        $session = $this->request->getSession();
+        $session->write('SystemReport.excludeUserIds', $excludeUserIds);
+
+        $roomStats = $this->reportService->getRoomStats($excludeUserIds, $dateFrom, $dateTo);
+
+        return $this->jsonResponse([
+            'room_stats' => $roomStats,
+            'date_from'  => $dateFrom,
+            'date_to'    => $dateTo,
+        ]);
+    }
+
+    // ----------------------------------------------------------------
+    // 日別子供総数
+    // ----------------------------------------------------------------
+
+    /** GET /SystemReport/dailyChildren */
+    public function dailyChildren(): ?Response
+    {
+        try {
+            $this->Authorization->authorize($this, 'dailyChildren');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error('この機能はシステム管理者のみ利用できます。');
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
+        }
+
+        $allUsers       = $this->reportService->getAllUsers();
+        $session        = $this->request->getSession();
+        $excludeUserIds = $session->read('SystemReport.excludeChildIds') ?? [];
+
+        $this->set(compact('allUsers', 'excludeUserIds'));
+        return null;
+    }
+
+    /** GET /SystemReport/dailyChildrenData */
+    public function dailyChildrenData(): Response
+    {
+        try {
+            $this->Authorization->authorize($this, 'dailyChildrenData');
+        } catch (ForbiddenException $e) {
+            return $this->jsonError('この機能はシステム管理者のみ利用できます。', 403);
+        }
+
+        $this->request->allowMethod(['get']);
+
+        [$dateFrom, $dateTo, $excludeUserIds] = $this->resolveParams();
+
+        $session = $this->request->getSession();
+        $session->write('SystemReport.excludeChildIds', $excludeUserIds);
+
+        $stats = $this->reportService->getDailyChildrenStats($excludeUserIds, $dateFrom, $dateTo);
+
+        return $this->jsonResponse([
+            'stats'     => $stats,
+            'date_from' => $dateFrom,
+            'date_to'   => $dateTo,
+        ]);
+    }
+
+    // ----------------------------------------------------------------
+    // ログイン情報
+    // ----------------------------------------------------------------
+
+    /** GET /SystemReport/loginReport */
+    public function loginReport(): ?Response
+    {
+        try {
+            $this->Authorization->authorize($this, 'loginReport');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error('この機能はシステム管理者のみ利用できます。');
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
+        }
+
+        return null;
+    }
+
+    /** GET /SystemReport/loginReportData */
+    public function loginReportData(): Response
+    {
+        try {
+            $this->Authorization->authorize($this, 'loginReportData');
+        } catch (ForbiddenException $e) {
+            return $this->jsonError('この機能はシステム管理者のみ利用できます。', 403);
+        }
+
+        $this->request->allowMethod(['get']);
+
+        $dateFrom = $this->request->getQuery('date_from') ?: date('Y-m-01');
+        $dateTo   = $this->request->getQuery('date_to')   ?: date('Y-m-d');
+
+        $stats = $this->reportService->getLoginStats($dateFrom, $dateTo);
+
+        return $this->jsonResponse([
+            'daily'     => $stats['daily'],
+            'logs'      => $stats['logs'],
+            'date_from' => $dateFrom,
+            'date_to'   => $dateTo,
+        ]);
+    }
+
+    // ----------------------------------------------------------------
+    // 内部ヘルパー
+    // ----------------------------------------------------------------
+
+    /** @return array{0:string, 1:string, 2:array<int>} */
+    private function resolveParams(): array
+    {
         $dateFrom = $this->request->getQuery('date_from') ?: date('Y-m-01');
         $dateTo   = $this->request->getQuery('date_to')   ?: date('Y-m-d');
 
         $excludeRaw     = $this->request->getQuery('exclude') ?? [];
         $excludeUserIds = array_map('intval', is_array($excludeRaw) ? $excludeRaw : [$excludeRaw]);
-        $excludeUserIds = array_filter($excludeUserIds, static fn(int $id): bool => $id > 0);
-        $excludeUserIds = array_values($excludeUserIds);
+        $excludeUserIds = array_values(array_filter($excludeUserIds, static fn(int $id): bool => $id > 0));
 
-        // 除外ユーザー設定をセッションに保存
-        $session = $this->request->getSession();
-        $session->write('SystemReport.excludeUserIds', $excludeUserIds);
-
-        $roomStats  = $this->reportService->getRoomStats($excludeUserIds, $dateFrom, $dateTo);
-        $dailyStats = $this->reportService->getDailyStats($excludeUserIds, $dateFrom, $dateTo);
-
-        return $this->jsonResponse([
-            'room_stats'  => $roomStats,
-            'daily_stats' => $dailyStats,
-            'date_from'   => $dateFrom,
-            'date_to'     => $dateTo,
-        ]);
+        return [$dateFrom, $dateTo, $excludeUserIds];
     }
 
     private function jsonResponse(array $data, int $status = 200): Response

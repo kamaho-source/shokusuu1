@@ -23,6 +23,26 @@ class SystemReportPolicy
         return $this->isSystemAdmin($user);
     }
 
+    public function canDailyChildren(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    {
+        return $this->isSystemAdmin($user);
+    }
+
+    public function canDailyChildrenData(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    {
+        return $this->isSystemAdmin($user);
+    }
+
+    public function canLoginReport(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    {
+        return $this->isSystemAdmin($user);
+    }
+
+    public function canLoginReportData(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    {
+        return $this->isSystemAdmin($user);
+    }
+
     private function isSystemAdmin(?IdentityInterface $user): bool
     {
         if ($user === null) {

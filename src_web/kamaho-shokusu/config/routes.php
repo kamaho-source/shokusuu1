@@ -388,6 +388,10 @@ return function (RouteBuilder $routes): void {
         // ── システムレポート（システム管理者専用） ──
         $builder->connect('/SystemReport', ['controller' => 'SystemReport', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/SystemReport/data', ['controller' => 'SystemReport', 'action' => 'data'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/dailyChildren', ['controller' => 'SystemReport', 'action' => 'dailyChildren'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/dailyChildrenData', ['controller' => 'SystemReport', 'action' => 'dailyChildrenData'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/loginReport', ['controller' => 'SystemReport', 'action' => 'loginReport'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/loginReportData', ['controller' => 'SystemReport', 'action' => 'loginReportData'])->setMethods(['GET']);
 
         // ── 統計AI（管理者専用） ──
         $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);

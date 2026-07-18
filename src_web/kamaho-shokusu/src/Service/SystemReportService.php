@@ -228,6 +228,88 @@ class SystemReportService
     }
 
     /**
+     * 日別の子供予約件数のみを返す（日別子供総数ページ用）。
+     *
+     * @param array<int> $excludeUserIds
+     * @param string $dateFrom
+     * @param string $dateTo
+     * @return array<array{date:string, child_count:int}>
+     */
+    public function getDailyChildrenStats(array $excludeUserIds, string $dateFrom, string $dateTo): array
+    {
+        $full = $this->getDailyStats($excludeUserIds, $dateFrom, $dateTo);
+
+        return array_map(
+            static fn(array $d): array => ['date' => $d['date'], 'child_count' => $d['child_count']],
+            $full
+        );
+    }
+
+    /**
+     * ログイン情報を返す（TAuditLog ベース）。
+     *
+     * @param string $dateFrom
+     * @param string $dateTo
+     * @return array{daily:array<array{date:string,success:int,failed:int}>, logs:array<array{dt:string,user_name:string,login_id:string,result:int,ip:string}>}
+     */
+    public function getLoginStats(string $dateFrom, string $dateTo): array
+    {
+        $table = TableRegistry::getTableLocator()->get('TAuditLog');
+
+        $rows = $table->find()
+            ->select(['c_actor_user_name', 'c_actor_login_id', 'i_result', 'c_ip_address', 'dt_create'])
+            ->where([
+                'c_action IN'  => ['user_login', 'user_login_failed'],
+                'dt_create >=' => $dateFrom . ' 00:00:00',
+                'dt_create <=' => $dateTo . ' 23:59:59',
+            ])
+            ->orderBy(['dt_create' => 'DESC'])
+            ->all();
+
+        // 日付バケット初期化
+        $daily   = [];
+        $current = new \DateTimeImmutable($dateFrom);
+        $end     = new \DateTimeImmutable($dateTo);
+        while ($current <= $end) {
+            $daily[$current->format('Y-m-d')] = ['success' => 0, 'failed' => 0];
+            $current = $current->modify('+1 day');
+        }
+
+        $logs = [];
+        foreach ($rows as $row) {
+            $dt      = $row->dt_create instanceof \DateTimeInterface
+                ? $row->dt_create
+                : new \DateTimeImmutable((string)$row->dt_create);
+            $dateStr = $dt->format('Y-m-d');
+            $result  = (int)$row->i_result;
+
+            if (isset($daily[$dateStr])) {
+                if ($result === 1) {
+                    $daily[$dateStr]['success']++;
+                } else {
+                    $daily[$dateStr]['failed']++;
+                }
+            }
+
+            $logs[] = [
+                'dt'        => $dt->format('Y-m-d H:i:s'),
+                'user_name' => (string)($row->c_actor_user_name ?? ''),
+                'login_id'  => (string)($row->c_actor_login_id ?? ''),
+                'result'    => $result,
+                'ip'        => (string)($row->c_ip_address ?? ''),
+            ];
+        }
+
+        $dailyList = array_map(
+            static fn(string $date, array $c): array => ['date' => $date, 'success' => $c['success'], 'failed' => $c['failed']],
+            array_keys($daily),
+            array_values($daily)
+        );
+
+        return ['daily' => $dailyList, 'logs' => $logs];
+    }
+
+    /**
      * 有効な全ユーザーを返す（除外候補選択UI用）。
      *
      * @return array<array{user_id:int, user_name:string, is_child:bool}>
