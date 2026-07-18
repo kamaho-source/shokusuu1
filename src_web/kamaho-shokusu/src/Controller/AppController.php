@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Application\Tenant\TenantContext;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -123,6 +124,15 @@ class AppController extends Controller
         }
 
         return (string)$this->request->clientIp();
+    }
+
+    /**
+     * リクエストのテナントコンテキストを返す。
+     * TenantResolutionMiddleware が設定した request attribute から取得する。
+     */
+    protected function getTenantContext(): ?TenantContext
+    {
+        return $this->request->getAttribute('tenantContext');
     }
 
     public function beforeFilter(EventInterface $event)

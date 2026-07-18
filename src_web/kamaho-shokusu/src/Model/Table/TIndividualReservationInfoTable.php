@@ -8,11 +8,14 @@ use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\RulesChecker;
+use App\Infrastructure\Table\TenantAwareTableTrait;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
 class TIndividualReservationInfoTable extends Table
 {
+    use TenantAwareTableTrait;
+
     public function initialize(array $config): void
     {
         parent::initialize($config);

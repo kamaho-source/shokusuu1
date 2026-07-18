@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use App\Application\Tenant\TenantContextHolder;
+use App\Infrastructure\Table\TenantAwareTableTrait;
 use ArrayObject;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\Event\EventInterface;
@@ -15,6 +16,8 @@ use Cake\Validation\Validator;
 
 class MUserInfoTable extends Table
 {
+    use TenantAwareTableTrait;
+
     public function initialize(array $config): void
     {
         parent::initialize($config);
