@@ -17,6 +17,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Tenant\TenantContext;
+use App\Application\Tenant\TenantContextHolder;
+use App\Domain\ValueObject\UserRole;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -140,6 +142,12 @@ class AppController extends Controller
         parent::beforeFilter($event);
         $this->Authentication->allowUnauthenticated(['login']);
         $user = $this->Authentication->getIdentity();
+
+        // システム管理者（i_admin=3）は全テナントを横断管理できるため、
+        // ミドルウェアが設定したテナントコンテキストをクリアしてスコープを解除する
+        if ($user !== null && UserRole::isSystemAdmin((int)$user->get('i_admin'))) {
+            TenantContextHolder::clear();
+        }
 
         $this->set('user', $user);
         if ($user !== null) {
