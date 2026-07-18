@@ -73,7 +73,11 @@ class SystemReportController extends AppController
         $session = $this->request->getSession();
         $session->write('SystemReport.excludeUserIds', $excludeUserIds);
 
-        $roomStats = $this->reportService->getRoomStats($excludeUserIds, $dateFrom, $dateTo);
+        try {
+            $roomStats = $this->reportService->getRoomStats($excludeUserIds, $dateFrom, $dateTo);
+        } catch (\Throwable $e) {
+            return $this->jsonError('集計処理に失敗しました: ' . $e->getMessage(), 500);
+        }
 
         return $this->jsonResponse([
             'room_stats' => $roomStats,
@@ -120,7 +124,11 @@ class SystemReportController extends AppController
         $session = $this->request->getSession();
         $session->write('SystemReport.excludeChildIds', $excludeUserIds);
 
-        $stats = $this->reportService->getDailyChildrenStats($excludeUserIds, $dateFrom, $dateTo);
+        try {
+            $stats = $this->reportService->getDailyChildrenStats($excludeUserIds, $dateFrom, $dateTo);
+        } catch (\Throwable $e) {
+            return $this->jsonError('集計処理に失敗しました: ' . $e->getMessage(), 500);
+        }
 
         return $this->jsonResponse([
             'stats'     => $stats,
@@ -160,7 +168,11 @@ class SystemReportController extends AppController
         $dateFrom = $this->request->getQuery('date_from') ?: date('Y-m-01');
         $dateTo   = $this->request->getQuery('date_to')   ?: date('Y-m-d');
 
-        $stats = $this->reportService->getLoginStats($dateFrom, $dateTo);
+        try {
+            $stats = $this->reportService->getLoginStats($dateFrom, $dateTo);
+        } catch (\Throwable $e) {
+            return $this->jsonError('集計処理に失敗しました: ' . $e->getMessage(), 500);
+        }
 
         return $this->jsonResponse([
             'daily'     => $stats['daily'],

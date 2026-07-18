@@ -129,7 +129,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
                     </tr>
                 </thead>
                 <tbody id="logTableBody">
-                    <tr><td colspan="5" class="text-center text-muted py-3">「集計」ボタンを押してください</td></tr>
+                    <tr><td colspan="5" class="text-center text-muted py-3">読み込み中...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -307,7 +307,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
         finally { btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力'; }
     });
 
-    document.getElementById('btnApply').addEventListener('click', async () => {
+    async function applyStats() {
         try {
             const json   = await fetchStats();
             currentDaily = json.daily ?? [];
@@ -317,6 +317,11 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
             renderLogTable(currentLogs);
             document.getElementById('btnExcel').disabled = currentLogs.length === 0;
         } catch(e) { alert('集計エラー: '+e.message); }
-    });
+    }
+
+    document.getElementById('btnApply').addEventListener('click', applyStats);
+
+    // ページ表示時に自動集計
+    document.addEventListener('DOMContentLoaded', applyStats);
 })();
 </script>

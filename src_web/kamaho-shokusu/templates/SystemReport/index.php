@@ -145,7 +145,7 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
                     </tr>
                 </thead>
                 <tbody id="roomTableBody">
-                    <tr><td colspan="7" class="text-center text-muted py-3">「集計」ボタンを押してください</td></tr>
+                    <tr><td colspan="7" class="text-center text-muted py-3">読み込み中...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -336,7 +336,7 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
     });
 
     // ---------- 集計 ----------
-    document.getElementById('btnApply').addEventListener('click', async () => {
+    async function applyStats() {
         try {
             const stats = await fetchStats();
             currentStats = stats;
@@ -344,6 +344,11 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
             renderTable(stats);
             document.getElementById('btnExcel').disabled = stats.length === 0;
         } catch(e) { alert('集計エラー: '+e.message); }
-    });
+    }
+
+    document.getElementById('btnApply').addEventListener('click', applyStats);
+
+    // ページ表示時に自動集計
+    document.addEventListener('DOMContentLoaded', applyStats);
 })();
 </script>
