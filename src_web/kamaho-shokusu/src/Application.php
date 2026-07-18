@@ -179,6 +179,11 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(AiStatsContextService::class)
             ->addArgument(UserTokenizer::class)
             ->addArgument(ServerRequest::class);
+
+        $container->add(\App\Application\UseCase\FacilitySetting\GetFacilitySettingUseCase::class)
+            ->addArgument(\App\Model\Table\FacilitySettingsTable::class);
+        $container->add(\App\Application\UseCase\FacilitySetting\SaveFacilitySettingUseCase::class)
+            ->addArgument(\App\Model\Table\FacilitySettingsTable::class);
     }
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface

@@ -45,8 +45,19 @@ trait PolicyTrait
         return UserRole::isSystemAdmin((int)$this->extractField($identity, 'i_admin'));
     }
 
+    /** テナント管理者（i_admin = 4）かどうかを返す。 */
+    protected function isTenantAdmin(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+        return UserRole::isTenantAdmin((int)$this->extractField($identity, 'i_admin'));
+    }
+
     /**
      * 管理者またはシステム管理者（i_admin = 1 または 3）かどうかを返す。
+     * TENANT_ADMIN(4) は isAdmin() に含まれるためここには不要だが後方互換のため残す。
      */
     protected function isAdminOrSystemAdmin(?IdentityInterface $user): bool
     {
