@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Service\ApiResponseService;
+use App\Service\AuditLogService;
 use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
 
@@ -189,6 +190,20 @@ class MMealPriceInfoController extends AppController
         $month = (int)$this->request->getQuery('month', date('n'));
 
         $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
+
+        $identity = $this->request->getAttribute('identity');
+        AuditLogService::record(
+            'system',
+            'excel_export',
+            $identity?->get('c_user_name') ?? '',
+            $identity ? (int)$identity->get('i_id_user') : 0,
+            'm_meal_price_info',
+            null,
+            ['year' => $year, 'month' => $month],
+            $this->getClientIp(),
+            1,
+            (string)($identity?->get('c_login_account') ?? '')
+        );
 
         return $apiResponse->success($this->response, ['rows' => $monthlyData]);
     }
