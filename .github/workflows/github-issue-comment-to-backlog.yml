@@ -1,0 +1,42 @@
+name: GitHub Issueコメント → Backlogコメント
+
+on:
+  issue_comment:
+    types:
+      - created
+      - edited
+
+concurrency:
+  group: github-comment-to-backlog-${{ github.event.comment.id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: read
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+  GH_REPO: ${{ github.repository }}
+  BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
+  BACKLOG_SPACE_ID: ${{ secrets.BACKLOG_SPACE_ID }}
+  BACKLOG_PROJECT_KEY: ${{ secrets.BACKLOG_PROJECT_KEY }}
+  BACKLOG_DOMAIN: ${{ secrets.BACKLOG_DOMAIN }}
+  GH_ISSUE_NUMBER: ${{ github.event.issue.number }}
+  GH_ISSUE_BODY: ${{ github.event.issue.body }}
+  GH_COMMENT_ID: ${{ github.event.comment.id }}
+  GH_COMMENT_BODY: ${{ github.event.comment.body }}
+  GH_COMMENT_USER: ${{ github.event.comment.user.login }}
+  GH_COMMENT_URL: ${{ github.event.comment.html_url }}
+  GH_EVENT_ACTION: ${{ github.event.action }}
+
+jobs:
+  sync:
+    if: ${{ !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: GitHub コメント → Backlog コメント同期
+        run: python .github/scripts/github_comment_to_backlog.py

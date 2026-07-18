@@ -1,0 +1,40 @@
+name: Backlog課題 → GitHub Issue
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      minutes_back:
+        description: '何分前からの更新を確認するか'
+        required: false
+        default: '20'
+
+concurrency:
+  group: backlog-to-github-issue
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+  GH_REPO: ${{ github.repository }}
+  BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
+  BACKLOG_SPACE_ID: ${{ secrets.BACKLOG_SPACE_ID }}
+  BACKLOG_PROJECT_KEY: ${{ secrets.BACKLOG_PROJECT_KEY }}
+  BACKLOG_DOMAIN: ${{ secrets.BACKLOG_DOMAIN }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Backlog → GitHub Issue 同期
+        run: python .github/scripts/backlog_to_github.py
+        env:
+          MINUTES_BACK: ${{ github.event.inputs.minutes_back || '20' }}
