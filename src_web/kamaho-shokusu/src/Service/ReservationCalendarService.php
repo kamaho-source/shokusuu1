@@ -259,36 +259,57 @@ class ReservationCalendarService
         array $mealDataArray,
         array $myReservationDetails,
         Date $startDate,
-        Date $endDate
+        Date $endDate,
+        bool $showPersonalStatus = true
     ): array {
-        $myReservationDates = $this->buildMyReservationDates($myReservationDetails);
         $events = [];
 
-        $iconFn = function ($v) {
-            if ($v === null) {
-                return '×';
-            }
-            return $v ? '⚪︎' : '×';
-        };
+        if ($showPersonalStatus) {
+            $myReservationDates = $this->buildMyReservationDates($myReservationDetails);
 
-        foreach ($myReservationDates as $reservedDate) {
-            $detail = $myReservationDetails[$reservedDate] ?? [];
-            $title = sprintf(
-                '朝:%s 昼:%s 夜:%s 弁:%s',
-                $iconFn($detail['breakfast'] ?? null),
-                $iconFn($detail['lunch']     ?? null),
-                $iconFn($detail['dinner']    ?? null),
-                $iconFn($detail['bento']     ?? null)
-            );
-            $events[] = [
-                'title' => $title,
-                'start' => $reservedDate,
-                'allDay' => true,
-                'backgroundColor' => '#28a745',
-                'borderColor' => '#28a745',
-                'textColor' => 'white',
-                'extendedProps' => ['displayOrder' => -2],
-            ];
+            $iconFn = function ($v) {
+                if ($v === null) {
+                    return '×';
+                }
+                return $v ? '⚪︎' : '×';
+            };
+
+            foreach ($myReservationDates as $reservedDate) {
+                $detail = $myReservationDetails[$reservedDate] ?? [];
+                $title = sprintf(
+                    '朝:%s 昼:%s 夜:%s 弁:%s',
+                    $iconFn($detail['breakfast'] ?? null),
+                    $iconFn($detail['lunch']     ?? null),
+                    $iconFn($detail['dinner']    ?? null),
+                    $iconFn($detail['bento']     ?? null)
+                );
+                $events[] = [
+                    'title' => $title,
+                    'start' => $reservedDate,
+                    'allDay' => true,
+                    'backgroundColor' => '#28a745',
+                    'borderColor' => '#28a745',
+                    'textColor' => 'white',
+                    'extendedProps' => ['displayOrder' => -2],
+                ];
+            }
+
+            $dateCursor = $startDate;
+            while ($dateCursor < $endDate) {
+                $dateStr = $dateCursor->format('Y-m-d');
+                if (!in_array($dateStr, $myReservationDates, true)) {
+                    $events[] = [
+                        'title' => '未予約',
+                        'start' => $dateStr,
+                        'allDay' => true,
+                        'backgroundColor' => '#fd7e14',
+                        'borderColor' => '#fd7e14',
+                        'textColor' => 'white',
+                        'extendedProps' => ['displayOrder' => -10],
+                    ];
+                }
+                $dateCursor = $dateCursor->addDays(1);
+            }
         }
 
         $mealTypes = ['1' => '朝', '2' => '昼', '3' => '夜', '4' => '弁'];
@@ -303,23 +324,6 @@ class ReservationCalendarService
                     ];
                 }
             }
-        }
-
-        $dateCursor = $startDate;
-        while ($dateCursor < $endDate) {
-            $dateStr = $dateCursor->format('Y-m-d');
-            if (!in_array($dateStr, $myReservationDates, true)) {
-                $events[] = [
-                    'title' => '未予約',
-                    'start' => $dateStr,
-                    'allDay' => true,
-                    'backgroundColor' => '#fd7e14',
-                    'borderColor' => '#fd7e14',
-                    'textColor' => 'white',
-                    'extendedProps' => ['displayOrder' => -10],
-                ];
-            }
-            $dateCursor = $dateCursor->addDays(1);
         }
 
         return $events;

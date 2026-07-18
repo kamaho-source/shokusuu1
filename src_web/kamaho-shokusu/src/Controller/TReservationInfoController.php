@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Tenant\TenantContextHolder;
 use App\Domain\ValueObject\UserRole;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
@@ -116,12 +117,23 @@ class TReservationInfoController extends ReservationBaseController
             $viewEnd
         );
 
-        $myReservationDetails = $this->calendarService->buildMyReservationDetails(
-            $this->TIndividualReservationInfo,
-            (int)$userId,
-            $viewStart,
-            $viewEnd
-        );
+        // システム管理者が自分のテナント以外を閲覧中の場合、個人予約情報は取得しない
+        $idxCtx = TenantContextHolder::get();
+        $idxUserTenantId = (int)($user->tenant_id ?? 1);
+        $idxIsViewingOtherTenant = UserRole::isSystemAdmin((int)($user->i_admin ?? 0))
+            && $idxCtx !== null
+            && $idxCtx->tenantId() !== $idxUserTenantId;
+
+        if ($idxIsViewingOtherTenant) {
+            $myReservationDetails = [];
+        } else {
+            $myReservationDetails = $this->calendarService->buildMyReservationDetails(
+                $this->TIndividualReservationInfo,
+                (int)$userId,
+                $viewStart,
+                $viewEnd
+            );
+        }
         $myReservationDates = $this->calendarService->buildMyReservationDates($myReservationDetails);
         $staff_user = $this->calendarService->getStaffUserInfo($this->MUserGroup, (int)$userId);
 
@@ -237,7 +249,8 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $isAdmin = UserRole::isAdmin((int)($user->i_admin ?? 0));
+        $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
+        $isSystemAdmin = UserRole::isSystemAdmin((int)($user->i_admin ?? 0));
         $canViewAllRooms = $isAdmin || $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
 
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
@@ -249,18 +262,30 @@ class TReservationInfoController extends ReservationBaseController
             $endDate->format('Y-m-d')
         );
 
-        $myReservationDetails = $this->calendarService->buildMyReservationDetails(
-            $this->TIndividualReservationInfo,
-            (int)$userId,
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
-        );
+        // システム管理者が自分のテナント以外を閲覧中の場合、個人予約マーカーを非表示にする
+        $ctx = TenantContextHolder::get();
+        $userTenantId = (int)($user->tenant_id ?? 1);
+        $isViewingOtherTenant = $isSystemAdmin && $ctx !== null && $ctx->tenantId() !== $userTenantId;
+
+        if ($isViewingOtherTenant) {
+            $myReservationDetails = [];
+            $showPersonalStatus   = false;
+        } else {
+            $myReservationDetails = $this->calendarService->buildMyReservationDetails(
+                $this->TIndividualReservationInfo,
+                (int)$userId,
+                $startDate->format('Y-m-d'),
+                $endDate->format('Y-m-d')
+            );
+            $showPersonalStatus = true;
+        }
 
         $events = $this->calendarService->buildCalendarEvents(
             $mealDataArray,
             $myReservationDetails,
             $startDate,
-            $endDate
+            $endDate,
+            $showPersonalStatus
         );
 
         return $this->apiResponseService->success($this->response, ['events' => $events]);
