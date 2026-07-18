@@ -8,7 +8,7 @@ $basePath       = rtrim($this->request->getAttribute('base') ?? '', '/');
 $dataUrl        = $basePath . '/SystemReport/data';
 ?>
 <?= $this->Html->script('https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js', ['block' => true]) ?>
-<?= $this->Html->script('https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', ['block' => true]) ?>
+<?= $this->Html->script('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', ['block' => true]) ?>
 
 <style>
 .page-shell { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -262,37 +262,100 @@ $dataUrl        = $basePath . '/SystemReport/data';
             .replace(/"/g, '&quot;');
     }
 
-    // ---------- Excel出力（SheetJS） ----------
-    document.getElementById('btnExcel').addEventListener('click', () => {
+    // ---------- Excel出力（ExcelJS：グラフ画像埋め込み対応） ----------
+    document.getElementById('btnExcel').addEventListener('click', async () => {
         if (!currentStats.length) return;
 
         const dateFrom = document.getElementById('dateFrom').value;
         const dateTo   = document.getElementById('dateTo').value;
+        const btnExcel = document.getElementById('btnExcel');
 
-        const wsData = [
-            ['ユーザー名', '予約数', '使用数（承認済）'],
-            ...currentStats.map(s => [s.user_name, s.reservation_count, s.usage_count]),
-        ];
+        btnExcel.disabled = true;
+        btnExcel.textContent = '出力中...';
 
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        try {
+            const workbook  = new ExcelJS.Workbook();
+            workbook.creator = 'システムレポート';
+            workbook.created = new Date();
 
-        // 列幅設定
-        ws['!cols'] = [{ wch: 30 }, { wch: 10 }, { wch: 18 }];
+            // ── シート1: データ表 ──
+            const dataSheet = workbook.addWorksheet('データ');
 
-        XLSX.utils.book_append_sheet(wb, ws, 'システムレポート');
+            // ヘッダー
+            const headerRow = dataSheet.addRow(['ユーザー名', '予約数', '使用数（承認済）']);
+            headerRow.eachCell(cell => {
+                cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
+                cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4472C4' } };
+                cell.alignment = { horizontal: 'center' };
+                cell.border    = {
+                    bottom: { style: 'thin', color: { argb: 'FF000000' } },
+                };
+            });
 
-        // 集計情報シート
-        const infoData = [
-            ['集計期間', `${dateFrom} ～ ${dateTo}`],
-            ['出力日時', new Date().toLocaleString('ja-JP')],
-            ['総ユーザー数', currentStats.length],
-        ];
-        const wsInfo = XLSX.utils.aoa_to_sheet(infoData);
-        wsInfo['!cols'] = [{ wch: 14 }, { wch: 30 }];
-        XLSX.utils.book_append_sheet(wb, wsInfo, '集計情報');
+            // データ行
+            currentStats.forEach((s, i) => {
+                const row = dataSheet.addRow([s.user_name, s.reservation_count, s.usage_count]);
+                if (i % 2 === 1) {
+                    row.eachCell(cell => {
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } };
+                    });
+                }
+                row.getCell(2).alignment = { horizontal: 'right' };
+                row.getCell(3).alignment = { horizontal: 'right' };
+            });
 
-        XLSX.writeFile(wb, `system_report_${dateFrom}_${dateTo}.xlsx`);
+            dataSheet.getColumn(1).width = 30;
+            dataSheet.getColumn(2).width = 12;
+            dataSheet.getColumn(3).width = 20;
+
+            // ── シート2: グラフ画像 ──
+            const chartSheet = workbook.addWorksheet('グラフ');
+            chartSheet.addRow(['予約数・使用数グラフ']).getCell(1).font = { bold: true, size: 14 };
+            chartSheet.addRow([`集計期間: ${dateFrom} ～ ${dateTo}`]).getCell(1).font = { color: { argb: 'FF666666' } };
+            chartSheet.addRow([]);
+
+            // Chart.js canvas を PNG としてキャプチャ
+            const canvas    = document.getElementById('reportChart');
+            const imageData = canvas.toDataURL('image/png').replace('data:image/png;base64,', '');
+
+            const imageId = workbook.addImage({ base64: imageData, extension: 'png' });
+            chartSheet.addImage(imageId, {
+                tl: { col: 0, row: 3 },
+                ext: { width: 900, height: 450 },
+            });
+            // 画像分の行を確保
+            for (let i = 0; i < 25; i++) chartSheet.addRow([]);
+
+            // ── シート3: 集計情報 ──
+            const infoSheet = workbook.addWorksheet('集計情報');
+            [
+                ['集計期間', `${dateFrom} ～ ${dateTo}`],
+                ['出力日時', new Date().toLocaleString('ja-JP')],
+                ['総ユーザー数', currentStats.length],
+            ].forEach(([label, value]) => {
+                const row = infoSheet.addRow([label, value]);
+                row.getCell(1).font = { bold: true };
+            });
+            infoSheet.getColumn(1).width = 16;
+            infoSheet.getColumn(2).width = 32;
+
+            // ダウンロード
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob   = new Blob([buffer], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+            const url = URL.createObjectURL(blob);
+            const a   = document.createElement('a');
+            a.href     = url;
+            a.download = `system_report_${dateFrom}_${dateTo}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert('Excel出力中にエラーが発生しました: ' + err.message);
+        } finally {
+            btnExcel.disabled    = false;
+            btnExcel.innerHTML   = '<i class="bi bi-file-earmark-excel"></i> Excel出力';
+        }
     });
 
     // ---------- 集計ボタン ----------
