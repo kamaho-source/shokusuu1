@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Tenant\TenantContextHolder;
 use App\Service\ApiResponseService;
 use App\Service\AuditLogService;
 use App\Service\MealSummaryExportService;
@@ -41,6 +42,10 @@ class MMealPriceInfoController extends AppController
         }
 
         $query = $this->MMealPriceInfo->find();
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $query->where(['tenant_id' => $ctx->tenantId()]);
+        }
         $mMealPriceInfo = $this->paginate($query);
 
         $this->set(compact('mMealPriceInfo'));
@@ -168,11 +173,15 @@ class MMealPriceInfoController extends AppController
         $month = $this->request->getQuery('month', date('n')); // 月は1月から12月で選択
 
         // 年度と月のリストをテンプレートに渡す
-        $yearList = $this->MMealPriceInfo->find()
+        $yearListQuery = $this->MMealPriceInfo->find()
             ->select(['i_fiscal_year'])
             ->distinct(['i_fiscal_year'])
-            ->orderBy(['i_fiscal_year'])
-            ->toArray();
+            ->orderBy(['i_fiscal_year']);
+        $yearCtx = TenantContextHolder::get();
+        if ($yearCtx !== null) {
+            $yearListQuery->where(['tenant_id' => $yearCtx->tenantId()]);
+        }
+        $yearList = $yearListQuery->toArray();
 
         $monthList = range(1, 12); // 月のリスト (1〜12)
 
