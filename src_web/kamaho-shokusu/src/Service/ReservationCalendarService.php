@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -62,12 +63,17 @@ class ReservationCalendarService
             // m_room_info には i_disp_no カラムが存在するため固定使用
             $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
-            return $roomTable->find('list', [
+            $query = $roomTable->find('list', [
                 'keyField'   => 'i_id_room',
                 'valueField' => 'c_room_name',
-            ])
-                ->orderBy($roomOrder)
-                ->toArray();
+            ])->orderBy($roomOrder);
+
+            $ctx = TenantContextHolder::get();
+            if ($ctx !== null) {
+                $query->where(['tenant_id' => $ctx->tenantId()]);
+            }
+
+            return $query->toArray();
         }
 
         if ($isOfficeUser) {
@@ -322,11 +328,17 @@ class ReservationCalendarService
     ): array {
         $borderDate = $borderDate ?? $this->datePolicy->changeBoundaryDate();
 
-        $rows = $reservationTable->find()
+        $query = $reservationTable->find()
             ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
             ->where(['d_reservation_date >=' => $startDate])
-            ->where(['d_reservation_date <' => $endDate])
-            ->toArray();
+            ->where(['d_reservation_date <' => $endDate]);
+
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $query->where(['tenant_id' => $ctx->tenantId()]);
+        }
+
+        $rows = $query->toArray();
 
         $dateCounts = [];
         foreach ($rows as $r) {
