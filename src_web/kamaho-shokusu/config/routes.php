@@ -185,6 +185,7 @@ return function (RouteBuilder $routes): void {
 
         // テナント管理（システム管理者専用）
         $builder->connect('/admin/tenants', ['controller' => 'AdminTenants', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/admin/tenants/trials', ['controller' => 'AdminTenants', 'action' => 'trials'])->setMethods(['GET']);
         $builder->connect('/admin/tenants/add', ['controller' => 'AdminTenants', 'action' => 'add']);
         $builder->connect('/admin/tenants/enter/{tenantId}', ['controller' => 'AdminTenants', 'action' => 'enter'])
             ->setMethods(['POST'])

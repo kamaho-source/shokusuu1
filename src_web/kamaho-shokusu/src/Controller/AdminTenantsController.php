@@ -14,7 +14,8 @@ use Cake\I18n\DateTime;
 /**
  * テナント管理コントローラー（システム管理者専用）
  *
- * - index:        トライアルユーザー管理一覧
+ * - index:        テナント選択画面（カード一覧、enter/exit）
+ * - trials:       トライアルユーザー管理一覧（統計・検索・テーブル）
  * - enter:        テナントに入る（セッションに activeTenantId を保存）
  * - exitTenant:   全テナントモードに戻る（セッション削除）
  * - add:          テナント手動追加
@@ -25,7 +26,7 @@ final class AdminTenantsController extends AppController
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
-        $this->FormProtection->setConfig('unlockedActions', ['enter', 'exitTenant']);
+        $this->FormProtection->setConfig('unlockedActions', ['enter', 'exitTenant', 'updateStatus']);
     }
 
     public function initialize(): void
@@ -35,12 +36,32 @@ final class AdminTenantsController extends AppController
     }
 
     /**
-     * トライアルユーザー管理一覧
+     * テナント選択画面（カード一覧）
      */
     public function index(): ?Response
     {
         try {
             $this->Authorization->authorize($this, 'index');
+        } catch (ForbiddenException) {
+            $this->Flash->error('この機能はシステム管理者のみ利用できます。');
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
+        }
+
+        $tenantsTable   = $this->fetchTable('Tenants');
+        $tenants        = $tenantsTable->find()->order(['name' => 'ASC'])->all();
+        $activeTenantId = $this->request->getSession()->read('SystemAdmin.activeTenantId');
+
+        $this->set(compact('tenants', 'activeTenantId'));
+        return null;
+    }
+
+    /**
+     * トライアルユーザー管理一覧
+     */
+    public function trials(): ?Response
+    {
+        try {
+            $this->Authorization->authorize($this, 'trials');
         } catch (ForbiddenException) {
             $this->Flash->error('この機能はシステム管理者のみ利用できます。');
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
@@ -83,8 +104,8 @@ final class AdminTenantsController extends AppController
                     $query->where([
                         'status' => 'trial',
                         'OR'     => [
-                            'trial_expires_at IS'    => null,
-                            'trial_expires_at >='    => $threshold->format('Y-m-d H:i:s'),
+                            'trial_expires_at IS'  => null,
+                            'trial_expires_at >='  => $threshold->format('Y-m-d H:i:s'),
                         ],
                     ]);
                     break;
