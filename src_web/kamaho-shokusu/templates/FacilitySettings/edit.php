@@ -66,8 +66,8 @@ $this->assign('title', '施設別設定');
                         $fyDay   = null;
                         if ($setting->fiscalYearUpdateDate !== null) {
                             $parts   = explode('-', $setting->fiscalYearUpdateDate);
-                            $fyMonth = (int)($parts[1] ?? 0) ?: null;
-                            $fyDay   = (int)($parts[2] ?? 0) ?: null;
+                            $fyMonth = (int)($parts[0] ?? 0) ?: null;
+                            $fyDay   = (int)($parts[1] ?? 0) ?: null;
                         }
                     ?>
                     <div class="d-flex align-items-center gap-2">

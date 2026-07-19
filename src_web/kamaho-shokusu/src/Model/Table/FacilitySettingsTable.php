@@ -58,7 +58,14 @@ class FacilitySettingsTable extends Table
             ->boolean('lunch_bento_exclusive')
             ->boolean('approval_enabled')
             ->boolean('resident_self_edit_enabled')
-            ->allowEmptyDate('fiscal_year_update_date')
+            ->allowEmptyString('fiscal_year_update_date')
+            ->add('fiscal_year_update_date', 'format', [
+                'rule'    => ['custom', '/^\d{2}-\d{2}$/'],
+                'message' => '年度更新日はMM-DD形式で入力してください。',
+                'on'      => function ($context) {
+                    return !empty($context['data']['fiscal_year_update_date']);
+                },
+            ])
             ->allowEmptyString('export_template_code')
             ->maxLength('export_template_code', 50)
             ->allowEmptyTime('reservation_deadline_time');

@@ -37,7 +37,7 @@ final class GetFacilitySettingUseCase
             lunchBentoExclusive: (bool)$setting->lunch_bento_exclusive,
             approvalEnabled: (bool)$setting->approval_enabled,
             residentSelfEditEnabled: (bool)$setting->resident_self_edit_enabled,
-            fiscalYearUpdateDate: $setting->fiscal_year_update_date?->format('Y-m-d'),
+            fiscalYearUpdateDate: $setting->fiscal_year_update_date,
             exportTemplateCode: $setting->export_template_code,
             reservationDeadlineTime: $setting->reservation_deadline_time !== null
                 ? (string)$setting->reservation_deadline_time

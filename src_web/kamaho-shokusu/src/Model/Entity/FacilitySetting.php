@@ -17,7 +17,7 @@ use Cake\ORM\Entity;
  * @property bool $lunch_bento_exclusive        昼食と弁当の排他
  * @property bool $approval_enabled             承認機能の利用
  * @property bool $resident_self_edit_enabled   利用者本人の予約変更
- * @property \Cake\I18n\Date|null $fiscal_year_update_date  年度更新日
+ * @property string|null $fiscal_year_update_date  年度更新日（MM-DD形式）
  * @property string|null $export_template_code  Excel出力テンプレート
  * @property \Cake\I18n\Date|null $reservation_deadline_time  予約締切時刻
  * @property \Cake\I18n\DateTime $created_at

@@ -117,6 +117,6 @@ final class FacilitySettingsController extends AppController
             return null;
         }
 
-        return sprintf('2000-%02d-%02d', $month, $day);
+        return sprintf('%02d-%02d', $month, $day);
     }
 }
