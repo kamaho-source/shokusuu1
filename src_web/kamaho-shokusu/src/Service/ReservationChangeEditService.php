@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
 use Cake\I18n\Date;
@@ -309,7 +310,10 @@ class ReservationChangeEditService
                         if ($changeFlag === 0) {
                             continue;
                         }
+                        $ceCtx = TenantContextHolder::get();
                         $newRows[] = [
+                            'tenant_id'          => $ceCtx !== null ? $ceCtx->tenantId() : 1,
+                            'facility_id'        => $ceCtx !== null ? $ceCtx->tenantId() : 1,
                             'i_id_user'          => $userId,
                             'd_reservation_date' => $date,
                             'i_reservation_type' => $mealType,

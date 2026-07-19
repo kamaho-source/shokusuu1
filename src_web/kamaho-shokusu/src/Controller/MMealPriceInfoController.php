@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Tenant\TenantContextHolder;
 use App\Service\ApiResponseService;
+use App\Service\AuditLogService;
 use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
 
@@ -40,6 +42,10 @@ class MMealPriceInfoController extends AppController
         }
 
         $query = $this->MMealPriceInfo->find();
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $query->where(['tenant_id' => $ctx->tenantId()]);
+        }
         $mMealPriceInfo = $this->paginate($query);
 
         $this->set(compact('mMealPriceInfo'));
@@ -167,11 +173,15 @@ class MMealPriceInfoController extends AppController
         $month = $this->request->getQuery('month', date('n')); // 月は1月から12月で選択
 
         // 年度と月のリストをテンプレートに渡す
-        $yearList = $this->MMealPriceInfo->find()
+        $yearListQuery = $this->MMealPriceInfo->find()
             ->select(['i_fiscal_year'])
             ->distinct(['i_fiscal_year'])
-            ->orderBy(['i_fiscal_year'])
-            ->toArray();
+            ->orderBy(['i_fiscal_year']);
+        $yearCtx = TenantContextHolder::get();
+        if ($yearCtx !== null) {
+            $yearListQuery->where(['tenant_id' => $yearCtx->tenantId()]);
+        }
+        $yearList = $yearListQuery->toArray();
 
         $monthList = range(1, 12); // 月のリスト (1〜12)
 
@@ -189,6 +199,20 @@ class MMealPriceInfoController extends AppController
         $month = (int)$this->request->getQuery('month', date('n'));
 
         $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
+
+        $identity = $this->request->getAttribute('identity');
+        AuditLogService::record(
+            'system',
+            'excel_export',
+            $identity?->get('c_user_name') ?? '',
+            $identity ? (int)$identity->get('i_id_user') : 0,
+            'm_meal_price_info',
+            null,
+            ['year' => $year, 'month' => $month],
+            $this->getClientIp(),
+            1,
+            (string)($identity?->get('c_login_account') ?? '')
+        );
 
         return $apiResponse->success($this->response, ['rows' => $monthlyData]);
     }

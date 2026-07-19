@@ -10,7 +10,9 @@ use Cake\TestSuite\TestCase;
 /**
  * AuditLogPolicy テスト
  *
- * システム管理者（i_admin === 3）のみが canIndex / canExport を許可されることを検証する。
+ * - システム管理者（i_admin === 3）: 全テナントのログを閲覧可能
+ * - テナント管理者（i_admin === 4）: 自テナントのログを閲覧可能（クエリ層でスコープ強制）
+ * - それ以外: アクセス拒否
  */
 class AuditLogPolicyTest extends TestCase
 {
@@ -34,10 +36,16 @@ class AuditLogPolicyTest extends TestCase
         $this->assertTrue($this->policy->canIndex($user, $this->resource));
     }
 
+    public function testCanIndex_tenantAdmin_allowed(): void
+    {
+        $user = new PolicyTestIdentity(['i_admin' => 4]);
+        $this->assertTrue($this->policy->canIndex($user, $this->resource));
+    }
+
     /**
-     * @dataProvider nonSystemAdminProvider
+     * @dataProvider deniedRolesProvider
      */
-    public function testCanIndex_nonSystemAdmin_denied(int $adminLevel): void
+    public function testCanIndex_otherRoles_denied(int $adminLevel): void
     {
         $user = new PolicyTestIdentity(['i_admin' => $adminLevel]);
         $this->assertFalse($this->policy->canIndex($user, $this->resource));
@@ -58,10 +66,16 @@ class AuditLogPolicyTest extends TestCase
         $this->assertTrue($this->policy->canExport($user, $this->resource));
     }
 
+    public function testCanExport_tenantAdmin_allowed(): void
+    {
+        $user = new PolicyTestIdentity(['i_admin' => 4]);
+        $this->assertTrue($this->policy->canExport($user, $this->resource));
+    }
+
     /**
-     * @dataProvider nonSystemAdminProvider
+     * @dataProvider deniedRolesProvider
      */
-    public function testCanExport_nonSystemAdmin_denied(int $adminLevel): void
+    public function testCanExport_otherRoles_denied(int $adminLevel): void
     {
         $user = new PolicyTestIdentity(['i_admin' => $adminLevel]);
         $this->assertFalse($this->policy->canExport($user, $this->resource));
@@ -76,7 +90,7 @@ class AuditLogPolicyTest extends TestCase
     // DataProviders
     // ----------------------------------------------------------------
 
-    public static function nonSystemAdminProvider(): array
+    public static function deniedRolesProvider(): array
     {
         return [
             'general (0)'      => [0],

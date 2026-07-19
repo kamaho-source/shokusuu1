@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
@@ -53,7 +54,10 @@ class MealReportingService
             );
 
             if ($affected === 0) {
+                $noMealCtx = TenantContextHolder::get();
                 $entity = $reservationTable->newEmptyEntity();
+                $entity->tenant_id          = $noMealCtx !== null ? $noMealCtx->tenantId() : 1;
+                $entity->facility_id        = $noMealCtx !== null ? $noMealCtx->tenantId() : 1;
                 $entity->i_id_user          = $userId;
                 $entity->d_reservation_date = $today;
                 $entity->i_reservation_type = $mealType;
@@ -109,7 +113,10 @@ class MealReportingService
             );
 
             if ($affected === 0) {
+                $eatCtx = TenantContextHolder::get();
                 $entity = $reservationTable->newEmptyEntity();
+                $entity->tenant_id          = $eatCtx !== null ? $eatCtx->tenantId() : 1;
+                $entity->facility_id        = $eatCtx !== null ? $eatCtx->tenantId() : 1;
                 $entity->i_id_user          = $userId;
                 $entity->d_reservation_date = $today;
                 $entity->i_reservation_type = $mealType;

@@ -21,6 +21,8 @@ use Cake\ORM\Entity;
  * @property \App\Model\Entity\MUserInfo $m_user_info
  * @property \App\Model\Entity\MRoomInfo $room_from
  * @property \App\Model\Entity\MRoomInfo $room_to
+ * @property int|null $tenant_id
+ * @property int|null $facility_id
  */
 class MRoomTransferSchedule extends Entity
 {
@@ -34,5 +36,7 @@ class MRoomTransferSchedule extends Entity
         'dt_create'        => true,
         'c_update_user'    => true,
         'dt_update'        => true,
+        'tenant_id'        => false,
+        'facility_id'      => false,
     ];
 }

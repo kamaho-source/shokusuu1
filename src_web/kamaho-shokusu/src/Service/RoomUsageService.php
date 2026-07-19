@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -43,10 +44,15 @@ class RoomUsageService
         $mealTypeCount = $mealType !== null ? 1 : 4;
 
         // m_user_group から active_flag=0（現役）の登録ユーザーを部屋ごとに取得（分母）
+        $roomUsageCtx = TenantContextHolder::get();
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
+        $userGroupConditions = ['MUserGroup.active_flag' => 0];
+        if ($roomUsageCtx !== null) {
+            $userGroupConditions['MUserGroup.tenant_id'] = $roomUsageCtx->tenantId();
+        }
         $masterRows = $userGroupTable->find()
             ->contain(['MUserInfo', 'MRoomInfo'])
-            ->where(['MUserGroup.active_flag' => 0])
+            ->where($userGroupConditions)
             ->all()
             ->toArray();
 
@@ -80,11 +86,14 @@ class RoomUsageService
 
         // 実績テーブルから eat_count を集計（active なユーザーの分のみ）
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $query = $table->find()
-            ->where([
-                'TIndividualReservationInfo.d_reservation_date >=' => $resolvedFrom,
-                'TIndividualReservationInfo.d_reservation_date <=' => $resolvedTo,
-            ]);
+        $eatConditions = [
+            'TIndividualReservationInfo.d_reservation_date >=' => $resolvedFrom,
+            'TIndividualReservationInfo.d_reservation_date <=' => $resolvedTo,
+        ];
+        if ($roomUsageCtx !== null) {
+            $eatConditions['TIndividualReservationInfo.tenant_id'] = $roomUsageCtx->tenantId();
+        }
+        $query = $table->find()->where($eatConditions);
 
         if ($mealType !== null) {
             $query->where(['TIndividualReservationInfo.i_reservation_type' => $mealType]);

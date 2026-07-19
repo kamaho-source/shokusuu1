@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 
@@ -43,11 +44,13 @@ class RoomService
      */
     public function nextDisplayNo(): int
     {
-        $table   = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $maxDispNo = (int)($table->find()
-            ->select(['max_disp_no' => 'MAX(i_disp_no)'])
-            ->first()
-            ?->max_disp_no ?? 0);
+        $table = TableRegistry::getTableLocator()->get('MRoomInfo');
+        $query = $table->find()->select(['max_disp_no' => 'MAX(i_disp_no)']);
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $query->where(['tenant_id' => $ctx->tenantId()]);
+        }
+        $maxDispNo = (int)($query->first()?->max_disp_no ?? 0);
 
         return $maxDispNo + 1;
     }
@@ -57,10 +60,14 @@ class RoomService
      */
     public function countActiveRooms(): int
     {
-        return TableRegistry::getTableLocator()->get('MRoomInfo')
+        $query = TableRegistry::getTableLocator()->get('MRoomInfo')
             ->find()
-            ->where(['i_del_flg' => 0])
-            ->count();
+            ->where(['i_del_flg' => 0]);
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $query->where(['tenant_id' => $ctx->tenantId()]);
+        }
+        return $query->count();
     }
 
     /**
