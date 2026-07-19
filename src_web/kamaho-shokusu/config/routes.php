@@ -179,27 +179,6 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
 
-        // テナント公開セルフ登録（認証不要）
-        $builder->connect('/tenant/register', ['controller' => 'TenantRegistration', 'action' => 'register']);
-        $builder->connect('/tenant/register/complete', ['controller' => 'TenantRegistration', 'action' => 'complete'])->setMethods(['GET']);
-
-        // テナント管理（システム管理者専用）
-        $builder->connect('/admin/tenants', ['controller' => 'AdminTenants', 'action' => 'index'])->setMethods(['GET']);
-        $builder->connect('/admin/tenants/trials', ['controller' => 'AdminTenants', 'action' => 'trials'])->setMethods(['GET']);
-        $builder->connect('/admin/tenants/add', ['controller' => 'AdminTenants', 'action' => 'add']);
-        $builder->connect('/admin/tenants/enter/{tenantId}', ['controller' => 'AdminTenants', 'action' => 'enter'])
-            ->setMethods(['POST'])
-            ->setPatterns(['tenantId' => '\d+'])
-            ->setPass(['tenantId']);
-        $builder->connect('/admin/tenants/exit', ['controller' => 'AdminTenants', 'action' => 'exitTenant'])->setMethods(['POST']);
-        $builder->connect(
-            '/admin/tenants/update-status/{tenantId}',
-            ['controller' => 'AdminTenants', 'action' => 'updateStatus']
-        )->setMethods(['POST'])->setPatterns(['tenantId' => '\d+'])->setPass(['tenantId']);
-
-        // テナント切り替え（後方互換のため残す）
-        $builder->connect('/tenant/switch', ['controller' => 'TenantSwitcher', 'action' => 'switchTenant']);
-
         // 監査ログ（システム管理者専用）
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);

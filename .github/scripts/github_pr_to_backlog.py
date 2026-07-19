@@ -13,25 +13,13 @@ import sys
 import re
 
 sys.path.insert(0, os.path.dirname(__file__))
-from backlog_client import load_backlog_env, resolve_bl_base, bl_request, get_status_id
+from backlog_client import load_backlog_env, resolve_bl_base, bl_request
 from sync_utils import extract_backlog_key
 
 CLOSING_PATTERN = re.compile(
     r"(?:closes?|fixes?|resolves?)\s+#(\d+)",
     re.IGNORECASE,
 )
-
-# マージ先ブランチ → Backlogステータス名 のマッピング
-def resolve_status_name(base_branch: str) -> str:
-    """マージ先ブランチからBacklogステータス名を決定する。"""
-    if base_branch == "develop":
-        return "ステージング環境反映"
-    if base_branch == "release" or base_branch.startswith("release/"):
-        return "リリース待ち"
-    if base_branch == "main":
-        return "完了"
-    # feature→feature など標準フロー外
-    return "完了済み"
 
 
 def find_linked_issue_numbers(pr_body: str) -> list[int]:
@@ -114,9 +102,8 @@ def main():
     pr_body     = os.environ.get("GH_PR_BODY", "")
     pr_url      = os.environ.get("GH_PR_URL", "")
     pr_user     = os.environ.get("GH_PR_USER", "")
-    pr_action      = os.environ.get("GH_PR_ACTION", "opened")
-    pr_merged      = os.environ.get("GH_PR_MERGED", "false").lower() == "true"
-    pr_base_branch = os.environ.get("GH_PR_BASE_BRANCH", "")
+    pr_action   = os.environ.get("GH_PR_ACTION", "opened")
+    pr_merged   = os.environ.get("GH_PR_MERGED", "false").lower() == "true"
 
     if pr_merged and pr_action == "closed":
         pr_action = "merged"
@@ -168,20 +155,6 @@ def main():
             print(f"  [{backlog_key}] BacklogにPR情報を追加しました (action={pr_action})")
         else:
             print(f"  [{backlog_key}] Backlogへのコメント追加に失敗しました")
-
-        # マージ時はBacklogステータスを更新する
-        if pr_merged and pr_action == "merged":
-            status_name = resolve_status_name(pr_base_branch)
-            status_id   = get_status_id(base, api_key, project_key, status_name)
-            if status_id is not None:
-                patch = bl_request(base, api_key, "PATCH", f"/issues/{backlog_key}",
-                                   {"statusId": status_id}, fatal=False)
-                if patch:
-                    print(f"  [{backlog_key}] Backlogステータスを更新しました: '{status_name}' (base={pr_base_branch})")
-                else:
-                    print(f"  [{backlog_key}] Backlogステータスの更新に失敗しました")
-            else:
-                print(f"  [{backlog_key}] ステータス '{status_name}' がBacklogに存在しないためスキップしました")
 
 
 if __name__ == "__main__":

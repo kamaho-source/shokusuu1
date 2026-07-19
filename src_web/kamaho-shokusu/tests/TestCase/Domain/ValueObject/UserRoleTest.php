@@ -23,7 +23,6 @@ class UserRoleTest extends TestCase
         $this->assertSame(1, UserRole::ADMIN);
         $this->assertSame(2, UserRole::BLOCK_LEADER);
         $this->assertSame(3, UserRole::SYSTEM_ADMIN);
-        $this->assertSame(4, UserRole::TENANT_ADMIN);
     }
 
     // ----------------------------------------------------------------
@@ -38,11 +37,6 @@ class UserRoleTest extends TestCase
     public function testIsAdminReturnsTrueForSystemAdmin(): void
     {
         $this->assertTrue(UserRole::isAdmin(UserRole::SYSTEM_ADMIN));
-    }
-
-    public function testIsAdminReturnsTrueForTenantAdmin(): void
-    {
-        $this->assertTrue(UserRole::isAdmin(UserRole::TENANT_ADMIN));
     }
 
     public function testIsAdminReturnsFalseForGeneral(): void
@@ -118,35 +112,10 @@ class UserRoleTest extends TestCase
     public static function isAdminProvider(): array
     {
         return [
-            'GENERAL(0) → false'       => [0, false],
-            'ADMIN(1) → true'          => [1, true],
-            'BLOCK_LEADER(2) → false'  => [2, false],
-            'SYSTEM_ADMIN(3) → true'   => [3, true],
-            'TENANT_ADMIN(4) → true'   => [4, true],
+            'GENERAL(0) → false'      => [0, false],
+            'ADMIN(1) → true'         => [1, true],
+            'BLOCK_LEADER(2) → false' => [2, false],
+            'SYSTEM_ADMIN(3) → true'  => [3, true],
         ];
-    }
-
-    // ----------------------------------------------------------------
-    // isTenantAdmin
-    // ----------------------------------------------------------------
-
-    public function testIsTenantAdminReturnsTrueForTenantAdmin(): void
-    {
-        $this->assertTrue(UserRole::isTenantAdmin(UserRole::TENANT_ADMIN));
-    }
-
-    public function testIsTenantAdminReturnsFalseForAdmin(): void
-    {
-        $this->assertFalse(UserRole::isTenantAdmin(UserRole::ADMIN));
-    }
-
-    public function testIsTenantAdminReturnsFalseForSystemAdmin(): void
-    {
-        $this->assertFalse(UserRole::isTenantAdmin(UserRole::SYSTEM_ADMIN));
-    }
-
-    public function testIsTenantAdminReturnsFalseForGeneral(): void
-    {
-        $this->assertFalse(UserRole::isTenantAdmin(UserRole::GENERAL));
     }
 }

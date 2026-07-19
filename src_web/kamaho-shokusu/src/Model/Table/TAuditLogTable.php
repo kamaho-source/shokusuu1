@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use App\Infrastructure\Table\TenantAwareTableTrait;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -12,8 +11,6 @@ use Cake\Validation\Validator;
  */
 class TAuditLogTable extends Table
 {
-    use TenantAwareTableTrait;
-
     public function initialize(array $config): void
     {
         parent::initialize($config);

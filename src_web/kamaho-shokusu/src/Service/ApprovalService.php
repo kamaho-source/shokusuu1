@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -122,10 +121,6 @@ class ApprovalService
     ): array {
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $query = $table->find()->contain(['MUserInfo', 'MRoomInfo']);
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $query->where(['TIndividualReservationInfo.tenant_id' => $ctx->tenantId()]);
-        }
 
         if ($filterRoomId !== null) {
             $query->where(['TIndividualReservationInfo.i_id_room' => $filterRoomId]);

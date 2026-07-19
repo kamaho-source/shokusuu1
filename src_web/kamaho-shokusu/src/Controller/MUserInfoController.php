@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Application\Tenant\TenantContextHolder;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
 use App\Service\RoomService;
@@ -160,11 +159,6 @@ class MUserInfoController extends AppController
             $query->where(['i_id_user' => $currentUserId]);
         }
 
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $query->where(['MUserInfo.tenant_id' => $ctx->tenantId()]);
-        }
-
         $mUserInfo = $this->paginate($query, ['limit' => 200, 'maxLimit' => 200]);
 
         $userRooms = [];
@@ -247,15 +241,10 @@ class MUserInfoController extends AppController
             }
         }
 
-        $roomsQuery = $this->MRoomInfo->find('list', [
+        $rooms = $this->MRoomInfo->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ]);
-        $addCtx = TenantContextHolder::get();
-        if ($addCtx !== null) {
-            $roomsQuery->where(['tenant_id' => $addCtx->tenantId()]);
-        }
-        $rooms = $roomsQuery->toArray();
+        ])->toArray();
 
         $ages  = range(1, 80);
         $roles = [0 => '職員', 1 => '児童', 3 => 'その他'];
@@ -306,12 +295,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $editRoomsQuery = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name']);
-        $editCtx = TenantContextHolder::get();
-        if ($editCtx !== null) {
-            $editRoomsQuery->where(['tenant_id' => $editCtx->tenantId()]);
-        }
-        $rooms = $editRoomsQuery->toArray();
+        $rooms = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->toArray();
 
         $selectedRooms = [];
         if (!empty($mUserInfo->m_user_group)) {
@@ -621,15 +605,10 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $usersQuery = $this->fetchTable('MUserInfo')->find('list', [
+        $users = $this->fetchTable('MUserInfo')->find('list', [
             'keyField'   => 'i_id_user',
             'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0]);
-        $pwCtx = TenantContextHolder::get();
-        if ($pwCtx !== null) {
-            $usersQuery->where(['tenant_id' => $pwCtx->tenantId()]);
-        }
-        $users = $usersQuery->toArray();
+        ])->where(['i_del_flag' => 0])->toArray();
 
         $selectedUser = null;
 

@@ -17,8 +17,6 @@ use Cake\ORM\Entity;
  * @property string|null $c_create_user
  * @property \Cake\I18n\DateTime|null $dt_update
  * @property string|null $c_update_user
- * @property int|null $tenant_id
- * @property int|null $facility_id
  */
 class MRoomInfo extends Entity
 {
@@ -31,7 +29,5 @@ class MRoomInfo extends Entity
         'c_create_user' => false,
         'dt_update' => false,
         'c_update_user' => false,
-        'tenant_id'    => false,
-        'facility_id'  => false,
     ];
 }

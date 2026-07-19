@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
 use Authorization\IdentityInterface;
 
 /**
@@ -10,8 +11,6 @@ use Authorization\IdentityInterface;
  */
 final class StatsAiPolicy
 {
-    use PolicyTrait;
-
     /**
      * 統計AI画面の表示を許可するか。
      */
@@ -26,5 +25,10 @@ final class StatsAiPolicy
     public function canAskStream(IdentityInterface $user, $resource): bool
     {
         return $this->isSystemAdmin($user);
+    }
+
+    private function isSystemAdmin(IdentityInterface $user): bool
+    {
+        return UserRole::isSystemAdmin((int)($user->get('i_admin') ?? 0));
     }
 }

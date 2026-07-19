@@ -15,8 +15,6 @@ use Cake\ORM\Entity;
  * @property string|null $c_create_user
  * @property \Cake\I18n\DateTime|null $dt_update
  * @property string|null $c_update_user
- * @property int|null $tenant_id
- * @property int|null $facility_id
  */
 class MUserGroup extends Entity
 {
@@ -35,10 +33,8 @@ class MUserGroup extends Entity
         'active_flag' => true,
         'dt_create' => true,
         'c_create_user' => true,
-        'dt_update'    => true,
+        'dt_update' => true,
         'c_update_user' => true,
-        'tenant_id'    => false,
-        'facility_id'  => false,
     ];
 
 }

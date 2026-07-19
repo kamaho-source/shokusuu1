@@ -11,9 +11,6 @@ use Cake\TestSuite\TestCase;
  * UserRoomAssignmentService テスト。
  *
  * assign の正常割り当て・既存グループ無効化・エラーハンドリングを検証する。
- *
- * Note: ユーザー4・5 はフィクスチャでグループ未割り当てのため新規割り当てテストに使用する。
- *       ユーザー1〜3 はすでに room 1 に割り当て済みのため再割り当てはPK重複を招く。
  */
 class UserRoomAssignmentServiceTest extends TestCase
 {
@@ -45,23 +42,44 @@ class UserRoomAssignmentServiceTest extends TestCase
             ->toArray();
     }
 
-    /** フィクスチャ上で room 1 の名前を返す */
-    private function roomOneName(): string
+    private function getExistingRoomName(int $userId = 1): string
     {
-        return TableRegistry::getTableLocator()->get('MRoomInfo')
+        return $this->userGroupTable()
             ->find()
-            ->where(['i_id_room' => 1])
+            ->join([
+                'r' => [
+                    'table' => 'm_room_info',
+                    'type' => 'INNER',
+                    'conditions' => 'r.i_id_room = MUserGroup.i_id_room',
+                ],
+            ])
+            ->select(['r.c_room_name'])
+            ->where(['MUserGroup.i_id_user' => $userId])
             ->enableHydration(false)
-            ->first()['c_room_name'] ?? 'テナント1の部屋';
+            ->first()['c_room_name'] ?? 'Lorem ipsum dolor sit amet';
     }
 
     // ----------------------------------------------------------------
-    // 正常系 — user 4（グループ未割り当て）を使用
+    // 正常系
     // ----------------------------------------------------------------
 
     public function testAssignCreatesNewGroupForExistingRoom(): void
     {
-        $result = $this->service->assign(4, [$this->roomOneName()], 'test_actor');
+        $roomName = $this->userGroupTable()
+            ->find()
+            ->join([
+                'r' => [
+                    'table' => 'm_room_info',
+                    'type' => 'INNER',
+                    'conditions' => 'r.i_id_room = MUserGroup.i_id_room',
+                ],
+            ])
+            ->select(['r.c_room_name'])
+            ->where(['MUserGroup.i_id_user' => 1])
+            ->enableHydration(false)
+            ->first()['c_room_name'] ?? 'Lorem ipsum dolor sit amet';
+
+        $result = $this->service->assign(1, [$roomName], 'test_actor');
 
         $this->assertSame(1, $result['created']);
         $this->assertEmpty($result['errors']);
@@ -69,34 +87,34 @@ class UserRoomAssignmentServiceTest extends TestCase
 
     public function testAssignDeactivatesOldGroups(): void
     {
-        // まず user 4 を room 1 に割り当て
-        $this->service->assign(4, [$this->roomOneName()], 'setup_actor');
+        $roomName = $this->getExistingRoomName();
 
-        // 次に user 4 を別ユーザー（user 5）として扱いたいが、
-        // ここでは user 4 に対して空配列を渡して既存グループを無効化する
-        $this->service->assign(4, [], 'test_actor');
+        $this->service->assign(1, [$roomName], 'test_actor');
 
-        $active = $this->findActiveGroups(4);
-        $this->assertCount(0, $active);
+        $active = $this->findActiveGroups(1);
+        // 古いグループ(room_id=1)は inactive になり、新しいグループが1件だけ active
+        $this->assertCount(1, $active);
     }
 
     public function testAssignReturnsEmptyErrorsOnSuccess(): void
     {
-        $result = $this->service->assign(5, [$this->roomOneName()], 'test_actor');
+        $result = $this->service->assign(1, [$this->getExistingRoomName()], 'test_actor');
 
         $this->assertEmpty($result['errors']);
     }
 
     public function testAssignLimitsToTwoRooms(): void
     {
-        $roomName = $this->roomOneName();
+        $roomName = $this->getExistingRoomName();
 
+        // 3件渡しても最大2件しか処理されない
         $result = $this->service->assign(
-            5,
+            1,
             [$roomName, $roomName, $roomName],
             'test_actor'
         );
 
+        // 同じ部屋名が複数回指定されても最大2件
         $this->assertLessThanOrEqual(2, $result['created'] + count($result['errors']));
     }
 
@@ -106,7 +124,7 @@ class UserRoomAssignmentServiceTest extends TestCase
 
     public function testAssignReturnsErrorForUnknownRoom(): void
     {
-        $result = $this->service->assign(4, ['存在しない部屋'], 'test_actor');
+        $result = $this->service->assign(1, ['存在しない部屋'], 'test_actor');
 
         $this->assertSame(0, $result['created']);
         $this->assertCount(1, $result['errors']);
@@ -117,6 +135,7 @@ class UserRoomAssignmentServiceTest extends TestCase
     {
         $this->service->assign(1, [], 'test_actor');
 
+        // 部屋名が空なので既存グループが無効化されるだけ
         $active = $this->findActiveGroups(1);
         $this->assertCount(0, $active);
     }

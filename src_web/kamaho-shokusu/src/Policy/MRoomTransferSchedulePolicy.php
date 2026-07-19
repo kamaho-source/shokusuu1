@@ -3,12 +3,12 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
+
 use Authorization\IdentityInterface;
 
 class MRoomTransferSchedulePolicy
 {
-    use PolicyTrait;
-
     public function canIndex(?IdentityInterface $user, \App\Model\Entity\MRoomTransferSchedule $resource): bool
     {
         return $this->isAdmin($user);
@@ -21,6 +21,28 @@ class MRoomTransferSchedulePolicy
 
     public function canCancel(?IdentityInterface $user, \App\Model\Entity\MRoomTransferSchedule $resource): bool
     {
-        return $this->isAdmin($user) && $this->isSameTenant($user, $resource);
+        return $this->isAdmin($user);
+    }
+
+    private function isAdmin(?IdentityInterface $user): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        $identity = $user->getOriginalData();
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return UserRole::isAdmin((int)$identity->get('i_admin'));
+        }
+
+        if (is_array($identity)) {
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
+        }
+
+        return false;
     }
 }

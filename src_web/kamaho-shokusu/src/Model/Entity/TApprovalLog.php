@@ -17,8 +17,6 @@ use Cake\ORM\Entity;
  * @property int $i_approver_id
  * @property string|null $c_reject_reason
  * @property \Cake\I18n\DateTime $dt_create
- * @property int|null $tenant_id
- * @property int|null $facility_id
  */
 class TApprovalLog extends Entity
 {
@@ -31,7 +29,5 @@ class TApprovalLog extends Entity
         'i_approver_id'      => true,
         'c_reject_reason'    => true,
         'dt_create'          => true,
-        'tenant_id'          => false,
-        'facility_id'        => false,
     ];
 }

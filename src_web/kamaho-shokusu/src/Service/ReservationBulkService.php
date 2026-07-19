@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Application\Tenant\TenantContextHolder;
 use Cake\Core\Configure;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
@@ -404,10 +403,7 @@ class ReservationBulkService
                             $rowsToActivate[$activateKey] = $roomRow;
                             continue;
                         }
-                        $bulkCtx1 = TenantContextHolder::get();
                         $reservation = $reservationTable->newEmptyEntity();
-                        $reservation->tenant_id          = $bulkCtx1 !== null ? $bulkCtx1->tenantId() : 1;
-                        $reservation->facility_id        = $bulkCtx1 !== null ? $bulkCtx1->tenantId() : 1;
                         $reservation->d_reservation_date = $date;
                         $reservation->i_id_room = $roomIdInt;
                         $reservation->i_reservation_type = $mealTypeInt;
@@ -581,10 +577,7 @@ class ReservationBulkService
                                 $rowsToActivate[$activateKey] = $roomRow;
                                 continue;
                             }
-                            $bulkCtx2 = TenantContextHolder::get();
                             $reservation = $reservationTable->newEmptyEntity();
-                            $reservation->tenant_id          = $bulkCtx2 !== null ? $bulkCtx2->tenantId() : 1;
-                            $reservation->facility_id        = $bulkCtx2 !== null ? $bulkCtx2->tenantId() : 1;
                             $reservation->d_reservation_date = $date;
                             $reservation->i_id_room = $roomId;
                             $reservation->i_reservation_type = $mealType;
@@ -693,10 +686,7 @@ class ReservationBulkService
                                     $rowsToActivate[$activateKey] = $roomRow;
                                     continue;
                                 }
-                                $bulkCtx3 = TenantContextHolder::get();
                                 $reservation = $reservationTable->newEmptyEntity();
-                                $reservation->tenant_id          = $bulkCtx3 !== null ? $bulkCtx3->tenantId() : 1;
-                                $reservation->facility_id        = $bulkCtx3 !== null ? $bulkCtx3->tenantId() : 1;
                                 $reservation->d_reservation_date = $date;
                                 $reservation->i_id_room = $roomId;
                                 $reservation->i_reservation_type = $mealType;

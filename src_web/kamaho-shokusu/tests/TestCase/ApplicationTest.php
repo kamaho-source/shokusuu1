@@ -20,7 +20,6 @@ use App\Application;
 use Cake\Core\Configure;
 use Cake\Error\Middleware\ErrorHandlerMiddleware;
 use Cake\Http\MiddlewareQueue;
-use Cake\Http\Middleware\SecurityHeadersMiddleware;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 use Cake\TestSuite\IntegrationTestTrait;
@@ -98,12 +97,10 @@ class ApplicationTest extends TestCase
 
         $middleware = $app->middleware($middleware);
 
-        $this->assertInstanceOf(SecurityHeadersMiddleware::class, $middleware->current());
-        $middleware->seek(1);
         $this->assertInstanceOf(ErrorHandlerMiddleware::class, $middleware->current());
-        $middleware->seek(2);
+        $middleware->seek(1);
         $this->assertInstanceOf(AssetMiddleware::class, $middleware->current());
-        $middleware->seek(3);
+        $middleware->seek(2);
         $this->assertInstanceOf(RoutingMiddleware::class, $middleware->current());
     }
 }

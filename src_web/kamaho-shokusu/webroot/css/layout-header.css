@@ -117,41 +117,6 @@ body {
     max-width: calc(100vw - 2rem);
 }
 
-/* Tenant Context Banner (system admin only) */
-.tenant-context-banner {
-    position: fixed;
-    top: var(--nav-height);
-    left: 0;
-    right: 0;
-    z-index: 1019;
-    background: #1e3a5f;
-    color: #e2e8f0;
-    font-size: 0.8rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.tenant-context-banner--all {
-    background: #334155;
-}
-
-.tenant-context-banner__link {
-    color: #93c5fd;
-    text-decoration: none;
-    font-size: 0.78rem;
-    white-space: nowrap;
-    transition: color 0.15s;
-}
-
-.tenant-context-banner__link:hover {
-    color: #dbeafe;
-    text-decoration: underline;
-}
-
-/* バナーがある場合に main コンテンツの上部余白を増やす */
-body:has(.tenant-context-banner) main.container {
-    margin-top: calc(1rem + 2rem) !important;
-}
-
 /* Responsive Adjustments */
 @media (max-width: 991.98px) {
     .navbar-custom {

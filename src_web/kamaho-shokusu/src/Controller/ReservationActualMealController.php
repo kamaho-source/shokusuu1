@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Application\Tenant\TenantContextHolder;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ActualMealManagementService;
 use App\Service\MealCountGridService;
@@ -485,16 +484,12 @@ class ReservationActualMealController extends ReservationBaseController
         $nameList = [];
         if ($viewMode === 'individual') {
             if ($canViewAll) {
-                $activeUsersQuery = $this->MUserInfo->find()
+                $activeUsers = $this->MUserInfo->find()
                     ->select(['i_id_user', 'c_user_name'])
                     ->where(['i_del_flag' => 0])
                     ->orderAsc('c_user_name')
-                    ->enableHydration(false);
-                $tenantCtx = TenantContextHolder::get();
-                if ($tenantCtx !== null) {
-                    $activeUsersQuery->where(['tenant_id' => $tenantCtx->tenantId()]);
-                }
-                $activeUsers = $activeUsersQuery->all();
+                    ->enableHydration(false)
+                    ->all();
                 foreach ($activeUsers as $u) {
                     $nameList[(int)$u['i_id_user']] = (string)$u['c_user_name'];
                 }

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Application\Tenant\TenantContextHolder;
 use App\Infrastructure\AI\OpenRouterClient;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Service\AiStatsContextService;
@@ -51,28 +50,19 @@ final class StatsAiController extends AppController
         $this->FormProtection->setConfig('unlockedActions', ['askStream']);
 
         // 氏名→トークンの逆引きマップを構築（askStream でのサーバー側マスクに使用）
-        $initCtx = TenantContextHolder::get();
-        $usersInitQuery = $this->fetchTable('MUserInfo')->find('list', [
+        $users = $this->fetchTable('MUserInfo')->find('list', [
             'keyField'   => 'i_id_user',
             'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0]);
-        if ($initCtx !== null) {
-            $usersInitQuery->where(['tenant_id' => $initCtx->tenantId()]);
-        }
-        $users = $usersInitQuery->toArray();
+        ])->where(['i_del_flag' => 0])->toArray();
         foreach ($users as $id => $name) {
             $this->nameToToken[(string)$name] = $this->userTokenizer->tokenize((int)$id);
         }
 
         // 部屋名→トークンの逆引きマップを構築（askStream でのサーバー側マスクに使用）
-        $roomsInitQuery = $this->fetchTable('MRoomInfo')->find('list', [
+        $rooms = $this->fetchTable('MRoomInfo')->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ]);
-        if ($initCtx !== null) {
-            $roomsInitQuery->where(['tenant_id' => $initCtx->tenantId()]);
-        }
-        $rooms = $roomsInitQuery->toArray();
+        ])->toArray();
         foreach ($rooms as $id => $name) {
             $this->roomToToken[(string)$name] = $this->userTokenizer->tokenize((int)$id);
         }
@@ -88,15 +78,10 @@ final class StatsAiController extends AppController
     {
         $this->Authorization->authorize($this, 'index');
 
-        $indexCtx = TenantContextHolder::get();
-        $usersIndexQuery = $this->fetchTable('MUserInfo')->find('list', [
+        $users = $this->fetchTable('MUserInfo')->find('list', [
             'keyField'   => 'i_id_user',
             'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0]);
-        if ($indexCtx !== null) {
-            $usersIndexQuery->where(['tenant_id' => $indexCtx->tenantId()]);
-        }
-        $users = $usersIndexQuery->toArray();
+        ])->where(['i_del_flag' => 0])->toArray();
 
         // キーを内部IDからハッシュトークンへ付け替える（画面には内部IDを露出しない）
         $userMap = [];
@@ -104,14 +89,10 @@ final class StatsAiController extends AppController
             $userMap[$this->userTokenizer->tokenize((int)$id)] = $name;
         }
 
-        $roomsIndexQuery = $this->fetchTable('MRoomInfo')->find('list', [
+        $rooms = $this->fetchTable('MRoomInfo')->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ]);
-        if ($indexCtx !== null) {
-            $roomsIndexQuery->where(['tenant_id' => $indexCtx->tenantId()]);
-        }
-        $rooms = $roomsIndexQuery->toArray();
+        ])->toArray();
         $roomMap = [];
         foreach ($rooms as $id => $name) {
             $roomMap[$this->userTokenizer->tokenize((int)$id)] = $name;
