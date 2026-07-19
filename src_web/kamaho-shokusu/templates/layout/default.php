@@ -109,6 +109,12 @@ $recentNotifications     = $recentNotifications ?? [];
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm">
                                 <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/admin/tenants') ?>">
+                                        <i class="bi bi-building me-2 text-info"></i>テナント管理
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
                                     <a class="dropdown-item" href="<?= $this->Url->build('/AuditLog') ?>">
                                         <i class="bi bi-shield-lock me-2 text-danger"></i>監査ログ
                                     </a>

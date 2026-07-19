@@ -179,6 +179,14 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
 
+        // テナント管理（システム管理者専用）
+        $builder->connect('/admin/tenants', ['controller' => 'AdminTenants', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/admin/tenants/add', ['controller' => 'AdminTenants', 'action' => 'add']);
+        $builder->connect(
+            '/admin/tenants/update-status/{tenantId}',
+            ['controller' => 'AdminTenants', 'action' => 'updateStatus']
+        )->setMethods(['POST'])->setPatterns(['tenantId' => '\d+'])->setPass(['tenantId']);
+
         // 監査ログ（システム管理者専用）
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);
