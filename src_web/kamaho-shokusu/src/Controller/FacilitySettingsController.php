@@ -34,6 +34,11 @@ final class FacilitySettingsController extends AppController
         $this->viewBuilder()->setLayout('default');
     }
 
+    public function index(): Response
+    {
+        return $this->redirect(['action' => 'edit']);
+    }
+
     /**
      * 施設設定の表示・保存（GET: 表示、POST: 保存）
      */
