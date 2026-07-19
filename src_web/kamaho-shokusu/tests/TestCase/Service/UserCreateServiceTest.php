@@ -146,7 +146,7 @@ class UserCreateServiceTest extends TestCase
     public function testLoginAccountExists_existing_returnsTrue(): void
     {
         $service = new UserCreateService();
-        $this->assertTrue($service->loginAccountExists('Lorem ipsum dolor sit amet'));
+        $this->assertTrue($service->loginAccountExists('admin_user'));
     }
 
     public function testLoginAccountExists_nonExisting_returnsFalse(): void

@@ -3,20 +3,23 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
-use App\Domain\ValueObject\UserRole;
-
 use App\Model\Entity\MUserInfo;
 use Authorization\IdentityInterface;
 
 class MUserInfoPolicy
 {
+    use PolicyTrait;
+
     public function canIndex(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->getOriginalIdentity($user) !== null;
+        return $this->isAuthenticated($user);
     }
 
     public function canView(?IdentityInterface $user, MUserInfo $resource): bool
     {
+        if (!$this->isSameTenant($user, $resource)) {
+            return false;
+        }
         return $this->isAdmin($user) || $this->isOwner($user, $resource);
     }
 
@@ -52,7 +55,7 @@ class MUserInfoPolicy
 
     public function canAdminChangePassword(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isAdmin($user) && $this->isSameTenant($user, $resource);
     }
 
     public function canAddUserRooms(?IdentityInterface $user, MUserInfo $resource): bool
@@ -62,54 +65,38 @@ class MUserInfoPolicy
 
     public function canGeneralPasswordReset(?IdentityInterface $user, MUserInfo $resource): bool
     {
+        if (!$this->isSameTenant($user, $resource)) {
+            return false;
+        }
         return $this->isOwner($user, $resource) || $this->isAdmin($user);
     }
 
     public function canEdit(?IdentityInterface $user, MUserInfo $resource): bool
     {
+        if (!$this->isSameTenant($user, $resource)) {
+            return false;
+        }
         return $this->isAdmin($user) || $this->isOwner($user, $resource);
     }
 
     public function canDelete(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->isAdmin($user) && $this->isSameTenant($user, $resource);
     }
 
     public function canUpdateAdminStatus(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user) || $this->isSystemAdmin($user);
+        return ($this->isAdmin($user) || $this->isSystemAdmin($user)) && $this->isSameTenant($user, $resource);
     }
 
     public function canUpdateSystemAdminStatus(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isSystemAdmin($user);
+        return $this->isSystemAdmin($user) && $this->isSameTenant($user, $resource);
     }
 
     public function canRestore(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user) || $this->isSystemAdmin($user);
-    }
-
-    private function isAdmin(?IdentityInterface $user): bool
-    {
-        $identity = $this->getOriginalIdentity($user);
-        if ($identity === null) {
-            return false;
-        }
-
-        if (is_object($identity) && method_exists($identity, 'get')) {
-            return UserRole::isAdmin((int)$identity->get('i_admin'));
-        }
-
-        if (is_array($identity)) {
-            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
-        }
-
-        if ($identity instanceof \ArrayAccess) {
-            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
-        }
-
-        return false;
+        return ($this->isAdmin($user) || $this->isSystemAdmin($user)) && $this->isSameTenant($user, $resource);
     }
 
     private function isOwner(?IdentityInterface $user, MUserInfo $resource): bool
@@ -129,32 +116,5 @@ class MUserInfoPolicy
         }
 
         return $identityId !== null && $identityId > 0 && $identityId === (int)$resource->i_id_user;
-    }
-
-    private function isSystemAdmin(?IdentityInterface $user): bool
-    {
-        $identity = $this->getOriginalIdentity($user);
-        if ($identity === null) {
-            return false;
-        }
-        if (is_object($identity) && method_exists($identity, 'get')) {
-            return UserRole::isSystemAdmin((int)$identity->get('i_admin'));
-        }
-        if (is_array($identity)) {
-            return UserRole::isSystemAdmin((int)($identity['i_admin'] ?? 0));
-        }
-        if ($identity instanceof \ArrayAccess) {
-            return UserRole::isSystemAdmin((int)($identity['i_admin'] ?? 0));
-        }
-        return false;
-    }
-
-    private function getOriginalIdentity(?IdentityInterface $user): object|array|null
-    {
-        if ($user === null) {
-            return null;
-        }
-
-        return $user->getOriginalData();
     }
 }
