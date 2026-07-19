@@ -32,6 +32,9 @@ final class FacilitySettingsController extends AppController
     {
         parent::initialize();
         $this->viewBuilder()->setLayout('default');
+        // テンプレートは生HTML inputを使用しているためFormProtectionのフィールドハッシュ検証を除外する。
+        // CSRF保護はミドルウェア層で適用済み。
+        $this->FormProtection->setConfig('unlockedActions', ['edit']);
     }
 
     public function index(): Response
