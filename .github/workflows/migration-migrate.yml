@@ -1,0 +1,70 @@
+name: マイグレーション 適用（緊急用）
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '対象環境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  migrate-production:
+    name: Migrate Production DB
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.environment == 'production' }}
+    steps:
+      - name: Migration Migrate via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH="/home/ubuntu/shokusuu1"
+
+            echo "── Migration status before migrate ──────────────────────────────"
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
+              php /var/www/html/kamaho-shokusu/bin/cake migrations status
+
+            echo "── Running migrations migrate ────────────────────────────────────"
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
+              php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+
+            echo "── Migration status after migrate ───────────────────────────────"
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
+              php /var/www/html/kamaho-shokusu/bin/cake migrations status
+
+  migrate-staging:
+    name: Migrate Staging DB
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.environment == 'staging' }}
+    steps:
+      - name: Migration Migrate via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.STG_HOST }}
+          username: ${{ secrets.STG_USER }}
+          key: ${{ secrets.STG_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+
+            echo "── Migration status before migrate ──────────────────────────────"
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations status
+
+            echo "── Running migrations migrate ────────────────────────────────────"
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
+
+            echo "── Migration status after migrate ───────────────────────────────"
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations status
