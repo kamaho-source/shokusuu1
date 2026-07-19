@@ -112,3 +112,16 @@ def bl_request(
             return None
 
     return None
+
+
+def get_status_id(base: str, api_key: str, project_key: str, status_name: str) -> int | None:
+    """プロジェクトのステータス一覧からステータスIDを取得する。見つからなければ None を返す。"""
+    statuses = bl_request(base, api_key, "GET", f"/projects/{project_key}/statuses", fatal=False)
+    if not statuses:
+        return None
+    for s in statuses:
+        if s.get("name") == status_name:
+            return s["id"]
+    available = [s.get("name") for s in statuses]
+    print(f"[WARN] ステータス '{status_name}' が見つかりません。利用可能: {available}")
+    return None

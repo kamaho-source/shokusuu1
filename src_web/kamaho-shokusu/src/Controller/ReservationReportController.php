@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Service\AuditLogService;
 use App\Service\MealReportingService;
 use App\Service\ReservationReportService;
 use Cake\Http\Response;
@@ -106,6 +107,20 @@ class ReservationReportController extends ReservationBaseController
                 $endDate->format('Y-m-d')
             );
 
+            $identity = $this->request->getAttribute('identity');
+            AuditLogService::record(
+                'system',
+                'excel_export',
+                $identity?->get('c_user_name') ?? '',
+                $identity ? (int)$identity->get('i_id_user') : 0,
+                't_reservation_info',
+                null,
+                ['from' => $from, 'to' => $to],
+                $this->getClientIp(),
+                1,
+                (string)($identity?->get('c_login_account') ?? '')
+            );
+
             return $this->apiResponseService->success($this->response, $result);
         } catch (\Throwable $e) {
             Log::write('error', $e->getMessage());
@@ -159,6 +174,20 @@ class ReservationReportController extends ReservationBaseController
             $startDate,
             $endDate,
             $emptyMsg
+        );
+
+        $identity = $this->request->getAttribute('identity');
+        AuditLogService::record(
+            'system',
+            'excel_export',
+            $identity?->get('c_user_name') ?? '',
+            $identity ? (int)$identity->get('i_id_user') : 0,
+            't_reservation_info',
+            null,
+            ['from' => $startDate, 'to' => $endDate],
+            $this->getClientIp(),
+            1,
+            (string)($identity?->get('c_login_account') ?? '')
         );
 
         return $this->apiResponseService->success($this->response, $finalOutput);

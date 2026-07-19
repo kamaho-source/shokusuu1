@@ -20,6 +20,8 @@ use Cake\ORM\Entity;
  * @property int $i_result             1:成功 0:失敗
  * @property string|null $c_detail     JSON文字列
  * @property \Cake\I18n\DateTime $dt_create
+ * @property int|null $tenant_id
+ * @property int|null $facility_id
  */
 class TAuditLog extends Entity
 {
@@ -35,5 +37,7 @@ class TAuditLog extends Entity
         'i_result'          => true,
         'c_detail'          => true,
         'dt_create'         => true,
+        'tenant_id'         => false,
+        'facility_id'       => false,
     ];
 }
