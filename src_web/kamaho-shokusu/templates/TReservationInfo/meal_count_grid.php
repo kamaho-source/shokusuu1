@@ -376,15 +376,17 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
 </div><!-- /.excel-window -->
 
 <script>
-/* ナビバーの実高さを CSS 変数にセット（excel-window の top 値に使用） */
+/* ナビバー＋テナントバナーの実高さを CSS 変数にセット（excel-window の top 値に使用） */
 (function () {
     function applyNavHeight() {
-        var nav = document.getElementById('mainNav');
-        if (nav) {
-            document.documentElement.style.setProperty('--mcg-nav-h', nav.offsetHeight + 'px');
-        }
+        var nav    = document.getElementById('mainNav');
+        var banner = document.querySelector('.tenant-context-banner');
+        var navH    = nav    ? nav.offsetHeight    : 0;
+        var bannerH = banner ? banner.offsetHeight : 0;
+        document.documentElement.style.setProperty('--mcg-nav-h', (navH + bannerH) + 'px');
     }
     applyNavHeight();
+    window.addEventListener('load', applyNavHeight);
     window.addEventListener('resize', applyNavHeight);
     // SPでハンバーガーメニュー開閉時もナビバー高さが変わるため追従する
     document.addEventListener('shown.bs.collapse', applyNavHeight);
