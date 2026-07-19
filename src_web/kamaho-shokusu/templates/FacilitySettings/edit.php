@@ -57,18 +57,34 @@ $this->assign('title', '施設別設定');
                 </div>
 
                 <div class="mb-3">
-                    <label for="fiscal_year_update_date" class="form-label">
+                    <label class="form-label">
                         年度更新日
-                        <span class="text-muted small">（空白の場合は設定なし。年は無視されます）</span>
+                        <span class="text-muted small">（空白の場合は設定なし）</span>
                     </label>
-                    <input
-                        type="date"
-                        id="fiscal_year_update_date"
-                        name="fiscal_year_update_date"
-                        class="form-control"
-                        style="max-width:200px"
-                        value="<?= h($setting->fiscalYearUpdateDate ?? '') ?>"
-                    >
+                    <?php
+                        $fyMonth = null;
+                        $fyDay   = null;
+                        if ($setting->fiscalYearUpdateDate !== null) {
+                            $parts   = explode('-', $setting->fiscalYearUpdateDate);
+                            $fyMonth = (int)($parts[1] ?? 0) ?: null;
+                            $fyDay   = (int)($parts[2] ?? 0) ?: null;
+                        }
+                    ?>
+                    <div class="d-flex align-items-center gap-2">
+                        <select id="fiscal_year_update_month" name="fiscal_year_update_month" class="form-select" style="max-width:100px">
+                            <option value="">--</option>
+                            <?php for ($m = 1; $m <= 12; $m++): ?>
+                                <option value="<?= $m ?>" <?= $fyMonth === $m ? 'selected' : '' ?>><?= $m ?>月</option>
+                            <?php endfor; ?>
+                        </select>
+                        <select id="fiscal_year_update_day" name="fiscal_year_update_day" class="form-select" style="max-width:90px">
+                            <option value="">--</option>
+                            <?php for ($d = 1; $d <= 31; $d++): ?>
+                                <option value="<?= $d ?>" <?= $fyDay === $d ? 'selected' : '' ?>><?= $d ?>日</option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                    <div class="text-muted small mt-1">月・日の両方を選択するか、両方とも「--」にしてください。</div>
                 </div>
             </div>
         </div>

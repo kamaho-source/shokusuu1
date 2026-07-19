@@ -85,7 +85,7 @@ final class FacilitySettingsController extends AppController
                     lunchBentoExclusive:      !empty($data['lunch_bento_exclusive']),
                     approvalEnabled:          !empty($data['approval_enabled']),
                     residentSelfEditEnabled:  !empty($data['resident_self_edit_enabled']),
-                    fiscalYearUpdateDate:     ($data['fiscal_year_update_date'] ?? '') !== '' ? $data['fiscal_year_update_date'] : null,
+                    fiscalYearUpdateDate:     $this->buildFiscalYearUpdateDate($data),
                     exportTemplateCode:       ($data['export_template_code'] ?? '') !== '' ? $data['export_template_code'] : null,
                     reservationDeadlineTime:  ($data['reservation_deadline_time'] ?? '') !== '' ? $data['reservation_deadline_time'] : null,
                 ));
@@ -100,5 +100,23 @@ final class FacilitySettingsController extends AppController
 
         $this->set('setting', $output);
         return null;
+    }
+
+    /**
+     * 月・日セレクトの値を `2000-MM-DD` 形式に変換する。
+     * 月か日のいずれかが未選択の場合は null を返す。
+     *
+     * @param array<string, mixed> $data
+     */
+    private function buildFiscalYearUpdateDate(array $data): ?string
+    {
+        $month = (int)($data['fiscal_year_update_month'] ?? 0);
+        $day   = (int)($data['fiscal_year_update_day']   ?? 0);
+
+        if ($month === 0 || $day === 0) {
+            return null;
+        }
+
+        return sprintf('2000-%02d-%02d', $month, $day);
     }
 }
