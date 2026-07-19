@@ -224,6 +224,7 @@ $csrfToken = (string)($this->request->getAttribute('csrfToken') ?? '');
                         <th class="fw-semibold text-muted text-center" style="width:90px;">残り日数</th>
                         <th class="fw-semibold text-muted text-center" style="width:80px;">ユーザー数</th>
                         <th class="fw-semibold text-muted text-center" style="width:100px;">状態</th>
+                        <th class="fw-semibold text-muted text-center" style="width:120px;">プラン</th>
                         <th class="fw-semibold text-muted text-center" style="width:60px;">操作</th>
                     </tr>
                 </thead>
@@ -317,6 +318,24 @@ foreach ($tenantList as $tenant):
                         <td class="text-center"><?= $userCount ?><span class="text-muted small">名</span></td>
                         <td class="text-center">
                             <span class="status-badge <?= $badgeClass ?>"><?= $badgeLabel ?></span>
+                        </td>
+                        <td class="text-center">
+                            <?php
+                                use App\Domain\ValueObject\PlanCode;
+                                $currentPlan = PlanCode::fromTenant($tenant->plan_code, $tenant->status);
+                            ?>
+                            <span class="badge <?= $currentPlan->badgeClass() ?> mb-1"><?= $currentPlan->label() ?></span>
+                            <form method="post" action="<?= $this->Url->build(['action' => 'updatePlan', $tenant->id]) ?>" class="d-flex justify-content-center gap-1 mt-1">
+                                <input type="hidden" name="_csrfToken" value="<?= h($csrfToken) ?>">
+                                <select name="plan_code" class="form-select form-select-sm" style="max-width:105px; font-size:0.75rem;">
+                                    <?php foreach (PlanCode::cases() as $pc): ?>
+                                        <option value="<?= $pc->value ?>" <?= $tenant->plan_code === $pc->value ? 'selected' : '' ?>><?= $pc->label() ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button type="submit" class="btn btn-outline-primary btn-sm px-1 py-0" title="プラン変更">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </form>
                         </td>
                         <td class="text-center">
                             <div class="dropdown">

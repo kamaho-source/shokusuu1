@@ -87,7 +87,11 @@ $recentNotifications     = $recentNotifications ?? [];
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm animate__animated animate__fadeIn" aria-labelledby="adminDropdown">
                                 <li><?= $this->Html->link('💰 食数単価一覧', ['controller' => 'MMealPriceInfo', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
+                                <?php if ($planGuard->allowsExcelExport()): ?>
                                 <li><?= $this->Html->link('📄 食事控除表', ['controller' => 'MMealPriceInfo', 'action' => 'GetMealSummary'], ['class' => 'dropdown-item']) ?></li>
+                                <?php else: ?>
+                                <li><span class="dropdown-item text-muted" title="<?= h($planGuard->upgradeRequiredMessage()) ?>">📄 食事控除表 <i class="bi bi-lock-fill small"></i></span></li>
+                                <?php endif; ?>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><?= $this->Html->link('🔄 部屋異動予約', ['controller' => 'MRoomTransferSchedule', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
                                 <li><hr class="dropdown-divider"></li>
@@ -98,6 +102,14 @@ $recentNotifications     = $recentNotifications ?? [];
                                 </li>
                             </ul>
                         </li>
+
+                        <?php if ($planGuard->allowsStatsAi()): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="<?= $this->Url->build('/StatsAi') ?>">
+                                <i class="bi bi-robot"></i>統計AI
+                            </a>
+                        </li>
+                        <?php endif; ?>
                     <?php endif; ?>
 
                     <?php if ($user): ?>

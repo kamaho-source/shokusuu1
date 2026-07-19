@@ -192,6 +192,10 @@ class MMealPriceInfoController extends AppController
     {
         $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'index');
 
+        if ($r = $this->rejectIfPlanBlocked($this->planGuard->allowsExcelExport())) {
+            return $r;
+        }
+
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();
 

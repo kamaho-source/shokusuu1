@@ -196,6 +196,10 @@ return function (RouteBuilder $routes): void {
             '/admin/tenants/update-status/{tenantId}',
             ['controller' => 'AdminTenants', 'action' => 'updateStatus']
         )->setMethods(['POST'])->setPatterns(['tenantId' => '\d+'])->setPass(['tenantId']);
+        $builder->connect(
+            '/admin/tenants/update-plan/{tenantId}',
+            ['controller' => 'AdminTenants', 'action' => 'updatePlan']
+        )->setMethods(['POST'])->setPatterns(['tenantId' => '\d+'])->setPass(['tenantId']);
 
         // テナント切り替え（後方互換のため残す）
         $builder->connect('/tenant/switch', ['controller' => 'TenantSwitcher', 'action' => 'switchTenant']);

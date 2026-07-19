@@ -105,6 +105,10 @@ class ReservationBulkController extends ReservationBaseController
     {
         $this->authorizeReservation('bulkAddForm');
 
+        if ($r = $this->rejectIfPlanBlocked($this->planGuard->allowsWeeklyBulk())) {
+            return $r;
+        }
+
         $selectedDate = $this->request->getQuery('date');
         if (!$selectedDate) {
             $this->Flash->error(__('日付が指定されていません。'));
@@ -146,6 +150,10 @@ class ReservationBulkController extends ReservationBaseController
     public function bulkChangeEditForm(): ?Response
     {
         $this->authorizeReservation('bulkChangeEditForm');
+
+        if ($r = $this->rejectIfPlanBlocked($this->planGuard->allowsWeeklyBulk())) {
+            return $r;
+        }
 
         $selectedDate = $this->request->getQuery('date');
         if (!$selectedDate) {

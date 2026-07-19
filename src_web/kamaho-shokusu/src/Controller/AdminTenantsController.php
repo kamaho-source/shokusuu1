@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Application\Tenant\TenantContext;
 use App\Application\Tenant\TenantContextHolder;
+use App\Domain\ValueObject\PlanCode;
 use App\Domain\ValueObject\UserRole;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
@@ -26,7 +27,7 @@ final class AdminTenantsController extends AppController
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
-        $this->FormProtection->setConfig('unlockedActions', ['enter', 'exitTenant', 'updateStatus']);
+        $this->FormProtection->setConfig('unlockedActions', ['enter', 'exitTenant', 'updateStatus', 'updatePlan']);
     }
 
     public function initialize(): void
@@ -388,5 +389,41 @@ final class AdminTenantsController extends AppController
 
         $this->Flash->success("テナント「{$tenant->name}」のステータスを「{$status}」に変更しました。");
         return $this->redirect(['action' => 'index']);
+    }
+
+    /**
+     * テナントのプランコードを変更する（POST）
+     */
+    public function updatePlan(int $tenantId): ?Response
+    {
+        try {
+            $this->Authorization->authorize($this, 'updateStatus');
+        } catch (ForbiddenException) {
+            $this->Flash->error('この機能はシステム管理者のみ利用できます。');
+            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
+        }
+
+        $this->request->allowMethod(['post']);
+        $planCode = (string)$this->request->getData('plan_code');
+
+        $validCodes = array_map(fn(PlanCode $p) => $p->value, PlanCode::cases());
+        if (!in_array($planCode, $validCodes, true)) {
+            $this->Flash->error('不正なプランコードです。');
+            return $this->redirect(['action' => 'trials']);
+        }
+
+        $tenantsTable = $this->fetchTable('Tenants');
+        $tenant       = $tenantsTable->get($tenantId);
+        $now          = DateTime::now('Asia/Tokyo');
+
+        $tenant = $tenantsTable->patchEntity($tenant, [
+            'plan_code'  => $planCode,
+            'updated_at' => $now->format('Y-m-d H:i:s'),
+        ]);
+        $tenantsTable->save($tenant);
+
+        $label = PlanCode::from($planCode)->label();
+        $this->Flash->success("テナント「{$tenant->name}」のプランを「{$label}」に変更しました。");
+        return $this->redirect(['action' => 'trials']);
     }
 }

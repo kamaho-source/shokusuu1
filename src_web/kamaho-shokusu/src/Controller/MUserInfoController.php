@@ -202,6 +202,23 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
+        // プラン入居者数上限チェック
+        $facilityId = (int)($this->request->getAttribute('identity')?->get('facility_id') ?? 0);
+        if ($facilityId > 0) {
+            $currentCount = $this->MUserInfo->find()
+                ->where(['facility_id' => $facilityId, 'i_del_flag' => 0])
+                ->count();
+            if ($this->planGuard->isResidentLimitReached($currentCount)) {
+                $max = $this->planGuard->maxResidents();
+                $this->Flash->error(sprintf(
+                    '入居者の登録上限（%d名）に達しています。%s',
+                    $max,
+                    $this->planGuard->upgradeRequiredMessage()
+                ));
+                return $this->redirect(['action' => 'index']);
+            }
+        }
+
         $mUserInfo->i_del_flag   = 0;
         $mUserInfo->dt_create    = date('Y-m-d H:i:s');
         $mUserInfo->i_enable     = 0;

@@ -82,6 +82,10 @@ class ReservationReportController extends ReservationBaseController
             return $denied;
         }
 
+        if ($r = $this->rejectIfPlanBlocked($this->planGuard->allowsExcelExport(), isJson: true)) {
+            return $r;
+        }
+
         try {
             $from = $this->request->getQuery('from');
             $to   = $this->request->getQuery('to');
@@ -140,6 +144,10 @@ class ReservationReportController extends ReservationBaseController
     {
         if ($denied = $this->authorizeReservation('exportJsonrank', [], true)) {
             return $denied;
+        }
+
+        if ($r = $this->rejectIfPlanBlocked($this->planGuard->allowsExcelExport(), isJson: true)) {
+            return $r;
         }
 
         $this->autoRender = false;

@@ -10,6 +10,7 @@ use App\Service\AiStatsContextService;
 use App\Service\AuditLogService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
+use Cake\Http\Response;
 use Cake\Http\ServerRequest;
 use Cake\Log\Log;
 
@@ -84,9 +85,13 @@ final class StatsAiController extends AppController
      * AI回答内の [U:<ハッシュ>] トークンを画面側で氏名に変換するため、
      * ハッシュトークン→氏名マップをビューに渡す（氏名・内部IDは外部AI APIへは送信されない）。
      */
-    public function index(): void
+    public function index(): ?Response
     {
         $this->Authorization->authorize($this, 'index');
+
+        if ($r = $this->rejectIfPlanBlocked($this->planGuard->allowsStatsAi())) {
+            return $r;
+        }
 
         $indexCtx = TenantContextHolder::get();
         $usersIndexQuery = $this->fetchTable('MUserInfo')->find('list', [
@@ -134,6 +139,13 @@ final class StatsAiController extends AppController
         $this->autoRender = false;
         $this->request->allowMethod(['post']);
         $this->Authorization->authorize($this, 'askStream');
+
+        if (!$this->planGuard->allowsStatsAi()) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => $this->planGuard->upgradeRequiredMessage(), 'plan_upgrade_required' => true], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
         $apiKey = env('OPENROUTER_API_KEY');
         if (empty($apiKey)) {
