@@ -226,7 +226,10 @@ $this->assign('title', '施設別設定');
         </div>
 
         <!-- 保存ボタン -->
-        <div class="d-flex justify-content-end gap-2 mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-5">
+            <a href="<?= $this->Url->build('/facility-settings/history') ?>" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-clock-history me-1"></i>変更履歴を見る
+            </a>
             <button type="submit" class="btn btn-primary px-4">
                 <i class="bi bi-floppy me-1"></i>設定を保存する
             </button>

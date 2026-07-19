@@ -419,6 +419,8 @@ return function (RouteBuilder $routes): void {
         // ── 施設別設定 ──
         $builder->connect('/facility-settings/edit', ['controller' => 'FacilitySettings', 'action' => 'edit'])
             ->setMethods(['GET', 'POST']);
+        $builder->connect('/facility-settings/history', ['controller' => 'FacilitySettings', 'action' => 'history'])
+            ->setMethods(['GET']);
 
         // フォールバック
         $builder->fallbacks(DashedRoute::class);
