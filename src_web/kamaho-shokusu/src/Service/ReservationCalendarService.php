@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -63,17 +62,12 @@ class ReservationCalendarService
             // m_room_info には i_disp_no カラムが存在するため固定使用
             $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
-            $query = $roomTable->find('list', [
+            return $roomTable->find('list', [
                 'keyField'   => 'i_id_room',
                 'valueField' => 'c_room_name',
-            ])->orderBy($roomOrder);
-
-            $ctx = TenantContextHolder::get();
-            if ($ctx !== null) {
-                $query->where(['tenant_id' => $ctx->tenantId()]);
-            }
-
-            return $query->toArray();
+            ])
+                ->orderBy($roomOrder)
+                ->toArray();
         }
 
         if ($isOfficeUser) {
@@ -149,11 +143,6 @@ class ReservationCalendarService
         }
         if ($endDate !== null) {
             $query->where(['d_reservation_date <' => $endDate]);
-        }
-
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $query->where(['tenant_id' => $ctx->tenantId()]);
         }
 
         $rows = $query->toArray();
@@ -259,57 +248,36 @@ class ReservationCalendarService
         array $mealDataArray,
         array $myReservationDetails,
         Date $startDate,
-        Date $endDate,
-        bool $showPersonalStatus = true
+        Date $endDate
     ): array {
+        $myReservationDates = $this->buildMyReservationDates($myReservationDetails);
         $events = [];
 
-        if ($showPersonalStatus) {
-            $myReservationDates = $this->buildMyReservationDates($myReservationDetails);
-
-            $iconFn = function ($v) {
-                if ($v === null) {
-                    return '×';
-                }
-                return $v ? '⚪︎' : '×';
-            };
-
-            foreach ($myReservationDates as $reservedDate) {
-                $detail = $myReservationDetails[$reservedDate] ?? [];
-                $title = sprintf(
-                    '朝:%s 昼:%s 夜:%s 弁:%s',
-                    $iconFn($detail['breakfast'] ?? null),
-                    $iconFn($detail['lunch']     ?? null),
-                    $iconFn($detail['dinner']    ?? null),
-                    $iconFn($detail['bento']     ?? null)
-                );
-                $events[] = [
-                    'title' => $title,
-                    'start' => $reservedDate,
-                    'allDay' => true,
-                    'backgroundColor' => '#28a745',
-                    'borderColor' => '#28a745',
-                    'textColor' => 'white',
-                    'extendedProps' => ['displayOrder' => -2],
-                ];
+        $iconFn = function ($v) {
+            if ($v === null) {
+                return '×';
             }
+            return $v ? '⚪︎' : '×';
+        };
 
-            $dateCursor = $startDate;
-            while ($dateCursor < $endDate) {
-                $dateStr = $dateCursor->format('Y-m-d');
-                if (!in_array($dateStr, $myReservationDates, true)) {
-                    $events[] = [
-                        'title' => '未予約',
-                        'start' => $dateStr,
-                        'allDay' => true,
-                        'backgroundColor' => '#fd7e14',
-                        'borderColor' => '#fd7e14',
-                        'textColor' => 'white',
-                        'extendedProps' => ['displayOrder' => -10],
-                    ];
-                }
-                $dateCursor = $dateCursor->addDays(1);
-            }
+        foreach ($myReservationDates as $reservedDate) {
+            $detail = $myReservationDetails[$reservedDate] ?? [];
+            $title = sprintf(
+                '朝:%s 昼:%s 夜:%s 弁:%s',
+                $iconFn($detail['breakfast'] ?? null),
+                $iconFn($detail['lunch']     ?? null),
+                $iconFn($detail['dinner']    ?? null),
+                $iconFn($detail['bento']     ?? null)
+            );
+            $events[] = [
+                'title' => $title,
+                'start' => $reservedDate,
+                'allDay' => true,
+                'backgroundColor' => '#28a745',
+                'borderColor' => '#28a745',
+                'textColor' => 'white',
+                'extendedProps' => ['displayOrder' => -2],
+            ];
         }
 
         $mealTypes = ['1' => '朝', '2' => '昼', '3' => '夜', '4' => '弁'];
@@ -326,6 +294,23 @@ class ReservationCalendarService
             }
         }
 
+        $dateCursor = $startDate;
+        while ($dateCursor < $endDate) {
+            $dateStr = $dateCursor->format('Y-m-d');
+            if (!in_array($dateStr, $myReservationDates, true)) {
+                $events[] = [
+                    'title' => '未予約',
+                    'start' => $dateStr,
+                    'allDay' => true,
+                    'backgroundColor' => '#fd7e14',
+                    'borderColor' => '#fd7e14',
+                    'textColor' => 'white',
+                    'extendedProps' => ['displayOrder' => -10],
+                ];
+            }
+            $dateCursor = $dateCursor->addDays(1);
+        }
+
         return $events;
     }
 
@@ -337,17 +322,11 @@ class ReservationCalendarService
     ): array {
         $borderDate = $borderDate ?? $this->datePolicy->changeBoundaryDate();
 
-        $query = $reservationTable->find()
+        $rows = $reservationTable->find()
             ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
             ->where(['d_reservation_date >=' => $startDate])
-            ->where(['d_reservation_date <' => $endDate]);
-
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $query->where(['tenant_id' => $ctx->tenantId()]);
-        }
-
-        $rows = $query->toArray();
+            ->where(['d_reservation_date <' => $endDate])
+            ->toArray();
 
         $dateCounts = [];
         foreach ($rows as $r) {

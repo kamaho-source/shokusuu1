@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Application\Tenant\TenantContextHolder;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Response;
@@ -47,16 +46,9 @@ class MNoticeController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $noticeCtx = TenantContextHolder::get();
-        $noticeQuery = $table->find()->orderByDesc('dt_create');
-        if ($noticeCtx !== null) {
-            // テナント固有(i_type=0)はテナント絞り込み、全体通知(i_type=1)は常に表示
-            $noticeQuery->where(['OR' => [
-                ['i_type' => 1],
-                ['i_type' => 0, 'tenant_id' => $noticeCtx->tenantId()],
-            ]]);
-        }
-        $notices = $noticeQuery->all();
+        $notices = $table->find()
+            ->orderByDesc('dt_create')
+            ->all();
 
         $this->set(compact('notices'));
         return null;
@@ -123,11 +115,6 @@ class MNoticeController extends AppController
             $notice->i_id_user_created = (int)($loginUser?->get('i_id_user') ?? 0);
             $notice->c_create_user     = $loginUser?->get('c_user_name') ?? 'system';
             $notice->c_update_user     = $loginUser?->get('c_user_name') ?? 'system';
-            // テナント固有お知らせ(i_type=0)にはテナントIDを付与する
-            if ($notice->i_type === 0) {
-                $addNoticeCtx = TenantContextHolder::get();
-                $notice->tenant_id = $addNoticeCtx !== null ? $addNoticeCtx->tenantId() : null;
-            }
 
             if ($table->save($notice)) {
                 \App\Service\AuditLogService::record(

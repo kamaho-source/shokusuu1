@@ -16,9 +16,6 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
-use App\Application\Tenant\TenantContext;
-use App\Application\Tenant\TenantContextHolder;
-use App\Domain\ValueObject\UserRole;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -128,55 +125,11 @@ class AppController extends Controller
         return (string)$this->request->clientIp();
     }
 
-    /**
-     * リクエストのテナントコンテキストを返す。
-     * TenantResolutionMiddleware が設定した request attribute から取得する。
-     */
-    protected function getTenantContext(): ?TenantContext
-    {
-        return $this->request->getAttribute('tenantContext');
-    }
-
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
         $this->Authentication->allowUnauthenticated(['login']);
         $user = $this->Authentication->getIdentity();
-
-        // システム管理者（i_admin=3）はテナントセッションに従いコンテキストを切り替える。
-        // セッション未設定（全テナントモード）の場合はコンテキストをクリアして全データを参照可能にする。
-        if ($user !== null && UserRole::isSystemAdmin((int)$user->get('i_admin'))) {
-            $tenantsTable = $this->fetchTable('Tenants');
-            $allTenants   = $tenantsTable->find()->orderBy(['id' => 'ASC'])->all()->toArray();
-
-            $activeTenantId = $this->request->getSession()->read('SystemAdmin.activeTenantId');
-            if ($activeTenantId !== null) {
-                $activeTenantId   = (int)$activeTenantId;
-                $activeTenantEntity = null;
-                foreach ($allTenants as $t) {
-                    if ($t->id === $activeTenantId) {
-                        $activeTenantEntity = $t;
-                        break;
-                    }
-                }
-                if ($activeTenantEntity !== null) {
-                    TenantContextHolder::set(new TenantContext(
-                        tenantId:     $activeTenantEntity->id,
-                        tenantCode:   $activeTenantEntity->tenant_code,
-                        tenantStatus: $activeTenantEntity->status,
-                    ));
-                } else {
-                    TenantContextHolder::clear();
-                    $activeTenantId = null;
-                    $this->request->getSession()->delete('SystemAdmin.activeTenantId');
-                }
-            } else {
-                TenantContextHolder::clear();
-            }
-
-            $this->set('allTenants', $allTenants);
-            $this->set('activeTenantId', $activeTenantId);
-        }
 
         $this->set('user', $user);
         if ($user !== null) {

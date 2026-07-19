@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
-use App\Infrastructure\Table\TenantAwareTableTrait;
 use Cake\ORM\Query\SelectQuery;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
@@ -28,8 +27,6 @@ use Cake\Validation\Validator;
  */
 class TReservationInfoTable extends Table
 {
-    use TenantAwareTableTrait;
-
     /**
      * Initialize method
      *

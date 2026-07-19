@@ -125,11 +125,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/6');
+        $this->post('/MUserInfo/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
         $this->assertSame(0, (int)$user->i_del_flag);
     }
 
@@ -138,11 +138,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/6');
+        $this->post('/MUserInfo/restore/1');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
         $this->assertSame(1, (int)$user->i_del_flag);
     }
 

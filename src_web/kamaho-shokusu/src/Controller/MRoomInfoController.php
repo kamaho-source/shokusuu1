@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Application\Tenant\TenantContextHolder;
 use App\Service\RoomService;
 use Authorization\Exception\ForbiddenException;
 use Cake\I18n\DateTime;
@@ -43,10 +42,6 @@ class MRoomInfoController extends AppController
         }
 
         $query = $this->MRoomInfo->find()->where(['i_del_flg' => 0]);
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $query->where(['tenant_id' => $ctx->tenantId()]);
-        }
         $mRoomInfo = $this->paginate($query);
 
         $this->set(compact('mRoomInfo'));

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Application\Tenant\TenantContextHolder;
 use App\Model\Table\MRoomTransferScheduleTable;
 use App\Service\RoomTransferScheduleService;
 use Authorization\Exception\ForbiddenException;
@@ -46,11 +45,6 @@ class MRoomTransferScheduleController extends AppController
         $conditions   = [];
         if (in_array($statusFilter, ['0', '1', '2'], true)) {
             $conditions['MRoomTransferSchedule.i_status'] = (int)$statusFilter;
-        }
-
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $conditions['MRoomTransferSchedule.tenant_id'] = $ctx->tenantId();
         }
 
         $schedules = $table->find()
@@ -109,25 +103,15 @@ class MRoomTransferScheduleController extends AppController
             }
         }
 
-        $addCtx = TenantContextHolder::get();
-
-        $usersQuery = $this->fetchTable('MUserInfo')->find('list', [
+        $users = $this->fetchTable('MUserInfo')->find('list', [
             'keyField'   => 'i_id_user',
             'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0])->orderByAsc('i_disp_no');
-        if ($addCtx !== null) {
-            $usersQuery->where(['MUserInfo.tenant_id' => $addCtx->tenantId()]);
-        }
-        $users = $usersQuery->toArray();
+        ])->where(['i_del_flag' => 0])->orderByAsc('i_disp_no')->toArray();
 
-        $roomsQuery = $this->fetchTable('MRoomInfo')->find('list', [
+        $rooms = $this->fetchTable('MRoomInfo')->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ]);
-        if ($addCtx !== null) {
-            $roomsQuery->where(['tenant_id' => $addCtx->tenantId()]);
-        }
-        $rooms = $roomsQuery->toArray();
+        ])->toArray();
 
         $userRoomRows = $this->fetchTable('MUserGroup')->find()
             ->select(['i_id_user', 'i_id_room'])

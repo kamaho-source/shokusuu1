@@ -3,14 +3,14 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
+
 use App\Model\Entity\TReservationInfo;
 use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
 
 class TReservationInfoPolicy
 {
-    use PolicyTrait;
-
     private RoomAccessService $roomAccessService;
 
     public function __construct(?RoomAccessService $roomAccessService = null)
@@ -243,6 +243,104 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user);
     }
 
+    private function isAuthenticated(?IdentityInterface $user): bool
+    {
+        return $this->getOriginalIdentity($user) !== null;
+    }
+
+    private function isAdmin(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return UserRole::isAdmin((int)$identity->get('i_admin'));
+        }
+
+        if (is_array($identity)) {
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
+        }
+
+        if ($identity instanceof \ArrayAccess) {
+            return UserRole::isAdmin((int)($identity['i_admin'] ?? 0));
+        }
+
+        return false;
+    }
+
+    private function isStaff(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return in_array((int)$identity->get('i_user_level'), [0, 7], true);
+        }
+
+        if (is_array($identity)) {
+            return in_array((int)($identity['i_user_level'] ?? -1), [0, 7], true);
+        }
+
+        if ($identity instanceof \ArrayAccess) {
+            return in_array((int)($identity['i_user_level'] ?? -1), [0, 7], true);
+        }
+
+        return false;
+    }
+
+    public function isBlockLeader(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return UserRole::isBlockLeader((int)$identity->get('i_admin'));
+        }
+
+        if (is_array($identity)) {
+            return UserRole::isBlockLeader((int)($identity['i_admin'] ?? 0));
+        }
+
+        if ($identity instanceof \ArrayAccess) {
+            return UserRole::isBlockLeader((int)($identity['i_admin'] ?? 0));
+        }
+
+        return false;
+    }
+
+    private function isStaffOrAdmin(?IdentityInterface $user): bool
+    {
+        return $this->isAdmin($user) || $this->isStaff($user);
+    }
+
+    private function hasStaffId(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        $staffId = null;
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            $staffId = $identity->get('i_id_staff');
+        } elseif (is_array($identity) || $identity instanceof \ArrayAccess) {
+            $staffId = $identity['i_id_staff'] ?? null;
+        }
+
+        return $staffId !== null && $staffId !== '' && $staffId !== 0;
+    }
+
+    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
+    {
+        return $this->isAdmin($user) || $this->isBlockLeader($user);
+    }
+
     private function canAccessRoom(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         $requestedRoomId = (int)($resource->get('i_id_room') ?? 0);
@@ -262,16 +360,34 @@ class TReservationInfoPolicy
         return $this->roomAccessService->userCanAccessRoom($userId, $requestedRoomId);
     }
 
-    /**
-     * ユーザーがいずれかの部屋に所属しているかを確認する（居住者・所属職員）。
-     * canChangeEdit で職員・管理者以外の部屋所属ユーザーに変更権限を与えるために使用する。
-     */
-    private function isRoomAffiliated(?IdentityInterface $user): bool
+    private function getUserId(?IdentityInterface $user): int
     {
-        $userId = $this->getUserId($user);
-        if ($userId <= 0) {
-            return false;
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return 0;
         }
-        return $this->roomAccessService->hasAnyAffiliation($userId);
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return (int)$identity->get('i_id_user');
+        }
+
+        if (is_array($identity)) {
+            return (int)($identity['i_id_user'] ?? 0);
+        }
+
+        if ($identity instanceof \ArrayAccess) {
+            return (int)($identity['i_id_user'] ?? 0);
+        }
+
+        return 0;
+    }
+
+    private function getOriginalIdentity(?IdentityInterface $user): object|array|null
+    {
+        if ($user === null) {
+            return null;
+        }
+
+        return $user->getOriginalData();
     }
 }

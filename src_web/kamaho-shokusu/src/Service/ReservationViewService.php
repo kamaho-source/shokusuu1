@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Application\Tenant\TenantContextHolder;
 use App\Domain\ValueObject\UserRole;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
@@ -70,15 +69,10 @@ class ReservationViewService
         $diffDays = $today->diff($targetDate)->days;
         $judgeColumn = $this->datePolicy->judgeColumn($targetDate, $today, 'Asia/Tokyo');
 
-        $viewCtx = TenantContextHolder::get();
-        $roomListQuery = $roomTable->find('list', [
+        $rooms = $roomTable->find('list', [
             'keyField' => 'i_id_room',
             'valueField' => 'c_room_name',
-        ]);
-        if ($viewCtx !== null) {
-            $roomListQuery->where(['tenant_id' => $viewCtx->tenantId()]);
-        }
-        $rooms = $roomListQuery->toArray();
+        ])->toArray();
 
         $authorizedRooms = [];
         if ($user !== null) {
@@ -109,14 +103,6 @@ class ReservationViewService
         $userMealMap = [];
         $otherRoomMealMap = [];
         if ($activeRoomId > 0) {
-            $userWhereView = [
-                'MUserGroup.i_id_room' => $activeRoomId,
-                'MUserGroup.active_flag' => 0,
-                'MUserInfo.i_del_flag' => 0,
-            ];
-            if ($viewCtx !== null) {
-                $userWhereView['MUserGroup.tenant_id'] = $viewCtx->tenantId();
-            }
             $users = $userGroupTable->find()
                 ->select([
                     'MUserGroup.i_id_user',
@@ -128,7 +114,11 @@ class ReservationViewService
                     ['MUserInfo' => 'm_user_info'],
                     ['MUserInfo.i_id_user = MUserGroup.i_id_user']
                 )
-                ->where($userWhereView)
+                ->where([
+                    'MUserGroup.i_id_room' => $activeRoomId,
+                    'MUserGroup.active_flag' => 0,
+                    'MUserInfo.i_del_flag' => 0,
+                ])
                 ->order(['MUserGroup.i_id_user' => 'ASC'])
                 ->enableHydration(false)
                 ->all();
@@ -153,18 +143,14 @@ class ReservationViewService
             };
 
             if (!empty($activeUserIds)) {
-                $reservWhereView = [
-                    'i_id_user IN' => $activeUserIds,
-                    'd_reservation_date' => $targetDate->format('Y-m-d'),
-                    'i_reservation_type IN' => [1, 2, 3, 4],
-                ];
-                if ($viewCtx !== null) {
-                    $reservWhereView['tenant_id'] = $viewCtx->tenantId();
-                }
                 $rows = $reservationTable->find()
                     ->enableAutoFields(false)
                     ->select(['i_id_user', 'i_id_room', 'i_reservation_type', 'eat_flag', 'i_change_flag'])
-                    ->where($reservWhereView)
+                    ->where([
+                        'i_id_user IN' => $activeUserIds,
+                        'd_reservation_date' => $targetDate->format('Y-m-d'),
+                        'i_reservation_type IN' => [1, 2, 3, 4],
+                    ])
                     ->all();
 
                 foreach ($rows as $r) {
@@ -188,10 +174,6 @@ class ReservationViewService
         $mealDataArray = [];
 
         $totalUsersPerRoom = [];
-        $ucWhere = ['MUserGroup.active_flag' => 0, 'MUserInfo.i_del_flag' => 0];
-        if ($viewCtx !== null) {
-            $ucWhere['MUserGroup.tenant_id'] = $viewCtx->tenantId();
-        }
         $userCounts = $userGroupTable->find()
             ->enableAutoFields(false)
             ->select([
@@ -202,7 +184,10 @@ class ReservationViewService
                 ['MUserInfo' => 'm_user_info'],
                 ['MUserInfo.i_id_user = MUserGroup.i_id_user']
             )
-            ->where($ucWhere)
+            ->where([
+                'MUserGroup.active_flag' => 0,
+                'MUserInfo.i_del_flag' => 0,
+            ])
             ->andWhere(function ($exp) use ($targetDate) {
                 return $exp->lte('MUserInfo.dt_create', $targetDate->format('Y-m-d'));
             })
@@ -215,17 +200,13 @@ class ReservationViewService
         foreach ($mealTypes as $mealType => $mealLabel) {
             $mealDataArray[$mealLabel] = [];
 
-            $roomRowsWhere = [
-                'd_reservation_date' => $targetDate->format('Y-m-d'),
-                'i_reservation_type' => $mealType,
-            ];
-            if ($viewCtx !== null) {
-                $roomRowsWhere['tenant_id'] = $viewCtx->tenantId();
-            }
             $roomRows = $reservationTable->find()
                 ->enableAutoFields(false)
                 ->select(['room_id' => 'TIndividualReservationInfo.i_id_room'])
-                ->where($roomRowsWhere)
+                ->where([
+                    'd_reservation_date' => $targetDate->format('Y-m-d'),
+                    'i_reservation_type' => $mealType,
+                ])
                 ->group(['TIndividualReservationInfo.i_id_room'])
                 ->all();
 
@@ -242,21 +223,17 @@ class ReservationViewService
             }
 
             $eaterCounts = [];
-            $eaterRowsWhere = [
-                'd_reservation_date' => $targetDate->format('Y-m-d'),
-                'i_reservation_type' => $mealType,
-                "TIndividualReservationInfo.{$judgeColumn}" => 1,
-            ];
-            if ($viewCtx !== null) {
-                $eaterRowsWhere['tenant_id'] = $viewCtx->tenantId();
-            }
             $eaterRows = $reservationTable->find()
                 ->enableAutoFields(false)
                 ->select([
                     'room_id' => 'TIndividualReservationInfo.i_id_room',
                     'cnt' => $reservationTable->find()->func()->count('DISTINCT TIndividualReservationInfo.i_id_user'),
                 ])
-                ->where($eaterRowsWhere)
+                ->where([
+                    'd_reservation_date' => $targetDate->format('Y-m-d'),
+                    'i_reservation_type' => $mealType,
+                    "TIndividualReservationInfo.{$judgeColumn}" => 1,
+                ])
                 ->group(['TIndividualReservationInfo.i_id_room'])
                 ->all();
             foreach ($eaterRows as $row) {

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
@@ -250,10 +249,7 @@ class ActualMealManagementService
         if ($entity === null) {
             // 新規作成
             try {
-                $actualCtx = TenantContextHolder::get();
                 $newEntity = $reservationTable->newEmptyEntity();
-                $newEntity->tenant_id          = $actualCtx !== null ? $actualCtx->tenantId() : 1;
-                $newEntity->facility_id        = $actualCtx !== null ? $actualCtx->tenantId() : 1;
                 $newEntity->i_id_user          = $userId;
                 $newEntity->d_reservation_date = $date;
                 $newEntity->i_id_room          = $roomId;

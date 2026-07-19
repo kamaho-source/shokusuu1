@@ -15,8 +15,6 @@ use Cake\ORM\Entity;
  * @property int $i_is_read
  * @property \Cake\I18n\DateTime|null $dt_read
  * @property \Cake\I18n\DateTime $dt_create
- * @property int|null $tenant_id
- * @property int|null $facility_id
  */
 class TNotification extends Entity
 {
@@ -27,9 +25,7 @@ class TNotification extends Entity
         'c_message' => true,
         'c_link' => true,
         'i_is_read' => true,
-        'dt_read'      => true,
-        'dt_create'    => true,
-        'tenant_id'    => false,
-        'facility_id'  => false,
+        'dt_read' => true,
+        'dt_create' => true,
     ];
 }

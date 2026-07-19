@@ -16,8 +16,6 @@ use Cake\ORM\Entity;
  * @property int|null $i_disp_no
  * @property int|null $i_enable
  * @property int|null $i_del_flag
- * @property int|null $tenant_id
- * @property int|null $facility_id
  * @property \Cake\I18n\DateTime|null $dt_create
  * @property string|null $c_create_user
  * @property \Cake\I18n\DateTime|null $dt_update
@@ -50,10 +48,8 @@ class MUserInfo extends Entity
         'i_del_flag' => true,
         'dt_create' => true,
         'c_create_user' => true,
-        'dt_update'    => true,
+        'dt_update' => true,
         'c_update_user' => true,
-        'tenant_id'    => false,
-        'facility_id'  => false,
     ];
 
 }

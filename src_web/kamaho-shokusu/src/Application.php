@@ -41,7 +41,6 @@ use Cake\Http\Middleware\SecurityHeadersMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Middleware\AssetMiddleware;
-use App\Middleware\TenantResolutionMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 
 class Application extends BaseApplication implements AuthenticationServiceProviderInterface, AuthorizationServiceProviderInterface
@@ -81,8 +80,6 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->add(new BodyParserMiddleware())
             ->add(new CsrfProtectionMiddleware(['httponly' => true]));
 
-        $middlewareQueue->add(new TenantResolutionMiddleware());
-
         // AuthenticationMiddleware はオプションなしで登録
         $middlewareQueue->add(new AuthenticationMiddleware($this));
         $middlewareQueue->add(new AuthorizationMiddleware($this, [
@@ -117,15 +114,11 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         ]);
 
         // 識別子の設定
-        // finder: 'forAuthentication' によりテナント境界・有効ユーザーの条件を付与する
-        // tenant_id / facility_id をセッションアイデンティティに含めることで
-        // Phase 2 以降の認可チェックで参照可能にする
         $authenticationService->loadIdentifier('Authentication.Password', [
             'resolver' => [
                 'className' => 'Authentication.Orm',
                 'userModel' => 'MUserInfo',
-                'finder'    => 'forAuthentication',
-                'fields'    => ['i_id_user', 'c_login_account', 'c_user_name', 'i_admin', 'i_user_level', 'tenant_id', 'facility_id'],
+                'fields'    => ['i_id_user', 'c_login_account', 'c_user_name', 'i_admin', 'i_user_level'],
             ],
             'fields' => [
                 'username' => 'c_login_account',
@@ -179,11 +172,6 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(AiStatsContextService::class)
             ->addArgument(UserTokenizer::class)
             ->addArgument(ServerRequest::class);
-
-        $container->add(\App\Application\UseCase\FacilitySetting\GetFacilitySettingUseCase::class)
-            ->addArgument(\App\Model\Table\FacilitySettingsTable::class);
-        $container->add(\App\Application\UseCase\FacilitySetting\SaveFacilitySettingUseCase::class)
-            ->addArgument(\App\Model\Table\FacilitySettingsTable::class);
     }
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
@@ -198,7 +186,6 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\FeatureUsageSummaryController::class => \App\Policy\FeatureUsageSummaryPolicy::class,
             \App\Controller\AiAssistantController::class      => \App\Policy\AiAssistantPolicy::class,
             \App\Controller\StatsAiController::class          => \App\Policy\StatsAiPolicy::class,
-            \App\Controller\AdminTenantsController::class     => \App\Policy\AdminTenantsPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック

@@ -180,21 +180,21 @@ class ReservationCalendarServiceTest extends TestCase
     /** 複数部屋所属のブロック長には所属している全部屋を返す */
     public function testGetRoomsForUser_blockLeaderReturnsAllBelongingRooms(): void
     {
-        $this->insertRoom(102, '第二の部屋', 0);
+        $this->insertRoom(2, '第二の部屋', 0);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 102], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
 
-        $this->assertSame([1, 102], array_keys($result));
+        $this->assertSame([1, 2], array_keys($result));
     }
 
     /** ブロック長でも削除済みの部屋は返さない */
     public function testGetRoomsForUser_blockLeaderExcludesDeletedRooms(): void
     {
-        $this->insertRoom(103, '削除済みの部屋', 1);
+        $this->insertRoom(3, '削除済みの部屋', 1);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 103], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 3], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
 
         $this->assertSame([1], array_keys($result));
     }
@@ -202,10 +202,10 @@ class ReservationCalendarServiceTest extends TestCase
     /** ブロック長以外の一般ユーザーは従来どおり primary room のみ */
     public function testGetRoomsForUser_regularUserReturnsPrimaryRoomOnly(): void
     {
-        $this->insertRoom(102, '第二の部屋', 0);
+        $this->insertRoom(2, '第二の部屋', 0);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 102], isAdmin: false);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false);
 
         $this->assertSame([1], array_keys($result));
     }
