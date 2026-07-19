@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -24,6 +25,11 @@ class ReservationQueryService
 
     public function getUsersByRoom(Table $userGroupTable, Table $reservationTable, int $roomId, ?string $date): array
     {
+        $qCtx = TenantContextHolder::get();
+        $userWhere = ['MUserGroup.i_id_room' => $roomId, 'MUserGroup.active_flag' => 0];
+        if ($qCtx !== null) {
+            $userWhere['MUserGroup.tenant_id'] = $qCtx->tenantId();
+        }
         $users = $userGroupTable->find()
             ->enableAutoFields(false)
             ->select([
@@ -35,7 +41,7 @@ class ReservationQueryService
                 ['MUserInfo' => 'm_user_info'],
                 ['MUserInfo.i_id_user = MUserGroup.i_id_user']
             )
-            ->where(['MUserGroup.i_id_room' => $roomId, 'MUserGroup.active_flag' => 0])
+            ->where($userWhere)
             ->andWhere(['MUserInfo.i_del_flag' => 0])
             ->enableHydration(false)
             ->toArray();
@@ -50,12 +56,16 @@ class ReservationQueryService
                 $useChangeFlag = false;
             }
 
+            $reservWhere = [
+                'i_id_room' => $roomId,
+                'd_reservation_date' => $date,
+            ];
+            if ($qCtx !== null) {
+                $reservWhere['tenant_id'] = $qCtx->tenantId();
+            }
             $existingReservations = $reservationTable->find()
                 ->select(['i_id_user', 'i_reservation_type', 'eat_flag', 'i_change_flag'])
-                ->where([
-                    'i_id_room' => $roomId,
-                    'd_reservation_date' => $date
-                ])
+                ->where($reservWhere)
                 ->toArray();
         }
 
@@ -95,10 +105,14 @@ class ReservationQueryService
         int $limit = 100
     ): array
     {
+        $bulkCtx = TenantContextHolder::get();
         $baseConditions = [
             'MUserGroup.i_id_room' => $roomId,
-            'MUserGroup.active_flag' => 0
+            'MUserGroup.active_flag' => 0,
         ];
+        if ($bulkCtx !== null) {
+            $baseConditions['MUserGroup.tenant_id'] = $bulkCtx->tenantId();
+        }
 
         $total = (int)$userGroupTable->find()
             ->innerJoin(
@@ -170,14 +184,18 @@ class ReservationQueryService
                 $snapshot = (string)$snapshotRow->max_dt;
             }
 
+            $bulkReservWhere = [
+                'd_reservation_date' => $date,
+                'i_id_user IN' => $userIds,
+                'i_reservation_type IN' => [1, 2, 3, 4],
+            ];
+            if ($bulkCtx !== null) {
+                $bulkReservWhere['tenant_id'] = $bulkCtx->tenantId();
+            }
             $rows = $reservationTable->find()
                 ->enableAutoFields(false)
                 ->select(['i_id_user', 'i_reservation_type', 'eat_flag', 'i_change_flag', 'i_id_room'])
-                ->where([
-                    'd_reservation_date' => $date,
-                    'i_id_user IN' => $userIds,
-                    'i_reservation_type IN' => [1, 2, 3, 4],
-                ])
+                ->where($bulkReservWhere)
                 ->all();
 
             foreach ($rows as $r) {
@@ -214,6 +232,14 @@ class ReservationQueryService
         if (!$roomId || empty($dates)) {
             return [];
         }
+        $snapCtx = TenantContextHolder::get();
+        $snapWhere = [
+            'i_id_room' => $roomId,
+            'd_reservation_date IN' => $dates,
+        ];
+        if ($snapCtx !== null) {
+            $snapWhere['tenant_id'] = $snapCtx->tenantId();
+        }
         $snapshotQuery = $reservationTable->find();
         $rows = $snapshotQuery
             ->enableAutoFields(false)
@@ -223,10 +249,7 @@ class ReservationQueryService
                     $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)')
                 )
             ])
-            ->where([
-                'i_id_room' => $roomId,
-                'd_reservation_date IN' => $dates,
-            ])
+            ->where($snapWhere)
             ->group(['d_reservation_date'])
             ->all();
 
@@ -261,12 +284,17 @@ class ReservationQueryService
             $isLastMinute = false;
         }
 
+        $personalCtx = TenantContextHolder::get();
+        $personalWhere = [
+            'i_id_user'          => $userId,
+            'd_reservation_date' => $date,
+        ];
+        if ($personalCtx !== null) {
+            $personalWhere['tenant_id'] = $personalCtx->tenantId();
+        }
         $query = $reservationTable->find()
             ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
-            ->where([
-                'i_id_user'          => $userId,
-                'd_reservation_date' => $date,
-            ]);
+            ->where($personalWhere);
 
         if (!$isLastMinute) {
             $query->andWhere(['eat_flag' => 1]);
@@ -306,10 +334,15 @@ class ReservationQueryService
         int $roomId,
         int $mealType
     ): bool {
-        return $reservationTable->exists([
+        $dupCtx = TenantContextHolder::get();
+        $dupWhere = [
             'd_reservation_date' => $date,
             'i_id_room' => $roomId,
             'i_reservation_type' => $mealType,
-        ]);
+        ];
+        if ($dupCtx !== null) {
+            $dupWhere['tenant_id'] = $dupCtx->tenantId();
+        }
+        return $reservationTable->exists($dupWhere);
     }
 }

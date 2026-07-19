@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
@@ -19,14 +20,20 @@ class ReservationReportService
         return ($base * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
     }
 
+    private function getTenantCacheSegment(): string
+    {
+        $ctx = TenantContextHolder::get();
+        return $ctx !== null ? 't' . $ctx->tenantId() : 'tall';
+    }
+
     public function getMealCounts(Table $reservationTable, string $date): array
     {
-        $cacheKey = 'meal_counts:' . $date;
+        $cacheKey = sprintf('meal_counts:%s:%s', $this->getTenantCacheSegment(), $date);
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
         }
-        $rows = $reservationTable->find()
+        $query = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
                 'meal_type' => 'i_reservation_type',
@@ -37,8 +44,12 @@ class ReservationReportService
                 'eat_flag' => 1,
                 'i_change_flag' => 1,
             ])
-            ->groupBy('i_reservation_type')
-            ->toArray();
+            ->groupBy('i_reservation_type');
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $query->where(['tenant_id' => $ctx->tenantId()]);
+        }
+        $rows = $query->toArray();
         Cache::write($cacheKey, $rows, 'default');
         return $rows;
     }
@@ -49,7 +60,7 @@ class ReservationReportService
         int $roomId,
         string $date
     ): array {
-        $cacheKey = sprintf('users_by_room_edit:%d:%s', $roomId, $date);
+        $cacheKey = sprintf('users_by_room_edit:%s:%d:%s', $this->getTenantCacheSegment(), $roomId, $date);
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
@@ -108,7 +119,7 @@ class ReservationReportService
 
     public function buildExportJson(Table $reservationTable, string $from, string $to): array
     {
-        $cacheKey = sprintf('export_json:%s:%s:v%d', $from, $to, $this->getReportCacheVersion());
+        $cacheKey = sprintf('export_json:%s:%s:%s:v%d', $this->getTenantCacheSegment(), $from, $to, $this->getReportCacheVersion());
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
@@ -117,7 +128,7 @@ class ReservationReportService
         $datePolicy = new ReservationDatePolicy();
         $useChangeFlagCache = [];
 
-        $reservations = $reservationTable->find()
+        $exportQuery = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
                 'room_id'      => $alias . '.i_id_room',
@@ -141,8 +152,12 @@ class ReservationReportService
                 $alias . '.eat_flag',
                 $alias . '.i_change_flag',
             ])
-            ->enableHydration(false)
-            ->toArray();
+            ->enableHydration(false);
+        $exportCtx = TenantContextHolder::get();
+        if ($exportCtx !== null) {
+            $exportQuery->where([$alias . '.tenant_id' => $exportCtx->tenantId()]);
+        }
+        $reservations = $exportQuery->toArray();
 
         $result      = ['overall' => [], 'rooms' => []];
         $overallTmp  = [];
@@ -198,7 +213,7 @@ class ReservationReportService
         string $endDateExclusive,
         string $emptyMsg
     ): array {
-        $cacheKey = sprintf('export_rank:%s:%s:v%d', $startDate, $endDateExclusive, $this->getReportCacheVersion());
+        $cacheKey = sprintf('export_rank:%s:%s:%s:v%d', $this->getTenantCacheSegment(), $startDate, $endDateExclusive, $this->getReportCacheVersion());
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
@@ -217,7 +232,7 @@ class ReservationReportService
             7 => '大人',
         ];
 
-        $reservations = $reservationTable->find()
+        $rankQuery = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
                 'user_rank'        => 'MUserInfo.i_user_rank',
@@ -241,8 +256,12 @@ class ReservationReportService
                 $alias . '.eat_flag',
                 $alias . '.i_change_flag',
             ])
-            ->enableHydration(false)
-            ->toArray();
+            ->enableHydration(false);
+        $rankCtx = TenantContextHolder::get();
+        if ($rankCtx !== null) {
+            $rankQuery->where([$alias . '.tenant_id' => $rankCtx->tenantId()]);
+        }
+        $reservations = $rankQuery->toArray();
 
         $output = [];
         foreach ($reservations as $reservation) {
@@ -298,12 +317,12 @@ class ReservationReportService
 
     public function buildAllRoomsMealCounts(Table $reservationTable, string $fromDate, string $toDate): array
     {
-        $cacheKey = sprintf('all_rooms_meal:%s:%s:v%d', $fromDate, $toDate, $this->getReportCacheVersion());
+        $cacheKey = sprintf('all_rooms_meal:%s:%s:%s:v%d', $this->getTenantCacheSegment(), $fromDate, $toDate, $this->getReportCacheVersion());
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
         }
-        $mealCounts = $reservationTable->find()
+        $allRoomsQuery = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
                 'date' => 'd_reservation_date',
@@ -316,8 +335,12 @@ class ReservationReportService
                 'eat_flag' => 1,
             ])
             ->groupBy(['d_reservation_date', 'i_reservation_type'])
-            ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC'])
-            ->toArray();
+            ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC']);
+        $allRoomsCtx = TenantContextHolder::get();
+        if ($allRoomsCtx !== null) {
+            $allRoomsQuery->where(['tenant_id' => $allRoomsCtx->tenantId()]);
+        }
+        $mealCounts = $allRoomsQuery->toArray();
 
         $result = [];
         foreach ($mealCounts as $row) {
@@ -365,12 +388,12 @@ class ReservationReportService
         string $fromDate,
         string $toDate
     ): array {
-        $cacheKey = sprintf('room_meal:%s:%s:%s:v%d', implode(',', $roomIds), $fromDate, $toDate, $this->getReportCacheVersion());
+        $cacheKey = sprintf('room_meal:%s:%s:%s:%s:v%d', $this->getTenantCacheSegment(), implode(',', $roomIds), $fromDate, $toDate, $this->getReportCacheVersion());
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
         }
-        $mealCounts = $reservationTable->find()
+        $roomMealQuery = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
                 'date' => 'd_reservation_date',
@@ -384,8 +407,12 @@ class ReservationReportService
                 'eat_flag' => 1,
             ])
             ->groupBy(['d_reservation_date', 'i_reservation_type'])
-            ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC'])
-            ->toArray();
+            ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC']);
+        $roomMealCtx = TenantContextHolder::get();
+        if ($roomMealCtx !== null) {
+            $roomMealQuery->where(['tenant_id' => $roomMealCtx->tenantId()]);
+        }
+        $mealCounts = $roomMealQuery->toArray();
 
         $result = [];
         foreach ($mealCounts as $row) {
