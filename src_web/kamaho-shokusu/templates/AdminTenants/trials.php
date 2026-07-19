@@ -351,8 +351,8 @@ foreach ($tenantList as $tenant):
                                     <li>
                                         <?= $this->Form->postLink(
                                             '✓ 本契約へ移行',
-                                            ['action' => 'updateStatus', $tenant->id, '?' => ['status' => 'active']],
-                                            ['class' => 'dropdown-item text-success', 'confirm' => "「{$tenant->name}」を本契約に移行しますか？"]
+                                            ['action' => 'updateStatus', $tenant->id],
+                                            ['class' => 'dropdown-item text-success', 'confirm' => "「{$tenant->name}」を本契約に移行しますか？", 'data' => ['status' => 'active']]
                                         ) ?>
                                     </li>
                                     <?php endif; ?>
@@ -360,8 +360,8 @@ foreach ($tenantList as $tenant):
                                     <li>
                                         <?= $this->Form->postLink(
                                             '⏸ 利用停止',
-                                            ['action' => 'updateStatus', $tenant->id, '?' => ['status' => 'suspended']],
-                                            ['class' => 'dropdown-item text-warning', 'confirm' => "「{$tenant->name}」を利用停止にしますか？"]
+                                            ['action' => 'updateStatus', $tenant->id],
+                                            ['class' => 'dropdown-item text-warning', 'confirm' => "「{$tenant->name}」を利用停止にしますか？", 'data' => ['status' => 'suspended']]
                                         ) ?>
                                     </li>
                                     <?php endif; ?>
@@ -369,8 +369,8 @@ foreach ($tenantList as $tenant):
                                     <li>
                                         <?= $this->Form->postLink(
                                             '🔄 トライアルに戻す',
-                                            ['action' => 'updateStatus', $tenant->id, '?' => ['status' => 'trial']],
-                                            ['class' => 'dropdown-item text-info']
+                                            ['action' => 'updateStatus', $tenant->id],
+                                            ['class' => 'dropdown-item text-info', 'data' => ['status' => 'trial']]
                                         ) ?>
                                     </li>
                                     <?php endif; ?>
