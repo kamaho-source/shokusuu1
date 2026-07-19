@@ -28,25 +28,25 @@ class RoomAccessServiceTest extends TestCase
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
 
         $connection->insert('m_room_info', [
-            'i_id_room' => 2,
+            'i_id_room' => 101,
             'c_room_name' => '事務所',
-            'i_disp_no' => 2,
+            'i_disp_no' => 101,
             'i_enable' => 1,
             'i_del_flg' => 0,
             'dt_create' => $now,
             'dt_update' => $now,
         ]);
         $connection->insert('m_room_info', [
-            'i_id_room' => 3,
+            'i_id_room' => 102,
             'c_room_name' => '居室A',
-            'i_disp_no' => 3,
+            'i_disp_no' => 102,
             'i_enable' => 1,
             'i_del_flg' => 0,
             'dt_create' => $now,
             'dt_update' => $now,
         ]);
         $connection->insert('m_user_info', [
-            'i_id_user' => 10,
+            'i_id_user' => 100,
             'c_login_account' => 'office-user',
             'c_login_passwd' => 'dummy',
             'c_user_name' => 'Office User',
@@ -58,15 +58,15 @@ class RoomAccessServiceTest extends TestCase
             'dt_update' => $now,
         ]);
         $connection->insert('m_user_group', [
-            'i_id_user' => 10,
-            'i_id_room' => 2,
+            'i_id_user' => 100,
+            'i_id_room' => 101,
             'active_flag' => 0,
             'dt_create' => $now,
             'dt_update' => $now,
         ]);
         $connection->insert('m_user_group', [
-            'i_id_user' => 10,
-            'i_id_room' => 3,
+            'i_id_user' => 100,
+            'i_id_room' => 102,
             'active_flag' => 0,
             'dt_create' => $now,
             'dt_update' => $now,
@@ -77,9 +77,9 @@ class RoomAccessServiceTest extends TestCase
     {
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $rooms = $this->service->getAccessibleRooms($roomTable, 10);
+        $rooms = $this->service->getAccessibleRooms($roomTable, 100);
 
-        $this->assertSame([2 => '事務所', 3 => '居室A'], $rooms);
+        $this->assertSame([101 => '事務所', 102 => '居室A'], $rooms);
     }
 
     public function testGetAccessibleRoomsReturnsEmptyForUnknownUser(): void
@@ -93,20 +93,20 @@ class RoomAccessServiceTest extends TestCase
 
     public function testUserCanAccessAllAssignedRooms(): void
     {
-        $this->assertTrue($this->service->userCanAccessRoom(10, 2));
-        $this->assertTrue($this->service->userCanAccessRoom(10, 3));
+        $this->assertTrue($this->service->userCanAccessRoom(100, 101));
+        $this->assertTrue($this->service->userCanAccessRoom(100, 102));
     }
 
     public function testUserCannotAccessUnassignedRoom(): void
     {
-        $this->assertFalse($this->service->userCanAccessRoom(10, 99));
+        $this->assertFalse($this->service->userCanAccessRoom(100, 999));
     }
 
     public function testGetRoomsByIdsReturnsMatchingRooms(): void
     {
-        $rooms = $this->service->getRoomsByIds([2, 3]);
+        $rooms = $this->service->getRoomsByIds([101, 102]);
 
-        $this->assertSame([2 => '事務所', 3 => '居室A'], $rooms);
+        $this->assertSame([101 => '事務所', 102 => '居室A'], $rooms);
     }
 
     public function testGetRoomsByIdsFiltersDeletedRooms(): void
@@ -114,19 +114,19 @@ class RoomAccessServiceTest extends TestCase
         $connection = ConnectionManager::get('test');
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
         $connection->insert('m_room_info', [
-            'i_id_room' => 99,
+            'i_id_room' => 199,
             'c_room_name' => '削除済み部屋',
-            'i_disp_no' => 99,
+            'i_disp_no' => 199,
             'i_enable' => 0,
             'i_del_flg' => 1,
             'dt_create' => $now,
             'dt_update' => $now,
         ]);
 
-        $rooms = $this->service->getRoomsByIds([2, 99]);
+        $rooms = $this->service->getRoomsByIds([101, 199]);
 
-        $this->assertArrayHasKey(2, $rooms);
-        $this->assertArrayNotHasKey(99, $rooms);
+        $this->assertArrayHasKey(101, $rooms);
+        $this->assertArrayNotHasKey(199, $rooms);
     }
 
     public function testGetRoomsByIdsReturnsEmptyForEmptyInput(): void
@@ -139,9 +139,9 @@ class RoomAccessServiceTest extends TestCase
         $connection = ConnectionManager::get('test');
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
         $connection->insert('m_room_info', [
-            'i_id_room' => 98,
+            'i_id_room' => 198,
             'c_room_name' => '削除済み部屋',
-            'i_disp_no' => 98,
+            'i_disp_no' => 198,
             'i_enable' => 0,
             'i_del_flg' => 1,
             'dt_create' => $now,
@@ -150,8 +150,8 @@ class RoomAccessServiceTest extends TestCase
 
         $rooms = $this->service->getAllActiveRooms();
 
-        $this->assertArrayHasKey(2, $rooms);
-        $this->assertArrayHasKey(3, $rooms);
-        $this->assertArrayNotHasKey(98, $rooms);
+        $this->assertArrayHasKey(101, $rooms);
+        $this->assertArrayHasKey(102, $rooms);
+        $this->assertArrayNotHasKey(198, $rooms);
     }
 }

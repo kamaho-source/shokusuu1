@@ -7,20 +7,15 @@ use Cake\TestSuite\Fixture\TestFixture;
 
 /**
  * MUserInfoFixture
+ *
+ * Note: このシステムでは i_enable = 0 が「有効（未無効化）」を表す。
+ *       i_enable = 1 は「無効化済み」を意味するため、
+ *       認証可能なテストユーザーは i_enable = 0 に統一する。
  */
 class MUserInfoFixture extends TestFixture
 {
-    /**
-     * Table name
-     *
-     * @var string
-     */
     public string $table = 'm_user_info';
-    /**
-     * Init method
-     *
-     * @return void
-     */
+
     public function init(): void
     {
         $this->records = [
@@ -34,8 +29,8 @@ class MUserInfoFixture extends TestFixture
                 'i_admin'         => 1,
                 'i_user_level'    => 0,
                 'i_disp_no'       => 1,
-                'i_enable'        => 1,
-                'i_del_flag'      => 1,
+                'i_enable'        => 0,
+                'i_del_flag'      => 0,
                 'dt_create'       => '2024-07-29 09:10:37',
                 'c_create_user'   => 'system',
                 'dt_update'       => '2024-07-29 09:10:37',
@@ -51,7 +46,7 @@ class MUserInfoFixture extends TestFixture
                 'i_admin'         => 0,
                 'i_user_level'    => 0,
                 'i_disp_no'       => 2,
-                'i_enable'        => 1,
+                'i_enable'        => 0,
                 'i_del_flag'      => 0,
                 'dt_create'       => '2024-07-29 09:10:37',
                 'c_create_user'   => 'system',
@@ -68,7 +63,7 @@ class MUserInfoFixture extends TestFixture
                 'i_admin'         => 0,
                 'i_user_level'    => 1,
                 'i_disp_no'       => 3,
-                'i_enable'        => 1,
+                'i_enable'        => 0,
                 'i_del_flag'      => 0,
                 'dt_create'       => '2024-07-29 09:10:37',
                 'c_create_user'   => 'system',
@@ -86,7 +81,7 @@ class MUserInfoFixture extends TestFixture
                 'i_admin'         => 3,
                 'i_user_level'    => 0,
                 'i_disp_no'       => 4,
-                'i_enable'        => 1,
+                'i_enable'        => 0,
                 'i_del_flag'      => 0,
                 'dt_create'       => '2024-07-29 09:10:37',
                 'c_create_user'   => 'system',
@@ -103,8 +98,26 @@ class MUserInfoFixture extends TestFixture
                 'i_admin'         => 1,
                 'i_user_level'    => 0,
                 'i_disp_no'       => 5,
-                'i_enable'        => 1,
+                'i_enable'        => 0,
                 'i_del_flag'      => 0,
+                'dt_create'       => '2024-07-29 09:10:37',
+                'c_create_user'   => 'system',
+                'dt_update'       => '2024-07-29 09:10:37',
+                'c_update_user'   => 'system',
+            ],
+            // 削除済みユーザー（restore テスト用）
+            [
+                'i_id_user'       => 6,
+                'tenant_id'       => 1,
+                'facility_id'     => 1,
+                'c_login_account' => 'deleted_user',
+                'c_login_passwd'  => 'dummy_password',
+                'c_user_name'     => '削除済みユーザー',
+                'i_admin'         => 0,
+                'i_user_level'    => 0,
+                'i_disp_no'       => 6,
+                'i_enable'        => 0,
+                'i_del_flag'      => 1,
                 'dt_create'       => '2024-07-29 09:10:37',
                 'c_create_user'   => 'system',
                 'dt_update'       => '2024-07-29 09:10:37',
@@ -121,7 +134,7 @@ class MUserInfoFixture extends TestFixture
                 'i_admin'         => 1,
                 'i_user_level'    => 0,
                 'i_disp_no'       => 10,
-                'i_enable'        => 1,
+                'i_enable'        => 0,
                 'i_del_flag'      => 0,
                 'dt_create'       => '2024-07-29 09:10:37',
                 'c_create_user'   => 'system',

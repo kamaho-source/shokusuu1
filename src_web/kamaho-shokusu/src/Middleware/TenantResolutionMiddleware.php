@@ -88,7 +88,9 @@ class TenantResolutionMiddleware implements MiddlewareInterface
         }
 
         if ($hostWithoutPort === 'localhost') {
-            return env('DEV_TENANT_CODE', 'default');
+            $devCode = env('DEV_TENANT_CODE');
+            // DEV_TENANT_CODE が未設定の場合（テスト環境等）はテナント解決をスキップする
+            return $devCode !== null && $devCode !== '' ? $devCode : null;
         }
 
         $parts = explode('.', $hostWithoutPort);

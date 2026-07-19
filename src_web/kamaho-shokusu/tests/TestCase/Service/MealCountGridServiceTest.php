@@ -349,11 +349,11 @@ class MealCountGridServiceTest extends TestCase
         $userGroupTable = $this->getTableLocator()->get('MUserGroup');
         $userInfoTable  = $this->getTableLocator()->get('MUserInfo');
 
-        // フィクスチャのユーザー1は i_del_flag=1（削除済み）なので結果に含まれない
+        // フィクスチャのユーザー6は i_del_flag=1（削除済み）なので結果に含まれない
         $result = $this->service->getRoomUsers($userGroupTable, $userInfoTable, 1);
 
         $userIds = array_column($result, 'id');
-        $this->assertNotContains(1, $userIds);
+        $this->assertNotContains(6, $userIds);
     }
 
     public function testGetRoomUsersReturnsEmptyForUnknownRoom(): void
