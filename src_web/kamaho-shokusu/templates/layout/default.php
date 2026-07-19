@@ -90,6 +90,12 @@ $recentNotifications     = $recentNotifications ?? [];
                                 <li><?= $this->Html->link('📄 食事控除表', ['controller' => 'MMealPriceInfo', 'action' => 'GetMealSummary'], ['class' => 'dropdown-item']) ?></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><?= $this->Html->link('🔄 部屋異動予約', ['controller' => 'MRoomTransferSchedule', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/facility-settings/edit') ?>">
+                                        <i class="bi bi-sliders me-1"></i>施設別設定
+                                    </a>
+                                </li>
                             </ul>
                         </li>
                     <?php endif; ?>

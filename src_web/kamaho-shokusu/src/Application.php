@@ -184,6 +184,11 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(\App\Model\Table\FacilitySettingsTable::class);
         $container->add(\App\Application\UseCase\FacilitySetting\SaveFacilitySettingUseCase::class)
             ->addArgument(\App\Model\Table\FacilitySettingsTable::class);
+
+        $container->add(\App\Controller\FacilitySettingsController::class)
+            ->addArgument(\App\Application\UseCase\FacilitySetting\GetFacilitySettingUseCase::class)
+            ->addArgument(\App\Application\UseCase\FacilitySetting\SaveFacilitySettingUseCase::class)
+            ->addArgument(ServerRequest::class);
     }
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface

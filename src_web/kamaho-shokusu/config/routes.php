@@ -416,6 +416,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/AiAssistant/suggestions', ['controller' => 'AiAssistant', 'action' => 'suggestions'])->setMethods(['GET']);
         $builder->connect('/AiAssistant/feedback', ['controller' => 'AiAssistant', 'action' => 'feedback'])->setMethods(['POST']);
 
+        // ── 施設別設定 ──
+        $builder->connect('/facility-settings/edit', ['controller' => 'FacilitySettings', 'action' => 'edit'])
+            ->setMethods(['GET', 'POST']);
+
         // フォールバック
         $builder->fallbacks(DashedRoute::class);
     });
