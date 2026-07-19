@@ -179,7 +179,15 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
 
-        // テナント切り替え（システム管理者専用）
+        // テナント管理画面（システム管理者専用）
+        $builder->connect('/admin/tenants', ['controller' => 'AdminTenants', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/admin/tenants/enter/{tenantId}', ['controller' => 'AdminTenants', 'action' => 'enter'])
+            ->setMethods(['POST'])
+            ->setPatterns(['tenantId' => '\d+'])
+            ->setPass(['tenantId']);
+        $builder->connect('/admin/tenants/exit', ['controller' => 'AdminTenants', 'action' => 'exitTenant'])->setMethods(['POST']);
+
+        // テナント切り替え（後方互換のため残す）
         $builder->connect('/tenant/switch', ['controller' => 'TenantSwitcher', 'action' => 'switchTenant']);
 
         // 監査ログ（システム管理者専用）

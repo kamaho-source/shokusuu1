@@ -109,6 +109,12 @@ $recentNotifications     = $recentNotifications ?? [];
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm">
                                 <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/admin/tenants') ?>">
+                                        <i class="bi bi-building me-2 text-primary"></i>テナント管理
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
                                     <a class="dropdown-item" href="<?= $this->Url->build('/AuditLog') ?>">
                                         <i class="bi bi-shield-lock me-2 text-danger"></i>監査ログ
                                     </a>
@@ -127,22 +133,17 @@ $recentNotifications     = $recentNotifications ?? [];
                     <?php
                     $allTenants     = $allTenants ?? [];
                     $activeTenantId = $activeTenantId ?? null;
+                    // 現在操作中のテナント名を取得（バナー用）
+                    $activeTenantName = null;
+                    if ($isSysAdmin && $activeTenantId !== null) {
+                        foreach ($allTenants as $t) {
+                            if ($t->id === $activeTenantId) {
+                                $activeTenantName = $t->name;
+                                break;
+                            }
+                        }
+                    }
                     ?>
-                    <?php if ($isSysAdmin && !empty($allTenants)): ?>
-                        <li class="nav-item me-2">
-                            <form method="post" action="<?= $this->Url->build('/tenant/switch') ?>">
-                                <input type="hidden" name="_csrfToken" value="<?= h($request->getAttribute('csrfToken')) ?>">
-                                <select name="tenant_id" class="form-select form-select-sm text-dark" onchange="this.form.submit()" style="min-width: 150px;">
-                                    <option value="0" <?= $activeTenantId === null ? 'selected' : '' ?>>🌐 全テナント</option>
-                                    <?php foreach ($allTenants as $t): ?>
-                                        <option value="<?= h($t->id) ?>" <?= $activeTenantId === $t->id ? 'selected' : '' ?>>
-                                            🏢 <?= h($t->name) ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </form>
-                        </li>
-                    <?php endif; ?>
                     <?php if ($user): ?>
                         <li class="nav-item dropdown me-2">
                             <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -242,6 +243,33 @@ $recentNotifications     = $recentNotifications ?? [];
     <?php endif; ?>
 <?php endif; ?>
 
+<?php if (!$isModal && $isSysAdmin && $activeTenantName !== null): ?>
+    <div class="tenant-context-banner">
+        <div class="container d-flex align-items-center justify-content-between gap-2 py-1">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-building-fill"></i>
+                <strong><?= h($activeTenantName) ?></strong>
+                <span class="opacity-75">を操作中</span>
+            </span>
+            <a href="<?= $this->Url->build('/admin/tenants') ?>" class="tenant-context-banner__link">
+                <i class="bi bi-grid me-1"></i>テナント一覧へ戻る
+            </a>
+        </div>
+    </div>
+<?php elseif (!$isModal && $isSysAdmin && $activeTenantName === null && $user): ?>
+    <div class="tenant-context-banner tenant-context-banner--all">
+        <div class="container d-flex align-items-center justify-content-between gap-2 py-1">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-globe"></i>
+                <span>全テナントモード</span>
+            </span>
+            <a href="<?= $this->Url->build('/admin/tenants') ?>" class="tenant-context-banner__link">
+                <i class="bi bi-grid me-1"></i>テナントを選択する
+            </a>
+        </div>
+    </div>
+<?php endif; ?>
+
 <main class="<?= $isModal ? '' : 'container mt-3' ?>">
     <?= $this->Flash->render() ?>
     <?= $this->fetch('content') ?>
@@ -258,9 +286,12 @@ $recentNotifications     = $recentNotifications ?? [];
         if (!nav) return;
 
         const applyPad = () => {
-            const height = nav.getBoundingClientRect().height;
-            document.body.style.paddingTop = height + 'px';
-            document.documentElement.style.setProperty('--nav-height', height + 'px');
+            const navH = nav.getBoundingClientRect().height;
+            document.documentElement.style.setProperty('--nav-height', navH + 'px');
+
+            const banner = document.querySelector('.tenant-context-banner');
+            const bannerH = banner ? banner.getBoundingClientRect().height : 0;
+            document.body.style.paddingTop = (navH + bannerH) + 'px';
         };
 
         applyPad();
