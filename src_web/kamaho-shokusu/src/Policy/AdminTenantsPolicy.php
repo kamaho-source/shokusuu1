@@ -21,6 +21,11 @@ class AdminTenantsPolicy
         return $this->isSystemAdmin($user);
     }
 
+    public function canTrials(?IdentityInterface $user, mixed $resource): bool
+    {
+        return $this->isSystemAdmin($user);
+    }
+
     public function canUpdateStatus(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->isSystemAdmin($user);
