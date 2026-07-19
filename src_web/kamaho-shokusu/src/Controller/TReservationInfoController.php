@@ -110,7 +110,11 @@ class TReservationInfoController extends ReservationBaseController
         $viewStart    = $firstOfMonth->subMonths(1)->format('Y-m-d');
         $viewEnd      = $firstOfMonth->addMonths(3)->format('Y-m-d');
 
-        $mealDataArray = $this->calendarService->buildMealCountsByDate(
+        // 全テナントモード（システム管理者がテナント未選択）の場合はカレンダーを空にする
+        $idxCtx = TenantContextHolder::get();
+        $idxIsAllTenantMode = UserRole::isSystemAdmin((int)($user->i_admin ?? 0)) && $idxCtx === null;
+
+        $mealDataArray = $idxIsAllTenantMode ? [] : $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,
             $calRoomFilter,
             $viewStart,
@@ -118,7 +122,6 @@ class TReservationInfoController extends ReservationBaseController
         );
 
         // システム管理者が自分のテナント以外を閲覧中の場合、個人予約情報は取得しない
-        $idxCtx = TenantContextHolder::get();
         $idxUserTenantId = (int)($user->tenant_id ?? 1);
         $idxIsViewingOtherTenant = UserRole::isSystemAdmin((int)($user->i_admin ?? 0))
             && $idxCtx !== null
@@ -255,29 +258,38 @@ class TReservationInfoController extends ReservationBaseController
 
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
 
-        $mealDataArray = $this->calendarService->buildMealCountsByDate(
-            $this->TIndividualReservationInfo,
-            (!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null,
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
-        );
-
-        // システム管理者が自分のテナント以外を閲覧中の場合、個人予約マーカーを非表示にする
+        // 全テナントモード（システム管理者がテナント未選択）の場合はカレンダーを空にする
         $ctx = TenantContextHolder::get();
-        $userTenantId = (int)($user->tenant_id ?? 1);
-        $isViewingOtherTenant = $isSystemAdmin && $ctx !== null && $ctx->tenantId() !== $userTenantId;
+        $isAllTenantMode = $isSystemAdmin && $ctx === null;
 
-        if ($isViewingOtherTenant) {
+        if ($isAllTenantMode) {
+            $mealDataArray        = [];
             $myReservationDetails = [];
             $showPersonalStatus   = false;
         } else {
-            $myReservationDetails = $this->calendarService->buildMyReservationDetails(
+            $mealDataArray = $this->calendarService->buildMealCountsByDate(
                 $this->TIndividualReservationInfo,
-                (int)$userId,
+                (!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null,
                 $startDate->format('Y-m-d'),
                 $endDate->format('Y-m-d')
             );
-            $showPersonalStatus = true;
+
+            // システム管理者が自分のテナント以外を閲覧中の場合、個人予約マーカーを非表示にする
+            $userTenantId = (int)($user->tenant_id ?? 1);
+            $isViewingOtherTenant = $isSystemAdmin && $ctx !== null && $ctx->tenantId() !== $userTenantId;
+
+            if ($isViewingOtherTenant) {
+                $myReservationDetails = [];
+                $showPersonalStatus   = false;
+            } else {
+                $myReservationDetails = $this->calendarService->buildMyReservationDetails(
+                    $this->TIndividualReservationInfo,
+                    (int)$userId,
+                    $startDate->format('Y-m-d'),
+                    $endDate->format('Y-m-d')
+                );
+                $showPersonalStatus = true;
+            }
         }
 
         $events = $this->calendarService->buildCalendarEvents(
