@@ -179,6 +179,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
 
+        // テナント公開セルフ登録（認証不要）
+        $builder->connect('/tenant/register', ['controller' => 'TenantRegistration', 'action' => 'register']);
+        $builder->connect('/tenant/register/complete', ['controller' => 'TenantRegistration', 'action' => 'complete'])->setMethods(['GET']);
+
         // テナント管理（システム管理者専用）
         $builder->connect('/admin/tenants', ['controller' => 'AdminTenants', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/admin/tenants/add', ['controller' => 'AdminTenants', 'action' => 'add']);
