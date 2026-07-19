@@ -21,10 +21,12 @@ use Cake\ORM\Entity;
 class Facility extends Entity
 {
     protected array $_accessible = [
+        'tenant_id'     => true,
+        'facility_code' => true,
         'name'          => true,
         'timezone'      => true,
         'is_active'     => true,
-        'tenant_id'     => false,
-        'facility_code' => false,
+        'created_at'    => true,
+        'updated_at'    => true,
     ];
 }

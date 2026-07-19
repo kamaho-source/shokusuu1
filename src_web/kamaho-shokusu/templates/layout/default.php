@@ -110,7 +110,7 @@ $recentNotifications     = $recentNotifications ?? [];
                             <ul class="dropdown-menu border-0 shadow-sm">
                                 <li>
                                     <a class="dropdown-item" href="<?= $this->Url->build('/admin/tenants') ?>">
-                                        <i class="bi bi-building me-2 text-primary"></i>テナント管理
+                                        <i class="bi bi-building me-2 text-info"></i>テナント管理
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider"></li>
