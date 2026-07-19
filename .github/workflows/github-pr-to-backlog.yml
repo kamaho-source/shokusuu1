@@ -31,6 +31,7 @@ env:
   GH_PR_USER: ${{ github.event.pull_request.user.login }}
   GH_PR_ACTION: ${{ github.event.action }}
   GH_PR_MERGED: ${{ github.event.pull_request.merged }}
+  GH_PR_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
 
 jobs:
   sync:
