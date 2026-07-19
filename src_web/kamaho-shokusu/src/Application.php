@@ -180,6 +180,10 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(UserTokenizer::class)
             ->addArgument(ServerRequest::class);
 
+        $container->addShared(\App\Model\Table\FacilitySettingsTable::class, function () {
+            return \Cake\ORM\TableRegistry::getTableLocator()->get('FacilitySettings');
+        });
+
         $container->add(\App\Application\UseCase\FacilitySetting\GetFacilitySettingUseCase::class)
             ->addArgument(\App\Model\Table\FacilitySettingsTable::class);
         $container->add(\App\Application\UseCase\FacilitySetting\SaveFacilitySettingUseCase::class)
