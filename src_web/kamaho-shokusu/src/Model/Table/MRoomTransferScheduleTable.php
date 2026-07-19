@@ -3,11 +3,14 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Infrastructure\Table\TenantAwareTableTrait;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
 class MRoomTransferScheduleTable extends Table
 {
+    use TenantAwareTableTrait;
+
     public const STATUS_PENDING   = 0;
     public const STATUS_APPLIED   = 1;
     public const STATUS_CANCELLED = 2;

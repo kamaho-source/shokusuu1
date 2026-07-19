@@ -186,10 +186,18 @@ return function (RouteBuilder $routes): void {
         // テナント管理（システム管理者専用）
         $builder->connect('/admin/tenants', ['controller' => 'AdminTenants', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/admin/tenants/add', ['controller' => 'AdminTenants', 'action' => 'add']);
+        $builder->connect('/admin/tenants/enter/{tenantId}', ['controller' => 'AdminTenants', 'action' => 'enter'])
+            ->setMethods(['POST'])
+            ->setPatterns(['tenantId' => '\d+'])
+            ->setPass(['tenantId']);
+        $builder->connect('/admin/tenants/exit', ['controller' => 'AdminTenants', 'action' => 'exitTenant'])->setMethods(['POST']);
         $builder->connect(
             '/admin/tenants/update-status/{tenantId}',
             ['controller' => 'AdminTenants', 'action' => 'updateStatus']
         )->setMethods(['POST'])->setPatterns(['tenantId' => '\d+'])->setPass(['tenantId']);
+
+        // テナント切り替え（後方互換のため残す）
+        $builder->connect('/tenant/switch', ['controller' => 'TenantSwitcher', 'action' => 'switchTenant']);
 
         // 監査ログ（システム管理者専用）
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -97,10 +98,14 @@ class MealSummaryExportService
     private function fetchMealPrices(int $year): array
     {
         $table = TableRegistry::getTableLocator()->get('MMealPriceInfo');
-        $row   = $table->find()
+        $priceQuery = $table->find()
             ->select(['i_morning_price', 'i_lunch_price', 'i_dinner_price', 'i_bento_price'])
-            ->where(['i_fiscal_year' => $year])
-            ->first();
+            ->where(['i_fiscal_year' => $year]);
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $priceQuery->where(['tenant_id' => $ctx->tenantId()]);
+        }
+        $row = $priceQuery->first();
 
         return [
             'morning' => $row ? ($row->i_morning_price ?? 0) : 0,
@@ -113,11 +118,14 @@ class MealSummaryExportService
     private function fetchStaffUsers(): array
     {
         $table = TableRegistry::getTableLocator()->get('MUserInfo');
-        return $table->find()
+        $staffQuery = $table->find()
             ->select(['i_id_user', 'c_user_name', 'i_id_staff'])
-            ->where(['i_id_staff IS NOT' => null, 'i_del_flag' => 0])
-            ->all()
-            ->toArray();
+            ->where(['i_id_staff IS NOT' => null, 'i_del_flag' => 0]);
+        $ctx = TenantContextHolder::get();
+        if ($ctx !== null) {
+            $staffQuery->where(['tenant_id' => $ctx->tenantId()]);
+        }
+        return $staffQuery->all()->toArray();
     }
 
     /**

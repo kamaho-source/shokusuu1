@@ -11,8 +11,10 @@
  * @var array<int,int> $reservationStat
  * @var array<int,string|null> $lastLoginStat
  * @var \Cake\I18n\DateTime $now
+ * @var int|null $activeTenantId
  */
 $this->assign('title', 'トライアルユーザー管理');
+$csrfToken = (string)($this->request->getAttribute('csrfToken') ?? '');
 ?>
 <style>
 .trial-stat-card {
@@ -73,6 +75,18 @@ $this->assign('title', 'トライアルユーザー管理');
 .days-done { color: #1a7a4a; font-weight: 600; }
 </style>
 
+<?php if ($activeTenantId !== null): ?>
+<div class="alert alert-info d-flex align-items-center justify-content-between py-2 mb-3" role="alert">
+    <span><i class="bi bi-building me-2"></i>現在テナントID <strong><?= (int)$activeTenantId ?></strong> の操作モードです。</span>
+    <form method="post" action="<?= $this->Url->build(['action' => 'exitTenant']) ?>">
+        <input type="hidden" name="_csrfToken" value="<?= h($csrfToken) ?>">
+        <button type="submit" class="btn btn-outline-info btn-sm">
+            <i class="bi bi-x-circle me-1"></i>全テナントモードに戻る
+        </button>
+    </form>
+</div>
+<?php endif; ?>
+
 <!-- ── パンくず ── -->
 <nav aria-label="breadcrumb" class="mb-1">
     <ol class="breadcrumb breadcrumb-sm">
@@ -93,6 +107,8 @@ $this->assign('title', 'トライアルユーザー管理');
         <span>トライアルを追加</span>
     </a>
 </div>
+
+<?= $this->Flash->render() ?>
 
 <!-- ── 集計カード ── -->
 <div class="row g-3 mb-4">
@@ -161,12 +177,12 @@ $this->assign('title', 'トライアルユーザー管理');
             </div>
             <div class="col-6 col-md-2">
                 <?= $this->Form->select('status', [
-                    ''           => 'すべての状態',
-                    'trial'      => 'トライアル中',
-                    'near_expiry'=> '終了間近',
-                    'expired'    => '期限切れ',
-                    'active'     => '本契約',
-                    'suspended'  => '停止中',
+                    ''            => 'すべての状態',
+                    'trial'       => 'トライアル中',
+                    'near_expiry' => '終了間近',
+                    'expired'     => '期限切れ',
+                    'active'      => '本契約',
+                    'suspended'   => '停止中',
                 ], [
                     'class' => 'form-select form-select-sm',
                     'value' => $q['status'] ?? '',
@@ -214,7 +230,8 @@ $this->assign('title', 'トライアルユーザー管理');
                 <?php
 $avatarColors = ['avatar-color-0','avatar-color-1','avatar-color-2','avatar-color-3','avatar-color-4','avatar-color-5'];
 $idx          = 0;
-foreach ($tenants as $tenant):
+$tenantList   = iterator_to_array($tenants, false);
+foreach ($tenantList as $tenant):
     $tid          = (int)$tenant->id;
     $userCount    = $userStats[$tid] ?? 0;
     $rsvCount     = $reservationStat[$tid] ?? 0;
@@ -223,14 +240,14 @@ foreach ($tenants as $tenant):
     $status       = $tenant->status;
     $avatarClass  = $avatarColors[$idx % count($avatarColors)];
     $firstChar    = mb_substr((string)$tenant->name, 0, 1);
+    $isEntered    = ($activeTenantId === $tid);
     $idx++;
 
     // 残り日数
-    $daysLeft = null;
     $daysLabel = '-';
     $daysClass = '';
     if ($trialExpires !== null) {
-        $diff = (int)$now->diff($trialExpires)->days;
+        $diff   = (int)$now->diff($trialExpires)->days;
         $isPast = $trialExpires < $now;
         if ($isPast) {
             $daysLabel = '期限切れ';
@@ -242,7 +259,6 @@ foreach ($tenants as $tenant):
             $daysLabel = $diff . '日';
             $daysClass = 'days-ok';
         }
-        $daysLeft = $isPast ? -$diff : $diff;
     } elseif ($status === 'active') {
         $daysLabel = '移行済';
         $daysClass = 'days-done';
@@ -267,9 +283,9 @@ foreach ($tenants as $tenant):
     };
 
     // 利用状況プログレスバー
-    $maxRsv    = 500;
-    $pct       = min(100, (int)round($rsvCount / $maxRsv * 100));
-    $barColor  = $pct >= 80 ? '#2ecc71' : ($pct >= 40 ? '#0dcaf0' : '#adb5bd');
+    $maxRsv   = 500;
+    $pct      = min(100, (int)round($rsvCount / $maxRsv * 100));
+    $barColor = $pct >= 80 ? '#2ecc71' : ($pct >= 40 ? '#0dcaf0' : '#adb5bd');
 
     // トライアル期間
     $trialStart = $tenant->created_at?->format('Y/m/d') ?? '-';
@@ -278,7 +294,7 @@ foreach ($tenants as $tenant):
     // 最終ログイン
     $lastLoginStr = $lastLogin ? substr((string)$lastLogin, 0, 10) : '-';
 ?>
-                    <tr>
+                    <tr <?= $isEntered ? 'class="table-info"' : '' ?>>
                         <td class="ps-3">
                             <div class="d-flex align-items-center gap-2">
                                 <div class="tenant-avatar <?= $avatarClass ?>"><?= h($firstChar) ?></div>
@@ -309,6 +325,27 @@ foreach ($tenants as $tenant):
                                     <i class="bi bi-three-dots-vertical"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm">
+                                    <?php if ($isEntered): ?>
+                                    <li>
+                                        <form method="post" action="<?= $this->Url->build(['action' => 'exitTenant']) ?>">
+                                            <input type="hidden" name="_csrfToken" value="<?= h($csrfToken) ?>">
+                                            <button type="submit" class="dropdown-item text-secondary">
+                                                <i class="bi bi-box-arrow-left me-1"></i>退出
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <?php else: ?>
+                                    <li>
+                                        <form method="post" action="<?= $this->Url->build(['action' => 'enter', $tenant->id]) ?>">
+                                            <input type="hidden" name="_csrfToken" value="<?= h($csrfToken) ?>">
+                                            <button type="submit" class="dropdown-item text-primary"
+                                                    <?= $status === 'terminated' ? 'disabled' : '' ?>>
+                                                <i class="bi bi-box-arrow-in-right me-1"></i>このテナントで操作
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <?php endif; ?>
+                                    <li><hr class="dropdown-divider my-1"></li>
                                     <?php if ($status !== 'active'): ?>
                                     <li>
                                         <?= $this->Form->postLink(
@@ -341,7 +378,7 @@ foreach ($tenants as $tenant):
                         </td>
                     </tr>
 <?php endforeach; ?>
-                <?php if (iterator_to_array($tenants, false) === []): ?>
+                <?php if ($tenantList === []): ?>
                     <tr>
                         <td colspan="8" class="text-center text-muted py-5">
                             <i class="bi bi-inbox fs-3 d-block mb-2 opacity-25"></i>

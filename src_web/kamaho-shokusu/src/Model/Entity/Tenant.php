@@ -6,10 +6,12 @@ namespace App\Model\Entity;
 use Cake\ORM\Entity;
 
 /**
+ * Tenant Entity
+ *
  * @property int $id
  * @property string $tenant_code
  * @property string $name
- * @property string $status
+ * @property string $status  trial|active|suspended|terminated
  * @property \Cake\I18n\DateTime|null $trial_expires_at
  * @property string|null $stripe_customer_id
  * @property string|null $billing_contact_name
@@ -20,11 +22,11 @@ use Cake\ORM\Entity;
  * @property \Cake\I18n\DateTime|null $contract_ended_at
  * @property \Cake\I18n\DateTime $created_at
  * @property \Cake\I18n\DateTime $updated_at
+ * @property \App\Model\Entity\Facility[] $facilities
  */
 class Tenant extends Entity
 {
     protected array $_accessible = [
-        'tenant_code'           => true,
         'name'                  => true,
         'status'                => true,
         'trial_expires_at'      => true,
@@ -37,5 +39,6 @@ class Tenant extends Entity
         'contract_ended_at'     => true,
         'created_at'            => true,
         'updated_at'            => true,
+        'tenant_code'           => false,
     ];
 }
