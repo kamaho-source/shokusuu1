@@ -13,6 +13,7 @@
  * @var \Cake\I18n\DateTime $now
  * @var int|null $activeTenantId
  */
+use App\Domain\ValueObject\PlanCode;
 $this->assign('title', 'トライアルユーザー管理');
 $csrfToken = (string)($this->request->getAttribute('csrfToken') ?? '');
 ?>
@@ -321,7 +322,6 @@ foreach ($tenantList as $tenant):
                         </td>
                         <td class="text-center">
                             <?php
-                                use App\Domain\ValueObject\PlanCode;
                                 $currentPlan = PlanCode::fromTenant($tenant->plan_code, $tenant->status);
                             ?>
                             <span class="badge <?= $currentPlan->badgeClass() ?> mb-1"><?= $currentPlan->label() ?></span>
