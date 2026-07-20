@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\NotFoundException;
@@ -556,7 +557,10 @@ class ReservationWriteService
                 continue;
             }
 
+            $writeCtx = TenantContextHolder::get();
             $toSave[] = $this->reservationTable->patchEntity($this->reservationTable->newEmptyEntity(), [
+                'tenant_id'          => $writeCtx !== null ? $writeCtx->tenantId() : 1,
+                'facility_id'        => $writeCtx !== null ? $writeCtx->tenantId() : 1,
                 'i_id_user'          => $userId,
                 'd_reservation_date' => $reservationDate,
                 'i_id_room'          => $roomId,
@@ -730,7 +734,10 @@ class ReservationWriteService
                     continue;
                 }
 
+                $bulkCtx = TenantContextHolder::get();
                 $toSave[] = $this->reservationTable->patchEntity($this->reservationTable->newEmptyEntity(), [
+                    'tenant_id'          => $bulkCtx !== null ? $bulkCtx->tenantId() : 1,
+                    'facility_id'        => $bulkCtx !== null ? $bulkCtx->tenantId() : 1,
                     'i_id_user'          => $targetUserId,
                     'd_reservation_date' => $reservationDate,
                     'i_id_room'          => $roomId,

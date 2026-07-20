@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\Http\Exception\NotFoundException;
 use Cake\ORM\Table;
 
@@ -35,6 +36,7 @@ class ReservationRoomDetailService
             throw new NotFoundException(__('部屋が見つかりません。'));
         }
 
+        $detailCtx = TenantContextHolder::get();
         $baseConditions = [
             'TIndividualReservationInfo.i_id_room'          => $roomId,
             'TIndividualReservationInfo.d_reservation_date' => $date,
@@ -42,6 +44,9 @@ class ReservationRoomDetailService
             'MUserInfo.i_del_flag'                          => 0,
             'MUserGroup.active_flag'                        => 0,
         ];
+        if ($detailCtx !== null) {
+            $baseConditions['TIndividualReservationInfo.tenant_id'] = $detailCtx->tenantId();
+        }
 
         $eaters = $reservationTable->find()
             ->select([
@@ -59,14 +64,18 @@ class ReservationRoomDetailService
             ->where($baseConditions + ["TIndividualReservationInfo.$flagField" => 0])
             ->all();
 
+        $allUsersWhere = [
+            'MUserGroup.i_id_room'   => $roomId,
+            'MUserInfo.i_del_flag'   => 0,
+            'MUserGroup.active_flag' => 0,
+        ];
+        if ($detailCtx !== null) {
+            $allUsersWhere['MUserGroup.tenant_id'] = $detailCtx->tenantId();
+        }
         $allUsers = $userGroupTable->find()
             ->select(['MUserInfo.i_id_user', 'MUserInfo.c_user_name', 'MUserInfo.dt_create'])
             ->contain(['MUserInfo'])
-            ->where([
-                'MUserGroup.i_id_room'   => $roomId,
-                'MUserInfo.i_del_flag'   => 0,
-                'MUserGroup.active_flag' => 0,
-            ])
+            ->where($allUsersWhere)
             ->all();
 
         $allUserIds   = [];

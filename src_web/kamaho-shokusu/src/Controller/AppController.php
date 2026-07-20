@@ -16,6 +16,11 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Application\Plan\PlanGuard;
+use App\Application\Tenant\TenantContext;
+use App\Application\Tenant\TenantContextHolder;
+use App\Domain\ValueObject\PlanCode;
+use App\Domain\ValueObject\UserRole;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -33,6 +38,8 @@ use Psr\Http\Message\UriInterface;
 class AppController extends Controller
 {
     private NotificationService $notificationService;
+
+    protected PlanGuard $planGuard;
 
     /**
      * Initialization hook method.
@@ -54,6 +61,34 @@ class AppController extends Controller
         $this->loadComponent('FormProtection');
     }
 
+
+    /**
+     * プラン制限に引っかかる場合にエラーレスポンスを返す。
+     *
+     * $allowed が false のとき:
+     *   - JSON リクエスト ($isJson=true): 403 JSON エラーを返す
+     *   - 通常リクエスト: Flash エラーを表示してダッシュボードへリダイレクト
+     *
+     * $allowed が true の場合は null を返す（続行）。
+     */
+    protected function rejectIfPlanBlocked(bool $allowed, bool $isJson = false): ?Response
+    {
+        if ($allowed) {
+            return null;
+        }
+        $msg = $this->planGuard->upgradeRequiredMessage();
+        if ($isJson) {
+            return $this->response
+                ->withStatus(403)
+                ->withType('application/json')
+                ->withStringBody((string)json_encode([
+                    'error'                 => $msg,
+                    'plan_upgrade_required' => true,
+                ], JSON_UNESCAPED_UNICODE));
+        }
+        $this->Flash->error($msg);
+        return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
+    }
 
     /**
      * リダイレクト先が安全な内部パスかどうかを検証する。
@@ -125,11 +160,55 @@ class AppController extends Controller
         return (string)$this->request->clientIp();
     }
 
+    /**
+     * リクエストのテナントコンテキストを返す。
+     * TenantResolutionMiddleware が設定した request attribute から取得する。
+     */
+    protected function getTenantContext(): ?TenantContext
+    {
+        return $this->request->getAttribute('tenantContext');
+    }
+
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
         $this->Authentication->allowUnauthenticated(['login']);
         $user = $this->Authentication->getIdentity();
+
+        // システム管理者（i_admin=3）はテナントセッションに従いコンテキストを切り替える。
+        // セッション未設定（全テナントモード）の場合はコンテキストをクリアして全データを参照可能にする。
+        if ($user !== null && UserRole::isSystemAdmin((int)$user->get('i_admin'))) {
+            $tenantsTable = $this->fetchTable('Tenants');
+            $allTenants   = $tenantsTable->find()->orderBy(['id' => 'ASC'])->all()->toArray();
+
+            $activeTenantId = $this->request->getSession()->read('SystemAdmin.activeTenantId');
+            if ($activeTenantId !== null) {
+                $activeTenantId   = (int)$activeTenantId;
+                $activeTenantEntity = null;
+                foreach ($allTenants as $t) {
+                    if ($t->id === $activeTenantId) {
+                        $activeTenantEntity = $t;
+                        break;
+                    }
+                }
+                if ($activeTenantEntity !== null) {
+                    TenantContextHolder::set(new TenantContext(
+                        tenantId:     $activeTenantEntity->id,
+                        tenantCode:   $activeTenantEntity->tenant_code,
+                        tenantStatus: $activeTenantEntity->status,
+                    ));
+                } else {
+                    TenantContextHolder::clear();
+                    $activeTenantId = null;
+                    $this->request->getSession()->delete('SystemAdmin.activeTenantId');
+                }
+            } else {
+                TenantContextHolder::clear();
+            }
+
+            $this->set('allTenants', $allTenants);
+            $this->set('activeTenantId', $activeTenantId);
+        }
 
         $this->set('user', $user);
         if ($user !== null) {
@@ -140,6 +219,56 @@ class AppController extends Controller
             $this->set('notificationUnreadCount', 0);
             $this->set('recentNotifications', []);
         }
+
+        $this->planGuard = $this->resolvePlanGuard($user, $activeTenantId ?? null, $allTenants ?? []);
+        $this->set('planGuard', $this->planGuard);
+        $this->set('isSysAdmin', $user !== null && UserRole::isSystemAdmin((int)$user->get('i_admin')));
+        $this->set('isAdmin', $user !== null && UserRole::isAdmin((int)$user->get('i_admin')));
+    }
+
+    /**
+     * 現在のユーザーとテナント状態から PlanGuard を解決する。
+     *
+     * @param array<\App\Model\Entity\Tenant> $allTenants
+     */
+    private function resolvePlanGuard(mixed $user, ?int $activeTenantId, array $allTenants): PlanGuard
+    {
+        if ($user === null) {
+            return new PlanGuard(PlanCode::Starter);
+        }
+
+        $isSysAdmin = UserRole::isSystemAdmin((int)$user->get('i_admin'));
+
+        // システム管理者はプラン制限なし（操作中テナントがある場合はそのプランを表示用に保持）
+        if ($isSysAdmin) {
+            $planCode = PlanCode::Premium;
+            if ($activeTenantId !== null) {
+                foreach ($allTenants as $t) {
+                    if ($t->id === $activeTenantId) {
+                        $planCode = PlanCode::fromTenant($t->plan_code, $t->status);
+                        break;
+                    }
+                }
+            }
+            return new PlanGuard($planCode, isSysAdmin: true);
+        }
+
+        // 通常ユーザー：リクエスト属性またはDBからテナントプランを取得
+        $tenant = $this->request->getAttribute('tenant');
+        if ($tenant !== null) {
+            return new PlanGuard(PlanCode::fromTenant($tenant->plan_code, $tenant->status));
+        }
+
+        // フォールバック：tenant_idでDBを引く（ローカル開発環境等）
+        $tenantId = $user->get('tenant_id');
+        if ($tenantId !== null) {
+            $t = $this->fetchTable('Tenants')->find()->where(['id' => (int)$tenantId])->first();
+            if ($t !== null) {
+                return new PlanGuard(PlanCode::fromTenant($t->plan_code, $t->status));
+            }
+        }
+
+        return new PlanGuard(PlanCode::Starter);
     }
 
 }

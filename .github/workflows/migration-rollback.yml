@@ -1,0 +1,101 @@
+name: マイグレーション ロールバック（緊急用）
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'ロールバック先のマイグレーションバージョン（指定しない場合は1つ戻す）'
+        required: false
+        default: ''
+      steps:
+        description: 'ロールバックするステップ数（targetが空の場合に使用、デフォルト1）'
+        required: false
+        default: '1'
+      environment:
+        description: 'ロールバック対象環境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  rollback-production:
+    name: Rollback Production DB
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.environment == 'production' }}
+    steps:
+      - name: Migration Rollback via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH="/home/ubuntu/shokusuu1"
+
+            echo "── Migration status before rollback ─────────────────────────────"
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
+              php /var/www/html/kamaho-shokusu/bin/cake migrations status
+
+            TARGET="${{ github.event.inputs.target }}"
+            STEPS="${{ github.event.inputs.steps }}"
+
+            if [ -n "$TARGET" ]; then
+              echo "── Rolling back to version: $TARGET ─────────────────────────────"
+              docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
+                php /var/www/html/kamaho-shokusu/bin/cake migrations rollback --target "$TARGET"
+            else
+              echo "── Rolling back $STEPS step(s) ──────────────────────────────────"
+              for i in $(seq 1 "$STEPS"); do
+                echo "Step $i/$STEPS..."
+                docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
+                  php /var/www/html/kamaho-shokusu/bin/cake migrations rollback
+              done
+            fi
+
+            echo "── Migration status after rollback ──────────────────────────────"
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
+              php /var/www/html/kamaho-shokusu/bin/cake migrations status
+
+  rollback-staging:
+    name: Rollback Staging DB
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.environment == 'staging' }}
+    steps:
+      - name: Migration Rollback via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.STG_HOST }}
+          username: ${{ secrets.STG_USER }}
+          key: ${{ secrets.STG_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+
+            echo "── Migration status before rollback ─────────────────────────────"
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations status
+
+            TARGET="${{ github.event.inputs.target }}"
+            STEPS="${{ github.event.inputs.steps }}"
+
+            if [ -n "$TARGET" ]; then
+              echo "── Rolling back to version: $TARGET ─────────────────────────────"
+              docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations rollback --target "$TARGET"
+            else
+              echo "── Rolling back $STEPS step(s) ──────────────────────────────────"
+              for i in $(seq 1 "$STEPS"); do
+                echo "Step $i/$STEPS..."
+                docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations rollback
+              done
+            fi
+
+            echo "── Migration status after rollback ──────────────────────────────"
+            docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations status

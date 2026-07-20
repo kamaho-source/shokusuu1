@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\Log\Log;
 use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
@@ -167,7 +168,7 @@ class RoomAccessService
 
         try {
             $table = TableRegistry::getTableLocator()->get('MRoomInfo');
-            return $table->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])
+            return $table->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
                 ->where(['i_id_room IN' => $roomIds, 'i_del_flg' => 0])
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
@@ -186,10 +187,15 @@ class RoomAccessService
     {
         try {
             $table = TableRegistry::getTableLocator()->get('MRoomInfo');
-            return $table->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])
-                ->where(['i_del_flg' => 0])
-                ->orderBy(['i_disp_no' => 'ASC'])
-                ->toArray();
+            $query = $table->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+                ->where(['i_del_flg' => 0]);
+
+            $ctx = TenantContextHolder::get();
+            if ($ctx !== null) {
+                $query->where(['tenant_id' => $ctx->tenantId()]);
+            }
+
+            return $query->orderBy(['i_disp_no' => 'ASC'])->toArray();
         } catch (\Throwable $e) {
             Log::error('RoomAccessService#getAllActiveRooms failed: ' . $e->getMessage());
             return [];
@@ -203,10 +209,7 @@ class RoomAccessService
             return [];
         }
 
-        return $roomTable->find('list', [
-            'keyField' => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ])
+        return $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
             ->where(['i_id_room IN' => $officeRoomIds])
             ->orderBy($this->buildRoomOrder($roomTable))
             ->toArray();

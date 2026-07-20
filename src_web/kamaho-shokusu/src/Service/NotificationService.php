@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 
@@ -90,6 +91,7 @@ class NotificationService
                 $deepLink .= '?week=' . $monday;
             }
 
+            $tenantCtx = TenantContextHolder::get();
             $notification = $notificationTable->newEntity([
                 'i_id_user' => $userId,
                 'c_notification_type' => self::TYPE_APPROVAL_REJECTED,
@@ -99,6 +101,12 @@ class NotificationService
                 'i_is_read' => 0,
                 'dt_create' => $createdAt,
             ]);
+            if ($tenantCtx !== null) {
+                $notification->set('tenant_id', $tenantCtx->tenantId(), ['guard' => false]);
+                if ($tenantCtx->facilityId() !== null) {
+                    $notification->set('facility_id', $tenantCtx->facilityId(), ['guard' => false]);
+                }
+            }
             $notificationTable->saveOrFail($notification);
         }
     }
@@ -110,10 +118,16 @@ class NotificationService
         }
 
         $notificationTable = TableRegistry::getTableLocator()->get('TNotification');
+        $tenantCtx = TenantContextHolder::get();
 
-        return $notificationTable->find()
-            ->where(['i_id_user' => $userId, 'i_is_read' => 0])
-            ->count();
+        $query = $notificationTable->find()
+            ->where(['i_id_user' => $userId, 'i_is_read' => 0]);
+
+        if ($tenantCtx !== null) {
+            $query = $query->find('forTenant', tenantId: $tenantCtx->tenantId());
+        }
+
+        return $query->count();
     }
 
     public function getRecentNotifications(int $userId, int $limit = 5): array
@@ -123,13 +137,18 @@ class NotificationService
         }
 
         $notificationTable = TableRegistry::getTableLocator()->get('TNotification');
+        $tenantCtx = TenantContextHolder::get();
 
-        return $notificationTable->find()
+        $query = $notificationTable->find()
             ->where(['i_id_user' => $userId])
-            ->order(['dt_create' => 'DESC'])
-            ->limit($limit)
-            ->all()
-            ->toArray();
+            ->orderBy(['dt_create' => 'DESC'])
+            ->limit($limit);
+
+        if ($tenantCtx !== null) {
+            $query = $query->find('forTenant', tenantId: $tenantCtx->tenantId());
+        }
+
+        return $query->all()->toArray();
     }
 
     public function getNotifications(int $userId, int $limit = 50): array
@@ -139,13 +158,18 @@ class NotificationService
         }
 
         $notificationTable = TableRegistry::getTableLocator()->get('TNotification');
+        $tenantCtx = TenantContextHolder::get();
 
-        return $notificationTable->find()
+        $query = $notificationTable->find()
             ->where(['i_id_user' => $userId])
-            ->order(['dt_create' => 'DESC'])
-            ->limit($limit)
-            ->all()
-            ->toArray();
+            ->orderBy(['dt_create' => 'DESC'])
+            ->limit($limit);
+
+        if ($tenantCtx !== null) {
+            $query = $query->find('forTenant', tenantId: $tenantCtx->tenantId());
+        }
+
+        return $query->all()->toArray();
     }
 
     public function markAsRead(int $userId, array $notificationIds): int
@@ -156,10 +180,16 @@ class NotificationService
         }
 
         $notificationTable = TableRegistry::getTableLocator()->get('TNotification');
+        $tenantCtx = TenantContextHolder::get();
+
+        $conditions = ['i_id_user' => $userId, 'i_id_notification IN' => $notificationIds];
+        if ($tenantCtx !== null) {
+            $conditions['tenant_id'] = $tenantCtx->tenantId();
+        }
 
         return $notificationTable->updateAll(
             ['i_is_read' => 1, 'dt_read' => DateTime::now()],
-            ['i_id_user' => $userId, 'i_id_notification IN' => $notificationIds]
+            $conditions
         );
     }
 
@@ -170,10 +200,16 @@ class NotificationService
         }
 
         $notificationTable = TableRegistry::getTableLocator()->get('TNotification');
+        $tenantCtx = TenantContextHolder::get();
+
+        $conditions = ['i_id_user' => $userId, 'i_is_read' => 0];
+        if ($tenantCtx !== null) {
+            $conditions['tenant_id'] = $tenantCtx->tenantId();
+        }
 
         return $notificationTable->updateAll(
             ['i_is_read' => 1, 'dt_read' => DateTime::now()],
-            ['i_id_user' => $userId, 'i_is_read' => 0]
+            $conditions
         );
     }
 

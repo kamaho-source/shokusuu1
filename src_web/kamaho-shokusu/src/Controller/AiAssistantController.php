@@ -61,6 +61,10 @@ class AiAssistantController extends AppController
         $this->request->allowMethod(['post']);
         $this->Authorization->authorize($this, 'ask');
 
+        if ($r = $this->rejectIfPlanBlocked($this->planGuard->allowsAiAssistant(), isJson: true)) {
+            return $r;
+        }
+
         $question = $this->request->getData('question');
         $context  = $this->request->getData('context');
 
@@ -146,6 +150,13 @@ class AiAssistantController extends AppController
         $this->autoRender = false;
         $this->request->allowMethod(['post']);
         $this->Authorization->authorize($this, 'ask');
+
+        if (!$this->planGuard->allowsAiAssistant()) {
+            http_response_code(403);
+            header('Content-Type: application/json');
+            echo json_encode(['error' => $this->planGuard->upgradeRequiredMessage(), 'plan_upgrade_required' => true], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
         $apiKey = env('OPENROUTER_API_KEY');
         if (empty($apiKey)) {

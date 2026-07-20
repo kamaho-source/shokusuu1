@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\Date;
 use Cake\Log\Log;
 use Cake\ORM\Table;
@@ -130,10 +131,14 @@ class ReservationCopyService
             Log::debug('[copyRangeByOffset] childIds count: ' . count($childIds));
         }
 
+        $copyRangeCtx = TenantContextHolder::get();
         $conditions = [
             'd_reservation_date >=' => $srcStart->format('Y-m-d'),
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
+        if ($copyRangeCtx !== null) {
+            $conditions['tenant_id'] = $copyRangeCtx->tenantId();
+        }
         if ($roomId !== null) {
             $conditions['i_id_room'] = $roomId;
         }
@@ -213,7 +218,10 @@ class ReservationCopyService
                     continue;
                 }
 
+                $copyCtx1 = TenantContextHolder::get();
                 $data = [
+                    'tenant_id'           => $copyCtx1 !== null ? $copyCtx1->tenantId() : 1,
+                    'facility_id'         => $copyCtx1 !== null ? $copyCtx1->tenantId() : 1,
                     'i_id_user'           => (int)$r['i_id_user'],
                     'i_id_room'           => (int)$r['i_id_room'],
                     'd_reservation_date'  => $dstDate->format('Y-m-d'),
@@ -256,10 +264,14 @@ class ReservationCopyService
 
         Log::debug('[copyMonthSameDay] srcStart=' . $srcStart->format('Y-m-d') . ', srcEnd=' . $srcEnd->format('Y-m-d') . ', dstStart=' . $dstStart->format('Y-m-d') . ', roomId=' . ($roomId ?? 'null') . ', onlyChildren=' . ($onlyChildren ? 'true' : 'false'));
 
+        $copyMonthCtx = TenantContextHolder::get();
         $conditions = [
             'd_reservation_date >=' => $srcStart->format('Y-m-d'),
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
+        if ($copyMonthCtx !== null) {
+            $conditions['tenant_id'] = $copyMonthCtx->tenantId();
+        }
         if ($roomId !== null) {
             $conditions['i_id_room'] = $roomId;
         }
@@ -353,7 +365,10 @@ class ReservationCopyService
                     continue;
                 }
 
+                $copyCtx2 = TenantContextHolder::get();
                 $data = [
+                    'tenant_id'           => $copyCtx2 !== null ? $copyCtx2->tenantId() : 1,
+                    'facility_id'         => $copyCtx2 !== null ? $copyCtx2->tenantId() : 1,
                     'i_id_user'           => (int)$r['i_id_user'],
                     'i_id_room'           => (int)$r['i_id_room'],
                     'd_reservation_date'  => $dstDate->format('Y-m-d'),
@@ -384,12 +399,15 @@ class ReservationCopyService
      */
     private function getChildUserIds(): array
     {
+        $childCtx = TenantContextHolder::get();
+        $conditions = ['i_user_level' => 1, 'i_del_flag' => 0];
+        if ($childCtx !== null) {
+            $conditions['tenant_id'] = $childCtx->tenantId();
+        }
+
         return $this->MUserInfo->find()
             ->select(['i_id_user'])
-            ->where([
-                'i_user_level' => 1,
-                'i_del_flag' => 0,
-            ])
+            ->where($conditions)
             ->enableHydration(false)
             ->all()
             ->extract('i_id_user')
@@ -465,10 +483,14 @@ class ReservationCopyService
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
 
+        $previewRangeCtx = TenantContextHolder::get();
         $conditions = [
             'd_reservation_date >=' => $srcStart->format('Y-m-d'),
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
+        if ($previewRangeCtx !== null) {
+            $conditions['tenant_id'] = $previewRangeCtx->tenantId();
+        }
         if ($roomId !== null) {
             $conditions['i_id_room'] = $roomId;
         }
@@ -529,10 +551,14 @@ class ReservationCopyService
         $srcEnd   = new Date($srcMonthFirst->format('Y-m-t'));
         $dstStart = new Date($dstMonthFirst->format('Y-m-01'));
 
+        $previewMonthCtx = TenantContextHolder::get();
         $conditions = [
             'd_reservation_date >=' => $srcStart->format('Y-m-d'),
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
+        if ($previewMonthCtx !== null) {
+            $conditions['tenant_id'] = $previewMonthCtx->tenantId();
+        }
         if ($roomId !== null) {
             $conditions['i_id_room'] = $roomId;
         }

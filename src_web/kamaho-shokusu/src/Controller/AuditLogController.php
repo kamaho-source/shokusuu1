@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\ValueObject\UserRole;
 use App\Service\AuditLogService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
@@ -10,8 +11,8 @@ use Cake\Http\Response;
 /**
  * 監査ログ閲覧コントローラー
  *
- * システム管理者（i_admin = 3）専用。
- * ログ一覧・絞り込み・CSVエクスポートを提供する。
+ * - システム管理者（i_admin = 3）: 全テナントのログを閲覧可能
+ * - テナント管理者（i_admin = 4）: 自テナントのログのみ（クエリ層で強制）
  */
 class AuditLogController extends AppController
 {
@@ -38,7 +39,7 @@ class AuditLogController extends AppController
 
         $query = $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC']);
+            ->orderBy(['dt_create' => 'DESC']);
 
         $logs = $this->paginate($query, ['limit' => 100, 'maxLimit' => 500]);
 
@@ -78,7 +79,7 @@ class AuditLogController extends AppController
         $table      = $this->fetchTable('TAuditLog');
         $logs       = $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC'])
+            ->orderBy(['dt_create' => 'DESC'])
             ->limit(10000)
             ->all();
 
@@ -122,11 +123,22 @@ class AuditLogController extends AppController
 
     /**
      * クエリパラメータから絞り込み条件を構築する。
+     *
+     * テナント管理者の場合は自テナントのログのみに強制スコープする。
+     * システム管理者は全テナントを横断して閲覧できる。
      */
     private function buildConditions(): array
     {
         $conditions = [];
         $q = $this->request->getQueryParams();
+
+        $identity = $this->request->getAttribute('identity');
+        if ($identity !== null && !UserRole::isSystemAdmin((int)$identity->get('i_admin'))) {
+            $tenantId = $identity->get('tenant_id');
+            if ($tenantId !== null) {
+                $conditions['TAuditLog.tenant_id'] = (int)$tenantId;
+            }
+        }
 
         if (!empty($q['category'])) {
             $conditions['c_category'] = $q['category'];

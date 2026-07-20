@@ -87,11 +87,22 @@ $recentNotifications     = $recentNotifications ?? [];
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm animate__animated animate__fadeIn" aria-labelledby="adminDropdown">
                                 <li><?= $this->Html->link('💰 食数単価一覧', ['controller' => 'MMealPriceInfo', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
+                                <?php if ($planGuard->allowsExcelExport()): ?>
                                 <li><?= $this->Html->link('📄 食事控除表', ['controller' => 'MMealPriceInfo', 'action' => 'GetMealSummary'], ['class' => 'dropdown-item']) ?></li>
+                                <?php else: ?>
+                                <li><span class="dropdown-item text-muted" title="<?= h($planGuard->upgradeRequiredMessage()) ?>">📄 食事控除表 <i class="bi bi-lock-fill small"></i></span></li>
+                                <?php endif; ?>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><?= $this->Html->link('🔄 部屋異動予約', ['controller' => 'MRoomTransferSchedule', 'action' => 'index'], ['class' => 'dropdown-item']) ?></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/facility-settings/edit') ?>">
+                                        <i class="bi bi-sliders me-1"></i>施設別設定
+                                    </a>
+                                </li>
                             </ul>
                         </li>
+
                     <?php endif; ?>
 
                     <?php if ($user): ?>
@@ -109,6 +120,17 @@ $recentNotifications     = $recentNotifications ?? [];
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm">
                                 <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/admin/tenants') ?>">
+                                        <i class="bi bi-building me-2 text-info"></i>テナント選択
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="<?= $this->Url->build('/admin/tenants/trials') ?>">
+                                        <i class="bi bi-graph-up me-2 text-warning"></i>トライアル管理
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
                                     <a class="dropdown-item" href="<?= $this->Url->build('/AuditLog') ?>">
                                         <i class="bi bi-shield-lock me-2 text-danger"></i>監査ログ
                                     </a>
@@ -124,6 +146,20 @@ $recentNotifications     = $recentNotifications ?? [];
                 </ul>
 
                 <ul class="navbar-nav ms-auto align-items-lg-center">
+                    <?php
+                    $allTenants     = $allTenants ?? [];
+                    $activeTenantId = $activeTenantId ?? null;
+                    // 現在操作中のテナント名を取得（バナー用）
+                    $activeTenantName = null;
+                    if ($isSysAdmin && $activeTenantId !== null) {
+                        foreach ($allTenants as $t) {
+                            if ($t->id === $activeTenantId) {
+                                $activeTenantName = $t->name;
+                                break;
+                            }
+                        }
+                    }
+                    ?>
                     <?php if ($user): ?>
                         <li class="nav-item dropdown me-2">
                             <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -185,7 +221,7 @@ $recentNotifications     = $recentNotifications ?? [];
         </div>
     </nav>
 
-    <?php if ($user): ?>
+    <?php if ($user && $planGuard->allowsAiAssistant()): ?>
         <button id="ai-assistant-fab" title="お問い合わせAIに質問">
             <i class="bi bi-robot"></i>
             <span class="spinner-border spinner-border-sm d-none" id="ai-assistant-loading-fab" role="status"></span>
@@ -223,6 +259,33 @@ $recentNotifications     = $recentNotifications ?? [];
     <?php endif; ?>
 <?php endif; ?>
 
+<?php if (!$isModal && $isSysAdmin && $activeTenantName !== null): ?>
+    <div class="tenant-context-banner">
+        <div class="container d-flex align-items-center justify-content-between gap-2 py-1">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-building-fill"></i>
+                <strong><?= h($activeTenantName) ?></strong>
+                <span class="opacity-75">を操作中</span>
+            </span>
+            <a href="<?= $this->Url->build('/admin/tenants') ?>" class="tenant-context-banner__link">
+                <i class="bi bi-grid me-1"></i>テナント一覧へ戻る
+            </a>
+        </div>
+    </div>
+<?php elseif (!$isModal && $isSysAdmin && $activeTenantName === null && $user): ?>
+    <div class="tenant-context-banner tenant-context-banner--all">
+        <div class="container d-flex align-items-center justify-content-between gap-2 py-1">
+            <span class="d-flex align-items-center gap-2">
+                <i class="bi bi-globe"></i>
+                <span>全テナントモード</span>
+            </span>
+            <a href="<?= $this->Url->build('/admin/tenants') ?>" class="tenant-context-banner__link">
+                <i class="bi bi-grid me-1"></i>テナントを選択する
+            </a>
+        </div>
+    </div>
+<?php endif; ?>
+
 <main class="<?= $isModal ? '' : 'container mt-3' ?>">
     <?= $this->Flash->render() ?>
     <?= $this->fetch('content') ?>
@@ -239,9 +302,12 @@ $recentNotifications     = $recentNotifications ?? [];
         if (!nav) return;
 
         const applyPad = () => {
-            const height = nav.getBoundingClientRect().height;
-            document.body.style.paddingTop = height + 'px';
-            document.documentElement.style.setProperty('--nav-height', height + 'px');
+            const navH = nav.getBoundingClientRect().height;
+            document.documentElement.style.setProperty('--nav-height', navH + 'px');
+
+            const banner = document.querySelector('.tenant-context-banner');
+            const bannerH = banner ? banner.getBoundingClientRect().height : 0;
+            document.body.style.paddingTop = (navH + bannerH) + 'px';
         };
 
         applyPad();

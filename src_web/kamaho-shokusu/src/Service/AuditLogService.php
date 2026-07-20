@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -11,6 +12,7 @@ use Cake\ORM\TableRegistry;
  * システム内の重要操作を t_audit_log に記録する。
  * 静的メソッド record() を使用することで、DI不要でどこからでも呼び出せる。
  * 書き込み失敗は例外を握りつぶしてメイン処理を妨げない。
+ * tenant_id / facility_id は TenantContextHolder から自動的に付与される。
  *
  * カテゴリ一覧:
  *   user        ユーザー管理操作
@@ -30,12 +32,15 @@ use Cake\ORM\TableRegistry;
  *   approval_block_leader / approval_admin / approval_rejected / approval_reflected
  *   room_create / room_update / room_delete
  *   meal_price_create / meal_price_update / meal_price_delete
- *   audit_export
+ *   audit_export / excel_export / file_import
  */
 class AuditLogService
 {
     /**
      * 監査ログを記録する。
+     *
+     * tenant_id / facility_id は TenantContextHolder から自動付与されるため、
+     * 呼び出し元で指定する必要はない。
      *
      * @param string      $category      操作カテゴリ
      * @param string      $action        操作種別
@@ -78,6 +83,12 @@ class AuditLogService
             $log->i_result          = $result;
             $log->dt_create         = date('Y-m-d H:i:s');
 
+            $ctx = TenantContextHolder::get();
+            if ($ctx !== null) {
+                $log->set('tenant_id',   $ctx->tenantId(),   ['guard' => false]);
+                $log->set('facility_id', $ctx->facilityId(), ['guard' => false]);
+            }
+
             $table->save($log);
         } catch (\Throwable) {
             // 監査ログ失敗はメイン処理を妨げない
@@ -95,6 +106,6 @@ class AuditLogService
         $table = TableRegistry::getTableLocator()->get('TAuditLog');
         return $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC']);
+            ->orderBy(['dt_create' => 'DESC']);
     }
 }

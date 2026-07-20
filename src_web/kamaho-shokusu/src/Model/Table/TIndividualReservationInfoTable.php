@@ -3,16 +3,20 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Application\Tenant\TenantContextHolder;
 use Cake\Datasource\EntityInterface;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\RulesChecker;
+use App\Infrastructure\Table\TenantAwareTableTrait;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
 class TIndividualReservationInfoTable extends Table
 {
+    use TenantAwareTableTrait;
+
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -184,7 +188,10 @@ class TIndividualReservationInfoTable extends Table
 
             $isNew = false;
             if (!$entity) {
+                $toggleCtx = TenantContextHolder::get();
                 $entity = $this->newEmptyEntity();
+                $entity->tenant_id          = $toggleCtx !== null ? $toggleCtx->tenantId() : 1;
+                $entity->facility_id        = $toggleCtx !== null ? $toggleCtx->tenantId() : 1;
                 $entity->i_id_user          = $userId;
                 $entity->d_reservation_date = $date;
                 $entity->i_id_room          = $roomId;
@@ -253,7 +260,10 @@ class TIndividualReservationInfoTable extends Table
 
                 $oppIsNew = false;
                 if (!$opponent) {
+                    $oppCtx = TenantContextHolder::get();
                     $opponent = $this->newEmptyEntity();
+                    $opponent->tenant_id          = $oppCtx !== null ? $oppCtx->tenantId() : 1;
+                    $opponent->facility_id        = $oppCtx !== null ? $oppCtx->tenantId() : 1;
                     $opponent->i_id_user          = $userId;
                     $opponent->d_reservation_date = $date;
                     $opponent->i_id_room          = $roomId;
