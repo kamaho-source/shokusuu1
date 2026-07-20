@@ -103,13 +103,6 @@ $recentNotifications     = $recentNotifications ?? [];
                             </ul>
                         </li>
 
-                        <?php if ($planGuard->allowsStatsAi()): ?>
-                        <li class="nav-item">
-                            <a class="nav-link" href="<?= $this->Url->build('/StatsAi') ?>">
-                                <i class="bi bi-robot"></i>統計AI
-                            </a>
-                        </li>
-                        <?php endif; ?>
                     <?php endif; ?>
 
                     <?php if ($user): ?>
@@ -228,7 +221,7 @@ $recentNotifications     = $recentNotifications ?? [];
         </div>
     </nav>
 
-    <?php if ($user): ?>
+    <?php if ($user && $planGuard->allowsAiAssistant()): ?>
         <button id="ai-assistant-fab" title="お問い合わせAIに質問">
             <i class="bi bi-robot"></i>
             <span class="spinner-border spinner-border-sm d-none" id="ai-assistant-loading-fab" role="status"></span>

@@ -11,6 +11,7 @@
  *   - $hasTodayReport : bool   本日の食数報告が完了しているか
  *
  * @var \App\View\AppView $this
+ * @var \App\Application\Plan\PlanGuard $planGuard
  */
 use Cake\Core\Configure;
 
@@ -255,16 +256,32 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                     食数予約ボタン: クリックすると予約方法選択モーダル(#reservationChoiceModal)を開く。
                     モーダル内で「通常予約」か「直前編集」かを選択させる。
                 */ ?>
+                <?php if ($planGuard->allowsWeeklyBulk()): ?>
                 <button class="menu-card border-0" type="button" data-bs-toggle="modal" data-bs-target="#reservationChoiceModal">
                     <div class="menu-icon" style="background:#e9f7ef;color:#30a46c;">📅</div>
                     <div class="menu-title-text">食数予約</div>
                     <div class="menu-desc">将来の食事予定を一括登録する</div>
                 </button>
+                <?php else: ?>
+                <div class="menu-card" style="opacity:.5;cursor:not-allowed;pointer-events:none;">
+                    <div class="menu-icon" style="background:#f3f4f6;color:#9ca3af;">🔒</div>
+                    <div class="menu-title-text text-muted">食数予約</div>
+                    <div class="menu-desc" style="font-size:.7em;">スタンダード以上のプランで利用可能</div>
+                </div>
+                <?php endif; ?>
+                <?php if ($planGuard->allowsMonthlyBulk()): ?>
                 <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/meal-count-grid') ?>">
                     <div class="menu-icon" style="background:#e8fdf5;color:#0f7a50;">📊</div>
                     <div class="menu-title-text">食数一括管理</div>
                     <div class="menu-desc">4週間分の食事予約を一覧で確認・編集する</div>
                 </a>
+                <?php else: ?>
+                <div class="menu-card" style="opacity:.5;cursor:not-allowed;pointer-events:none;">
+                    <div class="menu-icon" style="background:#f3f4f6;color:#9ca3af;">🔒</div>
+                    <div class="menu-title-text text-muted">食数一括管理</div>
+                    <div class="menu-desc" style="font-size:.7em;">スタンダード以上のプランで利用可能</div>
+                </div>
+                <?php endif; ?>
                 <button class="menu-card border-0 text-start" type="button" id="actual-meal-choice-trigger">
                     <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
                     <div class="menu-title-text">実食入力</div>
@@ -315,11 +332,19 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-desc">単価マスタの確認</div>
                     </a>
                     <?php /* 食事控除表ダウンロード: 月次集計帳票を出力する */ ?>
+                    <?php if ($planGuard->allowsExcelExport()): ?>
                     <a class="menu-card" href="<?= $this->Url->build('/MMealPriceInfo/GetMealSummary') ?>">
                         <div class="menu-icon" style="background:#f1f5f9;color:#475569;">⬇️</div>
                         <div class="menu-title-text">食事控除表ダウンロード</div>
                         <div class="menu-desc">集計帳票の出力</div>
                     </a>
+                    <?php else: ?>
+                    <div class="menu-card" style="opacity:.5;cursor:not-allowed;pointer-events:none;">
+                        <div class="menu-icon" style="background:#f3f4f6;color:#9ca3af;">🔒</div>
+                        <div class="menu-title-text text-muted">食事控除表ダウンロード</div>
+                        <div class="menu-desc" style="font-size:.7em;">ライト以上のプランで利用可能</div>
+                    </div>
+                    <?php endif; ?>
                     <?php /* 管理者用最終承認・集計: 管理者のみ表示する */ ?>
                     <a class="menu-card" href="<?= $this->Url->build('/Approval/adminIndex') ?>">
                         <div class="menu-icon" style="background:#ecfdf5;color:#059669;">✔️</div>
@@ -360,11 +385,19 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 <div class="section-title">システム管理</div>
                 <div class="card-grid">
                     <?php /* 統計AI: 集計データをもとにAIへ質問できる（システム管理者のみ） */ ?>
+                    <?php if ($planGuard->allowsStatsAi()): ?>
                     <a class="menu-card" href="<?= $this->Url->build('/StatsAi') ?>">
                         <div class="menu-icon" style="background:#eef2ff;color:#4f46e5;">📊</div>
                         <div class="menu-title-text">統計AI</div>
                         <div class="menu-desc">食数・承認・利用状況の集計をAIに質問する</div>
                     </a>
+                    <?php else: ?>
+                    <div class="menu-card" style="opacity:.5;cursor:not-allowed;pointer-events:none;">
+                        <div class="menu-icon" style="background:#f3f4f6;color:#9ca3af;">🔒</div>
+                        <div class="menu-title-text text-muted">統計AI</div>
+                        <div class="menu-desc" style="font-size:.7em;">プレミアムプランで利用可能</div>
+                    </div>
+                    <?php endif; ?>
                     <a class="menu-card" href="<?= $this->Url->build('/AuditLog') ?>">
                         <div class="menu-icon" style="background:#1a1a2e;color:#ffd700;">🔒</div>
                         <div class="menu-title-text">監査ログ</div>
