@@ -150,7 +150,7 @@ final class FacilitySettingsController extends AppController
                 'c_target_table' => 'facility_settings',
                 'c_target_id'   => (string)$facilityId,
             ])
-            ->order(['dt_create' => 'DESC']);
+            ->orderBy(['dt_create' => 'DESC']);
 
         $logs = $this->paginate($query, ['limit' => 30, 'maxLimit' => 100]);
 

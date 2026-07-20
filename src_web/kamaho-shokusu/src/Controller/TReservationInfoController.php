@@ -151,10 +151,8 @@ class TReservationInfoController extends ReservationBaseController
         }
         $reservationRoomNames = [];
         if (!empty($reservationRoomIds)) {
-            $reservationRoomNames = $this->MRoomInfo->find('list', [
-                'keyField'   => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])->where(['i_id_room IN' => array_keys($reservationRoomIds)])->toArray();
+            $reservationRoomNames = $this->MRoomInfo->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+                ->where(['i_id_room IN' => array_keys($reservationRoomIds)])->toArray();
         }
 
         $this->set(compact(

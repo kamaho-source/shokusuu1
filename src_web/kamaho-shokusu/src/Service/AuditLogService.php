@@ -106,6 +106,6 @@ class AuditLogService
         $table = TableRegistry::getTableLocator()->get('TAuditLog');
         return $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC']);
+            ->orderBy(['dt_create' => 'DESC']);
     }
 }

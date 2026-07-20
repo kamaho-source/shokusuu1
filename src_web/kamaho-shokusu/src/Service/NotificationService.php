@@ -141,7 +141,7 @@ class NotificationService
 
         $query = $notificationTable->find()
             ->where(['i_id_user' => $userId])
-            ->order(['dt_create' => 'DESC'])
+            ->orderBy(['dt_create' => 'DESC'])
             ->limit($limit);
 
         if ($tenantCtx !== null) {
@@ -162,7 +162,7 @@ class NotificationService
 
         $query = $notificationTable->find()
             ->where(['i_id_user' => $userId])
-            ->order(['dt_create' => 'DESC'])
+            ->orderBy(['dt_create' => 'DESC'])
             ->limit($limit);
 
         if ($tenantCtx !== null) {

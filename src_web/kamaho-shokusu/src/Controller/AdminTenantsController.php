@@ -49,7 +49,7 @@ final class AdminTenantsController extends AppController
         }
 
         $tenantsTable   = $this->fetchTable('Tenants');
-        $tenants        = $tenantsTable->find()->order(['name' => 'ASC'])->all();
+        $tenants        = $tenantsTable->find()->orderBy(['name' => 'ASC'])->all();
         $activeTenantId = $this->request->getSession()->read('SystemAdmin.activeTenantId');
 
         $this->set(compact('tenants', 'activeTenantId'));
@@ -139,7 +139,7 @@ final class AdminTenantsController extends AppController
             $query->where(['trial_expires_at <=' => $q['expire_to'] . ' 23:59:59']);
         }
 
-        $query->order(['Tenants.created_at' => 'DESC']);
+        $query->orderBy(['Tenants.created_at' => 'DESC']);
         $tenants = $this->paginate($query, ['limit' => 20, 'maxLimit' => 100]);
 
         $tenantIds       = array_map(fn($t) => $t->id, iterator_to_array($tenants));

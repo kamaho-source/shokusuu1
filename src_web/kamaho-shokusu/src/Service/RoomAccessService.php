@@ -168,7 +168,7 @@ class RoomAccessService
 
         try {
             $table = TableRegistry::getTableLocator()->get('MRoomInfo');
-            return $table->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])
+            return $table->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
                 ->where(['i_id_room IN' => $roomIds, 'i_del_flg' => 0])
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
@@ -187,7 +187,7 @@ class RoomAccessService
     {
         try {
             $table = TableRegistry::getTableLocator()->get('MRoomInfo');
-            $query = $table->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])
+            $query = $table->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
                 ->where(['i_del_flg' => 0]);
 
             $ctx = TenantContextHolder::get();
@@ -209,10 +209,7 @@ class RoomAccessService
             return [];
         }
 
-        return $roomTable->find('list', [
-            'keyField' => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ])
+        return $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
             ->where(['i_id_room IN' => $officeRoomIds])
             ->orderBy($this->buildRoomOrder($roomTable))
             ->toArray();

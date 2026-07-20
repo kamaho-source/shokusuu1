@@ -63,10 +63,8 @@ class ReservationCalendarService
             // m_room_info には i_disp_no カラムが存在するため固定使用
             $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
-            $query = $roomTable->find('list', [
-                'keyField'   => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])->orderBy($roomOrder);
+            $query = $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+                ->orderBy($roomOrder);
 
             $ctx = TenantContextHolder::get();
             if ($ctx !== null) {
@@ -81,10 +79,7 @@ class ReservationCalendarService
                 return [];
             }
 
-            return $roomTable->find('list', [
-                'keyField' => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])
+            return $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
                 ->where([
                     'i_id_room IN' => $userRoomIds,
                     'c_room_name LIKE' => '%事務所%',
@@ -99,10 +94,7 @@ class ReservationCalendarService
                 return [];
             }
 
-            return $roomTable->find('list', [
-                'keyField'   => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])
+            return $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
                 ->where([
                     'i_id_room IN' => $userRoomIds,
                     'i_del_flg'    => 0,

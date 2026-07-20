@@ -71,10 +71,7 @@ class ReservationViewService
         $judgeColumn = $this->datePolicy->judgeColumn($targetDate, $today, 'Asia/Tokyo');
 
         $viewCtx = TenantContextHolder::get();
-        $roomListQuery = $roomTable->find('list', [
-            'keyField' => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ]);
+        $roomListQuery = $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name');
         if ($viewCtx !== null) {
             $roomListQuery->where(['tenant_id' => $viewCtx->tenantId()]);
         }
@@ -129,7 +126,7 @@ class ReservationViewService
                     ['MUserInfo.i_id_user = MUserGroup.i_id_user']
                 )
                 ->where($userWhereView)
-                ->order(['MUserGroup.i_id_user' => 'ASC'])
+                ->orderBy(['MUserGroup.i_id_user' => 'ASC'])
                 ->enableHydration(false)
                 ->all();
 

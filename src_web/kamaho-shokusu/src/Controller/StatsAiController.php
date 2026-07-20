@@ -53,10 +53,8 @@ final class StatsAiController extends AppController
 
         // 氏名→トークンの逆引きマップを構築（askStream でのサーバー側マスクに使用）
         $initCtx = TenantContextHolder::get();
-        $usersInitQuery = $this->fetchTable('MUserInfo')->find('list', [
-            'keyField'   => 'i_id_user',
-            'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0]);
+        $usersInitQuery = $this->fetchTable('MUserInfo')->find('list', keyField: 'i_id_user', valueField: 'c_user_name')
+            ->where(['i_del_flag' => 0]);
         if ($initCtx !== null) {
             $usersInitQuery->where(['tenant_id' => $initCtx->tenantId()]);
         }
@@ -66,10 +64,7 @@ final class StatsAiController extends AppController
         }
 
         // 部屋名→トークンの逆引きマップを構築（askStream でのサーバー側マスクに使用）
-        $roomsInitQuery = $this->fetchTable('MRoomInfo')->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ]);
+        $roomsInitQuery = $this->fetchTable('MRoomInfo')->find('list', keyField: 'i_id_room', valueField: 'c_room_name');
         if ($initCtx !== null) {
             $roomsInitQuery->where(['tenant_id' => $initCtx->tenantId()]);
         }
@@ -94,10 +89,8 @@ final class StatsAiController extends AppController
         }
 
         $indexCtx = TenantContextHolder::get();
-        $usersIndexQuery = $this->fetchTable('MUserInfo')->find('list', [
-            'keyField'   => 'i_id_user',
-            'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0]);
+        $usersIndexQuery = $this->fetchTable('MUserInfo')->find('list', keyField: 'i_id_user', valueField: 'c_user_name')
+            ->where(['i_del_flag' => 0]);
         if ($indexCtx !== null) {
             $usersIndexQuery->where(['tenant_id' => $indexCtx->tenantId()]);
         }
@@ -109,10 +102,7 @@ final class StatsAiController extends AppController
             $userMap[$this->userTokenizer->tokenize((int)$id)] = $name;
         }
 
-        $roomsIndexQuery = $this->fetchTable('MRoomInfo')->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ]);
+        $roomsIndexQuery = $this->fetchTable('MRoomInfo')->find('list', keyField: 'i_id_room', valueField: 'c_room_name');
         if ($indexCtx !== null) {
             $roomsIndexQuery->where(['tenant_id' => $indexCtx->tenantId()]);
         }

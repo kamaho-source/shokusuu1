@@ -111,19 +111,14 @@ class MRoomTransferScheduleController extends AppController
 
         $addCtx = TenantContextHolder::get();
 
-        $usersQuery = $this->fetchTable('MUserInfo')->find('list', [
-            'keyField'   => 'i_id_user',
-            'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0])->orderByAsc('i_disp_no');
+        $usersQuery = $this->fetchTable('MUserInfo')->find('list', keyField: 'i_id_user', valueField: 'c_user_name')
+            ->where(['i_del_flag' => 0])->orderByAsc('i_disp_no');
         if ($addCtx !== null) {
             $usersQuery->where(['MUserInfo.tenant_id' => $addCtx->tenantId()]);
         }
         $users = $usersQuery->toArray();
 
-        $roomsQuery = $this->fetchTable('MRoomInfo')->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ]);
+        $roomsQuery = $this->fetchTable('MRoomInfo')->find('list', keyField: 'i_id_room', valueField: 'c_room_name');
         if ($addCtx !== null) {
             $roomsQuery->where(['tenant_id' => $addCtx->tenantId()]);
         }

@@ -264,10 +264,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $roomsQuery = $this->MRoomInfo->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ]);
+        $roomsQuery = $this->MRoomInfo->find('list', keyField: 'i_id_room', valueField: 'c_room_name');
         $addCtx = TenantContextHolder::get();
         if ($addCtx !== null) {
             $roomsQuery->where(['tenant_id' => $addCtx->tenantId()]);
@@ -323,7 +320,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $editRoomsQuery = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name']);
+        $editRoomsQuery = $this->MRoomInfo->find('list', keyField: 'i_id_room', valueField: 'c_room_name');
         $editCtx = TenantContextHolder::get();
         if ($editCtx !== null) {
             $editRoomsQuery->where(['tenant_id' => $editCtx->tenantId()]);
@@ -638,10 +635,8 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $usersQuery = $this->fetchTable('MUserInfo')->find('list', [
-            'keyField'   => 'i_id_user',
-            'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0]);
+        $usersQuery = $this->fetchTable('MUserInfo')->find('list', keyField: 'i_id_user', valueField: 'c_user_name')
+            ->where(['i_del_flag' => 0]);
         $pwCtx = TenantContextHolder::get();
         if ($pwCtx !== null) {
             $usersQuery->where(['tenant_id' => $pwCtx->tenantId()]);
