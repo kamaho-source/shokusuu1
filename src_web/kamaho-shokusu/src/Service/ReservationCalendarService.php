@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Application\Tenant\TenantContextHolder;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -65,11 +64,6 @@ class ReservationCalendarService
 
             $query = $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
                 ->orderBy($roomOrder);
-
-            $ctx = TenantContextHolder::get();
-            if ($ctx !== null) {
-                $query->where(['tenant_id' => $ctx->tenantId()]);
-            }
 
             return $query->toArray();
         }
@@ -141,11 +135,6 @@ class ReservationCalendarService
         }
         if ($endDate !== null) {
             $query->where(['d_reservation_date <' => $endDate]);
-        }
-
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $query->where(['tenant_id' => $ctx->tenantId()]);
         }
 
         $rows = $query->toArray();
@@ -333,11 +322,6 @@ class ReservationCalendarService
             ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
             ->where(['d_reservation_date >=' => $startDate])
             ->where(['d_reservation_date <' => $endDate]);
-
-        $ctx = TenantContextHolder::get();
-        if ($ctx !== null) {
-            $query->where(['tenant_id' => $ctx->tenantId()]);
-        }
 
         $rows = $query->toArray();
 
