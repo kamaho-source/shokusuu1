@@ -13,7 +13,6 @@ use Cake\ORM\Entity;
  * @property string $name
  * @property string $status  trial|active|suspended|terminated
  * @property \Cake\I18n\DateTime|null $trial_expires_at
- * @property string|null $stripe_customer_id
  * @property string|null $billing_contact_name
  * @property string|null $billing_contact_email
  * @property string|null $billing_address
@@ -30,7 +29,6 @@ class Tenant extends Entity
         'name'                  => true,
         'status'                => true,
         'trial_expires_at'      => true,
-        'stripe_customer_id'    => true,
         'billing_contact_name'  => true,
         'billing_contact_email' => true,
         'billing_address'       => true,

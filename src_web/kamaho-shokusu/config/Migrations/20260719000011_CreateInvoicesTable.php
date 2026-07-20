@@ -5,7 +5,7 @@ use Migrations\AbstractMigration;
 
 /**
  * invoicesテーブルを新規作成する。
- * Stripe Invoice と1対1で紐付き、入金状況を管理する。
+ * テナントごとの請求情報を管理する。
  */
 class CreateInvoicesTable extends AbstractMigration
 {
@@ -15,12 +15,6 @@ class CreateInvoicesTable extends AbstractMigration
             ->addColumn('tenant_id', 'integer', [
                 'null'    => false,
                 'comment' => '対象テナントID',
-            ])
-            ->addColumn('stripe_invoice_id', 'string', [
-                'limit'   => 255,
-                'null'    => true,
-                'default' => null,
-                'comment' => 'Stripe Invoice ID (in_xxx)',
             ])
             ->addColumn('invoice_number', 'string', [
                 'limit'   => 50,
@@ -76,7 +70,6 @@ class CreateInvoicesTable extends AbstractMigration
             ->addColumn('created_at', 'datetime', ['null' => false])
             ->addColumn('updated_at', 'datetime', ['null' => false])
             ->addIndex(['tenant_id'])
-            ->addIndex(['stripe_invoice_id'], ['unique' => true, 'name' => 'uq_stripe_invoice_id'])
             ->addIndex(['invoice_number'], ['unique' => true, 'name' => 'uq_invoice_number'])
             ->addIndex(['status'])
             ->create();

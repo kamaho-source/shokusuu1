@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Service\Stripe\NullStripeService;
 use Cake\Event\EventInterface;
 use Cake\Http\Response;
 use Cake\I18n\DateTime;
@@ -166,17 +165,6 @@ final class TenantRegistrationController extends AppController
             'dt_update'       => $now->format('Y-m-d H:i:s'),
         ]);
         $userTable->save($adminUser);
-
-        // Stripe カスタマー作成（未設定時は NullStripeService がスキップ）
-        $stripe           = new NullStripeService();
-        $stripeCustomerId = $stripe->createCustomer((string)$data['name'], (string)$data['contact_email']);
-        if ($stripeCustomerId !== null) {
-            $tenant = $tenantsTable->patchEntity($tenant, [
-                'stripe_customer_id' => $stripeCustomerId,
-                'updated_at'         => $now->format('Y-m-d H:i:s'),
-            ]);
-            $tenantsTable->save($tenant);
-        }
 
         Log::info("[TenantRegistration] 新規テナント登録: id={$tenantId}, code={$data['tenant_code']}, name={$data['name']}");
 

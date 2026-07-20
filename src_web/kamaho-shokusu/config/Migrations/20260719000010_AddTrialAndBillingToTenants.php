@@ -4,7 +4,7 @@ declare(strict_types=1);
 use Migrations\AbstractMigration;
 
 /**
- * tenantsテーブルにトライアル期限・Stripe・請求書送付先カラムを追加する。
+ * tenantsテーブルにトライアル期限・請求書送付先カラムを追加する。
  */
 class AddTrialAndBillingToTenants extends AbstractMigration
 {
@@ -17,19 +17,12 @@ class AddTrialAndBillingToTenants extends AbstractMigration
                 'comment' => 'トライアル期限日時',
                 'after'   => 'status',
             ])
-            ->addColumn('stripe_customer_id', 'string', [
-                'limit'   => 255,
-                'null'    => true,
-                'default' => null,
-                'comment' => 'Stripe Customer ID (cus_xxx)',
-                'after'   => 'trial_expires_at',
-            ])
             ->addColumn('billing_contact_name', 'string', [
                 'limit'   => 100,
                 'null'    => true,
                 'default' => null,
                 'comment' => '請求書送付先担当者名',
-                'after'   => 'stripe_customer_id',
+                'after'   => 'trial_expires_at',
             ])
             ->addColumn('billing_contact_email', 'string', [
                 'limit'   => 255,
@@ -44,7 +37,6 @@ class AddTrialAndBillingToTenants extends AbstractMigration
                 'comment' => '請求書送付先住所',
                 'after'   => 'billing_contact_email',
             ])
-            ->addIndex(['stripe_customer_id'])
             ->update();
 
         // 既存の trial ステータスのテナントに trial_expires_at をセット（登録日+30日）
@@ -59,7 +51,6 @@ class AddTrialAndBillingToTenants extends AbstractMigration
     {
         $this->table('tenants')
             ->removeColumn('trial_expires_at')
-            ->removeColumn('stripe_customer_id')
             ->removeColumn('billing_contact_name')
             ->removeColumn('billing_contact_email')
             ->removeColumn('billing_address')
