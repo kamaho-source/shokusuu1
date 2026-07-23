@@ -170,6 +170,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-user-level', ['controller' => 'MUserInfo', 'action' => 'updateUserLevel'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-report-access', ['controller' => 'MUserInfo', 'action' => 'updateReportAccess'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
@@ -384,6 +385,14 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/Contacts/admin/{id}', ['controller' => 'Contacts', 'action' => 'adminDetail'])
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
+
+        // ── システムレポート（システム管理者専用） ──
+        $builder->connect('/SystemReport', ['controller' => 'SystemReport', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/data', ['controller' => 'SystemReport', 'action' => 'data'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/dailyChildren', ['controller' => 'SystemReport', 'action' => 'dailyChildren'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/dailyChildrenData', ['controller' => 'SystemReport', 'action' => 'dailyChildrenData'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/loginReport', ['controller' => 'SystemReport', 'action' => 'loginReport'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/loginReportData', ['controller' => 'SystemReport', 'action' => 'loginReportData'])->setMethods(['GET']);
 
         // ── 統計AI（管理者専用） ──
         $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);

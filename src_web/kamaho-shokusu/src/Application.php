@@ -20,6 +20,8 @@ use App\Application\AI\SystemPromptProviderInterface;
 use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
 use App\Controller\StatsAiController;
+use App\Controller\SystemReportController;
+use App\Service\SystemReportService;
 use App\Infrastructure\AI\SystemPromptProvider;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Service\AiStatsContextService;
@@ -172,6 +174,11 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(AiStatsContextService::class)
             ->addArgument(UserTokenizer::class)
             ->addArgument(ServerRequest::class);
+
+        $container->add(SystemReportService::class);
+        $container->add(SystemReportController::class)
+            ->addArgument(SystemReportService::class)
+            ->addArgument(ServerRequest::class);
     }
 
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
@@ -186,6 +193,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\FeatureUsageSummaryController::class => \App\Policy\FeatureUsageSummaryPolicy::class,
             \App\Controller\AiAssistantController::class      => \App\Policy\AiAssistantPolicy::class,
             \App\Controller\StatsAiController::class          => \App\Policy\StatsAiPolicy::class,
+            \App\Controller\SystemReportController::class     => \App\Policy\SystemReportPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック

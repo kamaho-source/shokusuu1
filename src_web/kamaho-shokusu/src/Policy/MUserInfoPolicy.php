@@ -85,6 +85,11 @@ class MUserInfoPolicy
         return $this->isSystemAdmin($user);
     }
 
+    public function canUpdateReportAccess(?IdentityInterface $user, MUserInfo $resource): bool
+    {
+        return $this->isSystemAdmin($user);
+    }
+
     public function canRestore(?IdentityInterface $user, MUserInfo $resource): bool
     {
         return $this->isAdmin($user) || $this->isSystemAdmin($user);
