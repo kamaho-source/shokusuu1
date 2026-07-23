@@ -1,0 +1,196 @@
+name: 監査ログ復元（バックアップから）
+
+# バックアップダンプファイルに含まれる t_audit_log データを
+# 現在の t_audit_log テーブルへ INSERT IGNORE でインポートします。
+# 既存データ（i_id_audit が重複する行）は上書きされません。
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_filename:
+        description: |
+          復元元のバックアップファイル名（BACKUP_DIR 配下のファイル名）
+          例: dump_260719.sql  または  pre_rollback_20260719_231100.sql
+        required: true
+        default: 'dump_260719.sql'
+      dry_run:
+        description: |
+          dry_run=true にすると INSERT を実行せず対象行数だけ確認します
+          本番実行前に必ず true で確認してください
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      environment:
+        description: '復元対象環境'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  # ── 本番環境 ──────────────────────────────────────────────────────────────
+  restore-production:
+    name: Restore Audit Log (Production)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.environment == 'production' }}
+    steps:
+      - name: Restore t_audit_log via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          port: 22
+          timeout: 60s
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            BACKUP_DIR="${{ secrets.BACKUP_DIR || '/home/ubuntu/backups/shokusu' }}"
+            DB_CONTAINER="kamakura-shokusu_web_db"
+            DB_USER="${{ secrets.DB_USER }}"
+            DB_PASS="${{ secrets.DB_PASS }}"
+            DB_NAME="shokusu"
+            BACKUP_FILE="${BACKUP_DIR}/${{ github.event.inputs.backup_filename }}"
+            DRY_RUN="${{ github.event.inputs.dry_run }}"
+
+            # ── バックアップファイルの存在確認 ────────────────────────────
+            echo "── Checking backup file ─────────────────────────────────────────"
+            if [ ! -f "$BACKUP_FILE" ]; then
+              echo "::error::バックアップファイルが見つかりません: $BACKUP_FILE"
+              echo "利用可能なバックアップ:"
+              ls -lh "$BACKUP_DIR"/*.sql 2>/dev/null || echo "(なし)"
+              exit 1
+            fi
+            echo "Found: $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
+
+            # ── バックアップから t_audit_log の INSERT 文を抽出 ───────────
+            echo "── Extracting t_audit_log INSERT statements ─────────────────────"
+            EXTRACT_FILE="/tmp/t_audit_log_extract_$(date +%Y%m%d_%H%M%S).sql"
+
+            # mysqldump の INSERT INTO `t_audit_log` VALUES (...) を抽出し
+            # INSERT IGNORE INTO に変換（PRIMARY KEY 重複行をスキップ）
+            grep "^INSERT INTO \`t_audit_log\`" "$BACKUP_FILE" \
+              | sed 's/^INSERT INTO `/INSERT IGNORE INTO `/g' \
+              > "$EXTRACT_FILE" || true
+
+            ROW_COUNT=$(wc -l < "$EXTRACT_FILE")
+            echo "抽出された INSERT 文: ${ROW_COUNT} 行"
+
+            if [ "$ROW_COUNT" -eq 0 ]; then
+              echo "::warning::バックアップファイルに t_audit_log のデータが見つかりませんでした。"
+              echo "バックアップ取得時点でテーブルが存在しなかった可能性があります。"
+              exit 0
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "── DRY RUN モード（実際には INSERT しません） ───────────────────"
+              echo "インポート予定の INSERT 文数: ${ROW_COUNT}"
+              echo "本番実行するには dry_run=false で再実行してください。"
+              exit 0
+            fi
+
+            # ── 復元前の現在の件数を確認 ──────────────────────────────────
+            echo "── Current t_audit_log row count (before restore) ───────────────"
+            docker exec "$DB_CONTAINER" \
+              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+              -e "SELECT COUNT(*) AS current_count FROM t_audit_log;"
+
+            # ── バックアップファイルをコンテナへコピーしてインポート ────────
+            echo "── Importing t_audit_log data ───────────────────────────────────"
+            docker cp "$EXTRACT_FILE" "$DB_CONTAINER":/tmp/t_audit_log_restore.sql
+            docker exec "$DB_CONTAINER" \
+              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+              -e "SOURCE /tmp/t_audit_log_restore.sql;"
+
+            # ── 復元後の件数を確認 ────────────────────────────────────────
+            echo "── Current t_audit_log row count (after restore) ────────────────"
+            docker exec "$DB_CONTAINER" \
+              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+              -e "SELECT COUNT(*) AS restored_count FROM t_audit_log;"
+
+            # ── 一時ファイルを削除 ────────────────────────────────────────
+            rm -f "$EXTRACT_FILE"
+            docker exec "$DB_CONTAINER" rm -f /tmp/t_audit_log_restore.sql
+
+            echo "── 監査ログの復元が完了しました ─────────────────────────────────"
+
+  # ── ステージング環境 ──────────────────────────────────────────────────────
+  restore-staging:
+    name: Restore Audit Log (Staging)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.environment == 'staging' }}
+    steps:
+      - name: Restore t_audit_log via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.STG_HOST }}
+          username: ${{ secrets.STG_USER }}
+          key: ${{ secrets.STG_SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+            BACKUP_DIR="/home/ubuntu/backups/shokusu"
+            DB_CONTAINER="stg_db"
+            DB_USER="${{ secrets.STG_DB_USER }}"
+            DB_PASS="${{ secrets.STG_DB_PASS }}"
+            DB_NAME="shokusu"
+            BACKUP_FILE="${BACKUP_DIR}/${{ github.event.inputs.backup_filename }}"
+            DRY_RUN="${{ github.event.inputs.dry_run }}"
+
+            echo "── Checking backup file ─────────────────────────────────────────"
+            if [ ! -f "$BACKUP_FILE" ]; then
+              echo "::error::バックアップファイルが見つかりません: $BACKUP_FILE"
+              echo "利用可能なバックアップ:"
+              ls -lh "$BACKUP_DIR"/*.sql 2>/dev/null || echo "(なし)"
+              exit 1
+            fi
+            echo "Found: $BACKUP_FILE ($(du -sh "$BACKUP_FILE" | cut -f1))"
+
+            echo "── Extracting t_audit_log INSERT statements ─────────────────────"
+            EXTRACT_FILE="/tmp/t_audit_log_extract_$(date +%Y%m%d_%H%M%S).sql"
+            grep "^INSERT INTO \`t_audit_log\`" "$BACKUP_FILE" \
+              | sed 's/^INSERT INTO `/INSERT IGNORE INTO `/g' \
+              > "$EXTRACT_FILE" || true
+
+            ROW_COUNT=$(wc -l < "$EXTRACT_FILE")
+            echo "抽出された INSERT 文: ${ROW_COUNT} 行"
+
+            if [ "$ROW_COUNT" -eq 0 ]; then
+              echo "::warning::バックアップファイルに t_audit_log のデータが見つかりませんでした。"
+              exit 0
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "── DRY RUN モード（実際には INSERT しません） ───────────────────"
+              echo "インポート予定の INSERT 文数: ${ROW_COUNT}"
+              echo "本番実行するには dry_run=false で再実行してください。"
+              exit 0
+            fi
+
+            echo "── Current t_audit_log row count (before restore) ───────────────"
+            docker exec "$DB_CONTAINER" \
+              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+              -e "SELECT COUNT(*) AS current_count FROM t_audit_log;"
+
+            echo "── Importing t_audit_log data ───────────────────────────────────"
+            docker cp "$EXTRACT_FILE" "$DB_CONTAINER":/tmp/t_audit_log_restore.sql
+            docker exec "$DB_CONTAINER" \
+              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+              -e "SOURCE /tmp/t_audit_log_restore.sql;"
+
+            echo "── Current t_audit_log row count (after restore) ────────────────"
+            docker exec "$DB_CONTAINER" \
+              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+              -e "SELECT COUNT(*) AS restored_count FROM t_audit_log;"
+
+            rm -f "$EXTRACT_FILE"
+            docker exec "$DB_CONTAINER" rm -f /tmp/t_audit_log_restore.sql
+
+            echo "── 監査ログの復元が完了しました ─────────────────────────────────"
