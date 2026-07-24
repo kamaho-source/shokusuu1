@@ -22,4 +22,18 @@
         roomIds:   cfg.roomIds   || [],
         roomCount: cfg.roomCount || 0
     };
+
+    /**
+     * Date をローカルタイムゾーンの YYYY-MM-DD 文字列に変換する。
+     * toISOString() は UTC のため JST 環境で日付がずれるのを防ぐ。
+     */
+    window.formatLocalYmd = function (d) {
+        if (!d || !(d instanceof Date) || isNaN(d.getTime())) {
+            return '';
+        }
+        var y = d.getFullYear();
+        var m = String(d.getMonth() + 1).padStart(2, '0');
+        var day = String(d.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + day;
+    };
 })();
