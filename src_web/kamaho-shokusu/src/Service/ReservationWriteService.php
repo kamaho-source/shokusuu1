@@ -314,6 +314,12 @@ class ReservationWriteService
         } catch (\Throwable $e) {
             throw new InvalidInputException('Invalid date value.');
         }
+
+        $datePolicy = new ReservationDatePolicy();
+        if ($datePolicy->isPastDate($dateStr)) {
+            throw new InvalidInputException('過去日の予約は変更できません。');
+        }
+
         if (!in_array($meal, [1, 2, 3, 4], true)) {
             throw new InvalidInputException('Invalid meal type (1..4).');
         }
