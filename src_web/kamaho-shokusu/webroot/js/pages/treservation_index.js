@@ -1024,7 +1024,7 @@ function openModalById(id){
                     // キーボードフォーカスでセルを選択できるようにする
                     var frame = info.el.querySelector('.fc-daygrid-day-frame') || info.el;
                     frame.setAttribute('tabindex', '0');
-                    var dateStr = info.date.toISOString().slice(0, 10);
+                    var dateStr = window.formatLocalYmd(info.date);
                     var wday = ['日','月','火','水','木','金','土'][info.date.getDay()];
                     var label = y + '年' + (m+1) + '月' + d + '日（' + wday + '）';
                     if (name) label += '（' + name + '）';
@@ -1085,7 +1085,7 @@ function openModalById(id){
                     var unreservedEvents=[];
                     var cur=new Date(fetchInfo.start);
                     while(cur < fetchInfo.end){
-                        var dateStr = cur.toISOString().slice(0,10);
+                        var dateStr = window.formatLocalYmd(cur);
                         if(reservedDates.indexOf(dateStr) === -1){
                             unreservedEvents.push({
                                 title:'未予約', start:dateStr, allDay:true,
@@ -2323,7 +2323,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
 
         const isMonday = (d)=> d.getDay() === 1;
         const isFirst  = (d)=> d.getDate() === 1;
-        const ymd      = (d)=> d.toISOString().slice(0,10);
+        const ymd      = (d)=> window.formatLocalYmd(d);
 
         function parseDate(val){
             if(!val) return null;
