@@ -1,5 +1,8 @@
 name: 監査ログ復元（バックアップから）
 
+permissions:
+  contents: read
+
 # バックアップダンプファイルに含まれる t_audit_log データを
 # 現在の t_audit_log テーブルへ INSERT IGNORE でインポートします。
 # 既存データ（i_id_audit が重複する行）は上書きされません。
@@ -41,6 +44,9 @@ jobs:
     steps:
       - name: Restore t_audit_log via SSH
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          BACKUP_FILENAME: ${{ github.event.inputs.backup_filename }}
+          DRY_RUN_FLAG: ${{ github.event.inputs.dry_run }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.PROD_USER }}
@@ -48,6 +54,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 15m
+          envs: BACKUP_FILENAME,DRY_RUN_FLAG
           script: |
             set -euo pipefail
             BACKUP_DIR="${{ secrets.BACKUP_DIR || '/home/ubuntu/backups/shokusu' }}"
@@ -55,8 +62,8 @@ jobs:
             DB_USER="${{ secrets.DB_USER }}"
             DB_PASS="${{ secrets.DB_PASS }}"
             DB_NAME="shokusu"
-            BACKUP_FILE="${BACKUP_DIR}/${{ github.event.inputs.backup_filename }}"
-            DRY_RUN="${{ github.event.inputs.dry_run }}"
+            BACKUP_FILE="${BACKUP_DIR}/${BACKUP_FILENAME}"
+            DRY_RUN="${DRY_RUN_FLAG}"
 
             # ── バックアップファイルの存在確認 ────────────────────────────
             echo "── Checking backup file ─────────────────────────────────────────"
@@ -96,21 +103,21 @@ jobs:
 
             # ── 復元前の現在の件数を確認 ──────────────────────────────────
             echo "── Current t_audit_log row count (before restore) ───────────────"
-            docker exec "$DB_CONTAINER" \
-              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            docker exec -e MYSQL_PWD="$DB_PASS" "$DB_CONTAINER" \
+              mysql -u "$DB_USER" "$DB_NAME" \
               -e "SELECT COUNT(*) AS current_count FROM t_audit_log;"
 
             # ── バックアップファイルをコンテナへコピーしてインポート ────────
             echo "── Importing t_audit_log data ───────────────────────────────────"
             docker cp "$EXTRACT_FILE" "$DB_CONTAINER":/tmp/t_audit_log_restore.sql
-            docker exec "$DB_CONTAINER" \
-              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            docker exec -e MYSQL_PWD="$DB_PASS" "$DB_CONTAINER" \
+              mysql -u "$DB_USER" "$DB_NAME" \
               -e "SOURCE /tmp/t_audit_log_restore.sql;"
 
             # ── 復元後の件数を確認 ────────────────────────────────────────
             echo "── Current t_audit_log row count (after restore) ────────────────"
-            docker exec "$DB_CONTAINER" \
-              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            docker exec -e MYSQL_PWD="$DB_PASS" "$DB_CONTAINER" \
+              mysql -u "$DB_USER" "$DB_NAME" \
               -e "SELECT COUNT(*) AS restored_count FROM t_audit_log;"
 
             # ── 一時ファイルを削除 ────────────────────────────────────────
@@ -127,6 +134,9 @@ jobs:
     steps:
       - name: Restore t_audit_log via SSH
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          BACKUP_FILENAME: ${{ github.event.inputs.backup_filename }}
+          DRY_RUN_FLAG: ${{ github.event.inputs.dry_run }}
         with:
           host: ${{ secrets.STG_HOST }}
           username: ${{ secrets.STG_USER }}
@@ -134,6 +144,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 15m
+          envs: BACKUP_FILENAME,DRY_RUN_FLAG
           script: |
             set -euo pipefail
             BACKUP_DIR="/home/ubuntu/backups/shokusu"
@@ -141,8 +152,8 @@ jobs:
             DB_USER="${{ secrets.STG_DB_USER }}"
             DB_PASS="${{ secrets.STG_DB_PASS }}"
             DB_NAME="shokusu"
-            BACKUP_FILE="${BACKUP_DIR}/${{ github.event.inputs.backup_filename }}"
-            DRY_RUN="${{ github.event.inputs.dry_run }}"
+            BACKUP_FILE="${BACKUP_DIR}/${BACKUP_FILENAME}"
+            DRY_RUN="${DRY_RUN_FLAG}"
 
             echo "── Checking backup file ─────────────────────────────────────────"
             if [ ! -f "$BACKUP_FILE" ]; then
@@ -175,19 +186,19 @@ jobs:
             fi
 
             echo "── Current t_audit_log row count (before restore) ───────────────"
-            docker exec "$DB_CONTAINER" \
-              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            docker exec -e MYSQL_PWD="$DB_PASS" "$DB_CONTAINER" \
+              mysql -u "$DB_USER" "$DB_NAME" \
               -e "SELECT COUNT(*) AS current_count FROM t_audit_log;"
 
             echo "── Importing t_audit_log data ───────────────────────────────────"
             docker cp "$EXTRACT_FILE" "$DB_CONTAINER":/tmp/t_audit_log_restore.sql
-            docker exec "$DB_CONTAINER" \
-              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            docker exec -e MYSQL_PWD="$DB_PASS" "$DB_CONTAINER" \
+              mysql -u "$DB_USER" "$DB_NAME" \
               -e "SOURCE /tmp/t_audit_log_restore.sql;"
 
             echo "── Current t_audit_log row count (after restore) ────────────────"
-            docker exec "$DB_CONTAINER" \
-              mysql -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" \
+            docker exec -e MYSQL_PWD="$DB_PASS" "$DB_CONTAINER" \
+              mysql -u "$DB_USER" "$DB_NAME" \
               -e "SELECT COUNT(*) AS restored_count FROM t_audit_log;"
 
             rm -f "$EXTRACT_FILE"

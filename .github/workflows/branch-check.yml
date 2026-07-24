@@ -26,8 +26,9 @@ jobs:
         run: |
           if [[ "${{ github.head_ref }}" != feature/* ]] && \
              [[ "${{ github.head_ref }}" != fix/* ]] && \
-             [[ "${{ github.head_ref }}" != hotfix/* ]]; then
-            echo "ERROR: develop へのPRは feature/・fix/・hotfix/ ブランチからのみ許可されています。"
+             [[ "${{ github.head_ref }}" != hotfix/* ]] && \
+             [[ "${{ github.head_ref }}" != main ]]; then
+            echo "ERROR: develop へのPRは feature/・fix/・hotfix/・main ブランチからのみ許可されています。"
             echo "現在のブランチ: ${{ github.head_ref }}"
             exit 1
           fi

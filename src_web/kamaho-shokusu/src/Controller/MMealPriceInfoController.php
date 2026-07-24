@@ -190,6 +190,20 @@ class MMealPriceInfoController extends AppController
 
         $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
 
+        $identity = $this->request->getAttribute('identity');
+        \App\Service\AuditLogService::record(
+            'master',
+            'meal_price_excel_export',
+            $identity?->get('c_user_name') ?? '不明',
+            $identity ? (int)$identity->get('i_id_user') : 0,
+            'm_meal_price_info',
+            null,
+            ['year' => $year, 'month' => $month],
+            $this->getClientIp(),
+            1,
+            (string)($identity?->get('c_login_account') ?? '')
+        );
+
         return $apiResponse->success($this->response, ['rows' => $monthlyData]);
     }
 
