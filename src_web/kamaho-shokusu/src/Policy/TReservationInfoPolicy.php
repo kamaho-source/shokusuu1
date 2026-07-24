@@ -76,6 +76,11 @@ class TReservationInfoPolicy
             return true;
         }
 
+        // ブロック長は同部屋の他ユーザー操作を試みられる（canAccessRoom + サービス層で所属を検証）
+        if ($this->isBlockLeader($user)) {
+            return true;
+        }
+
         return false;
     }
 

@@ -113,4 +113,113 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canCopy($admin, $resource));
         $this->assertFalse($policy->canCopy($nonAdmin, $resource));
     }
+
+    public function testCanToggleBlockLeaderAllowsOtherUserInSameRoom(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 2,
+            'i_user_level' => 1,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_user', 20, ['guard' => false]);
+        $resource->set('i_id_room', 1, ['guard' => false]);
+
+        $this->assertTrue($policy->canToggle($identity, $resource));
+    }
+
+    public function testCanToggleBlockLeaderDeniedForOtherRoom(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 2,
+            'i_user_level' => 1,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_user', 20, ['guard' => false]);
+        $resource->set('i_id_room', 3, ['guard' => false]);
+
+        $this->assertFalse($policy->canToggle($identity, $resource));
+    }
+}
+
+class TestRoomAccessService extends RoomAccessService
+{
+    /**
+     * @param array<int, array<int>> $map
+     * @param array<int, bool> $officeUsers
+     */
+    public function __construct(private array $map, private array $officeUsers = [])
+    {
+    }
+
+    public function getUserRoomIds(int $userId): array
+    {
+        return $this->map[$userId] ?? [];
+    }
+
+    public function isOfficeUser(int $userId): bool
+    {
+        return $this->officeUsers[$userId] ?? false;
+    }
+
+    public function userCanAccessRoom(int $userId, int $roomId): bool
+    {
+
+        return in_array($roomId, $this->getUserRoomIds($userId), true);
+    }
+}
+
+class TestIdentity implements IdentityInterface
+{
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function __construct(private array $data)
+    {
+    }
+
+    public function can(string $action, mixed $resource): bool
+    {
+        return false;
+    }
+
+    public function canResult(string $action, mixed $resource): ResultInterface
+    {
+        throw new \BadMethodCallException('Not used in policy tests.');
+    }
+
+    public function applyScope(string $action, mixed $resource, mixed ...$optionalArgs): mixed
+    {
+        return $resource;
+    }
+
+    public function getOriginalData(): \ArrayAccess|array
+    {
+        return $this->data;
+    }
+
+    public function offsetExists(mixed $offset): bool
+    {
+        return isset($this->data[$offset]);
+    }
+
+    public function offsetGet(mixed $offset): mixed
+    {
+        return $this->data[$offset] ?? null;
+    }
+
+    public function offsetSet(mixed $offset, mixed $value): void
+    {
+        $this->data[$offset] = $value;
+    }
+
+    public function offsetUnset(mixed $offset): void
+    {
+        unset($this->data[$offset]);
+    }
 }
