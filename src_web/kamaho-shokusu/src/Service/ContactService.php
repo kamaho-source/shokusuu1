@@ -7,6 +7,7 @@ use App\Model\Table\TContactRepliesTable;
 use App\Model\Table\TContactsTable;
 use Cake\Http\Client;
 use Cake\I18n\DateTime;
+use Cake\Log\Log;
 use Cake\Mailer\Mailer;
 use Cake\ORM\TableRegistry;
 
@@ -73,17 +74,20 @@ class ContactService
 
         try {
             $this->notifySlack($entity);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->logNotificationFailure('notifySlack', $e, (int)($entity->id ?? 0));
         }
 
         try {
             $this->sendAutoReply($entity);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->logNotificationFailure('sendAutoReply', $e, (int)($entity->id ?? 0));
         }
 
         try {
             $this->sendAdminNotification($entity);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->logNotificationFailure('sendAdminNotification', $e, (int)($entity->id ?? 0));
         }
 
         return ['success' => true, 'entity' => $entity];
@@ -141,10 +145,26 @@ class ContactService
 
         try {
             $this->sendReplyMail($contact, trim($replyBody));
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->logNotificationFailure('sendReplyMail', $e, $contactId);
+
+            return [
+                'success' => false,
+                'errors'  => ['mail' => '返信メールの送信に失敗しました。履歴は保存済みです。'],
+            ];
         }
 
         return ['success' => true, 'errors' => []];
+    }
+
+    private function logNotificationFailure(string $action, \Throwable $e, int $contactId): void
+    {
+        Log::error(sprintf(
+            'ContactService %s failed (contactId=%d): %s',
+            $action,
+            $contactId,
+            $e->getMessage()
+        ));
     }
 
     /**
