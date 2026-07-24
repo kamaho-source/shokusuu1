@@ -116,6 +116,38 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canCopy($admin, $resource));
         $this->assertFalse($policy->canCopy($nonAdmin, $resource));
     }
+
+    public function testCanToggleBlockLeaderAllowsOtherUserInSameRoom(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 2,
+            'i_user_level' => 1,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_user', 20, ['guard' => false]);
+        $resource->set('i_id_room', 1, ['guard' => false]);
+
+        $this->assertTrue($policy->canToggle($identity, $resource));
+    }
+
+    public function testCanToggleBlockLeaderDeniedForOtherRoom(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 2,
+            'i_user_level' => 1,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_user', 20, ['guard' => false]);
+        $resource->set('i_id_room', 3, ['guard' => false]);
+
+        $this->assertFalse($policy->canToggle($identity, $resource));
+    }
 }
 
 class TestRoomAccessService extends RoomAccessService
