@@ -40,7 +40,7 @@ class TReservationInfoPolicy
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user) || $this->isRoomAffiliated($user);
+        return $this->isStaffOrAdmin($user);
     }
 
     public function canToggle(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -319,24 +319,7 @@ class TReservationInfoPolicy
         return $this->isAdmin($user) || $this->isStaff($user);
     }
 
-    private function hasStaffId(?IdentityInterface $user): bool
-    {
-        $identity = $this->getOriginalIdentity($user);
-        if ($identity === null) {
-            return false;
-        }
-
-        $staffId = null;
-        if (is_object($identity) && method_exists($identity, 'get')) {
-            $staffId = $identity->get('i_id_staff');
-        } elseif (is_array($identity) || $identity instanceof \ArrayAccess) {
-            $staffId = $identity['i_id_staff'] ?? null;
-        }
-
-        return $staffId !== null && $staffId !== '' && $staffId !== 0;
-    }
-
-    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
+public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isBlockLeader($user);
     }

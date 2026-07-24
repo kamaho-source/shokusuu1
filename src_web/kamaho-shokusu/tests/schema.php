@@ -188,6 +188,7 @@ return [
             'c_target_table'    => ['type' => 'string', 'length' => 100, 'null' => true],
             'c_target_id'       => ['type' => 'string', 'length' => 255, 'null' => true],
             'i_actor_user_id'   => ['type' => 'integer', 'null' => true],
+            'c_actor_login_id'  => ['type' => 'string', 'length' => 100, 'null' => true],
             'c_actor_user_name' => ['type' => 'string', 'length' => 50,  'null' => false],
             'c_ip_address'      => ['type' => 'string', 'length' => 45,  'null' => true],
             'i_result'          => ['type' => 'boolean', 'null' => false, 'default' => true],

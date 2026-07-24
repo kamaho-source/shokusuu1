@@ -117,28 +117,6 @@ class ApprovalPolicy
         return $this->isAdmin($user) || $this->isBlockLeader($user);
     }
 
-    private function getUserId(?IdentityInterface $user): int
-    {
-        $identity = $this->getOriginalIdentity($user);
-        if ($identity === null) {
-            return 0;
-        }
-
-        if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_id_user');
-        }
-
-        if (is_array($identity)) {
-            return (int)($identity['i_id_user'] ?? 0);
-        }
-
-        if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_id_user'] ?? 0);
-        }
-
-        return 0;
-    }
-
     private function getOriginalIdentity(?IdentityInterface $user): object|array|null
     {
         if ($user === null) {
