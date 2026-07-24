@@ -29,7 +29,7 @@ class AuditLogServiceTest extends TestCase
 
     private function lastLog(): ?\Cake\Datasource\EntityInterface
     {
-        return $this->table()->find()->order(['i_id_audit' => 'DESC'])->first();
+        return $this->table()->find()->orderBy(['i_id_audit' => 'DESC'])->first();
     }
 
     // ----------------------------------------------------------------
