@@ -190,24 +190,26 @@ class ReservationWriteService
             }
         }
 
-        $existingMap = $this->buildGroupExistingMap($reservationDate, $userIds);
         $userNameMap = $this->fetchUserNames($userIds);
 
-        $roomIdsForName = $roomId !== null ? [$roomId => true] : [];
-        foreach ($existingMap as $userMap) {
-            foreach ($userMap as $mealMap) {
-                foreach (array_keys($mealMap) as $rid) {
-                    $roomIdsForName[(int)$rid] = true;
-                }
-            }
-        }
-        $allRoomIds  = array_keys($roomIdsForName);
-        $roomNameMap = $this->fetchRoomNames($allRoomIds);
-
         $duplicates = [];
+        $allRoomIds = [];
         $connection = $this->reservationTable->getConnection();
         $connection->begin();
         try {
+            $existingMap = $this->buildGroupExistingMap($reservationDate, $userIds);
+
+            $roomIdsForName = $roomId !== null ? [$roomId => true] : [];
+            foreach ($existingMap as $userMap) {
+                foreach ($userMap as $mealMap) {
+                    foreach (array_keys($mealMap) as $rid) {
+                        $roomIdsForName[(int)$rid] = true;
+                    }
+                }
+            }
+            $allRoomIds  = array_keys($roomIdsForName);
+            $roomNameMap = $this->fetchRoomNames($allRoomIds);
+
             $changes    = $this->applyGroupMealChanges($data['users'], $rooms, $roomId, $existingMap, $userNameMap, $roomNameMap, $reservationDate, $creatorName);
             $duplicates = $changes['duplicates'];
 
@@ -314,6 +316,12 @@ class ReservationWriteService
         } catch (\Throwable $e) {
             throw new InvalidInputException('Invalid date value.');
         }
+
+        $datePolicy = new ReservationDatePolicy();
+        if ($datePolicy->isPastDate($dateStr)) {
+            throw new InvalidInputException('過去日の予約は変更できません。');
+        }
+
         if (!in_array($meal, [1, 2, 3, 4], true)) {
             throw new InvalidInputException('Invalid meal type (1..4).');
         }
@@ -784,7 +792,7 @@ class ReservationWriteService
         if ($date === '') {
             return;
         }
-        Cache::delete('meal_counts:' . $date, 'default');
+        ReservationReportService::invalidateMealCountsCache($date);
         foreach (array_unique(array_filter($roomIds)) as $rid) {
             Cache::delete(sprintf('users_by_room_edit:%d:%s', (int)$rid, $date), 'default');
         }

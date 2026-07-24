@@ -7,21 +7,41 @@ use Authorization\IdentityInterface;
 
 class MNoticePolicy
 {
+    /**
+     * @param IdentityInterface|null $user
+     * @param \App\Model\Entity\MNotice $resource
+     * @return bool
+     */
     public function canIndex(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
+    /**
+     * @param IdentityInterface|null $user
+     * @param \App\Model\Entity\MNotice $resource
+     * @return bool
+     */
     public function canAdd(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
+    /**
+     * @param IdentityInterface|null $user
+     * @param \App\Model\Entity\MNotice $resource
+     * @return bool
+     */
     public function canEdit(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
+    /**
+     * @param IdentityInterface|null $user
+     * @param \App\Model\Entity\MNotice $resource
+     * @return bool
+     */
     public function canDelete(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
@@ -43,6 +63,10 @@ class MNoticePolicy
         }
 
         if (is_array($identity)) {
+            return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
+        }
+
+        if ($identity instanceof \ArrayAccess) {
             return in_array((int)($identity['i_admin'] ?? 0), [1, 3]);
         }
 

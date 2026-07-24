@@ -41,7 +41,21 @@ class ReservationReportController extends ReservationBaseController
      */
     public function getMealCounts($date): ?Response
     {
-        return $this->reportService->getMealCounts($this->TIndividualReservationInfo, $date);
+        if ($denied = $this->authorizeReservation('getMealCounts', [], true)) {
+            return $denied;
+        }
+
+        $this->request->allowMethod(['get']);
+        $this->autoRender = false;
+
+        $dateStr = (string)$date;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+            return $this->apiResponseService->error($this->response, 'Invalid date format (Y-m-d).', 400);
+        }
+
+        $rows = $this->reportService->getMealCounts($this->TIndividualReservationInfo, $dateStr);
+
+        return $this->apiResponseService->success($this->response, ['mealCounts' => $rows]);
     }
 
     /**

@@ -73,7 +73,12 @@
             }
             default: return;
         }
-        var fmt = function (d) { return d.toISOString().slice(0, 10); };
+        var fmt = window.formatLocalYmd || function (d) {
+            var y = d.getFullYear();
+            var m = String(d.getMonth() + 1).padStart(2, '0');
+            var day = String(d.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + day;
+        };
         from.value = fmt(s);
         to.value   = fmt(e);
         if (chip) chip.textContent = from.value + ' 〜 ' + to.value;
