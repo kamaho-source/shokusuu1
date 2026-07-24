@@ -339,7 +339,7 @@ class RoomTransferScheduleService
         string $today
     ): void {
         // 有効開始日以降の今日分だけキャッシュ削除（全日削除は重すぎるため当日のみ対象）
-        Cache::delete('meal_counts:' . $today, 'default');
+        ReservationReportService::invalidateMealCountsCache($today);
 
         $rooms = array_filter([$roomFromId, $roomToId]);
         foreach ($rooms as $roomId) {

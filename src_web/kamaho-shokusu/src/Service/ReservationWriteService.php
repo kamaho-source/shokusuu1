@@ -784,7 +784,7 @@ class ReservationWriteService
         if ($date === '') {
             return;
         }
-        Cache::delete('meal_counts:' . $date, 'default');
+        ReservationReportService::invalidateMealCountsCache($date);
         foreach (array_unique(array_filter($roomIds)) as $rid) {
             Cache::delete(sprintf('users_by_room_edit:%d:%s', (int)$rid, $date), 'default');
         }
