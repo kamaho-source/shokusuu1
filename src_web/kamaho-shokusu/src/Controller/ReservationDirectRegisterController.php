@@ -106,9 +106,13 @@ class ReservationDirectRegisterController extends ReservationBaseController
 
             $output = $this->useCase->execute($input);
 
+            $auditContext['registered'] = $output->registered;
+            $auditContext['skipped']    = $output->skipped;
+            $auditResult = empty($output->registered) && !empty($output->skipped) ? 0 : 1;
+
             AuditLogService::record(
                 'reservation', 'direct_register_meals', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 1, $loginAccount
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), $auditResult, $loginAccount
             );
 
             return $this->apiResponseService->success($this->response, [
