@@ -9,7 +9,7 @@ use Cake\ORM\Table;
 
 class ReservationReportService
 {
-    private const REPORT_CACHE_SCHEMA_VERSION = 2;
+    private const REPORT_CACHE_SCHEMA_VERSION = 3;
 
     private function getReportCacheVersion(): int
     {
@@ -49,7 +49,7 @@ class ReservationReportService
         int $roomId,
         string $date
     ): array {
-        $cacheKey = sprintf('users_by_room_edit:%d:%s', $roomId, $date);
+        $cacheKey = sprintf('users_by_room_edit:%d:%s:v2', $roomId, $date);
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
@@ -65,7 +65,7 @@ class ReservationReportService
 
         $reservations = $reservationTable->find()
             ->enableAutoFields(false)
-            ->select(['i_id_user', 'i_reservation_type'])
+            ->select(['i_id_user', 'i_reservation_type', 'eat_flag', 'i_change_flag'])
             ->where([
                 'i_id_room' => $roomId,
                 'd_reservation_date' => $date,
@@ -75,6 +75,7 @@ class ReservationReportService
             ->groupBy('i_id_user')
             ->toArray();
 
+        $useChangeFlagCache = [];
         $completeUserInfo = [];
         $mealMap = [
             1 => 'morning',
@@ -89,6 +90,14 @@ class ReservationReportService
 
             $mealStatus = array_fill_keys(array_values($mealMap), false);
             foreach ($userReservations as $r) {
+                if (!$this->isEffectiveReservation(
+                    $date,
+                    (int)($r->eat_flag ?? 0),
+                    $r->i_change_flag !== null ? (int)$r->i_change_flag : null,
+                    $useChangeFlagCache
+                )) {
+                    continue;
+                }
                 $key = $mealMap[$r->i_reservation_type] ?? null;
                 if ($key) {
                     $mealStatus[$key] = true;
@@ -303,59 +312,10 @@ class ReservationReportService
         if (is_array($cached)) {
             return $cached;
         }
-        $mealCounts = $reservationTable->find()
-            ->enableAutoFields(false)
-            ->select([
-                'date' => 'd_reservation_date',
-                'meal_type' => 'i_reservation_type',
-                'count' => $reservationTable->find()->func()->count('*'),
-            ])
-            ->where([
-                'd_reservation_date >=' => $fromDate,
-                'd_reservation_date <=' => $toDate,
-                'eat_flag' => 1,
-            ])
-            ->groupBy(['d_reservation_date', 'i_reservation_type'])
-            ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC'])
-            ->toArray();
 
-        $result = [];
-        foreach ($mealCounts as $row) {
-            $date = $row->date->format('Y-m-d');
-            $mealType = (int)$row->meal_type;
-            $count = (int)$row->count;
-
-            if (!isset($result[$date])) {
-                $result[$date] = [
-                    'date' => $date,
-                    'morning' => 0,
-                    'lunch' => 0,
-                    'dinner' => 0,
-                    'bento' => 0,
-                    'total' => 0,
-                ];
-            }
-
-            switch ($mealType) {
-                case 1:
-                    $result[$date]['morning'] = $count;
-                    break;
-                case 2:
-                    $result[$date]['lunch'] = $count;
-                    break;
-                case 3:
-                    $result[$date]['dinner'] = $count;
-                    break;
-                case 4:
-                    $result[$date]['bento'] = $count;
-                    break;
-            }
-
-            $result[$date]['total'] += $count;
-        }
-
-        $final = array_values($result);
+        $final = $this->aggregateDailyMealCounts($reservationTable, $fromDate, $toDate);
         Cache::write($cacheKey, $final, 'default');
+
         return $final;
     }
 
@@ -370,29 +330,65 @@ class ReservationReportService
         if (is_array($cached)) {
             return $cached;
         }
-        $mealCounts = $reservationTable->find()
+
+        $final = $this->aggregateDailyMealCounts($reservationTable, $fromDate, $toDate, $roomIds);
+        Cache::write($cacheKey, $final, 'default');
+
+        return $final;
+    }
+
+    /**
+     * @param list<int>|null $roomIds
+     * @return list<array{date: string, morning: int, lunch: int, dinner: int, bento: int, total: int}>
+     */
+    private function aggregateDailyMealCounts(
+        Table $reservationTable,
+        string $fromDate,
+        string $toDate,
+        ?array $roomIds = null
+    ): array {
+        $conditions = [
+            'd_reservation_date >=' => $fromDate,
+            'd_reservation_date <=' => $toDate,
+        ];
+        if ($roomIds !== null && $roomIds !== []) {
+            $conditions['i_id_room IN'] = $roomIds;
+        }
+
+        $rows = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
                 'date' => 'd_reservation_date',
                 'meal_type' => 'i_reservation_type',
-                'count' => $reservationTable->find()->func()->count('*'),
+                'eat_flag' => 'eat_flag',
+                'i_change_flag' => 'i_change_flag',
             ])
-            ->where([
-                'i_id_room IN' => $roomIds,
-                'd_reservation_date >=' => $fromDate,
-                'd_reservation_date <=' => $toDate,
-                'eat_flag' => 1,
-            ])
-            ->groupBy(['d_reservation_date', 'i_reservation_type'])
-            ->orderBy(['d_reservation_date' => 'ASC', 'i_reservation_type' => 'ASC'])
+            ->where($conditions)
+            ->enableHydration(false)
             ->toArray();
 
+        $useChangeFlagCache = [];
         $result = [];
-        foreach ($mealCounts as $row) {
-            $date = $row->date->format('Y-m-d');
-            $mealType = (int)$row->meal_type;
-            $count = (int)$row->count;
+        foreach ($rows as $row) {
+            $dateValue = $row['date'] ?? null;
+            if ($dateValue instanceof Date) {
+                $date = $dateValue->format('Y-m-d');
+            } else {
+                $date = $this->normalizeDateString($dateValue);
+            }
+            if ($date === null) {
+                continue;
+            }
+            if (!$this->isEffectiveReservation(
+                $date,
+                (int)($row['eat_flag'] ?? 0),
+                isset($row['i_change_flag']) ? (int)$row['i_change_flag'] : null,
+                $useChangeFlagCache
+            )) {
+                continue;
+            }
 
+            $mealType = (int)($row['meal_type'] ?? 0);
             if (!isset($result[$date])) {
                 $result[$date] = [
                     'date' => $date,
@@ -406,25 +402,45 @@ class ReservationReportService
 
             switch ($mealType) {
                 case 1:
-                    $result[$date]['morning'] = $count;
+                    $result[$date]['morning']++;
                     break;
                 case 2:
-                    $result[$date]['lunch'] = $count;
+                    $result[$date]['lunch']++;
                     break;
                 case 3:
-                    $result[$date]['dinner'] = $count;
+                    $result[$date]['dinner']++;
                     break;
                 case 4:
-                    $result[$date]['bento'] = $count;
+                    $result[$date]['bento']++;
                     break;
+                default:
+                    continue 2;
             }
 
-            $result[$date]['total'] += $count;
+            $result[$date]['total']++;
         }
 
-        $final = array_values($result);
-        Cache::write($cacheKey, $final, 'default');
-        return $final;
+        ksort($result);
+
+        return array_values($result);
+    }
+
+    /**
+     * @param array<string, bool> $useChangeFlagCache
+     */
+    private function isEffectiveReservation(
+        string $date,
+        int $eatFlag,
+        ?int $changeFlag,
+        array &$useChangeFlagCache
+    ): bool {
+        $datePolicy = new ReservationDatePolicy();
+        $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
+        $effectiveFlag = $useChangeFlagCache[$date]
+            ? (int)($changeFlag ?? 0)
+            : $eatFlag;
+
+        return $effectiveFlag === 1;
     }
 
     private function normalizeDateString(\DateTimeInterface|string|int|null $value): ?string

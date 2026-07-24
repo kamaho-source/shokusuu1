@@ -5,9 +5,6 @@ namespace App\Test\TestCase\Policy;
 
 use App\Model\Entity\TReservationInfo;
 use App\Policy\TReservationInfoPolicy;
-use App\Service\RoomAccessService;
-use Authorization\IdentityInterface;
-use Authorization\Policy\ResultInterface;
 use Cake\TestSuite\TestCase;
 
 class TReservationInfoPolicyTest extends TestCase

@@ -1,5 +1,8 @@
 name: マイグレーション ロールバック（緊急用）
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -36,11 +39,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate large steps
+        env:
+          STEPS: ${{ github.event.inputs.steps }}
+          TARGET: ${{ github.event.inputs.target }}
+          CONFIRM: ${{ github.event.inputs.confirm_large_steps }}
         run: |
-          STEPS="${{ github.event.inputs.steps }}"
-          TARGET="${{ github.event.inputs.target }}"
-          CONFIRM="${{ github.event.inputs.confirm_large_steps }}"
-
+          set -euo pipefail
+          if ! [[ "$STEPS" =~ ^[0-9]+$ ]]; then
+            echo "::error::steps は数値で入力してください（入力値: $STEPS）"
+            exit 1
+          fi
           if [ -z "$TARGET" ] && [ "$STEPS" -gt 3 ] && [ "$CONFIRM" != "yes" ]; then
             echo "::error::steps=$STEPS は 3 を超えています。"
             echo "::error::confirm_large_steps に \"yes\" を入力して再実行してください。"
@@ -57,6 +65,9 @@ jobs:
     steps:
       - name: Pre-rollback backup & Migration Rollback via SSH
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          TARGET: ${{ github.event.inputs.target }}
+          STEPS: ${{ github.event.inputs.steps }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.PROD_USER }}
@@ -64,6 +75,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 15m
+          envs: TARGET,STEPS
           script: |
             set -euo pipefail
             DEPLOY_PATH="/home/ubuntu/shokusuu1"
@@ -74,8 +86,8 @@ jobs:
             # ── ① ロールバック前にフルバックアップを取得 ──────────────────
             echo "── Pre-rollback backup ───────────────────────────────────────────"
             mkdir -p "$BACKUP_DIR"
-            docker exec "$DB_CONTAINER" \
-              mysqldump -u "${{ secrets.DB_USER }}" -p"${{ secrets.DB_PASS }}" shokusu \
+            docker exec -e MYSQL_PWD="${{ secrets.DB_PASS }}" "$DB_CONTAINER" \
+              mysqldump -u "${{ secrets.DB_USER }}" shokusu \
               --result-file=/tmp/pre_rollback_${TIMESTAMP}.sql
             docker cp "$DB_CONTAINER":/tmp/pre_rollback_${TIMESTAMP}.sql \
               "${BACKUP_DIR}/pre_rollback_${TIMESTAMP}.sql"
@@ -85,9 +97,6 @@ jobs:
             echo "── Migration status before rollback ─────────────────────────────"
             docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web \
               php /var/www/html/kamaho-shokusu/bin/cake migrations status
-
-            TARGET="${{ github.event.inputs.target }}"
-            STEPS="${{ github.event.inputs.steps }}"
 
             if [ -n "$TARGET" ]; then
               echo "── Rolling back to version: $TARGET ─────────────────────────────"
@@ -116,6 +125,9 @@ jobs:
     steps:
       - name: Pre-rollback backup & Migration Rollback via SSH
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          TARGET: ${{ github.event.inputs.target }}
+          STEPS: ${{ github.event.inputs.steps }}
         with:
           host: ${{ secrets.STG_HOST }}
           username: ${{ secrets.STG_USER }}
@@ -123,6 +135,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 15m
+          envs: TARGET,STEPS
           script: |
             set -euo pipefail
             BACKUP_DIR="/home/ubuntu/backups/shokusu"
@@ -132,8 +145,8 @@ jobs:
             # ── ① ロールバック前にフルバックアップを取得 ──────────────────
             echo "── Pre-rollback backup ───────────────────────────────────────────"
             mkdir -p "$BACKUP_DIR"
-            docker exec "$DB_CONTAINER" \
-              mysqldump -u "${{ secrets.STG_DB_USER }}" -p"${{ secrets.STG_DB_PASS }}" shokusu \
+            docker exec -e MYSQL_PWD="${{ secrets.STG_DB_PASS }}" "$DB_CONTAINER" \
+              mysqldump -u "${{ secrets.STG_DB_USER }}" shokusu \
               --result-file=/tmp/pre_rollback_${TIMESTAMP}.sql
             docker cp "$DB_CONTAINER":/tmp/pre_rollback_${TIMESTAMP}.sql \
               "${BACKUP_DIR}/pre_rollback_${TIMESTAMP}.sql"
@@ -142,9 +155,6 @@ jobs:
             # ── ② ロールバック前のマイグレーション状況 ──────────────────────
             echo "── Migration status before rollback ─────────────────────────────"
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations status
-
-            TARGET="${{ github.event.inputs.target }}"
-            STEPS="${{ github.event.inputs.steps }}"
 
             if [ -n "$TARGET" ]; then
               echo "── Rolling back to version: $TARGET ─────────────────────────────"

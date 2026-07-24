@@ -190,24 +190,26 @@ class ReservationWriteService
             }
         }
 
-        $existingMap = $this->buildGroupExistingMap($reservationDate, $userIds);
         $userNameMap = $this->fetchUserNames($userIds);
 
-        $roomIdsForName = $roomId !== null ? [$roomId => true] : [];
-        foreach ($existingMap as $userMap) {
-            foreach ($userMap as $mealMap) {
-                foreach (array_keys($mealMap) as $rid) {
-                    $roomIdsForName[(int)$rid] = true;
-                }
-            }
-        }
-        $allRoomIds  = array_keys($roomIdsForName);
-        $roomNameMap = $this->fetchRoomNames($allRoomIds);
-
         $duplicates = [];
+        $allRoomIds = [];
         $connection = $this->reservationTable->getConnection();
         $connection->begin();
         try {
+            $existingMap = $this->buildGroupExistingMap($reservationDate, $userIds);
+
+            $roomIdsForName = $roomId !== null ? [$roomId => true] : [];
+            foreach ($existingMap as $userMap) {
+                foreach ($userMap as $mealMap) {
+                    foreach (array_keys($mealMap) as $rid) {
+                        $roomIdsForName[(int)$rid] = true;
+                    }
+                }
+            }
+            $allRoomIds  = array_keys($roomIdsForName);
+            $roomNameMap = $this->fetchRoomNames($allRoomIds);
+
             $changes    = $this->applyGroupMealChanges($data['users'], $rooms, $roomId, $existingMap, $userNameMap, $roomNameMap, $reservationDate, $creatorName);
             $duplicates = $changes['duplicates'];
 
