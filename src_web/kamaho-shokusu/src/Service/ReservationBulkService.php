@@ -895,7 +895,7 @@ class ReservationBulkService
             if (!is_string($date) || $date === '') {
                 continue;
             }
-            Cache::delete('meal_counts:' . $date, 'default');
+            ReservationReportService::invalidateMealCountsCache($date);
             Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $date), 'default');
             if ($date === $today && isset($dayUsers[$date]) && is_array($dayUsers[$date])) {
                 foreach (array_keys($dayUsers[$date]) as $uid) {

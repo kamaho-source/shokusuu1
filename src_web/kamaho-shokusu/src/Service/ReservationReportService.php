@@ -10,6 +10,7 @@ use Cake\ORM\Table;
 class ReservationReportService
 {
     private const REPORT_CACHE_SCHEMA_VERSION = 2;
+    private const MEAL_COUNTS_CACHE_SUFFIX = 'v2';
 
     private function getReportCacheVersion(): int
     {
@@ -21,26 +22,50 @@ class ReservationReportService
 
     public function getMealCounts(Table $reservationTable, string $date): array
     {
-        $cacheKey = 'meal_counts:' . $date;
+        $cacheKey = self::mealCountsCacheKey($date);
         $cached = Cache::read($cacheKey, 'default');
         if (is_array($cached)) {
             return $cached;
         }
+
+        $datePolicy = new ReservationDatePolicy();
+        $targetDate = new Date($date);
+        $useChangeFlag = $datePolicy->shouldUseChangeFlag($targetDate);
+
         $rows = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
                 'meal_type' => 'i_reservation_type',
-                'count' => $reservationTable->find()->func()->count('*'),
+                'eat_flag' => 'eat_flag',
+                'i_change_flag' => 'i_change_flag',
             ])
-            ->where([
-                'd_reservation_date' => $date,
-                'eat_flag' => 1,
-                'i_change_flag' => 1,
-            ])
-            ->groupBy('i_reservation_type')
+            ->where(['d_reservation_date' => $date])
+            ->enableHydration(false)
             ->toArray();
-        Cache::write($cacheKey, $rows, 'default');
-        return $rows;
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $effectiveFlag = $useChangeFlag
+                ? (int)($row['i_change_flag'] ?? 0)
+                : (int)($row['eat_flag'] ?? 0);
+            if ($effectiveFlag !== 1) {
+                continue;
+            }
+            $mealType = (int)$row['meal_type'];
+            $counts[$mealType] = ($counts[$mealType] ?? 0) + 1;
+        }
+
+        $result = [];
+        foreach ($counts as $mealType => $count) {
+            $result[] = [
+                'meal_type' => $mealType,
+                'count' => $count,
+            ];
+        }
+
+        Cache::write($cacheKey, $result, 'default');
+
+        return $result;
     }
 
     public function getUsersByRoomForEdit(
@@ -425,6 +450,17 @@ class ReservationReportService
         $final = array_values($result);
         Cache::write($cacheKey, $final, 'default');
         return $final;
+    }
+
+    public static function mealCountsCacheKey(string $date): string
+    {
+        return 'meal_counts:' . $date . ':' . self::MEAL_COUNTS_CACHE_SUFFIX;
+    }
+
+    public static function invalidateMealCountsCache(string $date): void
+    {
+        Cache::delete(self::mealCountsCacheKey($date), 'default');
+        Cache::delete('meal_counts:' . $date, 'default');
     }
 
     private function normalizeDateString(\DateTimeInterface|string|int|null $value): ?string

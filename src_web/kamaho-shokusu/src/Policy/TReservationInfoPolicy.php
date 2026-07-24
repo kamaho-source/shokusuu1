@@ -186,6 +186,11 @@ class TReservationInfoPolicy
         return $this->isStaffOrAdmin($user) && $this->canAccessRoom($user, $resource);
     }
 
+    public function canGetMealCounts(?IdentityInterface $user, TReservationInfo $resource): bool
+    {
+        return $this->isStaffOrAdmin($user);
+    }
+
     public function canActualMealManagement(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isBlockLeaderOrAdmin($user);
