@@ -111,7 +111,7 @@ class MRoomTransferScheduleController extends AppController
         $rooms = $this->fetchTable('MRoomInfo')->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ])->toArray();
+        ])->where(['i_del_flg' => 0])->toArray();
 
         $userRoomRows = $this->fetchTable('MUserGroup')->find()
             ->select(['i_id_user', 'i_id_room'])

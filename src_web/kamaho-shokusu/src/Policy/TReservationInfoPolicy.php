@@ -40,7 +40,7 @@ class TReservationInfoPolicy
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user) || $this->isRoomAffiliated($user);
+        return $this->isStaffOrAdmin($user);
     }
 
     public function canToggle(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -73,6 +73,11 @@ class TReservationInfoPolicy
 
         // 職員（level 0/7）は子供の予約編集を試みられる（サービス層で対象が子供かを検証）
         if ($this->isStaff($user)) {
+            return true;
+        }
+
+        // ブロック長は同部屋の他ユーザー操作を試みられる（canAccessRoom + サービス層で所属を検証）
+        if ($this->isBlockLeader($user)) {
             return true;
         }
 
@@ -324,24 +329,7 @@ class TReservationInfoPolicy
         return $this->isAdmin($user) || $this->isStaff($user);
     }
 
-    private function hasStaffId(?IdentityInterface $user): bool
-    {
-        $identity = $this->getOriginalIdentity($user);
-        if ($identity === null) {
-            return false;
-        }
-
-        $staffId = null;
-        if (is_object($identity) && method_exists($identity, 'get')) {
-            $staffId = $identity->get('i_id_staff');
-        } elseif (is_array($identity) || $identity instanceof \ArrayAccess) {
-            $staffId = $identity['i_id_staff'] ?? null;
-        }
-
-        return $staffId !== null && $staffId !== '' && $staffId !== 0;
-    }
-
-    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
+public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isBlockLeader($user);
     }

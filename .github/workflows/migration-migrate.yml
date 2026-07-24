@@ -1,5 +1,8 @@
 name: マイグレーション 適用（緊急用）
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -37,8 +40,8 @@ jobs:
             # ── ① マイグレーション実行前にフルバックアップを取得 ──────────
             echo "── Pre-migrate backup ────────────────────────────────────────────"
             mkdir -p "$BACKUP_DIR"
-            docker exec "$DB_CONTAINER" \
-              mysqldump -u "${{ secrets.DB_USER }}" -p"${{ secrets.DB_PASS }}" shokusu \
+            docker exec -e MYSQL_PWD="${{ secrets.DB_PASS }}" "$DB_CONTAINER" \
+              mysqldump -u "${{ secrets.DB_USER }}" shokusu \
               --result-file=/tmp/pre_migrate_${TIMESTAMP}.sql
             docker cp "$DB_CONTAINER":/tmp/pre_migrate_${TIMESTAMP}.sql \
               "${BACKUP_DIR}/pre_migrate_${TIMESTAMP}.sql"
@@ -61,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.inputs.environment == 'staging' }}
     steps:
-      - name: Migration Migrate via SSH
+      - name: Pre-migrate backup & Migration Migrate via SSH
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.STG_HOST }}
@@ -72,6 +75,18 @@ jobs:
           command_timeout: 15m
           script: |
             set -euo pipefail
+            BACKUP_DIR="/home/ubuntu/backups/shokusu"
+            DB_CONTAINER="stg_db"
+            TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+
+            echo "── Pre-migrate backup ────────────────────────────────────────────"
+            mkdir -p "$BACKUP_DIR"
+            docker exec -e MYSQL_PWD="${{ secrets.STG_DB_PASS }}" "$DB_CONTAINER" \
+              mysqldump -u "${{ secrets.STG_DB_USER }}" shokusu \
+              --result-file=/tmp/pre_migrate_${TIMESTAMP}.sql
+            docker cp "$DB_CONTAINER":/tmp/pre_migrate_${TIMESTAMP}.sql \
+              "${BACKUP_DIR}/pre_migrate_${TIMESTAMP}.sql"
+            echo "Backup saved: ${BACKUP_DIR}/pre_migrate_${TIMESTAMP}.sql"
 
             echo "── Migration status before migrate ──────────────────────────────"
             docker exec stg_web php /var/www/html/kamaho-shokusu/bin/cake migrations status
