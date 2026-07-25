@@ -122,7 +122,7 @@ class TReservationInfoControllerTest extends TestCase
     public function testEvents()
     {
         $this->setAuthenticatedSession();
-        $this->get('/TReservationInfo/events');
+        $this->get('/TReservationInfo/events?start=2026-01-01&end=2026-01-31');
         $this->assertResponseOk();
         $this->assertHeader('Content-Type', 'application/json');
 
@@ -556,9 +556,9 @@ class TReservationInfoControllerTest extends TestCase
     {
         return [
             'index staff allowed' => ['/TReservationInfo/index', false, 0, 200],
-            'events staff allowed' => ['/TReservationInfo/events', false, 0, 200],
+            'events staff allowed' => ['/TReservationInfo/events?start=2026-01-01&end=2026-01-31', false, 0, 200],
             'copy endpoint denied by method as get' => ['/TReservationInfo/copy', true, 0, 405],
-            'events non staff denied' => ['/TReservationInfo/events', false, 1, 403],
+            'events non staff denied' => ['/TReservationInfo/events?start=2026-01-01&end=2026-01-31', false, 1, 403],
             'calendar events non staff denied' => ['/TReservationInfo/calendarEvents?start=2025-01-01&end=2025-01-31', false, 1, 403],
             'all rooms non admin denied' => ['/TReservationInfo/getAllRoomsMealCounts', false, 0, 403],
             'room users other room denied' => ['/TReservationInfo/getUsersByRoom/2', false, 0, 403],

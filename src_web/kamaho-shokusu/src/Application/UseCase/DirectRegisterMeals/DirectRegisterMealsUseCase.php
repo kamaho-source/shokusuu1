@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\DirectRegisterMeals;
 
+use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\DomainException;
 use App\Service\ReservationWriteService;
 
@@ -20,7 +21,7 @@ final class DirectRegisterMealsUseCase
     ) {}
 
     /**
-     * @throws DomainException 全件失敗など致命的なエラー時
+     * @throws DomainException 権限不足・DB障害など致命的なエラー時
      */
     public function execute(DirectRegisterMealsInput $input): DirectRegisterMealsOutput
     {
@@ -44,7 +45,9 @@ final class DirectRegisterMealsUseCase
                 );
                 $registered[] = $meal;
             } catch (DomainException $e) {
-                // すでに登録済み / バリデーション違反はスキップ扱い
+                if (!$this->isSkippable($e)) {
+                    throw $e;
+                }
                 $skipped[] = $meal;
             }
         }
@@ -53,5 +56,22 @@ final class DirectRegisterMealsUseCase
             registered: $registered,
             skipped:    $skipped,
         );
+    }
+
+    /**
+     * 一括直接登録で個別食事をスキップしてよい例外か判定する。
+     *
+     * 重複登録・昼食/弁当競合のみスキップ対象。権限不足・DB障害・楽観ロック競合は再スロー。
+     */
+    private function isSkippable(DomainException $e): bool
+    {
+        if (!$e instanceof ConflictException) {
+            return false;
+        }
+
+        $message = $e->getMessage();
+
+        return str_contains($message, '昼食と弁当')
+            || str_contains($message, '既に登録');
     }
 }

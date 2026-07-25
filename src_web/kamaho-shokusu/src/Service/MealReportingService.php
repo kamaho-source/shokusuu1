@@ -146,7 +146,7 @@ class MealReportingService
     private function invalidateCaches(int $userId, int $roomId, string $today): void
     {
         Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
-        Cache::delete('meal_counts:' . $today, 'default');
+        ReservationReportService::invalidateMealCountsCache($today);
         Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $today), 'default');
     }
 }
