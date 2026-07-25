@@ -16,7 +16,7 @@ from datetime import datetime, timezone, timedelta
 
 sys.path.insert(0, os.path.dirname(__file__))
 from backlog_client import load_backlog_env, resolve_bl_base, bl_request
-from sync_utils import get_gh_token, get_gh_repo, gh_request, update_sync_section
+from sync_utils import get_gh_token, get_gh_repo, gh_request, update_sync_section, find_github_issue_by_backlog_key
 
 GITHUB_ISSUE_URL_PATTERN = r"GitHub Issue: https://github\.com/"
 
@@ -67,15 +67,7 @@ def get_updated_issues(base: str, api_key: str, project_id: int, updated_since: 
 
 def find_github_issue(token: str, repo: str, backlog_key: str) -> dict | None:
     """Backlog課題キーに対応するGitHub Issueを検索する (open+closed)。"""
-    query = f"[{backlog_key}] repo:{repo} in:title is:issue"
-    result = gh_request(token, "GET", f"/search/issues?q={query.replace(' ', '+')}&per_page=5")
-    if result and result.get("items"):
-        for item in result["items"]:
-            title = item.get("title", "")
-            body  = item.get("body", "") or ""
-            if title.startswith(f"[{backlog_key}]") or f"<!-- backlog-key:{backlog_key} -->" in body:
-                return item
-    return None
+    return find_github_issue_by_backlog_key(token, repo, backlog_key)
 
 
 def is_github_origin(description: str) -> bool:
@@ -86,14 +78,12 @@ def is_github_origin(description: str) -> bool:
 def backlog_status_to_gh_state(status_name: str) -> str:
     """Backlogステータス名 → GitHub Issue状態。
 
-    コード反映後のステータス（ステージング反映済み / リリース待ち / 完了）は
-    GitHub Issue を閉じたままにする（再オープン防止）。
+    GitHub Issue の close は main 到達（Backlog「完了」）を正とする。
+    ステージング反映済み / リリース待ちでは open を維持する。
     """
-    open_names = {"未対応", "処理中", "処理済み", "open", "in progress", "todo", "doing"}
-    name = (status_name or "").strip()
-    if name.lower() in {s.lower() for s in open_names}:
-        return "open"
-    return "closed"
+    closed_names = {"完了", "resolved", "closed", "done", "完了済み"}
+    name = (status_name or "").strip().lower()
+    return "closed" if name in {s.lower() for s in closed_names} else "open"
 
 
 def create_github_issue(token: str, repo: str, backlog_key: str, title: str, description: str, space_id: str, domain: str) -> dict | None:
