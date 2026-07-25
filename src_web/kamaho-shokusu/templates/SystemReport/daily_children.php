@@ -19,6 +19,7 @@ $dataUrl        = $basePath . '/SystemReport/dailyChildrenData';
 .filter-title { font-size: .8rem; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
 .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
 .chart-wrap { position: relative; height: 380px; }
+.chart-wrap canvas { background-color: #fff; }
 .exclude-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-height: 160px; overflow-y: auto; padding: 4px; }
 .exclude-item { display: flex; align-items: center; gap: 4px; font-size: .82rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 3px 8px; cursor: pointer; user-select: none; }
 .exclude-item.active { background: #f8d7da; border-color: #f5c6cb; }

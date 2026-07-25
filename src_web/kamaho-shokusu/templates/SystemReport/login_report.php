@@ -15,6 +15,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
 .filter-title { font-size: .8rem; font-weight: 600; color: #6c757d; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
 .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 4px; }
 .chart-wrap { position: relative; }
+.chart-wrap canvas { background-color: #fff; }
 .sub-nav { display: flex; gap: 8px; margin-bottom: 20px; }
 #loadingOverlay { display: none; position: fixed; inset: 0; background: rgba(255,255,255,.6); z-index: 9999; align-items: center; justify-content: center; }
 #loadingOverlay.show { display: flex; }
