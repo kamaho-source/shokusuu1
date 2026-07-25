@@ -1,0 +1,124 @@
+name: Backlog ブランチ到達ステータス更新
+
+# develop → ステージング反映済み
+# release → リリース待ち
+# main    → 完了
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop, release, main]
+  push:
+    branches: [develop, release, main]
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "対象ブランチ (develop / release / main)"
+        required: true
+        type: choice
+        options: [develop, release, main]
+      pr_number:
+        description: "任意: 対象PR番号（指定時はそのPRから課題を抽出）"
+        required: false
+        type: string
+
+concurrency:
+  group: backlog-branch-status-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+  GH_REPO: ${{ github.repository }}
+  BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
+  BACKLOG_SPACE_ID: ${{ secrets.BACKLOG_SPACE_ID }}
+  BACKLOG_PROJECT_KEY: ${{ secrets.BACKLOG_PROJECT_KEY }}
+  BACKLOG_DOMAIN: ${{ secrets.BACKLOG_DOMAIN }}
+  BACKLOG_STATUS_ON_DEVELOP: ${{ vars.BACKLOG_STATUS_ON_DEVELOP || 'ステージング反映済み' }}
+  BACKLOG_STATUS_ON_RELEASE: ${{ vars.BACKLOG_STATUS_ON_RELEASE || 'リリース待ち' }}
+  BACKLOG_STATUS_ON_MAIN: ${{ vars.BACKLOG_STATUS_ON_MAIN || '完了' }}
+
+jobs:
+  update-status:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 対象ブランチとPR情報を環境変数へ
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const eventName = context.eventName;
+            let branch = '';
+            let prNumber = '';
+            let prTitle = '';
+            let prBody = '';
+            let prMerged = 'false';
+            let pushCommits = '[]';
+
+            if (eventName === 'pull_request') {
+              const pr = context.payload.pull_request;
+              branch = pr.base.ref;
+              prNumber = String(pr.number);
+              prTitle = pr.title || '';
+              prBody = pr.body || '';
+              prMerged = String(pr.merged === true);
+            } else if (eventName === 'push') {
+              branch = context.ref.replace(/^refs\/heads\//, '');
+              pushCommits = JSON.stringify(
+                (context.payload.commits || []).map((c) => ({
+                  id: c.id,
+                  message: c.message || '',
+                }))
+              );
+            } else if (eventName === 'workflow_dispatch') {
+              branch = context.payload.inputs.target_branch;
+              prNumber = context.payload.inputs.pr_number || '';
+            }
+
+            const out = process.env.GITHUB_ENV;
+            fs.appendFileSync(out, `GH_TARGET_BRANCH=${branch}\n`);
+            fs.appendFileSync(out, `GH_PR_NUMBER=${prNumber}\n`);
+            fs.appendFileSync(out, `GH_PR_MERGED=${prMerged}\n`);
+            // multiline env for title/body/commits
+            const writeMultiline = (key, value) => {
+              fs.appendFileSync(out, `${key}<<EOF\n${value}\nEOF\n`);
+            };
+            writeMultiline('GH_PR_TITLE', prTitle);
+            writeMultiline('GH_PR_BODY', prBody);
+            writeMultiline('GH_PUSH_COMMITS', pushCommits);
+            core.info(`branch=${branch} pr=${prNumber || '-'} merged=${prMerged}`);
+
+      - name: 手動実行時に PR 情報を取得
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != ''
+        env:
+          GH_PR_NUMBER: ${{ github.event.inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          pr="$(gh api "repos/${GH_REPO}/pulls/${GH_PR_NUMBER}")"
+          title="$(printf '%s' "$pr" | python -c 'import json,sys; print(json.load(sys.stdin).get("title") or "")')"
+          body="$(printf '%s' "$pr" | python -c 'import json,sys; print(json.load(sys.stdin).get("body") or "")')"
+          {
+            echo "GH_PR_NUMBER=${GH_PR_NUMBER}"
+            echo "GH_PR_MERGED=true"
+            echo "GH_PR_TITLE<<EOF"
+            echo "$title"
+            echo "EOF"
+            echo "GH_PR_BODY<<EOF"
+            echo "$body"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Backlog ステータス更新
+        run: python .github/scripts/backlog_branch_status.py
