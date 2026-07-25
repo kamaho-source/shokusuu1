@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ReservationReportService;
+use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
@@ -22,6 +23,7 @@ class ReservationReportServiceGetMealCountsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Cache::clear('default');
         $this->service = new ReservationReportService();
     }
 
