@@ -4,7 +4,7 @@ GitHub Issue → Backlog課題 同期スクリプト
 
 - opened:   Backlog課題を新規作成（Backlog起源Issueはスキップ）
 - edited:   Backlog課題タイトル・説明を更新
-- closed:   Backlog課題を完了に
+- closed:   ステータスは変更しない（完了は main 到達時に更新）
 - reopened: Backlog課題を未対応に
 """
 
@@ -14,7 +14,7 @@ import re
 import json
 
 sys.path.insert(0, os.path.dirname(__file__))
-from backlog_client import load_backlog_env, resolve_bl_base, bl_request
+from backlog_client import load_backlog_env, resolve_bl_base, bl_request, get_status_id
 from sync_utils import get_gh_token, get_gh_repo, gh_request, extract_backlog_key, is_backlog_synced, update_sync_section
 
 
@@ -30,16 +30,6 @@ def get_issue_type_id(base: str, api_key: str, project_key: str) -> int:
             return t["id"]
     print(f"課題種別を使用: {types[0]['name']} (id={types[0]['id']})")
     return types[0]["id"]
-
-
-def get_status_id(base: str, api_key: str, project_key: str, status_name: str) -> int:
-    statuses = bl_request(base, api_key, "GET", f"/projects/{project_key}/statuses")
-    if statuses:
-        for s in statuses:
-            if s.get("name") == status_name:
-                return s["id"]
-    # フォールバック
-    return 1 if status_name == "未対応" else 4
 
 
 def create_backlog_issue(base: str, api_key: str, project_id: int, issue_type_id: int,
@@ -164,14 +154,39 @@ def main():
         else:
             print(f"差分なし。更新をスキップしました: {backlog_key}")
 
-    elif event_action in ("closed", "reopened"):
+    elif event_action == "closed":
         backlog_key = extract_backlog_key(issue_body, project_key)
         if not backlog_key:
             print(f"Issue #{issue_number} にBacklog課題キーがありません。スキップします")
             return
 
-        status_name = "完了" if event_action == "closed" else "未対応"
-        status_id   = get_status_id(base, api_key, project_key, status_name)
+        # 完了ステータスは main 到達時（backlog_branch_status）で更新する。
+        # ここで完了にすると develop マージ直後に「ステージング反映済み」と競合する。
+        github_issue_url = f"https://github.com/{repo}/issues/{issue_number}"
+        comment_body = (
+            f"GitHub Issue #{issue_number} がクローズされました。\n\n"
+            f"- 更新者: @{issue_user}\n"
+            f"- GitHub Issue: {github_issue_url}\n"
+            f"- 備考: Backlogステータスはブランチ到達（develop/release/main）で自動更新します。"
+        )
+        bl_request(
+            base,
+            api_key,
+            "POST",
+            f"/issues/{backlog_key}/comments",
+            {"content": comment_body},
+            fatal=False,
+        )
+        print(f"Issueクローズをコメント通知しました（ステータス変更なし）: {backlog_key}")
+
+    elif event_action == "reopened":
+        backlog_key = extract_backlog_key(issue_body, project_key)
+        if not backlog_key:
+            print(f"Issue #{issue_number} にBacklog課題キーがありません。スキップします")
+            return
+
+        status_name = "未対応"
+        status_id = get_status_id(base, api_key, project_key, status_name)
         bl_request(base, api_key, "PATCH", f"/issues/{backlog_key}", {"statusId": status_id})
         print(f"Backlog課題のステータスを更新しました: {backlog_key} → {status_name}")
 
