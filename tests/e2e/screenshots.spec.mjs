@@ -1,20 +1,11 @@
 // @ts-check
 import { test } from '@playwright/test';
+import { login } from './helpers/auth.mjs';
 
 /**
  * 主要画面のスクリーンショット撮影（目視確認用）。
  * 出力先: test-results/screenshots/{sp|desktop}-{name}.png
  */
-
-async function login(page) {
-    const user = process.env.E2E_USER ?? 'e2e_admin';
-    const pass = process.env.E2E_PASS ?? 'E2eTest#2026';
-    await page.goto('/kamaho-shokusu/MUserInfo/login');
-    await page.fill('input[name="c_login_account"]', user);
-    await page.fill('input[name="c_login_passwd"]', pass);
-    await page.click('button[type="submit"], input[type="submit"]');
-    await page.waitForURL(/TReservationInfo|pages|dashboard|\/kamaho-shokusu\/?$/);
-}
 
 const SCREENS = [
     { name: 'login',        path: '/kamaho-shokusu/MUserInfo/login', auth: false },
