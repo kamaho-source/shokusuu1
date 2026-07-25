@@ -1,0 +1,5 @@
+# ローカル開発用: ホストの 3306 が他コンテナと衝突する場合の回避
+services:
+  kamakura-shokusu_db:
+    ports: !override
+      - "3308:3306"

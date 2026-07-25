@@ -1,5 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
+import { login } from './helpers/auth.mjs';
 
 /**
  * Issue #507 全面監査の修正内容を検証する E2E テスト。
@@ -7,16 +8,6 @@ import { test, expect } from '@playwright/test';
  * - 予約画面の JS 設定（JSON_HEX フラグ付与後も動作すること）
  * - SP（375px）幅での表示崩れ
  */
-
-async function login(page) {
-    const user = process.env.E2E_USER ?? 'e2e_admin';
-    const pass = process.env.E2E_PASS ?? 'E2eTest#2026';
-    await page.goto('/kamaho-shokusu/MUserInfo/login');
-    await page.fill('input[name="c_login_account"]', user);
-    await page.fill('input[name="c_login_passwd"]', pass);
-    await page.click('button[type="submit"], input[type="submit"]');
-    await page.waitForURL(/TReservationInfo|pages|dashboard|\/kamaho-shokusu\/?$/);
-}
 
 test.describe('セキュリティヘッダー', () => {
     test('全レスポンスにセキュリティヘッダーが付与される', async ({ page }) => {

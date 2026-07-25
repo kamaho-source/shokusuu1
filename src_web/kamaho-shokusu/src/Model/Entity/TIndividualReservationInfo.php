@@ -36,6 +36,8 @@ class TIndividualReservationInfo extends Entity
         'd_reservation_date' => true,
         'eat_flag' => true,
         'i_change_flag' => true,
+        'tenant_id' => true,
+        'facility_id' => true,
         'dt_create' => true,
         'c_create_user' => true,
         'dt_update' => true,
