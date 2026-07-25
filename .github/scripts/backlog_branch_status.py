@@ -2,9 +2,9 @@
 """
 ブランチ到達に応じて Backlog 課題ステータスを更新する。
 
-- develop 到達 → ステージング反映済み
-- release 到達 → リリース待ち
-- main 到達    → 完了
+- develop 到達 → ステージング反映済み（GitHub Issue は open のまま）
+- release 到達 → リリース待ち（GitHub Issue は open のまま）
+- main 到達    → 完了 + 紐づく GitHub Issue を close
 
 トリガー想定:
   - develop / release / main 向け PR の merge
@@ -24,7 +24,14 @@ from backlog_client import (  # noqa: E402
     load_backlog_env,
     resolve_bl_base,
 )
-from sync_utils import extract_backlog_key, get_gh_repo, get_gh_token, gh_request  # noqa: E402
+from sync_utils import (  # noqa: E402
+    close_github_issue,
+    extract_backlog_key,
+    find_github_issue_by_backlog_key,
+    get_gh_repo,
+    get_gh_token,
+    gh_request,
+)
 
 CLOSING_PATTERN = re.compile(
     r"(?:closes?|fixes?|resolves?)\s+#(\d+)",
@@ -111,33 +118,41 @@ def collect_keys_from_pr(
     pr_number: int,
     pr_title: str,
     pr_body: str,
-) -> set[str]:
+) -> tuple[set[str], set[int]]:
     keys = set(find_backlog_keys_in_text(project_key, pr_title, pr_body))
+    issue_numbers = set(find_issue_numbers(pr_title, pr_body))
 
-    for iss_num in find_issue_numbers(pr_title, pr_body):
+    for iss_num in list(issue_numbers):
         key = get_backlog_key_from_issue(token, repo, iss_num, project_key)
         if key:
             keys.add(key)
             print(f"  PR #{pr_number} Issue #{iss_num} → {key}")
         else:
-            print(f"  PR #{pr_number} Issue #{iss_num} に Backlog キーなし")
+            print(f"  PR #{pr_number} Issue #{iss_num} に Backlog キーなし（Issue番号は保持）")
 
     commits = gh_request(token, "GET", f"/repos/{repo}/pulls/{pr_number}/commits?per_page=100") or []
     for commit in commits:
         message = (commit.get("commit") or {}).get("message", "") or ""
         keys.update(find_backlog_keys_in_text(project_key, message))
         for iss_num in find_issue_numbers(message):
+            issue_numbers.add(iss_num)
             key = get_backlog_key_from_issue(token, repo, iss_num, project_key)
             if key:
                 keys.add(key)
 
-    return keys
+    return keys, issue_numbers
 
 
-def collect_keys_from_push(token: str, repo: str, project_key: str, commits_json: str) -> set[str]:
+def collect_keys_from_push(
+    token: str,
+    repo: str,
+    project_key: str,
+    commits_json: str,
+) -> tuple[set[str], set[int]]:
     import json
 
     keys: set[str] = set()
+    issue_numbers: set[int] = set()
     try:
         commits = json.loads(commits_json or "[]")
     except json.JSONDecodeError:
@@ -148,11 +163,12 @@ def collect_keys_from_push(token: str, repo: str, project_key: str, commits_json
         message = commit.get("message", "") or ""
         keys.update(find_backlog_keys_in_text(project_key, message))
         for iss_num in find_issue_numbers(message):
+            issue_numbers.add(iss_num)
             key = get_backlog_key_from_issue(token, repo, iss_num, project_key)
             if key:
                 keys.add(key)
                 print(f"  commit Issue #{iss_num} → {key}")
-    return keys
+    return keys, issue_numbers
 
 
 def current_status_name(base: str, api_key: str, backlog_key: str) -> str | None:
@@ -224,6 +240,36 @@ def update_status(
     return True
 
 
+def close_linked_github_issues(
+    token: str,
+    repo: str,
+    backlog_keys: set[str],
+    issue_numbers: set[int],
+    source: str,
+) -> int:
+    """main 到達時に紐づく GitHub Issue を close する。"""
+    to_close: set[int] = set(issue_numbers)
+    for key in sorted(backlog_keys):
+        gh_issue = find_github_issue_by_backlog_key(token, repo, key)
+        if gh_issue and gh_issue.get("number"):
+            to_close.add(int(gh_issue["number"]))
+
+    if not to_close:
+        print("close 対象の GitHub Issue はありません")
+        return 0
+
+    comment = (
+        f"<!-- github-branch-status:main-close -->\n\n"
+        f"`main` に到達したため、この Issue を close しました。\n"
+        f"- トリガー: {source}"
+    )
+    closed = 0
+    for num in sorted(to_close):
+        if close_github_issue(token, repo, num, comment=comment):
+            closed += 1
+    return closed
+
+
 def main() -> None:
     api_key, space_id, project_key, domain = load_backlog_env()
     base = resolve_bl_base(space_id, domain)
@@ -250,6 +296,7 @@ def main() -> None:
     print(f"イベント={event_name} branch={branch} → status={target_status}")
 
     keys: set[str] = set()
+    issue_numbers: set[int] = set()
     source = event_name
 
     if event_name == "pull_request":
@@ -260,29 +307,42 @@ def main() -> None:
             print("[ERROR] PR番号が取得できません")
             sys.exit(1)
         source = f"PR #{pr_number} merge → {branch}"
-        keys = collect_keys_from_pr(token, repo, project_key, pr_number, pr_title, pr_body)
+        keys, issue_numbers = collect_keys_from_pr(
+            token, repo, project_key, pr_number, pr_title, pr_body
+        )
     elif event_name == "push":
         source = f"push → {branch}"
-        keys = collect_keys_from_push(token, repo, project_key, push_commits)
+        keys, issue_numbers = collect_keys_from_push(token, repo, project_key, push_commits)
     else:
         # workflow_dispatch 等: PR番号があれば PR 基準、なければ push commits
         if pr_number > 0:
             source = f"manual PR #{pr_number} → {branch}"
-            keys = collect_keys_from_pr(token, repo, project_key, pr_number, pr_title, pr_body)
+            keys, issue_numbers = collect_keys_from_pr(
+                token, repo, project_key, pr_number, pr_title, pr_body
+            )
         else:
             source = f"manual → {branch}"
-            keys = collect_keys_from_push(token, repo, project_key, push_commits)
+            keys, issue_numbers = collect_keys_from_push(token, repo, project_key, push_commits)
 
-    if not keys:
-        print("紐づく Backlog 課題が見つかりませんでした。スキップします")
+    if not keys and not issue_numbers:
+        print("紐づく Backlog 課題 / GitHub Issue が見つかりませんでした。スキップします")
         return
 
-    print(f"更新対象: {', '.join(sorted(keys))}")
-    updated = 0
-    for key in sorted(keys):
-        if update_status(base, api_key, project_key, key, target_status, branch, source):
-            updated += 1
-    print(f"完了: updated={updated}/{len(keys)}")
+    if keys:
+        print(f"Backlog 更新対象: {', '.join(sorted(keys))}")
+        updated = 0
+        for key in sorted(keys):
+            if update_status(base, api_key, project_key, key, target_status, branch, source):
+                updated += 1
+        print(f"Backlog 完了: updated={updated}/{len(keys)}")
+    else:
+        print("Backlog 課題キーなし（GitHub Issue のみ処理）")
+
+    if branch == "main":
+        closed = close_linked_github_issues(token, repo, keys, issue_numbers, source)
+        print(f"GitHub Issue close: {closed} 件")
+    else:
+        print(f"{branch} 到達のため GitHub Issue は open のままにします")
 
 
 if __name__ == "__main__":

@@ -106,6 +106,59 @@ def extract_backlog_key(text: str, project_key: str) -> str | None:
     return m2.group(1) if m2 else None
 
 
+def find_github_issue_by_backlog_key(token: str, repo: str, backlog_key: str) -> dict | None:
+    """Backlog課題キーに対応するGitHub Issueを検索する (open+closed)。"""
+    query = f"[{backlog_key}] repo:{repo} in:title is:issue"
+    result = gh_request(token, "GET", f"/search/issues?q={query.replace(' ', '+')}&per_page=5")
+    if result and result.get("items"):
+        for item in result["items"]:
+            title = item.get("title", "")
+            body = item.get("body", "") or ""
+            if title.startswith(f"[{backlog_key}]") or f"<!-- backlog-key:{backlog_key} -->" in body:
+                return item
+    return None
+
+
+def close_github_issue(
+    token: str,
+    repo: str,
+    issue_number: int,
+    *,
+    comment: str | None = None,
+) -> bool:
+    """GitHub Issue を close する。既に closed なら False。"""
+    issue = gh_request(token, "GET", f"/repos/{repo}/issues/{issue_number}")
+    if not issue:
+        print(f"  GitHub Issue #{issue_number} を取得できませんでした")
+        return False
+    if issue.get("pull_request"):
+        print(f"  #{issue_number} は PR のためスキップします")
+        return False
+    if issue.get("state") == "closed":
+        print(f"  GitHub Issue #{issue_number} は既に closed")
+        return False
+
+    if comment:
+        gh_request(
+            token,
+            "POST",
+            f"/repos/{repo}/issues/{issue_number}/comments",
+            {"body": comment},
+        )
+
+    result = gh_request(
+        token,
+        "PATCH",
+        f"/repos/{repo}/issues/{issue_number}",
+        {"state": "closed", "state_reason": "completed"},
+    )
+    if result and result.get("state") == "closed":
+        print(f"  GitHub Issue #{issue_number} を closed にしました")
+        return True
+    print(f"  GitHub Issue #{issue_number} の close に失敗しました")
+    return False
+
+
 def is_backlog_synced(body: str) -> bool:
     """Backlog起源のIssueかどうかを判定する。"""
     return "<!-- backlog-synced -->" in (body or "")
