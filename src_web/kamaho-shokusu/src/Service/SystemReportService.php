@@ -331,6 +331,15 @@ class SystemReportService
                 'is_child'  => ((int)($row->i_user_level ?? 0)) === self::CHILD_LEVEL,
             ];
         }
+
+        // 除外候補UI: 大人を先に、続けて子供（各グループ内は名前順）
+        usort($result, static function (array $a, array $b): int {
+            if ($a['is_child'] !== $b['is_child']) {
+                return $a['is_child'] ? 1 : -1;
+            }
+            return strcmp($a['user_name'], $b['user_name']);
+        });
+
         return $result;
     }
 }
