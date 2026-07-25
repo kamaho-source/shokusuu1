@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use ArrayObject;
 use Cake\Datasource\EntityInterface;
+use Cake\Event\EventInterface;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;
@@ -25,6 +27,30 @@ class TIndividualReservationInfoTable extends Table
         $this->belongsTo('MRoomInfo', ['foreignKey' => 'i_id_room', 'joinType' => 'INNER']);
         $this->belongsTo('MUserInfo', ['foreignKey' => 'i_id_user', 'joinType' => 'INNER']);
         $this->belongsTo('MUserGroup', ['foreignKey' => ['i_id_user', 'i_id_room'], 'joinType' => 'INNER']);
+    }
+
+    /**
+     * マルチテナント環境の DB では tenant_id / facility_id が NOT NULL のため、新規行に既定値を補完する。
+     *
+     * @param \Cake\Event\EventInterface<\Cake\ORM\Table> $event
+     * @param \Cake\Datasource\EntityInterface $entity
+     * @param \ArrayObject<string, mixed> $options
+     */
+    public function beforeSave(EventInterface $event, EntityInterface $entity, ArrayObject $options): void
+    {
+        if (!$entity->isNew()) {
+            return;
+        }
+
+        foreach (['tenant_id' => 1, 'facility_id' => 1] as $column => $default) {
+            if ($entity->get($column) !== null) {
+                continue;
+            }
+            if ($this->getSchema()->getColumn($column) === null) {
+                continue;
+            }
+            $entity->set($column, $default);
+        }
     }
 
     public function validationDefault(Validator $validator): Validator
