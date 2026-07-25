@@ -75,7 +75,8 @@ Backlog 側のステータス名が異なる場合に設定します（未設定
 - 指定分数前（デフォルト: 20分）から更新されたBacklog課題を取得
 - **重複防止**: タイトルの `[SHOKUSU-XXX]` プレフィックスとbody内のHTMLコメントマーカーで既存Issueを検索
 - **無限ループ防止**: `GitHub Issue: https://github.com/` が説明に含まれる課題はGitHub起源と判断し、新規作成をスキップ（ステータス変更のみ反映）
-- Backlogの「完了」およびコード反映後ステータス → GitHub Issueのcloseに反映（再オープン防止）
+- Backlogの「完了」ステータス → GitHub Issueのcloseに反映
+- ステージング反映済み / リリース待ちでは GitHub Issue は open を維持（main 到達で close）
 
 ### GitHub Issue → Backlog課題 同期 (`github-issue-to-backlog.yml`)
 
@@ -87,14 +88,15 @@ Backlog 側のステータス名が異なる場合に設定します（未設定
 
 ### ブランチ到達 → Backlogステータス更新 (`backlog-branch-status.yml`)
 
-| 到達ブランチ | Backlogステータス |
-|--------------|-------------------|
-| `develop` | ステージング反映済み |
-| `release` | リリース待ち |
-| `main` | 完了 |
+| 到達ブランチ | Backlogステータス | GitHub Issue |
+|--------------|-------------------|--------------|
+| `develop` | ステージング反映済み | open のまま |
+| `release` | リリース待ち | open のまま |
+| `main` | 完了 | **close** |
 
 - develop / release / main 向け PR の **merge**、または同ブランチへの **push** で発火
-- PRタイトル・本文・コミットメッセージから `SHOKUSU-N` / `Closes #N` を抽出し、紐づく課題を更新
+- PRタイトル・本文・コミットメッセージから `SHOKUSU-N` / `Closes #N` / `#N` を抽出し、紐づく課題を更新
+- **main 到達時**は紐づく GitHub Issue を `completed` で close する（Backlog キー経由の Issue も含む）
 - 進行方向のみ更新（例: 完了 → ステージング反映済み への降格はしない）
 - 手動実行（`workflow_dispatch`）も可能
 
