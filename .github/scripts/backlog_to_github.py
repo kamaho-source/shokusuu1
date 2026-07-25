@@ -84,9 +84,16 @@ def is_github_origin(description: str) -> bool:
 
 
 def backlog_status_to_gh_state(status_name: str) -> str:
-    """Backlogステータス名 → GitHub Issue状態。"""
-    closed_names = {"完了", "resolved", "closed", "done", "完了済み"}
-    return "closed" if status_name.lower() in {s.lower() for s in closed_names} else "open"
+    """Backlogステータス名 → GitHub Issue状態。
+
+    コード反映後のステータス（ステージング反映済み / リリース待ち / 完了）は
+    GitHub Issue を閉じたままにする（再オープン防止）。
+    """
+    open_names = {"未対応", "処理中", "処理済み", "open", "in progress", "todo", "doing"}
+    name = (status_name or "").strip()
+    if name.lower() in {s.lower() for s in open_names}:
+        return "open"
+    return "closed"
 
 
 def create_github_issue(token: str, repo: str, backlog_key: str, title: str, description: str, space_id: str, domain: str) -> dict | None:
