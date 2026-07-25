@@ -138,13 +138,8 @@ jobs:
             printf '%s\n' "${DEPLOY_KEY}" > ~/.ssh/github_deploy_key
             chmod 600 ~/.ssh/github_deploy_key
             # port 22 が遮断される環境に備えて ssh.github.com:443 経由で接続する
-            # known_hosts には github.com と [ssh.github.com]:443 の両形式を追加する
-            printf '%s\n%s\n%s\n%s\n' \
-              'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C8okz4GmTpGR' \
-              'github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRr40OmxfDR5OvN2Cf0=' \
-              '[ssh.github.com]:443 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C8okz4GmTpGR' \
-              '[ssh.github.com]:443 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRr40OmxfDR5OvN2Cf0=' \
-              >> ~/.ssh/known_hosts
+            # ssh-keyscan で [ssh.github.com]:443 のホストキーを動的に取得する
+            ssh-keyscan -t rsa,ecdsa,ed25519 -p 443 ssh.github.com >> ~/.ssh/known_hosts 2>/dev/null
             printf 'Host github.com\n  Hostname ssh.github.com\n  Port 443\n  IdentityFile ~/.ssh/github_deploy_key\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
             chmod 600 ~/.ssh/config
 
