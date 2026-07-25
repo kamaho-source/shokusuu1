@@ -42,7 +42,8 @@ async function deleteExistingPackage(client, treeRoot, issueKey, parentTitle) {
     const title = String(n.name || n.title || "");
     if (!title) return false;
     if (title === parentTitle) return true;
-    if (!title.startsWith(issuePrefix) && !title.includes(issueKey)) return false;
+    // SHOKUSU-1 が SHOKUSU-13 に部分一致しないよう、"[KEY] " プレフィックスのみ許可
+    if (!title.startsWith(`${issuePrefix} `) && title !== issuePrefix) return false;
     return /(仕様書|設計書|機能仕様|概要設計|基本設計|詳細設計|プロンプト|ドキュメントリンク)/.test(
       title
     );
@@ -69,6 +70,7 @@ async function deleteExistingPackage(client, treeRoot, issueKey, parentTitle) {
  *   parentEmoji?: string,
  *   parentIntroLines: string[],
  *   parentSummary?: string,
+ *   localSourceDir?: string,
  *   primaryMarkdown: string,
  *   children: Array<{ title: string, content: string, emoji?: string }>,
  *   modelNote?: string,
@@ -233,18 +235,19 @@ async function publishDocumentPackage(client, args) {
   });
 
   // 課題の詳細（description）にもリンクを残す（コメントだけでなくチケット本文から辿れるように）
-  const descSection = [
+  const descLines = [
     `## 関連ドキュメント（${args.parentSuffix}）`,
     ``,
     `生成日時: ${generatedAt}`,
     ``,
     formatLinkList(allLinks),
-    ``,
-    `ローカル原稿: \`docs/backlog-notify/\``,
-  ].join("\n");
+  ];
+  if (args.localSourceDir) {
+    descLines.push(``, `ローカル原稿: \`${args.localSourceDir}\``);
+  }
   await client.upsertIssueDescriptionSection(
     args.issueKey,
-    descSection,
+    descLines.join("\n"),
     args.kind
   );
 
@@ -284,6 +287,8 @@ async function publishDocumentPackage(client, args) {
  *   detailedMarkdown: string,
  *   modelNote?: string,
  *   extraNotes?: string,
+ *   parentSummary?: string,
+ *   localSourceDir?: string,
  *   attachPromptFiles?: boolean,
  *   replaceExisting?: boolean,
  * }} args
@@ -299,12 +304,9 @@ export async function publishDesignDocs(client, args) {
       "配下（同一プレフィックス）に概要・基本・詳細設計書とプロンプト記録を配置",
       "このページ先頭のリンクから各文書へ移動できます",
     ],
-    parentSummary: [
-      "CakePHP アプリから Backlog へエラー／ビジネスイベントを自動通知する機能の設計書一式。",
-      "未処理例外・致命的エラー、テナント登録・ステータス変更を対象とし、",
-      "通知失敗は業務処理を止めない（フェイルセーフ）。",
-      "認証・ON/OFF・宛先は環境変数で管理する。",
-    ].join(""),
+    parentSummary:
+      args.parentSummary ||
+      `${args.featureName} の設計書一式。詳細は配下の概要／基本／詳細設計書を参照。`,
     primaryMarkdown: args.overviewMarkdown,
     children: [
       {
@@ -335,6 +337,8 @@ export async function publishDesignDocs(client, args) {
  *   specificationMarkdown: string,
  *   modelNote?: string,
  *   extraNotes?: string,
+ *   parentSummary?: string,
+ *   localSourceDir?: string,
  *   attachPromptFiles?: boolean,
  *   replaceExisting?: boolean,
  * }} args
@@ -349,11 +353,9 @@ export async function publishSpecDocs(client, args) {
       "このページに機能仕様書の本文を掲載しています",
       "関連ドキュメントへのリンクはページ先頭を参照",
     ],
-    parentSummary: [
-      "PHPアプリからBacklogへのエラー・イベント通知連携の機能仕様書。",
-      "必須要件（エラー通知・テナント登録／ステータス変更通知・env設定・フェイルセーフ・依存方向）と",
-      "受け入れ条件を定義する。画面なし（サーバー側自動処理）。実装方式は設計書を参照。",
-    ].join(""),
+    parentSummary:
+      args.parentSummary ||
+      `${args.featureName} の機能仕様書。要件・受け入れ条件は本文を参照。実装方式は設計書を参照。`,
     primaryMarkdown: args.specificationMarkdown,
     // 仕様書は親に全文を載せる。子は同内容の単体ページ（印刷・共有用）を1つ置く。
     children: [

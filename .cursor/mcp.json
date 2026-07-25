@@ -2,7 +2,12 @@
   "mcpServers": {
     "backlog": {
       "command": "npx",
-      "args": ["-y", "backlog-mcp-server@0.13.3"],
+      "args": [
+        "-y",
+        "backlog-mcp-server@0.13.3",
+        "--enable-toolsets",
+        "document,issue"
+      ],
       "env": {
         "BACKLOG_DOMAIN": "${BACKLOG_DOMAIN}",
         "BACKLOG_API_KEY": "${BACKLOG_API_KEY}"

@@ -11,7 +11,7 @@
 | 手順 | `docs/backlog-design-docs.md` |
 | Skill | `.agents/skills/backlog-design-docs/SKILL.md`（正本: `skills/backlog-design-docs/`） |
 | スラッシュ（任意） | `.codex/prompts/design-docs.md` → 必要なら `cp` して `/prompts:design-docs` |
-| MCP | `.codex/config.toml`（`backlog` / `backlog-design`） |
+| MCP | `.codex/config.toml`（`backlog-design` のみ） |
 | CLI（MCP不要） | `node tools/backlog-design-mcp/src/cli.js` |
 
 環境変数: `BACKLOG_DOMAIN`, `BACKLOG_API_KEY`, （任意）`BACKLOG_PROJECT_KEY`

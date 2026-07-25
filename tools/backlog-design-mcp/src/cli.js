@@ -33,7 +33,9 @@ Credentials: process env or .env (CakePHP \`export KEY=value\` OK)
 function readArg(argv, name) {
   const i = argv.indexOf(name);
   if (i === -1 || i + 1 >= argv.length) return undefined;
-  return argv[i + 1];
+  const value = argv[i + 1];
+  if (value.startsWith("--")) return undefined;
+  return value;
 }
 
 function hasFlag(argv, name) {

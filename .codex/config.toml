@@ -2,11 +2,9 @@
 # Secrets: set BACKLOG_* in your shell — do not commit keys.
 # Docs: https://developers.openai.com/codex/mcp
 # CLI fallback: node tools/backlog-design-mcp/src/cli.js --help
-
-[mcp_servers.backlog]
-command = "npx"
-args = ["-y", "backlog-mcp-server@0.13.3"]
-env_vars = ["BACKLOG_DOMAIN", "BACKLOG_API_KEY"]
+#
+# 汎用 backlog-mcp-server は toolset 未指定だと権限が広いため、
+# 設計書公開用途では backlog-design（本リポジトリ実装）のみ登録する。
 
 [mcp_servers.backlog-design]
 command = "bash"

@@ -158,13 +158,12 @@ node tools/backlog-design-mcp/src/cli.js prompts
 # 課題取得
 node tools/backlog-design-mcp/src/cli.js get-issue SHOKUSU-13
 
-# 仕様書公開
+# 仕様書公開（既定は非破壊。置換は確認後のみ --replace）
 node tools/backlog-design-mcp/src/cli.js publish-spec \
   --issue SHOKUSU-13 \
   --feature "PHPアプリからBacklogへのエラー・イベント通知連携" \
   --spec docs/backlog-notify/00-specification.md \
-  --model "Cursor" \
-  --replace
+  --model "<実行クライアント名>"
 
 # 設計書公開
 node tools/backlog-design-mcp/src/cli.js publish \
@@ -173,13 +172,12 @@ node tools/backlog-design-mcp/src/cli.js publish \
   --overview docs/backlog-notify/01-overview-design.md \
   --basic docs/backlog-notify/02-basic-design.md \
   --detailed docs/backlog-notify/03-detailed-design.md \
-  --model "Cursor" \
-  --replace
+  --model "<実行クライアント名>"
 ```
 
 | フラグ | 意味 |
 |--------|------|
-| `--replace` | 同名親ドキュメントを削除して再作成 |
+| `--replace` | 同名親ドキュメントを削除して再作成（**ユーザー確認後のみ**） |
 | `--no-attach` | 課題コメントへのプロンプト添付を省略（非推奨） |
 | `--model` | 使用プロンプト記録に残す実行環境メモ |
 | `--notes` | 補足 |

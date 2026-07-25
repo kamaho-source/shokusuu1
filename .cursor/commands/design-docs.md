@@ -13,23 +13,27 @@
 
 ## 必ず行うこと
 
-1. Skill / 手順に従う:
-   - `skills/backlog-design-docs/SKILL.md`（または `.cursor` / `.claude` / `.agents` 配下の同名 Skill）
+1. Skill / 手順の正本に従う:
+   - `skills/backlog-design-docs/SKILL.md`
    - `docs/backlog-design-docs.md`
-2. プロンプト原本を使う（要約だけで済ませない）:
+2. **課題取得**（必須）: MCP/CLI `get_issue` で課題本文・コメントを取得し、以降の生成に反映する
+3. プロンプト原本を使う（要約だけで済ませない）:
    - `docs/design-prompts/00-system.md`
    - `docs/design-prompts/01-overview.md`
    - `docs/design-prompts/02-basic.md`
    - `docs/design-prompts/03-detailed.md`
-3. 概要設計書・基本設計書・詳細設計書の Markdown を生成する  
+4. 概要設計書・基本設計書・詳細設計書の Markdown を生成する  
    推奨保存先: `docs/<feature-slug>/01-overview-design.md` など
-4. Backlog へ公開し、**使用プロンプトを添付・記録**する:
+5. Backlog へ公開し、**使用プロンプトを添付・記録**する（**既定は非破壊**）:
    - 優先: MCP `backlog-design` の `publish_design_docs`
    - 代替:  
-     `node tools/backlog-design-mcp/src/cli.js publish --issue ... --feature ... --overview ... --basic ... --detailed ... --model "<このクライアント名>" --replace`
-5. 親ドキュメント URL・3設計書 URL・使用プロンプト記録 URL・課題コメント添付の有無を報告する
+     `node tools/backlog-design-mcp/src/cli.js publish --issue ... --feature ... --overview ... --basic ... --detailed ... --model "<実行クライアント名>"`
+   - 既存文書の削除置換はユーザー確認後のみ `--replace` を付与
+6. 親ドキュメント URL・3設計書 URL・使用プロンプト記録 URL・課題コメント添付の有無を報告する
 
 ## 禁止
 
+- 課題未取得のまま設計書を書くこと
 - プロンプト原本の添付・「99 使用プロンプト記録」の省略
+- 確認なしの `--replace`
 - API キーを出力・コミットすること

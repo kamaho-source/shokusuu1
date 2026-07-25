@@ -93,25 +93,25 @@ interface BacklogNotifierInterface
 |------------|----|------|
 | `eventType` | string | `error` / `tenant_registered` / `tenant_status_changed` / … |
 | `title` | string | 見出し |
-| `body` | string | Markdown 本文 |
-| `severity` | array | 構造化付加情報（ログ用・本文生成用） |
-| `severity` | string\|null | 低\|中\|高（任意） |
+| `body` | string | Markdown 本文（サニタイズ・最大長適用後） |
+| `severity` | string\|null | `low` / `medium` / `high`（任意） |
+| `context` | array | 構造化付加情報（本文生成・重複指紋用。秘密情報を入れない） |
 
 ### 5.3 `BacklogNotifier`（final）
 
 | 定数 / 設定 | 内容 |
 |-------------|------|
-| 既定 timeout | 3 秒（想定） |
+| 既定 timeout | 全体 3 秒（接続 2 秒・読取 3 秒） |
 | base URL | `https://{BACKLOG_DOMAIN}/api/v2` または `https://{SPACE}.backlog.com/api/v2` |
 
 | メソッド | 仕様 |
 |----------|------|
 | `__construct(Client $http, array $config = [])` | テストで Client 注入可（Slack と同じ） |
-| `notify(BacklogNotifyMessage): void` | ENABLED 判定 → バリデーション → `postComment` |
+| `notify(BacklogNotifyMessage): void` | ENABLED 判定 → モード別バリデーション → 重複抑止 → `postComment` / `createIssue` |
 | `isEnabled(): bool` | env 判定 |
-| `postComment(string $issueKey, string $content): void` | A-01 |
-| `createIssue(...): void` | A-02（任意・設定で切替） |
-| `formatMarkdown(BacklogNotifyMessage): string` | 本文生成 |
+| `postComment(string $issueKey, string $content): void` | A-01（`comment` モード） |
+| `createIssue(...): void` | A-02（`issue` モード） |
+| `formatMarkdown(BacklogNotifyMessage): string` | 本文生成・除去・最大長 |
 
 例外処理:
 
@@ -119,21 +119,26 @@ interface BacklogNotifierInterface
 try {
   HTTP
 } catch (\Throwable $e) {
-  // 再通知禁止のログチャネルへ
-  Log::write('warning', 'Backlog notify failed: '.$e->getMessage(), ['scope' => 'backlog_notify']);
+  // 再通知禁止のログチャネルへ。生 URL / クエリ / レスポンス本文 / 例外メッセージ生値は出さない
+  Log::write('warning', 'Backlog notify failed', [
+    'scope' => 'backlog_notify',
+    'status' => 'http_error', // または内部エラーコード
+  ]);
 }
 ```
 
+テスト: 失敗ログ文字列に `BACKLOG_API_KEY` の値が含まれないこと。
+
 ### 5.4 `BacklogLogEngine`（final, extends BaseLog）
 
-`SlackLogEngine` を踏襲。
+`SlackLogEngine` を踏襲。エラー通知の**唯一の入口**。
 
 | 項目 | 仕様 |
 |------|------|
-| 有効条件 | `BACKLOG_NOTIFY_ENABLED=1` かつ API キー・ISSUE_KEY あり |
+| 有効条件 | `BACKLOG_NOTIFY_ENABLED=1` かつ `BACKLOG_API_KEY` あり。加えて `comment` モードなら `BACKLOG_NOTIFY_ISSUE_KEY`、`issue` モードなら `BACKLOG_PROJECT_KEY` |
 | levels | `error`, `critical`, `alert`, `emergency` |
 | 処理 | `BacklogNotifyMessage(eventType=error, ...)` を組み立て Interface へ。DI 困難なら Engine 内で Notifier を直接生成（暫定）し、将来 Container 取得に寄せる |
-| HTTP 失敗 | catch 空 or warning（Slack 同様） |
+| HTTP 失敗 | catch して安全な status のみ warning（Slack 同様） |
 | 再帰防止 | 本 Engine は `scopes` で `backlog_notify` を扱わない。失敗ログは File のみ |
 
 ### 5.5 Null 実装

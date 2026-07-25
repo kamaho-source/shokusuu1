@@ -1,28 +1,39 @@
----
-description: Backlog課題から機能仕様書を生成し、使用プロンプト付きで公開する
-argument-hint: "[ISSUE_KEY] [機能名(任意)]"
-disable-model-invocation: true
----
-
 # Backlog 機能仕様書を生成・公開する
 
-引数: `$ARGUMENTS`  
-課題キー: `$0`  
-機能名（任意）: `$1`
+チャット入力の **このコマンド名の後ろに付けた引数**（課題キーなど）を最優先で使う。
 
-`$0` が空ならユーザーに課題キーを確認すること。
+## 引数
+
+| 位置 | 例 | 意味 |
+|------|-----|------|
+| 1 | `SHOKUSU-13` | Backlog 課題キー（必須。無ければユーザーに確認） |
+| 2 | `機能名` | 任意。無ければ課題タイトルから決める |
+
+例: `/spec-docs SHOKUSU-13` または `/spec-docs SHOKUSU-13 PHPアプリからBacklogへのエラー・イベント通知連携`
 
 ## 必ず行うこと
 
-1. プロンプト: `docs/design-prompts/00-system.md` + `05-specification.md`
-2. 機能仕様書を生成（推奨: `docs/<slug>/00-specification.md`）
-3. 公開: MCP `publish_spec_docs` または  
-   `node tools/backlog-design-mcp/src/cli.js publish-spec ... --model "Claude Code" --replace`
-4. URL とプロンプト添付の有無を報告
+1. Skill / 手順の正本に従う:
+   - `skills/backlog-design-docs/SKILL.md`
+   - `docs/backlog-design-docs.md`（仕様書セクション）
+2. **課題取得**（必須）: MCP/CLI `get_issue` で課題本文・コメントを取得し、以降の生成に反映する
+3. プロンプト原本を使う（要約だけで済ませない）:
+   - `docs/design-prompts/00-system.md`
+   - `docs/design-prompts/05-specification.md`
+4. **機能仕様書** Markdown を生成する  
+   推奨保存先: `docs/<feature-slug>/00-specification.md`
+5. Backlog へ公開し、**使用プロンプトを添付・記録**する（**既定は非破壊**）:
+   - 優先: MCP `publish_spec_docs`
+   - 代替:  
+     `node tools/backlog-design-mcp/src/cli.js publish-spec --issue ... --feature ... --spec ... --model "<実行クライアント名>"`
+   - 既存文書の削除置換はユーザー確認後のみ `--replace` を付与
+6. 親ドキュメント URL・仕様書 URL・使用プロンプト記録 URL・課題コメント添付の有無を報告する
 
-設計書が必要なら `/design-docs` を使う。
+設計書（概要／基本／詳細）が必要なら `/design-docs` を別途実行する。
 
 ## 禁止
 
-- プロンプト添付・使用プロンプト記録の省略
-- API キーの出力・コミット
+- 課題未取得のまま仕様書を書くこと
+- プロンプト原本の添付・「99 使用プロンプト記録」の省略
+- 確認なしの `--replace`
+- API キーを出力・コミットすること

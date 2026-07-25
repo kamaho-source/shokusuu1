@@ -183,9 +183,15 @@ export class BacklogClient {
     url.searchParams.set("apiKey", this.apiKey);
     const res = await fetch(url, { method: "POST", body: form });
     const text = await res.text();
-    const json = JSON.parse(text);
+    let json = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = { raw: text };
+    }
     if (!res.ok) {
-      throw new Error(`attachment upload HTTP ${res.status}: ${text}`);
+      const msg = typeof json === "object" ? JSON.stringify(json) : text;
+      throw new Error(`attachment upload HTTP ${res.status}: ${msg}`);
     }
     return json;
   }

@@ -70,13 +70,17 @@ server.tool(
   "upload_attachment",
   "ローカルファイルを Backlog space/attachment にアップロードし attachmentId を返す",
   {
-    filePath: z.string().describe("リポジトリ相対または絶対パス"),
+    filePath: z.string().describe("リポジトリ内の相対パス（リポジトリ外は拒否）"),
   },
   async ({ filePath }) => {
     const client = createClientFromEnv();
-    const resolved = path.isAbsolute(filePath)
-      ? filePath
-      : path.join(REPO_ROOT, filePath);
+    const resolved = path.resolve(
+      path.isAbsolute(filePath) ? filePath : path.join(REPO_ROOT, filePath)
+    );
+    const root = path.resolve(REPO_ROOT);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+      throw new Error(`リポジトリ外のパスは指定できません: ${resolved}`);
+    }
     if (!fs.existsSync(resolved)) {
       throw new Error(`ファイルがありません: ${resolved}`);
     }
