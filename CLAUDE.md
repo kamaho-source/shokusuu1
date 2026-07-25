@@ -171,3 +171,22 @@ bin/cake routes                            # ルーティング確認
 bin/cake migrations migrate                # マイグレーション実行
 vendor/bin/phpunit                         # テスト実行
 ```
+
+
+---
+
+## 12. Backlog 設計書自動生成（Claude Code / Cursor / Codex 共通）
+
+概要設計書・基本設計書・詳細設計書を課題から生成し、**使用プロンプト付き**で Backlog ドキュメントへ公開できる。
+
+| 項目 | 場所 |
+|------|------|
+| 手順 | [`docs/backlog-design-docs.md`](docs/backlog-design-docs.md) |
+| Skill | `.claude/skills/backlog-design-docs/`（正本: `skills/backlog-design-docs/`） |
+| スラッシュコマンド | `/design-docs SHOKUSU-10`（`.claude/commands/design-docs.md`） |
+| MCP（プロジェクト） | [`.mcp.json`](.mcp.json) |
+| CLI（MCP不要） | `node tools/backlog-design-mcp/src/cli.js` |
+
+環境変数: `BACKLOG_DOMAIN`, `BACKLOG_API_KEY`, （任意）`BACKLOG_PROJECT_KEY`
+
+ユーザーが設計書生成を依頼したら Skill `backlog-design-docs` に従う。`/design-docs` でも起動できる。MCP が無い場合は CLI で公開する。

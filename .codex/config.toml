@@ -1,0 +1,14 @@
+# Project-scoped Codex MCP (trusted projects only).
+# Secrets: set BACKLOG_* in your shell — do not commit keys.
+# Docs: https://developers.openai.com/codex/mcp
+# CLI fallback: node tools/backlog-design-mcp/src/cli.js --help
+
+[mcp_servers.backlog]
+command = "npx"
+args = ["-y", "backlog-mcp-server@0.13.3"]
+env_vars = ["BACKLOG_DOMAIN", "BACKLOG_API_KEY"]
+
+[mcp_servers.backlog-design]
+command = "bash"
+args = ["tools/backlog-design-mcp/bin/run-mcp.sh"]
+env_vars = ["BACKLOG_DOMAIN", "BACKLOG_API_KEY", "BACKLOG_PROJECT_KEY"]
