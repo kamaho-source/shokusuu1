@@ -1,0 +1,23 @@
+{
+  "name": "backlog-design-mcp",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Backlog 設計書公開・使用プロンプト添付（MCP + CLI）",
+  "type": "module",
+  "bin": {
+    "backlog-design-mcp": "./src/index.js",
+    "backlog-design-cli": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "cli": "node src/cli.js",
+    "sync-skills": "bash scripts/sync-skills.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.12.1",
+    "zod": "3.25.76"
+  }
+}

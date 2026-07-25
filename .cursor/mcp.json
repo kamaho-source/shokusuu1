@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "backlog": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "backlog-mcp-server@0.13.3",
+        "--enable-toolsets",
+        "document,issue"
+      ],
+      "env": {
+        "BACKLOG_DOMAIN": "${BACKLOG_DOMAIN}",
+        "BACKLOG_API_KEY": "${BACKLOG_API_KEY}"
+      }
+    },
+    "backlog-design": {
+      "command": "bash",
+      "args": ["tools/backlog-design-mcp/bin/run-mcp.sh"],
+      "env": {
+        "BACKLOG_DOMAIN": "${BACKLOG_DOMAIN}",
+        "BACKLOG_API_KEY": "${BACKLOG_API_KEY}",
+        "BACKLOG_PROJECT_KEY": "${BACKLOG_PROJECT_KEY}"
+      }
+    }
+  }
+}
