@@ -205,6 +205,17 @@ $dataUrl        = $basePath . '/SystemReport/dailyChildrenData';
 
         chartDaily = new Chart(canvas, {
             type: 'line',
+            plugins: [{
+                id: 'whiteBackground',
+                beforeDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'destination-over';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, chart.width, chart.height);
+                    ctx.restore();
+                },
+            }],
             data: {
                 labels: stats.map(d => d.date),
                 datasets: [{
@@ -285,7 +296,7 @@ $dataUrl        = $basePath . '/SystemReport/dailyChildrenData';
             const buf = await wb.xlsx.writeBuffer();
             const a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-            a.download = `daily_children_${dateFrom}_${dateTo}.xlsx`;
+            a.download = `日別子供総数_${dateFrom}_${dateTo}.xlsx`;
             a.click();
         } catch(e) { alert('Excel出力エラー: '+e.message); }
         finally { btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力'; }

@@ -220,6 +220,17 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
 
         chartLogin = new Chart(canvas, {
             type: 'bar',
+            plugins: [{
+                id: 'whiteBackground',
+                beforeDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'destination-over';
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, chart.width, chart.height);
+                    ctx.restore();
+                },
+            }],
             data: {
                 labels: users.map(u => u.user_name),
                 datasets: [{
@@ -347,7 +358,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
             const buf = await wb.xlsx.writeBuffer();
             const a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-            a.download = `login_report_${dateFrom}_${dateTo}.xlsx`;
+            a.download = `ログイン情報_${dateFrom}_${dateTo}.xlsx`;
             a.click();
         } catch(e) { alert('Excel出力エラー: '+e.message); }
         finally { btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力'; }
