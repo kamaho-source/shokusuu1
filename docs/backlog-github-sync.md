@@ -9,6 +9,7 @@ BacklogとGitHub Issueを双方向に自動同期する仕組みです。
 | Backlog → GitHub | 15分ごとのスケジュール | Backlog課題の作成・更新・完了をGitHub Issueへ反映 |
 | GitHub → Backlog | Issue イベント | GitHub Issueの作成・編集・クローズ・再オープンをBacklog課題へ反映 |
 | GitHub → Backlog | Issue Comment イベント | GitHub IssueへのコメントをBacklogコメントへ反映 |
+| GitHub → Backlog | develop / release / main 到達 | ブランチ到達に応じて Backlog ステータスを更新 |
 
 ---
 
@@ -21,11 +22,13 @@ BacklogとGitHub Issueを双方向に自動同期する仕組みです。
 │   ├── sync_utils.py                  # GitHub API共通ユーティリティ
 │   ├── backlog_to_github.py           # Backlog → GitHub 同期スクリプト
 │   ├── github_to_backlog.py           # GitHub → Backlog 同期スクリプト
-│   └── github_comment_to_backlog.py   # GitHub コメント → Backlog 同期スクリプト
+│   ├── github_comment_to_backlog.py   # GitHub コメント → Backlog 同期スクリプト
+│   └── backlog_branch_status.py      # ブランチ到達 → Backlog ステータス更新
 └── workflows/
     ├── backlog-to-github-issue.yml         # Backlog → GitHub ワークフロー
     ├── github-issue-to-backlog.yml         # GitHub → Backlog ワークフロー
-    └── github-issue-comment-to-backlog.yml # コメント同期ワークフロー
+    ├── github-issue-comment-to-backlog.yml # コメント同期ワークフロー
+    └── backlog-branch-status.yml          # ブランチ到達ステータス更新
 ```
 
 ---
@@ -50,6 +53,18 @@ gh secret set BACKLOG_API_KEY --body "取得したAPIキー" --repo kamaho-sourc
 
 または GitHub リポジトリの Settings → Secrets and variables → Actions から手動登録。
 
+### 任意の Repository Variables（ステータス名上書き）
+
+Backlog 側のステータス名が異なる場合に設定します（未設定時は下記デフォルト）。
+
+| Variable | デフォルト |
+|----------|------------|
+| `BACKLOG_STATUS_ON_DEVELOP` | `ステージング反映済み` |
+| `BACKLOG_STATUS_ON_RELEASE` | `リリース待ち` |
+| `BACKLOG_STATUS_ON_MAIN` | `完了` |
+
+**前提:** Backlog プロジェクトに上記ステータスが存在すること。無い場合はプロジェクト設定で追加してください。
+
 ---
 
 ## 動作仕様
@@ -60,15 +75,35 @@ gh secret set BACKLOG_API_KEY --body "取得したAPIキー" --repo kamaho-sourc
 - 指定分数前（デフォルト: 20分）から更新されたBacklog課題を取得
 - **重複防止**: タイトルの `[SHOKUSU-XXX]` プレフィックスとbody内のHTMLコメントマーカーで既存Issueを検索
 - **無限ループ防止**: `GitHub Issue: https://github.com/` が説明に含まれる課題はGitHub起源と判断し、新規作成をスキップ（ステータス変更のみ反映）
-- Backlogの「完了」ステータス → GitHub Issueのcloseに反映
+- Backlogの「完了」およびコード反映後ステータス → GitHub Issueのcloseに反映（再オープン防止）
 
 ### GitHub Issue → Backlog課題 同期 (`github-issue-to-backlog.yml`)
 
 - `opened`: 新規Backlog課題を作成。GitHub IssueのタイトルとbodyをBacklog課題に反映。GitHub Issue側にBacklog課題キーを追記
 - `edited`: Backlog課題のタイトル・説明を更新。差分がある場合のみBacklogにコメントを追加
-- `closed`: Backlog課題のステータスを「完了」に変更
+- `closed`: Backlogへクローズ通知コメントのみ（**ステータスは変更しない**）
 - `reopened`: Backlog課題のステータスを「未対応」に変更
 - **無限ループ防止**: `<!-- backlog-synced -->` マーカーが含まれるIssueはBacklog起源として新規作成をスキップ
+
+### ブランチ到達 → Backlogステータス更新 (`backlog-branch-status.yml`)
+
+| 到達ブランチ | Backlogステータス |
+|--------------|-------------------|
+| `develop` | ステージング反映済み |
+| `release` | リリース待ち |
+| `main` | 完了 |
+
+- develop / release / main 向け PR の **merge**、または同ブランチへの **push** で発火
+- PRタイトル・本文・コミットメッセージから `SHOKUSU-N` / `Closes #N` を抽出し、紐づく課題を更新
+- 進行方向のみ更新（例: 完了 → ステージング反映済み への降格はしない）
+- 手動実行（`workflow_dispatch`）も可能
+
+```bash
+gh workflow run backlog-branch-status.yml \
+  --repo kamaho-source/shokusuu1 \
+  -f target_branch=develop \
+  -f pr_number=593
+```
 
 ### GitHub コメント → Backlogコメント同期 (`github-issue-comment-to-backlog.yml`)
 
@@ -86,6 +121,7 @@ gh secret set BACKLOG_API_KEY --body "取得したAPIキー" --repo kamaho-sourc
 | `<!-- backlog-key:SHOKUSU-XXX -->` | GitHub Issue body | 対応するBacklog課題キーを保持 |
 | `<!-- github-sync:start -->` / `<!-- github-sync:end -->` | Backlog課題説明 | GitHub同期範囲を区切る |
 | `<!-- github-comment-id:XXX -->` | Backlogコメント | 同期済みGitHubコメントIDを保持（重複防止） |
+| `<!-- github-branch-status:BRANCH -->` | Backlogコメント | ブランチ到達によるステータス更新の痕跡 |
 
 ---
 
@@ -116,6 +152,14 @@ gh workflow run backlog-to-github-issue.yml \
 - Secretの値に前後の空白や改行が含まれていないか
 - `BACKLOG_SPACE_ID` が `kamaho` になっているか
 - `BACKLOG_DOMAIN` が `backlog.com` になっているか
+
+### ステータス名が見つからない
+
+```
+[ERROR] ステータス「ステージング反映済み」が見つかりません
+```
+
+Backlog プロジェクト設定でステータスを追加するか、Repository Variables で実在する名前に合わせてください。
 
 ### 同期が止まっている場合
 
