@@ -1,20 +1,6 @@
 // @ts-check
 import { test, expect } from '@playwright/test';
-
-/**
- * ログインヘルパー
- * E2E_USER / E2E_PASS 環境変数で認証情報を渡す。
- */
-async function login(page) {
-    const user = process.env.E2E_USER ?? 'e2e_admin';
-    const pass = process.env.E2E_PASS ?? 'E2eTest#2026';
-    await page.goto('/kamaho-shokusu/MUserInfo/login');
-    await page.fill('input[name="c_login_account"]', user);
-    await page.fill('input[name="c_login_passwd"]', pass);
-    await page.click('button[type="submit"], input[type="submit"]');
-    // 管理者は TReservationInfo、一般は Pages/display(home) へリダイレクトされる
-    await page.waitForURL(/TReservationInfo|pages|dashboard|\/kamaho-shokusu\/?$/);
-}
+import { login, formatLocalYmd } from './helpers/auth.mjs';
 
 test.describe('予約フォーム - 集団予約', () => {
     test.beforeEach(async ({ page }) => {
@@ -22,7 +8,7 @@ test.describe('予約フォーム - 集団予約', () => {
     });
 
     test('集団予約: 部屋選択で利用者一覧が表示される', async ({ page }) => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = formatLocalYmd();
         await page.goto(`/kamaho-shokusu/TReservationInfo/add?date=${today}`);
 
         // 集団タブを選択
@@ -47,7 +33,7 @@ test.describe('予約フォーム - 集団予約', () => {
     });
 
     test('集団予約: 予約タイプ切替で個人/集団セクションが正しく切り替わる', async ({ page }) => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = formatLocalYmd();
         await page.goto(`/kamaho-shokusu/TReservationInfo/add?date=${today}`);
 
         const typeSelect = page.locator('#c_reservation_type');
@@ -72,7 +58,7 @@ test.describe('予約フォーム - quickDayModal (インデックス画面)', (
     });
 
     test('モーダルから集団予約: 部屋選択で利用者一覧が取得される', async ({ page }) => {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = formatLocalYmd();
         await page.goto(`/kamaho-shokusu/TReservationInfo/index?date=${today}`);
 
         // モーダルを開くボタンを探す（予約追加）
