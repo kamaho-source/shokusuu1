@@ -44,7 +44,7 @@ class MUserInfo extends Entity
         'i_user_level'=> true,
         'i_user_rank'=> true,
         'i_admin' => true,
-        'i_report_access' => true,
+        'i_report_access' => false,
         'i_disp_no' => true,
         'i_enable' => true,
         'i_del_flag' => true,

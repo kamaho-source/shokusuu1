@@ -3,8 +3,16 @@
 $basePath = rtrim($this->request->getAttribute('base') ?? '', '/');
 $dataUrl  = $basePath . '/SystemReport/loginReportData';
 ?>
-<?= $this->Html->script('https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js', ['block' => true]) ?>
-<?= $this->Html->script('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', ['block' => true]) ?>
+<?= $this->Html->script('https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js', [
+    'block' => true,
+    'integrity' => 'sha384-JUh163oCRItcbPme8pYnROHQMC6fNKTBWtRG3I3I0erJkzNgL7uxKlNwcrcFKeqF',
+    'crossorigin' => 'anonymous',
+]) ?>
+<?= $this->Html->script('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', [
+    'block' => true,
+    'integrity' => 'sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz',
+    'crossorigin' => 'anonymous',
+]) ?>
 
 <style>
 .page-shell { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -27,7 +35,7 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
     <div class="page-head">
         <div>
             <h1 class="page-title">システムレポート — ログイン情報</h1>
-            <div class="page-subtitle">システムへのログイン履歴を表示します。システム管理者専用。</div>
+            <div class="page-subtitle">システムへのログイン履歴を表示します。レポート閲覧権限が必要です。</div>
         </div>
         <div class="d-flex gap-2">
             <button id="btnExcel" class="btn btn-success btn-sm" disabled>
@@ -155,6 +163,8 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
     const DATA_URL   = <?= json_encode($dataUrl) ?>;
     const CSRF_TOKEN = document.querySelector('meta[name="csrfToken"]')?.content ?? '';
     let chartLogin   = null;
+    let statsSnapshot = null;
+    let latestRequestId = 0;
     let currentDaily = [];
     let currentLogs  = [];   // 成功ログのみ
     let currentUsers = [];
@@ -306,8 +316,8 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
     // ---------- Excel出力 ----------
     document.getElementById('btnExcel').addEventListener('click', async () => {
         if (!currentLogs.length) return;
-        const dateFrom = document.getElementById('dateFrom').value;
-        const dateTo   = document.getElementById('dateTo').value;
+        const dateFrom = (statsSnapshot && statsSnapshot.dateFrom) || document.getElementById('dateFrom').value;
+        const dateTo   = (statsSnapshot && statsSnapshot.dateTo) || document.getElementById('dateTo').value;
         const btn      = document.getElementById('btnExcel');
         btn.disabled = true; btn.textContent = '出力中...';
         try {
@@ -357,17 +367,22 @@ $dataUrl  = $basePath . '/SystemReport/loginReportData';
             [22, 20, 20, 18].forEach((w,i) => ls.getColumn(i+1).width = w);
 
             const buf = await wb.xlsx.writeBuffer();
+            const objectUrl = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+            a.href = objectUrl;
             a.download = `ログイン情報_${dateFrom}_${dateTo}.xlsx`;
             a.click();
+            URL.revokeObjectURL(objectUrl);
         } catch(e) { alert('Excel出力エラー: '+e.message); }
         finally { btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力'; }
     });
 
     async function applyStats() {
+        const requestId = ++latestRequestId;
         try {
             const json       = await fetchStats();
+            if (requestId !== latestRequestId) return;
+            statsSnapshot    = { dateFrom: json.date_from || document.getElementById('dateFrom').value, dateTo: json.date_to || document.getElementById('dateTo').value };
             currentDaily     = json.daily ?? [];
             const allLogs    = json.logs  ?? [];
             currentLogs      = allLogs.filter(l => l.result === 1);

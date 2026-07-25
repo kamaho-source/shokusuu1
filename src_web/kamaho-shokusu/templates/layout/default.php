@@ -34,6 +34,7 @@ $user       = $request->getAttribute('identity');
 $iAdmin     = $user ? (int)$user->i_admin : 0;
 $isAdmin    = in_array($iAdmin, [1, 3]);
 $isSysAdmin = ($iAdmin === 3);
+$hasReportAccess = $user && (int)($user->i_report_access ?? 0) === 1;
 $isStaff    = $user && ($isAdmin || in_array((int)$user->i_user_level, [0, 7]));
 $isChild    = $user && (int)$user->i_user_level === 1;
 $notificationUnreadCount = $notificationUnreadCount ?? 0;
@@ -102,12 +103,13 @@ $recentNotifications     = $recentNotifications ?? [];
                         </li>
                     <?php endif; ?>
 
-                    <?php if ($user && $isSysAdmin): ?>
+                    <?php if ($user && ($isSysAdmin || $hasReportAccess)): ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-gear"></i>管理
                             </a>
                             <ul class="dropdown-menu border-0 shadow-sm">
+                                <?php if ($isSysAdmin): ?>
                                 <li>
                                     <a class="dropdown-item" href="<?= $this->Url->build('/AuditLog') ?>">
                                         <i class="bi bi-shield-lock me-2 text-danger"></i>監査ログ
@@ -118,6 +120,8 @@ $recentNotifications     = $recentNotifications ?? [];
                                         <i class="bi bi-bar-chart me-2 text-warning"></i>機能使用頻度
                                     </a>
                                 </li>
+                                <?php endif; ?>
+                                <?php if ($hasReportAccess): ?>
                                 <li>
                                     <a class="dropdown-item" href="<?= $this->Url->build('/SystemReport') ?>">
                                         <i class="bi bi-building me-2 text-success"></i>システムレポート（部屋別）
@@ -133,6 +137,7 @@ $recentNotifications     = $recentNotifications ?? [];
                                         <i class="bi bi-person-check me-2 text-secondary"></i>ログイン情報
                                     </a>
                                 </li>
+                                <?php endif; ?>
                             </ul>
                         </li>
                     <?php endif; ?>

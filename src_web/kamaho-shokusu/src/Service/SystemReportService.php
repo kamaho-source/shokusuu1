@@ -17,7 +17,7 @@ use Cake\ORM\TableRegistry;
  *
  * Excel出力はフロントエンド（ExcelJS）が担当するため、このサービスはJSON用データのみ返す。
  */
-class SystemReportService
+final class SystemReportService
 {
     private const CHILD_LEVEL = 1;
     private const MEAL_TYPES  = 4; // 朝・昼・夕・弁当
@@ -34,6 +34,7 @@ class SystemReportService
      *   child_reservations:int, adult_reservations:int,
      *   child_usage_rate:float, adult_usage_rate:float
      * }>
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
      */
     public function getRoomStats(array $excludeUserIds, string $dateFrom, string $dateTo): array
     {
@@ -41,7 +42,11 @@ class SystemReportService
 
         $masterRows = $userGroupTable->find()
             ->contain(['MUserInfo', 'MRoomInfo'])
-            ->where(['MUserGroup.active_flag' => 0])
+            ->where([
+                'MUserGroup.active_flag' => 0,
+                'MUserInfo.i_del_flag'   => 0,
+                'MRoomInfo.i_del_flg'    => 0,
+            ])
             ->all()
             ->toArray();
 
@@ -53,6 +58,10 @@ class SystemReportService
             $userId    = (int)$row->i_id_user;
             $userLevel = (int)($row->m_user_info?->i_user_level ?? 0);
             $roomName  = $row->m_room_info?->c_room_name ?? '';
+
+            if ($roomId <= 0 || $userId <= 0 || $roomName === '') {
+                continue;
+            }
 
             if (in_array($userId, $excludeUserIds, true)) {
                 continue;
@@ -76,9 +85,9 @@ class SystemReportService
 
             if ($isChild) {
                 $rooms[$roomId]['child_users']++;
-            } else {
-                $rooms[$roomId]['adult_users']++;
+                continue;
             }
+            $rooms[$roomId]['adult_users']++;
         }
 
         if (empty($rooms)) {
@@ -119,9 +128,9 @@ class SystemReportService
 
             if ($userLevelInRoom[$roomId][$userId]) {
                 $rooms[$roomId]['child_reservations']++;
-            } else {
-                $rooms[$roomId]['adult_reservations']++;
+                continue;
             }
+            $rooms[$roomId]['adult_reservations']++;
         }
 
         foreach ($rooms as &$room) {
@@ -148,6 +157,7 @@ class SystemReportService
      * @param string $dateFrom
      * @param string $dateTo
      * @return array<array{date:string, child_count:int, adult_count:int, total:int}>
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
      */
     public function getDailyStats(array $excludeUserIds, string $dateFrom, string $dateTo): array
     {
@@ -210,9 +220,9 @@ class SystemReportService
 
             if ($userLevelMap[$userId]) {
                 $daily[$dateStr]['child']++;
-            } else {
-                $daily[$dateStr]['adult']++;
+                continue;
             }
+            $daily[$dateStr]['adult']++;
         }
 
         return array_map(
@@ -234,6 +244,7 @@ class SystemReportService
      * @param string $dateFrom
      * @param string $dateTo
      * @return array<array{date:string, child_count:int}>
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
      */
     public function getDailyChildrenStats(array $excludeUserIds, string $dateFrom, string $dateTo): array
     {
@@ -251,6 +262,7 @@ class SystemReportService
      * @param string $dateFrom
      * @param string $dateTo
      * @return array{daily:array<array{date:string,success:int,failed:int}>, logs:array<array{dt:string,user_name:string,login_id:string,result:int,ip:string}>}
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
      */
     public function getLoginStats(string $dateFrom, string $dateTo): array
     {
@@ -286,7 +298,8 @@ class SystemReportService
             if (isset($daily[$dateStr])) {
                 if ($result === 1) {
                     $daily[$dateStr]['success']++;
-                } else {
+                }
+                if ($result !== 1) {
                     $daily[$dateStr]['failed']++;
                 }
             }
@@ -313,6 +326,7 @@ class SystemReportService
      * 有効な全ユーザーを返す（除外候補選択UI用）。
      *
      * @return array<array{user_id:int, user_name:string, is_child:bool}>
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
      */
     public function getAllUsers(): array
     {

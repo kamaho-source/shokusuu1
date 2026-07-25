@@ -3,8 +3,14 @@ declare(strict_types=1);
 
 use Migrations\AbstractMigration;
 
-class AddReportAccessToMUserInfo extends AbstractMigration
+/**
+ * m_user_info にシステムレポート閲覧権限カラムを追加する。
+ */
+final class AddReportAccessToMUserInfo extends AbstractMigration
 {
+    /**
+     * @throws \RuntimeException マイグレーション実行に失敗した場合
+     */
     public function change(): void
     {
         $this->table('m_user_info')

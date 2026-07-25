@@ -9,8 +9,16 @@ $dataUrl            = $basePath . '/SystemReport/data';
 $dailyChildrenUrl   = $basePath . '/SystemReport/dailyChildren';
 $loginReportUrl     = $basePath . '/SystemReport/loginReport';
 ?>
-<?= $this->Html->script('https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js', ['block' => true]) ?>
-<?= $this->Html->script('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', ['block' => true]) ?>
+<?= $this->Html->script('https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js', [
+    'block' => true,
+    'integrity' => 'sha384-JUh163oCRItcbPme8pYnROHQMC6fNKTBWtRG3I3I0erJkzNgL7uxKlNwcrcFKeqF',
+    'crossorigin' => 'anonymous',
+]) ?>
+<?= $this->Html->script('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js', [
+    'block' => true,
+    'integrity' => 'sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz',
+    'crossorigin' => 'anonymous',
+]) ?>
 
 <style>
 .page-shell { max-width: 1300px; margin: 0 auto; padding: 24px 16px 48px; }
@@ -24,8 +32,10 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
 .chart-wrap { position: relative; height: 380px; }
 .chart-wrap canvas { background-color: #fff; }
 .exclude-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-height: 160px; overflow-y: auto; padding: 4px; }
-.exclude-item { display: flex; align-items: center; gap: 4px; font-size: .82rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 3px 8px; cursor: pointer; user-select: none; transition: background .15s; }
+.exclude-item { position: relative; display: flex; align-items: center; gap: 4px; font-size: .82rem; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 3px 8px; cursor: pointer; user-select: none; transition: background .15s; }
 .exclude-item.active { background: #f8d7da; border-color: #f5c6cb; }
+.exclude-item:focus-within { outline: 2px solid #0d6efd; outline-offset: 2px; }
+.exclude-item input[type="checkbox"] { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
 .exclude-item .badge-child { font-size: .65rem; background: #0d6efd; color: #fff; border-radius: 4px; padding: 1px 4px; }
 .exclude-item .badge-adult { font-size: .65rem; background: #198754; color: #fff; border-radius: 4px; padding: 1px 4px; }
 .sub-nav { display: flex; gap: 8px; margin-bottom: 20px; }
@@ -39,7 +49,7 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
     <div class="page-head">
         <div>
             <h1 class="page-title">システムレポート — 部屋別使用率</h1>
-            <div class="page-subtitle">部屋ごとの子供・大人の予約使用率を集計します。システム管理者専用。</div>
+            <div class="page-subtitle">部屋ごとの子供・大人の予約使用率を集計します（レポート閲覧権限が必要）。</div>
         </div>
         <div class="d-flex gap-2 flex-wrap justify-content-end">
             <button id="btnExcel" class="btn btn-success btn-sm" disabled>
@@ -94,10 +104,11 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
                     <label class="exclude-item <?= $checked ? 'active' : '' ?>"
                            data-uid="<?= (int)$u['user_id'] ?>">
                         <input type="checkbox" value="<?= (int)$u['user_id'] ?>"
-                               <?= $checked ? 'checked' : '' ?> hidden>
+                               <?= $checked ? 'checked' : '' ?>>
                         <?php if ($u['is_child']): ?>
                             <span class="badge-child">子</span>
-                        <?php else: ?>
+                        <?php endif; ?>
+                        <?php if (!$u['is_child']): ?>
                             <span class="badge-adult">大</span>
                         <?php endif; ?>
                         <?= h($u['user_name']) ?>
@@ -159,10 +170,13 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
     const CSRF_TOKEN = document.querySelector('meta[name="csrfToken"]')?.content ?? '';
     let chartRoom    = null;
     let currentStats = [];
+    let statsSnapshot = null; // { dateFrom, dateTo }
+    let latestRequestId = 0;
 
     // ---------- 除外ユーザー管理 ----------
     const excludeList  = document.getElementById('excludeList');
     const excludeCount = document.getElementById('excludeCount');
+    const btnExcel     = document.getElementById('btnExcel');
 
     function getExcludeIds() {
         return [...excludeList.querySelectorAll('input[type=checkbox]:checked')]
@@ -171,13 +185,18 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
     function updateExcludeCount() {
         excludeCount.textContent = `除外中: ${getExcludeIds().length} 人`;
     }
-    excludeList.addEventListener('click', e => {
-        const item = e.target.closest('.exclude-item');
-        if (!item) return;
-        const cb = item.querySelector('input');
-        cb.checked = !cb.checked;
-        item.classList.toggle('active', cb.checked);
+    function invalidateStats() {
+        currentStats = [];
+        statsSnapshot = null;
+        btnExcel.disabled = true;
+    }
+    excludeList.addEventListener('change', e => {
+        const cb = e.target;
+        if (!(cb instanceof HTMLInputElement) || cb.type !== 'checkbox') return;
+        const item = cb.closest('.exclude-item');
+        if (item) item.classList.toggle('active', cb.checked);
         updateExcludeCount();
+        invalidateStats();
     });
     document.getElementById('btnClearExclude').addEventListener('click', () => {
         excludeList.querySelectorAll('.exclude-item').forEach(item => {
@@ -185,7 +204,10 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
             item.classList.remove('active');
         });
         updateExcludeCount();
+        invalidateStats();
     });
+    document.getElementById('dateFrom').addEventListener('change', invalidateStats);
+    document.getElementById('dateTo').addEventListener('change', invalidateStats);
 
     // ---------- データ取得 ----------
     async function fetchStats() {
@@ -205,7 +227,11 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
             });
             const json = await res.json();
             if (!res.ok) throw new Error(json.error ?? 'エラーが発生しました');
-            return json.room_stats ?? [];
+            return {
+                stats: json.room_stats ?? [],
+                dateFrom: json.date_from ?? dateFrom,
+                dateTo: json.date_to ?? dateTo,
+            };
         } finally {
             overlay.classList.remove('show');
         }
@@ -300,11 +326,12 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
 
     // ---------- Excel出力 ----------
     document.getElementById('btnExcel').addEventListener('click', async () => {
-        if (!currentStats.length) return;
-        const dateFrom = document.getElementById('dateFrom').value;
-        const dateTo   = document.getElementById('dateTo').value;
+        if (!currentStats.length || !statsSnapshot) return;
+        const dateFrom = statsSnapshot.dateFrom;
+        const dateTo   = statsSnapshot.dateTo;
         const btn      = document.getElementById('btnExcel');
         btn.disabled = true; btn.textContent = '出力中...';
+        let objectUrl = null;
         try {
             const wb = new ExcelJS.Workbook();
             wb.creator = 'システムレポート'; wb.created = new Date();
@@ -339,23 +366,33 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
             is.getColumn(1).width=16; is.getColumn(2).width=32;
 
             const buf = await wb.xlsx.writeBuffer();
+            objectUrl = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
             const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+            a.href = objectUrl;
             a.download = `部屋別使用率_${dateFrom}_${dateTo}.xlsx`;
             a.click();
         } catch(e) { alert('Excel出力エラー: '+e.message); }
-        finally { btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力'; }
+        finally {
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            btn.disabled=false; btn.innerHTML='<i class="bi bi-file-earmark-excel"></i> Excel出力';
+        }
     });
 
     // ---------- 集計 ----------
     async function applyStats() {
+        const requestId = ++latestRequestId;
         try {
-            const stats = await fetchStats();
-            currentStats = stats;
-            renderChart(stats);
-            renderTable(stats);
-            document.getElementById('btnExcel').disabled = stats.length === 0;
-        } catch(e) { alert('集計エラー: '+e.message); }
+            const result = await fetchStats();
+            if (requestId !== latestRequestId) return;
+            currentStats = result.stats;
+            statsSnapshot = { dateFrom: result.dateFrom, dateTo: result.dateTo };
+            renderChart(result.stats);
+            renderTable(result.stats);
+            btnExcel.disabled = result.stats.length === 0;
+        } catch(e) {
+            if (requestId !== latestRequestId) return;
+            alert('集計エラー: '+e.message);
+        }
     }
 
     document.getElementById('btnApply').addEventListener('click', applyStats);

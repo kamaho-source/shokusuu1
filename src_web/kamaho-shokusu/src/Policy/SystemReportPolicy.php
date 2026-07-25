@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
-use App\Domain\ValueObject\UserRole;
 use Authorization\IdentityInterface;
 
 /**
@@ -11,34 +10,52 @@ use Authorization\IdentityInterface;
  *
  * i_report_access === 1 のユーザーのみアクセスを許可する。
  */
-class SystemReportPolicy
+final class SystemReportPolicy
 {
-    public function canIndex(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    /**
+     * @param \App\Controller\SystemReportController $resource
+     */
+    public function canIndex(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->hasReportAccess($user);
     }
 
-    public function canData(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    /**
+     * @param \App\Controller\SystemReportController $resource
+     */
+    public function canData(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->hasReportAccess($user);
     }
 
-    public function canDailyChildren(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    /**
+     * @param \App\Controller\SystemReportController $resource
+     */
+    public function canDailyChildren(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->hasReportAccess($user);
     }
 
-    public function canDailyChildrenData(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    /**
+     * @param \App\Controller\SystemReportController $resource
+     */
+    public function canDailyChildrenData(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->hasReportAccess($user);
     }
 
-    public function canLoginReport(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    /**
+     * @param \App\Controller\SystemReportController $resource
+     */
+    public function canLoginReport(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->hasReportAccess($user);
     }
 
-    public function canLoginReportData(?IdentityInterface $user, \App\Controller\SystemReportController $resource): bool
+    /**
+     * @param \App\Controller\SystemReportController $resource
+     */
+    public function canLoginReportData(?IdentityInterface $user, mixed $resource): bool
     {
         return $this->hasReportAccess($user);
     }

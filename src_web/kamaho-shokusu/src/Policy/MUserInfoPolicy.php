@@ -85,6 +85,11 @@ class MUserInfoPolicy
         return $this->isSystemAdmin($user);
     }
 
+    /**
+     * システムレポート閲覧権限の更新可否。
+     *
+     * @param \App\Model\Entity\MUserInfo $resource
+     */
     public function canUpdateReportAccess(?IdentityInterface $user, MUserInfo $resource): bool
     {
         return $this->isSystemAdmin($user);
