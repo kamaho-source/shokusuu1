@@ -27,3 +27,7 @@ terraform/staging/terraform.tfvars
 # 監査レポートの閲覧用コピー（正本は docs/audit-507*.html）
 /src_web/audit-507.html
 /src_web/audit-507-public.html
+
+# Python
+__pycache__/
+*.py[cod]
