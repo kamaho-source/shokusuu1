@@ -167,7 +167,10 @@ def main():
             if existing and existing.get("state") != target_state:
                 gh_request(token, "PATCH", f"/repos/{repo}/issues/{existing['number']}", {"state": target_state})
                 print(f"GitHub Issue状態を更新しました: #{existing['number']} ← {backlog_key} ({target_state})")
-                updated += 1
+                if target_state == "closed":
+                    closed += 1
+                else:
+                    updated += 1
             else:
                 skipped += 1
             continue
@@ -194,7 +197,10 @@ def main():
                      "再オープン" if target_state == "open" and existing.get("state") == "closed" else "更新"
             if changed:
                 print(f"GitHub Issueを{action}しました: #{existing['number']} ← {backlog_key}")
-                updated += 1
+                if action == "クローズ":
+                    closed += 1
+                else:
+                    updated += 1
             else:
                 skipped += 1
 
