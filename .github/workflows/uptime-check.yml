@@ -22,8 +22,7 @@ jobs:
         run: |
           set -uo pipefail
 
-          HOST=$(echo "${{ secrets.PROD_HOST }}" | tr -d '[:space:]')
-          URL="https://${HOST}/"
+          URL="https://kamaho-shokusu.jp/"
 
           set +e
           STATUS=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "$URL" 2>/tmp/curl_err)
