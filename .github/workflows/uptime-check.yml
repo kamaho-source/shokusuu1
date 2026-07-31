@@ -39,6 +39,15 @@ jobs:
             exit 1
           fi
 
+      - name: Slack Notification on Success
+        if: ${{ success() }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_TITLE: Uptime Check / OK
+          SLACK_COLOR: good
+          SLACK_MESSAGE: >-
+            本番環境は正常です（HTTPステータス: ${{ steps.check.outputs.status }}）✅
+
       - name: Slack Notification on Failure
         if: ${{ failure() }}
         uses: rtCamp/action-slack-notify@v2
