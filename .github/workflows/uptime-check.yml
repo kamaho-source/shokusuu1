@@ -24,20 +24,19 @@ jobs:
 
           HOST=$(echo "${{ secrets.PROD_HOST }}" | tr -d '[:space:]')
           URL="https://${HOST}/"
+
           set +e
           STATUS=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "$URL" 2>/tmp/curl_err)
-          CURL_EXIT=$?
           set -e
-          CURL_ERR=$(cat /tmp/curl_err 2>/dev/null)
+          CURL_ERR=$(cat /tmp/curl_err 2>/dev/null | tr '\n' ' ')
           [ -z "$STATUS" ] && STATUS="000"
-          echo "curl exit code: ${CURL_EXIT}"
-          echo "curl stderr: ${CURL_ERR}"
 
+          echo "detail=${CURL_ERR}" >> "$GITHUB_OUTPUT"
           echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
-          echo "Checked ${URL} -> HTTP ${STATUS}"
+          echo "Checked ${URL} -> HTTP ${STATUS} (${CURL_ERR})"
 
           if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 400 ]; then
-            echo "::error::production is unreachable or returned an error status"
+            echo "::error::production is unreachable or returned an error status: ${CURL_ERR}"
             exit 1
           fi
 
@@ -49,5 +48,5 @@ jobs:
           SLACK_COLOR: danger
           SLACK_MESSAGE: >-
             <@${{ secrets.SLACK_MENTION_USER_ID }}> 本番環境に接続できません（HTTPステータス:
-            ${{ steps.check.outputs.status || '取得失敗' }}）😢
+            ${{ steps.check.outputs.status || '取得失敗' }} / ${{ steps.check.outputs.detail }}）😢
             詳細: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
