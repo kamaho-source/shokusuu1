@@ -24,9 +24,11 @@ jobs:
 
           HOST=$(echo "${{ secrets.PROD_HOST }}" | tr -d '[:space:]')
           URL="https://${HOST}/"
-          CURL_ERR=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "$URL" 2>&1 1>/tmp/status)
+          set +e
+          STATUS=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 10 "$URL" 2>/tmp/curl_err)
           CURL_EXIT=$?
-          STATUS=$(cat /tmp/status)
+          set -e
+          CURL_ERR=$(cat /tmp/curl_err 2>/dev/null)
           [ -z "$STATUS" ] && STATUS="000"
           echo "curl exit code: ${CURL_EXIT}"
           echo "curl stderr: ${CURL_ERR}"
