@@ -21,7 +21,7 @@ class BulkReservationFormService
 
     public function buildBulkAddData(string $selectedDate, ?string $baseWeekParam): array
     {
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $today = new \DateTimeImmutable('today', new \DateTimeZone('Asia/Tokyo'));
         $base  = $this->buildWeekBase($selectedDate, $baseWeekParam, $today);
 
         $days = [];
