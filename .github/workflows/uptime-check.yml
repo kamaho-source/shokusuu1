@@ -1,0 +1,46 @@
+name: Uptime Check
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check production availability
+    runs-on: ubuntu-latest
+    env:
+      SLACK_USERNAME: MonitorBot
+      SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+      SLACK_WEBHOOK: ${{ secrets.SLACK_MONITORING_WEBHOOK }}
+    steps:
+      - name: Check HTTP response
+        id: check
+        run: |
+          set -uo pipefail
+
+          HOST="${{ secrets.PROD_HOST }}"
+          URL="https://${HOST}/"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$URL" || echo "000")
+
+          echo "status=${STATUS}" >> "$GITHUB_OUTPUT"
+          echo "Checked ${URL} -> HTTP ${STATUS}"
+
+          if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 400 ]; then
+            echo "::error::production is unreachable or returned an error status"
+            exit 1
+          fi
+
+      - name: Slack Notification on Failure
+        if: ${{ failure() }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_TITLE: Uptime Check / Failure
+          SLACK_COLOR: danger
+          SLACK_MESSAGE: >-
+            <@${{ secrets.SLACK_MENTION_USER_ID }}> 本番環境に接続できません（HTTPステータス:
+            ${{ steps.check.outputs.status || '取得失敗' }}）😢
+            詳細: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
