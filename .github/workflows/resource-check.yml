@@ -1,0 +1,72 @@
+name: Resource Check
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check VPS resources
+    runs-on: ubuntu-latest
+    env:
+      SLACK_USERNAME: MonitorBot
+      SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+      SLACK_WEBHOOK: ${{ secrets.SLACK_MONITORING_WEBHOOK }}
+    steps:
+      - name: Check disk / memory / containers via SSH
+        id: check
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          port: 22
+          timeout: 30s
+          command_timeout: 2m
+          envs: DB_CONTAINER
+          script: |
+            set -uo pipefail
+
+            DISK_THRESHOLD=85
+            MEM_THRESHOLD=90
+
+            DISK_USED=$(df -h / | awk 'NR==2 {gsub("%","",$5); print $5}')
+            MEM_USED=$(free | awk '/Mem:/ {printf "%d", $3/$2*100}')
+
+            ALERT=0
+            echo "disk=${DISK_USED}% mem=${MEM_USED}%"
+
+            if [ "$DISK_USED" -ge "$DISK_THRESHOLD" ]; then
+              echo "::warning::disk usage ${DISK_USED}% >= ${DISK_THRESHOLD}%"
+              ALERT=1
+            fi
+            if [ "$MEM_USED" -ge "$MEM_THRESHOLD" ]; then
+              echo "::warning::memory usage ${MEM_USED}% >= ${MEM_THRESHOLD}%"
+              ALERT=1
+            fi
+
+            for C in kamakura-shokusu_web "${DB_CONTAINER}"; do
+              STATE=$(docker inspect -f '{{.State.Running}}' "$C" 2>/dev/null || echo "false")
+              if [ "$STATE" != "true" ]; then
+                echo "::warning::container ${C} is not running"
+                ALERT=1
+              fi
+            done
+
+            [ "$ALERT" -eq 0 ] || exit 1
+        env:
+          DB_CONTAINER: ${{ secrets.DB_CONTAINER }}
+
+      - name: Slack Notification on Failure
+        if: ${{ failure() }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_TITLE: Resource Check / Alert
+          SLACK_COLOR: danger
+          SLACK_MESSAGE: >-
+            <@${{ secrets.SLACK_MENTION_USER_ID }}> 本番VPSでリソースしきい値超過またはコンテナ停止を検知しました。
+            詳細: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
