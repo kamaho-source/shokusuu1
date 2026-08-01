@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Actions ホーム（ローカル資料用モック）</title>
+  <style>
+    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif; background:#0d1117; color:#e6edf3; }
+    header { background:#161b22; border-bottom:1px solid #30363d; padding:14px 24px; }
+    main { padding:24px; max-width:960px; margin:0 auto; }
+    h1 { font-size:22px; margin:0 0 16px; }
+    .row { display:flex; justify-content:space-between; align-items:center; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+    .name { font-weight:600; }
+    .desc { color:#8b949e; font-size:13px; margin-top:4px; }
+    .ok { color:#3fb950; font-size:13px; }
+    .badge { background:#238636; color:#fff; font-size:12px; padding:2px 8px; border-radius:999px; float:right; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Actions</strong>
+    <span class="badge">Local mock</span>
+  </header>
+  <main>
+    <h1>Workflows（資料用）</h1>
+    <div class="row">
+      <div>
+        <div class="name">Uptime Check</div>
+        <div class="desc">本番 HTTP 外形監視（10分）</div>
+      </div>
+      <div class="ok">● success</div>
+    </div>
+    <div class="row">
+      <div>
+        <div class="name">Resource Check</div>
+        <div class="desc">VPS ディスク／メモリ／コンテナ（30分）</div>
+      </div>
+      <div class="ok">● success</div>
+    </div>
+  </main>
+</body>
+</html>
