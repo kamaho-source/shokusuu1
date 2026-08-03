@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "有効期限に関係なく更新を試みる"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,12 +24,18 @@ jobs:
       - name: Check TLS certificate expiry
         id: check
         run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "Force renew requested"
+            echo "needs_renewal=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           HOST=$(echo "${{ secrets.PROD_HOST }}" | tr -d '[:space:]')
           EXPIRY=$(echo | timeout 10 openssl s_client -connect "${HOST}:443" -servername "${HOST}" 2>/dev/null \
             | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
           if [ -z "$EXPIRY" ]; then
             echo "Could not retrieve certificate, assuming renewal needed"
-            echo "needs_renewal=true" >> $GITHUB_OUTPUT
+            echo "needs_renewal=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
@@ -31,9 +43,9 @@ jobs:
           DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
           echo "Certificate expires in ${DAYS_LEFT} days"
           if [ "$DAYS_LEFT" -le 30 ]; then
-            echo "needs_renewal=true" >> $GITHUB_OUTPUT
+            echo "needs_renewal=true" >> "$GITHUB_OUTPUT"
           else
-            echo "needs_renewal=false" >> $GITHUB_OUTPUT
+            echo "needs_renewal=false" >> "$GITHUB_OUTPUT"
           fi
 
   renew:
@@ -58,9 +70,57 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            echo "$SUDO_PASS" | sudo -S certbot renew --quiet \
-              --pre-hook "docker stop docker-network-reverse-1" \
-              --post-hook "docker start docker-network-reverse-1"
+
+            run_sudo() {
+              echo "$SUDO_PASS" | sudo -S -p '' "$@"
+            }
+
+            # standalone 認証は :80 が空いている必要がある。
+            # 以前の pre-hook だけではホスト nginx 等が残ると失敗するため、明示停止する。
+            stop_http_listeners() {
+              echo "Stopping reverse proxy / nginx that may hold :80 ..."
+              run_sudo docker stop docker-network-reverse-1 2>/dev/null || true
+
+              # ホスト :80 を publish しているコンテナをすべて止める
+              while read -r cid; do
+                [ -n "$cid" ] || continue
+                echo "Stopping container on :80: $cid"
+                run_sudo docker stop "$cid" 2>/dev/null || true
+              done < <(run_sudo docker ps --format '{{.ID}} {{.Ports}}' | awk '/(^|[^0-9])80->|:80->/ {print $1}')
+
+              run_sudo systemctl stop nginx 2>/dev/null || true
+              run_sudo service nginx stop 2>/dev/null || true
+            }
+
+            start_http_listeners() {
+              echo "Restoring HTTP listeners ..."
+              run_sudo docker start docker-network-reverse-1 2>/dev/null || true
+              run_sudo systemctl start nginx 2>/dev/null || true
+            }
+
+            trap start_http_listeners EXIT
+
+            stop_http_listeners
+
+            echo "Waiting for :80 to be free ..."
+            for _ in $(seq 1 20); do
+              if ! run_sudo ss -ltn | grep -qE '[:.]80[[:space:]]'; then
+                break
+              fi
+              sleep 1
+            done
+
+            if run_sudo ss -ltn | grep -qE '[:.]80[[:space:]]'; then
+              echo "ERROR: port 80 is still in use:" >&2
+              run_sudo ss -ltnp | grep -E '[:.]80[[:space:]]' >&2 || true
+              run_sudo lsof -iTCP:80 -sTCP:LISTEN >&2 || true
+              exit 1
+            fi
+
+            echo "Running certbot renew ..."
+            run_sudo certbot renew --non-interactive
+
+            echo "Certificate renewal finished"
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2
