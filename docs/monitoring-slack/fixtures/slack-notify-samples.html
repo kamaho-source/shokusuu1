@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Slack 通知見本（監視）</title>
+  <style>
+    :root {
+      --bg: #1a1d21;
+      --panel: #1f2329;
+      --text: #d1d2d3;
+      --muted: #ababad;
+      --green: #2eb67d;
+      --red: #e01e5a;
+      --link: #1d9bd1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 32px;
+      background: #0e1114;
+      font-family: "Lato", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      color: var(--text);
+    }
+    h1 { font-size: 22px; margin: 0 0 8px; }
+    .lede { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .msg {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 14px 16px 16px;
+      border: 1px solid #35373b;
+    }
+    .bot {
+      display: flex; gap: 10px; align-items: center; margin-bottom: 10px;
+      font-size: 13px; color: var(--muted);
+    }
+    .bot strong { color: var(--text); font-size: 15px; }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 8px; background: #fff;
+      display: grid; place-items: center; color: #111; font-weight: 700; font-size: 11px;
+    }
+    .attach {
+      border-left: 4px solid var(--green);
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 0 6px 6px 0;
+    }
+    .attach.danger { border-left-color: var(--red); }
+    .title { font-weight: 700; margin-bottom: 6px; }
+    .body { font-size: 14px; line-height: 1.55; white-space: pre-wrap; }
+    .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:#2c2f34; margin-bottom:10px; }
+  </style>
+</head>
+<body>
+  <h1>監視機能の「見える結果」— Slack 通知見本</h1>
+  <p class="lede">実装どおりの文言（MonitorBot / rtCamp action-slack-notify）。Slack 本体はログインが必要なため、仕様確認用に再現しています。</p>
+  <div class="grid">
+    <article class="msg">
+      <div class="tag">uptime-check / 成功</div>
+      <div class="bot"><div class="avatar">MB</div><div><strong>MonitorBot</strong> · APP</div></div>
+      <div class="attach">
+        <div class="title">Uptime Check / OK</div>
+        <div class="body">本番環境は正常です（HTTPステータス: 200）✅</div>
+      </div>
+    </article>
+    <article class="msg">
+      <div class="tag">uptime-check / 失敗</div>
+      <div class="bot"><div class="avatar">MB</div><div><strong>MonitorBot</strong> · APP</div></div>
+      <div class="attach danger">
+        <div class="title">Uptime Check / Failure</div>
+        <div class="body">@担当者 本番環境に接続できません（HTTPステータス: 000 / Connection timed out）😢
+詳細: https://github.com/kamaho-source/shokusuu1/actions/runs/…</div>
+      </div>
+    </article>
+    <article class="msg">
+      <div class="tag">resource-check / 成功</div>
+      <div class="bot"><div class="avatar">MB</div><div><strong>MonitorBot</strong> · APP</div></div>
+      <div class="attach">
+        <div class="title">Resource Check / OK</div>
+        <div class="body">本番VPSのリソース・コンテナ状態は正常です（ディスク85%未満・メモリ90%未満・全コンテナ稼働中）✅</div>
+      </div>
+    </article>
+    <article class="msg">
+      <div class="tag">resource-check / 失敗</div>
+      <div class="bot"><div class="avatar">MB</div><div><strong>MonitorBot</strong> · APP</div></div>
+      <div class="attach danger">
+        <div class="title">Resource Check / Alert</div>
+        <div class="body">@担当者 本番VPSでリソースしきい値超過またはコンテナ停止を検知しました。
+詳細: https://github.com/kamaho-source/shokusuu1/actions/runs/…</div>
+      </div>
+    </article>
+  </div>
+</body>
+</html>
