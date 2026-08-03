@@ -75,48 +75,8 @@ jobs:
               echo "$SUDO_PASS" | sudo -S -p '' "$@"
             }
 
-            # standalone 認証は :80 が空いている必要がある。
-            # 以前の pre-hook だけではホスト nginx 等が残ると失敗するため、明示停止する。
-            stop_http_listeners() {
-              echo "Stopping reverse proxy / nginx that may hold :80 ..."
-              run_sudo docker stop docker-network-reverse-1 2>/dev/null || true
-
-              # ホスト :80 を publish しているコンテナをすべて止める
-              while read -r cid; do
-                [ -n "$cid" ] || continue
-                echo "Stopping container on :80: $cid"
-                run_sudo docker stop "$cid" 2>/dev/null || true
-              done < <(run_sudo docker ps --format '{{.ID}} {{.Ports}}' | awk '/(^|[^0-9])80->|:80->/ {print $1}')
-
-              run_sudo systemctl stop nginx 2>/dev/null || true
-              run_sudo service nginx stop 2>/dev/null || true
-            }
-
-            start_http_listeners() {
-              echo "Restoring HTTP listeners ..."
-              run_sudo docker start docker-network-reverse-1 2>/dev/null || true
-              run_sudo systemctl start nginx 2>/dev/null || true
-            }
-
-            trap start_http_listeners EXIT
-
-            stop_http_listeners
-
-            echo "Waiting for :80 to be free ..."
-            for _ in $(seq 1 20); do
-              if ! run_sudo ss -ltn | grep -qE '[:.]80[[:space:]]'; then
-                break
-              fi
-              sleep 1
-            done
-
-            if run_sudo ss -ltn | grep -qE '[:.]80[[:space:]]'; then
-              echo "ERROR: port 80 is still in use:" >&2
-              run_sudo ss -ltnp | grep -E '[:.]80[[:space:]]' >&2 || true
-              run_sudo lsof -iTCP:80 -sTCP:LISTEN >&2 || true
-              exit 1
-            fi
-
+            # webroot 認証のため :80 を止める必要はない（nginx は常時稼働のまま）。
+            # 証明書更新後の nginx reload は certbot renewal conf の post_hook で行う。
             echo "Running certbot renew ..."
             run_sudo certbot renew --non-interactive
 
