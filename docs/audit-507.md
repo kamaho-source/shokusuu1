@@ -64,26 +64,9 @@
 - パスワード最小長 → 推奨事項#1（スコープ外）。
 - **アーキテクチャ上の注記**: CLAUDE.md はドメイン層（Entity/ValueObject）でのバリデーション完結を掲げるが、現状の Domain 層は `UserRole` と例外クラスのみで、バリデーションは CakePHP の Table 層に集中している。クリーンアーキテクチャ移行を進める場合は値オブジェクト化が必要（別Issue推奨）。
 
-## E2Eテスト結果（2026-07-08 / Playwright + Chromium）
+## E2Eテスト結果（2026-07-08 当時の記録）
 
-ローカル環境（`http://localhost:8091`）に対して実行。**6 passed / 1 skipped（設計上の自動スキップ）/ 0 failed**。
-
-- `tests/e2e/audit.spec.mjs`（本監査で追加）
-  - セキュリティヘッダーが全レスポンスに付与される ✅
-  - 予約カレンダー画面がJSエラーなく表示される（JSON_HEXフラグ変更後の動作確認）✅
-  - SP幅375pxで承認画面・ログイン・ダッシュボードが横はみ出ししない ✅
-- `tests/e2e/reservation.spec.mjs`（既存。ログインヘルパーが旧URL `/users/login`・旧フィールド名を参照していたため現行実装に合わせて修正）
-  - 集団予約: 部屋選択で利用者一覧が表示される ✅
-  - 集団予約: 予約タイプ切替で個人/集団セクションが切り替わる ✅
-  - quickDayModal: 予約追加ボタン非表示時は自動スキップする設計のため skipped
-
-実行方法:
-
-```bash
-npm install && npx playwright install chromium
-E2E_BASE_URL=http://localhost:8091 npx playwright test
-```
-
-前提: E2E用ユーザー `e2e_admin`（管理者・部屋1所属）がローカルDBに必要。
+当時ローカル（`http://localhost:8091`）で Playwright による確認を実施し、**6 passed / 1 skipped / 0 failed** だった（監査時点の記録）。  
+Playwright E2E 一式はリポジトリから削除済みのため、再実行手順は記載しない。
 
 視覚版レポート: [docs/audit-507.html](audit-507.html)

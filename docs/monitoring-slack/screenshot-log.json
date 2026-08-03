@@ -1,0 +1,51 @@
+[
+  {
+    "name": "01-prod-monitored-site.png",
+    "url": "https://kamaho-shokusu.jp/",
+    "status": 200,
+    "title": "ログイン",
+    "ok": true
+  },
+  {
+    "name": "02-gha-uptime-workflow.png",
+    "url": "https://github.com/kamaho-source/shokusuu1/actions/workflows/uptime-check.yml",
+    "status": 200,
+    "title": "Uptime Check · Workflow runs · kamaho-source/shokusuu1 · GitHub",
+    "ok": true
+  },
+  {
+    "name": "03-gha-resource-workflow.png",
+    "url": "https://github.com/kamaho-source/shokusuu1/actions/workflows/resource-check.yml",
+    "status": 200,
+    "title": "Resource Check · Workflow runs · kamaho-source/shokusuu1 · GitHub",
+    "ok": true
+  },
+  {
+    "name": "04-gha-actions-home.png",
+    "url": "https://github.com/kamaho-source/shokusuu1/actions",
+    "status": 200,
+    "title": "Workflow runs · kamaho-source/shokusuu1 · GitHub",
+    "ok": true
+  },
+  {
+    "name": "05-pr-620.png",
+    "url": "https://github.com/kamaho-source/shokusuu1/pull/620",
+    "status": 200,
+    "title": "feat: 死活監視・リソース監視をGitHub Actionsで追加 by oohasikazuyuki · Pull Request #620 · kamaho-source/shokusuu1 · GitHub",
+    "ok": true
+  },
+  {
+    "name": "06-gha-uptime-run.png",
+    "url": "https://github.com/kamaho-source/shokusuu1/actions/runs/30684313867",
+    "status": 200,
+    "title": "Uptime Check · kamaho-source/shokusuu1@1279624 · GitHub",
+    "ok": true
+  },
+  {
+    "name": "07-gha-resource-run.png",
+    "url": "https://github.com/kamaho-source/shokusuu1/actions/runs/30683093659",
+    "status": 200,
+    "title": "Resource Check · kamaho-source/shokusuu1@1279624 · GitHub",
+    "ok": true
+  }
+]

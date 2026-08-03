@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>監視の全体像</title>
+  <style>
+    body { margin:0; padding:28px; font-family:"Hiragino Sans","Noto Sans JP",sans-serif; background:#f4f1ea; color:#1c2428; }
+    .sheet { max-width:1100px; margin:0 auto; background:#fffcf7; border:1px solid #d7d0c4; border-radius:12px; padding:28px 32px; }
+    h1 { margin:0 0 8px; font-size:26px; }
+    .lede { color:#5c6a73; margin:0 0 22px; }
+    .flow { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:12px; align-items:stretch; }
+    .box { background:#fff; border:1px solid #d7d0c4; border-radius:10px; padding:16px; min-height:180px; }
+    .box h2 { margin:0 0 10px; font-size:17px; }
+    .box ul { margin:0; padding-left:1.1em; color:#5c6a73; font-size:14px; line-height:1.55; }
+    .arr { display:flex; align-items:center; justify-content:center; font-size:28px; color:#0f6b5c; font-weight:700; }
+    .note { margin-top:18px; padding:12px 14px; border-left:4px solid #0f6b5c; background:rgba(15,107,92,.06); border-radius:0 8px 8px 0; font-size:14px; }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <h1>死活監視・リソース監視（概要）</h1>
+    <p class="lede">アプリ画面は追加しない。GitHub Actions が定期実行し、結果を Slack に通知する。</p>
+    <div class="flow">
+      <div class="box">
+        <h2>1. きっかけ</h2>
+        <ul>
+          <li>Uptime: 10分ごと</li>
+          <li>Resource: 30分ごと</li>
+          <li>手動: workflow_dispatch</li>
+        </ul>
+      </div>
+      <div class="arr">→</div>
+      <div class="box">
+        <h2>2. 検査</h2>
+        <ul>
+          <li>本番ホスト（Secrets PROD_HOST）の HTTP</li>
+          <li>VPS: ディスク≥85% / メモリ≥90%</li>
+          <li>コンテナ停止（web / DB）</li>
+        </ul>
+      </div>
+      <div class="arr">→</div>
+      <div class="box">
+        <h2>3. 見える結果</h2>
+        <ul>
+          <li>Slack（MonitorBot）</li>
+          <li>成功: 緑・メンションなし</li>
+          <li>失敗: 赤・担当メンション + Actions URL</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note"><strong>見る場所:</strong> Slack 監視チャンネル / GitHub Actions（Uptime Check・Resource Check）</p>
+  </main>
+</body>
+</html>
