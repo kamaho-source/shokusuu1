@@ -1110,6 +1110,11 @@ function openModalById(id){
                     try {
                         var dateStr = info.dateStr;
 
+                        if (window.SERVER_TODAY && dateStr < window.SERVER_TODAY) {
+                            if (window.pageToast) window.pageToast('過去日の予約は登録できません。', 'warning');
+                            return;
+                        }
+
                         // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
                         // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
                         var roomNames = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
@@ -1137,6 +1142,11 @@ function openModalById(id){
                     var date     = info.event.startStr ? info.event.startStr.slice(0, 10) : '';
                     var mealType = ep.mealType;
                     if (!date || !mealType) return;
+
+                    if (window.SERVER_TODAY && date < window.SERVER_TODAY) {
+                        if (window.pageToast) window.pageToast('過去日の予約は変更できません。', 'warning');
+                        return;
+                    }
 
                     var mealKeyMap  = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
                     var mealNameMap = { 1: '朝食', 2: '昼食', 3: '夕食', 4: '弁当' };
@@ -2308,6 +2318,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
 
         const sourceInput = document.getElementById('source_start');
         const targetInput = document.getElementById('target_start_input');
+        if (targetInput && window.SERVER_TODAY) targetInput.min = window.SERVER_TODAY;
         const addTargetBtn = document.getElementById('add-target-btn');
         const targetDatesList = document.getElementById('target-dates-list');
         const targetDatesEmpty = document.getElementById('target-dates-empty');
@@ -2366,7 +2377,12 @@ document.addEventListener('shown.bs.modal', function(ev) {
                 toast('有効な日付を選択してください', 'warning');
                 return;
             }
-            
+
+            if (window.SERVER_TODAY && dateStr < window.SERVER_TODAY) {
+                toast('過去日はコピー先に指定できません', 'warning');
+                return;
+            }
+
             // バリデーション
             if (mode === 'week' && !isMonday(date)) {
                 toast('週単位の場合は月曜日を選択してください', 'warning');
