@@ -123,6 +123,7 @@ class ReservationCopyService
         $actor = null
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
+        $today    = Date::today('Asia/Tokyo');
 
         Log::debug('[copyRangeByOffset] srcStart=' . $srcStart->format('Y-m-d') . ', srcEnd=' . $srcEnd->format('Y-m-d') . ', offsetDays=' . $offsetDays . ', roomId=' . ($roomId ?? 'null') . ', onlyChildren=' . ($onlyChildren ? 'true' : 'false'));
         
@@ -168,6 +169,7 @@ class ReservationCopyService
 
         $affected = 0;
         $skipped = 0;
+        $invalidDate = 0;
         $actorName = ($actor !== null && method_exists($actor, 'get') && $actor->get('c_user_name'))
             ? (string)$actor->get('c_user_name')
             : 'system';
@@ -177,6 +179,11 @@ class ReservationCopyService
             foreach ($rows as $r) {
                 $srcDate = new Date($r['d_reservation_date']);
                 $dstDate = $srcDate->addDays($offsetDays);
+
+                if ($dstDate < $today) {
+                    $invalidDate++;
+                    continue;
+                }
 
                 $existing = $this->TIndividualReservationInfo->find()
                     ->enableAutoFields(false)
@@ -230,14 +237,14 @@ class ReservationCopyService
                 $affected++;
             }
             $conn->commit();
-            Log::debug('[copyRangeByOffset] 完了: total=' . $total . ', copied=' . $affected . ', skipped=' . $skipped);
+            Log::debug('[copyRangeByOffset] 完了: total=' . $total . ', copied=' . $affected . ', skipped=' . $skipped . ', invalidDate=' . $invalidDate);
         } catch (\Throwable $e) {
             $conn->rollback();
             Log::error('ReservationCopyService(copyRangeByOffset) failed: ' . $e->getMessage());
             throw $e;
         }
 
-        return ['total' => $total, 'copied' => $affected, 'skipped' => $skipped];
+        return ['total' => $total, 'copied' => $affected, 'skipped' => $skipped, 'invalid_date' => $invalidDate];
     }
 
     private function copyMonthSameDay(
@@ -248,6 +255,7 @@ class ReservationCopyService
         $actor = null
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
+        $today    = Date::today('Asia/Tokyo');
 
         // 月の初日と末日を確実に設定
         $srcStart = new Date($srcMonthFirst->format('Y-m-01'));
@@ -316,6 +324,11 @@ class ReservationCopyService
                 } catch (\Throwable $e) {
                     $invalidDate++;
                     continue; // 不正日付はスキップ
+                }
+
+                if ($dstDate < $today) {
+                    $invalidDate++;
+                    continue;
                 }
 
                 $existing = $this->TIndividualReservationInfo->find()
@@ -464,6 +477,7 @@ class ReservationCopyService
         bool $onlyChildren
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
+        $today    = Date::today('Asia/Tokyo');
 
         $conditions = [
             'd_reservation_date >=' => $srcStart->format('Y-m-d'),
@@ -492,6 +506,11 @@ class ReservationCopyService
         foreach ($rows as $r) {
             $srcDate = new Date($r['d_reservation_date']);
             $dstDate = $srcDate->addDays($offsetDays);
+
+            if ($dstDate < $today) {
+                $willSkip++;
+                continue;
+            }
 
             $exists = $this->TIndividualReservationInfo->exists([
                 'i_id_user'           => (int)$r['i_id_user'],
@@ -524,6 +543,7 @@ class ReservationCopyService
         bool $onlyChildren
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
+        $today    = Date::today('Asia/Tokyo');
 
         $srcStart = new Date($srcMonthFirst->format('Y-m-01'));
         $srcEnd   = new Date($srcMonthFirst->format('Y-m-t'));
@@ -557,7 +577,7 @@ class ReservationCopyService
         foreach ($rows as $r) {
             $srcDate = new Date($r['d_reservation_date']);
             $day = (int)$srcDate->format('d');
-            
+
             $dstDateStr = $dstStart->format('Y-m-') . str_pad((string)$day, 2, '0', STR_PAD_LEFT);
             try {
                 $dstDate = new Date($dstDateStr);
@@ -566,6 +586,11 @@ class ReservationCopyService
                     continue;
                 }
             } catch (\Throwable $e) {
+                $invalidDate++;
+                continue;
+            }
+
+            if ($dstDate < $today) {
                 $invalidDate++;
                 continue;
             }
