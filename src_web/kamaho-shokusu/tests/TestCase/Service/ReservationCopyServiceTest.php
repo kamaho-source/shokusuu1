@@ -14,6 +14,11 @@ use Cake\TestSuite\TestCase;
  */
 class ReservationCopyServiceTest extends TestCase
 {
+    protected array $fixtures = [
+        'app.TIndividualReservationInfo',
+        'app.MUserInfo',
+    ];
+
     private ReservationCopyService $service;
 
     protected function setUp(): void
@@ -218,5 +223,41 @@ class ReservationCopyServiceTest extends TestCase
 
         $this->assertTrue($result['ok']);
         $this->assertSame('2026-06-01', $result['src']->format('Y-m-d'));
+    }
+
+    // ----------------------------------------------------------------
+    // 過去日ガード（コピー先が過去日になる場合はスキップされる）
+    // ----------------------------------------------------------------
+
+    public function testCopyWeekSkipsRowsWhenTargetIsPast(): void
+    {
+        // フィクスチャの唯一のレコード（2024-09-07, 土曜）を含む週（2024-09-02 月曜始まり）をコピー元、
+        // その1週間後（実行時点で確実に過去日）をコピー先にする。
+        $result = $this->service->copyWeek(
+            new Date('2024-09-02'),
+            new Date('2024-09-09'),
+            null,
+            false,
+            null,
+            false
+        );
+
+        $this->assertSame(1, $result['total']);
+        $this->assertSame(0, $result['copied']);
+        $this->assertSame(1, $result['invalid_date']);
+    }
+
+    public function testPreviewWeekSkipsRowsWhenTargetIsPast(): void
+    {
+        $result = $this->service->previewWeek(
+            new Date('2024-09-02'),
+            new Date('2024-09-09'),
+            null,
+            false
+        );
+
+        $this->assertSame(1, $result['total']);
+        $this->assertSame(0, $result['will_copy']);
+        $this->assertSame(1, $result['will_skip']);
     }
 }
