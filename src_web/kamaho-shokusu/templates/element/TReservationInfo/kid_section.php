@@ -1,4 +1,9 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $rooms
+ * @var mixed $userRoomId
+ */
 /** @noinspection PhpUndefinedVariableInspection */
 /** @var array<int|string,string> $authorizedRooms */
 /** @noinspection PhpUndefinedVariableInspection */

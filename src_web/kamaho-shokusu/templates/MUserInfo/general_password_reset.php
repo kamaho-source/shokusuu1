@@ -1,4 +1,7 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ */
 $this->assign('title', 'パスワード変更');
 ?>
 <div class="container my-4">

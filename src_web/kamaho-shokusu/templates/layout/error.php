@@ -1,5 +1,7 @@
 <?php
-/** @var \App\View\AppView $this */
+/**
+ * @var \App\View\AppView $this
+ */
 use Cake\Core\Configure;
 ?>
 <!DOCTYPE html>

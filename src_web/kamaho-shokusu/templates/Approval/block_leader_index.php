@@ -1,4 +1,7 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ */
 /** @var \App\Controller\ApprovalController $this */
 $user          = $this->request->getAttribute('identity');
 $records       = $records ?? [];

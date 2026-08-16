@@ -1,3 +1,12 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $calRoomId
+ * @var mixed $canViewAllRooms
+ * @var mixed $isAdmin
+ * @var mixed $rooms
+ */
+?>
 <?php $rooms ??= []; $isAdmin ??= false; $canViewAllRooms ??= $isAdmin; $calRoomId ??= null; ?>
 <!-- === 予約コピー（週／月）: 大人向けのみ表示 === -->
 <div class="card border-0 shadow-sm mb-3">

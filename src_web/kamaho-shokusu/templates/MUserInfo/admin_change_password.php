@@ -1,3 +1,9 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $users
+ */
+?>
 <?php $this->assign('title', '管理者：パスワード変更'); ?>
 <?= $this->Form->create(null, ['url' => ['action' => 'adminChangePassword'], 'class' => 'needs-validation']) ?>
 <fieldset>

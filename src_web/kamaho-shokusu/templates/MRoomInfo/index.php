@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var iterable<\App\Model\Entity\MRoomInfo> $mRoomInfo
+ * @var object $user
  */
 
 $this->assign('title', __('部屋情報一覧'));

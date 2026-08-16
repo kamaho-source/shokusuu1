@@ -1,4 +1,33 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $JS_AVAILABLE_ROOM_NAMES
+ * @var string $JS_CURRENT_ROOM
+ * @var string $JS_EXISTING_EVENTS
+ * @var string $JS_MY_DETAILS
+ * @var string $JS_RESERVED_DATES
+ * @var mixed $JS_ROOM_NAMES
+ * @var string $JS_TODAY
+ * @var string $JS_TOGGLE_BASE
+ * @var mixed $basePath
+ * @var mixed $bentoReserved
+ * @var mixed $calRoomId
+ * @var mixed $copyApi
+ * @var mixed $copyPreviewApi
+ * @var mixed $csrfToken
+ * @var mixed $date
+ * @var mixed $getUsersByRoomTpl
+ * @var mixed $isAdmin
+ * @var mixed $isChild
+ * @var mixed $isStaff
+ * @var mixed $lunchReserved
+ * @var mixed $serverToday
+ * @var mixed $today
+ * @var mixed $useKidUI
+ * @var object $user
+ * @var mixed $userRoomId
+ * @var mixed $userRoomIds
+ */
 // JS config for TReservationInfo index
 use Cake\Core\Configure;
 
