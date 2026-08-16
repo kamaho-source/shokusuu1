@@ -11,6 +11,10 @@
  *   - $hasTodayReport : bool   本日の食数報告が完了しているか
  *
  * @var \App\View\AppView $this
+ * @var mixed $activeNotices
+ * @var array $dashboard
+ * @var mixed $hasTodayReport
+ * @var mixed $notificationUnreadCount
  */
 use Cake\Core\Configure;
 

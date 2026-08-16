@@ -1,3 +1,10 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $rooms
+ * @var \App\Model\Entity\MUserInfo $mUserInfo
+ */
+?>
 </fieldset>
 
 <!-- =========================================================

@@ -1,5 +1,9 @@
 <?php
-/** @var \App\View\AppView $this */
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $contacts
+ * @var mixed $page
+ */
 $this->assign('title', 'お問い合わせ一覧（管理者）');
 ?>
 

@@ -3,6 +3,7 @@
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MRoomInfo $mRoomInfo
  * @var array $users
+ * @var object $user
  */
 $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
 ?>

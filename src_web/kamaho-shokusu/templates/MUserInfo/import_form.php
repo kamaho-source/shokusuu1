@@ -1,6 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
+ * @var mixed $title
  */
 $this->assign('title', $title ?? 'ユーザー一括登録（ドラッグ＆ドロップ）');
 $csrfToken = $this->request->getAttribute('csrfToken');
