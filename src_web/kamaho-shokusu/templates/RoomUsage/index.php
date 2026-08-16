@@ -1,4 +1,7 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ */
 /** @var \App\Controller\RoomUsageController $this */
 $rooms     = $rooms     ?? [];
 $lowRooms  = $lowRooms  ?? [];

@@ -1,5 +1,11 @@
 <?php
-/** @var \App\View\AppView $this */
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $categories
+ * @var mixed $defaultEmail
+ * @var mixed $defaultName
+ * @var object $entity
+ */
 $this->assign('title', 'フィードバック・お問い合わせ');
 ?>
 

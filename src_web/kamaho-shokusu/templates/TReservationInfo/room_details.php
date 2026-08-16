@@ -1,3 +1,13 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $date
+ * @var mixed $eatUsers
+ * @var mixed $mealType
+ * @var mixed $noEatUsers
+ * @var object $room
+ */
+?>
 <?php $this->assign('title', '部屋詳細'); ?>
 <div class="container">
     <h1>部屋詳細</h1>

@@ -1,3 +1,8 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ */
+?>
 <!-- ================= 大人向け（業務システム調・エクスポートUI改善） ================= -->
 <?php
 /** @noinspection PhpUndefinedVariableInspection */

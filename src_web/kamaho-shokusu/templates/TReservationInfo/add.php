@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\TIndividualReservationInfo $tReservationInfo
+ * @var \App\Model\Entity\TReservationInfo $tReservationInfo
  * @var array $users
  * @var array $rooms
  */
