@@ -479,7 +479,7 @@ class ReservationReportService
         Cache::delete('meal_counts:' . $date, 'default');
     }
 
-    private function normalizeDateString(\DateTimeInterface|string|int|null $value): ?string
+    private function normalizeDateString(\DateTimeInterface|Date|string|int|null $value): ?string
     {
         if ($value instanceof Date) {
             return $value->format('Y-m-d');
