@@ -104,4 +104,21 @@ class ReservationReportServiceTest extends TestCase
 
         $this->assertIsArray($result);
     }
+
+    // ----------------------------------------------------------------
+    // buildExportJson — #647回帰テスト
+    // enableHydration(false)でもd_reservation_dateはCake\I18n\Date型で返るため、
+    // fixtureの日付(2024-09-07)を含む範囲で呼び出し、normalizeDateString()の
+    // 引数型不一致によるTypeErrorが再発しないことを確認する。
+    // ----------------------------------------------------------------
+
+    public function testBuildExportJson_withCakeI18nDateColumn_doesNotThrow(): void
+    {
+        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        $result = $this->service->buildExportJson($reservationTable, '2024-01-01', '2024-12-31');
+
+        $this->assertArrayHasKey('overall', $result);
+        $this->assertNotEmpty($result['overall'], 'fixtureの2024-09-07データが集計結果に含まれること');
+    }
 }
