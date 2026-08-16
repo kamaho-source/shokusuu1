@@ -1,3 +1,11 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $isStaff
+ * @var mixed $mkUrl
+ * @var mixed $useKidUI
+ */
+?>
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2 mb-2">
     <h1 class="m-0 fs-3"><?= $useKidUI ? '🍚 食数予約（中高生向け）' : '食数予約（業務）' ?></h1>
     <?php if (!$useKidUI || ($useKidUI && $isStaff)): ?>

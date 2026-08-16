@@ -1,4 +1,7 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ */
 /** @var \App\Controller\ApprovalController $this */
 $records      = $records ?? [];
 $summary      = $summary ?? [];

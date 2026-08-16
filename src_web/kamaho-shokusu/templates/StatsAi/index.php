@@ -3,6 +3,8 @@
  * 統計AIチャット画面（管理者専用）
  *
  * @var \App\View\AppView $this
+ * @var mixed $roomMap
+ * @var mixed $userMap
  */
 ?>
 <style>

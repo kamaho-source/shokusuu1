@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MUserInfo $mUserInfo
+ * @var object $user
  */
 
 $this->assign('title', 'ユーザー情報の表示');

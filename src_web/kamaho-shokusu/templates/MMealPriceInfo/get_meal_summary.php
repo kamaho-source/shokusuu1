@@ -4,6 +4,7 @@
  *
  * @var \App\View\AppView $this
  * @var array $mealDataArray 食数データの配列
+ * @var mixed $yearList
  */
 $this->assign('title', __('食事給与控除データエクスポート'));
 $exportSummaryUrl        = $this->Url->build(['controller' => 'MMealPriceInfo', 'action' => 'exportMealSummary']);

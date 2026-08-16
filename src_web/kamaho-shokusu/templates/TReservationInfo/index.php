@@ -1,4 +1,9 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $merge
+ * @var mixed $rooms
+ */
 
 $this->assign('title', '食数予約');
 $this->Html->script('reservation-users.js', ['block' => true]);

@@ -5,6 +5,8 @@
  * 受け取る変数:
  *   array  $authorizedRooms  [id => name]
  *   string $currentRoomId
+ *
+ * @var \App\View\AppView $this
  */
 $authorizedRooms = isset($authorizedRooms) ? $authorizedRooms : [];
 $currentRoomId   = isset($currentRoomId) ? $currentRoomId : '';

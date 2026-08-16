@@ -1,4 +1,9 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $bentoChangeUrl
+ * @var mixed $lunchChangeUrl
+ */
 use Cake\Core\Configure;
 
 $pastDateUnavailableMessage = (string)Configure::read(

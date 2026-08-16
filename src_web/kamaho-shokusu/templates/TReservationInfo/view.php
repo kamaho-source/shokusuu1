@@ -12,6 +12,7 @@
  * @var string $activeRoomName
  * @var int|null $userRoomId
  * @var bool $isAdmin
+ * @var \App\View\AppView $this
  */
 use Cake\I18n\FrozenDate;
 
