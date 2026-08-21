@@ -61,15 +61,6 @@ jobs:
         env:
           DB_CONTAINER: ${{ secrets.DB_CONTAINER }}
 
-      - name: Slack Notification on Success
-        if: ${{ success() }}
-        uses: rtCamp/action-slack-notify@v2
-        env:
-          SLACK_TITLE: Resource Check / OK
-          SLACK_COLOR: good
-          SLACK_MESSAGE: >-
-            本番VPSのリソース・コンテナ状態は正常です（ディスク85%未満・メモリ90%未満・全コンテナ稼働中）✅
-
       - name: Slack Notification on Failure
         if: ${{ failure() }}
         uses: rtCamp/action-slack-notify@v2
