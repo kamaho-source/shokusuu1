@@ -23,7 +23,7 @@ use Cake\Log\Log;
  */
 class AiAssistantController extends AppController
 {
-    private const OPENROUTER_MODEL    = 'openai/gpt-oss-20b:free';
+    private const OPENROUTER_MODEL    = 'openrouter/free';
     private const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
     private const HTTP_REFERER        = 'https://github.com/kamaho-source/shokusuu1';
     private const MESSAGE_LIMIT       = 20;
