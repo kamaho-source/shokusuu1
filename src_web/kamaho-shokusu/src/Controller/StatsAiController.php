@@ -20,7 +20,7 @@ use Cake\Log\Log;
  */
 final class StatsAiController extends AppController
 {
-    private const OPENROUTER_MODEL   = 'openai/gpt-oss-20b:free';
+    private const OPENROUTER_MODEL   = 'openrouter/free';
     private const MESSAGE_LIMIT      = 20;
     /** 監査ログに保存する質問・回答の最大文字数 */
     private const LOG_QUESTION_MAX   = 2000;
