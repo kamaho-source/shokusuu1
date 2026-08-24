@@ -5,6 +5,15 @@
  * 職員が自分の実食（i_change_flag）を週単位で入力する。
  *
  * @var \App\View\AppView $this
+ * @var mixed $canGoNext
+ * @var mixed $canGoPrev
+ * @var array $gridData
+ * @var object $nextMonday
+ * @var object $prevMonday
+ * @var array $rejectionBanner
+ * @var mixed $rooms
+ * @var mixed $selectedRoomId
+ * @var mixed $weekMondayStr
  */
 
 $this->assign('title', '実食入力');

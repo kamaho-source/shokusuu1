@@ -1,0 +1,39 @@
+name: GitHub既存Issue → Backlog 一括同期
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'DRY RUN（trueにすると実際の作成・更新を行わない）'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+  GH_REPO: ${{ github.repository }}
+  BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
+  BACKLOG_SPACE_ID: ${{ secrets.BACKLOG_SPACE_ID }}
+  BACKLOG_PROJECT_KEY: ${{ secrets.BACKLOG_PROJECT_KEY }}
+  BACKLOG_DOMAIN: ${{ secrets.BACKLOG_DOMAIN }}
+  DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+
+jobs:
+  bulk-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: GitHub既存Issue → Backlog 一括同期
+        run: python .github/scripts/bulk_sync_github_to_backlog.py

@@ -26,6 +26,8 @@
  * @var int    $loginUserId
  * @var string $loginName
  * @var int[]  $loginRoomIds
+ * @var mixed $params
+ * @var mixed $v
  */
 
 $this->assign('title', 'エクセル食数予約');

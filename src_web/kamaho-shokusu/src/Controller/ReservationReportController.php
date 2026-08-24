@@ -41,7 +41,21 @@ class ReservationReportController extends ReservationBaseController
      */
     public function getMealCounts($date): ?Response
     {
-        return $this->reportService->getMealCounts($this->TIndividualReservationInfo, $date);
+        if ($denied = $this->authorizeReservation('getMealCounts', [], true)) {
+            return $denied;
+        }
+
+        $this->request->allowMethod(['get']);
+        $this->autoRender = false;
+
+        $dateStr = (string)$date;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+            return $this->apiResponseService->error($this->response, 'Invalid date format (Y-m-d).', 400);
+        }
+
+        $rows = $this->reportService->getMealCounts($this->TIndividualReservationInfo, $dateStr);
+
+        return $this->apiResponseService->success($this->response, ['mealCounts' => $rows]);
     }
 
     /**
@@ -108,7 +122,7 @@ class ReservationReportController extends ReservationBaseController
 
             return $this->apiResponseService->success($this->response, $result);
         } catch (\Throwable $e) {
-            Log::write('error', $e->getMessage());
+            Log::write('error', (string)$e);
             if ($e instanceof \InvalidArgumentException) {
                 return $this->apiResponseService->error($this->response, $e->getMessage(), 400);
             }
@@ -154,14 +168,20 @@ class ReservationReportController extends ReservationBaseController
             $emptyMsg  = '指定された月にデータが見つかりませんでした。';
         }
 
-        $finalOutput = $this->reportService->buildExportJsonRank(
-            $this->TIndividualReservationInfo,
-            $startDate,
-            $endDate,
-            $emptyMsg
-        );
+        try {
+            $finalOutput = $this->reportService->buildExportJsonRank(
+                $this->TIndividualReservationInfo,
+                $startDate,
+                $endDate,
+                $emptyMsg
+            );
 
-        return $this->apiResponseService->success($this->response, $finalOutput);
+            return $this->apiResponseService->success($this->response, $finalOutput);
+        } catch (\Throwable $e) {
+            Log::write('error', (string)$e);
+
+            return $this->apiResponseService->error($this->response, 'エクスポート処理中にエラーが発生しました。', 500);
+        }
     }
 
     /**
@@ -263,7 +283,9 @@ class ReservationReportController extends ReservationBaseController
                 $toDate
             );
             return $this->apiResponseService->success($this->response, ['result' => $result]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::write('error', (string)$e);
+
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
     }
@@ -323,7 +345,9 @@ class ReservationReportController extends ReservationBaseController
                 $toDate
             );
             return $this->apiResponseService->success($this->response, ['result' => $result]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            Log::write('error', (string)$e);
+
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
     }

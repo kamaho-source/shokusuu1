@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Uptime Check（ローカル資料用モック）</title>
+  <style>
+    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", sans-serif; background:#0d1117; color:#e6edf3; }
+    header { background:#161b22; border-bottom:1px solid #30363d; padding:14px 24px; display:flex; gap:16px; align-items:center; }
+    header strong { font-size:18px; }
+    .badge { background:#238636; color:#fff; font-size:12px; padding:2px 8px; border-radius:999px; }
+    main { padding:24px; max-width:960px; margin:0 auto; }
+    .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:18px 20px; margin-bottom:16px; }
+    h1 { margin:0 0 6px; font-size:22px; }
+    .meta { color:#8b949e; font-size:13px; margin-bottom:14px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:10px 8px; border-bottom:1px solid #30363d; }
+    th { color:#8b949e; font-weight:600; }
+    .ok { color:#3fb950; }
+    .warn { color:#d29922; }
+    code { background:#0d1117; padding:2px 6px; border-radius:4px; }
+    .note { margin-top:12px; font-size:13px; color:#8b949e; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Actions</strong>
+    <span>kamaho-source / shokusuu1</span>
+    <span class="badge">Local mock</span>
+  </header>
+  <main>
+    <div class="card">
+      <h1>Uptime Check</h1>
+      <p class="meta">schedule: */10 * * * *　／　workflow_dispatch　／　permissions: contents:read</p>
+      <p>本番相当ホスト（Secrets <code>PROD_HOST</code>）へ HTTP し、200–399 以外で failure → Slack（MonitorBot）。</p>
+    </div>
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Run</th><th>Status</th><th>Event</th><th>Duration</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>#1842</td><td class="ok">success</td><td>schedule</td><td>12s</td></tr>
+          <tr><td>#1841</td><td class="ok">success</td><td>schedule</td><td>11s</td></tr>
+          <tr><td>#1840</td><td class="warn">failure → Slack Alert</td><td>schedule</td><td>9s</td></tr>
+        </tbody>
+      </table>
+      <p class="note">※ 本画面は資料用ローカル HTML。GitHub / 本番にはアクセスしない。</p>
+    </div>
+  </main>
+</body>
+</html>

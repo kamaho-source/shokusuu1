@@ -1,5 +1,7 @@
 <?php
-/** @var \App\View\AppView $this */
+/**
+ * @var \App\View\AppView $this
+ */
 $this->assign('title', '通知一覧');
 $notifications = $notifications ?? [];
 ?>

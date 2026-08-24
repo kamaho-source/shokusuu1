@@ -6,19 +6,19 @@
  * 対象: i_id_staff を持つ大人ユーザーのみ。
  * 管理者: 過去2ヶ月まで遡って編集可能。
  *
- * 受け取るビュー変数:
- *   - $rooms          : array  部屋リスト [id => name]
- *   - $selectedRoomId : int|null 選択中の部屋ID
- *   - $adultUsers     : array  大人ユーザーリスト [{id, name, staff_id}]
- *   - $gridData       : array  週グリッドデータ {dates, meals, grid, versions}
- *   - $weekMondayStr  : string 表示中の週の月曜日 (YYYY-MM-DD)
- *   - $prevMonday     : DateTimeImmutable 前週月曜日
- *   - $nextMonday     : DateTimeImmutable 次週月曜日
- *   - $canGoPrev      : bool   前週ナビが使用可能か
- *   - $canGoNext      : bool   次週ナビが使用可能か
- *   - $isAdmin        : bool   管理者フラグ
+ * 受け取るビュー変数は Controller の set() で渡される。
  *
  * @var \App\View\AppView $this
+ * @var array $rooms 部屋リスト [id => name]
+ * @var int|null $selectedRoomId 選択中の部屋ID
+ * @var array $adultUsers 大人ユーザーリスト [{id, name, staff_id}]
+ * @var array $gridData 週グリッドデータ {dates, meals, grid, versions}
+ * @var string $weekMondayStr 表示中の週の月曜日 (YYYY-MM-DD)
+ * @var \DateTimeImmutable $prevMonday 前週月曜日
+ * @var \DateTimeImmutable $nextMonday 次週月曜日
+ * @var bool $canGoPrev 前週ナビが使用可能か
+ * @var bool $canGoNext 次週ナビが使用可能か
+ * @var bool $isAdmin 管理者フラグ
  */
 
 $this->assign('title', '実食確認管理');

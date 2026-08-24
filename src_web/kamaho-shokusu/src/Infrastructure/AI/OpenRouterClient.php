@@ -22,7 +22,7 @@ final class OpenRouterClient
     private const TIMEOUT_SEC         = 60;
 
     /**
-     * @param string $model 使用するモデルID（例: openai/gpt-oss-20b:free）
+     * @param string $model 使用するモデルID（例: openrouter/free）
      * @param string $apiKey OpenRouter APIキー
      */
     public function __construct(

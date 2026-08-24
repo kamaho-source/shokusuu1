@@ -1,3 +1,9 @@
+<?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $message
+ */
+?>
 <?php if (isset($message)): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
         <?= h($message) ?>

@@ -1,4 +1,10 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $isAdmin
+ * @var mixed $isBlockLeader
+ * @var mixed $loginRoomIds
+ */
 // 画面表示用の変数（Controller で生成）
 $user = $this->request->getAttribute('identity');
 $selectedDate = $selectedDate ?? date('Y-m-d');

@@ -1,0 +1,15 @@
+[
+  {
+    "name": "01-login.png",
+    "url": "http://127.0.0.1:8765/MUserInfo/login",
+    "title": "ログイン",
+    "ok": true
+  },
+  {
+    "step": "login",
+    "ok": false,
+    "error": "page.waitForURL: Timeout 20000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n  navigated to \"http://127.0.0.1:8765/MUserInfo/login\"\n============================================================",
+    "flash": "",
+    "url": "http://127.0.0.1:8765/MUserInfo/login"
+  }
+]

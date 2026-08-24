@@ -1,4 +1,8 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $jsConfigVars
+ */
 /** @var array $jsConfigVars */
 ?>
 <meta charset="UTF-8">

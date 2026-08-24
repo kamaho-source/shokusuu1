@@ -7,6 +7,8 @@
  * @var array<string, string> $categories
  * @var string $yearMonth
  * @var string|null $category
+ * @var array $a
+ * @var array $b
  */
 $this->assign('title', '機能使用頻度ダッシュボード');
 $q = $this->request->getQueryParams();

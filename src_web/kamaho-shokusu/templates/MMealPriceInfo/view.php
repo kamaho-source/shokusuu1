@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \Cake\Datasource\EntityInterface $mMealPriceInfo
+ * @var \App\Model\Entity\MMealPriceInfo $mMealPriceInfo
  */
 $this->assign('title', __('食事単価情報表示'));
 ?>

@@ -246,7 +246,7 @@ class MUserInfoController extends AppController
         $rooms = $this->MRoomInfo->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ])->toArray();
+        ])->where(['i_del_flg' => 0])->toArray();
 
         $ages  = range(1, 80);
         $roles = [0 => '職員', 1 => '児童', 3 => 'その他'];
@@ -297,7 +297,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $rooms = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->toArray();
+        $rooms = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->where(['i_del_flg' => 0])->toArray();
 
         $selectedRooms = [];
         if (!empty($mUserInfo->m_user_group)) {

@@ -1,6 +1,12 @@
 <?php
 /**
  * 直前編集ビュー
+ *
+ * @var \App\View\AppView $this
+ * @var mixed $date
+ * @var object $r
+ * @var object $room
+ * @var array $rooms
  */
 $this->assign('title', '直前編集');
 

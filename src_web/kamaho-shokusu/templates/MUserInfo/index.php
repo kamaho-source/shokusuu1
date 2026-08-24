@@ -5,6 +5,7 @@
  * @var array $userRooms
  * @var array<int, string> $userRoomLabels
  * @var \App\Model\Entity\User $user
+ * @var mixed $showDeleted
  */
 
 $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);

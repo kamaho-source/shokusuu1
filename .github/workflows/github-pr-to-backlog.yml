@@ -1,0 +1,44 @@
+name: GitHub PR → Backlogコメント
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - closed
+      - reopened
+
+concurrency:
+  group: github-pr-to-backlog-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+env:
+  GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+  GH_REPO: ${{ github.repository }}
+  BACKLOG_API_KEY: ${{ secrets.BACKLOG_API_KEY }}
+  BACKLOG_SPACE_ID: ${{ secrets.BACKLOG_SPACE_ID }}
+  BACKLOG_PROJECT_KEY: ${{ secrets.BACKLOG_PROJECT_KEY }}
+  BACKLOG_DOMAIN: ${{ secrets.BACKLOG_DOMAIN }}
+  GH_PR_NUMBER: ${{ github.event.pull_request.number }}
+  GH_PR_TITLE: ${{ github.event.pull_request.title }}
+  GH_PR_BODY: ${{ github.event.pull_request.body }}
+  GH_PR_URL: ${{ github.event.pull_request.html_url }}
+  GH_PR_USER: ${{ github.event.pull_request.user.login }}
+  GH_PR_ACTION: ${{ github.event.action }}
+  GH_PR_MERGED: ${{ github.event.pull_request.merged }}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: GitHub PR → Backlogコメント同期
+        run: python .github/scripts/github_pr_to_backlog.py

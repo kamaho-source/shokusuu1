@@ -4,6 +4,12 @@ on:
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "有効期限に関係なく更新を試みる"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,12 +24,18 @@ jobs:
       - name: Check TLS certificate expiry
         id: check
         run: |
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "Force renew requested"
+            echo "needs_renewal=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           HOST=$(echo "${{ secrets.PROD_HOST }}" | tr -d '[:space:]')
           EXPIRY=$(echo | timeout 10 openssl s_client -connect "${HOST}:443" -servername "${HOST}" 2>/dev/null \
             | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
           if [ -z "$EXPIRY" ]; then
             echo "Could not retrieve certificate, assuming renewal needed"
-            echo "needs_renewal=true" >> $GITHUB_OUTPUT
+            echo "needs_renewal=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
@@ -31,9 +43,9 @@ jobs:
           DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
           echo "Certificate expires in ${DAYS_LEFT} days"
           if [ "$DAYS_LEFT" -le 30 ]; then
-            echo "needs_renewal=true" >> $GITHUB_OUTPUT
+            echo "needs_renewal=true" >> "$GITHUB_OUTPUT"
           else
-            echo "needs_renewal=false" >> $GITHUB_OUTPUT
+            echo "needs_renewal=false" >> "$GITHUB_OUTPUT"
           fi
 
   renew:
@@ -58,9 +70,40 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            echo "$SUDO_PASS" | sudo -S certbot renew --quiet \
-              --pre-hook "docker stop docker-network-reverse-1" \
-              --post-hook "docker start docker-network-reverse-1"
+
+            run_sudo() {
+              echo "$SUDO_PASS" | sudo -S -p '' "$@"
+            }
+
+            # webroot 認証のため :80 を止める必要はない（nginx は常時稼働のまま）。
+            # 証明書更新後の nginx reload は certbot renewal conf の post_hook で行う。
+            # 前提: 本番ホストの nginx に /.well-known/acme-challenge/ を webroot に
+            # 渡す location 設定と、certbot renewal conf の webroot 設定・post_hook
+            # (nginx reload) が事前に構成されていること。これらは本リポジトリでは
+            # 管理しておらず、本番ホスト上で直接管理されている。
+            echo "Running certbot renew ..."
+            run_sudo certbot renew --non-interactive
+
+            echo "Certificate renewal finished"
+
+      - name: Verify certificate was actually renewed
+        run: |
+          set -euo pipefail
+          HOST=$(echo "${{ secrets.PROD_HOST }}" | tr -d '[:space:]')
+          EXPIRY=$(echo | timeout 10 openssl s_client -connect "${HOST}:443" -servername "${HOST}" 2>/dev/null \
+            | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || true)
+          if [ -z "$EXPIRY" ]; then
+            echo "::error::証明書の取得に失敗しました（HTTPS疎通確認NG）"
+            exit 1
+          fi
+          EXPIRY_EPOCH=$(date -d "$EXPIRY" +%s)
+          NOW_EPOCH=$(date +%s)
+          DAYS_LEFT=$(( (EXPIRY_EPOCH - NOW_EPOCH) / 86400 ))
+          echo "Certificate now expires in ${DAYS_LEFT} days"
+          if [ "$DAYS_LEFT" -le 30 ]; then
+            echo "::error::certbot renew は成功と報告されたが、実際の証明書の有効期限が更新されていません（残り ${DAYS_LEFT} 日）。nginx の reload に失敗している可能性があります。"
+            exit 1
+          fi
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2

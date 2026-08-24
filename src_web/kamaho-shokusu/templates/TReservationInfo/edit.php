@@ -1,4 +1,12 @@
 <?php
+/**
+ * @var \App\View\AppView $this
+ * @var mixed $date
+ * @var mixed $mealType
+ * @var object $room
+ * @var array $userReservations
+ * @var mixed $users
+ */
 $this->assign('title', '食数予約の編集');
 $loginUser = $this->request->getAttribute('identity');
 ?>
