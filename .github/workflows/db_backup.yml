@@ -27,6 +27,9 @@ jobs:
             DB_PASS=${{ secrets.DB_PASS }} \
             BACKUP_DIR=${{ secrets.BACKUP_DIR || '/home/ubuntu/backups/shokusu' }} \
             bash scripts/db_backup.sh
+            BACKUP_DIR=${{ secrets.BACKUP_DIR || '/home/ubuntu/backups/shokusu' }} \
+            RCLONE_REMOTE=${{ secrets.GDRIVE_RCLONE_REMOTE || 'gdrive:shokusu-backups' }} \
+            bash scripts/db_backup_gdrive_sync.sh
 
       - name: Slack Notification on Success
         if: steps.backup.outcome == 'success'
