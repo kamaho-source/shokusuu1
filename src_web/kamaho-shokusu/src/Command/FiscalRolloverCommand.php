@@ -1,6 +1,7 @@
 <?php
 namespace App\Command;
 
+use App\Service\AuditLogService;
 use Cake\Command\Command;
 use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
@@ -12,6 +13,10 @@ class FiscalRolloverCommand extends Command
 {
     const FISCAL_YEAR_MONTH = 4;
     const FISCAL_YEAR_DAY   = 1;
+
+    // 実行済みガード用に t_audit_log へ記録する際のカテゴリ/アクション
+    const AUDIT_CATEGORY = 'system';
+    const AUDIT_ACTION   = 'fiscal_rollover';
 
     public static function defaultName(): string
     {
@@ -68,6 +73,30 @@ class FiscalRolloverCommand extends Command
             }
         }
 
+        // 対象会計年度（4月始まり）
+        $fiscalYear = $today->month >= self::FISCAL_YEAR_MONTH ? $today->year : $today->year - 1;
+
+        // 実行済みガード：本年度分がすでに成功実行済みなら force なしでは再実行しない
+        if (!$force) {
+            $alreadyRun = $this->fetchTable('TAuditLog')->find()
+                ->where([
+                    'c_category'  => self::AUDIT_CATEGORY,
+                    'c_action'    => self::AUDIT_ACTION,
+                    'c_target_id' => (string)$fiscalYear,
+                    'i_result'    => 1,
+                ])
+                ->first();
+
+            if ($alreadyRun !== null) {
+                $io->out(sprintf(
+                    '%d年度分のロールオーバーは実行済みです（%s）。--force で再実行できます。',
+                    $fiscalYear,
+                    $alreadyRun->dt_create->format('Y-m-d H:i:s')
+                ));
+                return self::CODE_SUCCESS;
+            }
+        }
+
         $mUserInfo = $this->fetchTable('MUserInfo');
         $connection = $mUserInfo->getConnection();
         $connection->begin();
@@ -81,16 +110,33 @@ class FiscalRolloverCommand extends Command
             $activeWhere = ['i_enable' => 0, 'i_user_age IS NOT' => null];
 
             // 優先的に処理する年齢遷移: (現在の年齢 => 設定する i_user_rank)
+            // 年齢の大きい方から処理する（降順）。11,12のように連番の境界があると、
+            // 昇順ではupdateAllの直後の書き込みを同一トランザクション内で再度読んで
+            // 二重更新してしまう（read-your-writes）ため、降順にして再ヒットを防ぐ。
             $transitions = [
-                6  => 2, // 6 -> 7 で rank=2（年長 → 小学生(低学年)）
-                9  => 3, // 9 -> 10 で rank=3（低学年 → 中学年）
-                11 => 4, // 11 -> 12 で rank=4（中学年 → 高学年）
-                12 => 5, // 12 -> 13 で rank=5（高学年 → 中学生）
-                15 => 6, // 15 -> 16 で rank=6（中学生 → 高校生）
                 18 => 7, // 18 -> 19 で rank=7（高校生 → 成人など、施設ルールに合わせて）
+                15 => 6, // 15 -> 16 で rank=6（中学生 → 高校生）
+                12 => 5, // 12 -> 13 で rank=5（高学年 → 中学生）
+                11 => 4, // 11 -> 12 で rank=4（中学年 → 高学年）
+                9  => 3, // 9 -> 10 で rank=3（低学年 → 中学年）
+                6  => 2, // 6 -> 7 で rank=2（年長 → 小学生(低学年)）
             ];
 
-            // 1) 個別境界：年齢+1 と rank 更新
+            // 1) 上記以外：年齢のみ +1
+            // 先にこちらを実行する。個別境界（下記2）を先に処理すると、
+            // 例えば 12->13 のように更新後の年齢が transitions のキーに含まれない
+            // ケースで、この NOT IN 条件が同一トランザクション内の直前の書き込みを
+            // 再度拾ってしまい（read-your-writes）二重加算になるため。
+            $totalUpdated += $mUserInfo->updateAll(
+                function (QueryExpression $exp) use ($now) {
+                    return $exp
+                        ->add('i_user_age = i_user_age + 1')
+                        ->add(['dt_update' => $now]);
+                },
+                $activeWhere + ['i_user_age NOT IN' => array_keys($transitions)]
+            );
+
+            // 2) 個別境界：年齢+1 と rank 更新
             foreach ($transitions as $age => $rank) {
                 $totalUpdated += $mUserInfo->updateAll(
                     function (QueryExpression $exp) use ($rank, $now) {
@@ -101,16 +147,6 @@ class FiscalRolloverCommand extends Command
                     $activeWhere + ['i_user_age' => $age]
                 );
             }
-
-            // 2) 上記以外：年齢のみ +1
-            $totalUpdated += $mUserInfo->updateAll(
-                function (QueryExpression $exp) use ($now) {
-                    return $exp
-                        ->add('i_user_age = i_user_age + 1')
-                        ->add(['dt_update' => $now]);
-                },
-                $activeWhere + ['i_user_age NOT IN' => array_keys($transitions)]
-            );
 
             // 3) 新しい年齢が 3〜6 のユーザ：rank を 1 に統一
             $ranksAdjusted = $mUserInfo->updateAll(
@@ -123,6 +159,17 @@ class FiscalRolloverCommand extends Command
                 $io->out(sprintf('[DRY-RUN] 年齢更新予定合計: %d、年齢区分調整予定: %d（コミットしていません）', $totalUpdated, $ranksAdjusted));
                 return self::CODE_SUCCESS;
             }
+
+            // 実行済みガード用に監査ログを記録（同一トランザクションでコミットされる）
+            AuditLogService::record(
+                self::AUDIT_CATEGORY,
+                self::AUDIT_ACTION,
+                'system',
+                0,
+                'm_user_info',
+                (string)$fiscalYear,
+                ['fiscalYear' => $fiscalYear, 'totalUpdated' => $totalUpdated, 'ranksAdjusted' => $ranksAdjusted]
+            );
 
             $connection->commit();
             $io->out(sprintf('年齢更新合計: %d、年齢区分調整: %d', $totalUpdated, $ranksAdjusted));
