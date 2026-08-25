@@ -130,6 +130,67 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canToggle($identity, $resource));
     }
 
+    /**
+     * バグ7: 職員・管理者でなくても部屋グループに所属していれば直前編集を許可する。
+     * （コントローラー側の早期チェック userHasRoomAccess と同じ判定基準）
+     */
+    public function testCanChangeEditRoomAffiliatedUserAllowed(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 1, // 職員でも管理者でもない
+        ]);
+
+        $this->assertTrue($policy->canChangeEdit($identity, new TReservationInfo()));
+    }
+
+    public function testCanChangeEditWithoutAffiliationDenied(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 1,
+        ]);
+
+        $this->assertFalse($policy->canChangeEdit($identity, new TReservationInfo()));
+    }
+
+    /**
+     * バグ3: 直前一括編集の送信は、指定部屋にアクセスできる場合のみ許可する。
+     */
+    public function testCanBulkChangeEditSubmitOtherRoomDenied(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 0,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_room', 99, ['guard' => false]);
+
+        $this->assertFalse($policy->canBulkChangeEditSubmit($identity, $resource));
+    }
+
+    public function testCanBulkChangeEditSubmitOwnRoomAllowed(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 0,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_room', 1, ['guard' => false]);
+
+        $this->assertTrue($policy->canBulkChangeEditSubmit($identity, $resource));
+    }
+
     public function testCanToggleBlockLeaderDeniedForOtherRoom(): void
     {
         $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Exception\ApprovedReservationException;
 use Cake\Core\Configure;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
@@ -14,10 +15,12 @@ use Cake\ORM\TableRegistry;
 class ReservationBulkService
 {
     private ReservationDatePolicy $datePolicy;
+    private RoomAccessService $roomAccessService;
 
-    public function __construct(?ReservationDatePolicy $datePolicy = null)
+    public function __construct(?ReservationDatePolicy $datePolicy = null, ?RoomAccessService $roomAccessService = null)
     {
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
+        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
     }
 
     public function processBulkChangeEdit(
@@ -139,7 +142,7 @@ class ReservationBulkService
                             if ((int)$existing->i_change_flag !== $changeFlag) {
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
-                                if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom)) {
+                                if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
                                     $connection->rollback();
                                     return [
                                         'ok'      => false,
@@ -160,7 +163,7 @@ class ReservationBulkService
                             if ($changeFlag === 0) {
                                 continue;
                             }
-                            if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom)) {
+                            if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
                                 $connection->rollback();
                                 return [
                                     'ok'      => false,
@@ -197,6 +200,12 @@ class ReservationBulkService
                 'ok' => true,
                 'updated' => $updated,
                 'created' => $created,
+            ];
+        } catch (ApprovedReservationException $e) {
+            $connection->rollback();
+            return [
+                'ok' => false,
+                'message' => $e->getMessage(),
             ];
         } catch (\RuntimeException $e) {
             $connection->rollback();
@@ -526,7 +535,8 @@ class ReservationBulkService
                             $isAdmin,
                             $isLoginStaff,
                             (int)($userLevelMapBulk[(int)$targetUserId] ?? 0),
-                            $blockLeaderInRoom
+                            $blockLeaderInRoom,
+                            $roomId !== null ? (int)$roomId : null
                         );
                         foreach ($mealData as $mealType => $checked) {
                             $mealType = (int)$mealType;
@@ -658,7 +668,8 @@ class ReservationBulkService
                             $isAdmin,
                             $isLoginStaff,
                             (int)($userLevelMapBulk[(int)$targetUserId] ?? 0),
-                            $blockLeaderInRoom
+                            $blockLeaderInRoom,
+                            $roomId !== null ? (int)$roomId : null
                         );
                         foreach ($mealTimeDisplayNames as $mealTime => $disp) {
                             if (isset($mealData[$mealTime]) && (int)$mealData[$mealTime] === 1) {
@@ -743,6 +754,12 @@ class ReservationBulkService
                     }
                 }
                 $connection->commit();
+            } catch (ApprovedReservationException $e) {
+                $connection->rollback();
+                return [
+                    'ok' => false,
+                    'message' => $e->getMessage(),
+                ];
             } catch (\RuntimeException $e) {
                 $connection->rollback();
                 if ($e->getMessage() === 'optimistic_conflict') {
@@ -816,14 +833,16 @@ class ReservationBulkService
     /**
      * ログインユーザーが対象ユーザーの予約を変更できるかを返す。
      *
-     * 自分自身・管理者・（職員→子供）・対象部屋のブロック長のいずれかであれば変更可。
+     * 管理者・（自分自身 かつ 所属部屋）・（職員→子供）・対象部屋のブロック長のいずれかであれば変更可。
+     * 自分自身宛てであっても、所属していない部屋の食数は書き換えられない。
      *
-     * @param int  $targetUserId      変更対象ユーザーID
-     * @param int  $loginUserId       ログインユーザーID
-     * @param bool $isAdmin           ログインユーザーが管理者かどうか
-     * @param bool $isLoginStaff      ログインユーザーが職員（i_user_level 0 or 7）かどうか
-     * @param int  $targetUserLevel   対象ユーザーの i_user_level
-     * @param bool $blockLeaderInRoom 対象部屋に所属するブロック長かどうか
+     * @param int      $targetUserId      変更対象ユーザーID
+     * @param int      $loginUserId       ログインユーザーID
+     * @param bool     $isAdmin           ログインユーザーが管理者かどうか
+     * @param bool     $isLoginStaff      ログインユーザーが職員（i_user_level 0 or 7）かどうか
+     * @param int      $targetUserLevel   対象ユーザーの i_user_level
+     * @param bool     $blockLeaderInRoom 対象部屋に所属するブロック長かどうか
+     * @param int|null $roomId            操作対象の部屋ID（null の場合は部屋検証を行わない）
      * @return bool
      */
     private function canEditTargetUser(
@@ -832,13 +851,19 @@ class ReservationBulkService
         bool $isAdmin,
         bool $isLoginStaff,
         int $targetUserLevel,
-        bool $blockLeaderInRoom
+        bool $blockLeaderInRoom,
+        ?int $roomId = null
     ): bool {
-        if ($targetUserId === $loginUserId) {
+        if ($isAdmin) {
             return true;
         }
 
-        return $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
+        if ($targetUserId === $loginUserId) {
+            // 自分自身でも、所属していない部屋の予約は操作させない
+            return $roomId === null || $this->roomAccessService->userCanAccessRoom($loginUserId, $roomId);
+        }
+
+        return ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
     }
 
     private function validateNormalReservationDates(array $dates, bool $enforceNormalRule): string|bool
@@ -962,30 +987,15 @@ class ReservationBulkService
         return null;
     }
 
+    /**
+     * 承認済み保護つきの共通更新（TIndividualReservationInfoTable に集約）。
+     *
+     * @param array<string, mixed> $updateFields
+     * @return bool false = 楽観的ロック競合
+     * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     */
     private function updateReservationRowWithVersion(Table $reservationTable, object $row, array $updateFields): bool
     {
-        $expectedVersion = (int)($row->i_version ?? 1);
-        $set = $updateFields;
-        $set['i_version'] = $expectedVersion + 1;
-
-        $dateValue = $row->d_reservation_date;
-        if (is_object($dateValue)) {
-            $dateValue = $dateValue->format('Y-m-d');
-        } else {
-            $dateValue = (string)$dateValue;
-        }
-
-        $affected = $reservationTable->updateAll(
-            $set,
-            [
-                'i_id_user' => (int)$row->i_id_user,
-                'd_reservation_date' => $dateValue,
-                'i_reservation_type' => (int)$row->i_reservation_type,
-                'i_id_room' => (int)$row->i_id_room,
-                'i_version' => $expectedVersion,
-            ]
-        );
-
-        return $affected === 1;
+        return $reservationTable->updateRowWithVersion($row, $updateFields);
     }
 }

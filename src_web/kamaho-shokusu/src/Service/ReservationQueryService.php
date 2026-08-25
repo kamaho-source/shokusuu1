@@ -61,10 +61,7 @@ class ReservationQueryService
 
         $reservedMap = [];
         foreach ($existingReservations as $reservation) {
-            $effective = $useChangeFlag
-                ? (int)($reservation->i_change_flag ?? $reservation->eat_flag ?? 0)
-                : (int)($reservation->eat_flag ?? 0);
-            if ($effective !== 1) {
+            if ($this->effectiveFlag($reservation->eat_flag, $reservation->i_change_flag, $useChangeFlag) !== 1) {
                 continue;
             }
             $reservedMap[(int)$reservation->i_id_user][(int)$reservation->i_reservation_type] = true;
@@ -146,11 +143,12 @@ class ReservationQueryService
         if (!empty($date) && !empty($userData)) {
             $userIds = array_map(static fn($u) => (int)$u['id'], $userData);
             try {
+                // 他サービス（getUsersByRoom/getPersonalReservationData 等）と判定基準を揃える。
+                // 下限のない shouldUseChangeFlag（i_change_flag が非NULLなら日付を問わず優先）を用いる。
                 $targetDate = new Date($date, 'Asia/Tokyo');
-                $today = Date::today('Asia/Tokyo');
-                $isLastMinute = $this->datePolicy->isLastMinuteWindow($targetDate, $today, 'Asia/Tokyo');
+                $useChangeFlag = $this->datePolicy->shouldUseChangeFlag($targetDate);
             } catch (\Throwable $e) {
-                $isLastMinute = false;
+                $useChangeFlag = false;
             }
 
             $snapshotQuery = $reservationTable->find();
@@ -183,7 +181,7 @@ class ReservationQueryService
             foreach ($rows as $r) {
                 $uid = (int)$r->i_id_user;
                 $type = (int)$r->i_reservation_type;
-                if ($this->effectiveFlag($r->eat_flag, $r->i_change_flag, $isLastMinute) !== 1) {
+                if ($this->effectiveFlag($r->eat_flag, $r->i_change_flag, $useChangeFlag) !== 1) {
                     continue;
                 }
                 $rid = (int)$r->i_id_room;
@@ -238,9 +236,18 @@ class ReservationQueryService
         return $map;
     }
 
-    private function effectiveFlag($eatFlag, $chgFlag, bool $isLastMinute): int
+    /**
+     * 予約の有効値を返す。
+     *
+     * $useChangeFlag（ReservationDatePolicy::shouldUseChangeFlag）が真で
+     * i_change_flag が非NULLの場合は i_change_flag を優先し、それ以外は eat_flag を用いる。
+     *
+     * @param int|null $eatFlag
+     * @param int|null $chgFlag
+     */
+    private function effectiveFlag($eatFlag, $chgFlag, bool $useChangeFlag): int
     {
-        if ($isLastMinute && $chgFlag !== null) {
+        if ($useChangeFlag && $chgFlag !== null) {
             return (int)$chgFlag;
         }
         return (int)($eatFlag ?? 0);

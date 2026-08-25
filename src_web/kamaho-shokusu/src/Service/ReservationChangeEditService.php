@@ -5,7 +5,6 @@ namespace App\Service;
 
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
-use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
 
@@ -352,30 +351,15 @@ class ReservationChangeEditService
         ];
     }
 
+    /**
+     * 承認済み保護つきの共通更新（TIndividualReservationInfoTable に集約）。
+     *
+     * @param array<string, mixed> $updateFields
+     * @return bool false = 楽観的ロック競合
+     * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     */
     private function updateReservationRowWithVersion(Table $reservationTable, object $row, array $updateFields): bool
     {
-        $expectedVersion = (int)($row->i_version ?? 1);
-        $set = $updateFields;
-        $set['i_version'] = $expectedVersion + 1;
-
-        $dateValue = $row->d_reservation_date;
-        if ($dateValue instanceof Date) {
-            $dateValue = $dateValue->format('Y-m-d');
-        } else {
-            $dateValue = (string)$dateValue;
-        }
-
-        $affected = $reservationTable->updateAll(
-            $set,
-            [
-                'i_id_user' => (int)$row->i_id_user,
-                'd_reservation_date' => $dateValue,
-                'i_reservation_type' => (int)$row->i_reservation_type,
-                'i_id_room' => (int)$row->i_id_room,
-                'i_version' => $expectedVersion,
-            ]
-        );
-
-        return $affected === 1;
+        return $reservationTable->updateRowWithVersion($row, $updateFields);
     }
 }
