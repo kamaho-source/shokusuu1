@@ -345,7 +345,7 @@ class TReservationInfoPolicy
         return $this->roomAccessService->hasAnyAffiliation($userId);
     }
 
-public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
+    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isBlockLeader($user);
     }
