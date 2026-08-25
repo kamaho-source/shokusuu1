@@ -146,6 +146,83 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(1, (int)$user->i_del_flag);
     }
 
+    /**
+     * 一般ADMIN（SYSTEM_ADMINではない）が updateAdminStatus に i_admin=3(SYSTEM_ADMIN) を
+     * 送っても拒否され、対象ユーザーの i_admin が 3 にならないことを検証する。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::updateAdminStatus()
+     */
+    public function testUpdateAdminStatusAsGeneralAdminCannotEscalateToSystemAdmin(): void
+    {
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', [
+            'i_id_user' => 2,
+            'i_admin' => 3,
+        ]);
+
+        $this->assertResponseFailure();
+
+        $user = $this->getTableLocator()->get('MUserInfo')->get(2);
+        $this->assertNotSame(3, (int)$user->i_admin);
+    }
+
+    /**
+     * 一般ADMIN（SYSTEM_ADMINではない）が updateUserLevel に i_admin=3(SYSTEM_ADMIN) を
+     * 送っても拒否され、対象ユーザーの i_admin が 3 にならないことを検証する。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::updateUserLevel()
+     */
+    public function testUpdateUserLevelAsGeneralAdminCannotEscalateToSystemAdmin(): void
+    {
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-user-level', [
+            'i_id_user' => 2,
+            'i_admin' => 3,
+        ]);
+
+        $this->assertResponseFailure();
+
+        $user = $this->getTableLocator()->get('MUserInfo')->get(2);
+        $this->assertNotSame(3, (int)$user->i_admin);
+    }
+
+    /**
+     * システム管理者は updateSystemAdminStatus 経由で SYSTEM_ADMIN へ昇格させられることを検証する。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::updateSystemAdminStatus()
+     */
+    public function testUpdateSystemAdminStatusAsSystemAdminCanEscalate(): void
+    {
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 4,
+                'c_login_account' => 'system_admin_user',
+                'c_user_name'     => 'システム管理者',
+                'i_admin'         => 3,
+                'i_user_level'    => 0,
+                'i_id_room'       => 1,
+            ],
+        ]);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-system-admin-status', [
+            'i_id_user' => 2,
+            'i_system_admin' => 1,
+        ]);
+
+        $this->assertResponseOk();
+
+        $user = $this->getTableLocator()->get('MUserInfo')->get(2);
+        $this->assertSame(3, (int)$user->i_admin);
+    }
+
     private function setAuthenticatedSession(bool $isAdmin = true): void
     {
         $this->session([

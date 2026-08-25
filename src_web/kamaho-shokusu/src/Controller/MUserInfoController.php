@@ -372,7 +372,7 @@ class MUserInfoController extends AppController
         $loginId   = (string)($identity?->get('c_login_account') ?? '');
 
         $value = (int)$isSystemAdmin === 1 ? 3 : 0;
-        if ($this->userPermissionService->updatePermission($user, $value, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
+        if ($this->userPermissionService->updatePermission($user, $value, $updatedBy, $actorId, $this->getClientIp(), $loginId, true)) {
             return $apiResponse->success($this->response, [], 'システム管理者権限が正常に更新されました。');
         }
         return $apiResponse->error($this->response, 'システム管理者権限の更新に失敗しました。', 500);
