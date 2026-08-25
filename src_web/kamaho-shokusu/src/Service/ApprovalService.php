@@ -284,6 +284,8 @@ class ApprovalService
     /**
      * ブロック長による承認（ステータスを STATUS_BLOCK_LEADER に更新）
      *
+     * 自己承認防止のため、承認者自身の予約は承認対象から除外する。
+     *
      * @param array $keys  [['i_id_user'=>x, 'd_reservation_date'=>'...', 'i_id_room'=>x, 'i_reservation_type'=>x], ...]
      * @param int   $approverId
      * @param string $actor
@@ -292,7 +294,7 @@ class ApprovalService
      */
     public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
+        $result = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId);
         AuditLogService::record(
             'approval',
             'approval_block_leader',
@@ -310,6 +312,8 @@ class ApprovalService
 
     /**
      * 管理者による最終承認（ステータスを STATUS_ADMIN に更新）
+     *
+     * 管理者自身の予約であっても最終承認できる（自己承認を意図的に許可、#144）。
      *
      * @param array  $keys
      * @param int    $approverId
@@ -352,17 +356,23 @@ class ApprovalService
     /**
      * 差し戻し（ブロック長・管理者共通）
      *
+     * ブロック長・管理者どちらの却下でも呼び出されるため、承認処理と対称に
+     * 「ブロック長は自己承認防止のため自身の予約を除外」「管理者は自己承認を
+     * 許可するため除外しない」を呼び出し元（コントローラー）で使い分ける。
+     * $excludeUserId にブロック長自身のIDを渡した場合のみ、その予約は却下対象から除外される。
+     *
      * @param array       $keys
      * @param int         $approverId
      * @param string      $actor
      * @param string|null $reason
      * @param string      $ipAddress
      * @param string      $actorLoginId
+     * @param int|null    $excludeUserId 自己承認防止のため除外するユーザーID（ブロック長の却下時のみ指定）
      * @return bool
      */
-    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = ''): bool
+    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = '', ?int $excludeUserId = null): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
+        $result = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER], $excludeUserId);
         AuditLogService::record(
             'approval',
             'approval_rejected',
@@ -491,7 +501,9 @@ class ApprovalService
                 $successKeys = [];
 
                 foreach ($keys as $k) {
-                    // 承認者自身の予約は自己承認防止のためスキップ
+                    // excludeUserId が指定されている場合のみ、そのユーザー自身の予約を
+                    // 自己承認防止のためスキップする（ブロック長の承認・却下で使用。
+                    // 管理者は自己承認を許可するため excludeUserId を渡さない）
                     if ($excludeUserId !== null && (int)$k['i_id_user'] === $excludeUserId) {
                         continue;
                     }

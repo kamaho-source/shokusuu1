@@ -38,6 +38,14 @@ class ApprovalServiceTest extends TestCase
         'i_reservation_type' => 1,
     ];
 
+    /** ブロック長・管理者(自己承認テスト用) とは別ユーザーの予約 */
+    private array $key2 = [
+        'i_id_user'          => 2,
+        'd_reservation_date' => '2024-09-14',
+        'i_id_room'          => 1,
+        'i_reservation_type' => 1,
+    ];
+
     public function setUp(): void
     {
         parent::setUp();
@@ -48,20 +56,33 @@ class ApprovalServiceTest extends TestCase
 
         $this->service = new ApprovalService(null, $notificationMock);
         $this->individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        // key2: 自己承認防止テスト用に、フィクスチャとは別ユーザー・別日付のレコードを追加する。
+        // 既存のフィクスチャは他のテストが「1件のみ」であることを前提にしているため、
+        // フィクスチャ自体は変更せずこのテストクラス内でのみ挿入する。
+        $entity = $this->individualTable->newEntity(array_merge($this->key2, [
+            'eat_flag' => 1,
+            'i_approval_status' => ApprovalService::STATUS_PENDING,
+            'dt_create' => '2024-09-14 16:00:30',
+            'c_create_user' => 'tester',
+            'dt_update' => '2024-09-14 16:00:30',
+            'c_update_user' => 'tester',
+        ]));
+        $this->individualTable->saveOrFail($entity);
     }
 
-    private function setStatus(int $status): void
+    private function setStatus(int $status, ?array $key = null): void
     {
         $this->individualTable->updateAll(
             ['i_approval_status' => $status],
-            $this->key1
+            $key ?? $this->key1
         );
     }
 
-    private function getStatus(): int
+    private function getStatus(?array $key = null): int
     {
         $row = $this->individualTable->find()
-            ->where($this->key1)
+            ->where($key ?? $this->key1)
             ->first();
         return (int)$row->i_approval_status;
     }
@@ -149,6 +170,100 @@ class ApprovalServiceTest extends TestCase
 
         $this->assertFalse($result);
         $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), '最終承認済みは差し戻せないこと');
+    }
+
+    // ----------------------------------------------------------------
+    // 自己承認防止（#652 監査バグ修正）
+    // ----------------------------------------------------------------
+
+    /**
+     * ブロック長が自分自身の予約を含む一覧を承認しようとした場合、
+     * 自分自身の予約は除外され、他ユーザーの予約のみ承認されること。
+     */
+    public function testBlockLeaderApprove_excludes_own_reservation_but_approves_others(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key1);
+        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
+
+        // 承認者(approverId=1) は key1 の予約者本人
+        $result = $this->service->blockLeaderApprove([$this->key1, $this->key2], 1, 'tester');
+
+        $this->assertTrue($result, '他ユーザーの予約が承認されるため全体としては成功する');
+        $this->assertSame(
+            ApprovalService::STATUS_PENDING,
+            $this->getStatus($this->key1),
+            '承認者自身の予約は自己承認防止のため未承認のまま'
+        );
+        $this->assertSame(
+            ApprovalService::STATUS_BLOCK_LEADER,
+            $this->getStatus($this->key2),
+            '他ユーザーの予約は承認されること'
+        );
+    }
+
+    /**
+     * 管理者が自分自身の予約を含む一覧を承認しようとした場合、
+     * 自己承認が意図的に許可されているため、自分自身の予約も承認されること（#144）。
+     */
+    public function testAdminApprove_allows_own_reservation(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER, $this->key1);
+        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER, $this->key2);
+
+        // 承認者(approverId=1) は key1 の予約者本人
+        $result = $this->service->adminApprove([$this->key1, $this->key2], 1, 'tester');
+
+        $this->assertTrue($result);
+        $this->assertSame(
+            ApprovalService::STATUS_ADMIN,
+            $this->getStatus($this->key1),
+            '管理者は自己承認が許可されているため自身の予約も最終承認される'
+        );
+        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus($this->key2));
+    }
+
+    /**
+     * ブロック長が却下する場合も承認と対称に、自分自身の予約は却下対象から除外されること。
+     */
+    public function testReject_excludes_own_reservation_when_block_leader_rejects(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key1);
+        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
+
+        // ブロック長(approverId=1, excludeUserId=1) は key1 の予約者本人
+        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由', '', '', 1);
+
+        $this->assertTrue($result, '他ユーザーの予約が却下されるため全体としては成功する');
+        $this->assertSame(
+            ApprovalService::STATUS_PENDING,
+            $this->getStatus($this->key1),
+            'ブロック長自身の予約は自己承認防止のため却下対象外'
+        );
+        $this->assertSame(
+            ApprovalService::STATUS_REJECTED,
+            $this->getStatus($this->key2),
+            '他ユーザーの予約は却下されること'
+        );
+    }
+
+    /**
+     * 管理者が却下する場合は自己承認と対称に、自分自身の予約も却下対象に含まれること。
+     */
+    public function testReject_includes_own_reservation_when_admin_rejects(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key1);
+        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
+
+        // 管理者(approverId=1) は key1 の予約者本人。excludeUserId は渡さない。
+        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由');
+
+        $this->assertTrue($result);
+        $this->assertSame(
+            ApprovalService::STATUS_REJECTED,
+            $this->getStatus($this->key1),
+            '管理者は自身の予約も却下対象に含まれること'
+        );
+        $this->assertSame(ApprovalService::STATUS_REJECTED, $this->getStatus($this->key2));
     }
 
 }
