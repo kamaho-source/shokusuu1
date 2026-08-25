@@ -94,7 +94,7 @@ class ApprovalService
             ],
         ]);
 
-        $query->order([
+        $query->orderBy([
             'TIndividualReservationInfo.d_reservation_date' => 'ASC',
             'MRoomInfo.i_disp_no'                          => 'ASC',
             'MUserInfo.i_disp_no'                          => 'ASC',
@@ -143,7 +143,7 @@ class ApprovalService
             ],
         ]);
 
-        $query->order([
+        $query->orderBy([
             'TIndividualReservationInfo.d_reservation_date' => 'ASC',
             'MRoomInfo.i_disp_no'                          => 'ASC',
             'MUserInfo.i_disp_no'                          => 'ASC',
