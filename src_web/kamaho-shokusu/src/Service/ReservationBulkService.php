@@ -990,7 +990,7 @@ class ReservationBulkService
     /**
      * 承認済み保護つきの共通更新（TIndividualReservationInfoTable に集約）。
      *
-     * @param array<string, mixed> $updateFields
+     * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields
      * @return bool false = 楽観的ロック競合
      * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
      */

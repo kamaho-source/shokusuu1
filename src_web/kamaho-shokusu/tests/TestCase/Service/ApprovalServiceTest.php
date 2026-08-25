@@ -24,6 +24,7 @@ class ApprovalServiceTest extends TestCase
         'app.TApprovalLog',
         'app.MRoomInfo',
         'app.MUserInfo',
+        'app.TAuditLog',
     ];
 
     private ApprovalService $service;
@@ -85,6 +86,26 @@ class ApprovalServiceTest extends TestCase
             ->where($key ?? $this->key1)
             ->first();
         return (int)$row->i_approval_status;
+    }
+
+    /**
+     * 直近の t_audit_log レコード（指定アクション）を target_id/count に整形して返す。
+     *
+     * @return array{target_id: string, count: int}
+     */
+    private function auditLog(string $action): array
+    {
+        $row = TableRegistry::getTableLocator()->get('TAuditLog')->find()
+            ->where(['c_action' => $action])
+            ->orderBy(['i_id_audit' => 'DESC'])
+            ->firstOrFail();
+
+        $detail = json_decode((string)$row->c_detail, true) ?? [];
+
+        return [
+            'target_id' => (string)$row->c_target_id,
+            'count'     => (int)($detail['count'] ?? 0),
+        ];
     }
 
     // ----------------------------------------------------------------
@@ -199,6 +220,13 @@ class ApprovalServiceTest extends TestCase
             $this->getStatus($this->key2),
             '他ユーザーの予約は承認されること'
         );
+
+        // CodeRabbit指摘：監査ログには実際に更新された予約（key2）のみが記録され、
+        // 自己承認防止でスキップされた予約（key1）は対象件数・対象IDに含まれないこと。
+        $log = $this->auditLog('approval_block_leader');
+        $this->assertSame(1, $log['count'], '監査ログの件数は実際に更新した1件のみ');
+        $this->assertStringNotContainsString('1:2024-09-07', $log['target_id'], 'スキップした自己予約(key1)が対象IDに含まれてはいけない');
+        $this->assertStringContainsString('2:2024-09-14', $log['target_id'], '実際に更新したkey2は対象IDに含まれること');
     }
 
     /**
@@ -244,6 +272,12 @@ class ApprovalServiceTest extends TestCase
             $this->getStatus($this->key2),
             '他ユーザーの予約は却下されること'
         );
+
+        // CodeRabbit指摘：監査ログには実際に却下された予約（key2）のみが記録されること。
+        $log = $this->auditLog('approval_rejected');
+        $this->assertSame(1, $log['count']);
+        $this->assertStringNotContainsString('1:2024-09-07', $log['target_id']);
+        $this->assertStringContainsString('2:2024-09-14', $log['target_id']);
     }
 
     /**

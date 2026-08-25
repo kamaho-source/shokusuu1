@@ -294,15 +294,16 @@ class ApprovalService
      */
     public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId);
+        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId);
+        $result = !empty($successKeys);
         AuditLogService::record(
             'approval',
             'approval_block_leader',
             $actor,
             $approverId,
             't_individual_reservation_info',
-            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
-            ['count' => count($keys)],
+            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $successKeys)),
+            ['count' => count($successKeys)],
             $ipAddress ?: null,
             $result ? 1 : 0,
             $actorLoginId
@@ -323,13 +324,14 @@ class ApprovalService
      */
     public function adminApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
-        
+        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
+        $result = !empty($successKeys);
+
         if ($result) {
             // 承認成功時、自動的に予約情報へ反映
-            // keys から対象となる roomId と 日付範囲を抽出して効率的に反映する
-            $roomIds = array_unique(array_column($keys, 'i_id_room'));
-            $dates = array_column($keys, 'd_reservation_date');
+            // successKeys から対象となる roomId と 日付範囲を抽出して効率的に反映する
+            $roomIds = array_unique(array_column($successKeys, 'i_id_room'));
+            $dates = array_column($successKeys, 'd_reservation_date');
             $dateFrom = min($dates);
             $dateTo = max($dates);
 
@@ -344,8 +346,8 @@ class ApprovalService
             $actor,
             $approverId,
             't_individual_reservation_info',
-            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
-            ['count' => count($keys)],
+            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $successKeys)),
+            ['count' => count($successKeys)],
             $ipAddress ?: null,
             $result ? 1 : 0,
             $actorLoginId
@@ -372,15 +374,16 @@ class ApprovalService
      */
     public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = '', ?int $excludeUserId = null): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER], $excludeUserId);
+        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER], $excludeUserId);
+        $result = !empty($successKeys);
         AuditLogService::record(
             'approval',
             'approval_rejected',
             $actor,
             $approverId,
             't_individual_reservation_info',
-            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $keys)),
-            ['count' => count($keys), 'reason' => $reason],
+            implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $successKeys)),
+            ['count' => count($successKeys), 'reason' => $reason],
             $ipAddress ?: null,
             $result ? 1 : 0,
             $actorLoginId
@@ -483,6 +486,11 @@ class ApprovalService
     // private helpers
     // ------------------------------------------------------------------
 
+    /**
+     * @return array<int, array{i_id_user: int, d_reservation_date: string, i_id_room: int, i_reservation_type: int}>
+     *         実際に更新に成功したキーのみを返す（自己承認除外・ステータス不一致でスキップした
+     *         ものは含まない）。呼び出し元は監査ログの対象件数・IDにはこの戻り値を使うこと。
+     */
     private function updateApprovalStatus(
         array $keys,
         int $newStatus,
@@ -491,13 +499,13 @@ class ApprovalService
         ?string $reason,
         array $allowedFromStatuses,
         ?int $excludeUserId = null
-    ): bool {
+    ): array {
         $individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $logTable        = TableRegistry::getTableLocator()->get('TApprovalLog');
         $now             = DateTime::now();
 
         return $individualTable->getConnection()->transactional(
-            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $individualTable, $logTable, $now): bool {
+            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $individualTable, $logTable, $now): array {
                 $successKeys = [];
 
                 foreach ($keys as $k) {
@@ -538,14 +546,14 @@ class ApprovalService
                 }
 
                 if (empty($successKeys)) {
-                    return false;
+                    return [];
                 }
 
                 if ($newStatus === self::STATUS_REJECTED) {
                     $this->notificationService->createRejectionNotifications($successKeys, $approverId, $reason, $now);
                 }
 
-                return true;
+                return $successKeys;
             }
         );
     }

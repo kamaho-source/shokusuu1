@@ -176,6 +176,26 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertFalse($policy->canBulkChangeEditSubmit($identity, $resource));
     }
 
+    /**
+     * CodeRabbit指摘：canAccessRoom() は i_id_room<=0 の場合フォールバックで true を
+     * 返すため、無効な部屋ID（負値）を指定すると所属確認をすり抜けてしまう。
+     * canBulkChangeEditSubmit() では部屋IDが正の整数であることを先に確認する。
+     */
+    public function testCanBulkChangeEditSubmitNegativeRoomIdDenied(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity([
+            'i_id_user' => 10,
+            'i_admin' => 0,
+            'i_user_level' => 1,
+        ]);
+
+        $resource = new TReservationInfo();
+        $resource->set('i_id_room', -1, ['guard' => false]);
+
+        $this->assertFalse($policy->canBulkChangeEditSubmit($identity, $resource));
+    }
+
     public function testCanBulkChangeEditSubmitOwnRoomAllowed(): void
     {
         $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));

@@ -242,10 +242,8 @@ class ReservationQueryService
      * $useChangeFlag（ReservationDatePolicy::shouldUseChangeFlag）が真で
      * i_change_flag が非NULLの場合は i_change_flag を優先し、それ以外は eat_flag を用いる。
      *
-     * @param int|null $eatFlag
-     * @param int|null $chgFlag
      */
-    private function effectiveFlag($eatFlag, $chgFlag, bool $useChangeFlag): int
+    private function effectiveFlag(?int $eatFlag, ?int $chgFlag, bool $useChangeFlag): int
     {
         if ($useChangeFlag && $chgFlag !== null) {
             return (int)$chgFlag;

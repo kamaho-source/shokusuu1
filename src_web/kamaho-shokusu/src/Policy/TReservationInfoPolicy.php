@@ -35,7 +35,11 @@ class TReservationInfoPolicy
 
     public function canBulkChangeEditSubmit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isAuthenticated($user) && $this->canAccessRoom($user, $resource);
+        $roomId = (int)($resource->get('i_id_room') ?? 0);
+
+        return $roomId > 0
+            && $this->isAuthenticated($user)
+            && $this->canAccessRoom($user, $resource);
     }
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool

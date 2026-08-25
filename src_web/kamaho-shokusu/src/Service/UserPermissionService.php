@@ -22,6 +22,7 @@ class UserPermissionService
      * @param string $actorLoginId      操作者ログインID
      * @param bool   $allowSystemAdmin  SYSTEM_ADMIN(3) への遷移を許可するか（システム管理者専用画面からの呼び出しのみ true）
      * @return bool
+     * @throws \Cake\Database\Exception\DatabaseException 保存時にDB接続・クエリの実行に失敗した場合
      */
     public function updatePermission(
         \App\Model\Entity\MUserInfo $user,

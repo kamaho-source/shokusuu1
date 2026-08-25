@@ -193,7 +193,7 @@ class TIndividualReservationInfoTable extends Table
      * 承認済み保護を一箇所に集約し、経路ごとの実装漏れを防ぐ。
      *
      * @param object $row 更新対象行（複合主キー列と i_version を保持していること）
-     * @param array<string, mixed> $updateFields 更新する列と値
+     * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields 更新する列と値
      * @return bool true=更新成功 / false=楽観的ロック競合
      * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
      */
@@ -245,6 +245,9 @@ class TIndividualReservationInfoTable extends Table
      * @param int|null $eatFlag 上書き用（コントローラから明示指定）
      * @param int|null $changeFlag 上書き用（コントローラから明示指定）
      * @return array{ value: bool, details: array{breakfast:bool,lunch:bool,dinner:bool,bento:bool} }
+     * @throws \InvalidArgumentException $meal が 1〜4 以外の場合
+     * @throws \App\Exception\ApprovedReservationException 対象または相互排他の相手が承認済みの場合
+     * @throws \Cake\ORM\Exception\PersistenceFailedException 新規保存失敗、または楽観的ロック競合の場合
      */
     public function toggleMeal(
         int $userId,

@@ -11,8 +11,8 @@ use Cake\TestSuite\TestCase;
 /**
  * FiscalRolloverCommand テスト
  *
- * バグ1: 年齢遷移を降順で処理することにより、11歳ユーザーが11→12→13と
- *        同一実行で二重更新されず、11→12でちょうど1回だけ更新されることを検証する。
+ * バグ1: 年齢+1とrank更新を単一のUPDATE文で行うことにより、境界年齢の
+ *        1つ手前（5,8,10,14,17歳）のユーザーが二重加算されないことを検証する。
  * バグ2: 実行済みガード（t_audit_log 記録）により、同一年度の再実行が
  *        --force なしではブロックされ、--force 指定時のみ再実行できることを検証する。
  */
@@ -85,6 +85,70 @@ class FiscalRolloverCommandTest extends TestCase
 
         $user = $this->userTable()->get($userId);
         $this->assertSame(12, $user->i_user_age, '実行済みガードにより年齢は加算されないはず');
+    }
+
+    /**
+     * バグ1の再発防止（CodeRabbit指摘）：境界年齢の1つ手前（5,8,10,14,17歳）のユーザーは
+     * 「一般加算で境界年齢になった直後に、境界更新にも一致してさらに+1される」
+     * 二重加算が起きず、ちょうど+1されるだけで rank は変化しない。
+     */
+    public function testBoundaryMinusOneAgesAreNotDoubleIncremented(): void
+    {
+        $ages = [5, 8, 10, 14, 17];
+        $userIds = [];
+        foreach ($ages as $age) {
+            $userIds[$age] = $this->createActiveUser('rollover_boundary_minus1_' . $age, $age);
+        }
+
+        $this->exec('fiscal:rollover --date 2026-04-01');
+        $this->assertExitSuccess();
+
+        foreach ($ages as $age) {
+            $user = $this->userTable()->get($userIds[$age]);
+            $this->assertSame($age + 1, $user->i_user_age, "{$age}歳は{$age}+1歳になるべき（二重加算されない）");
+        }
+
+        // 5歳 -> 6歳は「新しい年齢が3〜6のユーザはrank=1に統一」ルールの対象（別ロジック、意図通り）
+        $this->assertSame(1, $this->userTable()->get($userIds[5])->i_user_rank);
+        // 8,10,14,17歳はいずれも境界（6,9,11,12,15,18）ではないため rank は初期値のまま
+        foreach ([8, 10, 14, 17] as $age) {
+            $this->assertSame(0, $this->userTable()->get($userIds[$age])->i_user_rank, "{$age}歳のユーザーは境界年齢ではないため rank は変化しないはず");
+        }
+    }
+
+    /**
+     * バグ2関連の再発防止（CodeRabbit指摘）：AuditLogService::record() が実行済み
+     * マーカーの保存に失敗した場合、年齢更新はロールバックされコミットされない
+     * （マーカーが無いまま年齢だけ進むと、次回実行時に再度二重加算されてしまうため）。
+     */
+    public function testRollsBackWhenAuditMarkerFailsToPersist(): void
+    {
+        $userId = $this->createActiveUser('rollover_audit_fail', 11);
+
+        $locator = TableRegistry::getTableLocator();
+        $original = $locator->get('TAuditLog');
+        $broken = new class ($original->getConnection()) extends Table {
+            public function __construct($connection)
+            {
+                parent::__construct(['table' => 't_audit_log', 'alias' => 'TAuditLog', 'connection' => $connection]);
+            }
+
+            public function save(\Cake\Datasource\EntityInterface $entity, $options = []): \Cake\Datasource\EntityInterface|false
+            {
+                return false;
+            }
+        };
+        $locator->set('TAuditLog', $broken);
+
+        try {
+            $this->exec('fiscal:rollover --date 2026-04-01');
+            $this->assertExitError();
+        } finally {
+            $locator->set('TAuditLog', $original);
+        }
+
+        $user = $this->userTable()->get($userId);
+        $this->assertSame(11, $user->i_user_age, 'マーカー保存失敗時は年齢更新もロールバックされるはず');
     }
 
     /**
