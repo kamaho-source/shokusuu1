@@ -281,7 +281,7 @@ class ApprovalController extends AppController
             ]);
         }
 
-        $query->order(['TApprovalLog.dt_create' => 'DESC']);
+        $query->orderBy(['TApprovalLog.dt_create' => 'DESC']);
 
         $logs = $this->paginate($query, [
             'limit' => 50,

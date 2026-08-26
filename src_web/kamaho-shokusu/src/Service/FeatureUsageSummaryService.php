@@ -78,7 +78,7 @@ class FeatureUsageSummaryService
                 'i_result'     => 1,
             ])
             ->group(['c_action', 'c_category'])
-            ->order(['total' => 'DESC'])
+            ->orderBy(['total' => 'DESC'])
             ->disableHydration();
 
         if ($category !== null && $category !== '') {
@@ -147,7 +147,7 @@ class FeatureUsageSummaryService
                 'i_result'     => 1,
             ])
             ->group('HOUR(dt_create)')
-            ->order('HOUR(dt_create)')
+            ->orderBy('HOUR(dt_create)')
             ->disableHydration();
 
         if ($category !== null && $category !== '') {

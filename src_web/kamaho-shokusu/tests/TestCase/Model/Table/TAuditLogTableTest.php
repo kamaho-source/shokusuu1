@@ -104,7 +104,7 @@ class TAuditLogTableTest extends TestCase
 
     public function testFind_orderByDesc_returnsLatestFirst(): void
     {
-        $first = $this->TAuditLog->find()->order(['i_id_audit' => 'DESC'])->first();
+        $first = $this->TAuditLog->find()->orderBy(['i_id_audit' => 'DESC'])->first();
         $this->assertNotNull($first);
     }
 
