@@ -148,7 +148,7 @@ gh pr create --base main --head release --title "release: YYYY-MM-DD" --body "..
 # main へマージ後、必要に応じて main → develop を同期
 ```
 
-コミットメッセージは Conventional Commits に従う（`feat:` / `fix:` / `refactor:` / `test:` / `docs:`）。
+コミットメッセージは Conventional Commits に従い、**サマリと本文は日本語**で書く（プレフィックス `feat:` / `fix:` / `refactor:` / `test:` / `docs:` 等は英語のまま）。詳細は `.cursor/rules/commit-message-format.mdc` を参照。
 
 ---
 
