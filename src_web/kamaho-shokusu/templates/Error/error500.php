@@ -8,11 +8,11 @@
 use Cake\Core\Configure;
 use Cake\Error\Debugger;
 
-$this->layout = 'error';
+$this->setLayout('error');
 
 // デバッグ時は CakePHP 既定の開発用レイアウトを使用する
 if (Configure::read('debug')) {
-    $this->layout = 'dev_error';
+    $this->setLayout('dev_error');
     $this->assign('title', $message);
     $this->assign('templateName', 'error500.php');
 
