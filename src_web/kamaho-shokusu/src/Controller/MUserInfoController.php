@@ -19,11 +19,18 @@ use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
 use Cake\Http\Response;
+use Psr\SimpleCache\CacheInterface;
 
 class MUserInfoController extends AppController
 {
-    /** @var int 同一IPからのログイン失敗の許容回数 */
+    /** @var int 同一IP・同一ログインIDの組み合わせに対する失敗の許容回数 */
     private const LOGIN_MAX_ATTEMPTS = 10;
+
+    /** @var int 同一IPからの失敗の総量に対する上限（パスワードスプレー対策） */
+    private const LOGIN_MAX_ATTEMPTS_PER_IP = 50;
+
+    /** @var int 1IPあたりで内訳を記録するログインIDの上限（キャッシュ肥大化の防止） */
+    private const LOGIN_TRACKED_ACCOUNTS = 20;
 
     /** @var int ログイン失敗カウンタの保持秒数（15分） */
     private const LOGIN_THROTTLE_TTL = 900;
@@ -518,9 +525,20 @@ class MUserInfoController extends AppController
     /**
      * ログイン。
      *
-     * 同一IPからのログイン失敗が LOGIN_MAX_ATTEMPTS 回に達した場合、
-     * LOGIN_THROTTLE_TTL 秒間は認証を試行せず HTTP 429 を返す（総当たり・スキャン対策）。
-     * アカウント単位ではなくIP単位で制限するのは、任意アカウントを狙ったロックアウトDoSを避けるため。
+     * 総当たり・スキャン対策として2段階で制限する。いずれかに達すると
+     * LOGIN_THROTTLE_TTL 秒間 HTTP 429 を返す。
+     *
+     * 1. IP × ログインID ごとに LOGIN_MAX_ATTEMPTS 回
+     *    同じ回線を共有する他の利用者を巻き込まないための単位。
+     * 2. IP 全体で LOGIN_MAX_ATTEMPTS_PER_IP 回
+     *    ログインIDを変えながら試行するパスワードスプレーを止めるための単位。
+     *
+     * アカウント単体（IPを問わない）ではなくIPとの組み合わせにしているのは、
+     * 第三者が任意アカウントを狙ってロックするDoSを成立させないため。
+     *
+     * カウンタはIPごとに1エントリへまとめ、内訳のログインIDは
+     * LOGIN_TRACKED_ACCOUNTS 件までに制限する。攻撃者が任意の文字列を
+     * 送り続けてもキャッシュのエントリ数・サイズが増え続けない。
      *
      * @return \Cake\Http\Response|null 成功時はリダイレクト、遮断時・通常表示時は null
      * @throws \Cake\Http\Exception\MethodNotAllowedException GET/POST 以外のメソッドの場合
@@ -533,10 +551,19 @@ class MUserInfoController extends AppController
         $ip       = $this->getClientIp();
         $cache    = Cache::pool('default');
         $cacheKey = 'login_fail_' . md5($ip);
-        $attempts = (int)$cache->get($cacheKey, 0);
 
-        if ($this->request->is('post') && $attempts >= self::LOGIN_MAX_ATTEMPTS) {
-            $loginAccount = (string)($this->request->getData('c_login_account') ?? '');
+        $state       = $cache->get($cacheKey, []);
+        $ipAttempts  = is_array($state) ? (int)($state['total'] ?? 0) : 0;
+        $accounts    = is_array($state) && is_array($state['accounts'] ?? null) ? $state['accounts'] : [];
+
+        $loginAccount    = (string)($this->request->getData('c_login_account') ?? '');
+        $accountHash     = md5($loginAccount);
+        $accountAttempts = (int)($accounts[$accountHash] ?? 0);
+
+        $blocked = $accountAttempts >= self::LOGIN_MAX_ATTEMPTS
+            || $ipAttempts >= self::LOGIN_MAX_ATTEMPTS_PER_IP;
+
+        if ($this->request->is('post') && $blocked) {
             \App\Service\AuditLogService::record(
                 'user',
                 'user_login_blocked',
@@ -544,7 +571,11 @@ class MUserInfoController extends AppController
                 0,
                 'm_user_info',
                 null,
-                ['login_account' => $loginAccount, 'attempts' => $attempts],
+                [
+                    'login_account'   => $loginAccount,
+                    'account_attempts' => $accountAttempts,
+                    'ip_attempts'      => $ipAttempts,
+                ],
                 $ip,
                 0,
                 $loginAccount
@@ -569,7 +600,7 @@ class MUserInfoController extends AppController
             // セッション固定化攻撃対策：ログイン成功時にセッションIDを再生成する
             $this->request->getSession()->renew();
 
-            $cache->delete($cacheKey);
+            $this->clearLoginFailures($cache, $cacheKey, $accountHash);
 
             \App\Service\AuditLogService::record(
                 'user',
@@ -597,11 +628,10 @@ class MUserInfoController extends AppController
         }
 
         if ($this->request->is('post') && !$result->isValid()) {
-            $cache->set($cacheKey, $attempts + 1, self::LOGIN_THROTTLE_TTL);
+            $this->recordLoginFailure($cache, $cacheKey, $accountHash, $ipAttempts, $accounts);
             $status = $result ? $result->getStatus() : 'Result is null';
             $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
-            $loginAccount = (string)($this->request->getData('c_login_account') ?? '');
             \App\Service\AuditLogService::record(
                 'user',
                 'user_login_failed',
@@ -617,6 +647,76 @@ class MUserInfoController extends AppController
         }
 
         return null;
+    }
+
+    /**
+     * ログイン失敗を記録する。
+     *
+     * IPごとに1エントリだけを使い、その中にログインID別の内訳を持つ。
+     * 内訳は LOGIN_TRACKED_ACCOUNTS 件までとし、上限に達した以降の未知の
+     * ログインIDは総量にのみ加算する。これにより、攻撃者が任意のログインIDを
+     * 送り続けてもキャッシュのエントリ数とサイズが増え続けない。
+     *
+     * @param \Psr\SimpleCache\CacheInterface $cache       キャッシュ
+     * @param string                          $cacheKey    IP単位のキャッシュキー
+     * @param string                          $accountHash ログインIDのハッシュ
+     * @param int                             $ipAttempts  現在のIP単位の失敗回数
+     * @param array<string, int>              $accounts    現在のログインID別の失敗回数
+     * @return void
+     */
+    private function recordLoginFailure(
+        CacheInterface $cache,
+        string $cacheKey,
+        string $accountHash,
+        int $ipAttempts,
+        array $accounts
+    ): void {
+        if (isset($accounts[$accountHash]) || count($accounts) < self::LOGIN_TRACKED_ACCOUNTS) {
+            $accounts[$accountHash] = (int)($accounts[$accountHash] ?? 0) + 1;
+        }
+
+        $cache->set(
+            $cacheKey,
+            ['total' => $ipAttempts + 1, 'accounts' => $accounts],
+            self::LOGIN_THROTTLE_TTL
+        );
+    }
+
+    /**
+     * ログイン成功時に、そのログインIDの失敗回数だけを消す。
+     *
+     * IP単位の総量は消さずTTLで自然減衰させる。1件の正規ログインで
+     * スプレー攻撃の試行枠がリセットされるのを防ぐため。
+     *
+     * @param \Psr\SimpleCache\CacheInterface $cache       キャッシュ
+     * @param string                          $cacheKey    IP単位のキャッシュキー
+     * @param string                          $accountHash ログインIDのハッシュ
+     * @return void
+     */
+    private function clearLoginFailures(
+        CacheInterface $cache,
+        string $cacheKey,
+        string $accountHash
+    ): void {
+        $state = $cache->get($cacheKey, []);
+        if (!is_array($state)) {
+            return;
+        }
+
+        $accounts = is_array($state['accounts'] ?? null) ? $state['accounts'] : [];
+        unset($accounts[$accountHash]);
+
+        if ($accounts === [] && (int)($state['total'] ?? 0) === 0) {
+            $cache->delete($cacheKey);
+
+            return;
+        }
+
+        $cache->set(
+            $cacheKey,
+            ['total' => (int)($state['total'] ?? 0), 'accounts' => $accounts],
+            self::LOGIN_THROTTLE_TTL
+        );
     }
 
     public function logout()

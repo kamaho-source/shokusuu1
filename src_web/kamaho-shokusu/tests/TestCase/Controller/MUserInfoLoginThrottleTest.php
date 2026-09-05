@@ -80,6 +80,54 @@ class MUserInfoLoginThrottleTest extends TestCase
     }
 
     /**
+     * 同じ回線の別利用者は巻き添えにならない。
+     *
+     * 施設内の職員は全員同じグローバルIPから来るため、IP単位だけで遮断すると
+     * 誰か1人の打ち間違いで全員がログイン不能になる。
+     *
+     * @return void
+     */
+    public function testOtherAccountsAreNotBlockedFromSameIp(): void
+    {
+        for ($i = 0; $i < 11; $i++) {
+            $this->postLoginFailureAs('target_user');
+        }
+        $this->assertResponseCode(429);
+
+        $this->postLoginFailureAs('another_user');
+        $this->assertResponseCode(200, '同じ回線の別利用者が巻き添えになってはいけない');
+    }
+
+    /**
+     * ログインIDを変えながら試行しても、IP単位の総量で止まる。
+     *
+     * @return void
+     */
+    public function testIpWideCapStopsPasswordSpray(): void
+    {
+        for ($i = 0; $i < 50; $i++) {
+            $this->postLoginFailureAs('sprayed_user_' . $i);
+        }
+
+        $this->postLoginFailureAs('yet_another_user');
+        $this->assertResponseCode(429, 'ログインIDを変えても総量の上限で止まること');
+    }
+
+    /**
+     * 指定したログインIDで失敗するログインPOSTを行う。
+     *
+     * @param string $account ログインID
+     * @return void
+     */
+    private function postLoginFailureAs(string $account): void
+    {
+        $this->post('/MUserInfo/login', [
+            'c_login_account' => $account,
+            'c_login_passwd'  => 'wrong-password',
+        ]);
+    }
+
+    /**
      * インターネットから直接届いたリクエストでは、偽装した X-Forwarded-For を
      * 採用せず、実際の接続元アドレスを記録する。
      *
