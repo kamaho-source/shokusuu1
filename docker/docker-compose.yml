@@ -6,9 +6,9 @@ services:
     build:
       context: ./kamakura-shokusu_web
       dockerfile: Dockerfile
-    # 80 番ポートを割り当て
+    # ホスト内からのみ到達可能にする（本番はホストnginxが 127.0.0.1:8091 へ転送）
     ports:
-      - "8091:80"
+      - "127.0.0.1:8091:80"
     # ローカル の src_web フォルダをコンテナの /var/www/html にマウント
     volumes:
       - "../src_web:/var/www/html"
@@ -27,16 +27,17 @@ services:
   kamakura-shokusu_db:
     container_name: kamakura-shokusu_web_db
     image: mysql:lts
+    # ホスト内からのみ到達可能にする（staging と同じ形に揃える）
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - "../datasource/database:/var/lib/mysql"
       - "../datasource/dump:/usr/local/dump"
     environment:
-      MYSQL_DATABASE: shokusu
-      MYSQL_USER: kamakuraadm1n
-      MYSQL_PASSWORD: hata220424
-      MYSQL_ROOT_PASSWORD: KamakurA
+      MYSQL_DATABASE:      ${DB_NAME:-shokusu}
+      MYSQL_USER:          ${DB_USER:-kamakuraadm1n}
+      MYSQL_PASSWORD:      ${DB_PASS:-changeme}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:-changeme_root}
       TZ: Asia/Tokyo
     networks:
       - network-db
@@ -45,7 +46,7 @@ services:
   network-reverse:
     image: nginx:latest
     ports:
-      - "80:80"
+      - "127.0.0.1:80:80"
     volumes:
       - "./nginx/nginx.conf:/etc/nginx/nginx.conf"
     networks:
