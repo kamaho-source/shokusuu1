@@ -100,16 +100,60 @@ class AppController extends Controller
     /**
      * クライアントの実IPアドレスを取得する。
      *
-     * X-Forwarded-For / X-Real-IP はクライアントが自由に付与できるため無条件には信頼せず、
-     * CakePHP 標準の ServerRequest::clientIp() に委譲する。
-     * 信頼するプロキシは .env の TRUSTED_PROXIES 環境変数で管理し（適用は Application::middleware()）、
-     * 未設定時は X-Forwarded-For の最右（直近のプロキシが付与した値）が採用される。
+     * X-Forwarded-For / X-Real-IP はクライアントが自由に付与できるため、無条件には信頼しない。
+     *
+     * - .env の TRUSTED_PROXIES が設定されている場合は CakePHP 標準の解決に委ねる
+     *   （信頼プロキシを除いた最左のアドレスが採用される）。
+     * - 未設定の場合は、直近の接続元がプライベート/ループバックアドレスのとき、
+     *   すなわち自前のリバースプロキシ経由で届いたときに限り X-Forwarded-For の最右
+     *   （直近のプロキシが付与した値）を採用する。
+     *
+     * インターネットから直接届いたリクエストではヘッダを一切参照しないため、
+     * クライアントがヘッダを偽装してもレート制限の回避や監査ログの汚染はできない。
      *
      * @return string IPアドレス文字列
      */
     protected function getClientIp(): string
     {
-        return (string)$this->request->clientIp();
+        if ($this->request->getTrustedProxies() !== []) {
+            return (string)$this->request->clientIp();
+        }
+
+        $remoteAddr = (string)$this->request->getEnv('REMOTE_ADDR');
+
+        if ($remoteAddr !== '' && $this->isReverseProxyAddress($remoteAddr)) {
+            $forwardedFor = $this->request->getHeaderLine('X-Forwarded-For');
+            if ($forwardedFor !== '') {
+                $addresses = array_map('trim', explode(',', $forwardedFor));
+                $candidate = (string)end($addresses);
+                if (filter_var($candidate, FILTER_VALIDATE_IP) !== false) {
+                    return $candidate;
+                }
+            }
+        }
+
+        return $remoteAddr !== '' ? $remoteAddr : (string)$this->request->clientIp();
+    }
+
+    /**
+     * インターネット経由の送信元にはなり得ないアドレス（プライベート・ループバック等）か判定する。
+     *
+     * ここが true のときだけ、接続元を自前のリバースプロキシとみなす。
+     *
+     * @param string $ip 判定対象のIPアドレス
+     * @return bool プライベート/予約済みレンジなら true
+     */
+    private function isReverseProxyAddress(string $ip): bool
+    {
+        if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
+            return false;
+        }
+
+        return filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        ) === false;
     }
 
     public function beforeFilter(EventInterface $event)

@@ -36,8 +36,9 @@ services:
     environment:
       MYSQL_DATABASE:      ${DB_NAME:-shokusu}
       MYSQL_USER:          ${DB_USER:-kamakuraadm1n}
-      MYSQL_PASSWORD:      ${DB_PASS:-changeme}
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:-changeme_root}
+      # 既定値を持たせない。未設定なら compose が起動時に失敗する（推測可能な初期パスワードでDBを作らせないため）
+      MYSQL_PASSWORD:      ${DB_PASS:?DB_PASS must be set}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS:?DB_ROOT_PASS must be set}
       TZ: Asia/Tokyo
     networks:
       - network-db

@@ -19,7 +19,6 @@ namespace App\Test\TestCase;
 use App\Application;
 use Cake\Core\Configure;
 use Cake\Error\Middleware\ErrorHandlerMiddleware;
-use Cake\Http\Middleware\ClosureDecoratorMiddleware;
 use Cake\Http\Middleware\SecurityHeadersMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\Routing\Middleware\AssetMiddleware;
@@ -99,15 +98,13 @@ class ApplicationTest extends TestCase
 
         $middleware = $app->middleware($middleware);
 
-        // 0番目は TRUSTED_PROXIES を適用するクロージャミドルウェア
-        $this->assertInstanceOf(ClosureDecoratorMiddleware::class, $middleware->current());
-        $middleware->seek(1);
+        // TRUSTED_PROXIES 未設定時は信頼プロキシ用ミドルウェアを積まない
         $this->assertInstanceOf(SecurityHeadersMiddleware::class, $middleware->current());
-        $middleware->seek(2);
+        $middleware->seek(1);
         $this->assertInstanceOf(ErrorHandlerMiddleware::class, $middleware->current());
-        $middleware->seek(3);
+        $middleware->seek(2);
         $this->assertInstanceOf(AssetMiddleware::class, $middleware->current());
-        $middleware->seek(4);
+        $middleware->seek(3);
         $this->assertInstanceOf(RoutingMiddleware::class, $middleware->current());
     }
 }

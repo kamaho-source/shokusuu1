@@ -72,25 +72,30 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->noSniff()
             ->setReferrerPolicy('same-origin');
 
-        // リバースプロキシ対応: X-Forwarded-For を CakePHP の規則に従って解釈させる。
-        // .env の TRUSTED_PROXIES に中継プロキシのIPを列挙すると、それらを除外した
-        // 最左（クライアント側）のIPが clientIp() の戻り値になる。未設定時は最右
-        // （直近のプロキシが付与した値）が採用されるため、クライアントが偽装した
-        // X-Forwarded-For をそのまま信頼することはない。
+        // リバースプロキシ対応: .env の TRUSTED_PROXIES に中継プロキシのIPを列挙すると、
+        // それらを除外した最左（クライアント側）のIPが clientIp() の戻り値になる。
+        //
+        // 空配列で setTrustedProxies() を呼ぶと trustProxy が有効になり、
+        // X-Forwarded-For / X-Real-IP / Client-IP をクライアントの申告どおりに
+        // 信頼してしまうため、設定がある場合のみ登録する。
+        // 未設定時の実IP判定は AppController::getClientIp() が担う。
         $trustedProxies = array_values(array_filter(array_map(
             'trim',
             explode(',', (string)env('TRUSTED_PROXIES', ''))
         )));
 
-        $middlewareQueue
-            ->add(function (
+        if ($trustedProxies !== []) {
+            $middlewareQueue->add(function (
                 ServerRequest $request,
                 RequestHandlerInterface $handler
             ) use ($trustedProxies): ResponseInterface {
                 $request->setTrustedProxies($trustedProxies);
 
                 return $handler->handle($request);
-            })
+            });
+        }
+
+        $middlewareQueue
             ->add($securityHeaders)
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
             ->add(new AssetMiddleware(['cacheTime' => Configure::read('Asset.cacheTime')]))

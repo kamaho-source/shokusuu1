@@ -18,6 +18,7 @@ use Cake\Cache\Cache;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
+use Cake\Http\Response;
 
 class MUserInfoController extends AppController
 {
@@ -521,9 +522,10 @@ class MUserInfoController extends AppController
      * LOGIN_THROTTLE_TTL 秒間は認証を試行せず HTTP 429 を返す（総当たり・スキャン対策）。
      * アカウント単位ではなくIP単位で制限するのは、任意アカウントを狙ったロックアウトDoSを避けるため。
      *
-     * @return \Cake\Http\Response|null
+     * @return \Cake\Http\Response|null 成功時はリダイレクト、遮断時・通常表示時は null
+     * @throws \Cake\Http\Exception\MethodNotAllowedException GET/POST 以外のメソッドの場合
      */
-    public function login()
+    public function login(): ?Response
     {
         $this->Authorization->skipAuthorization();
         $this->request->allowMethod(['get', 'post']);
@@ -613,6 +615,8 @@ class MUserInfoController extends AppController
                 $loginAccount
             );
         }
+
+        return null;
     }
 
     public function logout()
