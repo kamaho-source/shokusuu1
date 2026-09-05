@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\Log\Log;
 use Cake\ORM\Table;
@@ -193,6 +194,7 @@ class ReservationCopyService
                         'i_reservation_type',
                         'i_id_room',
                         'eat_flag',
+                        'i_approval_status',
                         'i_version',
                     ])
                     ->where([
@@ -203,7 +205,9 @@ class ReservationCopyService
                     ])
                     ->first();
                 if ($existing) {
-                    if ((int)$existing->eat_flag === 1) {
+                    // プレビュー（willSkipExisting）と同一のスキップ判定にそろえる
+                    if ((int)$existing->eat_flag === 1
+                        || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true)) {
                         $skipped++;
                         continue;
                     }
@@ -339,6 +343,7 @@ class ReservationCopyService
                         'i_reservation_type',
                         'i_id_room',
                         'eat_flag',
+                        'i_approval_status',
                         'i_version',
                     ])
                     ->where([
@@ -349,7 +354,9 @@ class ReservationCopyService
                     ])
                     ->first();
                 if ($existing) {
-                    if ((int)$existing->eat_flag === 1) {
+                    // プレビュー（willSkipExisting）と同一のスキップ判定にそろえる
+                    if ((int)$existing->eat_flag === 1
+                        || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true)) {
                         $skipped++;
                         continue;
                     }
@@ -409,31 +416,16 @@ class ReservationCopyService
             ->toList();
     }
 
+    /**
+     * 承認済み保護つきの共通更新（TIndividualReservationInfoTable に集約）。
+     *
+     * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields
+     * @return bool false = 楽観的ロック競合
+     * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     */
     private function updateReservationRowWithVersion(object $row, array $updateFields): bool
     {
-        $expectedVersion = (int)($row->i_version ?? 1);
-        $set = $updateFields;
-        $set['i_version'] = $expectedVersion + 1;
-
-        $dateValue = $row->d_reservation_date;
-        if ($dateValue instanceof Date) {
-            $dateValue = $dateValue->format('Y-m-d');
-        } else {
-            $dateValue = (string)$dateValue;
-        }
-
-        $affected = $this->TIndividualReservationInfo->updateAll(
-            $set,
-            [
-                'i_id_user' => (int)$row->i_id_user,
-                'd_reservation_date' => $dateValue,
-                'i_reservation_type' => (int)$row->i_reservation_type,
-                'i_id_room' => (int)$row->i_id_room,
-                'i_version' => $expectedVersion,
-            ]
-        );
-
-        return $affected === 1;
+        return $this->TIndividualReservationInfo->updateRowWithVersion($row, $updateFields);
     }
 
     /**
@@ -512,18 +504,11 @@ class ReservationCopyService
                 continue;
             }
 
-            $exists = $this->TIndividualReservationInfo->exists([
-                'i_id_user'           => (int)$r['i_id_user'],
-                'i_id_room'           => (int)$r['i_id_room'],
-                'd_reservation_date'  => $dstDate->format('Y-m-d'),
-                'i_reservation_type'  => (int)$r['i_reservation_type'],
-            ]);
-
-            if ($exists) {
+            if ($this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type'])) {
                 $willSkip++;
-            } else {
-                $willCopy++;
+                continue;
             }
+            $willCopy++;
         }
 
         return [
@@ -595,18 +580,11 @@ class ReservationCopyService
                 continue;
             }
 
-            $exists = $this->TIndividualReservationInfo->exists([
-                'i_id_user'           => (int)$r['i_id_user'],
-                'i_id_room'           => (int)$r['i_id_room'],
-                'd_reservation_date'  => $dstDate->format('Y-m-d'),
-                'i_reservation_type'  => (int)$r['i_reservation_type'],
-            ]);
-
-            if ($exists) {
+            if ($this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type'])) {
                 $willSkip++;
-            } else {
-                $willCopy++;
+                continue;
             }
+            $willCopy++;
         }
 
         return [
@@ -615,5 +593,34 @@ class ReservationCopyService
             'will_skip' => $willSkip,
             'invalid_date' => $invalidDate,
         ];
+    }
+
+    /**
+     * コピー先の既存レコードがスキップ対象かどうかを返す（プレビューと実行で共通の判定）。
+     *
+     * スキップするのは以下のいずれか:
+     *   - 既に有効な予約（eat_flag = 1）が存在する
+     *   - 承認済み（i_approval_status が 1/2）で変更できない
+     * 上記以外（eat_flag = 0 の無効行）は上書きコピーの対象となる。
+     */
+    private function willSkipExisting(int $userId, int $roomId, string $date, int $mealType): bool
+    {
+        $existing = $this->TIndividualReservationInfo->find()
+            ->enableAutoFields(false)
+            ->select(['eat_flag', 'i_approval_status'])
+            ->where([
+                'i_id_user'          => $userId,
+                'i_id_room'          => $roomId,
+                'd_reservation_date' => $date,
+                'i_reservation_type' => $mealType,
+            ])
+            ->first();
+
+        if ($existing === null) {
+            return false;
+        }
+
+        return (int)$existing->eat_flag === 1
+            || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true);
     }
 }

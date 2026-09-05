@@ -9,6 +9,7 @@ use App\Domain\Exception\NotFoundException;
 use App\Domain\Exception\PersistenceException;
 use App\Domain\Exception\UnauthorizedException;
 use App\Domain\ValueObject\UserRole;
+use App\Exception\ApprovedReservationException;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
@@ -365,6 +366,8 @@ class ReservationWriteService
                 'value'   => (bool)($result['value'] ?? false),
                 'details' => $result['details'] ?? [],
             ];
+        } catch (ApprovedReservationException $e) {
+            throw new ConflictException($e->getMessage());
         } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
             $errors = $e->getEntity()?->getErrors() ?? [];
             $flat   = json_encode($errors, JSON_UNESCAPED_UNICODE);
@@ -760,26 +763,16 @@ class ReservationWriteService
         return ['ok' => true, 'message' => $message, 'data' => $data, 'redirect' => $redirect];
     }
 
+    /**
+     * 承認済み保護つきの共通更新（TIndividualReservationInfoTable に集約）。
+     *
+     * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields
+     * @return bool false = 楽観的ロック競合
+     * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     */
     private function updateReservationRowWithVersion(object $row, array $updateFields): bool
     {
-        $expectedVersion = (int)($row->i_version ?? 1);
-        $set = $updateFields;
-        $set['i_version'] = $expectedVersion + 1;
-
-        $affected = $this->reservationTable->updateAll(
-            $set,
-            [
-                'i_id_user'          => (int)$row->i_id_user,
-                'd_reservation_date' => $row->d_reservation_date instanceof Date
-                    ? $row->d_reservation_date->format('Y-m-d')
-                    : (string)$row->d_reservation_date,
-                'i_reservation_type' => (int)$row->i_reservation_type,
-                'i_id_room'          => (int)$row->i_id_room,
-                'i_version'          => $expectedVersion,
-            ]
-        );
-
-        return $affected === 1;
+        return $this->reservationTable->updateRowWithVersion($row, $updateFields);
     }
 
     private function redirectToIndex(): string

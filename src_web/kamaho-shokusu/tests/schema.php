@@ -216,4 +216,32 @@ return [
             'primary' => ['type' => 'primary', 'columns' => ['i_id']],
         ],
     ],
+    't_contacts' => [
+        'columns' => [
+            'id'       => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'category' => ['type' => 'string', 'length' => 50, 'null' => false],
+            'name'     => ['type' => 'string', 'length' => 100, 'null' => false],
+            'email'    => ['type' => 'string', 'length' => 255, 'null' => false],
+            'body'     => ['type' => 'text', 'null' => false],
+            'user_id'  => ['type' => 'integer', 'null' => true],
+            'created'  => ['type' => 'datetime', 'null' => false],
+            'modified' => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['id']],
+        ],
+    ],
+    't_contact_replies' => [
+        'columns' => [
+            'id'         => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'contact_id' => ['type' => 'integer', 'null' => false],
+            'body'       => ['type' => 'text', 'null' => false],
+            'sent_at'    => ['type' => 'datetime', 'null' => false],
+            'created'    => ['type' => 'datetime', 'null' => false],
+            'modified'   => ['type' => 'datetime', 'null' => false],
+        ],
+        'constraints' => [
+            'primary' => ['type' => 'primary', 'columns' => ['id']],
+        ],
+    ],
 ];

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Exception\ApprovedReservationException;
 use ArrayObject;
 use Cake\Datasource\EntityInterface;
 use Cake\Event\EventInterface;
@@ -15,6 +16,12 @@ use Cake\Validation\Validator;
 
 class TIndividualReservationInfoTable extends Table
 {
+    /**
+     * 「承認済み」とみなす i_approval_status の値（1=ブロック長承認, 2=管理者承認済み）。
+     * この状態のレコードは予約内容を変更できない。
+     */
+    public const APPROVED_STATUSES = [1, 2];
+
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -140,6 +147,93 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
+     * 承認済みレコードかどうかを返す。
+     *
+     * @param int    $userId
+     * @param string $date     YYYY-MM-DD
+     * @param int    $roomId
+     * @param int    $mealType 1=朝,2=昼,3=夜,4=弁
+     */
+    public function isApproved(int $userId, string $date, int $roomId, int $mealType): bool
+    {
+        return $this->exists([
+            'i_id_user'          => $userId,
+            'd_reservation_date' => $date,
+            'i_id_room'          => $roomId,
+            'i_reservation_type' => $mealType,
+            'i_approval_status IN' => self::APPROVED_STATUSES,
+        ]);
+    }
+
+    /**
+     * 承認済みレコードであれば例外を投げる（予約変更の共通ガード）。
+     *
+     * @param int    $userId
+     * @param string $date     YYYY-MM-DD
+     * @param int    $roomId
+     * @param int    $mealType 1=朝,2=昼,3=夜,4=弁
+     * @param string|null $message 例外メッセージ（省略時は既定文言）
+     * @throws \App\Exception\ApprovedReservationException 承認済みの場合
+     */
+    public function assertNotApproved(int $userId, string $date, int $roomId, int $mealType, ?string $message = null): void
+    {
+        if (!$this->isApproved($userId, $date, $roomId, $mealType)) {
+            return;
+        }
+
+        throw $message === null
+            ? new ApprovedReservationException()
+            : new ApprovedReservationException($message);
+    }
+
+    /**
+     * 楽観的ロック + 承認済み保護つきで予約1行を更新する。
+     *
+     * 予約行を書き換える経路はすべてこのメソッドを通すこと。
+     * 承認済み保護を一箇所に集約し、経路ごとの実装漏れを防ぐ。
+     *
+     * @param object $row 更新対象行（複合主キー列と i_version を保持していること）
+     * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields 更新する列と値
+     * @return bool true=更新成功 / false=楽観的ロック競合
+     * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     */
+    public function updateRowWithVersion(object $row, array $updateFields): bool
+    {
+        $userId   = (int)$row->i_id_user;
+        $roomId   = (int)$row->i_id_room;
+        $mealType = (int)$row->i_reservation_type;
+        $date     = $row->d_reservation_date instanceof Date
+            ? $row->d_reservation_date->format('Y-m-d')
+            : (string)$row->d_reservation_date;
+
+        $expectedVersion = (int)($row->i_version ?? 1);
+        $set = $updateFields;
+        $set['i_version'] = $expectedVersion + 1;
+
+        $affected = $this->updateAll($set, [
+            'i_id_user'          => $userId,
+            'd_reservation_date' => $date,
+            'i_id_room'          => $roomId,
+            'i_reservation_type' => $mealType,
+            'i_version'          => $expectedVersion,
+            // 承認済み行は更新対象から除外する（i_approval_status が NULL の行は未承認扱い）
+            'OR' => [
+                'i_approval_status IS'     => null,
+                'i_approval_status NOT IN' => self::APPROVED_STATUSES,
+            ],
+        ]);
+
+        if ($affected === 1) {
+            return true;
+        }
+
+        // 更新できなかった理由が「承認済み」なのか「競合」なのかを切り分ける
+        $this->assertNotApproved($userId, $date, $roomId, $mealType);
+
+        return false;
+    }
+
+    /**
      * トグル（直前: i_change_flag のみ / 通常: eat_flag のみ）
      *
      * @param int    $userId
@@ -151,6 +245,9 @@ class TIndividualReservationInfoTable extends Table
      * @param int|null $eatFlag 上書き用（コントローラから明示指定）
      * @param int|null $changeFlag 上書き用（コントローラから明示指定）
      * @return array{ value: bool, details: array{breakfast:bool,lunch:bool,dinner:bool,bento:bool} }
+     * @throws \InvalidArgumentException $meal が 1〜4 以外の場合
+     * @throws \App\Exception\ApprovedReservationException 対象または相互排他の相手が承認済みの場合
+     * @throws \Cake\ORM\Exception\PersistenceFailedException 新規保存失敗、または楽観的ロック競合の場合
      */
     public function toggleMeal(
         int $userId,
@@ -200,12 +297,8 @@ class TIndividualReservationInfoTable extends Table
                 ])
                 ->first();
 
-            if ($entity) {
-                $status = (int)($entity->i_approval_status ?? 0);
-                if ($status === 1 || $status === 2) {
-                    $entity->setError('i_approval_status', '承認済みの予約は変更できません。');
-                    throw new PersistenceFailedException($entity, 'Already approved.');
-                }
+            if ($entity && in_array((int)($entity->i_approval_status ?? 0), self::APPROVED_STATUSES, true)) {
+                throw new ApprovedReservationException();
             }
 
             $isNew = false;
@@ -237,22 +330,14 @@ class TIndividualReservationInfoTable extends Table
                 $this->saveOrFail($entity);
             } else {
                 // 既存行: 更新情報のみ
-                $expectedVersion = (int)($entity->i_version ?? 1);
-                $nextVersion = $expectedVersion + 1;
-                $affected = $this->updateAll([
+                $nextVersion = (int)($entity->i_version ?? 1) + 1;
+                $ok = $this->updateRowWithVersion($entity, [
                     'eat_flag'      => (int)$entity->eat_flag,
                     'i_change_flag' => (int)$entity->i_change_flag,
                     'dt_update'     => $now,
                     'c_update_user' => $actor,
-                    'i_version'     => $nextVersion,
-                ], [
-                    'i_id_user'          => $userId,
-                    'd_reservation_date' => $date,
-                    'i_id_room'          => $roomId,
-                    'i_reservation_type' => $meal,
-                    'i_version'          => $expectedVersion,
                 ]);
-                if ($affected !== 1) {
+                if (!$ok) {
                     $entity->setError('conflict', '予約が更新されています。画面を再読み込みしてください。');
                     throw new PersistenceFailedException($entity, 'Optimistic lock conflict.');
                 }
@@ -267,7 +352,8 @@ class TIndividualReservationInfoTable extends Table
                     ->enableAutoFields(false)
                     ->select([
                         'i_id_user','d_reservation_date','i_id_room','i_reservation_type',
-                        'eat_flag','i_change_flag','i_version','dt_create','c_create_user','dt_update','c_update_user'
+                        'eat_flag','i_change_flag','i_version','dt_create','c_create_user','dt_update','c_update_user',
+                        'i_approval_status'
                     ])
                     ->where([
                         'i_id_user'          => $userId,
@@ -276,6 +362,15 @@ class TIndividualReservationInfoTable extends Table
                         'i_reservation_type' => $opponentMeal,
                     ])
                     ->first();
+
+                // 相互排他で相手を強制OFFにするため、相手が承認済みなら変更を拒否する
+                if ($opponent && in_array((int)($opponent->i_approval_status ?? 0), self::APPROVED_STATUSES, true)) {
+                    throw new ApprovedReservationException(
+                        $opponentMeal === 2
+                            ? '同じ日の昼食予約が承認済みのため変更できません。'
+                            : '同じ日の弁当予約が承認済みのため変更できません。'
+                    );
+                }
 
                 $oppIsNew = false;
                 if (!$opponent) {
@@ -304,22 +399,14 @@ class TIndividualReservationInfoTable extends Table
                     // dt_update は触らない
                     $this->saveOrFail($opponent);
                 } else {
-                    $oppExpectedVersion = (int)($opponent->i_version ?? 1);
-                    $oppNextVersion = $oppExpectedVersion + 1;
-                    $affected = $this->updateAll([
+                    $oppNextVersion = (int)($opponent->i_version ?? 1) + 1;
+                    $oppOk = $this->updateRowWithVersion($opponent, [
                         'eat_flag'      => (int)$opponent->eat_flag,
                         'i_change_flag' => (int)$opponent->i_change_flag,
                         'dt_update'     => $now,
                         'c_update_user' => $actor,
-                        'i_version'     => $oppNextVersion,
-                    ], [
-                        'i_id_user'          => $userId,
-                        'd_reservation_date' => $date,
-                        'i_id_room'          => $roomId,
-                        'i_reservation_type' => $opponentMeal,
-                        'i_version'          => $oppExpectedVersion,
                     ]);
-                    if ($affected !== 1) {
+                    if (!$oppOk) {
                         $opponent->setError('conflict', '予約が更新されています。画面を再読み込みしてください。');
                         throw new PersistenceFailedException($opponent, 'Optimistic lock conflict.');
                     }
