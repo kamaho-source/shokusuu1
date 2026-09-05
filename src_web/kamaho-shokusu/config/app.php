@@ -424,6 +424,18 @@ return [
         'timeout' => 720, // 720分（12時間）
         'ini' => [
             'session.gc_maxlifetime' => 43200, // 43200秒（12時間）: timeout と整合させる
+            // セッションCookieのセキュリティ属性（php.ini 側は未設定のためアプリ側で明示する）
+            'session.cookie_httponly' => true,
+            // HTTPS前提。HTTPのローカル開発では debug=true のため自動的に false になる。
+            // 明示指定したい場合は .env の SESSION_COOKIE_SECURE で上書きする。
+            'session.cookie_secure' => filter_var(
+                env('SESSION_COOKIE_SECURE', !filter_var(env('DEBUG', false), FILTER_VALIDATE_BOOLEAN)),
+                FILTER_VALIDATE_BOOLEAN
+            ),
+            // 外部サイトからのリンク遷移でセッションが切れるのを避けるため Strict ではなく Lax
+            'session.cookie_samesite' => 'Lax',
+            // 未初期化のセッションIDを受け付けない（セッションアダプション対策）
+            'session.use_strict_mode' => 1,
         ],
     ],
 ];

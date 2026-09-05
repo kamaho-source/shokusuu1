@@ -14,12 +14,19 @@ use App\Service\UserPermissionService;
 use App\Service\UserRestoreService;
 use App\Service\UserRoomAssignmentService;
 use Authorization\Exception\ForbiddenException;
+use Cake\Cache\Cache;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
 
 class MUserInfoController extends AppController
 {
+    /** @var int 同一IPからのログイン失敗の許容回数 */
+    private const LOGIN_MAX_ATTEMPTS = 10;
+
+    /** @var int ログイン失敗カウンタの保持秒数（15分） */
+    private const LOGIN_THROTTLE_TTL = 900;
+
     protected $MUserInfo;
     protected $MRoomInfo;
 
@@ -507,10 +514,45 @@ class MUserInfoController extends AppController
         return $this->redirect(['action' => 'view', $userId]);
     }
 
+    /**
+     * ログイン。
+     *
+     * 同一IPからのログイン失敗が LOGIN_MAX_ATTEMPTS 回に達した場合、
+     * LOGIN_THROTTLE_TTL 秒間は認証を試行せず HTTP 429 を返す（総当たり・スキャン対策）。
+     * アカウント単位ではなくIP単位で制限するのは、任意アカウントを狙ったロックアウトDoSを避けるため。
+     *
+     * @return \Cake\Http\Response|null
+     */
     public function login()
     {
         $this->Authorization->skipAuthorization();
         $this->request->allowMethod(['get', 'post']);
+
+        $ip       = $this->getClientIp();
+        $cache    = Cache::pool('default');
+        $cacheKey = 'login_fail_' . md5($ip);
+        $attempts = (int)$cache->get($cacheKey, 0);
+
+        if ($this->request->is('post') && $attempts >= self::LOGIN_MAX_ATTEMPTS) {
+            $loginAccount = (string)($this->request->getData('c_login_account') ?? '');
+            \App\Service\AuditLogService::record(
+                'user',
+                'user_login_blocked',
+                $loginAccount ?: '不明',
+                0,
+                'm_user_info',
+                null,
+                ['login_account' => $loginAccount, 'attempts' => $attempts],
+                $ip,
+                0,
+                $loginAccount
+            );
+            $this->Flash->error(__('ログイン試行回数が上限に達しました。しばらく待ってから再度お試しください。'));
+            $this->setResponse($this->getResponse()->withStatus(429));
+
+            return null;
+        }
+
         $result = $this->Authentication->getResult();
 
         if ($result && $result->isValid()) {
@@ -524,6 +566,8 @@ class MUserInfoController extends AppController
 
             // セッション固定化攻撃対策：ログイン成功時にセッションIDを再生成する
             $this->request->getSession()->renew();
+
+            $cache->delete($cacheKey);
 
             \App\Service\AuditLogService::record(
                 'user',
@@ -551,6 +595,7 @@ class MUserInfoController extends AppController
         }
 
         if ($this->request->is('post') && !$result->isValid()) {
+            $cache->set($cacheKey, $attempts + 1, self::LOGIN_THROTTLE_TTL);
             $status = $result ? $result->getStatus() : 'Result is null';
             $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
