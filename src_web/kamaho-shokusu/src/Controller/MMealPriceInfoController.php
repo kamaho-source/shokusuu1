@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Exception\InvalidInputException;
 use App\Service\ApiResponseService;
 use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
@@ -86,7 +87,7 @@ class MMealPriceInfoController extends AppController
             $mMealPriceInfo->c_create_user = $user ? $user->get('c_user_name') : null;
 
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
-                \App\Service\AuditLogService::record('master', 'meal_price_create', $mMealPriceInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+                \App\Service\AuditLogService::record('master', 'meal_price_create', $mMealPriceInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id, null, $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -119,7 +120,7 @@ class MMealPriceInfoController extends AppController
             $mMealPriceInfo->dt_update = date('Y-m-d H:i:s');
             $mMealPriceInfo->c_update_user = $user ? $user->get('c_user_name') : null;
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
-                \App\Service\AuditLogService::record('master', 'meal_price_update', $mMealPriceInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+                \App\Service\AuditLogService::record('master', 'meal_price_update', $mMealPriceInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id, null, $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
                 $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -148,7 +149,7 @@ class MMealPriceInfoController extends AppController
         }
         $user = $this->request->getAttribute('identity');
         $deleted = $this->MMealPriceInfo->delete($mMealPriceInfo);
-        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''));
+        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id, null, $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''));
         if ($deleted) {
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {
@@ -188,7 +189,11 @@ class MMealPriceInfoController extends AppController
         $year  = (int)$this->request->getQuery('year', date('Y'));
         $month = (int)$this->request->getQuery('month', date('n'));
 
-        $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
+        try {
+            $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
+        } catch (InvalidInputException $e) {
+            return $apiResponse->error($this->response, $e->getMessage(), $e->getStatusCode());
+        }
 
         $identity = $this->request->getAttribute('identity');
         \App\Service\AuditLogService::record(
@@ -223,7 +228,11 @@ class MMealPriceInfoController extends AppController
         $year  = (int)$this->request->getQuery('year', date('Y'));
         $month = (int)$this->request->getQuery('month', date('n'));
 
-        $result = $this->mealSummaryExportService->aggregatePreview($year, $month);
+        try {
+            $result = $this->mealSummaryExportService->aggregatePreview($year, $month);
+        } catch (InvalidInputException $e) {
+            return $apiResponse->error($this->response, $e->getMessage(), $e->getStatusCode());
+        }
 
         return $apiResponse->success($this->response, $result);
     }

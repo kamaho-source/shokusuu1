@@ -137,6 +137,15 @@ class ReservationBulkService
                                 continue;
                             }
                             if ((int)$existing->i_change_flag !== $changeFlag) {
+                                // 承認済み（ブロック長承認済=1 / 管理者最終承認済=2）は給与控除の確定根拠のため変更させない。
+                                // トグル（TIndividualReservationInfoTable::toggleMeal）・実食保存と同じ判定。
+                                if (in_array((int)($existing->i_approval_status ?? 0), [1, 2], true)) {
+                                    $connection->rollback();
+                                    return [
+                                        'ok'      => false,
+                                        'message' => '承認済みの予約は変更できません。',
+                                    ];
+                                }
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
                                 if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom)) {
@@ -193,6 +202,24 @@ class ReservationBulkService
 
             $connection->commit();
             $this->invalidateCachesForDates((int)$roomId, array_keys($dayUsers), $dayUsers);
+
+            if ($updated > 0 || $created > 0) {
+                AuditLogService::record(
+                    'reservation',
+                    'bulk_change_edit',
+                    $loginName,
+                    $loginUserId,
+                    't_individual_reservation_info',
+                    (string)$roomId,
+                    [
+                        'room_id' => $roomId,
+                        'dates'   => array_keys($dayUsers),
+                        'updated' => $updated,
+                        'created' => $created,
+                    ]
+                );
+            }
+
             return [
                 'ok' => true,
                 'updated' => $updated,
@@ -343,7 +370,7 @@ class ReservationBulkService
             if (!empty($selectedDates) && !empty($selectedMealTypes)) {
                 $existingRows = $reservationTable->find()
                     ->enableAutoFields(false)
-                    ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_version'])
+                    ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_version', 'i_approval_status'])
                     ->where([
                         'd_reservation_date IN' => $selectedDates,
                         'i_reservation_type IN' => $selectedMealTypes,
@@ -468,7 +495,7 @@ class ReservationBulkService
                 if (!empty($dates) && !empty($userIds)) {
                     $rows = $reservationTable->find()
                         ->enableAutoFields(false)
-                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
+                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version', 'i_approval_status'])
                         ->where([
                             'd_reservation_date IN' => $dates,
                             'i_id_user IN' => $userIds,
@@ -606,7 +633,7 @@ class ReservationBulkService
                 if (!empty($selectedDates) && !empty($userIds)) {
                     $rows = $reservationTable->find()
                         ->enableAutoFields(false)
-                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_version'])
+                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_version', 'i_approval_status'])
                         ->where([
                             'd_reservation_date IN' => $selectedDates,
                             'i_id_user IN' => $userIds,
@@ -713,6 +740,17 @@ class ReservationBulkService
             $connection = $reservationTable->getConnection();
             $connection->begin();
             try {
+                // 承認済み（ブロック長承認済=1 / 管理者最終承認済=2）は給与控除の確定根拠のため変更させない
+                foreach (array_merge(array_values($rowsToDeactivate), array_values($rowsToActivate)) as $row) {
+                    if (in_array((int)($row->i_approval_status ?? 0), [1, 2], true)) {
+                        $connection->rollback();
+                        return [
+                            'ok'      => false,
+                            'message' => '承認済みの予約は変更できません。',
+                        ];
+                    }
+                }
+
                 foreach ($rowsToDeactivate as $row) {
                     $ok = $this->updateReservationRowWithVersion($reservationTable, $row, [
                         'eat_flag'       => 0,

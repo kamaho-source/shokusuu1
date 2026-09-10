@@ -458,4 +458,121 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertSame(0, (int)$row->eat_flag, '取り消しが保存されていない');
         $this->assertSame(0, (int)$row->i_change_flag);
     }
+
+    // ---------------------------------------------------------------------------
+    // 承認済みロック（給与控除の確定根拠を後から書き換えられないこと）
+    // ---------------------------------------------------------------------------
+
+    /**
+     * 直前一括編集: 管理者最終承認済み(status=2)の予約は取り消せない。
+     * （ログイン=職員user2 が児童user3 の予約を編集する経路。権限自体は通る組み合わせ）
+     */
+    public function testBulkChangeEditRejectsAdminApprovedRow(): void
+    {
+        $this->insertReservation([
+            'i_id_user'          => 3,
+            'd_reservation_date' => '2026-06-02',
+            'i_approval_status'  => 2,
+        ]);
+
+        $result = $this->callBulkChangeEdit([
+            '2026-06-02' => ['3' => ['1' => '0']],
+        ]);
+
+        $this->assertFalse($result['ok'], '承認済みの予約が変更できてしまっている');
+        $this->assertSame('承認済みの予約は変更できません。', $result['message']);
+
+        $row = $this->fetchReservation(3, '2026-06-02', 1, 1);
+        $this->assertSame(1, (int)$row->i_change_flag, '承認済み行の i_change_flag が書き換えられている');
+    }
+
+    /**
+     * 直前一括編集: ブロック長承認済み(status=1)も同様に変更できない。
+     */
+    public function testBulkChangeEditRejectsBlockLeaderApprovedRow(): void
+    {
+        $this->insertReservation([
+            'i_id_user'          => 3,
+            'd_reservation_date' => '2026-06-03',
+            'i_approval_status'  => 1,
+        ]);
+
+        $result = $this->callBulkChangeEdit([
+            '2026-06-03' => ['3' => ['1' => '0']],
+        ]);
+
+        $this->assertFalse($result['ok']);
+
+        $row = $this->fetchReservation(3, '2026-06-03', 1, 1);
+        $this->assertSame(1, (int)$row->i_change_flag);
+    }
+
+    /**
+     * 直前一括編集: 承認済み予約への「追加」方向（0→1）も拒否する。
+     */
+    public function testBulkChangeEditRejectsTurningOnApprovedRow(): void
+    {
+        $this->insertReservation([
+            'i_id_user'          => 2,
+            'd_reservation_date' => '2026-06-05',
+            'eat_flag'           => 0,
+            'i_change_flag'      => 0,
+            'i_approval_status'  => 2,
+        ]);
+
+        $result = $this->callBulkChangeEdit([
+            '2026-06-05' => ['2' => ['1' => '1']],
+        ]);
+
+        $this->assertFalse($result['ok'], '承認済み予約に食事を追加できてしまっている');
+
+        $row = $this->fetchReservation(2, '2026-06-05', 1, 1);
+        $this->assertSame(0, (int)$row->i_change_flag);
+    }
+
+    /**
+     * 一括登録（チェックOFF）でも承認済みの予約は取り消せない。
+     */
+    public function testBulkAddRejectsApprovedRowDeactivation(): void
+    {
+        $this->insertReservation([
+            'i_id_user'          => 3,
+            'd_reservation_date' => '2026-06-15',
+            'i_approval_status'  => 2,
+        ]);
+
+        $result = $this->callBulkAdd(
+            ['2026-06-15' => ['3' => ['1' => '0']]],
+            1,
+            false
+        );
+
+        $this->assertFalse($result['ok'], '承認済みの予約が一括登録画面から取り消せてしまっている');
+        $this->assertSame('承認済みの予約は変更できません。', $result['message']);
+
+        $row = $this->fetchReservation(3, '2026-06-15', 1, 1);
+        $this->assertSame(1, (int)$row->eat_flag);
+        $this->assertSame(1, (int)$row->i_change_flag);
+    }
+
+    /**
+     * 未承認(status=0)の予約はこれまで通り変更できる（承認ロックの過剰適用を防ぐ回帰テスト）。
+     */
+    public function testBulkChangeEditStillAllowsPendingRow(): void
+    {
+        $this->insertReservation([
+            'i_id_user'          => 3,
+            'd_reservation_date' => '2026-06-04',
+            'i_approval_status'  => 0,
+        ]);
+
+        $result = $this->callBulkChangeEdit([
+            '2026-06-04' => ['3' => ['1' => '0']],
+        ]);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+
+        $row = $this->fetchReservation(3, '2026-06-04', 1, 1);
+        $this->assertSame(0, (int)$row->i_change_flag, '未承認の予約まで変更できなくなっている');
+    }
 }

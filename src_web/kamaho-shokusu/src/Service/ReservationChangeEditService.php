@@ -230,6 +230,7 @@ class ReservationChangeEditService
                         'i_id_room',
                         'i_change_flag',
                         'i_version',
+                        'i_approval_status',
                     ])
                     ->where([
                         'i_id_user IN' => $targetUserIds,
@@ -293,6 +294,11 @@ class ReservationChangeEditService
 
                         $targetRow = $existingInRoom ?? $existingForMeal;
                         if ((int)$targetRow->i_change_flag !== $changeFlag || (int)$targetRow->i_id_room !== $roomId) {
+                            // 承認済み（ブロック長承認済=1 / 管理者最終承認済=2）は給与控除の確定根拠のため変更させない
+                            if (in_array((int)($targetRow->i_approval_status ?? 0), [1, 2], true)) {
+                                $skipped[] = "利用者ID {$userId} の予約は承認済みのため変更できません。";
+                                continue;
+                            }
                             $updateKey = implode(':', [$userId, $mealType, (int)$targetRow->i_id_room]);
                             $rowsToUpdate[$updateKey] = [
                                 'row' => $targetRow,
@@ -343,6 +349,26 @@ class ReservationChangeEditService
         } catch (\Throwable $e) {
             $connection->rollback();
             throw $e;
+        }
+
+        if (!empty($updated) || !empty($created)) {
+            AuditLogService::record(
+                'reservation',
+                'change_edit',
+                (string)($loginUser?->get('c_user_name') ?? 'system'),
+                $loginUid,
+                't_individual_reservation_info',
+                (string)$roomId,
+                [
+                    'room_id' => $roomId,
+                    'date'    => $date,
+                    'updated' => $updated,
+                    'created' => $created,
+                ],
+                null,
+                1,
+                (string)($loginUser?->get('c_login_account') ?? '')
+            );
         }
 
         return [

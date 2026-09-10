@@ -109,8 +109,15 @@ class ApprovalController extends AppController
             return $this->jsonError('対象が指定されていません', 400);
         }
 
+        if (!$this->keysAreInMyBlocks($keys, $user)) {
+            return $this->jsonForbidden();
+        }
+
         try {
             $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor, $this->getClientIp(), $actorLoginId);
+            if (!$ok && $this->allKeysBelongTo($keys, $approver)) {
+                return $this->jsonError('自分自身の予約は承認できません。管理者に承認を依頼してください。', 422);
+            }
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderApprove error: ' . $e->getMessage(), 'error');
@@ -137,8 +144,16 @@ class ApprovalController extends AppController
             return $this->jsonError('対象が指定されていません', 400);
         }
 
+        if (!$this->keysAreInMyBlocks($keys, $user)) {
+            return $this->jsonForbidden();
+        }
+
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId);
+            // 自己差し戻し防止: ブロック長自身の予約は対象から除外する
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId, $approver);
+            if (!$ok && $this->allKeysBelongTo($keys, $approver)) {
+                return $this->jsonError('自分自身の予約は差し戻せません。管理者に依頼してください。', 422);
+            }
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
@@ -294,6 +309,53 @@ class ApprovalController extends AppController
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
+
+    /**
+     * ブロック長操作の対象キーが、すべて自分の担当ブロックに属するかを検証する。
+     *
+     * 一覧は担当ブロックで絞り込まれるが、承認・差し戻しAPIはキーをリクエストから受け取るため、
+     * ここで検証しないと他ブロックの予約を承認・差し戻しできてしまう（IDOR）。
+     * 管理者は全ブロックを操作できるため検証を免除する。
+     *
+     * @param array $keys 対象キーの配列
+     * @param \Authentication\IdentityInterface|null $user 操作者の identity
+     */
+    private function keysAreInMyBlocks(array $keys, $user): bool
+    {
+        if (UserRole::isAdmin((int)($user?->get('i_admin') ?? 0))) {
+            return true;
+        }
+
+        $myRoomIds = $this->roomAccessService->getUserRoomIds((int)($user?->get('i_id_user') ?? 0));
+        if (empty($myRoomIds)) {
+            return false;
+        }
+
+        foreach ($keys as $key) {
+            $roomId = (int)($key['i_id_room'] ?? 0);
+            if ($roomId <= 0 || !in_array($roomId, $myRoomIds, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * 対象キーがすべて指定ユーザー自身の予約かどうかを返す（自己承認スキップ時の案内用）。
+     *
+     * @param array $keys 対象キーの配列
+     */
+    private function allKeysBelongTo(array $keys, int $userId): bool
+    {
+        foreach ($keys as $key) {
+            if ((int)($key['i_id_user'] ?? 0) !== $userId) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private function jsonResponse(array $data, int $status = 200): Response
     {

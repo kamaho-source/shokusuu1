@@ -141,4 +141,53 @@ class ReservationChangeEditServiceTest extends TestCase
 
         $this->assertTrue($result[0]['allowEdit']);
     }
+
+    // ----------------------------------------------------------------
+    // processUpdate — 承認済みロック
+    // ----------------------------------------------------------------
+
+    /**
+     * 直前編集: 承認済み(status=2)の予約は給与控除の確定根拠のため変更させない。
+     */
+    public function testProcessUpdate_skipsApprovedRow(): void
+    {
+        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        \Cake\Datasource\ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user'          => 3,
+            'd_reservation_date' => '2026-06-20',
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+            'i_version'          => 1,
+            'i_approval_status'  => 2,
+            'dt_create'          => '2026-06-01 00:00:00',
+            'c_create_user'      => 'system',
+        ]);
+
+        $result = $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 0]]],
+            [3],
+            '2026-06-20',
+            1,
+            null,
+            $reservationTable,
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true // isRoomManager（権限は通る状態にして承認ロックだけを検証する）
+        );
+
+        $this->assertSame([], $result['updated'], '承認済みの予約が更新されている');
+        $this->assertNotEmpty($result['skipped']);
+        $this->assertStringContainsString('承認済み', $result['skipped'][0]);
+
+        $row = $reservationTable->find()
+            ->where([
+                'i_id_user' => 3,
+                'd_reservation_date' => '2026-06-20',
+                'i_reservation_type' => 1,
+                'i_id_room' => 1,
+            ])
+            ->first();
+        $this->assertSame(1, (int)$row->i_change_flag);
+    }
 }

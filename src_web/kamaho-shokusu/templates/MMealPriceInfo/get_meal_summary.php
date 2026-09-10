@@ -221,7 +221,11 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
                     const response = await fetch(
                         `<?= h($exportSummaryUrl) ?>?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`
                     );
-                    if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
+                    if (!response.ok) {
+                        // サーバーが返す理由（単価未登録など）をそのまま利用者に見せる
+                        const err = await response.json().catch(() => null);
+                        throw new Error(err?.message || `APIエラー: ${response.status}`);
+                    }
 
                     const raw = await response.json();
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
@@ -310,7 +314,7 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
                     console.info("控除データのエクセルファイルが生成されました！");
                 } catch (error) {
                     console.error("控除データのエクスポート中にエラー:", error);
-                    alert("控除データのエクスポート中にエラーが発生しました。詳細はコンソールを確認してください。");
+                    alert(error.message || "控除データのエクスポート中にエラーが発生しました。");
                 }
             });
         } else {
@@ -361,7 +365,11 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
                     const response = await fetch(
                         `<?= h($exportSummaryPreviewUrl) ?>?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`
                     );
-                    if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
+                    if (!response.ok) {
+                        // サーバーが返す理由（単価未登録など）をそのまま利用者に見せる
+                        const err = await response.json().catch(() => null);
+                        throw new Error(err?.message || `APIエラー: ${response.status}`);
+                    }
 
                     const raw  = await response.json();
                     const data = (raw && typeof raw === "object" && raw.ok !== undefined)
@@ -475,7 +483,7 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
 
                 } catch (error) {
                     console.error("プレビューエクスポートエラー:", error);
-                    alert("プレビューエクスポート中にエラーが発生しました。詳細はコンソールを確認してください。");
+                    alert(error.message || "プレビューエクスポート中にエラーが発生しました。");
                 }
             });
         }

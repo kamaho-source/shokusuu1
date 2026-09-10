@@ -292,7 +292,8 @@ class ApprovalService
      */
     public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING]);
+        // 自己承認防止: ブロック長自身の予約は承認対象から除外する
+        $result = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId);
         AuditLogService::record(
             'approval',
             'approval_block_leader',
@@ -358,11 +359,12 @@ class ApprovalService
      * @param string|null $reason
      * @param string      $ipAddress
      * @param string      $actorLoginId
+     * @param int|null    $excludeUserId 差し戻し対象から除外するユーザーID（自己差し戻し防止用）
      * @return bool
      */
-    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = ''): bool
+    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = '', ?int $excludeUserId = null): bool
     {
-        $result = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
+        $result = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER], $excludeUserId);
         AuditLogService::record(
             'approval',
             'approval_rejected',

@@ -151,4 +151,49 @@ class ApprovalServiceTest extends TestCase
         $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), '最終承認済みは差し戻せないこと');
     }
 
+    // ----------------------------------------------------------------
+    // 自己承認防止
+    // ----------------------------------------------------------------
+
+    /**
+     * ブロック長は自分自身の予約を承認できない（承認者ID = 予約者ID をスキップする）。
+     */
+    public function testBlockLeaderApprove_skips_own_reservation(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_PENDING);
+
+        // key1 の予約者は i_id_user = 1。承認者も 1 として自己承認を試みる
+        $result = $this->service->blockLeaderApprove([$this->key1], 1, 'tester');
+
+        $this->assertFalse($result, '自分自身の予約を承認できてしまっている');
+        $this->assertSame(ApprovalService::STATUS_PENDING, $this->getStatus(), 'ステータスが変更されていないこと');
+    }
+
+    /**
+     * ブロック長は自分自身の予約を差し戻せない（控除逃れの防止）。
+     */
+    public function testBlockLeaderReject_skips_own_reservation(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_PENDING);
+
+        $result = $this->service->reject([$this->key1], 1, 'tester', '理由', '', '', 1);
+
+        $this->assertFalse($result, '自分自身の予約を差し戻せてしまっている');
+        $this->assertSame(ApprovalService::STATUS_PENDING, $this->getStatus());
+    }
+
+    /**
+     * 管理者の最終承認は自己承認防止の対象外
+     * （対象にすると管理者自身の食事が永久に控除されなくなるため）。
+     */
+    public function testAdminApprove_allows_own_reservation(): void
+    {
+        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER);
+
+        $result = $this->service->adminApprove([$this->key1], 1, 'tester');
+
+        $this->assertTrue($result);
+        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus());
+    }
+
 }

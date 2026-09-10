@@ -8,16 +8,22 @@ use App\Domain\ValueObject\UserRole;
 use App\Model\Entity\MMealPriceInfo;
 use Authorization\IdentityInterface;
 
+/**
+ * 食数単価マスタ・食事控除表のアクセス制御ポリシー。
+ *
+ * 単価情報と控除表は全職員の給与控除額を含むため、全アクション管理者限定とする。
+ * （画面導線も管理者メニュー内にのみ存在する）
+ */
 class MMealPriceInfoPolicy
 {
     public function canIndex(?IdentityInterface $user, MMealPriceInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->isAdmin($user);
     }
 
     public function canView(?IdentityInterface $user, MMealPriceInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->isAdmin($user);
     }
 
     public function canAdd(?IdentityInterface $user, MMealPriceInfo $resource): bool
@@ -55,11 +61,6 @@ class MMealPriceInfoPolicy
         }
 
         return false;
-    }
-
-    private function isAuthenticated(?IdentityInterface $user): bool
-    {
-        return $this->getOriginalIdentity($user) !== null;
     }
 
     private function getOriginalIdentity(?IdentityInterface $user): object|array|null
