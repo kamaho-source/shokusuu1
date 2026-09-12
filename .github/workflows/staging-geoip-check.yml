@@ -1,0 +1,49 @@
+name: Verify staging GeoIP restriction
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/staging-nginx-jp]
+    paths:
+      - .github/workflows/staging-geoip-check.yml
+      - infra/nginx/stg.kamaho-shokusu.jp.conf
+
+permissions:
+  contents: read
+
+jobs:
+  overseas-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify HTTPS restriction from the hosted runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=https://stg.kamaho-shokusu.jp
+          check() {
+            expected="$1"
+            url="$2"
+            shift 2
+            actual=$(curl --silent --show-error --max-time 15 --output /dev/null \
+              --write-out '%{http_code}' "$@" "$url")
+            printf '%s expected=%s actual=%s\n' "$url" "$expected" "$actual"
+            test "$actual" = "$expected"
+          }
+          check 403 "$base/"
+          check 403 "$base/kamaho-shokusu/MUserInfo/login"
+          check 403 "$base/kamaho-shokusu/m-user-info/login"
+          check 403 "$base/kamaho-shokusu/MUserInfo/login" \
+            -H 'X-Forwarded-For: 133.242.0.1' -H 'X-Real-IP: 133.242.0.1'
+          check 200 "$base/healthz"
+          check 405 "$base/healthz" -X POST
+          check 301 http://stg.kamaho-shokusu.jp/
+          # Missing challenge must be a local 404, rather than a GeoIP 403.
+          check 404 http://stg.kamaho-shokusu.jp/.well-known/acme-challenge/geoip-missing
+          # Port 8091 must not provide an alternate route to the application.
+          if curl --silent --show-error --connect-timeout 5 --max-time 8 \
+            --output /dev/null http://stg.kamaho-shokusu.jp:8091/; then
+            echo 'FAIL: application port is reachable from the Internet'
+            exit 1
+          fi
+          echo 'PASS: overseas restriction and monitoring exceptions'

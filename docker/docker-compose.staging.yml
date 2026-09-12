@@ -4,7 +4,7 @@ services:
     container_name: stg_web
     image: ghcr.io/kamaho-source/shokusuu1/web:staging
     ports:
-      - "8091:80"
+      - "127.0.0.1:8091:80"
     volumes:
       - "../src_web:/var/www/html"
     env_file:
