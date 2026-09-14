@@ -138,7 +138,7 @@ class ApprovalController extends AppController
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId);
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId, $approver);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
@@ -281,7 +281,7 @@ class ApprovalController extends AppController
             ]);
         }
 
-        $query->order(['TApprovalLog.dt_create' => 'DESC']);
+        $query->orderBy(['TApprovalLog.dt_create' => 'DESC']);
 
         $logs = $this->paginate($query, [
             'limit' => 50,

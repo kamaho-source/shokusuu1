@@ -263,6 +263,10 @@ class RoomTransferScheduleService
                     'c_update_user'      => 'batch',
                     'dt_update'          => $now,
                 ]);
+                // 異動は予約内容の変更ではないため承認状態を引き継ぐ。
+                // （引き継がないと承認済みの予約が未承認に戻る一方で集計だけ加算されてしまう）
+                // i_approval_status は mass assign 不可のため個別に設定する。
+                $newRow->set('i_approval_status', (int)($old->i_approval_status ?? 0));
                 $indvResTable->saveOrFail($newRow);
 
                 // eat_flag=1 の行だけ集計テーブルを更新

@@ -119,7 +119,7 @@ class ReservationViewService
                     'MUserGroup.active_flag' => 0,
                     'MUserInfo.i_del_flag' => 0,
                 ])
-                ->order(['MUserGroup.i_id_user' => 'ASC'])
+                ->orderBy(['MUserGroup.i_id_user' => 'ASC'])
                 ->enableHydration(false)
                 ->all();
 

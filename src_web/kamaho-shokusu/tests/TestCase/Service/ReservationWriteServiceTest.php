@@ -366,6 +366,61 @@ class ReservationWriteServiceTest extends TestCase
         $this->assertSame(0, (int)$row->eat_flag, 'eat_flag が 0 になっていない');
     }
 
+    // =========================================================================
+    // 承認済み保護（バグ1: 全書き込み経路で共通ガードを通す）
+    // =========================================================================
+
+    /**
+     * 承認済みの個人予約は解除できない（applyIndividualMealChanges 経路）。
+     */
+    public function testIndividualApprovedReservationCannotBeDeactivated(): void
+    {
+        $this->insertReservation(['eat_flag' => 1, 'i_approval_status' => 2]);
+
+        try {
+            $this->service->processIndividualReservation(
+                '2026-07-01',
+                json_encode(['meals' => ['1' => ['1' => 0]]]),
+                $this->rooms(),
+                1,
+                'テストユーザー',
+                $this->alwaysValid()
+            );
+            $this->fail('ConflictException が投げられていない');
+        } catch (ConflictException $e) {
+            $this->assertStringContainsString('承認済み', $e->getMessage());
+        }
+
+        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $this->assertSame(1, (int)$row->eat_flag, '承認済みの予約が解除されている');
+    }
+
+    /**
+     * 承認済みの予約はグループ予約経路（applyGroupMealChanges）からも解除できない。
+     */
+    public function testGroupApprovedReservationCannotBeDeactivated(): void
+    {
+        $this->insertReservation(['eat_flag' => 1, 'i_approval_status' => 1]);
+
+        try {
+            $this->service->processGroupReservation(
+                '2026-07-01',
+                json_encode(['users' => ['1' => ['1' => 0]], 'i_id_room' => 1]),
+                $this->rooms(),
+                'システム管理者',
+                $this->alwaysValid(),
+                loginUserId: 99,
+                isAdmin: true
+            );
+            $this->fail('ConflictException が投げられていない');
+        } catch (ConflictException $e) {
+            $this->assertStringContainsString('承認済み', $e->getMessage());
+        }
+
+        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $this->assertSame(1, (int)$row->eat_flag, '承認済みの予約が解除されている');
+    }
+
     public function testGroupWithoutLoginUserIsRejected(): void
     {
         $this->expectException(UnauthorizedException::class);

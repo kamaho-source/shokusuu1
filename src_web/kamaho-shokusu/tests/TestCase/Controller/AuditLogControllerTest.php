@@ -158,7 +158,7 @@ class AuditLogControllerTest extends TestCase
 
         $log = TableRegistry::getTableLocator()->get('TAuditLog')
             ->find()
-            ->order(['i_id_audit' => 'DESC'])
+            ->orderBy(['i_id_audit' => 'DESC'])
             ->first();
 
         $this->assertSame('system',       $log->c_category);

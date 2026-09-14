@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ReservationQueryService;
+use Cake\Datasource\ConnectionManager;
+use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -150,5 +152,49 @@ class ReservationQueryServiceTest extends TestCase
 
         // フィクスチャにroom1にuser1,2,3が存在する
         $this->assertGreaterThan(0, $result['total']);
+    }
+
+    // ----------------------------------------------------------------
+    // 有効値判定の統一（バグ4）
+    // ----------------------------------------------------------------
+
+    /**
+     * バグ4: getUsersByRoomForBulk の有効値判定を他サービスと統一する。
+     *
+     * 過去日の予約は isLastMinuteWindow（今日〜今日+14日）では対象外となり
+     * eat_flag が使われていたが、他サービスは下限のない shouldUseChangeFlag を
+     * 使うため i_change_flag が優先される。両者の結果が一致することを検証する。
+     */
+    public function testGetUsersByRoomForBulk_pastDate_usesChangeFlagLikeOtherServices(): void
+    {
+        $pastDate = Date::today('Asia/Tokyo')->subDays(3)->format('Y-m-d');
+
+        // eat_flag=0（未予約）だが i_change_flag=1（直前で予約に変更）の過去日データ
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user'          => 2,
+            'd_reservation_date' => $pastDate,
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 0,
+            'i_change_flag'      => 1,
+            'i_approval_status'  => 0,
+            'i_version'          => 1,
+            'dt_create'          => '2026-01-01 00:00:00',
+            'c_create_user'      => 'test',
+        ]);
+
+        $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
+        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        $bulk = $this->service->getUsersByRoomForBulk($userGroupTable, $reservationTable, 1, $pastDate);
+        $this->assertTrue(
+            $bulk['reservations'][2][1] ?? false,
+            'i_change_flag=1 の過去日予約が一括編集画面で有効と判定されていない'
+        );
+
+        // getUsersByRoom（shouldUseChangeFlag 利用）と判定が一致する
+        $byRoom = $this->service->getUsersByRoom($userGroupTable, $reservationTable, 1, $pastDate);
+        $user2  = array_values(array_filter($byRoom, static fn(array $u): bool => $u['id'] === 2));
+        $this->assertTrue($user2[0]['morning'], 'getUsersByRoom と判定が一致していない');
     }
 }
