@@ -32,7 +32,7 @@ class UserPermissionServiceTest extends TestCase
 
     private function lastAuditLog(): ?\Cake\Datasource\EntityInterface
     {
-        return $this->auditTable()->find()->order(['i_id_audit' => 'DESC'])->first();
+        return $this->auditTable()->find()->orderBy(['i_id_audit' => 'DESC'])->first();
     }
 
     private function userTable(): \Cake\ORM\Table
@@ -70,7 +70,7 @@ class UserPermissionServiceTest extends TestCase
         $before = $this->countAuditLogs();
         $user   = $this->userTable()->get(1);
 
-        (new UserPermissionService())->updatePermission($user, 3, 'sysadmin', 5, '192.168.1.1');
+        (new UserPermissionService())->updatePermission($user, 3, 'sysadmin', 5, '192.168.1.1', '', true);
 
         $this->assertSame($before + 1, $this->countAuditLogs());
     }
@@ -97,7 +97,7 @@ class UserPermissionServiceTest extends TestCase
         $user     = $this->userTable()->get(1);
         $oldAdmin = (int)$user->i_admin;
 
-        (new UserPermissionService())->updatePermission($user, 3, 'sysadmin', 1);
+        (new UserPermissionService())->updatePermission($user, 3, 'sysadmin', 1, '', '', true);
 
         $log     = $this->lastAuditLog();
         $decoded = json_decode($log->c_detail, true);
@@ -144,7 +144,76 @@ class UserPermissionServiceTest extends TestCase
             'general (0)'        => [0],
             'admin (1)'          => [1],
             'block_leader (2)'   => [2],
-            'system_admin (3)'   => [3],
         ];
+    }
+
+    // ----------------------------------------------------------------
+    // updatePermission — SYSTEM_ADMIN(3) への権限昇格制御
+    // （一般ADMINがSYSTEM_ADMINへ任意ユーザーを昇格させる脆弱性の修正）
+    // ----------------------------------------------------------------
+
+    /**
+     * updateAdminStatus / updateUserLevel 相当の呼び出し（allowSystemAdmin=false）で
+     * SYSTEM_ADMIN(3) への変更を試みると拒否されること。
+     */
+    public function testUpdatePermission_systemAdminValue_rejectedWhenNotAllowed(): void
+    {
+        $user     = $this->userTable()->get(1);
+        $oldAdmin = (int)$user->i_admin;
+
+        $result = (new UserPermissionService())->updatePermission($user, 3, 'admin', 1);
+
+        $this->assertFalse($result);
+
+        $refreshed = $this->userTable()->get(1);
+        $this->assertSame($oldAdmin, (int)$refreshed->i_admin);
+    }
+
+    /**
+     * updateSystemAdminStatus 相当の呼び出し（allowSystemAdmin=true）では
+     * SYSTEM_ADMIN(3) への変更が許可されること。
+     */
+    public function testUpdatePermission_systemAdminValue_allowedWhenExplicitlyPermitted(): void
+    {
+        $user   = $this->userTable()->get(1);
+        $result = (new UserPermissionService())->updatePermission($user, 3, 'sysadmin', 1, '', '', true);
+
+        $this->assertTrue($result);
+
+        $refreshed = $this->userTable()->get(1);
+        $this->assertSame(3, (int)$refreshed->i_admin);
+    }
+
+    /**
+     * 範囲外の値（0〜3以外）は allowSystemAdmin の値にかかわらず常に拒否されること。
+     */
+    public function testUpdatePermission_outOfRangeValue_alwaysRejected(): void
+    {
+        $user     = $this->userTable()->get(1);
+        $oldAdmin = (int)$user->i_admin;
+
+        $result = (new UserPermissionService())->updatePermission($user, 4, 'sysadmin', 1, '', '', true);
+
+        $this->assertFalse($result);
+
+        $refreshed = $this->userTable()->get(1);
+        $this->assertSame($oldAdmin, (int)$refreshed->i_admin);
+    }
+
+    /**
+     * SYSTEM_ADMIN(3) への遷移が拒否された場合も、監査ログには
+     * 失敗（i_result=0）として記録されること。
+     */
+    public function testUpdatePermission_systemAdminValue_rejected_stillRecordsAuditLog(): void
+    {
+        $before = $this->countAuditLogs();
+        $user   = $this->userTable()->get(1);
+
+        (new UserPermissionService())->updatePermission($user, 3, 'admin', 1);
+
+        $this->assertSame($before + 1, $this->countAuditLogs());
+
+        $log = $this->lastAuditLog();
+        $this->assertSame(0, (int)$log->i_result);
     }
 }

@@ -126,7 +126,7 @@ class NotificationService
 
         return $notificationTable->find()
             ->where(['i_id_user' => $userId])
-            ->order(['dt_create' => 'DESC'])
+            ->orderBy(['dt_create' => 'DESC'])
             ->limit($limit)
             ->all()
             ->toArray();
@@ -142,7 +142,7 @@ class NotificationService
 
         return $notificationTable->find()
             ->where(['i_id_user' => $userId])
-            ->order(['dt_create' => 'DESC'])
+            ->orderBy(['dt_create' => 'DESC'])
             ->limit($limit)
             ->all()
             ->toArray();

@@ -35,12 +35,16 @@ class TReservationInfoPolicy
 
     public function canBulkChangeEditSubmit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        $roomId = (int)($resource->get('i_id_room') ?? 0);
+
+        return $roomId > 0
+            && $this->isAuthenticated($user)
+            && $this->canAccessRoom($user, $resource);
     }
 
     public function canChangeEdit(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        return $this->isStaffOrAdmin($user) || $this->isRoomAffiliated($user);
     }
 
     public function canToggle(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -329,7 +333,23 @@ class TReservationInfoPolicy
         return $this->isAdmin($user) || $this->isStaff($user);
     }
 
-public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
+    /**
+     * ログインユーザーがいずれかの部屋グループに所属しているか。
+     *
+     * コントローラー側の早期チェック（ReservationChangeEditService::userHasRoomAccess）と
+     * 同じ判定基準（RoomAccessService::hasAnyAffiliation）を用いる。
+     */
+    private function isRoomAffiliated(?IdentityInterface $user): bool
+    {
+        $userId = $this->getUserId($user);
+        if ($userId <= 0) {
+            return false;
+        }
+
+        return $this->roomAccessService->hasAnyAffiliation($userId);
+    }
+
+    public function isBlockLeaderOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isBlockLeader($user);
     }

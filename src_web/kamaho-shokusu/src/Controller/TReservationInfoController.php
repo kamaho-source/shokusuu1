@@ -11,6 +11,7 @@ use Cake\I18n\Date;
 use App\Service\ReservationWriteService;
 use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
+use App\Exception\ApprovedReservationException;
 use App\Exception\OptimisticLockConflictException;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
@@ -899,6 +900,18 @@ class TReservationInfoController extends ReservationBaseController
                     $this->Flash->success(__($payload['message']));
                     return $this->redirect(['action' => 'index']);
 
+                } catch (ApprovedReservationException $e) {
+                    $this->log('直前編集 承認済み変更拒否: ' . $e->getMessage(), 'warning');
+                    if ($wantsJson) {
+                        return $this->response->withStatus(409)->withType('application/json')
+                            ->withStringBody(json_encode([
+                                'ok'      => false,
+                                'status'  => 'approved',
+                                'message' => $e->getMessage(),
+                                'data'    => [],
+                            ], JSON_UNESCAPED_UNICODE));
+                    }
+                    $this->Flash->error(__($e->getMessage()));
                 } catch (OptimisticLockConflictException $e) {
                     $this->log('直前編集 競合: ' . $e->getMessage(), 'warning');
                     if ($wantsJson) {

@@ -204,16 +204,47 @@ function mcgRegisterAll() {
  * 排他制御（他部屋予約チェック）
  * ─────────────────────────────────────────── */
 
+/*
+ * セル索引。
+ *
+ * グリッドは (人数 × 28日 × 4食) 個のセルを持つ。兄弟セルを毎回
+ * document.querySelectorAll で引くと「セル数 × DOM全体の走査」となり
+ * セル数の 2 乗で効いてしまう（180行で 25 秒かかっていた）。
+ * 初期化時に一度だけ索引を作り、以降はここから引く。
+ * セルはサーバーレンダリング後に増減しないため再構築は不要。
+ */
+var _mcgByUserDateMeal = new Map(); // "userId|date|meal" -> [td]
+var _mcgByDateMeal     = new Map(); // "date|meal"        -> [td]
+var _MCG_NO_CELLS      = [];
+
+function _mcgIndexPush(map, key, td) {
+    var list = map.get(key);
+    if (list) {
+        list.push(td);
+        return;
+    }
+    map.set(key, [td]);
+}
+
+function mcgBuildCellIndex() {
+    _mcgByUserDateMeal = new Map();
+    _mcgByDateMeal     = new Map();
+    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+        var d = td.dataset;
+        _mcgIndexPush(_mcgByUserDateMeal, d.userId + '|' + d.date + '|' + d.meal, td);
+        _mcgIndexPush(_mcgByDateMeal, d.date + '|' + d.meal, td);
+    });
+}
+
 function mcgGetSiblingCells(userId, date, meal) {
-    return document.querySelectorAll(
-        '.mcg-toggleable[data-user-id="' + userId + '"]' +
-        '[data-date="' + date + '"]' +
-        '[data-meal="' + meal + '"]'
-    );
+    return _mcgByUserDateMeal.get(userId + '|' + date + '|' + meal) || _MCG_NO_CELLS;
 }
 
 function mcgSyncConflicts(userId, date, meal) {
-    var cells = mcgGetSiblingCells(userId, date, meal);
+    _mcgSyncConflictCells(mcgGetSiblingCells(userId, date, meal));
+}
+
+function _mcgSyncConflictCells(cells) {
     if (cells.length <= 1) return;
 
     var reservedRoomId = null;
@@ -234,13 +265,9 @@ function mcgSyncConflicts(userId, date, meal) {
 }
 
 function mcgInitConflicts() {
-    var seen = Object.create(null);
-    document.querySelectorAll('.mcg-toggleable').forEach(function (cell) {
-        var key = cell.dataset.userId + '|' + cell.dataset.date + '|' + cell.dataset.meal;
-        if (!seen[key]) {
-            seen[key] = true;
-            mcgSyncConflicts(cell.dataset.userId, cell.dataset.date, cell.dataset.meal);
-        }
+    // 索引のキーが (userId, date, meal) の組そのものなので重複排除は不要
+    _mcgByUserDateMeal.forEach(function (cells) {
+        _mcgSyncConflictCells(cells);
     });
 }
 
@@ -249,12 +276,8 @@ function mcgInitConflicts() {
  * 昼が登録済みなら同日の全弁当セルを無効化、逆も同様
  * ─────────────────────────────────────────── */
 function mcgSyncLunchBento(userId, date) {
-    var allLunchCells = document.querySelectorAll(
-        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.LUNCH + '"]'
-    );
-    var allBentoCells = document.querySelectorAll(
-        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.BENTO + '"]'
-    );
+    var allLunchCells = mcgGetSiblingCells(userId, date, MEAL.LUNCH);
+    var allBentoCells = mcgGetSiblingCells(userId, date, MEAL.BENTO);
 
     var lunchReserved = false;
     allLunchCells.forEach(function (td) { if (td.dataset.reserved === '1') lunchReserved = true; });
@@ -285,7 +308,8 @@ function mcgSyncLunchBento(userId, date) {
 
 function mcgInitLunchBentoExcl() {
     var seen = Object.create(null);
-    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+    _mcgByUserDateMeal.forEach(function (cells) {
+        var td   = cells[0];
         var meal = parseInt(td.dataset.meal, 10);
         if (meal !== MEAL.LUNCH && meal !== MEAL.BENTO) return;
         var k = td.dataset.userId + '|' + td.dataset.date;
@@ -402,24 +426,14 @@ function mcgFlashCell(td, isOn) {
 }
 
 /* ─────────────────────────────────────────────
- * 指定セルを検索
- * ─────────────────────────────────────────── */
-function mcgFindCell(userId, roomId, date, meal) {
-    return document.querySelector(
-        '.mcg-toggleable[data-user-id="' + userId + '"]' +
-        '[data-room-id="' + roomId + '"]' +
-        '[data-date="' + date + '"]' +
-        '[data-meal="' + meal + '"]'
-    );
-}
-
-/* ─────────────────────────────────────────────
  * 日計行を再集計
  * ─────────────────────────────────────────── */
 function mcgUpdateDailyTotal(date, meal) {
-    var count = document.querySelectorAll(
-        '.mcg-toggleable[data-date="' + date + '"][data-meal="' + meal + '"][data-reserved="1"]'
-    ).length;
+    var cells = _mcgByDateMeal.get(date + '|' + meal) || _MCG_NO_CELLS;
+    var count = 0;
+    for (var i = 0; i < cells.length; i++) {
+        if (cells[i].dataset.reserved === '1') count++;
+    }
     var cell = document.querySelector(
         '.row-daily-total td[data-date="' + date + '"][data-meal="' + meal + '"]'
     );
@@ -448,11 +462,7 @@ function mcgInitToggle() {
             /* 昼↔弁当 排他: 全部屋の対立セルを pending OFF にする */
             if (newValue === 1 && Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
                 var opponentMeal = MEAL_OPPONENT[meal];
-                var allOpponents = document.querySelectorAll(
-                    '.mcg-toggleable[data-user-id="' + userId + '"]' +
-                    '[data-date="' + date + '"]' +
-                    '[data-meal="' + opponentMeal + '"]'
-                );
+                var allOpponents = mcgGetSiblingCells(userId, date, opponentMeal);
                 allOpponents.forEach(function (opponentTd) {
                     if (opponentTd.dataset.reserved !== '1') return;
                     var opponentKey      = _mcgKey(opponentTd);
@@ -585,15 +595,22 @@ function _mcgPositionTooltip(tip, anchor) {
  * ─────────────────────────────────────────── */
 function mcgApplyHolidays() {
     if (!window.JapaneseHolidays) return;
-    document.querySelectorAll('[data-date]').forEach(function (el) {
-        var d = new Date(el.dataset.date + 'T00:00:00');
-        if (JapaneseHolidays.isHoliday(d)) {
+    // 全セルを判定すると表示日数(28)ではなくセル数に比例してしまうため、
+    // ヘッダーから日付を拾って祝日の日付だけに絞ってから適用する。
+    var seen = Object.create(null);
+    document.querySelectorAll('.mcg-grid thead th[data-date]').forEach(function (th) {
+        var date = th.dataset.date;
+        if (seen[date]) return;
+        seen[date] = true;
+        if (!JapaneseHolidays.isHoliday(new Date(date + 'T00:00:00'))) return;
+        document.querySelectorAll('[data-date="' + date + '"]').forEach(function (el) {
             el.classList.add('is-holiday');
-        }
+        });
     });
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    mcgBuildCellIndex();
     mcgApplyHolidays();
     mcgInitConflicts();
     mcgInitLunchBentoExcl();

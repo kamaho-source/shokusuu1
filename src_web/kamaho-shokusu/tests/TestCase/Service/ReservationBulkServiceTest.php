@@ -23,6 +23,8 @@ class ReservationBulkServiceTest extends TestCase
         'app.TIndividualReservationInfo',
         'app.MRoomInfo',
         'app.MUserInfo',
+        // 自分自身宛ての編集でも所属部屋の検証を行うため所属データが必要
+        'app.MUserGroup',
     ];
 
     private ReservationBulkService $service;
@@ -273,6 +275,68 @@ class ReservationBulkServiceTest extends TestCase
             0,     // loginUserLevel = 0（職員）
             false  // isBlockLeader
         );
+    }
+
+    /**
+     * バグ3: 自分自身宛てでも、所属していない部屋を指定した直前一括編集は拒否する。
+     */
+    public function testBulkChangeEditRejectsSelfEditInUnaffiliatedRoom(): void
+    {
+        // user 2 は部屋1のみに所属（MUserGroup フィクスチャ）。部屋99は所属外。
+        $result = $this->service->processBulkChangeEdit(
+            ['2026-06-10' => ['2' => ['1' => '1']]],
+            99,
+            'tester',
+            $this->reservationTable,
+            $this->userTable,
+            [],
+            2,     // loginUserId = 自分自身
+            false, // isAdmin
+            0,     // loginUserLevel = 0（職員）
+            false  // isBlockLeader
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('権限がありません', $result['message']);
+        $this->assertNull(
+            $this->fetchReservation(2, '2026-06-10', 1, 99),
+            '所属外の部屋に予約が書き込まれている'
+        );
+    }
+
+    /**
+     * 所属している部屋であれば自分自身宛ての直前一括編集は従来どおり可能。
+     */
+    public function testBulkChangeEditAllowsSelfEditInAffiliatedRoom(): void
+    {
+        $result = $this->callBulkChangeEdit(['2026-06-10' => ['2' => ['1' => '1']]]);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertNotNull($this->fetchReservation(2, '2026-06-10', 1, 1));
+    }
+
+    /**
+     * バグ1: 承認済みの予約は直前一括編集からも変更できない。
+     */
+    public function testBulkChangeEditRejectsApprovedReservation(): void
+    {
+        // user 3（子供・部屋1所属）の承認済み予約を、職員である user 2 が解除しようとする
+        $this->insertReservation([
+            'i_id_user'          => 3,
+            'd_reservation_date' => '2026-06-10',
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+            'i_approval_status'  => 2,
+        ]);
+
+        $result = $this->callBulkChangeEdit(['2026-06-10' => ['3' => ['1' => '0']]]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('承認済み', $result['message']);
+        $row = $this->fetchReservation(3, '2026-06-10', 1, 1);
+        $this->assertSame(1, (int)$row->i_change_flag, '承認済みの予約が変更されている');
     }
 
     /**

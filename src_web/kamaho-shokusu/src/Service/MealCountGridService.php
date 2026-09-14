@@ -176,11 +176,20 @@ class MealCountGridService
      * @param int   $roomId
      * @return array<int, array{id:int, name:string}>
      */
-    public function getRoomUsers(Table $userGroupTable, Table $userInfoTable, int $roomId): array
+    public function getRoomUsersByRooms(Table $userGroupTable, Table $userInfoTable, array $roomIds): array
     {
+        $roomIds = array_values(array_unique(array_map('intval', $roomIds)));
+
+        // 利用者のいない部屋も必ずキーを持つようにしておく
+        $result = array_fill_keys($roomIds, []);
+        if (empty($roomIds)) {
+            return $result;
+        }
+
         $rows = $userGroupTable->find()
             ->enableAutoFields(false)
             ->select([
+                'i_id_room'    => 'MUserGroup.i_id_room',
                 'i_id_user'    => 'MUserGroup.i_id_user',
                 'user_name'    => 'MUserInfo.c_user_name',
                 'i_user_level' => 'MUserInfo.i_user_level',
@@ -190,18 +199,18 @@ class MealCountGridService
                 ['MUserInfo.i_id_user = MUserGroup.i_id_user']
             )
             ->where([
-                'MUserGroup.i_id_room'   => $roomId,
-                'MUserGroup.active_flag' => 0,
-                'MUserInfo.i_del_flag'   => 0,
+                'MUserGroup.i_id_room IN' => $roomIds,
+                'MUserGroup.active_flag'  => 0,
+                'MUserInfo.i_del_flag'    => 0,
             ])
             ->enableHydration(false)
             ->orderAsc('MUserInfo.i_user_level')
             ->orderAsc('MUserInfo.c_user_name')
             ->all();
 
-        $result = [];
+        // 並び順 (i_user_level, c_user_name) は取得順のまま部屋ごとに振り分ける
         foreach ($rows as $row) {
-            $result[] = [
+            $result[(int)$row['i_id_room']][] = [
                 'id'           => (int)$row['i_id_user'],
                 'name'         => (string)$row['user_name'],
                 'i_user_level' => (int)($row['i_user_level'] ?? 0),

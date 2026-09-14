@@ -32,7 +32,7 @@ class UserDeletionServiceTest extends TestCase
 
     private function lastAuditLog(): ?\Cake\Datasource\EntityInterface
     {
-        return $this->auditTable()->find()->order(['i_id_audit' => 'DESC'])->first();
+        return $this->auditTable()->find()->orderBy(['i_id_audit' => 'DESC'])->first();
     }
 
     private function userTable(): \Cake\ORM\Table

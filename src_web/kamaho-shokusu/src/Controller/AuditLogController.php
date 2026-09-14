@@ -38,7 +38,7 @@ class AuditLogController extends AppController
 
         $query = $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC']);
+            ->orderBy(['dt_create' => 'DESC']);
 
         $logs = $this->paginate($query, ['limit' => 100, 'maxLimit' => 500]);
 
@@ -78,7 +78,7 @@ class AuditLogController extends AppController
         $table      = $this->fetchTable('TAuditLog');
         $logs       = $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC'])
+            ->orderBy(['dt_create' => 'DESC'])
             ->limit(10000)
             ->all();
 

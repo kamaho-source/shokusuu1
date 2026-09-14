@@ -13,3 +13,6 @@ create table t_individual_reservation_info
     c_update_user      varchar(50) null,
     primary key (i_id_user, d_reservation_date, i_id_room, i_reservation_type)
 );
+
+create index idx_tiri_room_date
+    on t_individual_reservation_info (i_id_room, d_reservation_date);
