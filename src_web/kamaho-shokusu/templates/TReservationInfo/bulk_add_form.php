@@ -25,7 +25,7 @@ $canGroup = $canGroup ?? false;
     <title>一括予約</title>
     <meta name="csrfToken" content="<?= h($this->request->getAttribute('csrfToken')) ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <?= $this->Html->css('bootstrap.min.css') ?>
     <script>
         window.__BASE_PATH = <?= json_encode($this->request->getAttribute('base') ?? $this->request->getAttribute('webroot') ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
         window.__SELECTED_DATE = <?= json_encode($selectedDateObj->format('Y-m-d'), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
