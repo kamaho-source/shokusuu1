@@ -462,19 +462,21 @@ class ReservationActualMealController extends ReservationBaseController
             $targetRooms = $allRooms;
         }
 
-        $roomUsers = [];
-        foreach (array_keys($targetRooms) as $roomId) {
-            $roomId = (int)$roomId;
-            $users  = $gridService->getRoomUsers($this->MUserGroup, $this->MUserInfo, $roomId);
-
-            if ($viewMode === 'individual') {
-                // 個人モードは権限にかかわらず選択ユーザーのみ表示する
-                // （非 canViewAll は $selectedUserId がログインユーザーに固定済み。
-                //   部屋内の子供の管理は「部屋」モードで行う）
-                $users = array_values(array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId));
+        // 部屋ごとにクエリを投げると部屋数ぶんの N+1 になるため、まとめて1回で引く
+        $roomUsers = $gridService->getRoomUsersByRooms(
+            $this->MUserGroup,
+            $this->MUserInfo,
+            array_keys($targetRooms)
+        );
+        if ($viewMode === 'individual') {
+            // 個人モードは権限にかかわらず選択ユーザーのみ表示する
+            // （非 canViewAll は $selectedUserId がログインユーザーに固定済み。
+            //   部屋内の子供の管理は「部屋」モードで行う）
+            foreach ($roomUsers as $roomId => $users) {
+                $roomUsers[$roomId] = array_values(
+                    array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId)
+                );
             }
-
-            $roomUsers[$roomId] = $users;
         }
 
         $gridData       = $gridService->buildGrid($this->TIndividualReservationInfo, $targetRooms, $roomUsers, $dates);
