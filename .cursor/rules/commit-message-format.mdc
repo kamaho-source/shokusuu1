@@ -1,0 +1,40 @@
+---
+description: Gitコミットメッセージを日本語で生成する
+alwaysApply: true
+---
+
+# Git コミットメッセージ（日本語）
+
+ソース管理パネルの **Generate Commit Message**（星アイコン）、エージェントによる `git commit` 案、いずれもこのルールに従う。
+
+## 言語
+
+- サマリと本文は **必ず日本語** で書く
+- プレフィックス（`feat:` / `fix:` / `refactor:` / `test:` / `docs:` 等）は Conventional Commits の英語表記のまま
+
+## 形式
+
+```
+<prefix>: <日本語の要約>
+
+- 変更点1
+- 変更点2
+```
+
+- 1行目は50文字以内を目安。末尾の句点は不要
+- 本文は必要に応じて `- ` 箇条書きで変更内容・理由を記載
+- 未コミット差分（`git diff` / `git diff --cached`）を確認してから書く
+
+## 禁止
+
+- 英語だけのサマリ（例: `fix: update handler`）
+- `wip` / `update` / `fix bug` など曖昧な表現のみ
+
+## 例
+
+```
+fix: エラーテンプレートのレイアウト設定を修正
+
+- $this->layout 代入を setLayout() に変更
+- CakePHP 5 の protected プロパティ制約に対応
+```
