@@ -249,6 +249,11 @@
                     } else if (payload.status === 'success' || payload.ok === true) {
                         // 成功メッセージを表示
                         toast('登録が完了しました', 'success');
+
+                        // 同じブラウザの他タブに古い画面が残っていたら失効を知らせる
+                        if (window.ReservationSync) {
+                            window.ReservationSync.notifySaved(payload.date || date || '');
+                        }
                         
                         // モーダル要素を取得
                         const modalEl = form.closest('.modal') || document.getElementById('quickDayModal');

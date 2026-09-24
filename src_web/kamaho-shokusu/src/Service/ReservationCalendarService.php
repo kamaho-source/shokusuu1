@@ -15,6 +15,20 @@ class ReservationCalendarService
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
     }
 
+    /**
+     * 予約1行がその日の食数として有効かを ReservationDatePolicy の基準で判定する。
+     *
+     * 判定基準を1箇所に寄せることで、食数予定表・カレンダー・発注用集計の数字がそろう。
+     */
+    private function isActiveRow(object $row, string $dateStr): bool
+    {
+        return $this->datePolicy->isActiveReservation(
+            $row->eat_flag === null ? null : (int)$row->eat_flag,
+            $row->i_change_flag === null ? null : (int)$row->i_change_flag,
+            new Date($dateStr)
+        );
+    }
+
     public function getUserRoomIds(Table $userGroupTable, int $userId): array
     {
         $userGroups = $userGroupTable->find()
@@ -144,11 +158,7 @@ class ReservationCalendarService
             $dateStr = $r->d_reservation_date->format('Y-m-d');
             $type    = (int)$r->i_reservation_type;
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
-
-            if ($effective !== 1) {
+            if (!$this->isActiveRow($r, $dateStr)) {
                 continue;
             }
 
@@ -211,9 +221,7 @@ class ReservationCalendarService
                 ];
             }
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            $effective = $this->isActiveRow($r, $dateStr) ? 1 : 0;
 
             $details[$dateStr][$key]          = $effective;
             $details[$dateStr][$key . 'Room'] = ($effective === 1) ? (int)$r->i_id_room : null;
@@ -328,10 +336,7 @@ class ReservationCalendarService
         $dateCounts = [];
         foreach ($rows as $r) {
             $dateStr = $r->d_reservation_date->format('Y-m-d');
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
-            if ($effective === 1) {
+            if ($this->isActiveRow($r, $dateStr)) {
                 $dateCounts[$dateStr] = ($dateCounts[$dateStr] ?? 0) + 1;
             }
         }

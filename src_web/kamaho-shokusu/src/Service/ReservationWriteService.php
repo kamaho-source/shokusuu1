@@ -346,6 +346,12 @@ class ReservationWriteService
             throw new UnauthorizedException('職員は直前編集でのキャンセルはできません。');
         }
 
+        // 複数部屋に所属するユーザーが同じ食事を別部屋でも有効にすると、
+        // 集計が1人2食になる。主キーに部屋が入っているため DB では重複を防げない。
+        if ($value === 1) {
+            $this->assertMealNotActiveInAnotherRoom($targetUserId, $roomId, $dateStr, $meal, $targetDate);
+        }
+
         $changeFlag = $value;
         $eatFlag    = $this->resolveEatFlag($value, $isLastMinute, $exists, $targetUserId, $roomId, $dateStr, $meal);
 
@@ -389,6 +395,53 @@ class ReservationWriteService
         } catch (\Throwable $e) {
             Log::error('toggle処理で予期しない例外: ' . $e->getMessage());
             throw new PersistenceException('Internal Server Error');
+        }
+    }
+
+    /**
+     * 同一ユーザー・同一日・同一食事が別部屋で既に有効なら例外を投げる。
+     *
+     * @throws \App\Domain\Exception\ConflictException 別部屋に有効な予約がある場合
+     */
+    private function assertMealNotActiveInAnotherRoom(
+        int    $targetUserId,
+        int    $roomId,
+        string $dateStr,
+        int    $meal,
+        Date   $targetDate
+    ): void {
+        $rows = $this->reservationTable->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_room', 'eat_flag', 'i_change_flag'])
+            ->where([
+                'i_id_user'          => $targetUserId,
+                'd_reservation_date' => $dateStr,
+                'i_reservation_type' => $meal,
+                'i_id_room !='       => $roomId,
+            ])
+            ->enableHydration(false)
+            ->all();
+
+        $datePolicy = new ReservationDatePolicy();
+        foreach ($rows as $row) {
+            $isActive = $datePolicy->isActiveReservation(
+                isset($row['eat_flag']) ? (int)$row['eat_flag'] : null,
+                isset($row['i_change_flag']) ? (int)$row['i_change_flag'] : null,
+                $targetDate
+            );
+            if (!$isActive) {
+                continue;
+            }
+
+            $roomName = $this->roomTable->find()
+                ->select(['c_room_name'])
+                ->where(['i_id_room' => (int)$row['i_id_room']])
+                ->first()?->c_room_name;
+
+            throw new ConflictException(sprintf(
+                '同じ日の同じ食事が%sで既に予約されています。先にそちらを取り消してください。',
+                $roomName !== null ? '「' . $roomName . '」' : '別の部屋'
+            ));
         }
     }
 
@@ -529,13 +582,28 @@ class ReservationWriteService
         $duplicates = [];
         $performed  = false;
 
+        // 直前編集ウィンドウ内なら i_change_flag、通常予約範囲なら eat_flag を判定・更新の基準にする。
+        // eat_flag 決め打ちにすると「直前追加した予約を取り消せない」「直前キャンセル後に再予約しても戻らない」が起きる。
+        $datePolicy    = new ReservationDatePolicy();
+        $useChangeFlag = $datePolicy->shouldUseChangeFlag(new Date($reservationDate));
+        $audit         = ['c_update_user' => $userName, 'dt_update' => DateTime::now()];
+
+        $requested = [];
+        foreach ($selectedRoomPerMeal as $mealType => $roomId) {
+            $requested[(int)$mealType] = $roomId !== null;
+        }
+        $this->assertLunchBentoExclusive(
+            $requested,
+            $this->currentLunchBentoState($existingByMeal, $datePolicy, $reservationDate)
+        );
+
         foreach ($selectedRoomPerMeal as $mealType => $roomId) {
             if ($roomId === null) {
                 foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
-                    if ((int)$row->eat_flag !== 1) {
+                    if (!$this->isRowActive($row, $datePolicy, $reservationDate)) {
                         continue;
                     }
-                    if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                    if (!$this->updateReservationRowWithVersion($row, $datePolicy->flagUpdates(false, $useChangeFlag) + $audit)) {
                         throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                     }
                     $performed = true;
@@ -544,10 +612,10 @@ class ReservationWriteService
             }
 
             foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
-                if ((int)$row->i_id_room === (int)$roomId || (int)$row->eat_flag !== 1) {
+                if ((int)$row->i_id_room === (int)$roomId || !$this->isRowActive($row, $datePolicy, $reservationDate)) {
                     continue;
                 }
-                if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                if (!$this->updateReservationRowWithVersion($row, $datePolicy->flagUpdates(false, $useChangeFlag) + $audit)) {
                     throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                 }
                 $performed = true;
@@ -556,8 +624,8 @@ class ReservationWriteService
             $existing = $existingMap[(int)$mealType][(int)$roomId] ?? null;
 
             if ($existing) {
-                if ((int)$existing->eat_flag === 0) {
-                    if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                if (!$this->isRowActive($existing, $datePolicy, $reservationDate)) {
+                    if (!$this->updateReservationRowWithVersion($existing, $datePolicy->flagUpdates(true, $useChangeFlag) + $audit)) {
                         throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                     }
                     $performed = true;
@@ -572,7 +640,8 @@ class ReservationWriteService
                 'd_reservation_date' => $reservationDate,
                 'i_id_room'          => $roomId,
                 'i_reservation_type' => $mealType,
-                'eat_flag'           => 1,
+                // 直前期間の新規行は発注が無いため eat_flag=0。toggleMeal() と同じ規則。
+                'eat_flag'           => $useChangeFlag ? 0 : 1,
                 'i_change_flag'      => 1,
                 'i_version'          => 1,
                 'c_create_user'      => $userName,
@@ -696,7 +765,22 @@ class ReservationWriteService
         $toSave        = [];
         $duplicates    = [];
 
+        // 個人予約と同じ基準を使う（applyIndividualMealChanges 参照）。
+        $datePolicy    = new ReservationDatePolicy();
+        $useChangeFlag = $datePolicy->shouldUseChangeFlag(new Date($reservationDate));
+        $audit         = ['c_update_user' => $creatorName, 'dt_update' => DateTime::now()];
+
         foreach ($users as $targetUserId => $meals) {
+            $requested = [];
+            foreach ($meals as $mealType => $selected) {
+                $requested[(int)$mealType] = (is_bool($selected) ? ($selected ? 1 : 0) : (int)$selected) === 1;
+            }
+            $this->assertLunchBentoExclusive(
+                $requested,
+                $this->currentLunchBentoState($existingMap[(int)$targetUserId] ?? [], $datePolicy, $reservationDate),
+                $userNameMap[(int)$targetUserId] ?? ''
+            );
+
             foreach ($meals as $mealType => $selected) {
                 $valueInt = is_bool($selected) ? ($selected ? 1 : 0) : (int)$selected;
 
@@ -706,8 +790,8 @@ class ReservationWriteService
 
                 if ($valueInt !== 1) {
                     $existing = $existingMap[(int)$targetUserId][(int)$mealType][(int)$roomId] ?? null;
-                    if ($existing && (int)$existing->eat_flag === 1) {
-                        if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                    if ($existing && $this->isRowActive($existing, $datePolicy, $reservationDate)) {
+                        if (!$this->updateReservationRowWithVersion($existing, $datePolicy->flagUpdates(false, $useChangeFlag) + $audit)) {
                             throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                         }
                     }
@@ -718,17 +802,17 @@ class ReservationWriteService
                 $existing     = $userMealRows[(int)$roomId] ?? null;
 
                 foreach ($userMealRows as $existingRoomId => $row) {
-                    if ((int)$existingRoomId === (int)$roomId || (int)$row->eat_flag !== 1) {
+                    if ((int)$existingRoomId === (int)$roomId || !$this->isRowActive($row, $datePolicy, $reservationDate)) {
                         continue;
                     }
-                    if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                    if (!$this->updateReservationRowWithVersion($row, $datePolicy->flagUpdates(false, $useChangeFlag) + $audit)) {
                         throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                     }
                 }
 
                 if ($existing) {
-                    if ((int)$existing->eat_flag === 0) {
-                        if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                    if (!$this->isRowActive($existing, $datePolicy, $reservationDate)) {
+                        if (!$this->updateReservationRowWithVersion($existing, $datePolicy->flagUpdates(true, $useChangeFlag) + $audit)) {
                             throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                         }
                         continue;
@@ -746,7 +830,7 @@ class ReservationWriteService
                     'd_reservation_date' => $reservationDate,
                     'i_id_room'          => $roomId,
                     'i_reservation_type' => $mealType,
-                    'eat_flag'           => 1,
+                    'eat_flag'           => $useChangeFlag ? 0 : 1,
                     'i_change_flag'      => 1,
                     'i_version'          => 1,
                     'c_create_user'      => $creatorName,
@@ -773,6 +857,65 @@ class ReservationWriteService
     private function updateReservationRowWithVersion(object $row, array $updateFields): bool
     {
         return $this->reservationTable->updateRowWithVersion($row, $updateFields);
+    }
+
+    /**
+     * 昼食(2)と弁当(4)が同時に有効にならないことを保証する。
+     *
+     * 既存行の更新は updateAll() を通るため buildRules() の排他ルールが走らない。
+     * 「過去にキャンセルした昼食と弁当の行が両方残っている」状態で両方を選ぶと
+     * 1人が同じ日に2食計上されるため、保存前にここで弾く。
+     *
+     * @param array<int, bool> $requested [食種 => 有効化するか]。キーが無い食種は「変更なし」
+     * @param array<int, bool> $current   [食種 => 現在有効か]
+     * @throws \App\Domain\Exception\ConflictException
+     */
+    private function assertLunchBentoExclusive(array $requested, array $current, string $userLabel = ''): void
+    {
+        $lunch = $requested[2] ?? ($current[2] ?? false);
+        $bento = $requested[4] ?? ($current[4] ?? false);
+
+        if ($lunch && $bento) {
+            throw new ConflictException(
+                ($userLabel !== '' ? $userLabel . '：' : '') . '昼食と弁当は同時に予約できません。'
+            );
+        }
+    }
+
+    /**
+     * 既存行マップから昼食・弁当の現在の有効状態を返す。
+     *
+     * @param array<int, array> $rowsByMeal [食種 => 行の配列]
+     * @return array<int, bool>
+     */
+    private function currentLunchBentoState(array $rowsByMeal, ReservationDatePolicy $datePolicy, string $reservationDate): array
+    {
+        $state = [2 => false, 4 => false];
+        foreach ([2, 4] as $meal) {
+            foreach ($rowsByMeal[$meal] ?? [] as $row) {
+                if ($this->isRowActive($row, $datePolicy, $reservationDate)) {
+                    $state[$meal] = true;
+                    break;
+                }
+            }
+        }
+
+        return $state;
+    }
+
+    /**
+     * 予約1行がその日の食数として有効かを ReservationDatePolicy の基準で判定する。
+     *
+     * @param object $row             eat_flag / i_change_flag を持つ行
+     * @param string $reservationDate 'Y-m-d'
+     */
+    private function isRowActive(object $row, ReservationDatePolicy $datePolicy, string $reservationDate): bool
+    {
+        return $datePolicy->isActiveReservation(
+            $row->eat_flag === null ? null : (int)$row->eat_flag,
+            $row->i_change_flag === null ? null : (int)$row->i_change_flag,
+            new Date($reservationDate)
+        );
     }
 
     private function redirectToIndex(): string

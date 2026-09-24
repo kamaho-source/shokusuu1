@@ -758,7 +758,11 @@ class TReservationInfoController extends ReservationBaseController
                             $allowedRooms,
                             (int)$loginUid,
                             (string)($loginUser->get('c_user_name') ?? ''),
-                            fn($d) => true
+                            // 直前編集は通常予約の15日ルールを外すが、過去日は拒否する。
+                            // processToggle() と同じ制約にそろえ、確定済みの食数を守る。
+                            fn($d) => $this->datePolicy->isPastDate((string)$d)
+                                ? '過去日の予約は変更できません。'
+                                : true
                         );
                         $payload = [
                             'ok'      => true,

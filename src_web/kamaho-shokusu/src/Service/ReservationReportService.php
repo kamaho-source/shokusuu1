@@ -30,11 +30,11 @@ class ReservationReportService
 
         $datePolicy = new ReservationDatePolicy();
         $targetDate = new Date($date);
-        $useChangeFlag = $datePolicy->shouldUseChangeFlag($targetDate);
 
         $rows = $reservationTable->find()
             ->enableAutoFields(false)
             ->select([
+                'user_id' => 'i_id_user',
                 'meal_type' => 'i_reservation_type',
                 'eat_flag' => 'eat_flag',
                 'i_change_flag' => 'i_change_flag',
@@ -43,15 +43,25 @@ class ReservationReportService
             ->enableHydration(false)
             ->toArray();
 
+        // 同一人物が複数部屋に同じ食事の有効行を持つ場合でも 1 食として数える。
+        // 主キーに部屋が含まれるため、行数をそのまま数えると二重計上になる。
+        $countedUsers = [];
         $counts = [];
         foreach ($rows as $row) {
-            $effectiveFlag = $useChangeFlag
-                ? (int)($row['i_change_flag'] ?? 0)
-                : (int)($row['eat_flag'] ?? 0);
-            if ($effectiveFlag !== 1) {
+            $isActive = $datePolicy->isActiveReservation(
+                isset($row['eat_flag']) ? (int)$row['eat_flag'] : null,
+                isset($row['i_change_flag']) ? (int)$row['i_change_flag'] : null,
+                $targetDate
+            );
+            if (!$isActive) {
                 continue;
             }
             $mealType = (int)$row['meal_type'];
+            $userKey  = $mealType . ':' . (int)($row['user_id'] ?? 0);
+            if (isset($countedUsers[$userKey])) {
+                continue;
+            }
+            $countedUsers[$userKey] = true;
             $counts[$mealType] = ($counts[$mealType] ?? 0) + 1;
         }
 
@@ -188,11 +198,13 @@ class ReservationReportService
             if ($date === null) {
                 continue;
             }
-            $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
-            $effectiveFlag = $useChangeFlagCache[$date]
-                ? (int)($reservation['i_change_flag'] ?? 0)
-                : (int)($reservation['eat_flag'] ?? 0);
-            if ($effectiveFlag !== 1) {
+            $useChangeFlagCache[$date] ??= new Date($date);
+            $isActive = $datePolicy->isActiveReservation(
+                isset($reservation['eat_flag']) ? (int)$reservation['eat_flag'] : null,
+                isset($reservation['i_change_flag']) ? (int)$reservation['i_change_flag'] : null,
+                $useChangeFlagCache[$date]
+            );
+            if (!$isActive) {
                 continue;
             }
             $mealType = (int)($reservation['meal_type'] ?? 0);
@@ -289,11 +301,13 @@ class ReservationReportService
             if ($dateKey === null) {
                 continue;
             }
-            $useChangeFlagCache[$dateKey] ??= $datePolicy->shouldUseChangeFlag(new Date($dateKey));
-            $effectiveFlag = $useChangeFlagCache[$dateKey]
-                ? (int)($reservation['i_change_flag'] ?? 0)
-                : (int)($reservation['eat_flag'] ?? 0);
-            if ($effectiveFlag !== 1) {
+            $useChangeFlagCache[$dateKey] ??= new Date($dateKey);
+            $isActive = $datePolicy->isActiveReservation(
+                isset($reservation['eat_flag']) ? (int)$reservation['eat_flag'] : null,
+                isset($reservation['i_change_flag']) ? (int)$reservation['i_change_flag'] : null,
+                $useChangeFlagCache[$dateKey]
+            );
+            if (!$isActive) {
                 continue;
             }
             $key     = $rankId . '_' . $gender . '_' . $dateKey;
@@ -459,18 +473,19 @@ class ReservationReportService
         ?int $changeFlag,
         array &$useChangeFlagCache
     ): bool {
-        $datePolicy = new ReservationDatePolicy();
-        $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
-        $effectiveFlag = $useChangeFlagCache[$date]
-            ? (int)($changeFlag ?? 0)
-            : $eatFlag;
+        $useChangeFlagCache[$date] ??= new Date($date);
 
-        return $effectiveFlag === 1;
+        return (new ReservationDatePolicy())
+            ->isActiveReservation($eatFlag, $changeFlag, $useChangeFlagCache[$date]);
     }
 
     public static function mealCountsCacheKey(string $date): string
     {
-        return 'meal_counts:' . $date . ':' . self::MEAL_COUNTS_CACHE_SUFFIX;
+        // 判定基準(直前ウィンドウか通常予約期間か)は「今日」で変わるため、基準日をキーに含める。
+        // 含めないと、境界をまたいだ日に古い基準で計算した食数が最大1時間配信される。
+        return 'meal_counts:' . $date
+            . ':t' . Date::today('Asia/Tokyo')->format('Ymd')
+            . ':' . self::MEAL_COUNTS_CACHE_SUFFIX;
     }
 
     public static function invalidateMealCountsCache(string $date): void

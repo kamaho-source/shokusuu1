@@ -222,6 +222,179 @@
         });
     }
 
+    // ---- 個人（部屋別）タブの送信
+    // チェックを外した食事も 0 として明示的に送る。送らないとサーバー側で
+    // 「変更なし」と扱われ、取り消しが反映されない。
+    function submitIndividual(container, base, roomId, date, mealType, csrfToken){
+        var tbody = container.querySelector('#ce-room-tbody');
+        if (!tbody){ alert('部屋一覧が読み込めていません。'); return; }
+
+        // 開いたときの状態から変わった食事だけを送る。
+        // 全食種を絶対値で送ると、別タブで追加された予約を古い画面の内容で消してしまう。
+        var meals = {};
+        var changed = 0;
+        tbody.querySelectorAll('tr[data-room-id]').forEach(function(tr){
+            var rid = tr.getAttribute('data-room-id');
+            if (!rid) return;
+            for (var t = 1; t <= 4; t++){
+                var cb = tr.querySelector('input.meal-checkbox[type="checkbox"][name="meals[' + t + '][' + rid + ']"]');
+                if (!cb) continue;
+                var wasChecked = cb.getAttribute('data-initial-checked') === '1';
+                if (cb.checked === wasChecked) continue;
+                if (!meals[String(t)]) meals[String(t)] = {};
+                meals[String(t)][String(rid)] = cb.checked ? 1 : 0;
+                changed++;
+            }
+        });
+
+        if (changed === 0){ alert('変更された項目がありません。'); return; }
+
+        var saveBtn     = container.querySelector('#ce-save-btn');
+        var saveSpinner = container.querySelector('#ce-save-spinner');
+        if (saveBtn)     saveBtn.disabled = true;
+        if (saveSpinner) saveSpinner.style.display = 'inline-flex';
+
+        var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+        if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+        fetch(apiUrl(base, roomId, date, mealType), {
+            method: 'POST', headers: headers, credentials: 'same-origin',
+            body: JSON.stringify({
+                reservation_type: '1',
+                d_reservation_date: date,
+                meals: meals
+            })
+        })
+        .then(function(res){ return res.json().then(function(j){ return { ok: res.ok, status: res.status, j: j }; }); })
+        .then(function(pair){
+            if (!pair.ok || !pair.j || pair.j.status !== 'success'){
+                var msg = (pair.j && pair.j.message) || '直前予約の更新に失敗しました。';
+                if (pair.status === 409){
+                    if (confirm(msg + '\n\nページを再読込しますか？')) { window.location.reload(); return; }
+                } else {
+                    alert(msg);
+                }
+                if (saveBtn)     saveBtn.disabled = false;
+                if (saveSpinner) saveSpinner.style.display = 'none';
+                return;
+            }
+            if (window.ReservationSync) window.ReservationSync.notifySaved(date);
+            var modalEl = container.closest ? container.closest('.modal') : null;
+            if (modalEl && window.bootstrap){
+                var inst = bootstrap.Modal.getInstance(modalEl);
+                if (inst) inst.hide();
+            }
+            window.location.reload();
+        })
+        .catch(function(){
+            alert('保存リクエスト送信に失敗しました。');
+            if (saveBtn)     saveBtn.disabled = false;
+            if (saveSpinner) saveSpinner.style.display = 'none';
+        });
+    }
+
+    // ---- フォーム送信のバインド
+    // 一覧取得の成否に関わらず必ずバインドする。以前は一覧取得の .then() の中で
+    // バインドしていたため、利用者が0件・取得失敗のときにネイティブ送信へ落ちていた。
+    function bindSubmit(container){
+        var form = container.querySelector('#change-edit-form');
+        if (!form || form.dataset.submitBound === '1') return;
+        var base = (container.querySelector('#ce-root') || container).getAttribute('data-base') || '/';
+        // フォーム送信
+            var csrfMeta  = document.querySelector('meta[name="csrfToken"]');
+            var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
+            if (form && form.dataset.submitBound !== '1'){
+                form.dataset.submitBound = '1';
+                form.addEventListener('submit', function(e){
+                    e.preventDefault();
+
+                    var roomSelect = container.querySelector('#ce-room-select');
+                    var roomHidden = container.querySelector('#ce-room-hidden');
+                    var dateHidden = container.querySelector('#ce-date-hidden');
+                    var tbody      = container.querySelector('#ce-tbody');
+                    var rId = (roomSelect && roomSelect.value) || (roomHidden && roomHidden.value);
+                    var d   = (dateHidden && dateHidden.value);
+                    var m   = resolveMealType(container);
+
+                    if (!rId || !d){ alert('部屋または日付が不正です。'); return; }
+                    if (!m)        { alert('食種(mealType)が不正です。'); return; }
+
+                    // 「個人（部屋別）」タブは users 形式ではなく meals 形式で送る。
+                    // 以前は常に users だけを送っていたため、個人タブの操作が一切保存されなかった。
+                    var typeHidden = container.querySelector('#ce-reservation-type-hidden');
+                    if (typeHidden && typeHidden.value === '1'){
+                        submitIndividual(container, base, rId, d, m, csrfToken);
+                        return;
+                    }
+
+                    var usersPayload = {};
+                    (tbody ? tbody : container).querySelectorAll('tr[data-user-id]').forEach(function(tr){
+                        var uid = tr.getAttribute('data-user-id');
+                        if (!uid) return;
+                        var obj = {}, hasChange = false;
+                        for (var t = 1; t <= 4; t++){
+                            var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
+                            if (!cb) continue;
+                            var isChecked  = !!cb.checked;
+                            var wasChecked = cb.getAttribute('data-initial-checked') === '1';
+                            var flag = 0;
+                            if (isChecked  && !wasChecked) flag = 1;
+                            if (!isChecked && wasChecked)  flag = 2;
+                            if (flag > 0){ obj[String(t)] = { i_change_flag: flag }; hasChange = true; }
+                        }
+                        if (hasChange) usersPayload[String(uid)] = obj;
+                    });
+
+                    if (Object.keys(usersPayload).length === 0){ alert('変更された項目がありません。'); return; }
+
+                    var saveBtn    = container.querySelector('#ce-save-btn');
+                    var saveSpinner = container.querySelector('#ce-save-spinner');
+                    if (saveBtn)    { saveBtn.disabled = true; }
+                    if (saveSpinner){ saveSpinner.style.display = 'inline-flex'; }
+
+                    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
+                    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
+
+                    fetch(apiUrl(base, rId, d, m), {
+                        method: 'POST', headers: headers, credentials: 'same-origin',
+                        body: JSON.stringify({ users: usersPayload })
+                    })
+                    .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, status: res2.status, j: j }; }); })
+                    .then(function(pair2){
+                        var ok2 = pair2.ok, json2 = pair2.j, httpStatus = pair2.status;
+                        if (!ok2 || !json2 || json2.status !== 'success'){
+                            var msg = (json2 && json2.message) || '直前予約の更新に失敗しました。';
+                            // 409 競合の場合はページリロードを促す
+                            if (httpStatus === 409 || (json2 && json2.status === 'conflict')) {
+                                if (confirm(msg + '\n\nページを再読込しますか？')) {
+                                    window.location.reload();
+                                    return;
+                                }
+                            } else {
+                                alert(msg);
+                            }
+                            if (saveBtn)    saveBtn.disabled = false;
+                            if (saveSpinner) saveSpinner.style.display = 'none';
+                            return;
+                        }
+                        // 成功：他タブへ失効を通知し、モーダルを閉じてリロード
+                        if (window.ReservationSync) window.ReservationSync.notifySaved(d);
+                        var modalEl = container.closest('.modal');
+                        if (modalEl && window.bootstrap){
+                            var inst = bootstrap.Modal.getInstance(modalEl);
+                            if (inst) inst.hide();
+                        }
+                        window.location.reload();
+                    })
+                    .catch(function(){
+                        alert('保存リクエスト送信に失敗しました。');
+                        if (saveBtn)    saveBtn.disabled = false;
+                        if (saveSpinner) saveSpinner.style.display = 'none';
+                    });
+                });
+            }
+    }
+
     // ---- 一覧取得 & 描画
     function fetchAndRender(container){
         var root       = container.querySelector('#ce-root') || container;
@@ -320,86 +493,6 @@
             bindNameSearch(container);
             updateAll(container);
 
-            // フォーム送信
-            var csrfMeta  = document.querySelector('meta[name="csrfToken"]');
-            var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : null;
-            if (form && form.dataset.submitBound !== '1'){
-                form.dataset.submitBound = '1';
-                form.addEventListener('submit', function(e){
-                    e.preventDefault();
-
-                    var rId = (roomSelect && roomSelect.value) || (roomHidden && roomHidden.value);
-                    var d   = (dateHidden && dateHidden.value);
-                    var m   = resolveMealType(container);
-
-                    if (!rId || !d){ alert('部屋または日付が不正です。'); return; }
-                    if (!m)        { alert('食種(mealType)が不正です。'); return; }
-
-                    var usersPayload = {};
-                    tbody.querySelectorAll('tr[data-user-id]').forEach(function(tr){
-                        var uid = tr.getAttribute('data-user-id');
-                        if (!uid) return;
-                        var obj = {}, hasChange = false;
-                        for (var t = 1; t <= 4; t++){
-                            var cb = tr.querySelector('input.meal-checkbox[data-reservation-type="' + t + '"]');
-                            if (!cb) continue;
-                            var isChecked  = !!cb.checked;
-                            var wasChecked = cb.getAttribute('data-initial-checked') === '1';
-                            var flag = 0;
-                            if (isChecked  && !wasChecked) flag = 1;
-                            if (!isChecked && wasChecked)  flag = 2;
-                            if (flag > 0){ obj[String(t)] = { i_change_flag: flag }; hasChange = true; }
-                        }
-                        if (hasChange) usersPayload[String(uid)] = obj;
-                    });
-
-                    if (Object.keys(usersPayload).length === 0){ alert('変更された項目がありません。'); return; }
-
-                    var saveBtn    = container.querySelector('#ce-save-btn');
-                    var saveSpinner = container.querySelector('#ce-save-spinner');
-                    if (saveBtn)    { saveBtn.disabled = true; }
-                    if (saveSpinner){ saveSpinner.style.display = 'inline-flex'; }
-
-                    var headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
-                    if (csrfToken) headers['X-CSRF-Token'] = csrfToken;
-
-                    fetch(apiUrl(base, rId, d, m), {
-                        method: 'POST', headers: headers, credentials: 'same-origin',
-                        body: JSON.stringify({ users: usersPayload })
-                    })
-                    .then(function(res2){ return res2.json().then(function(j){ return { ok: res2.ok, status: res2.status, j: j }; }); })
-                    .then(function(pair2){
-                        var ok2 = pair2.ok, json2 = pair2.j, httpStatus = pair2.status;
-                        if (!ok2 || !json2 || json2.status !== 'success'){
-                            var msg = (json2 && json2.message) || '直前予約の更新に失敗しました。';
-                            // 409 競合の場合はページリロードを促す
-                            if (httpStatus === 409 || (json2 && json2.status === 'conflict')) {
-                                if (confirm(msg + '\n\nページを再読込しますか？')) {
-                                    window.location.reload();
-                                    return;
-                                }
-                            } else {
-                                alert(msg);
-                            }
-                            if (saveBtn)    saveBtn.disabled = false;
-                            if (saveSpinner) saveSpinner.style.display = 'none';
-                            return;
-                        }
-                        // 成功：モーダルを閉じてリロード
-                        var modalEl = container.closest('.modal');
-                        if (modalEl && window.bootstrap){
-                            var inst = bootstrap.Modal.getInstance(modalEl);
-                            if (inst) inst.hide();
-                        }
-                        window.location.reload();
-                    })
-                    .catch(function(){
-                        alert('保存リクエスト送信に失敗しました。');
-                        if (saveBtn)    saveBtn.disabled = false;
-                        if (saveSpinner) saveSpinner.style.display = 'none';
-                    });
-                });
-            }
 
             // 部屋変更 → 再取得
             if (roomSelect && roomSelect.dataset.changeBound !== '1'){
@@ -429,6 +522,7 @@
         }
 
         form.dataset.ceBooted = '1';
+        bindSubmit(container);
         setTimeout(function(){ fetchAndRender(container); }, 100);
     }
 

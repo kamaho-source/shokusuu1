@@ -41,6 +41,10 @@ $mealBadgeClass = $mealBadgeClasses[(int)$mealType] ?? 'bg-secondary';
 
 $this->Html->css('pages/t_reservation_add.css', ['block' => 'css']);
 $this->Html->css('pages/t_reservation_change_edit.css', ['block' => 'css']);
+// 単体ページで直接開かれた場合、この JS が無いと利用者一覧が読み込まれず
+// フォームがネイティブ送信へ落ちる。モーダル埋め込み時は index 側で既に読み込まれている。
+$this->Html->script('reservation_stale_notice.js', ['block' => true]);
+$this->Html->script('ce-change-edit.js', ['block' => true]);
 echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 
 $indivJson = json_encode(
@@ -197,10 +201,10 @@ $indivJson = json_encode(
                                     <?php foreach ($rooms as $rid => $rname): ?>
                                     <tr data-room-id="<?= h($rid) ?>">
                                         <td><?= h($rname) ?></td>
-                                        <td class="text-center"><input type="checkbox" class="form-check-input meal-checkbox" name="meals[1][<?= h($rid) ?>]" value="1"></td>
-                                        <td class="text-center"><input type="checkbox" class="form-check-input meal-checkbox" name="meals[2][<?= h($rid) ?>]" value="1"></td>
-                                        <td class="text-center"><input type="checkbox" class="form-check-input meal-checkbox" name="meals[3][<?= h($rid) ?>]" value="1"></td>
-                                        <td class="text-center"><input type="checkbox" class="form-check-input meal-checkbox" name="meals[4][<?= h($rid) ?>]" value="1"></td>
+                                        <td class="text-center"><?= $this->Form->checkbox("meals[1][$rid]", ['class' => 'form-check-input meal-checkbox', 'value' => 1]) ?></td>
+                                        <td class="text-center"><?= $this->Form->checkbox("meals[2][$rid]", ['class' => 'form-check-input meal-checkbox', 'value' => 1]) ?></td>
+                                        <td class="text-center"><?= $this->Form->checkbox("meals[3][$rid]", ['class' => 'form-check-input meal-checkbox', 'value' => 1]) ?></td>
+                                        <td class="text-center"><?= $this->Form->checkbox("meals[4][$rid]", ['class' => 'form-check-input meal-checkbox', 'value' => 1]) ?></td>
                                     </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -273,8 +277,13 @@ $indivJson = json_encode(
                             if (isIndiv && !_prefilled) {
                                 _prefilled = true;
                                 INDIV_DATA.forEach(function(r) {
-                                    var cb = document.querySelector('input[name="meals[' + r.type + '][' + r.room_id + ']"]');
-                                    if (cb) cb.checked = true;
+                                    // 未チェックを 0 として送るための hidden が同名で先に存在するため、
+                                    // type=checkbox を明示して取得する。
+                                    var cb = document.querySelector('input.meal-checkbox[type="checkbox"][name="meals[' + r.type + '][' + r.room_id + ']"]');
+                                    if (!cb) return;
+                                    cb.checked = true;
+                                    // 送信時に「開いたときから変わった食事」だけを判定するための初期状態
+                                    cb.setAttribute('data-initial-checked', '1');
                                 });
                             }
                         }
