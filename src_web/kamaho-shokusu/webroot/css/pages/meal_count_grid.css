@@ -215,7 +215,10 @@ html, body {
 
 :root {
     --col-row-w:  32px;
-    --col-room-w: 72px;
+    /* 部屋名は最長6文字（「ナザレの部屋」）。11px × 6文字 + 左右padding 8px = 74px。
+       72px だと2文字ぶん足りず折り返し、行の高さが 22px -> 33px に増えて
+       縦に見える行数が減っていた。余裕をみて 80px にする。 */
+    --col-room-w: 80px;
     --col-name-w: 60px;
     --cell-w:     24px;
     --header-h:   40px;
