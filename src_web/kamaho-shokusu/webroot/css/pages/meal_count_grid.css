@@ -249,6 +249,9 @@ html, body {
 .mcg-grid .col-room {
     width: var(--col-room-w);
     min-width: var(--col-room-w);
+    max-width: var(--col-room-w);
+    white-space: normal;
+    overflow-wrap: anywhere;
     position: sticky; left: var(--col-row-w); z-index: 3;
     background: #d8e4bc;
 }
@@ -256,6 +259,14 @@ html, body {
 .mcg-grid .col-name {
     width: var(--col-name-w);
     min-width: var(--col-name-w);
+    /* 長い氏名で列が広がると食数セルが画面外へ押し出され、
+       スマートフォンでは予約のチェックに届かなくなる。
+       列幅を超えさせず、名前のほうを折り返す。 */
+    max-width: var(--col-name-w);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    line-break: strict;
     position: sticky;
     left: calc(var(--col-row-w) + var(--col-room-w));
     z-index: 3;
@@ -326,14 +337,16 @@ html, body {
 .mcg-grid thead tr.header-meals th.is-holiday  { background: #fde8e8; }
 
 /* ── データ行 ── */
-.mcg-grid tbody tr { height: var(--row-h); }
+/* 氏名が折り返して2行になる行があるため、高さは下限として扱う */
+.mcg-grid tbody tr { height: auto; min-height: var(--row-h); }
 
 .mcg-grid tbody td {
     padding: 0;
     text-align: center;
     vertical-align: middle;
     border: 1px solid #d9d9d9;
-    height: var(--row-h);
+    height: auto;
+    min-height: var(--row-h);
     font-size: 12px;
 }
 
@@ -347,24 +360,30 @@ html, body {
 .mcg-grid tbody td.col-room {
     background: #fff;
     text-align: left;
-    padding: 0 4px;
+    padding: 2px 4px;
     font-size: 11px;
     font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
     border-color: #aaa;
+    /* 氏名列と同じ理由で折り返す（部屋名も長いものがある） */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 .mcg-grid tbody td.col-name {
     background: #fff;
     text-align: left;
-    padding: 0 4px;
+    padding: 2px 4px;
     font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
     border-color: #aaa;
+    /* 長い氏名を1行で出すと氏名列が広がり、食数セルが画面外へ押し出される。
+       スマートフォンではチェックに届かなくなるため、列幅内で折り返す。
+       省略記号だと誰の行か分からなくなるので、省略ではなく折り返す。 */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
 }
 
 /* 食事セル */
