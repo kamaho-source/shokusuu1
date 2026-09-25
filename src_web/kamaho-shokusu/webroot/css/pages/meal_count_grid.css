@@ -215,10 +215,7 @@ html, body {
 
 :root {
     --col-row-w:  32px;
-    /* 部屋名は最長6文字（「ナザレの部屋」）。11px × 6文字 + 左右padding 8px = 74px。
-       72px だと2文字ぶん足りず折り返し、行の高さが 22px -> 33px に増えて
-       縦に見える行数が減っていた。余裕をみて 80px にする。 */
-    --col-room-w: 80px;
+    --col-room-w: 72px;
     --col-name-w: 60px;
     --cell-w:     24px;
     --header-h:   40px;
@@ -252,9 +249,6 @@ html, body {
 .mcg-grid .col-room {
     width: var(--col-room-w);
     min-width: var(--col-room-w);
-    max-width: var(--col-room-w);
-    white-space: normal;
-    overflow-wrap: anywhere;
     position: sticky; left: var(--col-row-w); z-index: 3;
     background: #d8e4bc;
 }
@@ -262,14 +256,6 @@ html, body {
 .mcg-grid .col-name {
     width: var(--col-name-w);
     min-width: var(--col-name-w);
-    /* 長い氏名で列が広がると食数セルが画面外へ押し出され、
-       スマートフォンでは予約のチェックに届かなくなる。
-       列幅を超えさせず、名前のほうを折り返す。 */
-    max-width: var(--col-name-w);
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: normal;
-    line-break: strict;
     position: sticky;
     left: calc(var(--col-row-w) + var(--col-room-w));
     z-index: 3;
@@ -368,10 +354,9 @@ html, body {
     font-weight: 600;
     line-height: 1.25;
     border-color: #aaa;
-    /* 氏名列と同じ理由で折り返す（部屋名も長いものがある） */
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mcg-grid tbody td.col-name {
@@ -381,12 +366,9 @@ html, body {
     font-size: 11px;
     line-height: 1.25;
     border-color: #aaa;
-    /* 長い氏名を1行で出すと氏名列が広がり、食数セルが画面外へ押し出される。
-       スマートフォンではチェックに届かなくなるため、列幅内で折り返す。
-       省略記号だと誰の行か分からなくなるので、省略ではなく折り返す。 */
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* 食事セル */
@@ -879,4 +861,41 @@ html, body {
 @keyframes mcg-toast-in {
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   スマートフォン幅だけの調整
+
+   長い氏名があると氏名列が内容に合わせて広がり、食数セルが画面外へ
+   押し出されてチェックに届かなくなる。狭い画面ではこれが致命的なので、
+   列幅を固定して氏名のほうを折り返す。
+   画面に余裕のある PC・タブレットでは、従来どおり1行で表示する。
+   ========================================================================== */
+@media (max-width: 768px) {
+    :root {
+        /* 部屋名は最長6文字（「ナザレの部屋」）。
+           11px × 6文字 + 左右padding 8px = 74px 必要なので余裕をみて 80px。
+           72px のままだと2px足りずに折り返し、行の高さが増えてしまう。 */
+        --col-room-w: 80px;
+    }
+
+    .mcg-grid .col-room,
+    .mcg-grid .col-name {
+        max-width: var(--col-room-w);
+    }
+    .mcg-grid .col-name { max-width: var(--col-name-w); }
+
+    /* 省略記号だと誰の行か分からなくなるため、省略ではなく折り返す */
+    .mcg-grid tbody td.col-room,
+    .mcg-grid tbody td.col-name {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    /* 折り返しで2行以上になる行があるため、高さは下限として扱う */
+    .mcg-grid tbody tr { height: auto; min-height: var(--row-h); }
+    .mcg-grid tbody td { height: auto; min-height: var(--row-h); }
 }
