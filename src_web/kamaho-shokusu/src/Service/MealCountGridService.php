@@ -17,8 +17,9 @@ use Cake\ORM\Table;
  *   - 部屋小計・日次合計の算出
  *
  * フラグ読み取りポリシー:
- *   - 14日以内: i_change_flag を優先（NULL の場合は eat_flag にフォールバック）
- *   - 14日超: eat_flag を使用
+ *   ReservationDatePolicy::isActiveReservation() に集約している。
+ *   - 直前編集ウィンドウ内(今日+14日以内・過去日を含む): i_change_flag（NULL なら eat_flag）
+ *   - 通常予約範囲(今日+15日以降): eat_flag
  */
 class MealCountGridService
 {
@@ -248,9 +249,7 @@ class MealCountGridService
         array $roomUsers,
         array $dates
     ): array {
-        $today      = Date::today('Asia/Tokyo');
-        // 直前編集ウィンドウ最終日: 当日〜+14日は i_change_flag を有効値として使う。
-        $borderDate = $today->addDays(14);
+        $datePolicy = new ReservationDatePolicy();
 
         $allUserIds = [];
         foreach ($roomUsers as $users) {
@@ -296,11 +295,14 @@ class MealCountGridService
             $change = $row['i_change_flag'];
             $eat    = $row['eat_flag'];
 
-            // i_change_flag が設定済み(直前編集あり)ならそれを優先。
-            // 未設定(NULL)の場合は eat_flag にフォールバック。
-            // 過去日・未来日問わず直前編集を優先することで、
-            // 実食確認なしでも予約数をグリッドに表示できる。
-            $effective = $change !== null ? (int)$change : (int)($eat ?? 0);
+            // 有効判定は ReservationDatePolicy に集約する。
+            // 直前編集ウィンドウ内(過去日を含む)は i_change_flag、通常予約範囲は eat_flag を使う。
+            // 画面だけ別基準にすると、食数予定表の数と発注用集計の数がずれる。
+            $effective = $datePolicy->isActiveReservation(
+                $eat === null ? null : (int)$eat,
+                $change === null ? null : (int)$change,
+                new Date($date)
+            ) ? 1 : 0;
 
             $map[$uid][$rid][$date][$type] = $effective === 1;
 

@@ -61,7 +61,8 @@ final class DirectRegisterMealsUseCase
     /**
      * 一括直接登録で個別食事をスキップしてよい例外か判定する。
      *
-     * 重複登録・昼食/弁当競合のみスキップ対象。権限不足・DB障害・楽観ロック競合は再スロー。
+     * 重複登録・昼食/弁当競合・別部屋の同一食事のみスキップ対象。
+     * 権限不足・DB障害・楽観ロック競合は再スロー。
      */
     private function isSkippable(DomainException $e): bool
     {
@@ -72,6 +73,7 @@ final class DirectRegisterMealsUseCase
         $message = $e->getMessage();
 
         return str_contains($message, '昼食と弁当')
-            || str_contains($message, '既に登録');
+            || str_contains($message, '既に登録')
+            || str_contains($message, '既に予約されています');
     }
 }

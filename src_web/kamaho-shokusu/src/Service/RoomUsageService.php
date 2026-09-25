@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -21,6 +22,13 @@ use Cake\ORM\TableRegistry;
  */
 class RoomUsageService
 {
+    private ReservationDatePolicy $datePolicy;
+
+    public function __construct(?ReservationDatePolicy $datePolicy = null)
+    {
+        $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
+    }
+
     /**
      * 部屋ごとの使用率一覧を返す。職員（i_user_level=0）の個別使用率も含む。
      *
@@ -102,11 +110,15 @@ class RoomUsageService
                 continue;
             }
 
-            $effectiveEat = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            $isActive = $this->datePolicy->isActiveReservation(
+                $row->eat_flag === null ? null : (int)$row->eat_flag,
+                $row->i_change_flag === null ? null : (int)$row->i_change_flag,
+                new Date($row->d_reservation_date instanceof Date
+                    ? $row->d_reservation_date->format('Y-m-d')
+                    : (string)$row->d_reservation_date)
+            );
 
-            if ($effectiveEat === 1) {
+            if ($isActive) {
                 $eatCounts[$roomId] = ($eatCounts[$roomId] ?? 0) + 1;
 
                 if (isset($staffMaster[$roomId][$userId])) {

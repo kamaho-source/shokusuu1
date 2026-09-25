@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -121,13 +122,32 @@ class MealSummaryExportService
     }
 
     /**
+     * 予約1行がその日の食数として有効かを ReservationDatePolicy の基準で判定する。
+     *
+     * 請求金額の元になる件数なので、集計・画面と同じ基準を使う。
+     */
+    private function isActiveRow(object $row): bool
+    {
+        $date = $row->d_reservation_date;
+        $dateStr = is_object($date) && method_exists($date, 'format')
+            ? $date->format('Y-m-d')
+            : (string)$date;
+
+        return (new ReservationDatePolicy())->isActiveReservation(
+            $row->eat_flag === null ? null : (int)$row->eat_flag,
+            $row->i_change_flag === null ? null : (int)$row->i_change_flag,
+            new Date($dateStr)
+        );
+    }
+
+    /**
      * @return array{morning: int, lunch: int, dinner: int, bento: int}
      */
     private function countMeals(int $userId, int $year, int $month): array
     {
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $rows  = $table->find()
-            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
+            ->select(['d_reservation_date', 'i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
             ->where([
                 'i_id_user'              => $userId,
                 'YEAR(d_reservation_date)'  => $year,
@@ -139,11 +159,7 @@ class MealSummaryExportService
         $counts = ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0];
 
         foreach ($rows as $row) {
-            $effectiveFlag = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
-
-            if ($effectiveFlag !== 1) {
+            if (!$this->isActiveRow($row)) {
                 continue;
             }
 
@@ -168,7 +184,7 @@ class MealSummaryExportService
     {
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $rows  = $table->find()
-            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
+            ->select(['d_reservation_date', 'i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
             ->where([
                 'i_id_user'                 => $userId,
                 'YEAR(d_reservation_date)'  => $year,
@@ -183,11 +199,7 @@ class MealSummaryExportService
         ];
 
         foreach ($rows as $row) {
-            $effectiveFlag = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
-
-            if ($effectiveFlag !== 1) {
+            if (!$this->isActiveRow($row)) {
                 continue;
             }
 

@@ -8,6 +8,7 @@
 $this->assign('title', '食数予約');
 $this->Html->script('reservation-users.js', ['block' => true]);
 $this->Html->script('reservation.js', ['block' => true]);
+$this->Html->script('reservation_stale_notice.js', ['block' => true]);
 $this->Html->script('ce-change-edit.js', ['block' => true]);
 $this->Html->script('add.js', ['block' => true]);
 // モーダルで add.php / change_edit.php のコンテンツを描画する際に必要な CSS

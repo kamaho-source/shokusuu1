@@ -1,0 +1,15 @@
+{
+  "name": "shokusuu1-e2e",
+  "private": true,
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:bugfix": "playwright test tests/e2e/bugfix-investigation.spec.mjs",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:bugfix:headed": "playwright test tests/e2e/bugfix-investigation.spec.mjs --headed",
+    "test:e2e:mealcount": "playwright test tests/e2e/change-edit-individual.spec.mjs tests/e2e/stale-tab.spec.mjs tests/e2e/cross-room.spec.mjs",
+    "test:e2e:mealcount:headed": "playwright test tests/e2e/change-edit-individual.spec.mjs tests/e2e/stale-tab.spec.mjs tests/e2e/cross-room.spec.mjs --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0"
+  }
+}
