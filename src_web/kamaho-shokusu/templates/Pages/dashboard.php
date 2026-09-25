@@ -186,7 +186,12 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             <?php /* ---- 本日の食数報告アラート ---- */ ?>
             <?php /* $hasTodayReport が false(未報告)の場合のみ表示する */ ?>
             <?php if (empty($hasTodayReport)): ?>
-                <div class="alert-card" id="daily-report-card">
+                <?php /*
+                    data-edit-url: 「食べない」で登録したあと、結果表示から
+                    修正画面へ戻すための導線（home.js が使用）
+                */ ?>
+                <div class="alert-card" id="daily-report-card"
+                     data-edit-url="<?= h($this->Url->build('/TReservationInfo/bulk-change-edit-form?date=' . $todayParam)) ?>">
                     <div class="alert-left">
                         <div class="alert-icon">i</div>
                         <div>
@@ -458,11 +463,24 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
 
     <?= $this->Html->script('pages/home.js') ?>
     <script>
+        // 既読などブラウザー保存のキーをユーザーごとに分けるために使う
+        window.__LOGIN_USER_ID = <?= json_encode($user?->get('i_id_user') ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
+
         /* ---- お知らせ未読インジケーター ---- */
         (() => {
-            const STORAGE_KEY = 'notice_seen_ids';
+            /*
+             * 既読はブラウザーに保存するため、共有端末で利用者を切り替えたときに
+             * 別の人の既読が引き継がれないよう、ログインユーザーごとにキーを分ける。
+             * ユーザーを特定できない場合は保存しない（他人の既読を作らない）。
+             */
+            const noticeUserId = window.__LOGIN_USER_ID ? String(window.__LOGIN_USER_ID) : '';
+            if (!noticeUserId) return;
+            const STORAGE_KEY = `notice_seen_ids:v2:${noticeUserId}`;
             const items = document.querySelectorAll('.notice-item[data-notice-id]');
             if (!items.length) return;
+
+            // 旧キー（全ユーザー共通）が残っていると他人の既読が見えるため破棄する
+            try { localStorage.removeItem('notice_seen_ids'); } catch (e) { /* 無視 */ }
 
             const seenRaw = localStorage.getItem(STORAGE_KEY) ?? '[]';
             let seenIds;
