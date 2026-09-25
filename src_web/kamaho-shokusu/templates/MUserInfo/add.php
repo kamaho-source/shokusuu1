@@ -5,41 +5,38 @@
  * @var \App\Model\Entity\MUserInfo $mUserInfo
  */
 ?>
-</fieldset>
-
-<!-- =========================================================
-     ここから試験的ユーザー情報フォーム
-========================================================= -->
+<!-- ユーザー情報の追加フォーム -->
 <?php
 $this->assign('title', 'ユーザー情報の追加');
 $this->Html->css('bootstrap-icons.css', ['block' => true]);
 $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 $this->Html->script('realtime-validation.js', ['block' => true]);
+$this->Html->css('pages/user_screens.css', ['block' => 'css']);
 ?>
-<div class="row">
-    <aside class="col-md-3">
-        <div class="list-group">
-            <h4 class="list-group-item list-group-item-action active"><?= __('操作') ?></h4>
-            <?= $this->Html->link(__('ユーザー情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
+<div class="u-shell">
+
+    <div class="u-head">
+        <div>
+            <div class="u-eyebrow">ユーザーの追加</div>
+            <h1 class="u-title">新しくユーザーを追加する</h1>
         </div>
-    </aside>
-    <div class="col-md-9">
-        <div class="card">
-            <div class="card-header">
-                <h4><?= __('ユーザー情報の追加') ?></h4>
-            </div>
-            <div class="card-body">
+        <a class="u-back" href="<?= $this->Url->build(['action' => 'index']) ?>">
+            <span aria-hidden="true">←</span> ユーザー一覧へ戻る
+        </a>
+    </div>
+
+    <section class="u-card">
                 <?= $this->Form->create($mUserInfo ?? null, [
                     'class'      => 'needs-validation',
                     'novalidate' => true,
                     'id'         => 'reservation-form'
                 ]) ?>
-                <p class="text-muted small mb-3"><span class="text-danger" aria-hidden="true">*</span> は必須項目です</p>
+                <p class="text-muted small mb-3"><span class="u-req" aria-hidden="true">*</span> は必須項目です</p>
                 <fieldset>
                     <!-- ログインID -->
-                    <div class="mb-3">
+                    <div class="mb-3 u-field">
                         <?= $this->Form->control('c_login_account', [
-                            'label'             => ['text' => 'ログインID <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
+                            'label'             => ['text' => 'ログインID <span class="u-req" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'id'                => 'c_login_account',
                             'aria-required'     => 'true',
@@ -50,7 +47,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- 生年月日 -->
-                    <div class="mb-3">
+                    <div class="mb-3 u-field">
                         <?= $this->Form->control('birth_date', [
                             'type'        => 'text',
                             'label'       => ['text' => '生年月日', 'class' => 'form-label'],
@@ -63,8 +60,8 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- パスワード -->
-                    <div class="mb-3">
-                        <?= $this->Form->label('c_login_passwd', 'パスワード <span class="text-danger" aria-hidden="true">*</span>', [
+                    <div class="mb-3 u-field">
+                        <?= $this->Form->label('c_login_passwd', 'パスワード <span class="u-req" aria-hidden="true">*</span>', [
                             'class'  => 'form-label',
                             'for'    => 'inputPassword',
                             'escape' => false,
@@ -90,9 +87,9 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- ユーザー名 -->
-                    <div class="mb-3">
+                    <div class="mb-3 u-field">
                         <?= $this->Form->control('c_user_name', [
-                            'label'             => ['text' => 'ユーザー名 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
+                            'label'             => ['text' => 'ユーザー名 <span class="u-req" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'aria-required'     => 'true',
                             'data-validate'     => 'required',
@@ -102,11 +99,11 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- 性別 -->
-                    <div class="mb-3">
+                    <div class="mb-3 u-field">
                         <?= $this->Form->control('i_user_gender', [
                             'type'              => 'select',
                             'options'           => [1 => '男性', 2 => '女性'],
-                            'label'             => ['text' => '性別 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
+                            'label'             => ['text' => '性別 <span class="u-req" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
                             'aria-required'     => 'true',
@@ -117,7 +114,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- どの年代が食べたか -->
-                    <div class="mb-3">
+                    <div class="mb-3 u-field">
                         <?= $this->Form->control('age_group', [
                             'type'              => 'select',
                             'options'           => [
@@ -129,7 +126,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                 6 => '高校生',
                                 7 => '大人'
                             ],
-                            'label'             => ['text' => '年代選択 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
+                            'label'             => ['text' => '年代選択 <span class="u-req" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
                             'aria-required'     => 'true',
@@ -140,8 +137,8 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- 年齢 -->
-                    <div class="mb-3">
-                        <label for="ageSelect" class="form-label">年齢 <span class="text-danger" aria-hidden="true">*</span></label>
+                    <div class="mb-3 u-field">
+                        <label for="ageSelect" class="form-label">年齢 <span class="u-req" aria-hidden="true">*</span></label>
                         <select id="ageSelect" name="age" class="form-control"
                                 aria-required="true"
                                 data-validate="required"
@@ -155,11 +152,11 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- 役職 -->
-                    <div class="mb-3">
+                    <div class="mb-3 u-field">
                         <?= $this->Form->control('role', [
                             'type'              => 'select',
                             'options'           => [0 => '職員', 1 => '児童', 3 => 'その他'],
-                            'label'             => ['text' => '役職 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
+                            'label'             => ['text' => '役職 <span class="u-req" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
                             'aria-required'     => 'true',
@@ -181,7 +178,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
 
                     <!-- 部屋情報チェックボックス -->
-                    <div class="mb-3">
+                    <div class="mb-3 u-field">
                         <label><?= __('所属する部屋') ?></label>
                         <?php if (!empty($rooms)): ?>
                             <?php foreach ($rooms as $roomId => $roomName): ?>
@@ -200,11 +197,14 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     </div>
                 </fieldset>
 
-                <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary', 'id' => 'submit-button', 'disabled' => true]) ?>
-                <?= $this->Form->end() ?>
-            </div>
-        </div>
+    </section>
+
+    <div class="u-actions">
+        <?= $this->Form->button('この内容で追加する', ['class' => 'u-btn u-btn--primary', 'id' => 'submit-button', 'disabled' => true]) ?>
+        <?= $this->Html->link('やめる', ['action' => 'index'], ['class' => 'u-btn u-btn--quiet']) ?>
     </div>
+
+    <?= $this->Form->end() ?>
 </div>
 
 <!-- ユーザー情報フォーム用 JavaScript -->

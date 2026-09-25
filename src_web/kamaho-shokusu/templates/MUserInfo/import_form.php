@@ -7,29 +7,23 @@ $this->assign('title', $title ?? 'ユーザー一括登録（ドラッグ＆ド�
 $csrfToken = $this->request->getAttribute('csrfToken');
 
 // 外部CSS読込（webroot/css/user-import.css）
-echo $this->Html->css('user-import', ['block' => true]);
+echo $this->Html->css(['user-import', 'pages/user_screens.css'], ['block' => true]);
 ?>
-<div class="row">
-    <!-- 左側メニュー -->
-    <aside class="col-md-3" aria-label="<?= __('サイドメニュー') ?>">
-        <div class="list-group">
-            <h2 class="list-group-item list-group-item-action active h5 mb-0"><?= __('操作') ?></h2>
-            <?= $this->Html->link(
-                    __('ユーザー情報一覧'),
-                    ['action' => 'index'],
-                    ['class' => 'list-group-item list-group-item-action']
-            ) ?>
+<div class="u-shell">
+
+    <div class="u-head">
+        <div>
+            <div class="u-eyebrow">ユーザーの追加</div>
+            <h1 class="u-title"><?= h($this->fetch('title')) ?></h1>
+            <p class="u-lead">表計算ソフトで作った名簿から、まとめてユーザーを登録します。</p>
         </div>
-    </aside>
+        <a class="u-back" href="<?= $this->Url->build(['action' => 'index']) ?>">
+            <span aria-hidden="true">←</span> ユーザー一覧へ戻る
+        </a>
+    </div>
 
-    <!-- 右側メイン -->
-    <div class="col-md-9">
-        <div class="card">
-            <div class="card-header">
-                <h1 class="h4 mb-0"><?= h($this->fetch('title')) ?></h1>
-            </div>
-
-            <div class="card-body" id="user-import-root">
+    <section class="u-card">
+        <div id="user-import-root">
                 <!-- JS が読む設定値（現状維持） -->
                 <meta name="csrfToken" content="<?= h($csrfToken) ?>">
                 <meta name="importJsonUrl" content="<?= h($this->Url->build(['controller'=>'MUserInfo','action'=>'importJson'])) ?>">
@@ -156,7 +150,6 @@ echo $this->Html->css('user-import', ['block' => true]);
                     <h2 id="log-title" class="h6">ログ</h2>
                     <div id="status" class="log" aria-live="polite" aria-atomic="false"></div>
                 </section>
-            </div>
         </div>
-    </div>
+    </section>
 </div>

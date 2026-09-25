@@ -1,48 +1,52 @@
 <?php
 /**
+ * 自分のパスワードを変更する
+ *
  * @var \App\View\AppView $this
  */
-$this->assign('title', 'パスワード変更');
+$this->assign('title', 'パスワードの変更');
+$this->Html->css('pages/user_screens.css', ['block' => 'css']);
 ?>
-<div class="container my-4">
-    <?= $this->Flash->render() ?>
-    <div class="row justify-content-center">
-        <div class="col-12 col-md-8 col-lg-6">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <span class="fw-bold">パスワード変更</span>
-                </div>
-                <div class="card-body">
-                    <?= $this->Form->create(null, ['url' => ['action' => 'general_password_reset']]) ?>
-                    <div class="mb-3">
-                        <?= $this->Form->label('new_password', '新しいパスワード', ['class' => 'form-label']) ?>
-                        <?= $this->Form->control('new_password', [
-                            'type' => 'password',
-                            'label' => false,
-                            'required' => true,
-                            'class' => 'form-control',
-                            'minlength' => 4, // ★ 4文字以上
-                            'autocomplete' => 'new-password'
-                        ]) ?>
-                    </div>
-                    <div class="mb-4">
-                        <?= $this->Form->label('confirm_password', '新しいパスワード（確認）', ['class' => 'form-label']) ?>
-                        <?= $this->Form->control('confirm_password', [
-                            'type' => 'password',
-                            'label' => false,
-                            'required' => true,
-                            'class' => 'form-control',
-                            'minlength' => 4,
-                            'autocomplete' => 'new-password'
-                        ]) ?>
-                    </div>
-                    <div class="d-grid gap-2 d-sm-flex">
-                        <?= $this->Form->button('変更する',['class' => 'btn btn-primary px-4']) ?>
-                        <?= $this->Html->link('キャンセル', ['controller'=>'TReservationInfo','action' => 'index'], ['class' => 'btn btn-outline-secondary']) ?>
-                    </div>
-                    <?= $this->Form->end() ?>
-                </div>
-            </div>
+<div class="u-shell u-shell--narrow">
+
+    <div class="u-head">
+        <div>
+            <div class="u-eyebrow">自分の設定</div>
+            <h1 class="u-title">パスワードの変更</h1>
+            <p class="u-lead">新しいパスワードを2回入力してください。4文字以上で設定できます。</p>
         </div>
     </div>
+
+    <?= $this->Flash->render() ?>
+
+    <?= $this->Form->create(null, ['url' => ['action' => 'general_password_reset']]) ?>
+    <section class="u-card">
+        <div class="u-field">
+            <?= $this->Form->control('new_password', [
+                'type' => 'password',
+                'label' => '新しいパスワード',
+                'required' => true,
+                'class' => 'u-input',
+                'minlength' => 4,
+                'autocomplete' => 'new-password',
+            ]) ?>
+        </div>
+        <div class="u-field">
+            <?= $this->Form->control('confirm_password', [
+                'type' => 'password',
+                'label' => '新しいパスワード（確認のためもう一度）',
+                'required' => true,
+                'class' => 'u-input',
+                'minlength' => 4,
+                'autocomplete' => 'new-password',
+            ]) ?>
+            <span class="u-field__help">打ち間違いを防ぐため、同じものを入力してください。</span>
+        </div>
+    </section>
+
+    <div class="u-actions">
+        <?= $this->Form->button('変更する', ['class' => 'u-btn u-btn--primary']) ?>
+        <?= $this->Html->link('やめる', ['controller' => 'TReservationInfo', 'action' => 'index'], ['class' => 'u-btn u-btn--quiet']) ?>
+    </div>
+    <?= $this->Form->end() ?>
 </div>
