@@ -434,7 +434,14 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'userRooms'));
+        // 一覧から権限変更と削除を外し、この画面へ集約したため、
+        // 表示する側が「誰が操作できるか」を判断できる情報を渡す。
+        $identity      = $this->request->getAttribute('identity');
+        $isAdmin       = UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0));
+        $isSystemAdmin = UserRole::isSystemAdmin((int)($identity?->get('i_admin') ?? 0));
+        $currentUserId = (int)($identity?->get('i_id_user') ?? 0);
+
+        $this->set(compact('mUserInfo', 'userRooms', 'isAdmin', 'isSystemAdmin', 'currentUserId'));
     }
 
     public function delete($id = null)

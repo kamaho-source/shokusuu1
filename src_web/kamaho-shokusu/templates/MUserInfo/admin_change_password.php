@@ -1,79 +1,69 @@
 <?php
 /**
+ * 管理者が他の人のパスワードを変更する
+ *
+ * 他人の資格情報を変えるため、誰のパスワードを変えるのかを
+ * 画面上で必ず選ばせる（一覧から直接飛ばさない）。
+ *
  * @var \App\View\AppView $this
- * @var mixed $users
+ * @var array $users ユーザーID => 名前
  */
+$this->assign('title', 'パスワードの再設定');
+$this->Html->css('pages/user_screens.css', ['block' => 'css']);
 ?>
-<?php $this->assign('title', '管理者：パスワード変更'); ?>
-<?= $this->Form->create(null, ['url' => ['action' => 'adminChangePassword'], 'class' => 'needs-validation']) ?>
-<fieldset>
-    <legend class="mb-4">ユーザーのパスワード変更</legend>
+<div class="u-shell u-shell--narrow">
+
+    <div class="u-head">
+        <div>
+            <div class="u-eyebrow">管理者の操作</div>
+            <h1 class="u-title">パスワードの再設定</h1>
+            <p class="u-lead">パスワードが分からなくなった人の代わりに、新しいパスワードを設定します。</p>
+        </div>
+        <a class="u-back" href="<?= $this->Url->build(['action' => 'index']) ?>">
+            <span aria-hidden="true">←</span> ユーザー一覧へ戻る
+        </a>
+    </div>
+
     <?= $this->Flash->render() ?>
 
-    <!-- ユーザー選択 -->
-    <div class="mb-3">
-        <?= $this->Form->control('user_id', [
-            'type' => 'select',
-            'options' => $users,
-            'empty' => 'ユーザーを選択してください',
-            'label' => ['text' => 'ユーザー選択', 'class' => 'form-label'],
-            'required' => true,
-            'class' => 'form-select'
-        ]) ?>
-    </div>
+    <?= $this->Form->create(null, ['url' => ['action' => 'adminChangePassword']]) ?>
+    <section class="u-card">
+        <div class="u-field">
+            <?= $this->Form->control('user_id', [
+                'type' => 'select',
+                'label' => '誰のパスワードを変えますか',
+                'options' => $users ?? [],
+                'empty' => '選んでください',
+                'required' => true,
+                'class' => 'u-select',
+            ]) ?>
+            <span class="u-field__help">選んだ人の今のパスワードは使えなくなります。</span>
+        </div>
+        <div class="u-field">
+            <?= $this->Form->control('new_password', [
+                'type' => 'password',
+                'label' => '新しいパスワード',
+                'required' => true,
+                'class' => 'u-input',
+                'minlength' => 4,
+                'autocomplete' => 'new-password',
+            ]) ?>
+        </div>
+        <div class="u-field">
+            <?= $this->Form->control('confirm_password', [
+                'type' => 'password',
+                'label' => '新しいパスワード（確認のためもう一度）',
+                'required' => true,
+                'class' => 'u-input',
+                'minlength' => 4,
+                'autocomplete' => 'new-password',
+            ]) ?>
+        </div>
+    </section>
 
-    <!-- 新しいパスワード入力 -->
-    <div class="mb-3 position-relative">
-        <?= $this->Form->control('new_password', [
-            'type' => 'password',
-            'label' => ['text' => '新しいパスワード', 'class' => 'form-label'],
-            'required' => true,
-            'class' => 'form-control password-field pe-5', // 右端余白を保持
-            'div' => false // 自動ラッパーを除外
-        ]) ?>
-        <img src="<?= $this->Html->Url->image('eye-slash.svg') ?>"
-             alt="パスワード非表示"
-             class="eye-icon position-absolute"
-             style="cursor: pointer; top: 70%; right: 10px; transform: translateY(-50%);"
-        />
+    <div class="u-actions">
+        <?= $this->Form->button('この内容で再設定する', ['class' => 'u-btn u-btn--primary']) ?>
+        <?= $this->Html->link('やめる', ['action' => 'index'], ['class' => 'u-btn u-btn--quiet']) ?>
     </div>
-
-    <!-- 新しいパスワード確認 -->
-    <div class="mb-3 position-relative">
-        <?= $this->Form->control('confirm_password', [
-            'type' => 'password',
-            'label' => ['text' => '新しいパスワード (確認)', 'class' => 'form-label'],
-            'required' => true,
-            'class' => 'form-control password-field pe-5', // 右端余白を保持
-            'div' => false // 自動ラッパーを除外
-        ]) ?>
-        <img src="<?= $this->Html->Url->image('eye-slash.svg') ?>"
-             alt="パスワード非表示"
-             class="eye-icon position-absolute"
-             style="cursor: pointer; top: 70%; right: 10px; transform: translateY(-50%);"
-        />
-    </div>
-
-    <!-- 送信ボタン -->
-    <div class="mb-3">
-        <?= $this->Form->button('パスワードを変更', ['class' => 'btn btn-primary']) ?>
-    </div>
-</fieldset>
-<?= $this->Form->end() ?>
-
-<script>
-    // パスワード表示/非表示切り替え
-    document.querySelectorAll('.eye-icon').forEach(icon => {
-        icon.addEventListener('click', function () {
-            // アイコンに隣接した password input を取得
-            const input = this.closest('div').querySelector('.password-field');
-            if (input.type === 'password') {
-                input.type = 'text';
-                this.src = "<?= $this->Html->Url->image('eye.svg') ?>"; // 表示アイコンに切り替え
-            } else {
-                input.type = 'password';
-                this.src = "<?= $this->Html->Url->image('eye-slash.svg') ?>"; // 非表示アイコンに切り替え
-            }
-        });
-    });
-</script>
+    <?= $this->Form->end() ?>
+</div>

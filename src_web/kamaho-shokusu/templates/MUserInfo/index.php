@@ -13,7 +13,7 @@ $isSystemAdmin = isset($isSystemAdmin) ? $isSystemAdmin : ((int)$user->get('i_ad
 $currentUserId = $user->get('i_id_user');
 
 echo $this->Html->css(['bootstrap.min']);
-echo $this->Html->css('pages/m_user_info_index.css');
+echo $this->Html->css(['pages/m_user_info_index.css', 'pages/user_screens.css']);
 $this->assign('title', 'ユーザー情報一覧');
 $csrfToken = $this->request->getAttribute('csrfToken');
 
@@ -44,87 +44,111 @@ $csrfToken = $this->request->getAttribute('csrfToken');
         </div>
     <?php endif; ?>
 
+    <?php
+    /*
+     * 一覧は「探して開く」ことに専念させる。
+     * 権限の切り替えと削除は詳細画面へ移した。一覧に置くと隣同士が近く、
+     * PC に不慣れな利用者が押し間違えたときに取り消す手段が画面に無いため。
+     *
+     * 権限(i_admin)の4値。名前だけでは何ができるか伝わらないため説明を添える。
+     */
+    $roleLabels = [
+        0 => ['一般', '自分の食数だけ入力できます', 'general'],
+        2 => ['ブロック長', '担当部屋の承認ができます', 'block'],
+        1 => ['管理者', '全部屋の承認と設定ができます', 'admin'],
+        3 => ['システム管理者', 'すべての操作ができます', 'system'],
+    ];
+    $canSeeRole = $isAdmin || $isSystemAdmin;
+
+    // 絞り込み用の部屋名。表示中の利用者が実際に所属している部屋だけを出す。
+    $filterRooms = [];
+    foreach ($mUserInfo as $row) {
+        foreach (explode(',', (string)($userRoomLabels[$row->i_id_user] ?? '')) as $name) {
+            $name = trim($name);
+            if ($name !== '' && $name !== '未所属' && $name !== '全部屋所属') {
+                $filterRooms[$name] = true;
+            }
+        }
+    }
+    $filterRooms = array_slice(array_keys($filterRooms), 0, 6);
+    ?>
+
+    <div class="u-toolbar">
+        <label class="u-search" for="user-search">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                <circle cx="7" cy="7" r="4.5"></circle><path d="M10.5 10.5 14 14"></path>
+            </svg>
+            <input type="search" id="user-search" placeholder="名前で探す" autocomplete="off">
+        </label>
+        <div class="u-filters" role="group" aria-label="部屋で絞り込む">
+            <button type="button" class="u-pill is-on" data-room="">すべて</button>
+            <?php foreach ($filterRooms as $roomName): ?>
+                <button type="button" class="u-pill" data-room="<?= h($roomName) ?>"><?= h($roomName) ?></button>
+            <?php endforeach; ?>
+            <button type="button" class="u-pill" data-room="未所属">未所属</button>
+        </div>
+        <span class="u-count" id="user-count" role="status"></span>
+    </div>
+
     <div class="table-responsive">
-        <table class="table table-bordered align-middle">
-            <thead class="table-hover">
+        <table class="table u-table align-middle">
+            <thead>
             <tr>
-                <th class="d-none d-md-table-cell" style="width:5%;"><?= $this->Paginator->sort('i_id_user', ['label' => 'No.']) ?></th>
-                <th><?= $this->Paginator->sort('c_user_name', ['label' => 'ユーザー名']) ?></th>
-                <th class="d-none d-md-table-cell" style="width:8%;"><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
+                <th><?= $this->Paginator->sort('c_user_name', ['label' => '名前']) ?></th>
                 <th><?= __('所属部屋') ?></th>
-                <?php if ($isAdmin || $isSystemAdmin): ?>
-                    <th><?= __('ブロック長') ?></th>
-                    <th><?= __('管理者権限') ?></th>
-                    <?php if ($isSystemAdmin): ?>
-                        <th><?= __('システム管理者') ?></th>
-                    <?php endif; ?>
+                <?php if ($canSeeRole): ?>
+                    <th><?= __('できること') ?></th>
                 <?php endif; ?>
-                <th class="actions"><?= __('操作') ?></th>
+                <th class="u-table__action"><span class="visually-hidden">操作</span></th>
             </tr>
             </thead>
-            <tbody>
+            <tbody id="user-rows">
             <?php foreach ($mUserInfo as $userInfo): ?>
-                <tr>
-                    <td class="d-none d-md-table-cell text-muted small"><?= h($userInfo->i_id_user) ?></td>
-                    <td><?= h($userInfo->c_user_name) ?></td>
-                    <td class="d-none d-md-table-cell text-center"><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
-                    <td><?= h($userRoomLabels[$userInfo->i_id_user] ?? '未所属') ?></td>
-                    <?php if ($isAdmin || $isSystemAdmin): ?>
-                        <td class="text-center">
-                            <div class="form-check form-switch d-inline-block">
-                                <input class="form-check-input block-leader-checkbox" type="checkbox" role="switch"
-                                       <?= (int)$userInfo->i_admin === 2 ? 'checked' : '' ?>
-                                       data-user-id="<?= h($userInfo->i_id_user) ?>"
-                                       data-user-name="<?= h($userInfo->c_user_name) ?>"
-                                       data-current-admin="<?= (int)($userInfo->i_admin ?? 0) ?>">
-                            </div>
+                <?php
+                $rowId    = (int)$userInfo->i_id_user;
+                $isSelf   = $rowId === (int)$currentUserId;
+                $roomText = $userRoomLabels[$rowId] ?? '未所属';
+                $role     = $roleLabels[(int)($userInfo->i_admin ?? 0)] ?? $roleLabels[0];
+                // 押せる人にだけボタンを出す。押しても弾かれるボタンは出さない。
+                $canOpen  = $isAdmin || $isSelf;
+                ?>
+                <tr data-name="<?= h($userInfo->c_user_name) ?>" data-rooms="<?= h($roomText) ?>">
+                    <td class="u-name">
+                        <?= h($userInfo->c_user_name) ?>
+                        <?php if ($isSelf): ?><span class="u-self">あなた</span><?php endif; ?>
+                    </td>
+                    <td class="u-rooms<?= $roomText === '未所属' ? ' is-empty' : '' ?>">
+                        <?= h(str_replace(', ', ' / ', $roomText)) ?>
+                    </td>
+                    <?php if ($canSeeRole): ?>
+                        <td>
+                            <span class="u-role u-role--<?= h($role[2]) ?>"><?= h($role[0]) ?></span>
+                            <span class="u-role-help"><?= h($role[1]) ?></span>
                         </td>
-                        <td class="text-center">
-                            <div class="form-check form-switch d-inline-block">
-                                <input class="form-check-input admin-checkbox" type="checkbox" role="switch"
-                                       <?= (int)$userInfo->i_admin === 1 ? 'checked' : '' ?>
-                                       data-user-id="<?= h($userInfo->i_id_user) ?>"
-                                       data-user-name="<?= h($userInfo->c_user_name) ?>">
-                            </div>
-                        </td>
-                        <?php if ($isSystemAdmin): ?>
-                            <td class="text-center">
-                                <div class="form-check form-switch d-inline-block">
-                                    <input class="form-check-input system-admin-checkbox" type="checkbox" role="switch"
-                                           <?= (int)$userInfo->i_admin === 3 ? 'checked' : '' ?>
-                                           data-user-id="<?= h($userInfo->i_id_user) ?>"
-                                           data-user-name="<?= h($userInfo->c_user_name) ?>">
-                                </div>
-                            </td>
-                        <?php endif; ?>
                     <?php endif; ?>
-                    <td class="actions">
-                        <div class="d-flex gap-1">
+                    <td class="u-table__action">
                         <?php if (isset($showDeleted) && $showDeleted): ?>
                             <?php if ($isAdmin || $isSystemAdmin): ?>
-                                <?= $this->Form->postLink(__('復元'), ['action' => 'restore', $userInfo->i_id_user], [
-                                        'confirm' => __('「{0}」を復元してもよろしいですか？', $userInfo->c_user_name),
-                                        'class' => 'btn btn-success btn-sm'
+                                <?= $this->Form->postLink('元に戻す', ['action' => 'restore', $rowId], [
+                                    'class' => 'u-open u-open--restore',
+                                    'confirm' => sprintf('「%s」を元に戻します。よろしいですか？', $userInfo->c_user_name),
                                 ]) ?>
                             <?php endif; ?>
+                        <?php elseif ($canOpen): ?>
+                            <?= $this->Html->link(
+                                $isSelf && !$isAdmin ? '自分の情報を見る' : '開く',
+                                ['action' => 'view', $rowId],
+                                ['class' => 'u-open']
+                            ) ?>
                         <?php else: ?>
-                            <?= $this->Html->link(__('詳細'), ['action' => 'view', $userInfo->i_id_user], ['class' => 'btn btn-info btn-sm']) ?>
-                            <?php if ($isAdmin || $userInfo->i_id_user === $currentUserId): ?>
-                                <?= $this->Html->link(__('編集'), ['action' => 'edit', $userInfo->i_id_user], ['class' => 'btn btn-warning btn-sm ms-1']) ?>
-                            <?php endif; ?>
-                            <?php if ($isAdmin): ?>
-                                <?= $this->Form->postLink(__('🗑 削除'), ['action' => 'delete', $userInfo->i_id_user], [
-                                        'class' => 'btn btn-danger btn-sm ms-3 js-delete-btn',
-                                        'data-confirm-msg' => __('「{0}」を削除してもよろしいですか？', $userInfo->c_user_name),
-                                ]) ?>
-                            <?php endif; ?>
+                            <span class="u-noaction" aria-hidden="true">—</span>
                         <?php endif; ?>
-                        </div>
                     </td>
                 </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        <p class="u-noresult" id="user-noresult" hidden>該当する人がいません。</p>
     </div>
 
     <!-- ページネーション（« 1 2 3 » 表示） -->
@@ -198,132 +222,11 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 
 <script>
     const BASE_PATH = <?= json_encode(rtrim($this->request->getAttribute('base') ?? '', '/'), JSON_UNESCAPED_SLASHES) ?>;
+
     document.addEventListener('DOMContentLoaded', () => {
+        /* ---- 通常 / 削除済み の切り替え ---- */
         const toggleNormal  = document.getElementById('toggleNormal');
         const toggleDeleted = document.getElementById('toggleDeleted');
-        const csrfToken =
-            document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') ||
-            document.querySelector('input[name="_csrfToken"]')?.value ||
-            '';
-
-        // ---- 管理者トグル ----
-        document.querySelectorAll('.admin-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId   = this.getAttribute('data-user-id');
-                const userName = this.getAttribute('data-user-name');
-                const isAdmin  = this.checked ? 1 : 0;
-                const message  = isAdmin
-                    ? `${userName} に管理者権限を付与しますか？`
-                    : `${userName} から管理者権限を削除しますか？`;
-
-                const ok = await window.ConfirmPopup.show(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch(BASE_PATH + '/MUserInfo/update-admin-status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        window.ConfirmPopup.showResult('管理者権限を更新しました。');
-                    } else {
-                        window.ConfirmPopup.showResult(payload.message || '管理者権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
-                    }
-                })
-                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
-            });
-        });
-
-        // ---- ブロック長トグル ----
-        document.querySelectorAll('.block-leader-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId       = this.getAttribute('data-user-id');
-                const userName     = this.getAttribute('data-user-name');
-                const currentAdmin = parseInt(this.getAttribute('data-current-admin'), 10);
-                const isBlock      = this.checked;
-                const newAdmin     = isBlock ? 2 : (currentAdmin === 2 ? 0 : currentAdmin);
-                const message      = isBlock
-                    ? `${userName} をブロック長に設定しますか？`
-                    : `${userName} からブロック長権限を削除しますか？`;
-
-                const ok = await window.ConfirmPopup.show(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch(BASE_PATH + '/MUserInfo/update-user-level', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_admin: newAdmin })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        this.setAttribute('data-current-admin', newAdmin);
-                        window.ConfirmPopup.showResult('ブロック長権限を更新しました。');
-                    } else {
-                        window.ConfirmPopup.showResult(payload.message || 'ブロック長権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
-                    }
-                })
-                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
-            });
-        });
-
-        // ---- システム管理者トグル ----
-        document.querySelectorAll('.system-admin-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId        = this.getAttribute('data-user-id');
-                const userName      = this.getAttribute('data-user-name');
-                const isSystemAdmin = this.checked ? 1 : 0;
-                const message       = isSystemAdmin
-                    ? `${userName} にシステム管理者権限を付与しますか？`
-                    : `${userName} からシステム管理者権限を削除しますか？`;
-
-                const ok = await window.ConfirmPopup.show(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch(BASE_PATH + '/MUserInfo/update-system-admin-status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_system_admin: isSystemAdmin })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        window.ConfirmPopup.showResult('システム管理者権限を更新しました。');
-                    } else {
-                        window.ConfirmPopup.showResult(payload.message || 'システム管理者権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
-                    }
-                })
-                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
-            });
-        });
-
-        // ---- 削除ボタン（カスタム確認ダイアログ） ----
-        document.querySelectorAll('.js-delete-btn').forEach(btn => {
-            const originalOnclick = btn.getAttribute('onclick');
-            btn.removeAttribute('onclick');
-            btn.addEventListener('click', async function (e) {
-                e.preventDefault();
-                const msg = this.dataset.confirmMsg;
-                const ok = await window.ConfirmPopup.show(msg, {
-                    okLabel: '削除する',
-                    okColor: 'danger',
-                    type: 'danger',
-                });
-                if (!ok) return;
-                const match = originalOnclick && originalOnclick.match(/getElementById\(['"]([^'"]+)['"]\)/);
-                if (match) document.getElementById(match[1]).submit();
-            });
-        });
-
-        // ---- 通常/削除済みトグル ----
         if (toggleNormal) {
             toggleNormal.addEventListener('click', () => {
                 if (!toggleNormal.classList.contains('active')) {
@@ -338,5 +241,42 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                 }
             });
         }
+
+        /* ---- 名前で探す / 部屋で絞り込む ----
+           表示中のページ内で絞り込む。人数が増えてもスクロールだけにならないよう、
+           結果の件数を必ず出す。 */
+        const search   = document.getElementById('user-search');
+        const pills    = document.querySelectorAll('.u-pill');
+        const rows     = Array.from(document.querySelectorAll('#user-rows tr'));
+        const countEl  = document.getElementById('user-count');
+        const noResult = document.getElementById('user-noresult');
+        let roomFilter = '';
+
+        const apply = () => {
+            const q = (search?.value || '').trim();
+            let shown = 0;
+            rows.forEach(tr => {
+                const name  = tr.dataset.name || '';
+                const rooms = tr.dataset.rooms || '';
+                const hitName = q === '' || name.includes(q);
+                const hitRoom = roomFilter === ''
+                    || (roomFilter === '未所属' ? rooms === '未所属' : rooms.includes(roomFilter));
+                const ok = hitName && hitRoom;
+                tr.hidden = !ok;
+                if (ok) shown++;
+            });
+            if (countEl)  countEl.textContent = shown + '人';
+            if (noResult) noResult.hidden = shown !== 0;
+        };
+
+        if (search) search.addEventListener('input', apply);
+        pills.forEach(pill => {
+            pill.addEventListener('click', () => {
+                pills.forEach(p => p.classList.toggle('is-on', p === pill));
+                roomFilter = pill.dataset.room || '';
+                apply();
+            });
+        });
+        apply();
     });
 </script>
