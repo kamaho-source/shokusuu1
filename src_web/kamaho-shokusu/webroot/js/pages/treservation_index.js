@@ -608,6 +608,45 @@ function openModalById(id){
              * @param {number} roomId
              * @param {number[]} [mealIndices] 登録する食事IDの配列。省略時は未予約の全食事を対象とする
              */
+            /**
+             * 日付を指定して「部屋選択 → 食事選択 → 登録」の流れを開始する。
+             *
+             * カレンダーの日付セルと、セル内のイベント（未予約バーなど）の
+             * どちらをタップしても同じ流れに入れるよう関数に切り出している。
+             * スマートフォンでは日付セルが小さく、イベントがセルの中央を覆うため、
+             * タップがほぼ必ずイベント側に当たる。
+             *
+             * @param {string} dateStr YYYY-MM-DD
+             * @param {MouseEvent|PointerEvent} jsEvent ポップアップの表示位置に使う
+             */
+            function startDateReservation(dateStr, jsEvent) {
+                try {
+                    if (!dateStr) return;
+
+                    if (window.SERVER_TODAY && dateStr < window.SERVER_TODAY) {
+                        if (window.pageToast) window.pageToast('過去日の予約は登録できません。', 'warning');
+                        return;
+                    }
+
+                    // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
+                    // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
+                    var roomNames = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
+                    if (Object.keys(roomNames).length === 0) {
+                        if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
+                        return;
+                    }
+                    var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
+                        ? window.__TRESP.calRoomId
+                        : null;
+                    var capturedJsEvent = jsEvent;
+                    showRoomPickerForDate(jsEvent, dateStr, roomNames, defaultRoomId, function(selectedRoomId) {
+                        showMealPickerForDate(capturedJsEvent, dateStr, selectedRoomId);
+                    });
+                } catch (e) {
+                    console.warn('startDateReservation error:', e);
+                }
+            }
+
             function registerMealsDirectly(dateStr, roomId, mealIndices) {
                 var directRegisterUrl = (window.__TRESP && window.__TRESP.directRegisterUrl) || '';
                 var csrf = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
@@ -1107,36 +1146,20 @@ function openModalById(id){
                 },
 
                 dateClick: function(info){
-                    try {
-                        var dateStr = info.dateStr;
-
-                        if (window.SERVER_TODAY && dateStr < window.SERVER_TODAY) {
-                            if (window.pageToast) window.pageToast('過去日の予約は登録できません。', 'warning');
-                            return;
-                        }
-
-                        // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
-                        // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
-                        var roomNames = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
-                        if (Object.keys(roomNames).length === 0) {
-                            if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
-                            return;
-                        }
-                        var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                            ? window.__TRESP.calRoomId
-                            : null;
-                        var capturedJsEvent = info.jsEvent;
-                        showRoomPickerForDate(info.jsEvent, dateStr, roomNames, defaultRoomId, function(selectedRoomId) {
-                            showMealPickerForDate(capturedJsEvent, dateStr, selectedRoomId);
-                        });
-                    } catch (e) {
-                        console.warn('dateClick error:', e);
-                    }
+                    startDateReservation(info.dateStr, info.jsEvent);
                 },
 
                 eventClick: function(info){
                     var ep = info.event.extendedProps || {};
-                    if (!ep.isMealCount) return;
+                    if (!ep.isMealCount) {
+                        // 食数以外のイベント（未予約バーなど）は日付タップとして扱う。
+                        // スマートフォンでは日付セルが小さく、イベントがセル中央を覆うため
+                        // タップが日付セルに届かず、予約を始められなくなっていた。
+                        info.jsEvent.stopPropagation();
+                        var d = info.event.startStr ? info.event.startStr.slice(0, 10) : '';
+                        startDateReservation(d, info.jsEvent);
+                        return;
+                    }
                     info.jsEvent.stopPropagation();
 
                     var date     = info.event.startStr ? info.event.startStr.slice(0, 10) : '';
