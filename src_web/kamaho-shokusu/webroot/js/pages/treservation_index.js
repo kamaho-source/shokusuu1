@@ -503,6 +503,8 @@ function openModalById(id){
         } else {
             var reservedDates  = window.__TRESP.reservedDates;
             var existingEvents = window.__TRESP.existingEvents;
+            // 初回だけ埋め込みデータを使い、以降はサーバーから取り直す
+            var calendarInitialRenderDone = false;
 
             var MEAL_SHORT_NAMES = { 1: '朝', 2: '昼', 3: '夜', 4: '弁' };
             var MEAL_KEY_MAP     = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
@@ -1121,22 +1123,56 @@ function openModalById(id){
                 datesSet: function(arg){ updateInputsByCalendar(arg.view); },
 
                 events: function(fetchInfo, successCallback){
-                    var unreservedEvents=[];
-                    var cur=new Date(fetchInfo.start);
-                    while(cur < fetchInfo.end){
-                        var dateStr = window.formatLocalYmd(cur);
-                        if(reservedDates.indexOf(dateStr) === -1){
-                            unreservedEvents.push({
-                                title:'未予約', start:dateStr, allDay:true,
-                                backgroundColor:'#fd7e14', borderColor:'#fd7e14', textColor:'white',
-                                extendedProps:{displayOrder:-10}
-                            });
+                    /*
+                     * 初回はページに埋め込み済みのデータで即描画し、2回目以降は
+                     * サーバーから取り直す。
+                     *
+                     * 以前は常に埋め込みデータを返していたため、refetchEvents() を
+                     * 呼んでも同じ内容が再描画されるだけで、他の人の予約はもちろん
+                     * 月を移動しても最新にならなかった。
+                     */
+                    function buildFromEmbedded() {
+                        var unreservedEvents = [];
+                        var cur = new Date(fetchInfo.start);
+                        while (cur < fetchInfo.end) {
+                            var dateStr = window.formatLocalYmd(cur);
+                            if (reservedDates.indexOf(dateStr) === -1) {
+                                unreservedEvents.push({
+                                    title:'未予約', start:dateStr, allDay:true,
+                                    backgroundColor:'#fd7e14', borderColor:'#fd7e14', textColor:'white',
+                                    extendedProps:{displayOrder:-10}
+                                });
+                            }
+                            cur.setDate(cur.getDate()+1);
                         }
-                        cur.setDate(cur.getDate()+1);
+                        return [].concat(existingEvents, unreservedEvents);
                     }
-                    
-                    var allEvents = [].concat(existingEvents, unreservedEvents);
-                    successCallback(allEvents);
+
+                    if (!calendarInitialRenderDone) {
+                        calendarInitialRenderDone = true;
+                        successCallback(buildFromEmbedded());
+                        return;
+                    }
+
+                    var base = (window.__TRESP && window.__TRESP.basePath) ? String(window.__TRESP.basePath).replace(/\/$/, '') : '';
+                    var url = base + '/TReservationInfo/calendar-events'
+                        + '?start=' + encodeURIComponent(window.formatLocalYmd(fetchInfo.start))
+                        + '&end='   + encodeURIComponent(window.formatLocalYmd(fetchInfo.end));
+
+                    fetch(url, {
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                        cache: 'no-store'
+                    })
+                        .then(function(res){ return res.ok ? res.json() : null; })
+                        .then(function(json){
+                            var events = json && json.data && json.data.events;
+                            // 取得できなければ、せめて今までの表示を保つ
+                            successCallback(Array.isArray(events) ? events : buildFromEmbedded());
+                        })
+                        .catch(function(){
+                            successCallback(buildFromEmbedded());
+                        });
                 },
 
                 eventOrder: function(a,b){

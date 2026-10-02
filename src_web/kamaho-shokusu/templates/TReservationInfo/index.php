@@ -248,6 +248,33 @@ $bizSectionVars = [
 <?= $this->Html->script('pages/treservation_lunch_bento.js') ?>
 <?= $this->Html->script('pages/treservation_export.js') ?>
 <?= $this->Html->script('pages/treservation_index.js') ?>
+<?= $this->Html->script('reservation_live_sync.js') ?>
+<script>
+/* 他の人が予約を変更したら、カレンダーを黙って最新にする。
+   この画面は入力途中の状態を持たない（保存はモーダル内で完結する）ため、
+   モーダルを開いていないときだけ差し替える。 */
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.ReservationLiveSync) return;
+    window.ReservationLiveSync.start({
+        onChange: function () {
+            if (document.querySelector('.modal.show')) {
+                // 操作中に画面が変わると混乱するため、閉じたあとに反映する
+                document.addEventListener('hidden.bs.modal', function once() {
+                    document.removeEventListener('hidden.bs.modal', once);
+                    if (window.__reservationCalendar) window.__reservationCalendar.refetchEvents();
+                });
+                return;
+            }
+            if (window.__reservationCalendar && typeof window.__reservationCalendar.refetchEvents === 'function') {
+                window.__reservationCalendar.refetchEvents();
+                if (window.pageToast) window.pageToast('他の方の変更を反映しました。', 'info');
+            } else {
+                window.ReservationLiveSync.showReloadNotice();
+            }
+        }
+    });
+});
+</script>
 <?= $this->Html->script('pages/treservation_meal_cal.js') ?>
 </body>
 </html>

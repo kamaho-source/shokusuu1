@@ -14,10 +14,7 @@ class ReservationReportService
 
     private function getReportCacheVersion(): int
     {
-        $v = Cache::read('reservation_version', 'default');
-        $base = (is_int($v) && $v > 0) ? $v : 1;
-
-        return ($base * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
+        return (ReservationVersionService::current() * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
     }
 
     public function getMealCounts(Table $reservationTable, string $date): array

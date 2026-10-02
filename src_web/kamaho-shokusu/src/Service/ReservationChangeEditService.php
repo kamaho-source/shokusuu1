@@ -339,6 +339,8 @@ class ReservationChangeEditService
             }
 
             $connection->commit();
+            // 他の画面が「変更があった」と気づけるようにする
+            ReservationVersionService::bump();
         } catch (\Throwable $e) {
             $connection->rollback();
             throw $e;

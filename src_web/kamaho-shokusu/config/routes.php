@@ -218,6 +218,12 @@ return function (RouteBuilder $routes): void {
         )->setMethods(['POST']);
 
         // ── 予約トグル（ReservationToggleController） ──
+        // 予約データの更新有無を知らせる（画面の自動更新用・DBは引かない）
+        $builder->connect(
+            '/TReservationInfo/sync-version',
+            ['controller' => 'ReservationSync', 'action' => 'version']
+        )->setMethods(['GET']);
+
         $builder->connect(
             '/TReservationInfo/toggle/{roomId}',
             ['controller' => 'ReservationToggle', 'action' => 'toggle']

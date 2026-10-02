@@ -549,6 +549,10 @@ class ApprovalService
                     return [];
                 }
 
+                // 承認状態が変わると食数の確定内容も変わるため、
+                // 他の画面が「変更があった」と気づけるようにする。
+                ReservationVersionService::bump();
+
                 if ($newStatus === self::STATUS_REJECTED) {
                     $this->notificationService->createRejectionNotifications($successKeys, $approverId, $reason, $now);
                 }

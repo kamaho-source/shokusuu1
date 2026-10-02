@@ -23,6 +23,15 @@ MEAL_OPPONENT[MEAL.BENTO] = MEAL.LUNCH;
  * ─────────────────────────────────────────── */
 var _mcgPending = new Map();
 
+/**
+ * 未保存の変更があるか。
+ * 自動更新（reservation_live_sync.js）が、入力途中の内容を
+ * 消してよいかどうかを判断するために参照する。
+ */
+window.mcgHasUnsavedChanges = function () {
+    return _mcgPending.size > 0;
+};
+
 function _mcgKey(td) {
     return td.dataset.userId + '|' + td.dataset.roomId + '|' + td.dataset.date + '|' + td.dataset.meal;
 }

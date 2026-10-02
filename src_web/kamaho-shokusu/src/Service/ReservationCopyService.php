@@ -241,6 +241,9 @@ class ReservationCopyService
                 $affected++;
             }
             $conn->commit();
+            // 他の画面が「変更があった」と気づけるようにする。
+            // ここを忘れると、コピーしても他の人の画面が更新されない。
+            ReservationVersionService::bump();
             Log::debug('[copyRangeByOffset] 完了: total=' . $total . ', copied=' . $affected . ', skipped=' . $skipped . ', invalidDate=' . $invalidDate);
         } catch (\Throwable $e) {
             $conn->rollback();
@@ -389,6 +392,9 @@ class ReservationCopyService
                 $affected++;
             }
             $conn->commit();
+            // 他の画面が「変更があった」と気づけるようにする。
+            // ここを忘れると、コピーしても他の人の画面が更新されない。
+            ReservationVersionService::bump();
             Log::debug('[copyMonthSameDay] 完了: total=' . $total . ', copied=' . $affected . ', skipped=' . $skipped . ', invalidDate=' . $invalidDate);
         } catch (\Throwable $e) {
             $conn->rollback();

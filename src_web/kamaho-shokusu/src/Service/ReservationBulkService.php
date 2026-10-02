@@ -933,9 +933,7 @@ class ReservationBulkService
 
     private function bumpReportCacheVersion(): void
     {
-        $current = Cache::read('reservation_version', 'default');
-        $next = (is_int($current) && $current > 0) ? $current + 1 : 2;
-        Cache::write('reservation_version', $next, 'default');
+        ReservationVersionService::bump();
     }
 
     private function checkReservationSnapshots(

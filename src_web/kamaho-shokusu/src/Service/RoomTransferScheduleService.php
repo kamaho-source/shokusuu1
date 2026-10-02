@@ -352,8 +352,6 @@ class RoomTransferScheduleService
 
         Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
 
-        $current = Cache::read('reservation_version', 'default');
-        $next    = (is_int($current) && $current > 0) ? $current + 1 : 2;
-        Cache::write('reservation_version', $next, 'default');
+        ReservationVersionService::bump();
     }
 }

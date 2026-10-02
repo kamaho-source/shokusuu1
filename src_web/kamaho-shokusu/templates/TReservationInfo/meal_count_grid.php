@@ -99,6 +99,7 @@ $this->append('script', sprintf(
 ));
 $this->Html->script('japanese-holidays.min.js', ['block' => true]);
 $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
+$this->Html->script('reservation_live_sync.js', ['block' => true]);
 ?>
 
 <div class="excel-window">
@@ -106,6 +107,7 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
     <!-- ═══════════════════════════════════════════
          ツールバー（フィルター + 期間ナビ）
     ═══════════════════════════════════════════ -->
+    <div id="mcg-root">
     <div class="mcg-toolbar">
         <!-- 表示モード -->
         <span class="mcg-toolbar-label">表示</span>
@@ -425,4 +427,29 @@ function mcgChangeRoom(roomId) {
     var qs = new URLSearchParams({ mode: mode, room_id: roomId, week: week }).toString();
     location.href = MCG_BASE + '/TReservationInfo/meal-count-grid?' + qs;
 }
+</script>
+
+</div><!-- /#mcg-root -->
+
+<script>
+/* 他の人が予約を変更したときの扱い。
+   この画面はチェックを付けてから「登録」で確定するため、勝手に作り直すと
+   入力途中の内容が消える。未保存があるときは知らせるだけに留める。 */
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.ReservationLiveSync) return;
+    window.ReservationLiveSync.start({
+        onChange: function () {
+            var hasUnsaved = typeof window.mcgHasUnsavedChanges === 'function'
+                ? window.mcgHasUnsavedChanges()
+                : false;
+            if (hasUnsaved) {
+                window.ReservationLiveSync.showReloadNotice(
+                    '他の方が予約を更新しました。入力中の内容があるため、このままにしています。'
+                );
+                return;
+            }
+            window.location.reload();
+        }
+    });
+});
 </script>
