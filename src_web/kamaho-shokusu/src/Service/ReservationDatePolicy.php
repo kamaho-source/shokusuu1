@@ -173,6 +173,8 @@ class ReservationDatePolicy
         Date $targetDate,
         ?Date $today = null
     ): bool {
+        // 多数の行を判定する画面から呼ばれるため、呼び出し側が $today を渡せば
+        // Date::today() の生成を1回で済ませられる（渡さない場合は従来どおり）。
         if ($this->shouldUseChangeFlag($targetDate, $today)) {
             return (int)($changeFlag ?? $eatFlag ?? 0) === 1;
         }

@@ -250,6 +250,10 @@ class MealCountGridService
         array $dates
     ): array {
         $datePolicy = new ReservationDatePolicy();
+        // 行ごとに Date を作ると、28日 × 利用者数 × 4食 のぶんだけ生成が走る。
+        // 「今日」と日付オブジェクトは使い回す（#674 の表示速度改善を打ち消さないため）。
+        $today      = Date::today('Asia/Tokyo');
+        $dateCache  = [];
 
         $allUserIds = [];
         foreach ($roomUsers as $users) {
@@ -298,10 +302,12 @@ class MealCountGridService
             // 有効判定は ReservationDatePolicy に集約する。
             // 直前編集ウィンドウ内(過去日を含む)は i_change_flag、通常予約範囲は eat_flag を使う。
             // 画面だけ別基準にすると、食数予定表の数と発注用集計の数がずれる。
+            $dateCache[$date] ??= new Date($date);
             $effective = $datePolicy->isActiveReservation(
                 $eat === null ? null : (int)$eat,
                 $change === null ? null : (int)$change,
-                new Date($date)
+                $dateCache[$date],
+                $today
             ) ? 1 : 0;
 
             $map[$uid][$rid][$date][$type] = $effective === 1;

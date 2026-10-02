@@ -9,6 +9,9 @@ use Cake\ORM\Table;
 class ReservationCalendarService
 {
     private ReservationDatePolicy $datePolicy;
+    private ?Date $today = null;
+    /** @var array<string, Date> 日付文字列 => Date（行ごとの生成を避ける） */
+    private array $dateCache = [];
 
     public function __construct(?ReservationDatePolicy $datePolicy = null)
     {
@@ -22,10 +25,15 @@ class ReservationCalendarService
      */
     private function isActiveRow(object $row, string $dateStr): bool
     {
+        // 期間内の全行から呼ばれるため、今日と日付は使い回す
+        $this->today ??= Date::today('Asia/Tokyo');
+        $this->dateCache[$dateStr] ??= new Date($dateStr);
+
         return $this->datePolicy->isActiveReservation(
             $row->eat_flag === null ? null : (int)$row->eat_flag,
             $row->i_change_flag === null ? null : (int)$row->i_change_flag,
-            new Date($dateStr)
+            $this->dateCache[$dateStr],
+            $this->today
         );
     }
 

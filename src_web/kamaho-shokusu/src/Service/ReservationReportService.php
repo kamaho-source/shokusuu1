@@ -12,6 +12,12 @@ class ReservationReportService
     private const REPORT_CACHE_SCHEMA_VERSION = 2;
     private const MEAL_COUNTS_CACHE_SUFFIX = 'v2';
 
+    /**
+     * 食数集計キャッシュの保持時間（秒）。
+     * 判定基準が日付の変わり目で変わるため、日をまたいで持ち越さない長さにする。
+     */
+    private const MEAL_COUNTS_CACHE_TTL = 600;
+
     private function getReportCacheVersion(): int
     {
         $v = Cache::read('reservation_version', 'default');
@@ -73,7 +79,14 @@ class ReservationReportService
             ];
         }
 
-        Cache::write($cacheKey, $result, 'default');
+        /*
+         * 有効判定は「今日」を基準に変わる（直前ウィンドウか通常予約期間か）ため、
+         * 日付をまたぐと前日の結果が誤りになる。
+         *
+         * キーに今日の日付を混ぜる手もあるが、invalidate は当日ぶんしか消せず
+         * 前日までのファイルが残り続けるため、短い TTL で解決する。
+         */
+        Cache::pool('default')->set($cacheKey, $result, self::MEAL_COUNTS_CACHE_TTL);
 
         return $result;
     }
@@ -481,11 +494,7 @@ class ReservationReportService
 
     public static function mealCountsCacheKey(string $date): string
     {
-        // 判定基準(直前ウィンドウか通常予約期間か)は「今日」で変わるため、基準日をキーに含める。
-        // 含めないと、境界をまたいだ日に古い基準で計算した食数が最大1時間配信される。
-        return 'meal_counts:' . $date
-            . ':t' . Date::today('Asia/Tokyo')->format('Ymd')
-            . ':' . self::MEAL_COUNTS_CACHE_SUFFIX;
+        return 'meal_counts:' . $date . ':' . self::MEAL_COUNTS_CACHE_SUFFIX;
     }
 
     public static function invalidateMealCountsCache(string $date): void

@@ -19,6 +19,11 @@ class MealSummaryExportService
     private const RESERVATION_TYPE_BENTO   = 4;
     private const APPROVAL_STATUS_APPROVED = 2;
 
+    private ?ReservationDatePolicy $datePolicy = null;
+    private ?Date $today = null;
+    /** @var array<string, Date> 日付文字列 => Date（行ごとの生成を避ける） */
+    private array $dateCache = [];
+
     /** 未承認プレビュー対象ステータス（差し戻し=3は除外） */
     private const PREVIEW_STATUSES = [0, 1];
 
@@ -133,10 +138,17 @@ class MealSummaryExportService
             ? $date->format('Y-m-d')
             : (string)$date;
 
-        return (new ReservationDatePolicy())->isActiveReservation(
+        // 月単位の全行から呼ばれるため、Policy・今日・日付は使い回す。
+        // 行ごとに生成すると件数に比例して無駄な処理が増える。
+        $this->datePolicy ??= new ReservationDatePolicy();
+        $this->today      ??= Date::today('Asia/Tokyo');
+        $this->dateCache[$dateStr] ??= new Date($dateStr);
+
+        return $this->datePolicy->isActiveReservation(
             $row->eat_flag === null ? null : (int)$row->eat_flag,
             $row->i_change_flag === null ? null : (int)$row->i_change_flag,
-            new Date($dateStr)
+            $this->dateCache[$dateStr],
+            $this->today
         );
     }
 
