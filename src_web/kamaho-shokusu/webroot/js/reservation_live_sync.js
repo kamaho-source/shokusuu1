@@ -145,7 +145,7 @@
 
         // 開きっぱなしで放置された画面が、夜通し問い合わせ続けるのを防ぐ。
         // 操作を再開すれば自動で復帰する。
-        if (Date.now() - state.lastActivityAt > IDLE_STOP_MS) return;
+        if (Date.now() - state.lastActivityAt > resolveIdleStop()) return;
 
         // 失敗が続いている間は間隔を空ける（サーバーが苦しいときに追い打ちしない）
         if (state.skipTicks > 0) {
@@ -262,6 +262,26 @@
         if (window.__RESERVATION_SYNC_ALLOW_FAST === true) return requested;
 
         return Math.max(requested, MIN_INTERVAL_MS);
+    }
+
+    /**
+     * 放置とみなすまでの時間を返す。
+     *
+     * 30分を待つ検証は現実的でないため、間隔と同じく上書きできるようにする。
+     * 本番で誤って短くされないよう、__RESERVATION_SYNC_ALLOW_FAST を
+     * 立てていない限り既定値を下回る指定は受け付けない。
+     *
+     * @returns {number} ミリ秒
+     */
+    function resolveIdleStop() {
+        var requested = (typeof window.__RESERVATION_SYNC_IDLE_MS === 'number'
+            && window.__RESERVATION_SYNC_IDLE_MS > 0)
+            ? window.__RESERVATION_SYNC_IDLE_MS
+            : IDLE_STOP_MS;
+
+        if (window.__RESERVATION_SYNC_ALLOW_FAST === true) return requested;
+
+        return Math.max(requested, IDLE_STOP_MS);
     }
 
     /** 利用者が触っていることを記録する（放置判定の基準） */
