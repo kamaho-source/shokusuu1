@@ -213,6 +213,8 @@ class ReservationCalendarServiceTest extends TestCase
     private function insertRoom(int $roomId, string $roomName, int $delFlg): void
     {
         ConnectionManager::get('test')->insert('m_room_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_room'   => $roomId,
             'c_room_name' => $roomName,
             'i_disp_no'   => $roomId,

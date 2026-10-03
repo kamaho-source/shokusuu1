@@ -92,6 +92,8 @@ class TIndividualReservationInfoTableTest extends TestCase
     private function insertRow(array $override = []): void
     {
         $defaults = [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'          => 1,
             'd_reservation_date' => $this->futureDate(),
             'i_reservation_type' => 2,

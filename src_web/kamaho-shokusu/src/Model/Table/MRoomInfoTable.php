@@ -23,6 +23,12 @@ class MRoomInfoTable extends Table
         $this->hasMany('MUserInfo',[
             'foreignKey' => 'i_id_room'
         ]);
+
+        // tenant_id / facility_id は本番・ステージングの DB では NOT NULL かつ
+        // 既定値なし。埋めずに INSERT すると保存が丸ごと失敗し、画面には
+        // 汎用メッセージしか出ない。テーブル単位で付け忘れると再発するため、
+        // TenantDefaultsBehaviorTest で付け漏れを検知している。
+        $this->addBehavior('TenantDefaults');
     }
 
     public function validationDefault(Validator $validator): Validator

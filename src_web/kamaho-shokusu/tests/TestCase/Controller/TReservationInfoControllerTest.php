@@ -713,6 +713,8 @@ class TReservationInfoControllerTest extends TestCase
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
 
         $connection->insert('t_individual_reservation_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user' => $userId,
             'd_reservation_date' => $date,
             'i_reservation_type' => $mealType,

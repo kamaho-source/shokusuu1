@@ -28,6 +28,8 @@ class RoomAccessServiceTest extends TestCase
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
 
         $connection->insert('m_room_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_room' => 2,
             'c_room_name' => '事務所',
             'i_disp_no' => 2,
@@ -37,6 +39,8 @@ class RoomAccessServiceTest extends TestCase
             'dt_update' => $now,
         ]);
         $connection->insert('m_room_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_room' => 3,
             'c_room_name' => '居室A',
             'i_disp_no' => 3,
@@ -114,6 +118,8 @@ class RoomAccessServiceTest extends TestCase
         $connection = ConnectionManager::get('test');
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
         $connection->insert('m_room_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_room' => 99,
             'c_room_name' => '削除済み部屋',
             'i_disp_no' => 99,
@@ -139,6 +145,8 @@ class RoomAccessServiceTest extends TestCase
         $connection = ConnectionManager::get('test');
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
         $connection->insert('m_room_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_room' => 98,
             'c_room_name' => '削除済み部屋',
             'i_disp_no' => 98,

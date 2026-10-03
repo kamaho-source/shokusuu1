@@ -49,6 +49,12 @@ class TReservationInfoTable extends Table
             'foreignKey' => 'i_id_user', // 実際の外部キーのカラム名
             'joinType' => 'INNER', // 必要に応じて 'LEFT' に変更
         ]);
+
+        // tenant_id / facility_id は本番・ステージングの DB では NOT NULL かつ
+        // 既定値なし。埋めずに INSERT すると保存が丸ごと失敗し、画面には
+        // 汎用メッセージしか出ない。テーブル単位で付け忘れると再発するため、
+        // TenantDefaultsBehaviorTest で付け漏れを検知している。
+        $this->addBehavior('TenantDefaults');
     }
 
     /**

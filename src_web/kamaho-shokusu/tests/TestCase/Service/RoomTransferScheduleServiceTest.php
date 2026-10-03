@@ -87,6 +87,8 @@ class RoomTransferScheduleServiceTest extends TestCase
 
         // user 1 は部屋1に所属（MUserGroup フィクスチャ）し、部屋2へ異動する
         $conn->insert('t_individual_reservation_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'          => 1,
             'd_reservation_date' => $future,
             'i_reservation_type' => 1,
@@ -99,6 +101,8 @@ class RoomTransferScheduleServiceTest extends TestCase
             'c_create_user'      => 'test',
         ]);
         $conn->insert('m_room_transfer_schedule', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'        => 1,
             'i_id_room_from'   => 1,
             'i_id_room_to'     => 2,

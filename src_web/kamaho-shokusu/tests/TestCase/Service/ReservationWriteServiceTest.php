@@ -53,6 +53,23 @@ class ReservationWriteServiceTest extends TestCase
     // ヘルパー
     // -------------------------------------------------------------------------
 
+    /**
+     * 通常予約期間(今日+15日以降)の日付を返す。
+     *
+     * eat_flag を判定・更新に使うのは通常予約期間だけなので、固定日だと
+     * 時間の経過でテストの前提が変わってしまう。
+     */
+    private function normalDate(): string
+    {
+        return \Cake\I18n\Date::today('Asia/Tokyo')->addDays(30)->format('Y-m-d');
+    }
+
+    /** 直前編集ウィンドウ内(今日+14日以内)の日付を返す。 */
+    private function lastMinuteDate(): string
+    {
+        return \Cake\I18n\Date::today('Asia/Tokyo')->addDays(3)->format('Y-m-d');
+    }
+
     private function alwaysValid(): callable
     {
         return fn() => true;
@@ -73,8 +90,10 @@ class ReservationWriteServiceTest extends TestCase
     {
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
         $defaults = [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-07-01',
+            'd_reservation_date' => $this->normalDate(),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -110,7 +129,7 @@ class ReservationWriteServiceTest extends TestCase
     public function testIndividualNewReservationCreatesRecord(): void
     {
         $result = $this->service->processIndividualReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['meals' => ['1' => ['1' => 1]]]),
             $this->rooms(),
             1,
@@ -119,7 +138,7 @@ class ReservationWriteServiceTest extends TestCase
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $row = $this->fetchReservation(1, $this->normalDate(), 1, 1);
         $this->assertNotNull($row, 'レコードが作成されていない');
         $this->assertSame(1, (int)$row->eat_flag);
         $this->assertSame(1, (int)$row->i_change_flag);
@@ -130,7 +149,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->insertReservation(['eat_flag' => 1]);
 
         $result = $this->service->processIndividualReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['meals' => ['1' => ['1' => 1]]]),
             $this->rooms(),
             1,
@@ -147,7 +166,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->insertReservation(['eat_flag' => 0, 'i_change_flag' => 0]);
 
         $result = $this->service->processIndividualReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['meals' => ['1' => ['1' => 1]]]),
             $this->rooms(),
             1,
@@ -156,7 +175,7 @@ class ReservationWriteServiceTest extends TestCase
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $row = $this->fetchReservation(1, $this->normalDate(), 1, 1);
         $this->assertSame(1, (int)$row->eat_flag, 'eat_flag が 1 に戻っていない');
     }
 
@@ -165,7 +184,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->insertReservation(['eat_flag' => 1]);
 
         $result = $this->service->processIndividualReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['meals' => ['1' => ['1' => 0]]]),
             $this->rooms(),
             1,
@@ -174,7 +193,7 @@ class ReservationWriteServiceTest extends TestCase
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $row = $this->fetchReservation(1, $this->normalDate(), 1, 1);
         $this->assertSame(0, (int)$row->eat_flag, 'eat_flag が 0 になっていない');
         $this->assertSame(0, (int)$row->i_change_flag, 'i_change_flag が 0 になっていない');
     }
@@ -183,7 +202,7 @@ class ReservationWriteServiceTest extends TestCase
     {
         try {
             $this->service->processIndividualReservation(
-                '2026-07-01',
+                $this->normalDate(),
                 'invalid-json{{{',
                 $this->rooms(),
                 1,
@@ -200,7 +219,7 @@ class ReservationWriteServiceTest extends TestCase
     {
         try {
             $this->service->processIndividualReservation(
-                '2026-07-01',
+                $this->normalDate(),
                 json_encode(['wrong_key' => []]),
                 $this->rooms(),
                 1,
@@ -235,7 +254,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->expectException(ConflictException::class);
 
         $this->service->processIndividualReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['meals' => ['1' => ['1' => 1, '2' => 1]]]),
             [1 => [], 2 => []],
             1,
@@ -249,7 +268,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->expectException(UnauthorizedException::class);
 
         $this->service->processIndividualReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['meals' => ['1' => ['99' => 1]]]),
             $this->rooms(),
             1,
@@ -265,7 +284,7 @@ class ReservationWriteServiceTest extends TestCase
     public function testGroupNewReservationCreatesRecord(): void
     {
         $result = $this->service->processGroupReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
             $this->rooms(),
             'システム管理者',
@@ -275,7 +294,7 @@ class ReservationWriteServiceTest extends TestCase
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $row = $this->fetchReservation(1, $this->normalDate(), 1, 1);
         $this->assertNotNull($row, 'レコードが作成されていない');
         $this->assertSame(1, (int)$row->eat_flag);
         $this->assertSame(1, (int)$row->i_change_flag);
@@ -286,7 +305,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->insertReservation(['eat_flag' => 1]);
 
         $result = $this->service->processGroupReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
             $this->rooms(),
             'システム管理者',
@@ -303,7 +322,7 @@ class ReservationWriteServiceTest extends TestCase
     {
         try {
             $this->service->processGroupReservation(
-                '2026-07-01',
+                $this->normalDate(),
                 'bad-json{{{',
                 $this->rooms(),
                 'システム管理者',
@@ -319,7 +338,7 @@ class ReservationWriteServiceTest extends TestCase
     {
         try {
             $this->service->processGroupReservation(
-                '2026-07-01',
+                $this->normalDate(),
                 json_encode(['wrong_key' => []]),
                 $this->rooms(),
                 'システム管理者',
@@ -352,7 +371,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->insertReservation(['eat_flag' => 1]);
 
         $result = $this->service->processGroupReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['users' => ['1' => ['1' => 0]], 'i_id_room' => 1]),
             $this->rooms(),
             'システム管理者',
@@ -362,7 +381,7 @@ class ReservationWriteServiceTest extends TestCase
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $row = $this->fetchReservation(1, $this->normalDate(), 1, 1);
         $this->assertSame(0, (int)$row->eat_flag, 'eat_flag が 0 になっていない');
     }
 
@@ -379,7 +398,7 @@ class ReservationWriteServiceTest extends TestCase
 
         try {
             $this->service->processIndividualReservation(
-                '2026-07-01',
+                $this->normalDate(),
                 json_encode(['meals' => ['1' => ['1' => 0]]]),
                 $this->rooms(),
                 1,
@@ -391,7 +410,7 @@ class ReservationWriteServiceTest extends TestCase
             $this->assertStringContainsString('承認済み', $e->getMessage());
         }
 
-        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $row = $this->fetchReservation(1, $this->normalDate(), 1, 1);
         $this->assertSame(1, (int)$row->eat_flag, '承認済みの予約が解除されている');
     }
 
@@ -404,7 +423,7 @@ class ReservationWriteServiceTest extends TestCase
 
         try {
             $this->service->processGroupReservation(
-                '2026-07-01',
+                $this->normalDate(),
                 json_encode(['users' => ['1' => ['1' => 0]], 'i_id_room' => 1]),
                 $this->rooms(),
                 'システム管理者',
@@ -417,7 +436,7 @@ class ReservationWriteServiceTest extends TestCase
             $this->assertStringContainsString('承認済み', $e->getMessage());
         }
 
-        $row = $this->fetchReservation(1, '2026-07-01', 1, 1);
+        $row = $this->fetchReservation(1, $this->normalDate(), 1, 1);
         $this->assertSame(1, (int)$row->eat_flag, '承認済みの予約が解除されている');
     }
 
@@ -426,7 +445,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->expectException(UnauthorizedException::class);
 
         $this->service->processGroupReservation(
-            '2026-07-01',
+            $this->normalDate(),
             json_encode(['users' => ['1' => ['1' => 1]], 'i_id_room' => 1]),
             $this->rooms(),
             'システム管理者',

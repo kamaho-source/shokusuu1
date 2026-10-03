@@ -19,6 +19,12 @@ class TApprovalLogTable extends Table
         $this->belongsTo('MUserInfo',    ['foreignKey' => 'i_id_user',    'joinType' => 'INNER']);
         $this->belongsTo('MRoomInfo',    ['foreignKey' => 'i_id_room',    'joinType' => 'INNER']);
         $this->belongsTo('Approvers',    ['className' => 'MUserInfo', 'foreignKey' => 'i_approver_id', 'joinType' => 'INNER']);
+
+        // tenant_id / facility_id は本番・ステージングの DB では NOT NULL かつ
+        // 既定値なし。埋めずに INSERT すると保存が丸ごと失敗し、画面には
+        // 汎用メッセージしか出ない。テーブル単位で付け忘れると再発するため、
+        // TenantDefaultsBehaviorTest で付け漏れを検知している。
+        $this->addBehavior('TenantDefaults');
     }
 
     public function validationDefault(Validator $validator): Validator

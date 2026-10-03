@@ -32,6 +32,10 @@ return [
     ],
     'm_room_info' => [
         'columns' => [
+            // 本番・ステージングと同じく NOT NULL・既定値なし。
+            // 既定値を付けると「補完し忘れ」を検知できなくなる。
+            'tenant_id'   => ['type' => 'integer', 'null' => false],
+            'facility_id' => ['type' => 'integer', 'null' => false],
             'i_id_room' => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
             'c_room_name' => ['type' => 'string', 'length' => 50, 'null' => true],
             'i_disp_no' => ['type' => 'integer', 'null' => true],
@@ -91,6 +95,10 @@ return [
     ],
     't_individual_reservation_info' => [
         'columns' => [
+            // 本番・ステージングと同じく NOT NULL・既定値なし。
+            // 既定値を付けると「補完し忘れ」を検知できなくなる。
+            'tenant_id'   => ['type' => 'integer', 'null' => false],
+            'facility_id' => ['type' => 'integer', 'null' => false],
             'i_id_user' => ['type' => 'integer', 'null' => false],
             'd_reservation_date' => ['type' => 'date', 'null' => false],
             'i_reservation_type' => ['type' => 'integer', 'null' => false],
@@ -113,6 +121,10 @@ return [
     ],
     't_approval_log' => [
         'columns' => [
+            // 本番・ステージングと同じく NOT NULL・既定値なし。
+            // 既定値を付けると「補完し忘れ」を検知できなくなる。
+            'tenant_id'   => ['type' => 'integer', 'null' => false],
+            'facility_id' => ['type' => 'integer', 'null' => false],
             'i_id_approval'      => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
             'i_id_user'          => ['type' => 'integer', 'null' => false],
             'd_reservation_date' => ['type' => 'date', 'null' => false],
@@ -129,6 +141,10 @@ return [
     ],
     't_reservation_info' => [
         'columns' => [
+            // 本番・ステージングと同じく NOT NULL・既定値なし。
+            // 既定値を付けると「補完し忘れ」を検知できなくなる。
+            'tenant_id'   => ['type' => 'integer', 'null' => false],
+            'facility_id' => ['type' => 'integer', 'null' => false],
             'd_reservation_date' => ['type' => 'date', 'null' => false],
             'i_id_room' => ['type' => 'integer', 'null' => false],
             'c_reservation_type' => ['type' => 'integer', 'null' => false],
@@ -201,6 +217,10 @@ return [
     ],
     'm_room_transfer_schedule' => [
         'columns' => [
+            // 本番・ステージングと同じく NOT NULL・既定値なし。
+            // 既定値を付けると「補完し忘れ」を検知できなくなる。
+            'tenant_id'   => ['type' => 'integer', 'null' => false],
+            'facility_id' => ['type' => 'integer', 'null' => false],
             'i_id'           => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
             'i_id_user'      => ['type' => 'integer', 'null' => false],
             'i_id_room_from' => ['type' => 'integer', 'null' => true, 'default' => null],

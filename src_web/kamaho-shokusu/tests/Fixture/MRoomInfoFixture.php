@@ -25,6 +25,8 @@ class MRoomInfoFixture extends TestFixture
     {
         $this->records = [
             [
+                'tenant_id' => 1,
+                'facility_id' => 1,
                 'i_id_room' => 1,
                 'c_room_name' => 'Lorem ipsum dolor sit amet',
                 'i_disp_no' => 1,

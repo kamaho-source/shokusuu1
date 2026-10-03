@@ -157,6 +157,8 @@ class ReservationChangeEditServiceTest extends TestCase
         $userTable        = TableRegistry::getTableLocator()->get('MUserInfo');
 
         ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'          => 3,
             'd_reservation_date' => '2026-06-10',
             'i_reservation_type' => 1,

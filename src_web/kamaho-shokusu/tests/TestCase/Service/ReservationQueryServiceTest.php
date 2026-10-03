@@ -171,6 +171,8 @@ class ReservationQueryServiceTest extends TestCase
 
         // eat_flag=0（未予約）だが i_change_flag=1（直前で予約に変更）の過去日データ
         ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'          => 2,
             'd_reservation_date' => $pastDate,
             'i_reservation_type' => 1,

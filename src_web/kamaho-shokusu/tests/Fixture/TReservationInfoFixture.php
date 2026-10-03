@@ -50,6 +50,8 @@ class TReservationInfoFixture extends TestFixture
     {
         $this->records = [
             [
+                'tenant_id' => 1,
+                'facility_id' => 1,
                 'd_reservation_date' => '2025-06-25',
                 'i_id_room' => 1,
                 'c_reservation_type' => 1,

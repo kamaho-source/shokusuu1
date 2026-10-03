@@ -78,6 +78,8 @@ class ReservationBulkServiceTest extends TestCase
     {
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
         $default = [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'          => 1,
             'd_reservation_date' => '2026-06-01',
             'i_reservation_type' => 1,

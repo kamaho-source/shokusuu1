@@ -25,6 +25,8 @@ class TIndividualReservationInfoFixture extends TestFixture
     {
         $this->records = [
             [
+                'tenant_id' => 1,
+                'facility_id' => 1,
                 'i_id_user' => 1,
                 'd_reservation_date' => '2024-09-07',
                 'i_reservation_type' => 1,

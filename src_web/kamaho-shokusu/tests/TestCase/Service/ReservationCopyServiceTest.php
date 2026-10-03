@@ -275,6 +275,8 @@ class ReservationCopyServiceTest extends TestCase
     private function insertRow(string $date, array $override = []): void
     {
         $defaults = [
+            'tenant_id' => 1,
+            'facility_id' => 1,
             'i_id_user'          => 1,
             'd_reservation_date' => $date,
             'i_reservation_type' => 1,
