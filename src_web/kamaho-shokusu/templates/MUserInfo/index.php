@@ -307,7 +307,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 
         // ---- 削除ボタン（カスタム確認ダイアログ） ----
         document.querySelectorAll('.js-delete-btn').forEach(btn => {
-            const originalOnclick = btn.getAttribute('onclick');
+            // CakePHP 既定の確認(ネイティブ confirm → 送信)を止め、共通モーダルに差し替える。
             btn.removeAttribute('onclick');
             btn.addEventListener('click', async function (e) {
                 e.preventDefault();
@@ -318,8 +318,24 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                     type: 'danger',
                 });
                 if (!ok) return;
-                const match = originalOnclick && originalOnclick.match(/getElementById\(['"]([^'"]+)['"]\)/);
-                if (match) document.getElementById(match[1]).submit();
+
+                // postLink はこのリンクの直前に hidden form を出力する。その form を送信する。
+                // 旧実装は onclick 内の getElementById('...') を正規表現で拾っていたが、
+                // CakePHP 5.3 の postLink は onclick に getElementById を使わない（form 名指定）ため
+                // 一致せず、確認後に何も送信されず「削除できない」状態になっていた。
+                let form = this.previousElementSibling;
+                if (!form || form.tagName !== 'FORM') {
+                    const scope = this.closest('td, div') || document;
+                    form = scope.querySelector('form[action*="/delete/"]');
+                }
+                if (!form) return;
+
+                // requestSubmit 非対応の古い端末（iOS Safari 16 未満など）に備えてフォールバック。
+                if (typeof form.requestSubmit === 'function') {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
             });
         });
 
