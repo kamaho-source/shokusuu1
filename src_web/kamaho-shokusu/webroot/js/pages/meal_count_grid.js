@@ -705,6 +705,8 @@ function mcgApplyServerData(data) {
 
     // 表の形が変わっていないことを先に確かめる。途中まで書き換えてから
     // 諦めると、一部だけ新しい値になった中途半端な表が残る。
+    if (!mcgSameRowSet(data)) return false;
+
     var values = [];
     for (var i = 0; i < cells.length; i++) {
         var d    = cells[i].dataset;
@@ -742,6 +744,40 @@ function mcgApplyServerData(data) {
         window.ReservationLiveSync.setBaseline(data.version);
     }
 
+    return true;
+}
+
+/**
+ * 画面に並んでいる行と、サーバーが返した行が同じかどうかを返す。
+ *
+ * 画面側のセルだけを照合すると、利用者が増えた場合に気づけない
+ * （既にあるセルはすべて見つかるため）。増えた・減ったの両方を
+ * 拾うため、(部屋, 利用者) の組をそろえて比べる。
+ *
+ * @param {object} data
+ * @returns {boolean} true = 同じ並び
+ */
+function mcgSameRowSet(data) {
+    var domKeys = [];
+    document.querySelectorAll('.mcg-grid tr[data-user-id]').forEach(function (tr) {
+        domKeys.push(tr.dataset.roomId + ':' + tr.dataset.userId);
+    });
+
+    var serverKeys = Object.create(null);
+    var serverCount = 0;
+    Object.keys(data.rooms).forEach(function (roomId) {
+        var users = data.rooms[roomId].users || [];
+        users.forEach(function (u) {
+            serverKeys[roomId + ':' + u.id] = true;
+            serverCount++;
+        });
+    });
+
+    if (domKeys.length !== serverCount) return false;
+
+    for (var i = 0; i < domKeys.length; i++) {
+        if (!serverKeys[domKeys[i]]) return false;
+    }
     return true;
 }
 
