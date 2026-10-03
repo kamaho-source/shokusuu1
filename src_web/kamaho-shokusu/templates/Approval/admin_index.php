@@ -404,6 +404,10 @@ foreach ($summary as $row) {
             headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
             body: JSON.stringify(body),
         });
+        // 承認・差し戻し・反映はどれも版数を進める。自分の操作を
+        // 「他の方が更新しました」と出さないよう、ここで基準を取り直す。
+        if (window.ReservationLiveSync) window.ReservationLiveSync.resync();
+
         const text = await res.text();
         try {
             return JSON.parse(text);
@@ -496,6 +500,21 @@ foreach ($summary as $row) {
             showToast('反映に失敗しました: ' + (result.error ?? ''), 'error');
         }
     });
+</script>
+<?= $this->Html->script('reservation_live_sync.js') ?>
+<script>
+/* 他の人の変更を知らせるだけに留める。
+   この画面は承認・反映の対象を選んでから実行するため、勝手に作り直すと操作中の内容が消える。 */
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.ReservationLiveSync) return;
+    window.ReservationLiveSync.start({
+        onChange: function () {
+            window.ReservationLiveSync.showReloadNotice(
+                '他の方が予約を更新しました。選択中の内容は残してあります。最新を見るには再読み込みしてください。'
+            );
+        }
+    });
+});
 </script>
 </body>
 </html>

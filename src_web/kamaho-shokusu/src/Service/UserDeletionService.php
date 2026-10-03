@@ -49,6 +49,9 @@ class UserDeletionService
                 'i_id_user' => $user->i_id_user,
                 'i_approval_status' => 0, // 未承認のみ
             ]);
+
+            // 退所処理で未承認の予約が消える。開いている画面に知らせる。
+            ReservationVersionService::bump();
         }
 
         AuditLogService::record(

@@ -204,4 +204,79 @@ test.describe('他の人の予約を再読み込みなしで反映する', () =>
 
         await ctx.close();
     });
+
+    test('食数一括管理: 入力が無ければ再読み込みせずセルだけ差し替わる', async ({ browser }) => {
+        const ctx = await browser.newContext();
+        const watcher = await ctx.newPage();
+        const actor   = await ctx.newPage();
+
+        await withFastSync(watcher);
+        await login(watcher);
+        await watcher.goto(appPath('/TReservationInfo/meal-count-grid?mode=room&room_id=' + ROOM));
+        await watcher.waitForFunction(() => typeof window.mcgRefreshFromServer === 'function', null, { timeout: 20000 });
+        await waitForBaseline(watcher);
+
+        // ページが作り直されたら分かるよう目印を置く。再読み込みされれば消える。
+        await watcher.evaluate(() => { window.__notReloaded = true; });
+
+        const cell = watcher.locator(
+            `.mcg-grid td[data-user-id="${USER}"][data-room-id="${ROOM}"][data-date="${date}"][data-meal="1"]`
+        );
+        await expect(cell, '対象セルが画面に無い').toHaveCount(1);
+        await expect(cell).toHaveAttribute('data-reserved', '0');
+
+        // 別の画面から予約する
+        await actor.goto(appPath('/TReservationInfo/'));
+        const token = await actor.locator('meta[name="csrfToken"]').first().getAttribute('content');
+        const res = await actor.request.post(appPath(`/TReservationInfo/toggle/${ROOM}`), {
+            headers: { 'X-CSRF-Token': token ?? '', Accept: 'application/json' },
+            data: { date, meal: 1, value: 1, userId: USER },
+            failOnStatusCode: false,
+        });
+        expect(res.status(), `予約の書き込みに失敗: ${await res.text()}`).toBe(200);
+
+        // セルの値だけが変わること
+        await expect(cell, 'セルが自動で反映されない').toHaveAttribute('data-reserved', '1', { timeout: 15000 });
+        await expect(cell).toHaveText('1');
+
+        // ページごと作り直されていないこと
+        expect(
+            await watcher.evaluate(() => window.__notReloaded === true),
+            'ページが再読み込みされている（スクロール位置が飛ぶ）'
+        ).toBe(true);
+
+        // 要再読み込みのお知らせは出ないこと
+        await expect(watcher.locator('#reservation-live-notice')).toHaveCount(0);
+
+        await ctx.close();
+    });
+
+    test('ログインが切れたら自動更新を止めて知らせる', async ({ browser }) => {
+        const ctx  = await browser.newContext();
+        const page = await ctx.newPage();
+
+        await withFastSync(page);
+        await login(page);
+        await page.goto(appPath('/TReservationInfo/'));
+        await page.waitForFunction(() => !!window.ReservationLiveSync, null, { timeout: 20000 });
+        await waitForBaseline(page);
+
+        // セッションを失わせる（昼休みを挟んで期限が切れた状況）
+        await ctx.clearCookies();
+
+        await expect(
+            page.locator('#reservation-live-notice'),
+            'ログイン切れを知らせていない（古い画面を見続けてしまう）'
+        ).toBeVisible({ timeout: 15000 });
+
+        await expect(page.locator('#reservation-live-notice')).toContainText('ログイン');
+
+        // 問い合わせを止めていること
+        expect(
+            await page.evaluate(() => window.ReservationLiveSync.isStopped()),
+            'ログイン切れ後も問い合わせ続けている'
+        ).toBe(true);
+
+        await ctx.close();
+    });
 });

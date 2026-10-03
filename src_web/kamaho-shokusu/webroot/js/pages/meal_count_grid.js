@@ -248,7 +248,9 @@ function _mcgIndexPush(map, key, td) {
 function mcgBuildCellIndex() {
     _mcgByUserDateMeal = new Map();
     _mcgByDateMeal     = new Map();
-    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+    // data-editable は「過去日でなく、権限もある」セルに付く。他部屋ロックで
+    // 一時的に操作できないセルも含める（ロックが外れたら操作できるべきなので）。
+    document.querySelectorAll('.mcg-grid td[data-editable="1"]').forEach(function (td) {
         var d = td.dataset;
         _mcgIndexPush(_mcgByUserDateMeal, d.userId + '|' + d.date + '|' + d.meal, td);
         _mcgIndexPush(_mcgByDateMeal, d.date + '|' + d.meal, td);
@@ -275,12 +277,30 @@ function _mcgSyncConflictCells(cells) {
         if (reservedRoomId !== null && cell.dataset.roomId !== reservedRoomId) {
             var roomName = MCG_ROOM_NAMES[reservedRoomId] || ('部屋' + reservedRoomId);
             cell.classList.add('mcg-cell-conflict');
+            cell.classList.remove('mcg-toggleable');
             cell.dataset.conflictMsg = roomName + 'で予約済みのため選択できません';
         } else {
             cell.classList.remove('mcg-cell-conflict');
             delete cell.dataset.conflictMsg;
+            mcgMarkToggleable(cell);
         }
     });
+}
+
+/**
+ * セルを「操作できる」見た目・読み上げ状態にする。
+ *
+ * 描画時にロックされていたセルには role / tabindex が付いていないため、
+ * ロックが外れた時点で補う。付けないとキーボードで到達できない。
+ *
+ * @param {HTMLElement} td
+ */
+function mcgMarkToggleable(td) {
+    if (td.dataset.editable !== '1') return;
+    td.classList.add('mcg-toggleable');
+    if (!td.hasAttribute('role'))     td.setAttribute('role', 'checkbox');
+    if (!td.hasAttribute('tabindex')) td.setAttribute('tabindex', '0');
+    td.setAttribute('aria-checked', td.dataset.reserved === '1' ? 'true' : 'false');
 }
 
 function mcgInitConflicts() {
@@ -463,7 +483,9 @@ function mcgUpdateDailyTotal(date, meal) {
  * セルクリック（Pending モード）
  * ─────────────────────────────────────────── */
 function mcgInitToggle() {
-    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+    // 他部屋ロック中のセルにも先に紐づけておく。ロックが外れた時点で
+    // 操作できるようにするため。クリック時に is-past / 他部屋ロックを弾く。
+    document.querySelectorAll('.mcg-grid td[data-editable="1"]').forEach(function (td) {
         td.addEventListener('keydown', function (e) {
             if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); td.click(); }
         });
@@ -627,6 +649,139 @@ function mcgApplyHolidays() {
         });
     });
 }
+
+/* ─────────────────────────────────────────────
+ * 他の人の変更の取り込み（画面は作り直さない）
+ * ─────────────────────────────────────────── */
+
+/**
+ * 最新のセル状態だけをサーバーから取り直して反映する。
+ *
+ * 画面ごと再読み込みすると、見ている最中に表が消えてスクロール位置も
+ * 飛ぶ。表の形（行・列）が変わっていなければ、セルの値だけ差し替える。
+ *
+ * @returns {Promise<boolean>} true = 反映した / false = 反映できず（要再読み込み）
+ */
+function mcgRefreshFromServer() {
+    // 入力途中の内容を消してしまうため、未登録のチェックがあるときは触らない
+    if (_mcgPending.size > 0) return Promise.resolve(false);
+
+    var sep = window.location.search ? '&' : '?';
+    var url = window.location.pathname + window.location.search + sep + 'format=json';
+
+    return fetch(url, {
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        cache: 'no-store',
+        // ログイン切れでログイン画面の HTML を掴まないようにする
+        redirect: 'manual',
+    })
+        .then(function (res) {
+            if (!res.ok) return null;
+            return res.json();
+        })
+        .then(function (json) {
+            var data = json && (json.data || json);
+            if (!data || !data.rooms) return false;
+            return mcgApplyServerData(data);
+        })
+        .catch(function () {
+            return false;
+        });
+}
+
+/**
+ * 取り直したデータを表へ反映する。
+ *
+ * 行や列が増減していた場合（利用者の入退所・部屋の増減）は、セルの
+ * 差し替えでは追いつかないため false を返して呼び出し元に委ねる。
+ *
+ * @param {object} data {rooms, dailyTotals, monthlyTotals, version}
+ * @returns {boolean} true = 反映した
+ */
+function mcgApplyServerData(data) {
+    var cells = document.querySelectorAll('.mcg-grid td[data-user-id][data-meal]');
+    if (cells.length === 0) return false;
+
+    // 表の形が変わっていないことを先に確かめる。途中まで書き換えてから
+    // 諦めると、一部だけ新しい値になった中途半端な表が残る。
+    var values = [];
+    for (var i = 0; i < cells.length; i++) {
+        var d    = cells[i].dataset;
+        var room = data.rooms[d.roomId];
+        var byUser = room && room.grid ? room.grid[d.userId] : null;
+        var byDate = byUser ? byUser[d.date] : null;
+        if (!byDate || byDate[d.meal] === undefined) return false;
+        values.push(!!byDate[d.meal]);
+    }
+
+    for (var j = 0; j < cells.length; j++) {
+        var td   = cells[j];
+        var on   = values[j];
+        var next = on ? '1' : '0';
+        if (td.dataset.reserved === next) continue;
+
+        td.dataset.reserved = next;
+        td.textContent      = on ? '1' : '';
+        if (td.hasAttribute('aria-checked')) {
+            td.setAttribute('aria-checked', on ? 'true' : 'false');
+        }
+        // 「自分がさっき登録した」印は、値が外から変わった時点で意味を失う
+        td.classList.remove('mcg-cell-saved');
+    }
+
+    mcgApplyServerTotals(data);
+
+    // 他部屋ロック・昼↔弁当の排他は値から導かれるので、まとめて引き直す
+    mcgInitConflicts();
+    mcgInitLunchBentoExcl();
+
+    // このデータがどの版数のものかを自動更新側へ伝える。現在の版数を
+    // 取り直すと、データ取得後に入った変更まで反映済みとみなしてしまう。
+    if (window.ReservationLiveSync && typeof data.version === 'number') {
+        window.ReservationLiveSync.setBaseline(data.version);
+    }
+
+    return true;
+}
+
+/**
+ * 日計・合計をサーバーの集計値で置き換える。
+ *
+ * 画面の DOM から数え直すと、索引に載らないセル（過去日・他の職員の行）が
+ * 抜けて実際より少なくなる。発注数に使う値なのでサーバーの集計を使う。
+ *
+ * @param {object} data
+ * @returns {void}
+ */
+function mcgApplyServerTotals(data) {
+    var daily = data.dailyTotals || {};
+    var grand = 0;
+
+    document.querySelectorAll('.row-daily-total td[data-date][data-meal]').forEach(function (td) {
+        var perDate = daily[td.dataset.date] || {};
+        var n = parseInt(perDate[td.dataset.meal], 10) || 0;
+        td.textContent = n > 0 ? String(n) : '';
+    });
+
+    Object.keys(daily).forEach(function (date) {
+        Object.keys(daily[date]).forEach(function (meal) {
+            grand += parseInt(daily[date][meal], 10) || 0;
+        });
+    });
+
+    var monthly = data.monthlyTotals || {};
+    var monthlySum = Object.keys(monthly).reduce(function (acc, k) {
+        return acc + (parseInt(monthly[k], 10) || 0);
+    }, 0);
+
+    var sumEl   = document.getElementById('mcg-total-sum');
+    var countEl = document.getElementById('mcg-total-count');
+    if (sumEl)   sumEl.textContent   = String(monthlySum);
+    if (countEl) countEl.textContent = String(grand);
+}
+
+window.mcgRefreshFromServer = mcgRefreshFromServer;
 
 document.addEventListener('DOMContentLoaded', function () {
     mcgBuildCellIndex();

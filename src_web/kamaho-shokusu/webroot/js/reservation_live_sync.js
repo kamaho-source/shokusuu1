@@ -45,6 +45,15 @@
     /** 自分の書き込みが連続したとき、基準の取り直しをまとめる待ち時間 */
     var RESYNC_DEBOUNCE_MS = 400;
 
+    /**
+     * ログインが切れたことを表す印。
+     *
+     * 通信失敗（null）と区別する必要がある。通信失敗は黙って間隔を伸ばして
+     * 待てばよいが、ログイン切れは待っても直らない。区別せずに扱うと
+     * 「自動更新されているつもりで古い画面を見続ける」ことになる。
+     */
+    var AUTH_LOST = 'auth-lost';
+
     // document.currentScript は実行直後にしか取れないため、ここで控える
     var selfScript = document.currentScript;
 
@@ -59,6 +68,8 @@
         /** 自分の保存を他の人の変更と誤認しないための抑止フラグ */
         selfWritePending: false,
         lastActivityAt: Date.now(),
+        /** ログイン切れを知らせたか（何度も出さない） */
+        authLost: false,
     };
 
     /**
@@ -90,19 +101,34 @@
         }
     }
 
-    /** 版数を取得する。取れなければ null を返す（失敗しても画面は壊さない）。 */
+    /**
+     * 版数を取得する。
+     *
+     * @returns {Promise<number|string|null>}
+     *   数値 = 版数 / AUTH_LOST = ログイン切れ / null = 取得できず（通信失敗など）
+     *
+     * redirect: 'manual' が要る。既定の 'follow' だとログイン画面へ 302 で
+     * 飛ばされた結果の HTML が 200 で返り、JSON 解析の失敗として
+     * 「ただの通信失敗」に埋もれてしまう。
+     */
     function fetchVersion() {
         return fetch(endpointUrl(), {
             method: 'GET',
             credentials: 'same-origin',
             headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             cache: 'no-store',
+            redirect: 'manual',
         })
             .then(function (res) {
+                // ログイン画面へのリダイレクト（opaqueredirect）と権限切れ
+                if (res.type === 'opaqueredirect' || res.status === 401 || res.status === 403) {
+                    return AUTH_LOST;
+                }
                 if (!res.ok) return null;
                 return res.json();
             })
             .then(function (json) {
+                if (json === AUTH_LOST) return AUTH_LOST;
                 var v = json && (json.version != null ? json.version : (json.data && json.data.version));
                 return (typeof v === 'number') ? v : null;
             })
@@ -131,6 +157,10 @@
         fetchVersion().then(function (version) {
             state.inFlight = false;
 
+            if (version === AUTH_LOST) {
+                handleAuthLost();
+                return;
+            }
             if (version === null) {
                 // 失敗するほど間隔を伸ばす（最大でも既定間隔の MAX 倍まで）
                 state.failureCount++;
@@ -189,9 +219,38 @@
      */
     function captureBaseline() {
         return fetchVersion().then(function (version) {
+            if (version === AUTH_LOST) {
+                handleAuthLost();
+                return null;
+            }
             if (version !== null) state.knownVersion = version;
             return version;
         });
+    }
+
+    /**
+     * ログインが切れたときの扱い。
+     *
+     * 待っても直らないので問い合わせを止め、利用者に伝える。
+     * 黙って止めると「自動更新されているつもりで古い画面を見続ける」ことになり、
+     * 食数を取り違えたまま発注まで進んでしまう。
+     */
+    function handleAuthLost() {
+        if (state.authLost) return;
+        state.authLost = true;
+        stop();
+        if (state.options && typeof state.options.onAuthLost === 'function') {
+            try {
+                state.options.onAuthLost();
+                return;
+            } catch (e) {
+                console.warn('ReservationLiveSync onAuthLost error:', e);
+            }
+        }
+        showReloadNotice(
+            'ログインの有効期限が切れたため、自動更新を停止しました。再読み込みしてログインし直してください。',
+            'warning'
+        );
     }
 
     function resolveInterval() {
@@ -219,6 +278,8 @@
             intervalMs: resolveInterval(),
             onChange: function () {},
             hasUnsavedChanges: function () { return false; },
+            // ログイン切れ時の扱い。未指定なら画面上部にお知らせを出す。
+            onAuthLost: null,
         }, options || {});
 
         // 初回の基準はすぐ控える（遅らせると、その間の変更を取りこぼす）
@@ -255,12 +316,13 @@
      * 入力途中の内容を勝手に消さないため、未保存の変更があるときは
      * 自動では更新せず、再読み込みするかどうかを利用者に委ねる。
      */
-    function showReloadNotice(message) {
+    function showReloadNotice(message, variant) {
         if (document.getElementById('reservation-live-notice')) return;
 
         var notice = document.createElement('div');
         notice.id = 'reservation-live-notice';
-        notice.className = 'alert alert-info d-flex align-items-center gap-2 mb-3';
+        notice.className = 'alert alert-' + (variant === 'warning' ? 'warning' : 'info')
+            + ' d-flex align-items-center gap-2 mb-3';
         notice.setAttribute('role', 'status');
         notice.setAttribute('aria-live', 'polite');
         notice.innerHTML =
@@ -280,7 +342,21 @@
         stop: stop,
         resync: resync,
         showReloadNotice: showReloadNotice,
+        /**
+         * 基準の版数を明示的に置き換える。
+         *
+         * データを取り直した画面が「その データが どの版数のものか」を
+         * 知らせるために使う。resync() で取り直すと、データ取得後に
+         * 入った変更まで取り込んでしまい、その分を見落とす。
+         *
+         * @param {number} version
+         */
+        setBaseline: function (version) {
+            if (typeof version === 'number') state.knownVersion = version;
+        },
         /** 基準の版数が決まったか（検証用。決まる前の変更は検知できない） */
         hasBaseline: function () { return state.knownVersion !== null; },
+        /** 問い合わせが止まっているか（検証用） */
+        isStopped: function () { return state.timerId === null; },
     };
 })();

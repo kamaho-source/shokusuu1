@@ -316,6 +316,7 @@ $this->Html->script('reservation_live_sync.js', ['block' => true]);
                                     }
 
                                     echo '<td class="' . h($tdClass) . '"'
+                                        . ' data-editable="' . ((!$isPast && $canEditRow) ? '1' : '0') . '"'
                                         . ' data-user-id="' . h($uid) . '"'
                                         . ' data-room-id="' . h($roomId) . '"'
                                         . ' data-date="' . h($d) . '"'
@@ -385,8 +386,8 @@ $this->Html->script('reservation_live_sync.js', ['block' => true]);
     <div class="excel-statusbar">
         <span>準備完了</span>
         <span>
-            合計: <?= h(array_sum($monthlyTotals)) ?>
-            個数: <?= h(array_sum($dailyTotals ? array_map('array_sum', $dailyTotals) : [0])) ?>
+            合計: <span id="mcg-total-sum"><?= h(array_sum($monthlyTotals)) ?></span>
+            個数: <span id="mcg-total-count"><?= h(array_sum($dailyTotals ? array_map('array_sum', $dailyTotals) : [0])) ?></span>
         </span>
     </div>
 
@@ -433,8 +434,14 @@ function mcgChangeRoom(roomId) {
 
 <script>
 /* 他の人が予約を変更したときの扱い。
-   この画面はチェックを付けてから「登録」で確定するため、勝手に作り直すと
-   入力途中の内容が消える。未保存があるときは知らせるだけに留める。 */
+
+   この画面はチェックを付けてから「登録」で確定する。入力途中の内容を
+   消さないため、未登録のチェックがあるときは知らせるだけに留める。
+
+   未登録が無いときもページごと再読み込みはしない。表が消えてスクロール
+   位置が飛ぶと、見ている最中に画面が勝手に動いたように見えてしまう。
+   セルの値だけ差し替える。行・列が変わっていて差し替えでは追いつかない
+   ときだけ、再読み込みを利用者に委ねる。 */
 document.addEventListener('DOMContentLoaded', function () {
     if (!window.ReservationLiveSync) return;
     window.ReservationLiveSync.start({
@@ -448,7 +455,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 );
                 return;
             }
-            window.location.reload();
+
+            if (typeof window.mcgRefreshFromServer !== 'function') {
+                window.ReservationLiveSync.showReloadNotice();
+                return;
+            }
+
+            window.mcgRefreshFromServer().then(function (applied) {
+                if (applied) {
+                    if (typeof mcgShowToast === 'function') mcgShowToast('他の方の変更を反映しました。', 'info');
+                    return;
+                }
+                window.ReservationLiveSync.showReloadNotice(
+                    '利用者または部屋の構成が変わりました。最新を表示するには再読み込みしてください。'
+                );
+            });
         }
     });
 });

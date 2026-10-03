@@ -98,6 +98,13 @@ class RoomService
         $roomInfo->c_update_user = $updatedBy;
         $roomInfo->dt_update    = DateTime::now('Asia/Tokyo');
 
-        return (bool)$table->save($roomInfo);
+        if (!$table->save($roomInfo)) {
+            return false;
+        }
+
+        // 部屋が消えると食数一括管理の列構成が変わる
+        ReservationVersionService::bump();
+
+        return true;
     }
 }

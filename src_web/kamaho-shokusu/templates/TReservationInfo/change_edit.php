@@ -295,3 +295,19 @@ $indivJson = json_encode(
     </div><!-- /.row -->
 
 </div><!-- /#ce-root -->
+<?= $this->Html->script('reservation_live_sync.js') ?>
+<script>
+/* 他の人の変更を知らせるだけに留める。
+   この画面はチェックを付けてから「登録」で確定するため、勝手に作り直すと操作中の内容が消える。 */
+document.addEventListener('DOMContentLoaded', function () {
+    if (!window.ReservationLiveSync) return;
+    window.ReservationLiveSync.start({
+        onChange: function () {
+            window.ReservationLiveSync.showReloadNotice(
+                '他の方が予約を更新しました。入力中の内容は残してあります。最新を見るには再読み込みしてください。'
+            );
+        }
+    });
+});
+</script>
+

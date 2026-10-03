@@ -74,6 +74,10 @@ class UserRoomAssignmentService
             throw $e;
         }
 
+        // 利用者・部屋の構成が変わると食数一括管理の行・列が変わる。
+        // 開いている画面に知らせるため版数を進める。
+        ReservationVersionService::bump();
+
         return ['created' => $created, 'errors' => $errors];
     }
 }

@@ -69,6 +69,9 @@ class UserRestoreService
                 $actorLoginId
             );
 
+            // 復帰した利用者の行を、開いている画面にも出す
+            ReservationVersionService::bump();
+
             return true;
         } catch (\Exception $e) {
             $conn->rollback();

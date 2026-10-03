@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ActualMealManagementService;
 use App\Service\MealCountGridService;
+use App\Service\ReservationVersionService;
 use Cake\Http\Response;
 
 /**
@@ -505,6 +506,29 @@ class ReservationActualMealController extends ReservationBaseController
         $session->write('mealCountGrid.roomId', $selectedRoomId);
         if ($canViewAll) {
             $session->write('mealCountGrid.userId', $selectedUserId);
+        }
+
+        /*
+         * 開いている画面の自動更新用。
+         *
+         * 画面ごと組み直すとスクロール位置が飛び、見ている最中に表が動いて
+         * しまう。セルの値だけ差し替えられるよう、組み立て済みのデータを
+         * そのまま返す。権限・絞り込みの判定はここまでで済んでいるため、
+         * 画面表示と同じ内容になる。
+         */
+        if ($this->request->getQuery('format') === 'json') {
+            // 版数はデータと同じ時点のものを返す。別に問い合わせると、
+            // その隙に入った変更を「反映済み」と誤認してしまう。
+            $version = ReservationVersionService::current();
+            $this->request->getSession()->close();
+
+            return $this->apiResponseService->success($this->response, [
+                'version'       => $version,
+                'rooms'         => $gridData['rooms'],
+                'dailyTotals'   => $gridData['dailyTotals'],
+                'monthlyTotals' => $monthlyTotals,
+                'allRooms'      => $allRooms,
+            ]);
         }
 
         $this->set([
