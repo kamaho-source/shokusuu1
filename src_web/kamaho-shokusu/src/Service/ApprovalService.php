@@ -504,7 +504,7 @@ class ApprovalService
         $logTable        = TableRegistry::getTableLocator()->get('TApprovalLog');
         $now             = DateTime::now();
 
-        return $individualTable->getConnection()->transactional(
+        $successKeys = $individualTable->getConnection()->transactional(
             function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $individualTable, $logTable, $now): array {
                 $successKeys = [];
 
@@ -549,10 +549,6 @@ class ApprovalService
                     return [];
                 }
 
-                // 承認状態が変わると食数の確定内容も変わるため、
-                // 他の画面が「変更があった」と気づけるようにする。
-                ReservationVersionService::bump();
-
                 if ($newStatus === self::STATUS_REJECTED) {
                     $this->notificationService->createRejectionNotifications($successKeys, $approverId, $reason, $now);
                 }
@@ -560,5 +556,19 @@ class ApprovalService
                 return $successKeys;
             }
         );
+
+        /*
+         * 承認状態が変わると食数の確定内容も変わるため、他の画面が
+         * 「変更があった」と気づけるようにする。
+         *
+         * トランザクションの外で呼ぶこと。クロージャ内で呼ぶと、
+         * 後続の処理が例外を投げて DB がロールバックしても版数だけが
+         * 進んでしまう。他のサービスもコミット後に呼んでいる。
+         */
+        if (!empty($successKeys)) {
+            ReservationVersionService::bump();
+        }
+
+        return $successKeys;
     }
 }

@@ -582,6 +582,10 @@ function openModalById(id){
                 }
 
                 if (window.__reservationCalendar) window.__reservationCalendar.refetchEvents();
+
+                // 自分の操作でも版数は進む。基準を取り直しておかないと、
+                // 次の確認で自分の変更を他の人の変更として扱ってしまう。
+                if (window.ReservationLiveSync) window.ReservationLiveSync.resync();
             }
 
             var calendarEl    = document.getElementById('calendar');

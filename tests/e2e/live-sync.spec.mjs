@@ -15,6 +15,20 @@ const ROOM = 1;
 const SYNC_MS = 1000;
 
 /** 版数の問い合わせ間隔を詰める（本番既定の20秒だとテストが成立しないため） */
+/**
+ * 監視側が「現在の版数」を基準として控え終えるまで待つ。
+ *
+ * 基準が決まる前に書き込むと、その変更が基準に取り込まれて検知対象から外れる。
+ * 実運用では画面を開いた直後のごく短い間だけ起きるが、テストでは毎回踏むので待つ。
+ */
+async function waitForBaseline(page) {
+    await page.waitForFunction(
+        () => !!window.ReservationLiveSync?.hasBaseline?.(),
+        null,
+        { timeout: 20000 }
+    );
+}
+
 async function withFastSync(page) {
     // 本番では prefork のワーカー占有を避けるため 6 秒未満を受け付けない。
     // テストでは待ち時間が現実的でなくなるため、明示的に解除する。
@@ -54,18 +68,53 @@ test.describe('他の人の予約を再読み込みなしで反映する', () =>
     test('予約を書き込むと版数が進む', async ({ page }) => {
         await login(page);
         const before = await currentVersion(page);
+        expect(typeof before, '版数を取得できていない').toBe('number');
 
-        insertReservation({ userId: USER, date, meal: 1, room: ROOM, eat: 1, chg: 1 });
         // DB直書きでは版数は進まないので、アプリ経由の書き込みで確認する
         const token = await page.locator('meta[name="csrfToken"]').first().getAttribute('content');
-        await page.request.post(appPath(`/TReservationInfo/toggle/${ROOM}`), {
+        const res = await page.request.post(appPath(`/TReservationInfo/toggle/${ROOM}`), {
             headers: { 'X-CSRF-Token': token ?? '', Accept: 'application/json' },
             data: { date, meal: 3, value: 1, userId: USER },
             failOnStatusCode: false,
         });
+        // 書き込みが失敗していると版数は進まず、原因の分かりにくい比較エラーになる
+        expect(res.status(), `予約の書き込みに失敗: ${await res.text()}`).toBe(200);
 
         const after = await currentVersion(page);
         expect(after, '書き込んでも版数が進んでいない').toBeGreaterThan(before);
+    });
+
+    test('自分の保存では再読み込みされない', async ({ page }) => {
+        await withFastSync(page);
+        await login(page);
+        await page.goto(appPath('/TReservationInfo/'));
+        await page.waitForFunction(() => !!window.ReservationLiveSync, null, { timeout: 20000 });
+
+        // onChange（＝他の人の変更とみなした回数）を数える
+        await page.evaluate(() => {
+            window.__changeCount = 0;
+            window.ReservationLiveSync.stop();
+            window.ReservationLiveSync.start({
+                onChange: function () { window.__changeCount++; },
+            });
+        });
+
+        // 自分で書き込み、直後に基準を取り直す（画面側と同じ流れ）
+        const token = await page.locator('meta[name="csrfToken"]').first().getAttribute('content');
+        const res = await page.request.post(appPath(`/TReservationInfo/toggle/${ROOM}`), {
+            headers: { 'X-CSRF-Token': token ?? '', Accept: 'application/json' },
+            data: { date, meal: 4, value: 1, userId: USER },
+            failOnStatusCode: false,
+        });
+        expect(res.status(), `予約の書き込みに失敗: ${await res.text()}`).toBe(200);
+        await page.evaluate(() => window.ReservationLiveSync.resync());
+
+        // 確認が数回走るだけの時間を置いても、他人の変更として扱われないこと
+        await page.waitForTimeout(5000);
+        expect(
+            await page.evaluate(() => window.__changeCount),
+            '自分の保存が他の人の変更として扱われている'
+        ).toBe(0);
     });
 
     test('カレンダー: 他の人の予約が自動で反映される', async ({ browser }) => {
@@ -77,6 +126,7 @@ test.describe('他の人の予約を再読み込みなしで反映する', () =>
         await login(watcher);
         await watcher.goto(appPath('/TReservationInfo/'));
         await watcher.waitForFunction(() => !!window.__reservationCalendar, null, { timeout: 20000 });
+        await waitForBaseline(watcher);
 
         // 監視側が自動更新したかどうかを記録する
         await watcher.evaluate(() => {
@@ -116,6 +166,7 @@ test.describe('他の人の予約を再読み込みなしで反映する', () =>
         await login(watcher);
         await watcher.goto(appPath('/TReservationInfo/meal-count-grid'));
         await watcher.waitForFunction(() => typeof window.mcgHasUnsavedChanges === 'function', null, { timeout: 20000 });
+        await waitForBaseline(watcher);
 
         // 入力途中の状態をつくる（チェックを1つ付けて未登録のまま）
         // 左の固定列が重なってクリックが届かないため、要素へ直接送る

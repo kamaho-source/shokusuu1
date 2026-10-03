@@ -255,12 +255,20 @@ $bizSectionVars = [
    モーダルを開いていないときだけ差し替える。 */
 document.addEventListener('DOMContentLoaded', function () {
     if (!window.ReservationLiveSync) return;
+
+    // モーダルを開いている間に複数回変更を検知しても、
+    // 閉じたときの反映は1回で足りる。登録済みかどうかを覚えておく。
+    var pendingAfterModal = false;
+
     window.ReservationLiveSync.start({
         onChange: function () {
             if (document.querySelector('.modal.show')) {
                 // 操作中に画面が変わると混乱するため、閉じたあとに反映する
+                if (pendingAfterModal) return;
+                pendingAfterModal = true;
                 document.addEventListener('hidden.bs.modal', function once() {
                     document.removeEventListener('hidden.bs.modal', once);
+                    pendingAfterModal = false;
                     if (window.__reservationCalendar) window.__reservationCalendar.refetchEvents();
                 });
                 return;

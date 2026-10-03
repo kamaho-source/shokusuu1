@@ -42,6 +42,9 @@
     /** 連続して失敗したときに間隔を伸ばす上限 */
     var MAX_BACKOFF_MULTIPLIER = 8;
 
+    /** 自分の書き込みが連続したとき、基準の取り直しをまとめる待ち時間 */
+    var RESYNC_DEBOUNCE_MS = 400;
+
     // document.currentScript は実行直後にしか取れないため、ここで控える
     var selfScript = document.currentScript;
 
@@ -52,6 +55,9 @@
         inFlight: false,
         failureCount: 0,
         skipTicks: 0,
+        resyncTimerId: null,
+        /** 自分の保存を他の人の変更と誤認しないための抑止フラグ */
+        selfWritePending: false,
         lastActivityAt: Date.now(),
     };
 
@@ -141,6 +147,10 @@
             if (version === state.knownVersion) return;
 
             state.knownVersion = version;
+
+            // 自分が保存した直後の版上がりを他の人の変更として通知してはいけない
+            if (state.selfWritePending) return;
+
             try {
                 state.options.onChange();
             } catch (e) {
@@ -149,10 +159,38 @@
         });
     }
 
-    /** 保存直後など、こちらの操作で版数が進んだときに基準を取り直す。 */
+    /**
+     * 保存直後など、こちらの操作で版数が進んだときに基準を取り直す。
+     *
+     * 取り直さないと、次の確認で自分の保存を他の人の変更と判定してしまい、
+     * 画面の再読み込みや不要な「他の方の変更を反映しました」が起きる。
+     *
+     * 1回の操作で複数件を書き込む画面（食数を4つまとめて登録するなど）から
+     * 連続で呼ばれるため、短い間はまとめて1回にする。
+     */
     function resync() {
-        fetchVersion().then(function (version) {
+        // 抑止はこの瞬間から効かせる。基準の取り直しだけを debounce でまとめる。
+        // 遅らせると、取り直しが終わる前のポーリングが自分の保存を他の人の変更と誤認する。
+        state.selfWritePending = true;
+        if (state.resyncTimerId) window.clearTimeout(state.resyncTimerId);
+        state.resyncTimerId = window.setTimeout(function () {
+            state.resyncTimerId = null;
+            captureBaseline().then(function () {
+                state.selfWritePending = false;
+            });
+        }, RESYNC_DEBOUNCE_MS);
+    }
+
+    /**
+     * 現在の版数を基準として控える（待たずにすぐ取りに行く）。
+     *
+     * 開始直後はここを遅らせてはいけない。基準が決まる前に他の人が書き込むと、
+     * その変更を基準に取り込んでしまい、以後ずっと気づけなくなる。
+     */
+    function captureBaseline() {
+        return fetchVersion().then(function (version) {
             if (version !== null) state.knownVersion = version;
+            return version;
         });
     }
 
@@ -183,8 +221,8 @@
             hasUnsavedChanges: function () { return false; },
         }, options || {});
 
-        // 初回に現在の版数を控える（この時点では画面を更新しない）
-        resync();
+        // 初回の基準はすぐ控える（遅らせると、その間の変更を取りこぼす）
+        captureBaseline();
 
         state.timerId = window.setInterval(check, state.options.intervalMs);
 
@@ -204,6 +242,11 @@
             window.clearInterval(state.timerId);
             state.timerId = null;
         }
+        if (state.resyncTimerId) {
+            window.clearTimeout(state.resyncTimerId);
+            state.resyncTimerId = null;
+        }
+        state.selfWritePending = false;
     }
 
     /**
@@ -237,5 +280,7 @@
         stop: stop,
         resync: resync,
         showReloadNotice: showReloadNotice,
+        /** 基準の版数が決まったか（検証用。決まる前の変更は検知できない） */
+        hasBaseline: function () { return state.knownVersion !== null; },
     };
 })();

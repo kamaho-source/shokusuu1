@@ -206,6 +206,16 @@ function mcgRegisterAll() {
         }
 
         mcgUpdateRegisterBtn();
+
+        /*
+         * 自分の保存でもサーバー側の版数は進む。
+         * 基準を取り直しておかないと、次の確認で自分の保存を
+         * 他の人の変更と判定して画面を再読み込みしてしまい、
+         * いま出したトーストや続きの入力が消える。
+         */
+        if (window.ReservationLiveSync) {
+            window.ReservationLiveSync.resync();
+        }
     });
 }
 
