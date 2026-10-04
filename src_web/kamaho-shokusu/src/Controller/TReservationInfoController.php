@@ -90,6 +90,14 @@ class TReservationInfoController extends ReservationBaseController
         $canViewAllRooms = $isAdmin || $isOfficeUser;
         $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser, $isBlockLeader);
 
+        // 子どもUI用の部屋一覧。子どもUIでは管理者であっても「所属している部屋」だけを表示する。
+        // 業務UIの部屋ピッカー($rooms→availableRoomNames)やエクセル食数予約は従来どおり全部屋のまま。
+        // 事務所ユーザー(isOfficeUser)は対象外。所属部屋が未設定の管理者は選べなくなるため従来どおり全部屋。
+        $authorizedRooms = $rooms;
+        if ($isAdmin && !$isOfficeUser && !empty($userRoomIds)) {
+            $authorizedRooms = array_intersect_key($rooms, array_flip(array_map('intval', $userRoomIds)));
+        }
+
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
         $calRoomId = null;
         if ($calRoomIdQuery !== null && $calRoomIdQuery !== '') {
@@ -151,6 +159,7 @@ class TReservationInfoController extends ReservationBaseController
             'user',
             'userRoomId',
             'rooms',
+            'authorizedRooms',
             'today',
             'staff_user',
             'isAdmin',
