@@ -226,4 +226,113 @@ class AuditLogServiceTest extends TestCase
             ['system'],
         ];
     }
+
+    // ----------------------------------------------------------------
+    // #700 失敗理由(detail.reason) の補完 — applyFailureReason()
+    // ----------------------------------------------------------------
+
+    public function testApplyFailureReason_successResultLeavesDetailUnchanged(): void
+    {
+        $detail = ['count' => 3];
+        // result=1（成功）のときは reason を足さない
+        $this->assertSame($detail, AuditLogService::applyFailureReason($detail, 1, '理由'));
+        // detail が null でも null のまま
+        $this->assertNull(AuditLogService::applyFailureReason(null, 1, '理由'));
+    }
+
+    public function testApplyFailureReason_usesExplicitReasonOnFailure(): void
+    {
+        $out = AuditLogService::applyFailureReason(['count' => 0], 0, '承認対象がありません');
+        $this->assertSame('承認対象がありません', $out['reason']);
+        $this->assertSame(0, $out['count']); // 既存キーは保持
+    }
+
+    public function testApplyFailureReason_fallsBackToExistingErrorKey(): void
+    {
+        // 明示理由が無くても、従来の detail['error'] を reason に昇格する
+        $out = AuditLogService::applyFailureReason(['error' => 'save failed'], 0, null);
+        $this->assertSame('save failed', $out['reason']);
+    }
+
+    public function testApplyFailureReason_fallsBackToPlaceholderWhenNothing(): void
+    {
+        // 理由も error も無い失敗は「原因不明」で埋める（黙って失敗させない）
+        $out = AuditLogService::applyFailureReason(null, 0, null);
+        $this->assertSame(AuditLogService::REASON_FALLBACK, $out['reason']);
+
+        // 空白のみの理由もフォールバック扱い
+        $out2 = AuditLogService::applyFailureReason([], 0, '   ');
+        $this->assertSame(AuditLogService::REASON_FALLBACK, $out2['reason']);
+    }
+
+    public function testApplyFailureReason_explicitReasonBeatsErrorKey(): void
+    {
+        $out = AuditLogService::applyFailureReason(['error' => 'low-level'], 0, '利用者向けの理由');
+        $this->assertSame('利用者向けの理由', $out['reason']);
+    }
+
+    // ----------------------------------------------------------------
+    // #700 sanitizeReason()
+    // ----------------------------------------------------------------
+
+    public function testSanitizeReason_collapsesWhitespace(): void
+    {
+        $this->assertSame('a b c', AuditLogService::sanitizeReason("a\n  b\t\tc"));
+    }
+
+    public function testSanitizeReason_masksSensitiveValues(): void
+    {
+        $this->assertStringContainsString('password=***', AuditLogService::sanitizeReason('login failed password=hunter2'));
+        $this->assertStringNotContainsString('hunter2', AuditLogService::sanitizeReason('login failed password=hunter2'));
+        $this->assertStringContainsString('token=***', AuditLogService::sanitizeReason('token: abc.def.ghi'));
+    }
+
+    public function testSanitizeReason_capsLength(): void
+    {
+        $long = str_repeat('あ', AuditLogService::REASON_MAX + 200);
+        $this->assertSame(AuditLogService::REASON_MAX, mb_strlen(AuditLogService::sanitizeReason($long)));
+    }
+
+    // ----------------------------------------------------------------
+    // #700 record() 経由で c_detail.reason が保存されること（結合）
+    // ----------------------------------------------------------------
+
+    public function testRecord_failureStoresReasonInDetail(): void
+    {
+        AuditLogService::record(
+            category:      'reservation',
+            action:        'reservation_toggle',
+            actorName:     'taro',
+            actorId:       5,
+            targetTable:   't_reservation_info',
+            targetId:      'room:1',
+            detail:        ['room' => 1],
+            ipAddress:     '192.168.0.1',
+            result:        0,
+            actorLoginId:  'taro',
+            failureReason: '直前編集ウィンドウ外のため変更できません'
+        );
+
+        $log    = $this->lastLog();
+        $detail = json_decode((string)$log->c_detail, true);
+        $this->assertSame(0, (int)$log->i_result);
+        $this->assertSame('直前編集ウィンドウ外のため変更できません', $detail['reason']);
+        $this->assertSame(1, $detail['room']); // 既存の詳細は保持
+    }
+
+    public function testRecord_successDoesNotAddReason(): void
+    {
+        AuditLogService::record(
+            category:    'reservation',
+            action:      'reservation_toggle',
+            actorName:   'taro',
+            actorId:     5,
+            detail:      ['room' => 1],
+            result:      1
+        );
+
+        $log    = $this->lastLog();
+        $detail = json_decode((string)$log->c_detail, true);
+        $this->assertArrayNotHasKey('reason', $detail);
+    }
 }

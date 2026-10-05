@@ -195,7 +195,8 @@ final class StatsAiController extends AppController
             ],
             $ipAddress,
             $result['success'] ? 1 : 0,
-            $actorLoginId
+            $actorLoginId,
+            $result['success'] ? null : (is_string($result['error'] ?? null) ? $result['error'] : 'AI応答の生成に失敗しました')
         );
 
         exit(0);
