@@ -148,7 +148,7 @@ class MMealPriceInfoController extends AppController
         }
         $user = $this->request->getAttribute('identity');
         $deleted = $this->MMealPriceInfo->delete($mMealPriceInfo);
-        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''));
+        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''), $deleted ? null : '単価マスタの削除に失敗しました（対象が存在しない、またはDBエラー）');
         if ($deleted) {
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {

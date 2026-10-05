@@ -209,6 +209,13 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
                     <?php if ($log->c_detail): ?>
                         <?php $detail = json_decode($log->c_detail, true); ?>
                         <?php if ($detail): ?>
+                            <?php // 失敗ログは理由を折りたたまず前面に赤字表示（原因追跡しやすく） ?>
+                            <?php if (!$log->i_result && !empty($detail['reason'])): ?>
+                                <div class="text-danger small fw-semibold mb-1">
+                                    <i class="bi bi-exclamation-triangle-fill"></i>
+                                    失敗理由: <?= h((string)$detail['reason']) ?>
+                                </div>
+                            <?php endif; ?>
                             <details>
                                 <summary class="text-primary small" style="cursor:pointer;">詳細を見る</summary>
                                 <pre class="mt-1 mb-0 p-1 bg-light rounded border" style="font-size:0.72rem; white-space:pre-wrap; max-height:140px; overflow:auto;"><?= h(json_encode($detail, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) ?></pre>

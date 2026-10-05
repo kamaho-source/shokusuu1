@@ -54,7 +54,8 @@ class UserPermissionService
                 ],
                 $ipAddress ?: null,
                 0,
-                $actorLoginId
+                $actorLoginId,
+                '許可されていない権限値のため変更を拒否しました（不正値・権限昇格の疑い）'
             );
 
             return false;
@@ -82,7 +83,8 @@ class UserPermissionService
             ],
             $ipAddress ?: null,
             $result ? 1 : 0,
-            $actorLoginId
+            $actorLoginId,
+            $result ? null : '権限変更の保存に失敗しました'
         );
 
         return $result;

@@ -306,7 +306,8 @@ class ApprovalService
             ['count' => count($successKeys)],
             $ipAddress ?: null,
             $result ? 1 : 0,
-            $actorLoginId
+            $actorLoginId,
+            $result ? null : '承認対象の予約がありません（既に承認済み・対象外・競合の可能性）'
         );
         return $result;
     }
@@ -350,7 +351,8 @@ class ApprovalService
             ['count' => count($successKeys)],
             $ipAddress ?: null,
             $result ? 1 : 0,
-            $actorLoginId
+            $actorLoginId,
+            $result ? null : '承認対象の予約がありません（既に承認済み・対象外・競合の可能性）'
         );
         return $result;
     }
@@ -383,10 +385,11 @@ class ApprovalService
             $approverId,
             't_individual_reservation_info',
             implode(',', array_map(fn($k) => "{$k['i_id_user']}:{$k['d_reservation_date']}", $successKeys)),
-            ['count' => count($successKeys), 'reason' => $reason],
+            ['count' => count($successKeys), 'reject_reason' => $reason],
             $ipAddress ?: null,
             $result ? 1 : 0,
-            $actorLoginId
+            $actorLoginId,
+            $result ? null : '却下対象の予約がありません（既に承認済み・対象外・競合の可能性）'
         );
         return $result;
     }
