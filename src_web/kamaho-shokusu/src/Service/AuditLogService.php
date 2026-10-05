@@ -35,6 +35,18 @@ use Cake\ORM\TableRegistry;
 class AuditLogService
 {
     /**
+     * 失敗理由(detail.reason)の最大文字数。
+     * 巨大な例外メッセージで c_detail が肥大するのを防ぐ。
+     */
+    public const REASON_MAX = 500;
+
+    /**
+     * 失敗理由を取得できなかったときのフォールバック文言。
+     * 「画面にも監査ログにも理由が残らない」状態を無くす（黙って失敗させない）。
+     */
+    public const REASON_FALLBACK = '原因不明（詳細はサーバーログを参照）';
+
+    /**
      * 監査ログを記録する。
      *
      * @param string      $category      操作カテゴリ
@@ -47,6 +59,8 @@ class AuditLogService
      * @param string|null $ipAddress     操作元IPアドレス
      * @param int         $result        1=成功 0=失敗
      * @param string      $actorLoginId  操作者ログインID（c_login_account）
+     * @param string|null $failureReason 失敗理由（result=0 のときのみ detail.reason に記録）。
+     *                                   未指定でも detail['error'] かフォールバック文言を補完する。
      */
     public static function record(
         string $category,
@@ -58,9 +72,13 @@ class AuditLogService
         ?array $detail = null,
         ?string $ipAddress = null,
         int $result = 1,
-        string $actorLoginId = ''
+        string $actorLoginId = '',
+        ?string $failureReason = null
     ): void {
         try {
+            // 失敗(result=0)のときは必ず detail.reason を埋める。
+            $detail = self::applyFailureReason($detail, $result, $failureReason);
+
             $table = TableRegistry::getTableLocator()->get('TAuditLog');
             $log   = $table->newEmptyEntity();
 
@@ -82,6 +100,71 @@ class AuditLogService
         } catch (\Throwable) {
             // 監査ログ失敗はメイン処理を妨げない
         }
+    }
+
+    /**
+     * 失敗(result=0)のとき detail に reason を補完する純粋関数。
+     *
+     * 優先順位:
+     *   1. 明示的に渡された $failureReason
+     *   2. 既存 detail['error']（従来互換。これまで error キーで理由を入れていた箇所を昇格）
+     *   3. フォールバック文言（原因不明）
+     * 成功(result!=0)のときは detail をそのまま返す。
+     *
+     * DB非依存の純粋関数なので単体テスト可能。
+     *
+     * @param array|null  $detail
+     * @param int         $result
+     * @param string|null $failureReason
+     * @return array|null
+     */
+    public static function applyFailureReason(?array $detail, int $result, ?string $failureReason): ?array
+    {
+        if ($result !== 0) {
+            return $detail;
+        }
+
+        $detail = $detail ?? [];
+
+        $reason = $failureReason;
+        if ($reason === null || trim($reason) === '') {
+            $existing = $detail['error'] ?? null;
+            if (is_string($existing) && trim($existing) !== '') {
+                $reason = $existing;
+            }
+        }
+        if ($reason === null || trim($reason) === '') {
+            $reason = self::REASON_FALLBACK;
+        }
+
+        $detail['reason'] = self::sanitizeReason($reason);
+
+        return $detail;
+    }
+
+    /**
+     * 失敗理由文字列を正規化する。
+     *
+     * - 改行・連続空白を単一スペースへ
+     * - 機微情報（password/token/secret 等の値）をマスク
+     * - 最大長でカット
+     *
+     * @param string $reason
+     * @return string
+     */
+    public static function sanitizeReason(string $reason): string
+    {
+        $r = trim($reason);
+        // 改行・タブ・連続空白を単一スペースへ
+        $r = (string)preg_replace('/\s+/u', ' ', $r);
+        // 機微情報の値をマスク（password: xxx / token=xxx など）
+        $r = (string)preg_replace(
+            '/\b(password|passwd|pwd|token|secret|authorization|api[_-]?key)\b\s*[=:]\s*\S+/iu',
+            '$1=***',
+            $r
+        );
+
+        return mb_substr($r, 0, self::REASON_MAX);
     }
 
     /**

@@ -112,7 +112,8 @@ class ReservationDirectRegisterController extends ReservationBaseController
 
             AuditLogService::record(
                 'reservation', 'direct_register_meals', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), $auditResult, $loginAccount
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), $auditResult, $loginAccount,
+                $auditResult === 0 ? '登録対象がなく、すべてスキップされました（競合・対象外など）' : null
             );
 
             return $this->apiResponseService->success($this->response, [
@@ -124,7 +125,8 @@ class ReservationDirectRegisterController extends ReservationBaseController
         } catch (DomainException $e) {
             AuditLogService::record(
                 'reservation', 'direct_register_meals', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0, $loginAccount
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0, $loginAccount,
+                $e->getMessage()
             );
 
             return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());

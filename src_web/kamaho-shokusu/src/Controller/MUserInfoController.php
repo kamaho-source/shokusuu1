@@ -565,7 +565,8 @@ class MUserInfoController extends AppController
                 ['login_account' => $loginAccount],
                 $this->getClientIp(),
                 0,
-                $loginAccount
+                $loginAccount,
+                'ユーザー名またはパスワードが一致しません'
             );
         }
     }
