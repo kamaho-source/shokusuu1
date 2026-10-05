@@ -85,7 +85,8 @@ class ReservationToggleController extends ReservationBaseController
         } catch (\App\Domain\Exception\DomainException $e) {
             \App\Service\AuditLogService::record(
                 'reservation', 'reservation_toggle', $loginUserName, $loginUserId,
-                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0, $loginAccount
+                't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), 0, $loginAccount,
+                $e->getMessage()
             );
 
             return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());

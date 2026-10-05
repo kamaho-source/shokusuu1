@@ -169,7 +169,7 @@ class MRoomInfoController extends AppController
         $updatedBy = $user?->get('c_user_name');
 
         $deleted = $this->roomService->softDelete($mRoomInfo, $updatedBy);
-        \App\Service\AuditLogService::record('master', 'room_delete', $updatedBy ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''));
+        \App\Service\AuditLogService::record('master', 'room_delete', $updatedBy ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''), $deleted ? null : '部屋マスタの削除に失敗しました（対象が存在しない、またはDBエラー）');
         if ($deleted) {
             $this->Flash->success(__('部屋情報を削除しました。'));
         } else {
