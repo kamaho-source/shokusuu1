@@ -9,6 +9,9 @@
 $this->assign('title', __('食事給与控除データエクスポート'));
 $exportSummaryUrl        = $this->Url->build(['controller' => 'MMealPriceInfo', 'action' => 'exportMealSummary']);
 $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 'action' => 'exportMealSummaryPreview']);
+// 承認機能フラグ。オフのときは「未承認プレビュー」(承認前提のUI)を出さず、
+// メインのエクスポートも「承認済み」ではなく全有効予約の集計になる。
+$featApproval = (bool)\Cake\Core\Configure::read('Features.approval');
 ?>
 <!-- Example Form with Bootstrap -->
 <div class="container mt-5">
@@ -48,18 +51,23 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
         <!-- Submit Buttons -->
         <div class="d-flex gap-2 mt-2">
             <button type="button" id="downloadExcelWithDeductions" class="btn btn-primary">
-                承認済みエクスポート
+                <?= $featApproval ? '承認済みエクスポート' : '食事控除表エクスポート' ?>
             </button>
+            <?php if ($featApproval): ?>
             <button type="button" id="downloadExcelPreview" class="btn btn-warning">
                 未承認プレビューエクスポート
             </button>
+            <?php endif; ?>
         </div>
+        <?php if ($featApproval): ?>
         <div class="form-text text-muted mt-1">
             ※ 未承認プレビューは管理者承認前のデータ（未承認・ブロック長承認済）を含みます。確定値ではありません。
         </div>
+        <?php endif; ?>
     </form>
 </div>
 
+<?php if ($featApproval): ?>
 <!-- 未承認プレビュー確認モーダル -->
 <div id="preview-confirm-modal" class="preview-modal-backdrop" aria-hidden="true">
     <div class="preview-modal-card" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title">
@@ -78,6 +86,7 @@ $exportSummaryPreviewUrl = $this->Url->build(['controller' => 'MMealPriceInfo', 
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <style>
 .preview-modal-backdrop {

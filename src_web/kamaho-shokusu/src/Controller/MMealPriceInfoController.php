@@ -6,6 +6,8 @@ namespace App\Controller;
 use App\Service\ApiResponseService;
 use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
+use Cake\Core\Configure;
+use Cake\Http\Exception\NotFoundException;
 
 /**
  * MMealPriceInfo Controller
@@ -215,6 +217,11 @@ class MMealPriceInfoController extends AppController
      */
     public function exportMealSummaryPreview()
     {
+        // 承認機能オフのときは「未承認プレビュー」は概念として存在しないため無効化する。
+        if (!Configure::read('Features.approval')) {
+            throw new NotFoundException('未承認プレビューは現在無効です。');
+        }
+
         $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'add');
 
         $this->autoRender = false;

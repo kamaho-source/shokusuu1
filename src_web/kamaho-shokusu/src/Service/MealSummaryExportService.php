@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use Cake\Core\Configure;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -121,19 +122,37 @@ class MealSummaryExportService
     }
 
     /**
+     * 控除表集計(countMeals)で使う承認ステータス絞り込み条件を返す。
+     *
+     * - 承認機能が有効: 承認済み(2)のみを集計対象にする。
+     * - 承認オフ運用:   承認ステータスで絞らない（空配列）＝有効予約をそのまま集計する。
+     *
+     * DB非依存の純粋メソッドなので単体テスト可能。
+     *
+     * @return array<string, int>
+     */
+    public static function approvalFilterConditions(): array
+    {
+        return Configure::read('Features.approval')
+            ? ['i_approval_status' => self::APPROVAL_STATUS_APPROVED]
+            : [];
+    }
+
+    /**
      * @return array{morning: int, lunch: int, dinner: int, bento: int}
      */
     private function countMeals(int $userId, int $year, int $month): array
     {
+        $conditions = [
+            'i_id_user'                 => $userId,
+            'YEAR(d_reservation_date)'  => $year,
+            'MONTH(d_reservation_date)' => $month,
+        ] + self::approvalFilterConditions();
+
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $rows  = $table->find()
             ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
-            ->where([
-                'i_id_user'              => $userId,
-                'YEAR(d_reservation_date)'  => $year,
-                'MONTH(d_reservation_date)' => $month,
-                'i_approval_status'      => self::APPROVAL_STATUS_APPROVED,
-            ])
+            ->where($conditions)
             ->toArray();
 
         $counts = ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0];
