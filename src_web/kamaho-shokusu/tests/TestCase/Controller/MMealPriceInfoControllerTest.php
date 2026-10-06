@@ -121,6 +121,23 @@ class MMealPriceInfoControllerTest extends TestCase
         $this->assertRedirect(['action' => 'index']);
     }
 
+    /**
+     * 承認機能オフのとき、未承認プレビューのエクスポートは 404 になる。
+     * （承認オフ運用では「未承認」という概念が存在しないため）
+     */
+    public function testExportMealSummaryPreview_returns404WhenApprovalOff(): void
+    {
+        $original = Configure::read('Features.approval');
+        Configure::write('Features.approval', false);
+        try {
+            $this->setAuthenticatedSession();
+            $this->get('/MMealPriceInfo/exportMealSummaryPreview?year=2026&month=10');
+            $this->assertResponseCode(404);
+        } finally {
+            Configure::write('Features.approval', $original);
+        }
+    }
+
     private function setAuthenticatedSession(): void
     {
         $this->session([
