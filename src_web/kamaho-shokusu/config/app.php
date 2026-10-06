@@ -21,6 +21,22 @@ return [
     'debug' => filter_var(env('DEBUG', false), FILTER_VALIDATE_BOOLEAN),
 
     /*
+     * 機能フラグ（Feature flags）
+     *
+     * まだ運用に乗せていない機能をまとめてオフにできる。既定はオフ。
+     * 再開するときは app_local.php で上書き（true）するか、ここを変更する。
+     *   - actualMeal : 実食入力／実食確認（代理入力）。ダッシュボードのメニューと対象画面を無効化。
+     *   - approval   : 予約承認フロー（承認一覧／承認管理／承認アラート）。
+     *                  オフのとき、食事控除表(集計)は承認ステータスに関係なく有効予約を集計する。
+     *
+     * 環境変数 FEATURE_ACTUAL_MEAL / FEATURE_APPROVAL でも切替可能（"1"/"true" で有効）。
+     */
+    'Features' => [
+        'actualMeal' => filter_var(env('FEATURE_ACTUAL_MEAL', false), FILTER_VALIDATE_BOOLEAN),
+        'approval'   => filter_var(env('FEATURE_APPROVAL', false), FILTER_VALIDATE_BOOLEAN),
+    ],
+
+    /*
      * Configure basic information about the application.
      *
      * - namespace - The namespace to find app classes under.
