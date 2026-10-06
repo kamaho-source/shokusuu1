@@ -21,6 +21,10 @@ use Cake\Core\Configure;
 // ページタイトルをレイアウトに渡す
 $this->assign('title', 'ダッシュボード');
 
+// 機能フラグ: 実食入力・予約承認は既定オフ。オフのときは関連メニューを表示しない。
+$featActualMeal = (bool)Configure::read('Features.actualMeal');
+$featApproval   = (bool)Configure::read('Features.approval');
+
 // 過去日アクセス時のメッセージを設定ファイルから取得する。
 // 設定がない場合はデフォルトメッセージを使う。
 $pastDateUnavailableMessage = (string)Configure::read(
@@ -213,8 +217,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             <?php endif; ?>
 
             <?php /* ---- 承認申請アラート（ブロック長用） ---- */ ?>
-            <?php /* ブロック長ロールかつ未承認申請がある場合のみ表示する */ ?>
-            <?php if ($isBlockLeader && $blockLeaderPendingCount > 0): ?>
+            <?php /* 承認機能が有効 かつ ブロック長ロールかつ未承認申請がある場合のみ表示する */ ?>
+            <?php if ($featApproval && $isBlockLeader && $blockLeaderPendingCount > 0): ?>
                 <div class="alert-card" style="border-color:#e0e7ff;">
                     <div class="alert-left">
                         <div class="alert-icon" style="background:#e0e7ff;color:#4f46e5;">📋</div>
@@ -230,8 +234,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             <?php endif; ?>
 
             <?php /* ---- 承認申請アラート（管理者用） ---- */ ?>
-            <?php /* 管理者ロールかつ未承認申請がある場合のみ表示する */ ?>
-            <?php if ($isAdmin && $adminPendingCount > 0): ?>
+            <?php /* 承認機能が有効 かつ 管理者ロールかつ未承認申請がある場合のみ表示する */ ?>
+            <?php if ($featApproval && $isAdmin && $adminPendingCount > 0): ?>
                 <div class="alert-card" style="border-color:#e0e7ff;">
                     <div class="alert-left">
                         <div class="alert-icon" style="background:#e0e7ff;color:#4f46e5;">📋</div>
@@ -269,13 +273,16 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                     <div class="menu-title-text">食数一括管理</div>
                     <div class="menu-desc">4週間分の食事予約を一覧で確認・編集する</div>
                 </a>
+                <?php /* 実食入力: 実食機能が有効なときのみ表示する */ ?>
+                <?php if ($featActualMeal): ?>
                 <button class="menu-card border-0 text-start" type="button" id="actual-meal-choice-trigger">
                     <div class="menu-icon" style="background:#fef3c7;color:#d97706;">✅</div>
                     <div class="menu-title-text">実食入力</div>
                     <div class="menu-desc">自分の実食を入力する</div>
                 </button>
-                <?php /* ブロック長用承認一覧: ブロック長または管理者に表示する */ ?>
-                <?php if ($isBlockLeader || $isAdmin): ?>
+                <?php endif; ?>
+                <?php /* ブロック長用承認一覧: 承認機能が有効 かつ ブロック長または管理者に表示する */ ?>
+                <?php if ($featApproval && ($isBlockLeader || $isAdmin)): ?>
                 <a class="menu-card" href="<?= $this->Url->build('/Approval/blockLeaderIndex') ?>">
                     <div class="menu-icon" style="background:#ede9fe;color:#7c3aed;">📋</div>
                     <div class="menu-title-text">
@@ -287,7 +294,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                     <div class="menu-desc">職員入力の承認・差し戻しを行う</div>
                 </a>
                 <?php endif; ?>
-                <?php if ($isBlockLeader): ?>
+                <?php /* 実食確認(代理入力): 実食機能が有効 かつ ブロック長に表示する */ ?>
+                <?php if ($featActualMeal && $isBlockLeader): ?>
                 <a class="menu-card" href="<?= $this->Url->build('/TReservationInfo/actual-meal-management') ?>">
                     <div class="menu-icon" style="background:#fff7ed;color:#c2410c;">📝</div>
                     <div class="menu-title-text">実食確認</div>
@@ -324,7 +332,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-title-text">食事控除表ダウンロード</div>
                         <div class="menu-desc">集計帳票の出力</div>
                     </a>
-                    <?php /* 管理者用最終承認・集計: 管理者のみ表示する */ ?>
+                    <?php /* 管理者用最終承認・集計: 承認機能が有効なときのみ表示する */ ?>
+                    <?php if ($featApproval): ?>
                     <a class="menu-card" href="<?= $this->Url->build('/Approval/adminIndex') ?>">
                         <div class="menu-icon" style="background:#ecfdf5;color:#059669;">✔️</div>
                         <div class="menu-title-text">
@@ -335,6 +344,7 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         </div>
                         <div class="menu-desc">全ブロックの承認・食数反映</div>
                     </a>
+                    <?php endif; ?>
                     <?php /* 問い合わせ一覧: 管理者のみ表示する */ ?>
                     <a class="menu-card" href="<?= $this->Url->build('/Contacts/admin') ?>">
                         <div class="menu-icon" style="background:#fdf2f8;color:#9d174d;">📬</div>
@@ -351,12 +361,14 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-title-text">お知らせ管理</div>
                         <div class="menu-desc">掲示するお知らせの作成・編集・削除</div>
                     </a>
-                    <?php /* 統計AI: 集計データをもとにAIへ質問できる（システム管理者のみ） */ ?>
+                    <?php /* 承認履歴: 承認機能が有効なときのみ表示する（ApprovalControllerのため承認オフでは404になる） */ ?>
+                    <?php if ($featApproval): ?>
                     <a class="menu-card" href="<?= $this->Url->build('/Approval/approval_log') ?>">
                         <div class="menu-icon" style="background:#f8fafc;color:#64748b;">📜</div>
                         <div class="menu-title-text">承認履歴</div>
                         <div class="menu-desc">過去の承認・差し戻しの履歴を確認する</div>
                     </a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
 
@@ -384,6 +396,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
         </main>
     </div>
 
+    <?php /* 実食入力の対象選択モーダル: 実食機能が有効なときのみ描画する */ ?>
+    <?php if ($featActualMeal): ?>
     <div id="actual-meal-choice-modal" class="choice-modal-backdrop" aria-hidden="true">
         <div class="choice-modal-card" role="dialog" aria-modal="true" aria-labelledby="actual-meal-choice-title">
             <div class="choice-modal-head">
@@ -407,6 +421,7 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <?php /* ==== 予約方法選択モーダル ==== */ ?>
     <?php /*

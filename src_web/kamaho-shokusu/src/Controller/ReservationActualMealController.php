@@ -6,6 +6,9 @@ namespace App\Controller;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ActualMealManagementService;
 use App\Service\MealCountGridService;
+use Cake\Core\Configure;
+use Cake\Event\EventInterface;
+use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
 
 /**
@@ -15,6 +18,17 @@ use Cake\Http\Response;
  */
 class ReservationActualMealController extends ReservationBaseController
 {
+    /**
+     * 実食機能(Features.actualMeal)が無効のとき無効化するアクション。
+     * mealCountGrid（食数一括管理）は予約機能なので対象外。
+     */
+    private const ACTUAL_MEAL_ACTIONS = [
+        'actualMealManagement',
+        'actualMealSave',
+        'actualMealRequestApproval',
+        'myActualMeal',
+    ];
+
     public function initialize(): void
     {
         parent::initialize();
@@ -23,6 +37,25 @@ class ReservationActualMealController extends ReservationBaseController
             'actualMealSave',
             'actualMealRequestApproval',
         ]);
+    }
+
+    /**
+     * 実食機能が無効のときは対象アクションを 404 にする。
+     * （ダッシュボードから導線を隠しているが、直接URLアクセスも塞ぐ）
+     *
+     * @param \Cake\Event\EventInterface $event
+     * @return void
+     */
+    public function beforeFilter(EventInterface $event)
+    {
+        parent::beforeFilter($event);
+
+        $action = (string)$this->request->getParam('action');
+        if (in_array($action, self::ACTUAL_MEAL_ACTIONS, true)
+            && !Configure::read('Features.actualMeal')
+        ) {
+            throw new NotFoundException('実食入力機能は現在無効です。');
+        }
     }
 
     /**
