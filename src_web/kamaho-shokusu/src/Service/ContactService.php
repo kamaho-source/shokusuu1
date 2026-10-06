@@ -16,6 +16,15 @@ class ContactService
     private TContactsTable $contacts;
     private TContactRepliesTable $replies;
 
+    /**
+     * 自動返信・管理者通知メールの送信元アドレス。
+     * メール設定(Email profile)のfromに依存せず常に有効なFromを明示するため、サービス側で保持する。
+     */
+    private const MAIL_FROM = ['no-reply@kamaho-shokusu.jp' => '鎌倉児童ホーム食数管理システム'];
+
+    /** 管理者通知の宛先が未設定(デフォルト値)のときはメール送信をスキップする判定に使う。 */
+    private const ADMIN_EMAIL_UNSET = 'admin@localhost';
+
     /** カテゴリ別の自動返信メール文面 */
     private const AUTO_REPLY_TEMPLATES = [
         'ご意見・ご要望' => [
@@ -221,6 +230,7 @@ class ContactService
 
         $mailer = new Mailer('default');
         $mailer
+            ->setFrom(self::MAIL_FROM)
             ->setTo($entity->email, $entity->name)
             ->setSubject($template['subject'])
             ->setEmailFormat('text')
@@ -264,14 +274,35 @@ class ContactService
     }
 
     /**
+     * 管理者通知メールの送信をスキップすべきか判定する。
+     *
+     * 宛先(App.adminEmail)が空、またはデフォルト値(admin@localhost)のままのときは
+     * 無効アドレスへの送信になるためスキップする。DB非依存の純粋関数。
+     *
+     * @param string $adminEmail 管理者通知の宛先
+     * @return bool true=送信しない
+     */
+    public static function shouldSkipAdminNotification(string $adminEmail): bool
+    {
+        return trim($adminEmail) === '' || $adminEmail === self::ADMIN_EMAIL_UNSET;
+    }
+
+    /**
      * 管理者へ通知メールを送信する。
      */
     private function sendAdminNotification(\App\Model\Entity\TContact $entity): void
     {
-        $adminEmail = \Cake\Core\Configure::read('App.adminEmail', 'admin@localhost');
+        $adminEmail = (string)\Cake\Core\Configure::read('App.adminEmail', self::ADMIN_EMAIL_UNSET);
+
+        // 宛先が未設定(デフォルト値)または空のときは送信しない。
+        // 無効アドレスへの送信試行で無駄な失敗ログ・バウンスを発生させないため。
+        if (self::shouldSkipAdminNotification($adminEmail)) {
+            return;
+        }
 
         $mailer = new Mailer('default');
         $mailer
+            ->setFrom(self::MAIL_FROM)
             ->setTo($adminEmail)
             ->setSubject('[食数管理システム] 新しいお問い合わせ：' . $entity->category)
             ->setEmailFormat('text')
