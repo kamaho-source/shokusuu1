@@ -361,12 +361,14 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-title-text">お知らせ管理</div>
                         <div class="menu-desc">掲示するお知らせの作成・編集・削除</div>
                     </a>
-                    <?php /* 統計AI: 集計データをもとにAIへ質問できる（システム管理者のみ） */ ?>
+                    <?php /* 承認履歴: 承認機能が有効なときのみ表示する（ApprovalControllerのため承認オフでは404になる） */ ?>
+                    <?php if ($featApproval): ?>
                     <a class="menu-card" href="<?= $this->Url->build('/Approval/approval_log') ?>">
                         <div class="menu-icon" style="background:#f8fafc;color:#64748b;">📜</div>
                         <div class="menu-title-text">承認履歴</div>
                         <div class="menu-desc">過去の承認・差し戻しの履歴を確認する</div>
                     </a>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
 
@@ -394,6 +396,8 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
         </main>
     </div>
 
+    <?php /* 実食入力の対象選択モーダル: 実食機能が有効なときのみ描画する */ ?>
+    <?php if ($featActualMeal): ?>
     <div id="actual-meal-choice-modal" class="choice-modal-backdrop" aria-hidden="true">
         <div class="choice-modal-card" role="dialog" aria-modal="true" aria-labelledby="actual-meal-choice-title">
             <div class="choice-modal-head">
@@ -417,6 +421,7 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <?php /* ==== 予約方法選択モーダル ==== */ ?>
     <?php /*
