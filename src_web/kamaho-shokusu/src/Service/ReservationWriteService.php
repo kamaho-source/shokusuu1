@@ -421,11 +421,16 @@ class ReservationWriteService
         foreach (array_values($items) as $i => $item) {
             $roomId  = (int)($item['roomId'] ?? $item['i_id_room'] ?? 0);
             $payload = [
-                'userId' => (int)($item['userId'] ?? 0),
-                'date'   => (string)($item['date'] ?? ''),
-                'meal'   => isset($item['meal'])  ? (int)$item['meal']  : null,
-                'value'  => isset($item['value']) ? (int)$item['value'] : null,
+                'date'  => (string)($item['date'] ?? ''),
+                'meal'  => isset($item['meal'])  ? (int)$item['meal']  : null,
+                'value' => isset($item['value']) ? (int)$item['value'] : null,
             ];
+            // userId は指定がある場合のみ渡す。省略/0 のときは processToggle が
+            // ログインユーザー自身を対象にする（単件 toggle と同じ挙動に揃える）。
+            $itemUserId = (int)($item['userId'] ?? 0);
+            if ($itemUserId > 0) {
+                $payload['userId'] = $itemUserId;
+            }
 
             try {
                 // キャッシュ無効化は後でまとめて行うため false を渡す。

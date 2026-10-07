@@ -111,4 +111,19 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertTrue($results[0]['ok'], $results[0]['message'] ?? '');
     }
+
+    public function testProcessBulkToggle_userIdOmittedFallsBackToLoginUser(): void
+    {
+        // userId を省略した item は「自分の予約」として扱われ、ログインユーザー(user1)で成功する。
+        // （processToggle が userId 未指定時に loginUserId を使う挙動に揃っていることの確認）
+        $future = date('Y-m-d', strtotime('+21 days'));
+        $items = [
+            ['roomId' => 1, 'date' => $future, 'meal' => 2, 'value' => 1],
+        ];
+
+        $results = $this->service->processBulkToggle($items, 1, '管理者ユーザー');
+
+        $this->assertCount(1, $results);
+        $this->assertTrue($results[0]['ok'], $results[0]['message'] ?? '');
+    }
 }
