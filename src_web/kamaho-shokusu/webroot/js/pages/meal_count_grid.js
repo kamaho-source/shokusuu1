@@ -96,35 +96,58 @@ function mcgRegisterAll() {
 
     var entries = Array.from(_mcgPending.entries());
 
-    return Promise.allSettled(entries.map(function (pair) {
-        var key = pair[0];
-        var entry = pair[1];
-        var parts  = key.split('|');
-        var userId = parts[0], roomId = parts[1], date = parts[2], meal = parts[3];
+    // 全変更を1リクエストにまとめて送る（セルごとの個別リクエストを廃止し、登録を高速化）。
+    // サーバーは items と同じ順序で各件の成否を results に返す。
+    var items = entries.map(function (pair) {
+        var parts = pair[0].split('|');
+        return {
+            userId: parseInt(parts[0], 10),
+            roomId: parseInt(parts[1], 10),
+            date:   parts[2],
+            meal:   parseInt(parts[3], 10),
+            value:  pair[1].desired,
+        };
+    });
 
-        return fetch(MCG_BASE + '/TReservationInfo/toggle/' + roomId, {
-            method:  'POST',
-            headers: {
-                'Content-Type':     'application/json',
-                'X-CSRF-Token':     csrfToken,
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept':           'application/json',
-            },
-            body: JSON.stringify({
-                userId: parseInt(userId, 10),
-                date:   date,
-                meal:   parseInt(meal, 10),
-                value:  entry.desired,
-            }),
-        }).then(function (res) {
-            return res.text().then(function (text) {
-                var data;
-                try { data = JSON.parse(text); } catch (e) { throw new Error('HTTP ' + res.status); }
-                if (data.ok === false) throw new Error(data.message || 'エラー');
-                return key;
+    return fetch(MCG_BASE + '/TReservationInfo/bulk-toggle', {
+        method:  'POST',
+        headers: {
+            'Content-Type':     'application/json',
+            'X-CSRF-Token':     csrfToken,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept':           'application/json',
+        },
+        body: JSON.stringify({ items: items }),
+    }).then(function (res) {
+        return res.text().then(function (text) {
+            var data;
+            try { data = JSON.parse(text); } catch (e) { data = null; }
+
+            // 正常時: data.data.results に item 単位の {ok, value, message} が入る。
+            var arr = (data && data.data && data.data.results) ? data.data.results : null;
+            if (!arr) {
+                // 全体エラー(認可・通信など): 全件失敗として扱う。
+                var msg = (data && data.message) ? data.message : ('HTTP ' + res.status);
+                return entries.map(function () {
+                    return { status: 'rejected', reason: new Error(msg) };
+                });
+            }
+            // item 単位の結果を Promise.allSettled と同じ形へ変換し、既存の後続処理を再利用する。
+            return entries.map(function (pair, i) {
+                var r = arr[i];
+                if (r && r.ok) {
+                    return { status: 'fulfilled', value: pair[0] };
+                }
+                return { status: 'rejected', reason: new Error((r && r.message) || 'エラー') };
             });
         });
-    })).then(function (results) {
+    }).catch(function () {
+        // 通信エラー等でレスポンスを得られなかった場合も、全件失敗として
+        // 後続のロールバック・ボタン復帰を必ず通す（従来の allSettled と同じ挙動）。
+        return entries.map(function () {
+            return { status: 'rejected', reason: new Error('通信に失敗しました。') };
+        });
+    }).then(function (results) {
         var successKeys = [];
         var failCount   = 0;
 
