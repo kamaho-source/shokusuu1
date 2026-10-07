@@ -96,13 +96,24 @@ function mcgRegisterAll() {
 
     var entries = Array.from(_mcgPending.entries());
 
-    return Promise.allSettled(entries.map(function (pair) {
-        var key = pair[0];
-        var entry = pair[1];
-        var parts  = key.split('|');
-        var userId = parts[0], roomId = parts[1], date = parts[2], meal = parts[3];
+    // 全変更をまとめて送る（セルごとの個別リクエストを廃止し、登録を高速化）。
+    // サーバーの1リクエスト上限(5000件)を超える場合に備え、安全なサイズで分割して
+    // 順番に送り、結果を元の項目順に結合する（結合後は Promise.allSettled と同じ形）。
+    var BATCH_SIZE = 2000;
 
-        return fetch(MCG_BASE + '/TReservationInfo/toggle/' + roomId, {
+    function sendBatch(batchEntries) {
+        var items = batchEntries.map(function (pair) {
+            var parts = pair[0].split('|');
+            return {
+                userId: parseInt(parts[0], 10),
+                roomId: parseInt(parts[1], 10),
+                date:   parts[2],
+                meal:   parseInt(parts[3], 10),
+                value:  pair[1].desired,
+            };
+        });
+
+        return fetch(MCG_BASE + '/TReservationInfo/bulk-toggle', {
             method:  'POST',
             headers: {
                 'Content-Type':     'application/json',
@@ -110,21 +121,59 @@ function mcgRegisterAll() {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept':           'application/json',
             },
-            body: JSON.stringify({
-                userId: parseInt(userId, 10),
-                date:   date,
-                meal:   parseInt(meal, 10),
-                value:  entry.desired,
-            }),
+            body: JSON.stringify({ items: items }),
         }).then(function (res) {
             return res.text().then(function (text) {
                 var data;
-                try { data = JSON.parse(text); } catch (e) { throw new Error('HTTP ' + res.status); }
-                if (data.ok === false) throw new Error(data.message || 'エラー');
-                return key;
+                try { data = JSON.parse(text); } catch (e) { data = null; }
+
+                // 正常時: data.data.results に item 単位の {ok, value, message} が入る。
+                var arr = (data && data.data && data.data.results) ? data.data.results : null;
+                if (!arr) {
+                    // 全体エラー(認可・通信など): このバッチを全件失敗として扱う。
+                    var msg = (data && data.message) ? data.message : ('HTTP ' + res.status);
+                    return batchEntries.map(function () {
+                        return { status: 'rejected', reason: new Error(msg) };
+                    });
+                }
+                // item 単位の結果を Promise.allSettled と同じ形へ変換する。
+                return batchEntries.map(function (pair, i) {
+                    var r = arr[i];
+                    if (r && r.ok) {
+                        return { status: 'fulfilled', value: pair[0] };
+                    }
+                    return { status: 'rejected', reason: new Error((r && r.message) || 'エラー') };
+                });
+            });
+        }).catch(function () {
+            // 通信エラー等でレスポンスを得られなかった場合も、このバッチを全件失敗にして
+            // 後続のロールバック・ボタン復帰を必ず通す（従来の allSettled と同じ挙動）。
+            return batchEntries.map(function () {
+                return { status: 'rejected', reason: new Error('通信に失敗しました。') };
             });
         });
-    })).then(function (results) {
+    }
+
+    // entries を BATCH_SIZE ごとに分割。
+    var batches = [];
+    for (var bi = 0; bi < entries.length; bi += BATCH_SIZE) {
+        batches.push(entries.slice(bi, bi + BATCH_SIZE));
+    }
+
+    // 各バッチを順番に送り、結果を元の順序どおりに結合する。
+    var combined = [];
+    var chain = Promise.resolve();
+    batches.forEach(function (batch) {
+        chain = chain.then(function () {
+            return sendBatch(batch).then(function (batchResults) {
+                combined = combined.concat(batchResults);
+            });
+        });
+    });
+
+    return chain.then(function () {
+        return combined;
+    }).then(function (results) {
         var successKeys = [];
         var failCount   = 0;
 
