@@ -231,6 +231,12 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'ReservationToggle', 'action' => 'toggle']
         )->setMethods(['POST']);
 
+        // 一括予約トグル（エクセル食数予約の一括登録）
+        $builder->connect(
+            '/TReservationInfo/bulk-toggle',
+            ['controller' => 'ReservationToggle', 'action' => 'bulkToggle']
+        )->setMethods(['POST']);
+
         // ── 食数レポート（ReservationReportController） ──
         $builder->connect(
             '/TReservationInfo/getRoomMealCounts/{roomId}',
