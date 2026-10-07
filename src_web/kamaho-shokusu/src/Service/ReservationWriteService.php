@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\DomainException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\NotFoundException;
 use App\Domain\Exception\PersistenceException;
@@ -257,7 +258,8 @@ class ReservationWriteService
         int $roomId,
         array $payload,
         int $loginUserId,
-        string $loginUserName
+        string $loginUserName,
+        bool $invalidateCache = true
     ): array {
         if (empty($payload)) {
             throw new InvalidInputException('Empty request body.', 400);
@@ -360,11 +362,16 @@ class ReservationWriteService
                 eatFlag: $eatFlag,
                 changeFlag: $changeFlag,
             );
-            $this->invalidateCachesForDateRooms($dateStr, [$roomId], [$targetUserId]);
+            // 一括登録(processBulkToggle)では件数分のキャッシュ無効化を避けるため、
+            // 呼び出し側でまとめて無効化できるよう $invalidateCache=false を許可する。
+            if ($invalidateCache) {
+                $this->invalidateCachesForDateRooms($dateStr, [$roomId], [$targetUserId]);
+            }
 
             return [
-                'value'   => (bool)($result['value'] ?? false),
-                'details' => $result['details'] ?? [],
+                'value'    => (bool)($result['value'] ?? false),
+                'details'  => $result['details'] ?? [],
+                'affected' => ['date' => $dateStr, 'roomId' => $roomId, 'userId' => $targetUserId],
             ];
         } catch (ApprovedReservationException $e) {
             throw new ConflictException($e->getMessage());
@@ -390,6 +397,67 @@ class ReservationWriteService
             Log::error('toggle処理で予期しない例外: ' . $e->getMessage());
             throw new PersistenceException('Internal Server Error');
         }
+    }
+
+    /**
+     * 複数の予約トグルを1回のリクエストでまとめて処理する（エクセル食数予約の一括登録用）。
+     *
+     * 各 item を processToggle で順次処理し、成否を item 単位で記録する。
+     * 1件の失敗（競合・権限など）が他の件に影響しないよう、item ごとに例外を捕捉する
+     * （従来の「セルごとに個別リクエスト」と同じ“一部成功・一部失敗”の挙動を維持する）。
+     * キャッシュ無効化は件数分ではなく、影響した日付ごとに最後へまとめて1回だけ実行する。
+     *
+     * @param array<int, array{roomId?:int,i_id_room?:int,userId?:int,date?:string,meal?:int,value?:int}> $items
+     * @param int    $loginUserId
+     * @param string $loginUserName
+     * @return array<int, array{ok:bool,value?:bool,details?:array,message?:string}> item と同じ順序の結果配列
+     */
+    public function processBulkToggle(array $items, int $loginUserId, string $loginUserName): array
+    {
+        $results = [];
+        /** @var array<string, array{rooms: int[], users: int[]}> $affectedByDate */
+        $affectedByDate = [];
+
+        foreach (array_values($items) as $i => $item) {
+            $roomId  = (int)($item['roomId'] ?? $item['i_id_room'] ?? 0);
+            $payload = [
+                'date'  => (string)($item['date'] ?? ''),
+                'meal'  => isset($item['meal'])  ? (int)$item['meal']  : null,
+                'value' => isset($item['value']) ? (int)$item['value'] : null,
+            ];
+            // userId は指定がある場合のみ渡す。省略/0 のときは processToggle が
+            // ログインユーザー自身を対象にする（単件 toggle と同じ挙動に揃える）。
+            $itemUserId = (int)($item['userId'] ?? 0);
+            if ($itemUserId > 0) {
+                $payload['userId'] = $itemUserId;
+            }
+
+            try {
+                // キャッシュ無効化は後でまとめて行うため false を渡す。
+                $r = $this->processToggle($roomId, $payload, $loginUserId, $loginUserName, false);
+                $results[$i] = ['ok' => true, 'value' => $r['value'], 'details' => $r['details']];
+
+                $aff  = $r['affected'];
+                $date = (string)$aff['date'];
+                if (!isset($affectedByDate[$date])) {
+                    $affectedByDate[$date] = ['rooms' => [], 'users' => []];
+                }
+                $affectedByDate[$date]['rooms'][] = (int)$aff['roomId'];
+                $affectedByDate[$date]['users'][] = (int)$aff['userId'];
+            } catch (DomainException $e) {
+                $results[$i] = ['ok' => false, 'message' => $e->getMessage()];
+            } catch (\Throwable $e) {
+                Log::error('一括toggleで予期しない例外: ' . $e->getMessage());
+                $results[$i] = ['ok' => false, 'message' => '登録に失敗しました。'];
+            }
+        }
+
+        // 影響した日付ごとに1回だけキャッシュを無効化する。
+        foreach ($affectedByDate as $date => $a) {
+            $this->invalidateCachesForDateRooms($date, $a['rooms'], $a['users']);
+        }
+
+        return $results;
     }
 
     /**
