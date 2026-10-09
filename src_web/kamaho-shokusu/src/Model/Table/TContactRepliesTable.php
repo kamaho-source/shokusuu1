@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Model\Entity\TContactReply;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -33,6 +34,15 @@ class TContactRepliesTable extends Table
             ->maxLength('body', 5000, '返信内容は5000文字以内で入力してください。')
             ->requirePresence('body', 'create')
             ->notEmptyString('body', '返信内容は必須です。');
+
+        $validator
+            ->scalar('author_type')
+            ->inList(
+                'author_type',
+                [TContactReply::AUTHOR_ADMIN, TContactReply::AUTHOR_USER],
+                '不正な返信者種別です。'
+            )
+            ->allowEmptyString('author_type');
 
         return $validator;
     }

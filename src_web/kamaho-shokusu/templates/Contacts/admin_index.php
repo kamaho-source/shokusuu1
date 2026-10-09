@@ -30,10 +30,20 @@ $this->assign('title', 'お問い合わせ一覧（管理者）');
             </thead>
             <tbody>
                 <?php foreach ($contacts as $contact): ?>
+                    <?php
+                        $replies = $contact->t_contact_replies ?? [];
+                        $lastReply = $replies !== [] ? end($replies) : null;
+                        $needsAttention = $lastReply !== null && $lastReply->author_type === 'user';
+                    ?>
                     <tr>
                         <td class="text-muted small"><?= h($contact->created->format('Y-m-d H:i')) ?></td>
                         <td>
                             <span class="badge bg-secondary"><?= h($contact->category) ?></span>
+                            <?php if ($needsAttention): ?>
+                                <span class="badge bg-warning text-dark" title="本人から返信があり、対応待ちです">
+                                    <i class="bi bi-exclamation-circle"></i> 要対応
+                                </span>
+                            <?php endif; ?>
                         </td>
                         <td><?= h($contact->name) ?></td>
                         <td>

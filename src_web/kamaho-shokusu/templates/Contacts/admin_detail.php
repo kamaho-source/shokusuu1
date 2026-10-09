@@ -42,9 +42,21 @@ $this->assign('title', 'お問い合わせ詳細');
 <?php if (!empty($contact->t_contact_replies)): ?>
     <h6 class="fw-semibold mb-2">返信履歴</h6>
     <?php foreach ($contact->t_contact_replies as $reply): ?>
-        <div class="card mb-2 border-start border-primary border-3">
+        <?php $isUserReply = $reply->author_type === 'user'; ?>
+        <div class="card mb-2 border-start border-3 <?= $isUserReply ? 'border-warning' : 'border-primary' ?>">
             <div class="card-body py-2">
-                <div class="text-muted small mb-1"><?= h($reply->sent_at->format('Y-m-d H:i')) ?> 送信</div>
+                <div class="text-muted small mb-1">
+                    <?php if ($isUserReply): ?>
+                        <span class="badge bg-warning text-dark me-1">
+                            <i class="bi bi-person"></i> ご本人からの返信
+                        </span>
+                    <?php else: ?>
+                        <span class="badge bg-primary me-1">
+                            <i class="bi bi-headset"></i> 管理者返信
+                        </span>
+                    <?php endif; ?>
+                    <?= h($reply->sent_at->format('Y-m-d H:i')) ?> 送信
+                </div>
                 <div style="white-space: pre-wrap;"><?= h($reply->body) ?></div>
             </div>
         </div>

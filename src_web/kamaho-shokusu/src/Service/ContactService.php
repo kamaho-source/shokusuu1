@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Entity\TContactReply;
 use App\Model\Table\TContactRepliesTable;
 use App\Model\Table\TContactsTable;
 use Cake\Http\Client;
@@ -108,7 +109,7 @@ class ContactService
     public function getList(int $page = 1, int $limit = 30): array
     {
         return $this->contacts->find()
-            ->contain(['TContactReplies'])
+            ->contain(['TContactReplies' => fn($q) => $q->orderByAsc('created')])
             ->orderByDesc('created')
             ->limit($limit)
             ->page($page)
@@ -130,6 +131,34 @@ class ContactService
     }
 
     /**
+     * 問い合わせ者本人が、自分が送信した問い合わせを返信付きで取得する。
+     * user_id が一致しない場合は RecordNotFoundException を投げる（他人の問い合わせへのアクセスを防ぐ）。
+     *
+     * @throws \Cake\Datasource\Exception\RecordNotFoundException
+     */
+    public function getDetailForUser(int $contactId, int $userId): \App\Model\Entity\TContact
+    {
+        /** @var \App\Model\Entity\TContact */
+        return $this->contacts->find()
+            ->contain(['TContactReplies' => fn($q) => $q->orderByAsc('created')])
+            ->where(['TContacts.id' => $contactId, 'TContacts.user_id' => $userId])
+            ->firstOrFail();
+    }
+
+    /**
+     * ログインユーザー自身が送信した問い合わせ一覧を、返信付きで取得する。
+     */
+    public function getMyList(int $userId, int $limit = 50): array
+    {
+        return $this->contacts->find()
+            ->contain(['TContactReplies' => fn($q) => $q->orderByAsc('created')])
+            ->where(['TContacts.user_id' => $userId])
+            ->orderByDesc('created')
+            ->limit($limit)
+            ->toArray();
+    }
+
+    /**
      * 管理者から問い合わせ者へ返信メールを送信し、履歴を保存する。
      *
      * @return array{success: bool, errors: array}
@@ -139,9 +168,10 @@ class ContactService
         $contact = $this->getDetail($contactId);
 
         $reply = $this->replies->newEntity([
-            'contact_id' => $contactId,
-            'body'       => trim($replyBody),
-            'sent_at'    => new DateTime(),
+            'contact_id'  => $contactId,
+            'body'        => trim($replyBody),
+            'author_type' => TContactReply::AUTHOR_ADMIN,
+            'sent_at'     => new DateTime(),
         ]);
 
         if ($reply->getErrors()) {
@@ -161,6 +191,41 @@ class ContactService
                 'success' => false,
                 'errors'  => ['mail' => '返信メールの送信に失敗しました。履歴は保存済みです。'],
             ];
+        }
+
+        return ['success' => true, 'errors' => []];
+    }
+
+    /**
+     * 問い合わせ者本人が、自分の問い合わせへ追加の返信を送信する。
+     * user_id の一致確認は getDetailForUser() 内で行われ、不一致なら例外になる。
+     *
+     * @throws \Cake\Datasource\Exception\RecordNotFoundException 自分の問い合わせでない場合
+     * @return array{success: bool, errors: array}
+     */
+    public function addUserReply(int $contactId, int $userId, string $replyBody): array
+    {
+        $contact = $this->getDetailForUser($contactId, $userId);
+
+        $reply = $this->replies->newEntity([
+            'contact_id'  => $contactId,
+            'body'        => trim($replyBody),
+            'author_type' => TContactReply::AUTHOR_USER,
+            'sent_at'     => new DateTime(),
+        ]);
+
+        if ($reply->getErrors()) {
+            return ['success' => false, 'errors' => $reply->getErrors()];
+        }
+
+        if (!$this->replies->save($reply)) {
+            return ['success' => false, 'errors' => ['save' => '保存に失敗しました。']];
+        }
+
+        try {
+            $this->notifyAdminOfUserReply($contact, trim($replyBody));
+        } catch (\Throwable $e) {
+            $this->logNotificationFailure('notifyAdminOfUserReply', $e, $contactId);
         }
 
         return ['success' => true, 'errors' => []];
@@ -315,6 +380,38 @@ class ContactService
                 '',
                 '--- 内容 ---',
                 $entity->body,
+            ]));
+    }
+
+    /**
+     * 問い合わせ者本人からの追加返信を管理者へ通知する。
+     */
+    private function notifyAdminOfUserReply(\App\Model\Entity\TContact $contact, string $replyBody): void
+    {
+        $adminEmail = (string)\Cake\Core\Configure::read('App.adminEmail', self::ADMIN_EMAIL_UNSET);
+
+        if (self::shouldSkipAdminNotification($adminEmail)) {
+            return;
+        }
+
+        $mailer = new Mailer('default');
+        $mailer
+            ->setFrom(self::MAIL_FROM)
+            ->setTo($adminEmail)
+            ->setSubject('[食数管理システム] お問い合わせに返信がありました：' . $contact->category)
+            ->setEmailFormat('text')
+            ->deliver(implode("\n", [
+                $contact->name . ' 様からお問い合わせへの返信がありました。',
+                '',
+                'カテゴリ：' . $contact->category,
+                'お名前：'  . $contact->name,
+                'メール：'  . $contact->email,
+                '',
+                '--- 返信内容 ---',
+                $replyBody,
+                '',
+                '--- 元のお問い合わせ内容 ---',
+                $contact->body,
             ]));
     }
 }
