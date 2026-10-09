@@ -395,6 +395,12 @@ return function (RouteBuilder $routes): void {
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
 
+        // ── Webhooks（外部サービス専用・認証なし。署名検証で保護） ──
+        $builder->connect(
+            '/webhooks/resend/inbound',
+            ['controller' => 'Webhooks', 'action' => 'resendInbound']
+        )->setMethods(['POST']);
+
         // ── 統計AI（管理者専用） ──
         $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/StatsAi/askStream', ['controller' => 'StatsAi', 'action' => 'askStream'])->setMethods(['POST']);

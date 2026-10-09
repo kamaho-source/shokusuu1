@@ -77,8 +77,16 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
             ->add(new AssetMiddleware(['cacheTime' => Configure::read('Asset.cacheTime')]))
             ->add(new RoutingMiddleware($this))
-            ->add(new BodyParserMiddleware())
-            ->add(new CsrfProtectionMiddleware(['httponly' => true]));
+            ->add(new BodyParserMiddleware());
+
+        // 外部サービス(Resend)からのWebhookはブラウザセッション/CSRFトークンを持たないため対象外とする。
+        // 代わりにWebhook自体の署名検証（Svix HMAC）で保護する。
+        $csrfMiddleware = new CsrfProtectionMiddleware(['httponly' => true]);
+        $csrfMiddleware->skipCheckCallback(function (ServerRequest $request): bool {
+            // アプリのベースパス（本番: /kamaho-shokusu/ 等）を考慮し、部分一致で判定する。
+            return str_contains($request->getUri()->getPath(), '/webhooks/');
+        });
+        $middlewareQueue->add($csrfMiddleware);
 
         // AuthenticationMiddleware はオプションなしで登録
         $middlewareQueue->add(new AuthenticationMiddleware($this));
