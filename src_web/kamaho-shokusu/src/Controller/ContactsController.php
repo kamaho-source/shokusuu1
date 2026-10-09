@@ -39,6 +39,7 @@ class ContactsController extends AppController
 
         $user = $this->Authentication->getIdentity();
         $categories = TContactsTable::CATEGORIES;
+        $userId = (int)$user->get('i_id_user');
 
         // ログインユーザーの情報を初期値として渡す
         $defaultName  = $user->get('c_user_name') ?? '';
@@ -46,7 +47,6 @@ class ContactsController extends AppController
 
         if ($this->request->is('post')) {
             $data = (array)$this->request->getData();
-            $userId = (int)$user->get('i_id_user');
 
             $result = $this->contactService->submit($data, $userId);
 
@@ -57,12 +57,50 @@ class ContactsController extends AppController
 
             $this->Flash->error('入力内容に誤りがあります。確認してください。');
             $entity = $result['entity'];
-            $this->set(compact('entity', 'categories', 'defaultName', 'defaultEmail'));
+            $myContacts = $this->contactService->getMyList($userId);
+            $this->set(compact('entity', 'categories', 'defaultName', 'defaultEmail', 'myContacts'));
             return null;
         }
 
-        $this->set(compact('categories', 'defaultName', 'defaultEmail'));
+        $myContacts = $this->contactService->getMyList($userId);
+        $this->set(compact('categories', 'defaultName', 'defaultEmail', 'myContacts'));
         return null;
+    }
+
+    /**
+     * 問い合わせ者本人：自分の問い合わせへ追加の返信を送信する
+     */
+    public function reply(int $id): ?Response
+    {
+        $this->request->allowMethod(['post']);
+
+        $user = $this->Authentication->getIdentity();
+        $userId = (int)$user->get('i_id_user');
+
+        try {
+            $contact = $this->contactService->getDetailForUser($id, $userId);
+        } catch (\Cake\Datasource\Exception\RecordNotFoundException) {
+            $this->Flash->error('指定されたお問い合わせが見つかりません。');
+            return $this->redirect(['action' => 'index']);
+        }
+
+        try {
+            $this->Authorization->authorize($contact, 'reply');
+        } catch (ForbiddenException) {
+            $this->Flash->error('あなたはこの操作を行う権限がありません。');
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $replyBody = (string)($this->request->getData('reply_body') ?? '');
+        $result = $this->contactService->addUserReply($id, $userId, $replyBody);
+
+        if ($result['success']) {
+            $this->Flash->success('返信を送信しました。');
+        } else {
+            $this->Flash->error('返信の送信に失敗しました。入力内容を確認してください。');
+        }
+
+        return $this->redirect(['action' => 'index', '#' => 'contact-' . $id]);
     }
 
     /**

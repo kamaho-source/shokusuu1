@@ -233,12 +233,13 @@ return [
     ],
     't_contact_replies' => [
         'columns' => [
-            'id'         => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
-            'contact_id' => ['type' => 'integer', 'null' => false],
-            'body'       => ['type' => 'text', 'null' => false],
-            'sent_at'    => ['type' => 'datetime', 'null' => false],
-            'created'    => ['type' => 'datetime', 'null' => false],
-            'modified'   => ['type' => 'datetime', 'null' => false],
+            'id'          => ['type' => 'integer', 'autoIncrement' => true, 'null' => false],
+            'contact_id'  => ['type' => 'integer', 'null' => false],
+            'body'        => ['type' => 'text', 'null' => false],
+            'author_type' => ['type' => 'string', 'length' => 10, 'null' => false, 'default' => 'admin'],
+            'sent_at'     => ['type' => 'datetime', 'null' => false],
+            'created'     => ['type' => 'datetime', 'null' => false],
+            'modified'    => ['type' => 'datetime', 'null' => false],
         ],
         'constraints' => [
             'primary' => ['type' => 'primary', 'columns' => ['id']],
