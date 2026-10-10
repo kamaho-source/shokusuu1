@@ -96,6 +96,25 @@ class TReservationInfoControllerTest extends TestCase
     }
 
     /**
+     * 子どもユーザー(i_user_level=1)のindexアクションで、子ども用UI（kid_section）が
+     * 「今日」の日付から表示され、直前予約フラグ（data-is-last-minute="1"）が
+     * 正しく立つことを確認する（isChildがkid_section.phpへ渡っていないと、
+     * 常に大人用の日付範囲(+15日後〜)になり、今日のカードが出なくなる不具合の回帰テスト）。
+     *
+     * @throws \Exception
+     */
+    public function testIndex_childUser_showsTodayAsLastMinute(): void
+    {
+        $this->setAuthenticatedSession(false, 1);
+        $this->get('/TReservationInfo/index');
+        $this->assertResponseOk();
+
+        $today = (new Date())->format('Y-m-d');
+        $this->assertResponseContains('data-date="' . $today . '"');
+        $this->assertResponseContains('data-is-last-minute="1"');
+    }
+
+    /**
      * viewアクションのテスト（正常系）
      */
     public function testViewSuccess()
