@@ -657,6 +657,13 @@ class MUserInfoController extends AppController
             }
 
             $this->Flash->error(__('パスワードの変更に失敗しました。'));
+        } elseif ($this->request->is('get')) {
+            // 編集画面の「パスワード変更」リンクから ?user_id= 付きで遷移してきた場合、対象ユーザーを事前選択する。
+            // 存在しない・削除済みユーザーIDは無視し、通常の未選択状態にフォールバックする。
+            $queryUserId = $this->request->getQuery('user_id');
+            if ($queryUserId !== null && isset($users[$queryUserId])) {
+                $selectedUser = $this->fetchTable('MUserInfo')->get((int)$queryUserId);
+            }
         }
 
         $this->set(compact('users', 'selectedUser'));

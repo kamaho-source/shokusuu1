@@ -105,6 +105,37 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
+     * 管理者が編集画面を開くと、対象ユーザーIDを引き継いだパスワード変更リンクが表示される。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::edit()
+     */
+    public function testEditShowsPasswordChangeLinkForAdmin(): void
+    {
+        $this->setAuthenticatedSession(true);
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseOk();
+        $this->assertResponseContains('パスワード変更');
+        $this->assertResponseContains('admin_change_password?user_id=2');
+    }
+
+    /**
+     * 管理者でないユーザーが自分の編集画面を開いても、パスワード変更リンクは表示されない。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::edit()
+     */
+    public function testEditHidesPasswordChangeLinkForNonAdmin(): void
+    {
+        $this->setAuthenticatedSession(false);
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseOk();
+        // レイアウト共通ナビの「パスワード変更」(自分用) とは別物なので、
+        // 編集画面固有のリンク先 (admin_change_password?user_id=) の有無で判定する。
+        $this->assertResponseNotContains('admin_change_password?user_id=2');
+    }
+
+    /**
      * Test delete method
      *
      * @return void
@@ -221,6 +252,52 @@ class MUserInfoControllerTest extends TestCase
 
         $user = $this->getTableLocator()->get('MUserInfo')->get(2);
         $this->assertSame(3, (int)$user->i_admin);
+    }
+
+    /**
+     * 編集画面のパスワード変更リンク経由（?user_id=）で遷移すると、対象ユーザーが事前選択される。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::adminChangePassword()
+     */
+    public function testAdminChangePasswordPreselectsUserFromQuery(): void
+    {
+        $this->setAuthenticatedSession(true);
+        $this->get('/MUserInfo/admin_change_password?user_id=2');
+        $this->assertResponseOk();
+
+        $selectedUser = $this->viewVariable('selectedUser');
+        $this->assertNotNull($selectedUser);
+        $this->assertSame(2, (int)$selectedUser->i_id_user);
+    }
+
+    /**
+     * 存在しないユーザーIDが ?user_id= に渡されても、エラーにならず未選択にフォールバックする。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::adminChangePassword()
+     */
+    public function testAdminChangePasswordIgnoresNonexistentQueryUserId(): void
+    {
+        $this->setAuthenticatedSession(true);
+        $this->get('/MUserInfo/admin_change_password?user_id=99999');
+        $this->assertResponseOk();
+        $this->assertNull($this->viewVariable('selectedUser'));
+    }
+
+    /**
+     * 削除済みユーザーのIDが ?user_id= に渡されても、エラーにならず未選択にフォールバックする。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::adminChangePassword()
+     */
+    public function testAdminChangePasswordIgnoresDeletedQueryUserId(): void
+    {
+        $this->setAuthenticatedSession(true);
+        // fixture の i_id_user=1 (admin_user) は i_del_flag=1（削除済み）
+        $this->get('/MUserInfo/admin_change_password?user_id=1');
+        $this->assertResponseOk();
+        $this->assertNull($this->viewVariable('selectedUser'));
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true): void
