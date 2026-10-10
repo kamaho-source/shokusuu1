@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -61,5 +62,19 @@ class TContactsTable extends Table
             ->allowEmptyString('user_id');
 
         return $validator;
+    }
+
+    public function buildRules(RulesChecker $rules): RulesChecker
+    {
+        // reply_token は random_bytes(16) によるランダム生成のため衝突確率は実質ゼロだが、
+        // DBのユニーク制約と同じ保証をアプリ層にも持たせ、万一の衝突時にDB例外ではなく
+        // 通常のバリデーションエラーとして扱えるようにする。
+        $rules->add(
+            $rules->isUnique(['reply_token'], '予期しないエラーが発生しました。再度お試しください。'),
+            'uniqueReplyToken',
+            ['errorField' => 'reply_token']
+        );
+
+        return $rules;
     }
 }

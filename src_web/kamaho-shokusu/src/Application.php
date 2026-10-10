@@ -83,8 +83,9 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         // 代わりにWebhook自体の署名検証（Svix HMAC）で保護する。
         $csrfMiddleware = new CsrfProtectionMiddleware(['httponly' => true]);
         $csrfMiddleware->skipCheckCallback(function (ServerRequest $request): bool {
-            // アプリのベースパス（本番: /kamaho-shokusu/ 等）を考慮し、部分一致で判定する。
-            return str_contains($request->getUri()->getPath(), '/webhooks/');
+            // RoutingMiddleware が先に実行されるため、ここではルーティング済みの
+            // controllerパラメータで判定できる（パスの部分一致よりベースパスの影響を受けず確実）。
+            return $request->getParam('controller') === 'Webhooks';
         });
         $middlewareQueue->add($csrfMiddleware);
 
