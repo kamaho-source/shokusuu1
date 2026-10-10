@@ -52,7 +52,7 @@ class UserCreateService
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
 
         if (!$userInfoTable->save($entity)) {
-            AuditLogService::record('user', 'user_create', $createdBy, $actorId, 'm_user_info', null, ['error' => 'save failed'], $ipAddress ?: null, 0, $actorLoginId);
+            AuditLogService::record('user', 'user_create', $createdBy, $actorId, 'm_user_info', null, ['error' => 'save failed'], $ipAddress ?: null, 0, $actorLoginId, 'ユーザーの新規作成の保存に失敗しました（入力値エラーまたはDBエラー）');
             return false;
         }
 

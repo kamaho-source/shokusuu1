@@ -38,7 +38,7 @@ class AuditLogController extends AppController
 
         $query = $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC']);
+            ->orderBy(['dt_create' => 'DESC']);
 
         $logs = $this->paginate($query, ['limit' => 100, 'maxLimit' => 500]);
 
@@ -78,7 +78,7 @@ class AuditLogController extends AppController
         $table      = $this->fetchTable('TAuditLog');
         $logs       = $table->find()
             ->where($conditions)
-            ->order(['dt_create' => 'DESC'])
+            ->orderBy(['dt_create' => 'DESC'])
             ->limit(10000)
             ->all();
 
@@ -87,9 +87,18 @@ class AuditLogController extends AppController
         $output = fopen('php://temp', 'w+');
         // BOM付きUTF-8（Excelで文字化けしない）
         fwrite($output, "\xEF\xBB\xBF");
-        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '対象テーブル', '対象ID', '操作者ID', 'ログインID', '操作者名', 'IPアドレス', '結果', '詳細', '操作日時']);
+        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '対象テーブル', '対象ID', '操作者ID', 'ログインID', '操作者名', 'IPアドレス', '結果', '失敗理由', '詳細', '操作日時']);
 
         foreach ($logs as $log) {
+            // 失敗理由は c_detail(JSON) の reason キーから抽出（失敗ログのみ）
+            $reason = '';
+            if ($log->i_result !== 1 && $log->c_detail) {
+                $decoded = json_decode((string)$log->c_detail, true);
+                if (is_array($decoded) && isset($decoded['reason']) && is_string($decoded['reason'])) {
+                    $reason = $decoded['reason'];
+                }
+            }
+
             fputcsv($output, [
                 $log->i_id_audit,
                 $log->c_category,
@@ -101,6 +110,7 @@ class AuditLogController extends AppController
                 $log->c_actor_user_name,
                 $log->c_ip_address,
                 $log->i_result === 1 ? '成功' : '失敗',
+                $reason,
                 $log->c_detail,
                 $log->dt_create,
             ]);

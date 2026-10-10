@@ -6,6 +6,9 @@ namespace App\Controller;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApprovalService;
 use App\Service\RoomAccessService;
+use Cake\Core\Configure;
+use Cake\Event\EventInterface;
+use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
 
 /**
@@ -18,6 +21,22 @@ class ApprovalController extends AppController
 {
     private ApprovalService $approvalService;
     private RoomAccessService $roomAccessService;
+
+    /**
+     * 承認機能(Features.approval)が無効のときは全アクションを 404 にする。
+     * （ダッシュボードから導線を隠しているが、直接URLアクセスも塞ぐ）
+     *
+     * @param \Cake\Event\EventInterface $event
+     * @return void
+     */
+    public function beforeFilter(EventInterface $event)
+    {
+        parent::beforeFilter($event);
+
+        if (!Configure::read('Features.approval')) {
+            throw new NotFoundException('予約承認機能は現在無効です。');
+        }
+    }
 
     public function initialize(): void
     {
@@ -138,7 +157,7 @@ class ApprovalController extends AppController
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId);
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId, $approver);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
@@ -281,7 +300,7 @@ class ApprovalController extends AppController
             ]);
         }
 
-        $query->order(['TApprovalLog.dt_create' => 'DESC']);
+        $query->orderBy(['TApprovalLog.dt_create' => 'DESC']);
 
         $logs = $this->paginate($query, [
             'limit' => 50,

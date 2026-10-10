@@ -177,16 +177,17 @@ class ReservationBulkController extends ReservationBaseController
      */
     public function bulkChangeEditSubmit(): ?Response
     {
-        if ($denied = $this->authorizeReservation('bulkChangeEditSubmit', [], true)) {
-            return $denied;
-        }
-
         $data     = $this->request->getData();
         $dayUsers = isset($data['day_users']) && is_array($data['day_users']) ? $data['day_users'] : [];
         $snapshots = isset($data['reservation_snapshot']) && is_array($data['reservation_snapshot'])
             ? $data['reservation_snapshot']
             : [];
         $roomId   = $data['i_id_room'] ?? null;
+
+        // 指定部屋へのアクセス権をポリシーで検証するため、部屋IDをリソースに載せる
+        if ($denied = $this->authorizeReservation('bulkChangeEditSubmit', ['i_id_room' => (int)$roomId], true)) {
+            return $denied;
+        }
 
         if (!$roomId || empty($dayUsers)) {
             return $this->apiResponseService->error(

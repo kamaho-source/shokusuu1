@@ -205,7 +205,8 @@ class UserBulkImportService
             ],
             $ipAddress ?: null,
             $results['failed'] === 0 ? 1 : 0,
-            $actorLoginId
+            $actorLoginId,
+            $results['failed'] === 0 ? null : sprintf('一括登録で%d件が失敗しました（%d件成功・%d件スキップ）', $results['failed'], $results['created'], $results['skipped'])
         );
 
         return $results;

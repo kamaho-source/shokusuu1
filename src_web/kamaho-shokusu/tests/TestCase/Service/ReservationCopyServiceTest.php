@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ReservationCopyService;
+use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
+use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
@@ -259,5 +261,98 @@ class ReservationCopyServiceTest extends TestCase
         $this->assertSame(1, $result['total']);
         $this->assertSame(0, $result['will_copy']);
         $this->assertSame(1, $result['will_skip']);
+    }
+
+    // ----------------------------------------------------------------
+    // プレビューと実行のスキップ判定一致（バグ5）
+    // ----------------------------------------------------------------
+
+    /** コピー元の月曜（未来日） */
+    private const SRC_MONDAY = '2030-01-07';
+    /** コピー先の月曜（コピー元の1週間後） */
+    private const DST_MONDAY = '2030-01-14';
+
+    private function insertRow(string $date, array $override = []): void
+    {
+        $defaults = [
+            'i_id_user'          => 1,
+            'd_reservation_date' => $date,
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+            'i_approval_status'  => 0,
+            'i_version'          => 1,
+            'dt_create'          => '2029-12-01 00:00:00',
+            'c_create_user'      => 'test',
+        ];
+        ConnectionManager::get('test')->insert(
+            't_individual_reservation_info',
+            array_merge($defaults, $override)
+        );
+    }
+
+    private function fetchRow(string $date): ?object
+    {
+        return TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where([
+                'i_id_user'          => 1,
+                'd_reservation_date' => $date,
+                'i_reservation_type' => 1,
+                'i_id_room'          => 1,
+            ])
+            ->first();
+    }
+
+    /**
+     * バグ5: コピー先に eat_flag=0 の無効行がある場合、
+     * プレビューは「スキップ」ではなく「コピー」と表示し、実行結果と一致する。
+     */
+    public function testPreviewMatchesCopyWhenExistingRowIsInactive(): void
+    {
+        $this->insertRow('2030-01-08');                      // コピー元
+        $this->insertRow('2030-01-15', ['eat_flag' => 0, 'i_change_flag' => 0]); // コピー先（無効行）
+
+        $preview = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false);
+        $this->assertSame(1, $preview['will_copy'], '上書きされる行がプレビューでスキップ扱いになっている');
+        $this->assertSame(0, $preview['will_skip']);
+
+        $copy = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+        $this->assertSame($preview['will_copy'], $copy['copied'], 'プレビューと実行結果が一致していない');
+        $this->assertSame($preview['will_skip'], $copy['skipped'], 'プレビューと実行結果が一致していない');
+        $this->assertSame(1, (int)$this->fetchRow('2030-01-15')->eat_flag);
+    }
+
+    /**
+     * バグ5: コピー先に有効行（eat_flag=1）がある場合はプレビュー・実行ともスキップ。
+     */
+    public function testPreviewMatchesCopyWhenExistingRowIsActive(): void
+    {
+        $this->insertRow('2030-01-08');
+        $this->insertRow('2030-01-15', ['eat_flag' => 1]);
+
+        $preview = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false);
+        $copy    = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $preview['will_skip']);
+        $this->assertSame($preview['will_copy'], $copy['copied']);
+        $this->assertSame($preview['will_skip'], $copy['skipped']);
+    }
+
+    /**
+     * バグ1+5: 承認済みのコピー先はプレビュー・実行ともスキップし、例外にしない。
+     */
+    public function testApprovedTargetRowIsSkippedByPreviewAndCopy(): void
+    {
+        $this->insertRow('2030-01-08');
+        $this->insertRow('2030-01-15', ['eat_flag' => 0, 'i_change_flag' => 0, 'i_approval_status' => 2]);
+
+        $preview = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false);
+        $copy    = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $preview['will_skip'], '承認済みの行がプレビューでスキップされていない');
+        $this->assertSame(0, $copy['copied']);
+        $this->assertSame(1, $copy['skipped']);
+        $this->assertSame(0, (int)$this->fetchRow('2030-01-15')->eat_flag, '承認済みの行が上書きされている');
     }
 }

@@ -6,6 +6,8 @@ namespace App\Controller;
 use App\Service\ApiResponseService;
 use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
+use Cake\Core\Configure;
+use Cake\Http\Exception\NotFoundException;
 
 /**
  * MMealPriceInfo Controller
@@ -148,7 +150,7 @@ class MMealPriceInfoController extends AppController
         }
         $user = $this->request->getAttribute('identity');
         $deleted = $this->MMealPriceInfo->delete($mMealPriceInfo);
-        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''));
+        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''), $deleted ? null : '単価マスタの削除に失敗しました（対象が存在しない、またはDBエラー）');
         if ($deleted) {
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {
@@ -215,6 +217,11 @@ class MMealPriceInfoController extends AppController
      */
     public function exportMealSummaryPreview()
     {
+        // 承認機能オフのときは「未承認プレビュー」は概念として存在しないため無効化する。
+        if (!Configure::read('Features.approval')) {
+            throw new NotFoundException('未承認プレビューは現在無効です。');
+        }
+
         $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'add');
 
         $this->autoRender = false;

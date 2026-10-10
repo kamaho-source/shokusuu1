@@ -61,7 +61,8 @@ class UserDeletionService
             ['target_user_name' => $user->c_user_name],
             $ipAddress ?: null,
             $result ? 1 : 0,
-            $actorLoginId
+            $actorLoginId,
+            $result ? null : 'ユーザーの削除（論理削除）の保存に失敗しました'
         );
 
         return $result;

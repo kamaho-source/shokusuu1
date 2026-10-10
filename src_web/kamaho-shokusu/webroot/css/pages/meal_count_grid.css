@@ -326,14 +326,16 @@ html, body {
 .mcg-grid thead tr.header-meals th.is-holiday  { background: #fde8e8; }
 
 /* ── データ行 ── */
-.mcg-grid tbody tr { height: var(--row-h); }
+/* 氏名が折り返して2行になる行があるため、高さは下限として扱う */
+.mcg-grid tbody tr { height: auto; min-height: var(--row-h); }
 
 .mcg-grid tbody td {
     padding: 0;
     text-align: center;
     vertical-align: middle;
     border: 1px solid #d9d9d9;
-    height: var(--row-h);
+    height: auto;
+    min-height: var(--row-h);
     font-size: 12px;
 }
 
@@ -347,24 +349,26 @@ html, body {
 .mcg-grid tbody td.col-room {
     background: #fff;
     text-align: left;
-    padding: 0 4px;
+    padding: 2px 4px;
     font-size: 11px;
     font-weight: 600;
+    line-height: 1.25;
+    border-color: #aaa;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    border-color: #aaa;
 }
 
 .mcg-grid tbody td.col-name {
     background: #fff;
     text-align: left;
-    padding: 0 4px;
+    padding: 2px 4px;
     font-size: 11px;
+    line-height: 1.25;
+    border-color: #aaa;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    border-color: #aaa;
 }
 
 /* 食事セル */
@@ -857,4 +861,41 @@ html, body {
 @keyframes mcg-toast-in {
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   スマートフォン幅だけの調整
+
+   長い氏名があると氏名列が内容に合わせて広がり、食数セルが画面外へ
+   押し出されてチェックに届かなくなる。狭い画面ではこれが致命的なので、
+   列幅を固定して氏名のほうを折り返す。
+   画面に余裕のある PC・タブレットでは、従来どおり1行で表示する。
+   ========================================================================== */
+@media (max-width: 768px) {
+    :root {
+        /* 部屋名は最長6文字（「ナザレの部屋」）。
+           11px × 6文字 + 左右padding 8px = 74px 必要なので余裕をみて 80px。
+           72px のままだと2px足りずに折り返し、行の高さが増えてしまう。 */
+        --col-room-w: 80px;
+    }
+
+    .mcg-grid .col-room,
+    .mcg-grid .col-name {
+        max-width: var(--col-room-w);
+    }
+    .mcg-grid .col-name { max-width: var(--col-name-w); }
+
+    /* 省略記号だと誰の行か分からなくなるため、省略ではなく折り返す */
+    .mcg-grid tbody td.col-room,
+    .mcg-grid tbody td.col-name {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    /* 折り返しで2行以上になる行があるため、高さは下限として扱う */
+    .mcg-grid tbody tr { height: auto; min-height: var(--row-h); }
+    .mcg-grid tbody td { height: auto; min-height: var(--row-h); }
 }

@@ -11,6 +11,7 @@ use Cake\I18n\Date;
 use App\Service\ReservationWriteService;
 use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
+use App\Exception\ApprovedReservationException;
 use App\Exception\OptimisticLockConflictException;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
@@ -89,6 +90,14 @@ class TReservationInfoController extends ReservationBaseController
         $canViewAllRooms = $isAdmin || $isOfficeUser;
         $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser, $isBlockLeader);
 
+        // 子どもUI用の部屋一覧。子どもUIでは管理者であっても「所属している部屋」だけを表示する。
+        // 業務UIの部屋ピッカー($rooms→availableRoomNames)やエクセル食数予約は従来どおり全部屋のまま。
+        // 事務所ユーザー(isOfficeUser)は対象外。所属部屋が未設定の管理者は選べなくなるため従来どおり全部屋。
+        $authorizedRooms = $rooms;
+        if ($isAdmin && !$isOfficeUser && !empty($userRoomIds)) {
+            $authorizedRooms = array_intersect_key($rooms, array_flip(array_map('intval', $userRoomIds)));
+        }
+
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
         $calRoomId = null;
         if ($calRoomIdQuery !== null && $calRoomIdQuery !== '') {
@@ -150,6 +159,7 @@ class TReservationInfoController extends ReservationBaseController
             'user',
             'userRoomId',
             'rooms',
+            'authorizedRooms',
             'today',
             'staff_user',
             'isAdmin',
@@ -899,6 +909,18 @@ class TReservationInfoController extends ReservationBaseController
                     $this->Flash->success(__($payload['message']));
                     return $this->redirect(['action' => 'index']);
 
+                } catch (ApprovedReservationException $e) {
+                    $this->log('直前編集 承認済み変更拒否: ' . $e->getMessage(), 'warning');
+                    if ($wantsJson) {
+                        return $this->response->withStatus(409)->withType('application/json')
+                            ->withStringBody(json_encode([
+                                'ok'      => false,
+                                'status'  => 'approved',
+                                'message' => $e->getMessage(),
+                                'data'    => [],
+                            ], JSON_UNESCAPED_UNICODE));
+                    }
+                    $this->Flash->error(__($e->getMessage()));
                 } catch (OptimisticLockConflictException $e) {
                     $this->log('直前編集 競合: ' . $e->getMessage(), 'warning');
                     if ($wantsJson) {

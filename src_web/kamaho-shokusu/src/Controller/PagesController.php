@@ -191,7 +191,9 @@ class PagesController extends AppController
         $user = $this->Authentication->getIdentity();
 
         $dashboardService = new DashboardService();
-        $approvalService = new ApprovalService();
+        // 承認機能が有効なときだけ承認待ち件数を集計する（オフ運用では件数クエリ自体を省く）。
+        $approvalEnabled = (bool)Configure::read('Features.approval');
+        $approvalService = $approvalEnabled ? new ApprovalService() : null;
         $dateFrom = date('Y-m-d', strtotime('monday this week'));
         $dateTo = date('Y-m-d', strtotime('sunday this week'));
 
@@ -219,12 +221,14 @@ class PagesController extends AppController
                 'isAdmin' => $isAdmin,
                 'isBlockLeader' => $isBlockLeader,
             ];
-            $dashboard['approvalCounts'] = [
-                'blockLeader' => $approvalService->countBlockLeaderPending($userId, $dateFrom, $dateTo),
-                'admin' => $isAdmin
-                    ? $approvalService->countAdminPending($dateFrom, $dateTo)
-                    : 0,
-            ];
+            $dashboard['approvalCounts'] = $approvalService !== null
+                ? [
+                    'blockLeader' => $approvalService->countBlockLeaderPending($userId, $dateFrom, $dateTo),
+                    'admin' => $isAdmin
+                        ? $approvalService->countAdminPending($dateFrom, $dateTo)
+                        : 0,
+                ]
+                : ['blockLeader' => 0, 'admin' => 0];
         } else {
             // 未ログインの場合: 報告済みフラグは false 固定にし、
             // ダッシュボードコンテキストはユーザー情報なしで生成する

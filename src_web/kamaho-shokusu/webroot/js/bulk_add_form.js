@@ -36,6 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     let pageLimit = 100;
     let totalUsers = 0;
+    // 取得済みの部屋×日付×ページ。曜日タブの往復で同じ内容を取り直さないためのキャッシュ。
+    // 保存時はサーバー側スナップショットで競合検知するため、表示が多少古くても整合性は崩れない。
+    // 常に最新を出す必要が生じた場合は、この Set を捨てて曜日切替のたびに再取得へ戻すこと。
+    const loadedKeys = new Set();
 
     const mealTypes = [1, 2, 3, 4];
     const mealLabels = {1: 'morning', 2: 'noon', 3: 'night', 4: 'bento'};
@@ -353,6 +357,14 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
+    // FULL MEAL 表示（最終列）を該当行だけ更新する。
+    function updateRowStatus(roomId, uid, tr) {
+        const cell = tr?.lastElementChild;
+        if (!cell) return;
+        const fullMeal = mealTypes.every((t) => selectionsByRoom[roomId]?.[activeDate]?.[uid]?.[t]);
+        cell.innerHTML = fullMeal ? '<span class="status-pill">FULL MEAL</span>' : '';
+    }
+
     function renderTable() {
         if (!userRows) return;
         const roomId = getRoomId();
@@ -395,11 +407,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectionsByRoom[roomId][activeDate][uid] = selectionsByRoom[roomId][activeDate][uid] || {};
                 if (e.target.checked) {
                     selectionsByRoom[roomId][activeDate][uid][type] = true;
-                    // 昼(2)と弁当(4)は排他（選択状態を削除）
+                    // 昼(2)と弁当(4)は排他（選択状態とチェック表示を解除）
                     if (type === 2 || type === 4) {
                         const counterpart = type === 2 ? 4 : 2;
                         if (!lockedByRoom[roomId]?.[activeDate]?.[uid]?.[counterpart]) {
                             delete selectionsByRoom[roomId][activeDate][uid][counterpart];
+                            const counterpartCb = userRows.querySelector(
+                                `.meal-toggle[data-uid="${uid}"][data-type="${counterpart}"]`,
+                            );
+                            if (counterpartCb) counterpartCb.checked = false;
                         }
                     }
                 } else {
@@ -409,8 +425,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         delete selectionsByRoom[roomId][activeDate][uid][type];
                     }
                 }
-                renderTable();
-                applySearchFilter();
+                // 1クリックごとに全行を作り直すと行数に比例して重くなるため、
+                // 該当行の STATUS セルだけを更新する。
+                updateRowStatus(roomId, uid, e.target.closest('tr'));
                 scheduleUpdateCounts();
                 updateBulkToggleState();
                 markDirty();
@@ -606,6 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 totalUsers = Number(payload.total || 0);
                 pageLimit = Number(payload.limit || pageLimit);
                 currentPage = Number(payload.page || currentPage);
+                loadedKeys.add(`${roomId}|${useDate}|${currentPage}`);
                 userLevelsByRoom[roomId] = userLevelsByRoom[roomId] || {};
                 usersByRoom[roomId].forEach((u) => {
                     userLevelsByRoom[roomId][u.id] = Number(u.i_user_level ?? 0);
@@ -672,11 +690,17 @@ document.addEventListener('DOMContentLoaded', () => {
         saveUiState();
         currentPage = 1;
         const roomId = getRoomId();
-        if (roomId) {
-            fetchUsers(roomId, activeDate);
-        } else {
+        if (!roomId) {
             renderTable();
+            return;
         }
+        if (loadedKeys.has(`${roomId}|${activeDate}|1`)) {
+            renderTable();
+            applySearchFilter();
+            updatePager();
+            return;
+        }
+        fetchUsers(roomId, activeDate);
     }
 
     dayButtons.forEach((btn) => {

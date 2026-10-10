@@ -98,6 +98,42 @@ class TContactPolicyTest extends TestCase
     }
 
     // ----------------------------------------------------------------
+    // canReply
+    // ----------------------------------------------------------------
+
+    public function testCanReply_owner_allowed(): void
+    {
+        $user = new PolicyTestIdentity(['i_id_user' => 1, 'i_admin' => 0]);
+        $contact = new TContact(['user_id' => 1]);
+
+        $this->assertTrue($this->policy->canReply($user, $contact));
+    }
+
+    public function testCanReply_otherUser_denied(): void
+    {
+        $user = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0]);
+        $contact = new TContact(['user_id' => 1]);
+
+        $this->assertFalse($this->policy->canReply($user, $contact));
+    }
+
+    public function testCanReply_admin_butNotOwner_denied(): void
+    {
+        // 管理者であっても、自分の問い合わせでなければ本人用の追記返信は不可（管理者は adminDetail を使う）。
+        $user = new PolicyTestIdentity(['i_id_user' => 99, 'i_admin' => 1]);
+        $contact = new TContact(['user_id' => 1]);
+
+        $this->assertFalse($this->policy->canReply($user, $contact));
+    }
+
+    public function testCanReply_nullUser_denied(): void
+    {
+        $contact = new TContact(['user_id' => 1]);
+
+        $this->assertFalse($this->policy->canReply(null, $contact));
+    }
+
+    // ----------------------------------------------------------------
     // DataProviders
     // ----------------------------------------------------------------
 

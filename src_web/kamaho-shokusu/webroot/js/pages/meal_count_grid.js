@@ -96,13 +96,24 @@ function mcgRegisterAll() {
 
     var entries = Array.from(_mcgPending.entries());
 
-    return Promise.allSettled(entries.map(function (pair) {
-        var key = pair[0];
-        var entry = pair[1];
-        var parts  = key.split('|');
-        var userId = parts[0], roomId = parts[1], date = parts[2], meal = parts[3];
+    // 全変更をまとめて送る（セルごとの個別リクエストを廃止し、登録を高速化）。
+    // サーバーの1リクエスト上限(5000件)を超える場合に備え、安全なサイズで分割して
+    // 順番に送り、結果を元の項目順に結合する（結合後は Promise.allSettled と同じ形）。
+    var BATCH_SIZE = 2000;
 
-        return fetch(MCG_BASE + '/TReservationInfo/toggle/' + roomId, {
+    function sendBatch(batchEntries) {
+        var items = batchEntries.map(function (pair) {
+            var parts = pair[0].split('|');
+            return {
+                userId: parseInt(parts[0], 10),
+                roomId: parseInt(parts[1], 10),
+                date:   parts[2],
+                meal:   parseInt(parts[3], 10),
+                value:  pair[1].desired,
+            };
+        });
+
+        return fetch(MCG_BASE + '/TReservationInfo/bulk-toggle', {
             method:  'POST',
             headers: {
                 'Content-Type':     'application/json',
@@ -110,21 +121,59 @@ function mcgRegisterAll() {
                 'X-Requested-With': 'XMLHttpRequest',
                 'Accept':           'application/json',
             },
-            body: JSON.stringify({
-                userId: parseInt(userId, 10),
-                date:   date,
-                meal:   parseInt(meal, 10),
-                value:  entry.desired,
-            }),
+            body: JSON.stringify({ items: items }),
         }).then(function (res) {
             return res.text().then(function (text) {
                 var data;
-                try { data = JSON.parse(text); } catch (e) { throw new Error('HTTP ' + res.status); }
-                if (data.ok === false) throw new Error(data.message || 'エラー');
-                return key;
+                try { data = JSON.parse(text); } catch (e) { data = null; }
+
+                // 正常時: data.data.results に item 単位の {ok, value, message} が入る。
+                var arr = (data && data.data && data.data.results) ? data.data.results : null;
+                if (!arr) {
+                    // 全体エラー(認可・通信など): このバッチを全件失敗として扱う。
+                    var msg = (data && data.message) ? data.message : ('HTTP ' + res.status);
+                    return batchEntries.map(function () {
+                        return { status: 'rejected', reason: new Error(msg) };
+                    });
+                }
+                // item 単位の結果を Promise.allSettled と同じ形へ変換する。
+                return batchEntries.map(function (pair, i) {
+                    var r = arr[i];
+                    if (r && r.ok) {
+                        return { status: 'fulfilled', value: pair[0] };
+                    }
+                    return { status: 'rejected', reason: new Error((r && r.message) || 'エラー') };
+                });
+            });
+        }).catch(function () {
+            // 通信エラー等でレスポンスを得られなかった場合も、このバッチを全件失敗にして
+            // 後続のロールバック・ボタン復帰を必ず通す（従来の allSettled と同じ挙動）。
+            return batchEntries.map(function () {
+                return { status: 'rejected', reason: new Error('通信に失敗しました。') };
             });
         });
-    })).then(function (results) {
+    }
+
+    // entries を BATCH_SIZE ごとに分割。
+    var batches = [];
+    for (var bi = 0; bi < entries.length; bi += BATCH_SIZE) {
+        batches.push(entries.slice(bi, bi + BATCH_SIZE));
+    }
+
+    // 各バッチを順番に送り、結果を元の順序どおりに結合する。
+    var combined = [];
+    var chain = Promise.resolve();
+    batches.forEach(function (batch) {
+        chain = chain.then(function () {
+            return sendBatch(batch).then(function (batchResults) {
+                combined = combined.concat(batchResults);
+            });
+        });
+    });
+
+    return chain.then(function () {
+        return combined;
+    }).then(function (results) {
         var successKeys = [];
         var failCount   = 0;
 
@@ -204,16 +253,47 @@ function mcgRegisterAll() {
  * 排他制御（他部屋予約チェック）
  * ─────────────────────────────────────────── */
 
+/*
+ * セル索引。
+ *
+ * グリッドは (人数 × 28日 × 4食) 個のセルを持つ。兄弟セルを毎回
+ * document.querySelectorAll で引くと「セル数 × DOM全体の走査」となり
+ * セル数の 2 乗で効いてしまう（180行で 25 秒かかっていた）。
+ * 初期化時に一度だけ索引を作り、以降はここから引く。
+ * セルはサーバーレンダリング後に増減しないため再構築は不要。
+ */
+var _mcgByUserDateMeal = new Map(); // "userId|date|meal" -> [td]
+var _mcgByDateMeal     = new Map(); // "date|meal"        -> [td]
+var _MCG_NO_CELLS      = [];
+
+function _mcgIndexPush(map, key, td) {
+    var list = map.get(key);
+    if (list) {
+        list.push(td);
+        return;
+    }
+    map.set(key, [td]);
+}
+
+function mcgBuildCellIndex() {
+    _mcgByUserDateMeal = new Map();
+    _mcgByDateMeal     = new Map();
+    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+        var d = td.dataset;
+        _mcgIndexPush(_mcgByUserDateMeal, d.userId + '|' + d.date + '|' + d.meal, td);
+        _mcgIndexPush(_mcgByDateMeal, d.date + '|' + d.meal, td);
+    });
+}
+
 function mcgGetSiblingCells(userId, date, meal) {
-    return document.querySelectorAll(
-        '.mcg-toggleable[data-user-id="' + userId + '"]' +
-        '[data-date="' + date + '"]' +
-        '[data-meal="' + meal + '"]'
-    );
+    return _mcgByUserDateMeal.get(userId + '|' + date + '|' + meal) || _MCG_NO_CELLS;
 }
 
 function mcgSyncConflicts(userId, date, meal) {
-    var cells = mcgGetSiblingCells(userId, date, meal);
+    _mcgSyncConflictCells(mcgGetSiblingCells(userId, date, meal));
+}
+
+function _mcgSyncConflictCells(cells) {
     if (cells.length <= 1) return;
 
     var reservedRoomId = null;
@@ -234,13 +314,9 @@ function mcgSyncConflicts(userId, date, meal) {
 }
 
 function mcgInitConflicts() {
-    var seen = Object.create(null);
-    document.querySelectorAll('.mcg-toggleable').forEach(function (cell) {
-        var key = cell.dataset.userId + '|' + cell.dataset.date + '|' + cell.dataset.meal;
-        if (!seen[key]) {
-            seen[key] = true;
-            mcgSyncConflicts(cell.dataset.userId, cell.dataset.date, cell.dataset.meal);
-        }
+    // 索引のキーが (userId, date, meal) の組そのものなので重複排除は不要
+    _mcgByUserDateMeal.forEach(function (cells) {
+        _mcgSyncConflictCells(cells);
     });
 }
 
@@ -249,12 +325,8 @@ function mcgInitConflicts() {
  * 昼が登録済みなら同日の全弁当セルを無効化、逆も同様
  * ─────────────────────────────────────────── */
 function mcgSyncLunchBento(userId, date) {
-    var allLunchCells = document.querySelectorAll(
-        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.LUNCH + '"]'
-    );
-    var allBentoCells = document.querySelectorAll(
-        '.mcg-toggleable[data-user-id="' + userId + '"][data-date="' + date + '"][data-meal="' + MEAL.BENTO + '"]'
-    );
+    var allLunchCells = mcgGetSiblingCells(userId, date, MEAL.LUNCH);
+    var allBentoCells = mcgGetSiblingCells(userId, date, MEAL.BENTO);
 
     var lunchReserved = false;
     allLunchCells.forEach(function (td) { if (td.dataset.reserved === '1') lunchReserved = true; });
@@ -285,7 +357,8 @@ function mcgSyncLunchBento(userId, date) {
 
 function mcgInitLunchBentoExcl() {
     var seen = Object.create(null);
-    document.querySelectorAll('.mcg-toggleable').forEach(function (td) {
+    _mcgByUserDateMeal.forEach(function (cells) {
+        var td   = cells[0];
         var meal = parseInt(td.dataset.meal, 10);
         if (meal !== MEAL.LUNCH && meal !== MEAL.BENTO) return;
         var k = td.dataset.userId + '|' + td.dataset.date;
@@ -402,24 +475,14 @@ function mcgFlashCell(td, isOn) {
 }
 
 /* ─────────────────────────────────────────────
- * 指定セルを検索
- * ─────────────────────────────────────────── */
-function mcgFindCell(userId, roomId, date, meal) {
-    return document.querySelector(
-        '.mcg-toggleable[data-user-id="' + userId + '"]' +
-        '[data-room-id="' + roomId + '"]' +
-        '[data-date="' + date + '"]' +
-        '[data-meal="' + meal + '"]'
-    );
-}
-
-/* ─────────────────────────────────────────────
  * 日計行を再集計
  * ─────────────────────────────────────────── */
 function mcgUpdateDailyTotal(date, meal) {
-    var count = document.querySelectorAll(
-        '.mcg-toggleable[data-date="' + date + '"][data-meal="' + meal + '"][data-reserved="1"]'
-    ).length;
+    var cells = _mcgByDateMeal.get(date + '|' + meal) || _MCG_NO_CELLS;
+    var count = 0;
+    for (var i = 0; i < cells.length; i++) {
+        if (cells[i].dataset.reserved === '1') count++;
+    }
     var cell = document.querySelector(
         '.row-daily-total td[data-date="' + date + '"][data-meal="' + meal + '"]'
     );
@@ -448,11 +511,7 @@ function mcgInitToggle() {
             /* 昼↔弁当 排他: 全部屋の対立セルを pending OFF にする */
             if (newValue === 1 && Object.prototype.hasOwnProperty.call(MEAL_OPPONENT, meal)) {
                 var opponentMeal = MEAL_OPPONENT[meal];
-                var allOpponents = document.querySelectorAll(
-                    '.mcg-toggleable[data-user-id="' + userId + '"]' +
-                    '[data-date="' + date + '"]' +
-                    '[data-meal="' + opponentMeal + '"]'
-                );
+                var allOpponents = mcgGetSiblingCells(userId, date, opponentMeal);
                 allOpponents.forEach(function (opponentTd) {
                     if (opponentTd.dataset.reserved !== '1') return;
                     var opponentKey      = _mcgKey(opponentTd);
@@ -585,15 +644,22 @@ function _mcgPositionTooltip(tip, anchor) {
  * ─────────────────────────────────────────── */
 function mcgApplyHolidays() {
     if (!window.JapaneseHolidays) return;
-    document.querySelectorAll('[data-date]').forEach(function (el) {
-        var d = new Date(el.dataset.date + 'T00:00:00');
-        if (JapaneseHolidays.isHoliday(d)) {
+    // 全セルを判定すると表示日数(28)ではなくセル数に比例してしまうため、
+    // ヘッダーから日付を拾って祝日の日付だけに絞ってから適用する。
+    var seen = Object.create(null);
+    document.querySelectorAll('.mcg-grid thead th[data-date]').forEach(function (th) {
+        var date = th.dataset.date;
+        if (seen[date]) return;
+        seen[date] = true;
+        if (!JapaneseHolidays.isHoliday(new Date(date + 'T00:00:00'))) return;
+        document.querySelectorAll('[data-date="' + date + '"]').forEach(function (el) {
             el.classList.add('is-holiday');
-        }
+        });
     });
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    mcgBuildCellIndex();
     mcgApplyHolidays();
     mcgInitConflicts();
     mcgInitLunchBentoExcl();

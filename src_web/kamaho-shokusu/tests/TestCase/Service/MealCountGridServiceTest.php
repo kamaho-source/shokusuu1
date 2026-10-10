@@ -14,7 +14,7 @@ use Cake\TestSuite\TestCase;
  *   - resolveWeekNavigation()   — 純粋ロジック
  *   - getAdminOldestAllowedMonday() — 純粋ロジック
  *   - buildGrid()               — TIndividualReservationInfo・MUserGroup テーブルが必要
- *   - getRoomUsers()            — MUserGroup テーブルが必要
+ *   - getRoomUsersByRooms()     — MUserGroup テーブルが必要
  */
 class MealCountGridServiceTest extends TestCase
 {
@@ -305,10 +305,10 @@ class MealCountGridServiceTest extends TestCase
     }
 
     /* =====================================================================
-     * getRoomUsers
+     * getRoomUsersByRooms
      * ===================================================================== */
 
-    public function testGetRoomUsersReturnsUsersInRoom(): void
+    public function testGetRoomUsersByRoomsReturnsUsersInRoom(): void
     {
         $userGroupTable = $this->getTableLocator()->get('MUserGroup');
         $userInfoTable  = $this->getTableLocator()->get('MUserInfo');
@@ -338,35 +338,35 @@ class MealCountGridServiceTest extends TestCase
             'c_update_user' => 'test',
         ]));
 
-        $result = $this->service->getRoomUsers($userGroupTable, $userInfoTable, 1);
+        $result = $this->service->getRoomUsersByRooms($userGroupTable, $userInfoTable, [1])[1];
 
         $userIds = array_column($result, 'id');
         $this->assertContains(2, $userIds);
     }
 
-    public function testGetRoomUsersExcludesDeletedUsers(): void
+    public function testGetRoomUsersByRoomsExcludesDeletedUsers(): void
     {
         $userGroupTable = $this->getTableLocator()->get('MUserGroup');
         $userInfoTable  = $this->getTableLocator()->get('MUserInfo');
 
         // フィクスチャのユーザー1は i_del_flag=1（削除済み）なので結果に含まれない
-        $result = $this->service->getRoomUsers($userGroupTable, $userInfoTable, 1);
+        $result = $this->service->getRoomUsersByRooms($userGroupTable, $userInfoTable, [1])[1];
 
         $userIds = array_column($result, 'id');
         $this->assertNotContains(1, $userIds);
     }
 
-    public function testGetRoomUsersReturnsEmptyForUnknownRoom(): void
+    public function testGetRoomUsersByRoomsReturnsEmptyForUnknownRoom(): void
     {
         $userGroupTable = $this->getTableLocator()->get('MUserGroup');
         $userInfoTable  = $this->getTableLocator()->get('MUserInfo');
 
-        $result = $this->service->getRoomUsers($userGroupTable, $userInfoTable, 9999);
+        $result = $this->service->getRoomUsersByRooms($userGroupTable, $userInfoTable, [9999])[9999];
 
         $this->assertEmpty($result);
     }
 
-    public function testGetRoomUsersResultHasIdAndNameKeys(): void
+    public function testGetRoomUsersByRoomsResultHasIdAndNameKeys(): void
     {
         $userGroupTable = $this->getTableLocator()->get('MUserGroup');
         $userInfoTable  = $this->getTableLocator()->get('MUserInfo');
@@ -396,7 +396,7 @@ class MealCountGridServiceTest extends TestCase
             'c_update_user' => 'test',
         ]));
 
-        $result = $this->service->getRoomUsers($userGroupTable, $userInfoTable, 1);
+        $result = $this->service->getRoomUsersByRooms($userGroupTable, $userInfoTable, [1])[1];
 
         $this->assertNotEmpty($result);
         $this->assertArrayHasKey('id', $result[0]);

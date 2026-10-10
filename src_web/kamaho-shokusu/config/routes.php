@@ -232,6 +232,12 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'ReservationToggle', 'action' => 'toggle']
         )->setMethods(['POST']);
 
+        // 一括予約トグル（エクセル食数予約の一括登録）
+        $builder->connect(
+            '/TReservationInfo/bulk-toggle',
+            ['controller' => 'ReservationToggle', 'action' => 'bulkToggle']
+        )->setMethods(['POST']);
+
         // ── 食数レポート（ReservationReportController） ──
         $builder->connect(
             '/TReservationInfo/getRoomMealCounts/{roomId}',
@@ -381,6 +387,10 @@ return function (RouteBuilder $routes): void {
 
         // フィードバック・お問い合わせ
         $builder->connect('/Contacts', ['controller' => 'Contacts', 'action' => 'index']);
+        $builder->connect('/Contacts/reply/{id}', ['controller' => 'Contacts', 'action' => 'reply'])
+            ->setPass(['id'])
+            ->setPatterns(['id' => '\d+'])
+            ->setMethods(['POST']);
         $builder->connect('/Contacts/admin', ['controller' => 'Contacts', 'action' => 'adminIndex'])->setMethods(['GET']);
         $builder->connect('/Contacts/admin/{id}', ['controller' => 'Contacts', 'action' => 'adminDetail'])
             ->setPass(['id'])
@@ -393,6 +403,12 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/SystemReport/dailyChildrenData', ['controller' => 'SystemReport', 'action' => 'dailyChildrenData'])->setMethods(['GET']);
         $builder->connect('/SystemReport/loginReport', ['controller' => 'SystemReport', 'action' => 'loginReport'])->setMethods(['GET']);
         $builder->connect('/SystemReport/loginReportData', ['controller' => 'SystemReport', 'action' => 'loginReportData'])->setMethods(['GET']);
+
+        // ── Webhooks（外部サービス専用・認証なし。署名検証で保護） ──
+        $builder->connect(
+            '/webhooks/resend/inbound',
+            ['controller' => 'Webhooks', 'action' => 'resendInbound']
+        )->setMethods(['POST']);
 
         // ── 統計AI（管理者専用） ──
         $builder->connect('/StatsAi', ['controller' => 'StatsAi', 'action' => 'index'])->setMethods(['GET']);

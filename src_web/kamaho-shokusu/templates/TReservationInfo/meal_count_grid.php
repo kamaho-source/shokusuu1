@@ -51,6 +51,22 @@ foreach ($dates as $d) {
     $dateLabels[$d] = $dt->format('n/j') . "\n" . $dow[(int)$dt->format('w')];
 }
 
+// 日付ごとのメタ情報。セル用のクラス断片は日付だけで決まるため、
+// ユーザー×日付のループ内で作り直さず、ここで28日分だけ組み立てる。
+$dateMeta = [];
+foreach ($dates as $d) {
+    $dowIdx  = (int)(new \DateTimeImmutable($d))->format('w');
+    $dateCat = $dateCategories[$d] ?? 'normal';
+    $dateMeta[$d] = [
+        'isPast' => ($dateCat === 'past'),
+        'cls'    => ($d === $today   ? ' is-today'       : '')
+            . ($dowIdx === 6         ? ' is-saturday'    : '')
+            . ($dowIdx === 0         ? ' is-sunday'      : '')
+            . ($dateCat === 'past'   ? ' is-past'        : '')
+            . ($dateCat === 'last_minute' ? ' is-last-minute' : ''),
+    ];
+}
+
 // モード別 URL 生成ヘルパー
 $makeUrl = function (array $params) use ($viewMode, $selectedRoomId, $selectedUserId, $weekMondayStr, $basePath): string {
     $p = array_merge([
@@ -262,54 +278,51 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                 <span class="mcg-badge-readonly" title="他の職員の予約は操作できません。">閲覧</span>
                                 <?php endif; ?>
                             </td>
-                            <?php foreach ($dates as $d):
-                                $dt      = new \DateTimeImmutable($d);
-                                $dowIdx  = (int)$dt->format('w');
-                                $isToday = ($d === $today);
-                                $isSat   = ($dowIdx === 6);
-                                $isSun   = ($dowIdx === 0);
-                                $dateCat = $dateCategories[$d] ?? 'normal';
-                                $isPast  = ($dateCat === 'past');
-                                $first   = true;
+                            <?php
+                            // セルは (人数 × 28日 × 4食) 個になる。テンプレートの改行・
+                            // インデントをそのまま出すと HTML の 7 割が空白で占められるため、
+                            // ここだけは echo で 1 セル 1 行に詰めて出力する。
+                            foreach ($dates as $d):
+                                $meta   = $dateMeta[$d];
+                                $isPast = $meta['isPast'];
+                                $first  = true;
                                 foreach ($meals as $mealType => $mealLabel):
-                                    $reserved       = !empty($grid[$uid][$d][$mealType]);
+                                    $reserved = !empty($grid[$uid][$d][$mealType]);
                                     // 他部屋で有効な予約がある場合、この部屋のセルはロック
-                                    $otherRoomId    = $otherRoom[$uid][$d][$mealType] ?? null;
+                                    $otherRoomId       = $otherRoom[$uid][$d][$mealType] ?? null;
                                     $isOtherRoomLocked = !$isPast && $otherRoomId !== null;
-                                    $otherRoomName  = $isOtherRoomLocked
-                                        ? ($allRooms[$otherRoomId] ?? '他の部屋')
-                                        : '';
-                                    $toggleable = !$isPast && $canEditRow && !$isOtherRoomLocked;
+                                    $toggleable        = !$isPast && $canEditRow && !$isOtherRoomLocked;
                                     $tdClass = 'cell-meal'
-                                        . ($toggleable        ? ' mcg-toggleable'  : '')
+                                        . ($toggleable        ? ' mcg-toggleable'    : '')
                                         . ($isOtherRoomLocked ? ' mcg-cell-conflict' : '')
-                                        . ($first   ? ' meal-first'     : '')
-                                        . ($isToday ? ' is-today'       : '')
-                                        . ($isSat   ? ' is-saturday'    : '')
-                                        . ($isSun   ? ' is-sunday'      : '')
-                                        . ($isPast                        ? ' is-past'        : '')
-                                        . ($dateCat === 'last_minute'     ? ' is-last-minute' : '');
+                                        . ($first             ? ' meal-first'        : '')
+                                        . $meta['cls'];
                                     $first = false;
+
+                                    $attrs = '';
+                                    if ($isOtherRoomLocked) {
+                                        $otherRoomName = $allRooms[$otherRoomId] ?? '他の部屋';
+                                        $attrs .= ' data-conflict-msg="' . h($otherRoomName . 'で予約済みのため選択できません') . '"';
+                                    } elseif ($isOtherStaff && !$isPast) {
+                                        $attrs .= ' data-no-edit-msg="他の職員の予約は操作できません。"';
+                                    }
+                                    if ($toggleable) {
+                                        $attrs .= ' title="' . h($u['name'] . ' ' . $d . ' ' . $mealLabel) . '"'
+                                            . ' role="checkbox"'
+                                            . ' aria-checked="' . ($reserved ? 'true' : 'false') . '"'
+                                            . ' tabindex="0"';
+                                    }
+
+                                    echo '<td class="' . h($tdClass) . '"'
+                                        . ' data-user-id="' . h($uid) . '"'
+                                        . ' data-room-id="' . h($roomId) . '"'
+                                        . ' data-date="' . h($d) . '"'
+                                        . ' data-meal="' . h($mealType) . '"'
+                                        . ' data-reserved="' . ($reserved ? '1' : '0') . '"'
+                                        . $attrs . '>' . ($reserved ? '1' : '') . '</td>';
+                                endforeach;
+                            endforeach;
                             ?>
-                                <td class="<?= h($tdClass) ?>"
-                                    data-user-id="<?= h($uid) ?>"
-                                    data-room-id="<?= h($roomId) ?>"
-                                    data-date="<?= h($d) ?>"
-                                    data-meal="<?= h($mealType) ?>"
-                                    data-reserved="<?= $reserved ? '1' : '0' ?>"
-                                    <?php if ($isOtherRoomLocked): ?>
-                                    data-conflict-msg="<?= h($otherRoomName . 'で予約済みのため選択できません') ?>"
-                                    <?php elseif ($isOtherStaff && !$isPast): ?>
-                                    data-no-edit-msg="他の職員の予約は操作できません。"
-                                    <?php endif; ?>
-                                    <?php if ($toggleable): ?>
-                                    title="<?= h($u['name'] . ' ' . $d . ' ' . $mealLabel) ?>"
-                                    role="checkbox"
-                                    aria-checked="<?= $reserved ? 'true' : 'false' ?>"
-                                    tabindex="0"
-                                    <?php endif; ?>
-                                ><?= $reserved ? '1' : '' ?></td>
-                            <?php endforeach; endforeach; ?>
                         </tr>
                         <?php endforeach; ?>
 
