@@ -42,7 +42,10 @@ function openModalById(id){
             });
         }
 
-        var IS_CHILD = window.__TRESP.isChild;
+        // USE_KID_UI は「子ども用の見え方・直前予約UIを有効にするか」を示すフラグ。
+        // 実際の権限（本物の子どもユーザーかどうか）とは別物で、スタッフが子どもUIを
+        // プレビューする場合（?uimode=kid）も true になる。直前予約モードの可否は
+        // 常にこちらを基準にする（サーバー側の kid_section.php も同じ基準で描画している）。
         var USE_KID_UI = window.__TRESP.isKidUI;
 
         var TODAY  = window.__TRESP.todayJs;
@@ -127,16 +130,6 @@ function openModalById(id){
                     applyKidModeUI();
                     filterCardsByMode();
                 });
-            }
-
-            if (!IS_CHILD) {
-                kidMode = 'normal';
-                if (modeSelectEl) {
-                    modeSelectEl.value = 'normal';
-                    modeSelectEl.disabled = true;
-                }
-                updateModeBadge();
-                filterCardsByMode();
             }
 
             function setBtnReserved(btn, reserved){
