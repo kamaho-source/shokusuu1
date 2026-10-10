@@ -49,8 +49,8 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             <thead class="table-hover">
             <tr>
                 <th class="d-none d-md-table-cell" style="width:5%;"><?= $this->Paginator->sort('i_id_user', ['label' => 'No.']) ?></th>
+                <th style="width:10%;"><?= $this->Paginator->sort('c_login_account', ['label' => 'ログインID']) ?></th>
                 <th><?= $this->Paginator->sort('c_user_name', ['label' => 'ユーザー名']) ?></th>
-                <th class="d-none d-md-table-cell" style="width:8%;"><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
                 <th><?= __('所属部屋') ?></th>
                 <?php if ($isAdmin || $isSystemAdmin): ?>
                     <th><?= __('ブロック長') ?></th>
@@ -66,8 +66,8 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             <?php foreach ($mUserInfo as $userInfo): ?>
                 <tr>
                     <td class="d-none d-md-table-cell text-muted small"><?= h($userInfo->i_id_user) ?></td>
+                    <td><?= h($userInfo->c_login_account) ?></td>
                     <td><?= h($userInfo->c_user_name) ?></td>
-                    <td class="d-none d-md-table-cell text-center"><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
                     <td><?= h($userRoomLabels[$userInfo->i_id_user] ?? '未所属') ?></td>
                     <?php if ($isAdmin || $isSystemAdmin): ?>
                         <td class="text-center">
