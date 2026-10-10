@@ -326,7 +326,8 @@ function openModalById(id){
                         date: String(dateStr),
                         meal: Number(mealNumber),
                         value: wantValue ? 1 : 0,
-                        override: override ? 1 : 0
+                        override: override ? 1 : 0,
+                        userId: window.__TRESP.userId
                     })
                 });
 
