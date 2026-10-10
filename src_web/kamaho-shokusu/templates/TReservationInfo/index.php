@@ -203,6 +203,11 @@ $kidSectionVars = compact(
     'mealKeys',
     'mealLabels'
 );
+// element() はここで渡した配列（＋controller側でset()した変数）しか子要素へ渡さないため、
+// テンプレートローカル変数の $isChild は明示的に渡す必要がある（渡し漏れていた不具合）。
+// kid_section.php は $useKidUI===true の場合のみ描画されるため、スタッフが
+// 子ども表示切替（uimode=kid）でプレビューする場合も含めて、子ども用の日付範囲を使うべき。
+$kidSectionVars['isChild'] = $useKidUI;
 /** @noinspection PhpUndefinedVariableInspection */
 $calRoomId = isset($calRoomId) ? $calRoomId : null;
 /** @noinspection PhpUndefinedVariableInspection */
