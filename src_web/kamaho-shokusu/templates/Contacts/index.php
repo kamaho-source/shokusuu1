@@ -5,6 +5,7 @@
  * @var mixed $defaultEmail
  * @var mixed $defaultName
  * @var object $entity
+ * @var array<\App\Model\Entity\TContact> $myContacts
  */
 $this->assign('title', 'フィードバック・お問い合わせ');
 ?>
@@ -100,6 +101,64 @@ $this->assign('title', 'フィードバック・お問い合わせ');
 
     </div>
 </div>
+
+<?php if (!empty($myContacts)): ?>
+<div class="row justify-content-center mt-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <h6 class="fw-semibold mb-3 text-muted">
+            <i class="bi bi-clock-history me-1"></i>これまでのお問い合わせ
+        </h6>
+
+        <?php foreach ($myContacts as $myContact): ?>
+            <div class="card shadow-sm mb-3" id="contact-<?= h($myContact->id) ?>">
+                <div class="card-header bg-light d-flex align-items-center justify-content-between">
+                    <span>
+                        <span class="badge bg-secondary me-2"><?= h($myContact->category) ?></span>
+                        <span class="text-muted small"><?= h($myContact->created->format('Y-m-d H:i')) ?></span>
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div style="white-space: pre-wrap;"><?= h($myContact->body) ?></div>
+
+                    <?php if (!empty($myContact->t_contact_replies)): ?>
+                        <div class="mt-3 d-flex flex-column gap-2">
+                            <?php foreach ($myContact->t_contact_replies as $reply): ?>
+                                <?php $isAdminReply = $reply->author_type !== 'user'; ?>
+                                <div class="d-flex <?= $isAdminReply ? 'justify-content-start' : 'justify-content-end' ?>">
+                                    <div class="p-2 px-3 rounded-3 <?= $isAdminReply ? 'bg-primary bg-opacity-10' : 'bg-light border' ?>" style="max-width: 85%;">
+                                        <div class="text-muted small mb-1">
+                                            <?= $isAdminReply ? '<i class="bi bi-headset me-1"></i>担当者' : '<i class="bi bi-person me-1"></i>ご自身' ?>
+                                            ・<?= h($reply->sent_at->format('Y-m-d H:i')) ?>
+                                        </div>
+                                        <div style="white-space: pre-wrap;"><?= h($reply->body) ?></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <?= $this->Form->create(null, [
+                        'url'   => ['controller' => 'Contacts', 'action' => 'reply', $myContact->id],
+                        'class' => 'mt-3',
+                    ]) ?>
+                    <div class="input-group">
+                        <?= $this->Form->textarea('reply_body', [
+                            'class'       => 'form-control',
+                            'rows'        => 2,
+                            'placeholder' => '追加で返信する...',
+                            'required'    => true,
+                        ]) ?>
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    </div>
+                    <?= $this->Form->end() ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <script>
 (function () {
