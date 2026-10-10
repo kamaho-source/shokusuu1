@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
+use App\Service\AuditLogService;
 use App\Service\RoomService;
 use App\Service\UserBulkImportService;
 use App\Service\UserCreateService;
@@ -62,6 +63,7 @@ class MUserInfoController extends AppController
             'updateAdminStatus',
             'updateUserLevel',
             'updateSystemAdminStatus',
+            'updateReportAccess',
             'addUserRooms',
         ]);
     }
@@ -376,6 +378,59 @@ class MUserInfoController extends AppController
             return $apiResponse->success($this->response, [], 'システム管理者権限が正常に更新されました。');
         }
         return $apiResponse->error($this->response, 'システム管理者権限の更新に失敗しました。', 500);
+    }
+
+    public function updateReportAccess()
+    {
+        $this->request->allowMethod(['post']);
+        $apiResponse = new ApiResponseService();
+
+        $data           = $this->request->getData();
+        $userId         = $data['i_id_user'] ?? null;
+        $reportAccess   = $data['i_report_access'] ?? null;
+
+        if (is_null($userId) || is_null($reportAccess)) {
+            return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
+        }
+
+        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
+        if (!$user) {
+            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
+        }
+
+        try {
+            $this->Authorization->authorize($user, 'updateReportAccess');
+        } catch (ForbiddenException $e) {
+            return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
+        }
+
+        $identity  = $this->request->getAttribute('identity');
+        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
+        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
+        $loginId   = (string)($identity?->get('c_login_account') ?? '');
+        $value     = (int)$reportAccess === 1 ? 1 : 0;
+
+        $table            = $this->MUserInfo;
+        $user->i_report_access = $value;
+        $user->dt_update       = date('Y-m-d H:i:s');
+        $user->c_update_user   = $updatedBy;
+
+        if ($table->save($user)) {
+            AuditLogService::record(
+                'user',
+                'user_report_access_change',
+                $updatedBy,
+                $actorId,
+                'm_user_info',
+                (string)$user->i_id_user,
+                ['target_user_name' => $user->c_user_name, 'i_report_access' => $value],
+                $this->getClientIp() ?: null,
+                1,
+                $loginId
+            );
+            return $apiResponse->success($this->response, [], 'レポートアクセス権を更新しました。');
+        }
+        return $apiResponse->error($this->response, 'レポートアクセス権の更新に失敗しました。', 500);
     }
 
     public function updateUserLevel()
