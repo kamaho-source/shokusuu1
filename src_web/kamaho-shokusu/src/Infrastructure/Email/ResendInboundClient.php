@@ -32,7 +32,7 @@ final class ResendInboundClient
      */
     public function fetchPlainTextBody(string $emailId): string
     {
-        $http = new Client();
+        $http = new Client(['timeout' => 10]);
         $response = $http->get(
             self::BASE_URL . '/emails/receiving/' . rawurlencode($emailId),
             [],

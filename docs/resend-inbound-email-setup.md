@@ -61,6 +61,7 @@ Resend の **Inbound（受信メール）Webhook** を使って実現してい�
 | 変数名 | 値 | 必須/任意 |
 |--------|-----|----------|
 | `RESEND_WEBHOOK_SECRET` | 手順2で発行された Signing Secret（`whsec_...`） | **必須** |
+| `RESEND_API_KEY` | Resend API の API キー（受信メール本文の取得に使用） | **必須** |
 | `App.inboundReplyDomain`（Configure値） | 手順1で設定した受信用ドメイン（例: `reply.kamaho-shokusu.jp`） | 手順1のドメインが `reply.kamaho-shokusu.jp` と異なる場合のみ設定 |
 
 `App.inboundReplyDomain` を設定しない場合、コード側のデフォルト値 `reply.kamaho-shokusu.jp` が使われます（`src/Service/ContactService.php` の `INBOUND_REPLY_DOMAIN_DEFAULT`）。手順1で別の名前を使った場合は、`app_local.php` の `App` 設定に以下のように追加してください。

@@ -84,8 +84,11 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $csrfMiddleware = new CsrfProtectionMiddleware(['httponly' => true]);
         $csrfMiddleware->skipCheckCallback(function (ServerRequest $request): bool {
             // RoutingMiddleware が先に実行されるため、ここではルーティング済みの
-            // controllerパラメータで判定できる（パスの部分一致よりベースパスの影響を受けず確実）。
-            return $request->getParam('controller') === 'Webhooks';
+            // controller/actionパラメータで判定できる（パスの部分一致よりベースパスの影響を受けず確実）。
+            // action名まで絞ることで、将来WebhooksControllerに他のアクションが増えても
+            // 意図せずCSRF対象外になることを防ぐ。
+            return $request->getParam('controller') === 'Webhooks'
+                && $request->getParam('action') === 'resendInbound';
         });
         $middlewareQueue->add($csrfMiddleware);
 

@@ -6,6 +6,7 @@ namespace App\Service;
 use App\Model\Entity\TContactReply;
 use App\Model\Table\TContactRepliesTable;
 use App\Model\Table\TContactsTable;
+use Cake\Database\Exception\QueryException;
 use Cake\Http\Client;
 use Cake\I18n\DateTime;
 use Cake\Log\Log;
@@ -279,7 +280,19 @@ class ContactService
             return ['success' => false, 'errors' => $reply->getErrors()];
         }
 
-        if (!$this->replies->save($reply)) {
+        try {
+            $saved = $this->replies->save($reply);
+        } catch (QueryException $e) {
+            // buildRules()のSELECTチェック後・INSERT前に別プロセスが同じメールを処理した場合、
+            // DBのUNIQUE制約違反が例外として飛んでくる。既に保存済みなら失敗ではなく成功扱い（冪等性）。
+            if ($this->replies->exists(['external_message_id' => $externalMessageId])) {
+                return ['success' => true, 'errors' => []];
+            }
+
+            throw $e;
+        }
+
+        if (!$saved) {
             $errors = $reply->getErrors();
             if (isset($errors['external_message_id'])) {
                 // 一意制約違反＝並行実行で既に処理済み。失敗ではなく成功として扱う（冪等性）。
