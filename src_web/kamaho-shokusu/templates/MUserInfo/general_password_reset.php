@@ -21,7 +21,7 @@ $this->assign('title', 'パスワード変更');
                             'label' => false,
                             'required' => true,
                             'class' => 'form-control',
-                            'minlength' => 4, // ★ 4文字以上
+                            'minlength' => 2, // ★ 2文字以上
                             'autocomplete' => 'new-password'
                         ]) ?>
                     </div>
@@ -32,7 +32,7 @@ $this->assign('title', 'パスワード変更');
                             'label' => false,
                             'required' => true,
                             'class' => 'form-control',
-                            'minlength' => 4,
+                            'minlength' => 2,
                             'autocomplete' => 'new-password'
                         ]) ?>
                     </div>
