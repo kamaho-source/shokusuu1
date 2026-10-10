@@ -631,8 +631,8 @@ class MUserInfoController extends AppController
                 return $this->redirect(['action' => 'adminChangePassword']);
             }
 
-            if (strlen($newPassword) < 6) {
-                $this->Flash->error(__('新しいパスワードは6文字以上にしてください。'));
+            if (strlen($newPassword) < 2) {
+                $this->Flash->error(__('新しいパスワードは2文字以上にしてください。'));
                 return $this->redirect(['action' => 'adminChangePassword']);
             }
 
