@@ -40,9 +40,31 @@ class TContactPolicy
         return $this->isAdmin($user);
     }
 
+    /**
+     * 問い合わせ者本人：自分の問い合わせへの追加返信
+     */
+    public function canReply(?IdentityInterface $user, TContact $resource): bool
+    {
+        return $this->isOwner($user, $resource);
+    }
+
     private function isAuthenticated(?IdentityInterface $user): bool
     {
         return $this->getOriginalIdentity($user) !== null;
+    }
+
+    private function isOwner(?IdentityInterface $user, TContact $resource): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        $userId = is_object($identity) && method_exists($identity, 'get')
+            ? (int)$identity->get('i_id_user')
+            : (int)($identity['i_id_user'] ?? 0);
+
+        return $userId > 0 && $userId === (int)$resource->user_id;
     }
 
     private function isAdmin(?IdentityInterface $user): bool
