@@ -50,6 +50,14 @@ class EmailQuoteStripperTest extends TestCase
         $this->assertSame('承知しました。', EmailQuoteStripper::strip($body));
     }
 
+    public function testStrip_gmailJapaneseStyleQuote_cutsAtDateTimeSenderLine(): void
+    {
+        // Gmail日本語UIが引用開始に挿入する実際の形式（本番で確認済み）。
+        $body = "テスト返信返信\n\n\n大橋 和幸\n\n2026年10月10日(土) 10:31 鎌倉児童ホーム食数管理システム サポート <support@kamaho-shokusu.jp>:\n> 元の本文";
+
+        $this->assertSame("テスト返信返信\n\n\n大橋 和幸", EmailQuoteStripper::strip($body));
+    }
+
     public function testStrip_trimsTrailingWhitespace(): void
     {
         $body = "本文です。   \n\n\n";
