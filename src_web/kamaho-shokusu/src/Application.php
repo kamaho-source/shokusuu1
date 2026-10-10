@@ -77,8 +77,20 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->add(new ErrorHandlerMiddleware(Configure::read('Error'), $this))
             ->add(new AssetMiddleware(['cacheTime' => Configure::read('Asset.cacheTime')]))
             ->add(new RoutingMiddleware($this))
-            ->add(new BodyParserMiddleware())
-            ->add(new CsrfProtectionMiddleware(['httponly' => true]));
+            ->add(new BodyParserMiddleware());
+
+        // 外部サービス(Resend)からのWebhookはブラウザセッション/CSRFトークンを持たないため対象外とする。
+        // 代わりにWebhook自体の署名検証（Svix HMAC）で保護する。
+        $csrfMiddleware = new CsrfProtectionMiddleware(['httponly' => true]);
+        $csrfMiddleware->skipCheckCallback(function (ServerRequest $request): bool {
+            // RoutingMiddleware が先に実行されるため、ここではルーティング済みの
+            // controller/actionパラメータで判定できる（パスの部分一致よりベースパスの影響を受けず確実）。
+            // action名まで絞ることで、将来WebhooksControllerに他のアクションが増えても
+            // 意図せずCSRF対象外になることを防ぐ。
+            return $request->getParam('controller') === 'Webhooks'
+                && $request->getParam('action') === 'resendInbound';
+        });
+        $middlewareQueue->add($csrfMiddleware);
 
         // AuthenticationMiddleware はオプションなしで登録
         $middlewareQueue->add(new AuthenticationMiddleware($this));

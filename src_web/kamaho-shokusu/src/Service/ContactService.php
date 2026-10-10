@@ -6,6 +6,7 @@ namespace App\Service;
 use App\Model\Entity\TContactReply;
 use App\Model\Table\TContactRepliesTable;
 use App\Model\Table\TContactsTable;
+use Cake\Database\Exception\QueryException;
 use Cake\Http\Client;
 use Cake\I18n\DateTime;
 use Cake\Log\Log;
@@ -25,6 +26,12 @@ class ContactService
 
     /** 管理者通知の宛先が未設定(デフォルト値)のときはメール送信をスキップする判定に使う。 */
     private const ADMIN_EMAIL_UNSET = 'admin@localhost';
+
+    /**
+     * 受信メール返信用ドメインのデフォルト値。
+     * 本番では Configure('App.inboundReplyDomain') で上書きする想定（Resendの受信設定に合わせる）。
+     */
+    private const INBOUND_REPLY_DOMAIN_DEFAULT = 'reply.kamaho-shokusu.jp';
 
     /** カテゴリ別の自動返信メール文面 */
     private const AUTO_REPLY_TEMPLATES = [
@@ -77,6 +84,10 @@ class ContactService
         if ($entity->getErrors()) {
             return ['success' => false, 'entity' => $entity];
         }
+
+        // reply_token はフォーム入力から受け取らず、ここで直接プロパティ代入する
+        // （_accessible に含めていないためマスアサインでは上書きできない）。
+        $entity->reply_token = bin2hex(random_bytes(16));
 
         if (!$this->contacts->save($entity)) {
             return ['success' => false, 'entity' => $entity];
@@ -231,6 +242,75 @@ class ContactService
         return ['success' => true, 'errors' => []];
     }
 
+    /**
+     * 受信メール（Resend Inbound Webhook経由）による、問い合わせ者本人からの返信を登録する。
+     *
+     * トークンそのものが「本人であることの証明」であるため user_id による所有者チェックは行わない
+     * （トークンはメールの Reply-To としてのみ配布され、第三者が知り得ない前提）。
+     *
+     * @param string $externalMessageId Resendのメールid。再送された同一メールを二重登録しないために使う。
+     * @return array{success: bool, errors: array}
+     */
+    public function addUserReplyByToken(string $token, string $replyBody, string $externalMessageId): array
+    {
+        $contact = $this->contacts->find()
+            ->where(['reply_token' => $token])
+            ->first();
+
+        if ($contact === null) {
+            return ['success' => false, 'errors' => ['token' => '不明な返信先トークンです。']];
+        }
+
+        // Webhookの再送による二重登録を事前にスキップする（高速パス）。
+        // レース時の最終防衛線は TContactRepliesTable::buildRules() の一意制約。
+        $alreadyProcessed = $this->replies->exists(['external_message_id' => $externalMessageId]);
+        if ($alreadyProcessed) {
+            return ['success' => true, 'errors' => []];
+        }
+
+        $reply = $this->replies->newEntity([
+            'contact_id'           => $contact->id,
+            'body'                 => trim($replyBody),
+            'author_type'          => TContactReply::AUTHOR_USER,
+            'external_message_id'  => $externalMessageId,
+            'sent_at'              => new DateTime(),
+        ]);
+
+        if ($reply->getErrors()) {
+            return ['success' => false, 'errors' => $reply->getErrors()];
+        }
+
+        try {
+            $saved = $this->replies->save($reply);
+        } catch (QueryException $e) {
+            // buildRules()のSELECTチェック後・INSERT前に別プロセスが同じメールを処理した場合、
+            // DBのUNIQUE制約違反が例外として飛んでくる。既に保存済みなら失敗ではなく成功扱い（冪等性）。
+            if ($this->replies->exists(['external_message_id' => $externalMessageId])) {
+                return ['success' => true, 'errors' => []];
+            }
+
+            throw $e;
+        }
+
+        if (!$saved) {
+            $errors = $reply->getErrors();
+            if (isset($errors['external_message_id'])) {
+                // 一意制約違反＝並行実行で既に処理済み。失敗ではなく成功として扱う（冪等性）。
+                return ['success' => true, 'errors' => []];
+            }
+
+            return ['success' => false, 'errors' => $errors ?: ['save' => '保存に失敗しました。']];
+        }
+
+        try {
+            $this->notifyAdminOfUserReply($contact, trim($replyBody));
+        } catch (\Throwable $e) {
+            $this->logNotificationFailure('notifyAdminOfUserReply', $e, (int)$contact->id);
+        }
+
+        return ['success' => true, 'errors' => []];
+    }
+
     private function logNotificationFailure(string $action, \Throwable $e, int $contactId): void
     {
         Log::error(sprintf(
@@ -294,8 +374,9 @@ class ContactService
         ]);
 
         $mailer = new Mailer('default');
+        $mailer->setFrom(self::MAIL_FROM);
+        $this->applyReplyTo($mailer, $entity);
         $mailer
-            ->setFrom(self::MAIL_FROM)
             ->setTo($entity->email, $entity->name)
             ->setSubject($template['subject'])
             ->setEmailFormat('text')
@@ -330,12 +411,36 @@ class ContactService
         ]);
 
         $mailer = new Mailer('default');
+        $mailer->setFrom(['support@kamaho-shokusu.jp' => '鎌倉児童ホーム食数管理システム サポート']);
+        $this->applyReplyTo($mailer, $contact);
         $mailer
-            ->setFrom(['support@kamaho-shokusu.jp' => '鎌倉児童ホーム食数管理システム サポート'])
             ->setTo($contact->email, $contact->name)
             ->setSubject('[食数管理システム] Re: ' . $contact->category . 'について')
             ->setEmailFormat('text')
             ->deliver($body);
+    }
+
+    /**
+     * メールに返信専用アドレスをReply-Toとして設定する。
+     * reply_token が未発行（移行前の既存データ等）の場合は何もしない。
+     */
+    private function applyReplyTo(Mailer $mailer, \App\Model\Entity\TContact $contact): void
+    {
+        if (empty($contact->reply_token)) {
+            return;
+        }
+
+        $mailer->setReplyTo(self::buildReplyToAddress($contact->reply_token));
+    }
+
+    /**
+     * 受信メール返信の宛先（reply+{token}@{domain}）を組み立てる。
+     */
+    private static function buildReplyToAddress(string $token): string
+    {
+        $domain = (string)\Cake\Core\Configure::read('App.inboundReplyDomain', self::INBOUND_REPLY_DOMAIN_DEFAULT);
+
+        return 'reply+' . $token . '@' . $domain;
     }
 
     /**

@@ -114,4 +114,62 @@ class ContactServiceTest extends TestCase
         $this->assertNotNull($latest);
         $this->assertSame('admin', $latest->author_type);
     }
+
+    // ----------------------------------------------------------------
+    // addUserReplyByToken（受信メール経由の本人返信）
+    // ----------------------------------------------------------------
+
+    public function testAddUserReplyByToken_savesAsUserAuthorType(): void
+    {
+        $result = $this->service->addUserReplyByToken(
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            'メールから返信しました。',
+            'resend-email-id-001'
+        );
+
+        $this->assertTrue($result['success'], json_encode($result['errors']));
+
+        $repliesTable = TableRegistry::getTableLocator()->get('TContactReplies');
+        $latest = $repliesTable->find()
+            ->where(['contact_id' => 1])
+            ->orderByDesc('id')
+            ->first();
+
+        $this->assertSame('user', $latest->author_type);
+        $this->assertSame('メールから返信しました。', $latest->body);
+        $this->assertSame('resend-email-id-001', $latest->external_message_id);
+    }
+
+    public function testAddUserReplyByToken_unknownToken_returnsFailureWithoutThrowing(): void
+    {
+        $result = $this->service->addUserReplyByToken('not-a-real-token', '本文', 'resend-email-id-002');
+
+        $this->assertFalse($result['success']);
+        $this->assertArrayHasKey('token', $result['errors']);
+    }
+
+    public function testAddUserReplyByToken_duplicateExternalMessageId_isIdempotent(): void
+    {
+        $first = $this->service->addUserReplyByToken(
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            '1回目の返信。',
+            'resend-email-id-003'
+        );
+        $this->assertTrue($first['success']);
+
+        // Webhookの再送を模倣：同じ external_message_id で再度呼び出す。
+        $second = $this->service->addUserReplyByToken(
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+            '1回目の返信。',
+            'resend-email-id-003'
+        );
+        $this->assertTrue($second['success']);
+
+        $repliesTable = TableRegistry::getTableLocator()->get('TContactReplies');
+        $count = $repliesTable->find()
+            ->where(['external_message_id' => 'resend-email-id-003'])
+            ->count();
+
+        $this->assertSame(1, $count);
+    }
 }
