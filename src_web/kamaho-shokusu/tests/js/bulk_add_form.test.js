@@ -10,12 +10,12 @@ const SRC = fs.readFileSync(
 
 const DATES = ['2026-10-05', '2026-10-06'];
 
-function buildDom() {
+function buildDom(roomOptions) {
     document.body.innerHTML = `
         <div class="excel-header">
             <input type="search">
             <button id="copy-day-btn"></button>
-            <select id="room-select"><option value="">-</option><option value="7">A</option></select>
+            <select id="room-select">${roomOptions}</select>
             <div id="room-select-help"></div>
             <select id="user-filter-select"><option value="all">all</option></select>
             <button id="save-btn"></button>
@@ -56,11 +56,11 @@ function payload() {
     };
 }
 
-async function boot() {
-    buildDom();
+async function boot({ roomId = '7', roomOptions = '<option value="">-</option><option value="7">A</option>' } = {}) {
+    buildDom(roomOptions);
     window.__BASE_PATH = '';
     window.__SELECTED_DATE = DATES[0];
-    window.__ROOM_ID = '7';
+    window.__ROOM_ID = roomId;
     window.__BASE_WEEK = DATES[0];
     window.__LOGIN_USER_ID = 1;
     window.__LOGIN_USER_LEVEL = 0;
@@ -155,6 +155,14 @@ describe('bulk_add_form.js', () => {
         day2.click();
         await flush();
         expect(fetch).toHaveBeenCalledTimes(2); // 取得済みならキャッシュから描画
+    });
+
+    test('room_id 未指定なら先頭の部屋で初期表示し、所属外の保存済み部屋は無視する', async () => {
+        localStorage.setItem('bulk_add_form_ui_v1:1', JSON.stringify({ roomId: '99' }));
+        await boot({ roomId: '', roomOptions: '<option value="7">A</option><option value="8">B</option>' });
+        expect(document.getElementById('room-select').value).toBe('7');
+        expect(document.getElementById('i_id_room').value).toBe('7');
+        expect(fetch).toHaveBeenCalledTimes(1);
     });
 
     test('曜日ごとに選択状態が独立している', async () => {
