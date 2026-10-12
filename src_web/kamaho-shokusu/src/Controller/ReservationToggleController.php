@@ -164,9 +164,14 @@ class ReservationToggleController extends ReservationBaseController
                 ];
             }
         }
+        // 理由の種類が多すぎても監査ログの列（TEXT）を溢れさせないよう、多い順に上位10種類までにする。
+        arsort($reasonCounts);
         $reasonParts = [];
-        foreach ($reasonCounts as $msg => $n) {
+        foreach (array_slice($reasonCounts, 0, 10, true) as $msg => $n) {
             $reasonParts[] = "{$msg}({$n}件)";
+        }
+        if (count($reasonCounts) > 10) {
+            $reasonParts[] = 'ほか' . (count($reasonCounts) - 10) . '種類';
         }
         $failureReason = $failCount === 0
             ? null
