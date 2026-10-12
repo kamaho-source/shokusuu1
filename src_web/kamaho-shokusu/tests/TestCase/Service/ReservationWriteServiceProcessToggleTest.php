@@ -126,4 +126,51 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertTrue($results[0]['ok'], $results[0]['message'] ?? '');
     }
+
+    public function testProcessBulkToggle_systemErrorHidesSqlAndShowsErrorCode(): void
+    {
+        // 1件目: DB エラー（デッドロック）、2件目: DB 接続エラー、3件目: 通常のエラー（過去日）。
+        $service = new class (
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            TableRegistry::getTableLocator()->get('MRoomInfo'),
+            '/webroot/'
+        ) extends ReservationWriteService {
+            public function processToggle(int $roomId, array $payload, int $loginUserId, string $loginUserName, bool $invalidateCache = true): array
+            {
+                return match ((int)$payload['meal']) {
+                    1 => throw new \Cake\Database\Exception\QueryException(
+                        'UPDATE t_individual_reservation_info SET i_change_flag = 1',
+                        new \PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock')
+                    ),
+                    2 => throw new \PDOException('SQLSTATE[HY000] [2002] Connection refused'),
+                    default => parent::processToggle($roomId, $payload, $loginUserId, $loginUserName, $invalidateCache),
+                };
+            }
+        };
+        $items = [
+            ['roomId' => 1, 'userId' => 1, 'date' => '2099-01-01', 'meal' => 1, 'value' => 1],
+            ['roomId' => 1, 'userId' => 1, 'date' => '2099-01-01', 'meal' => 2, 'value' => 1],
+            ['roomId' => 1, 'userId' => 1, 'date' => '2020-01-01', 'meal' => 3, 'value' => 1],
+        ];
+
+        $results = $service->processBulkToggle($items, 1, '管理者ユーザー');
+
+        $this->assertSame(
+            '予約の更新に失敗しました（他の操作と同時に更新されたため。もう一度お試しください [エラーコード: DB-1213]）',
+            $results[0]['message']
+        );
+        $this->assertSame(
+            '予約の更新に失敗しました（システムエラーのため。管理者にお問い合わせください [エラーコード: DB-2002]）',
+            $results[1]['message']
+        );
+        foreach ([$results[0]['message'], $results[1]['message']] as $msg) {
+            $this->assertStringNotContainsString('SQLSTATE', $msg);
+            $this->assertStringNotContainsString('t_individual_reservation_info', $msg);
+            $this->assertStringNotContainsString('データベース', $msg);
+        }
+        // 通常のエラーはこれまでどおり具体的な理由が出る（エラーコードは付かない）。
+        $this->assertStringContainsString('過去日', $results[2]['message']);
+        $this->assertStringNotContainsString('エラーコード', $results[2]['message']);
+    }
 }

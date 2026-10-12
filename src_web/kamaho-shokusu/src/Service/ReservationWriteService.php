@@ -394,8 +394,9 @@ class ReservationWriteService
         } catch (\InvalidArgumentException $e) {
             throw new InvalidInputException($e->getMessage());
         } catch (\Throwable $e) {
+            // 生の例外メッセージ（SQL 文など）は利用者に返さず、ログファイルにだけ残す。
             Log::error('toggle処理で予期しない例外: ' . $e->getMessage());
-            throw new PersistenceException('Internal Server Error');
+            throw new PersistenceException('予約の更新に失敗しました（' . self::describeSystemError($e) . '）');
         }
     }
 
@@ -447,8 +448,9 @@ class ReservationWriteService
             } catch (DomainException $e) {
                 $results[$i] = ['ok' => false, 'message' => $e->getMessage()];
             } catch (\Throwable $e) {
+                // SQL 文やテーブル名を含みうる生の例外メッセージは画面・監査ログに出さず、ログファイルにだけ残す。
                 Log::error('一括toggleで予期しない例外: ' . $e->getMessage());
-                $results[$i] = ['ok' => false, 'message' => '登録に失敗しました（システムエラー: ' . mb_strimwidth($e->getMessage(), 0, 120, '…') . '）'];
+                $results[$i] = ['ok' => false, 'message' => '予約の更新に失敗しました（' . self::describeSystemError($e) . '）'];
             }
         }
 
@@ -458,6 +460,43 @@ class ReservationWriteService
         }
 
         return $results;
+    }
+
+    /**
+     * 予期しない例外を、画面・監査ログに出してよい短い原因に変換する。
+     * 生のメッセージ（SQL 文・テーブル名など）は含めない。
+     * エラーコードは DB 由来なら「DB-<MySQL エラー番号>」、それ以外は「SYS-0000」。
+     *
+     * @param \Throwable $e
+     * @return string 例: 「他の操作と同時に更新されたため。もう一度お試しください [エラーコード: DB-1213]」
+     */
+    public static function describeSystemError(\Throwable $e): string
+    {
+        $pdo = $e;
+        while ($pdo !== null && !$pdo instanceof \PDOException) {
+            $pdo = $pdo->getPrevious();
+        }
+        if ($pdo === null) {
+            return 'システムエラーのため。管理者にお問い合わせください [エラーコード: SYS-0000]';
+        }
+
+        // MySQL のエラー番号。クエリ失敗は "SQLSTATE[23000]: Integrity constraint violation: 1062 ..."、
+        // 接続失敗は "SQLSTATE[HY000] [2002] Connection refused" の形。
+        $code = (int)($pdo->errorInfo[1] ?? 0);
+        if ($code === 0 && preg_match('/SQLSTATE\[\w+\](?:\s*\[(\d+)\]|:[^:]*:\s*(\d+))/', $pdo->getMessage(), $m)) {
+            $code = (int)(($m[1] ?? '') !== '' ? $m[1] : $m[2]);
+        }
+
+        $text = match ($code) {
+            1213 => '他の操作と同時に更新されたため。もう一度お試しください',
+            1205 => '他の操作の処理待ちで時間切れになったため。もう一度お試しください',
+            1062 => '同じ予約がすでに登録されているため',
+            1451, 1452 => '部屋または利用者のデータが見つからないため',
+            // 接続断などの技術的な原因は利用者に説明せず、エラーコードで管理者が判別する。
+            default => 'システムエラーのため。管理者にお問い合わせください',
+        };
+
+        return sprintf('%s [エラーコード: DB-%04d]', $text, $code);
     }
 
     /**

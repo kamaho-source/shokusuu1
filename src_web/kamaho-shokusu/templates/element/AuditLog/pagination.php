@@ -20,7 +20,7 @@ $this->Paginator->setTemplates([
 $edge = static fn(string $label, string $title, bool $disabled, string $url = ''): string => $disabled
     ? '<li class="page-item disabled"><span class="page-link" title="' . h($title) . '">' . $label . '</span></li>'
     : '<li class="page-item"><a class="page-link" href="' . h($url) . '" title="' . h($title) . '">' . $label . '</a></li>';
-$urlFor = fn(int $page): string => $this->Paginator->generateUrl(['page' => $page]);
+$urlFor = fn(int $page): string => $this->Paginator->generateUrl(['page' => $page], [], ['escape' => false]);
 
 // ページ指定フォームは現在の絞り込み条件を引き継ぐ
 $hidden = [];
