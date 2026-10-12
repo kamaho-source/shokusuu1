@@ -112,42 +112,11 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
 </div>
 
 <!-- 件数 & 上部ページネーション -->
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-    <p class="text-muted small mb-0">
-        <i class="bi bi-list-ul me-1"></i>
-        <?= $this->Paginator->counter('全 {{count}} 件中 {{start}}〜{{end}} 件を表示') ?>
-    </p>
-    <nav>
-        <ul class="pagination pagination-sm mb-0">
-            <?= $this->Paginator->prev('«', [
-                'tag'            => 'li',
-                'class'          => 'page-item',
-                'linkAttributes' => ['class' => 'page-link'],
-            ], null, [
-                'tag'            => 'li',
-                'class'          => 'page-item disabled',
-                'linkAttributes' => ['class' => 'page-link', 'tabindex' => '-1'],
-            ]) ?>
-            <?= $this->Paginator->numbers([
-                'tag'          => 'li',
-                'class'        => 'page-item',
-                'currentTag'   => 'li',
-                'currentClass' => 'page-item active',
-                'linkAttributes' => ['class' => 'page-link'],
-                'escape'       => false,
-            ]) ?>
-            <?= $this->Paginator->next('»', [
-                'tag'            => 'li',
-                'class'          => 'page-item',
-                'linkAttributes' => ['class' => 'page-link'],
-            ], null, [
-                'tag'            => 'li',
-                'class'          => 'page-item disabled',
-                'linkAttributes' => ['class' => 'page-link', 'tabindex' => '-1'],
-            ]) ?>
-        </ul>
-    </nav>
-</div>
+<p class="text-muted small mb-2">
+    <i class="bi bi-list-ul me-1"></i>
+    <?= $this->Paginator->counter('全 {{count}} 件中 {{start}}〜{{end}} 件を表示') ?>
+</p>
+<div class="mb-3"><?= $this->element('AuditLog/pagination') ?></div>
 
 <!-- ログ一覧テーブル -->
 <div class="table-responsive shadow-sm rounded border">
@@ -243,33 +212,4 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
 </div>
 
 <!-- 下部ページネーション -->
-<nav class="mt-3">
-    <ul class="pagination justify-content-center mb-0">
-        <?= $this->Paginator->prev('«', [
-            'tag'            => 'li',
-            'class'          => 'page-item',
-            'linkAttributes' => ['class' => 'page-link'],
-        ], null, [
-            'tag'            => 'li',
-            'class'          => 'page-item disabled',
-            'linkAttributes' => ['class' => 'page-link', 'tabindex' => '-1'],
-        ]) ?>
-        <?= $this->Paginator->numbers([
-            'tag'          => 'li',
-            'class'        => 'page-item',
-            'currentTag'   => 'li',
-            'currentClass' => 'page-item active',
-            'linkAttributes' => ['class' => 'page-link'],
-            'escape'       => false,
-        ]) ?>
-        <?= $this->Paginator->next('»', [
-            'tag'            => 'li',
-            'class'          => 'page-item',
-            'linkAttributes' => ['class' => 'page-link'],
-        ], null, [
-            'tag'            => 'li',
-            'class'          => 'page-item disabled',
-            'linkAttributes' => ['class' => 'page-link', 'tabindex' => '-1'],
-        ]) ?>
-    </ul>
-</nav>
+<div class="mt-3"><?= $this->element('AuditLog/pagination') ?></div>
