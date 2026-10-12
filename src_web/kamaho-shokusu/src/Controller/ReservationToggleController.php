@@ -143,12 +143,41 @@ class ReservationToggleController extends ReservationBaseController
         $okCount   = count(array_filter($results, static fn($r) => !empty($r['ok'])));
         $failCount = count($results) - $okCount;
 
+        // 失敗した item を理由つきで集計する（監査ログで「なぜ登録できなかったか」を追えるようにする）。
+        $itemList = array_values($items);
+        $failures = [];
+        $reasonCounts = [];
+        foreach ($results as $i => $r) {
+            if (!empty($r['ok'])) {
+                continue;
+            }
+            $msg = (string)($r['message'] ?? '登録に失敗しました。');
+            $it  = (array)($itemList[$i] ?? []);
+            $reasonCounts[$msg] = ($reasonCounts[$msg] ?? 0) + 1;
+            if (count($failures) < 50) {
+                $failures[] = [
+                    'userId' => (int)($it['userId'] ?? 0),
+                    'roomId' => (int)($it['roomId'] ?? $it['i_id_room'] ?? 0),
+                    'date'   => (string)($it['date'] ?? ''),
+                    'meal'   => $it['meal'] ?? null,
+                    'reason' => $msg,
+                ];
+            }
+        }
+        $reasonParts = [];
+        foreach ($reasonCounts as $msg => $n) {
+            $reasonParts[] = "{$msg}({$n}件)";
+        }
+        $failureReason = $failCount === 0
+            ? null
+            : "{$failCount}件の登録に失敗しました。理由: " . implode(' / ', $reasonParts);
+
         \App\Service\AuditLogService::record(
             'reservation', 'reservation_bulk_toggle', $loginUserName, $loginUserId,
             't_reservation_info', null,
-            ['total' => count($results), 'ok' => $okCount, 'fail' => $failCount],
+            ['total' => count($results), 'ok' => $okCount, 'fail' => $failCount, 'failures' => $failures],
             $this->getClientIp(), $failCount === 0 ? 1 : 0, $loginAccount,
-            $failCount === 0 ? null : "{$failCount}件の登録に失敗しました。"
+            $failureReason
         );
 
         return $this->apiResponseService->success(
