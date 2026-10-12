@@ -448,7 +448,7 @@ class ReservationWriteService
                 $results[$i] = ['ok' => false, 'message' => $e->getMessage()];
             } catch (\Throwable $e) {
                 Log::error('一括toggleで予期しない例外: ' . $e->getMessage());
-                $results[$i] = ['ok' => false, 'message' => '登録に失敗しました。'];
+                $results[$i] = ['ok' => false, 'message' => '登録に失敗しました（システムエラー: ' . mb_strimwidth($e->getMessage(), 0, 120, '…') . '）'];
             }
         }
 
