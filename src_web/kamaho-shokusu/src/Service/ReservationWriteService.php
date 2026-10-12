@@ -465,8 +465,6 @@ class ReservationWriteService
     /**
      * 予期しない例外を、画面・監査ログに出してよい短い原因に変換する。
      * 生のメッセージ（SQL 文・テーブル名など）は含めない。
-     *
-     * @param \Throwable $e
      * エラーコードは DB 由来なら「DB-<MySQL エラー番号>」、それ以外は「SYS-0000」。
      *
      * @param \Throwable $e
