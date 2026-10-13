@@ -182,7 +182,8 @@ class MMealPriceInfoController extends AppController
 
     public function exportMealSummary()
     {
-        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'index');
+        // 全職員の氏名・職員ID・食数・控除額が返るため、管理者のみ許可する。
+        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'exportMealSummary');
 
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();

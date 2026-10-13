@@ -125,11 +125,41 @@ class AppController extends Controller
         return (string)$this->request->clientIp();
     }
 
+    /**
+     * 削除済み(i_del_flag=1)または無効(i_enable=1)のユーザーか。
+     * 判定基準は MUserInfoController::login() と同じ。
+     */
+    private function isDisabledIdentity(\Authentication\IdentityInterface $user): bool
+    {
+        return (int)$user->get('i_del_flag') === 1 || (int)$user->get('i_enable') === 1;
+    }
+
     public function beforeFilter(EventInterface $event)
     {
         parent::beforeFilter($event);
         $this->Authentication->allowUnauthenticated(['login']);
         $user = $this->Authentication->getIdentity();
+
+        // 削除・無効化されたユーザーのログイン済みセッションを締め出す。
+        // 有効性の確認がログインフォームだけだと、ログイン中のセッションは使い続けられてしまう。
+        if ($user !== null && $this->isDisabledIdentity($user)
+            && !in_array($this->request->getParam('action'), ['login', 'logout'], true)
+        ) {
+            $this->Authentication->logout();
+            // ここで処理を打ち切るため、認可チェック必須ミドルウェアが 500 にしないよう明示的にスキップする。
+            $this->Authorization->skipAuthorization();
+            if ($this->request->is('ajax') || $this->request->accepts('application/json')) {
+                return $this->response->withStatus(401)
+                    ->withType('application/json')
+                    ->withStringBody((string)json_encode(
+                        ['status' => 'error', 'message' => 'このアカウントは無効化されています。'],
+                        JSON_UNESCAPED_UNICODE
+                    ));
+            }
+            $this->Flash->error(__('このアカウントは無効化されています。'));
+
+            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+        }
 
         $this->set('user', $user);
         if ($user !== null) {
