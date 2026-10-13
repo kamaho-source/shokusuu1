@@ -6,24 +6,23 @@ namespace App\Infrastructure\AI;
 use Cake\Log\Log;
 
 /**
- * OpenRouter Chat Completions API のストリーミングクライアント。
+ * Groq Chat Completions API（OpenAI互換） のストリーミングクライアント。
  *
  * 呼び出しの所要時間・HTTPステータスのログ記録と、
  * 4xx/5xx（特にレート制限 429）の検出を共通化する。
  */
-final class OpenRouterClient
+final class GroqClient
 {
     public const RATE_LIMIT_MESSAGE   = '現在AIが混雑しています。しばらく待ってからお試しください。';
     public const GENERIC_ERROR_MESSAGE = '通信エラーが発生しました。';
 
-    private const ENDPOINT            = 'https://openrouter.ai/api/v1/chat/completions';
-    private const HTTP_REFERER        = 'https://github.com/kamaho-source/shokusuu1';
+    private const ENDPOINT            = 'https://api.groq.com/openai/v1/chat/completions';
     private const CONNECT_TIMEOUT_SEC = 10;
     private const TIMEOUT_SEC         = 60;
 
     /**
-     * @param string $model 使用するモデルID（例: openrouter/free）
-     * @param string $apiKey OpenRouter APIキー
+     * @param string $model 使用するモデルID（例: openai/gpt-oss-120b）
+     * @param string $apiKey Groq APIキー
      */
     public function __construct(
         private readonly string $model,
@@ -64,7 +63,6 @@ final class OpenRouterClient
             CURLOPT_HTTPHEADER     => [
                 'Authorization: Bearer ' . $this->apiKey,
                 'Content-Type: application/json',
-                'HTTP-Referer: ' . self::HTTP_REFERER,
             ],
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
@@ -127,7 +125,7 @@ final class OpenRouterClient
         }
 
         Log::info(sprintf(
-            'AI OpenRouter stream: status=%d duration=%.3fs model=%s response_length=%d',
+            'AI Groq stream: status=%d duration=%.3fs model=%s response_length=%d',
             $httpCode,
             $duration,
             $this->model,
@@ -165,7 +163,7 @@ final class OpenRouterClient
     }
 
     /**
-     * OpenRouter のエラーレスポンスボディから人間可読なエラーメッセージを抽出する。
+     * Groq のエラーレスポンスボディから人間可読なエラーメッセージを抽出する。
      *
      * @param string $body レスポンスボディ（JSON想定）
      * @return string 抽出したメッセージ（最大500文字）
