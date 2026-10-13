@@ -223,6 +223,58 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(3, (int)$user->i_admin);
     }
 
+    /**
+     * 別の権限（ブロック長）を持つユーザーへ、確認(overwrite)なしで管理者を付与すると拒否される。
+     * 画面の確認を経ない上書きで、ブロック長が黙って管理者に置き換わるのを防ぐ。
+     */
+    public function testRoleChangeWithoutOverwriteConfirmationIsRejected(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 1]);
+
+        $this->assertResponseCode(409);
+        $this->assertSame(2, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 確認済み(overwrite=1)なら、別の権限から変更できる（排他のため置き換わる）。
+     */
+    public function testRoleChangeWithOverwriteConfirmationSucceeds(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 1, 'overwrite' => 1]);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 古い画面から「管理者を解除」されても、ブロック長権限を消さない。
+     */
+    public function testAdminOffDoesNotWipeBlockLeader(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 0]);
+
+        $this->assertResponseCode(409);
+        $this->assertSame(2, (int)$table->get(3)->i_admin);
+    }
+
     private function setAuthenticatedSession(bool $isAdmin = true): void
     {
         $this->session([
