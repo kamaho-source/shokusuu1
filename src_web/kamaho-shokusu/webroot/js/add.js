@@ -60,6 +60,8 @@
             // 失敗を画面に出し、保存ボタンを無効のままにする。
             if (ceRoot.dataset) ceRoot.dataset.loadFailed = '1';
             if (ceRoot.querySelector) {
+                // 同時に複数回呼ばれても表示は1つにする
+                ceRoot.querySelectorAll('.reservation-load-error').forEach((n) => n.remove());
                 const alertEl = document.createElement('div');
                 alertEl.className = 'alert alert-danger reservation-load-error';
                 alertEl.setAttribute('role', 'alert');
