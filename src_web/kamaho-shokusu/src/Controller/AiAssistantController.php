@@ -6,7 +6,7 @@ namespace App\Controller;
 use App\Application\AI\AiUserRole;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\AI\OpenRouterClient;
+use App\Infrastructure\AI\GroqClient;
 use App\Service\AuditLogService;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\InternalErrorException;
@@ -23,9 +23,8 @@ use Cake\Log\Log;
  */
 class AiAssistantController extends AppController
 {
-    private const OPENROUTER_MODEL    = 'openrouter/free';
-    private const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-    private const HTTP_REFERER        = 'https://github.com/kamaho-source/shokusuu1';
+    private const AI_MODEL            = 'openai/gpt-oss-120b';
+    private const AI_ENDPOINT         = 'https://api.groq.com/openai/v1/chat/completions';
     private const MESSAGE_LIMIT       = 20;
     /** 接続確立までの上限秒数（全体タイムアウトとは別に短く制限する） */
     private const CONNECT_TIMEOUT_SEC = 10;
@@ -68,9 +67,9 @@ class AiAssistantController extends AppController
             throw new BadRequestException('質問内容が空です。');
         }
 
-        $apiKey = env('OPENROUTER_API_KEY');
+        $apiKey = env('GROQ_API_KEY');
         if (empty($apiKey)) {
-            Log::error('OPENROUTER_API_KEY is not set in .env');
+            Log::error('GROQ_API_KEY is not set in .env');
             throw new InternalErrorException('AI機能の設定が不十分です。');
         }
 
@@ -84,7 +83,7 @@ class AiAssistantController extends AppController
         $ipAddress    = $this->request->clientIp();
 
         try {
-            $answer = $this->callOpenRouter([
+            $answer = $this->callGroq([
                 ['role' => 'system', 'content' => $this->systemPromptProvider->get($role)],
                 ['role' => 'user',   'content' => $prompt],
             ], $apiKey);
@@ -137,7 +136,7 @@ class AiAssistantController extends AppController
      * AIへの質問をSSEストリーミングで処理する（マルチターン対応）
      *
      * フロントエンドから JSON ボディで messages 配列を受け取り、
-     * OpenRouter API にストリーミングリクエストを送信してチャンク単位で返す。
+     * Groq API にストリーミングリクエストを送信してチャンク単位で返す。
      *
      * @return never
      */
@@ -147,9 +146,9 @@ class AiAssistantController extends AppController
         $this->request->allowMethod(['post']);
         $this->Authorization->authorize($this, 'ask');
 
-        $apiKey = env('OPENROUTER_API_KEY');
+        $apiKey = env('GROQ_API_KEY');
         if (empty($apiKey)) {
-            Log::error('OPENROUTER_API_KEY is not set in .env');
+            Log::error('GROQ_API_KEY is not set in .env');
             throw new InternalErrorException('AI機能の設定が不十分です。');
         }
 
@@ -198,9 +197,9 @@ class AiAssistantController extends AppController
         header('X-Accel-Buffering: no');
         header('Connection: keep-alive');
 
-        // 失敗時のSSEエラー送出は streamFromOpenRouter 内で行う
+        // 失敗時のSSEエラー送出は streamFromGroq 内で行う
         $fullResponse = '';
-        $success      = $this->streamFromOpenRouter($apiMessages, $apiKey, $fullResponse);
+        $success      = $this->streamFromGroq($apiMessages, $apiKey, $fullResponse);
 
         AuditLogService::record(
             'system',
@@ -362,28 +361,27 @@ class AiAssistantController extends AppController
     }
 
     /**
-     * OpenRouter API を非ストリーミングで呼び出して回答テキストを返す。
+     * Groq API を非ストリーミングで呼び出して回答テキストを返す。
      *
      * @param list<array{role: string, content: string}> $messages
      * @param string $apiKey
      * @return string
      * @throws \RuntimeException API呼び出し失敗時
      */
-    private function callOpenRouter(array $messages, string $apiKey): string
+    private function callGroq(array $messages, string $apiKey): string
     {
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL            => self::OPENROUTER_ENDPOINT,
+            CURLOPT_URL            => self::AI_ENDPOINT,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode([
-                'model'       => self::OPENROUTER_MODEL,
+                'model'       => self::AI_MODEL,
                 'messages'    => $messages,
                 'temperature' => 0.7,
             ]),
             CURLOPT_HTTPHEADER     => [
                 'Authorization: Bearer ' . $apiKey,
                 'Content-Type: application/json',
-                'HTTP-Referer: ' . self::HTTP_REFERER,
             ],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
@@ -398,10 +396,10 @@ class AiAssistantController extends AppController
         curl_close($ch);
 
         Log::info(sprintf(
-            'AI OpenRouter call: status=%d duration=%.3fs model=%s',
+            'AI Groq call: status=%d duration=%.3fs model=%s',
             $httpCode,
             $duration,
-            self::OPENROUTER_MODEL
+            self::AI_MODEL
         ));
 
         if ($result === false || $curlError !== '') {
@@ -410,7 +408,7 @@ class AiAssistantController extends AppController
 
         if ($httpCode >= 400) {
             throw new \RuntimeException(
-                sprintf('OpenRouter HTTP %d: %s', $httpCode, OpenRouterClient::extractApiError((string)$result)),
+                sprintf('Groq HTTP %d: %s', $httpCode, GroqClient::extractApiError((string)$result)),
                 $httpCode
             );
         }
@@ -419,7 +417,7 @@ class AiAssistantController extends AppController
         $content = $json['choices'][0]['message']['content'] ?? null;
         if (!is_string($content) || $content === '') {
             throw new \RuntimeException(
-                'OpenRouter response has no content: ' . mb_substr((string)$result, 0, 300)
+                'Groq response has no content: ' . mb_substr((string)$result, 0, 300)
             );
         }
 
@@ -427,23 +425,23 @@ class AiAssistantController extends AppController
     }
 
     /**
-     * OpenRouter API をストリーミングで呼び出し、SSE チャンクを標準出力に書き出す。
+     * Groq API をストリーミングで呼び出し、SSE チャンクを標準出力に書き出す。
      *
      * @param list<array{role: string, content: string}> $apiMessages
      * @param string $apiKey
      * @param string $fullResponse 蓄積された応答テキスト（参照渡し）
      * @return bool curl 成功時 true
      */
-    private function streamFromOpenRouter(array $apiMessages, string $apiKey, string &$fullResponse): bool
+    private function streamFromGroq(array $apiMessages, string $apiKey, string &$fullResponse): bool
     {
         $errorBody  = '';
         $lineBuffer = '';
         $ch = curl_init();
         curl_setopt_array($ch, [
-            CURLOPT_URL            => self::OPENROUTER_ENDPOINT,
+            CURLOPT_URL            => self::AI_ENDPOINT,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode([
-                'model'       => self::OPENROUTER_MODEL,
+                'model'       => self::AI_MODEL,
                 'messages'    => $apiMessages,
                 'temperature' => 0.7,
                 'stream'      => true,
@@ -451,7 +449,6 @@ class AiAssistantController extends AppController
             CURLOPT_HTTPHEADER     => [
                 'Authorization: Bearer ' . $apiKey,
                 'Content-Type: application/json',
-                'HTTP-Referer: ' . self::HTTP_REFERER,
             ],
             CURLOPT_RETURNTRANSFER => false,
             CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SEC,
@@ -509,10 +506,10 @@ class AiAssistantController extends AppController
         curl_close($ch);
 
         Log::info(sprintf(
-            'AI OpenRouter stream: status=%d duration=%.3fs model=%s response_length=%d',
+            'AI Groq stream: status=%d duration=%.3fs model=%s response_length=%d',
             $httpCode,
             $duration,
-            self::OPENROUTER_MODEL,
+            self::AI_MODEL,
             mb_strlen($fullResponse)
         ));
 
@@ -527,7 +524,7 @@ class AiAssistantController extends AppController
             Log::error(sprintf(
                 'AI stream HTTP %d: %s',
                 $httpCode,
-                OpenRouterClient::extractApiError($errorBody)
+                GroqClient::extractApiError($errorBody)
             ));
             $this->emitSseError(
                 $httpCode === 429 ? self::RATE_LIMIT_MESSAGE : '通信エラーが発生しました。'
