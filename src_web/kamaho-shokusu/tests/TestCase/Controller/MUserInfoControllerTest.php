@@ -125,11 +125,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/1');
+        $this->post('/MUserInfo/restore/6');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
         $this->assertSame(0, (int)$user->i_del_flag);
     }
 
@@ -138,11 +138,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/1');
+        $this->post('/MUserInfo/restore/6');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
         $this->assertSame(1, (int)$user->i_del_flag);
     }
 
@@ -273,6 +273,24 @@ class MUserInfoControllerTest extends TestCase
 
         $this->assertResponseCode(409);
         $this->assertSame(2, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 削除済みユーザーは、ログイン済みセッションでも使い続けられない（ログイン画面へ戻される）。
+     */
+    public function testDeletedUserSessionIsLoggedOut(): void
+    {
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 6,
+                'c_login_account' => 'deleted_user',
+                'c_user_name'     => '削除済みユーザー',
+                'i_admin'         => 0,
+                'i_user_level'    => 0,
+            ],
+        ]);
+        $this->get('/MUserInfo/view/6');
+        $this->assertRedirectContains('/MUserInfo/login');
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true): void

@@ -90,6 +90,35 @@ class UserEditServiceTest extends TestCase
         $this->assertSame(0, $count);
     }
 
+    /**
+     * 部屋異動で無効化された旧部屋(active_flag=1)の行は、ユーザー編集の保存で復活させない。
+     */
+    public function testUpdateWithRooms_doesNotReviveInactiveGroup(): void
+    {
+        $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
+        // user 2: 部屋1(現在所属・active_flag=0)。部屋2は異動で無効化された旧所属として追加する。
+        $userGroupTable->saveOrFail($userGroupTable->newEntity([
+            'i_id_user'     => 2,
+            'i_id_room'     => 2,
+            'active_flag'   => 1,
+            'dt_create'     => '2024-09-07 15:59:52',
+            'c_create_user' => 'system',
+            'dt_update'     => '2024-09-07 15:59:52',
+            'c_update_user' => 'system',
+        ]));
+
+        $entity = $this->getUserEntity(2);
+        // 画面では現所属の部屋1だけがチェックされた状態で名前だけ直して保存する
+        $this->service->updateWithRooms($entity, ['c_user_name' => '名前だけ修正'], [1], 'admin');
+
+        $active = $userGroupTable->find()->where(['i_id_user' => 2, 'active_flag' => 0])->all()->extract('i_id_room')->toList();
+        $this->assertSame([1], array_map('intval', $active));
+
+        $old = $userGroupTable->find()->where(['i_id_user' => 2, 'i_id_room' => 2])->first();
+        $this->assertNotNull($old);
+        $this->assertSame(1, (int)$old->active_flag);
+    }
+
     public function testUpdateWithRooms_withRoomId_createsUserGroup(): void
     {
         $entity = $this->getUserEntity(3);

@@ -1240,9 +1240,14 @@ function openModalById(id){
                     }
 
                     // 予約OFF → 部屋選択不要（既存レコードの削除）
-                    var offRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                        ? window.__TRESP.calRoomId
-                        : (window.__TRESP && window.__TRESP.roomId != null ? window.__TRESP.roomId : null);
+                    // 取り消しは「実際に予約した部屋」へ送る。カレンダーの絞り込み部屋(calRoomId)を使うと
+                    // 別の部屋へ送られ、画面は取消済みに見えるのに予約が残る。
+                    var bookedRoomId = detail[mealKey + 'Room'];
+                    var offRoomId = (bookedRoomId != null && bookedRoomId !== '')
+                        ? bookedRoomId
+                        : ((window.__TRESP && window.__TRESP.calRoomId != null)
+                            ? window.__TRESP.calRoomId
+                            : (window.__TRESP && window.__TRESP.roomId != null ? window.__TRESP.roomId : null));
                     if (!offRoomId) {
                         if (window.pageToast) window.pageToast('部屋が特定できません', 'warning');
                         return;
