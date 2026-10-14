@@ -94,7 +94,13 @@
             });
     }
 
+    // 保存後に開き直した画面へ保存前の一覧を出さないため、保存時に呼ぶ。
+    function clearCache(){
+        _cache.clear();
+    }
+
     window.ReservationUsers = {
+        clearCache:    clearCache,
         buildUrl:      buildUrl,
         fetch:         fetchRaw,
         extractUsers:  extractUsers,
