@@ -28,7 +28,12 @@
         const submitButton = ceRoot.querySelector ? ceRoot.querySelector('#reservation-form button[type="submit"]') : null;
 
         const showLoad = () => { if (overlay) overlay.style.display = 'block'; if (submitButton) submitButton.disabled = true;  };
-        const hideLoad = () => { if (overlay) overlay.style.display = 'none';  if (submitButton) submitButton.disabled = false; };
+        const hideLoad = () => { if (overlay) overlay.style.display = 'none';  if (submitButton && !(ceRoot.dataset && ceRoot.dataset.loadFailed === '1')) submitButton.disabled = false; };
+
+        // 前回の失敗表示を消す
+        if (ceRoot.dataset) delete ceRoot.dataset.loadFailed;
+        const oldErr = ceRoot.querySelector ? ceRoot.querySelector('.reservation-load-error') : null;
+        if (oldErr) oldErr.remove();
 
         showLoad();
         try {
@@ -51,6 +56,19 @@
             }
         } catch(e) {
             console.error('[ADD_RESERVATION] 個人予約取得失敗:', e);
+            // 空のフォームに見えたまま保存すると、その日の他の食事が黙って取り消される。
+            // 失敗を画面に出し、保存ボタンを無効のままにする。
+            if (ceRoot.dataset) ceRoot.dataset.loadFailed = '1';
+            if (ceRoot.querySelector) {
+                // 同時に複数回呼ばれても表示は1つにする
+                ceRoot.querySelectorAll('.reservation-load-error').forEach((n) => n.remove());
+                const alertEl = document.createElement('div');
+                alertEl.className = 'alert alert-danger reservation-load-error';
+                alertEl.setAttribute('role', 'alert');
+                alertEl.textContent = '現在の予約内容を読み込めませんでした。このまま保存すると既存の予約が取り消されるため、保存できません。画面を開き直してください。';
+                const formEl = ceRoot.querySelector('#reservation-form');
+                if (formEl && formEl.parentNode) formEl.parentNode.insertBefore(alertEl, formEl);
+            }
         } finally {
             hideLoad();
         }
@@ -177,7 +195,17 @@
         if (form) {
             form.addEventListener('submit', (ev) => {
                 ev.preventDefault();
-                
+
+                // 既存予約の読み込みに失敗している間は保存させない（既存予約の消失防止）
+                if (root.dataset && root.dataset.loadFailed === '1') {
+                    if (typeof window.pageToast === 'function') {
+                        window.pageToast('現在の予約内容を読み込めていないため保存できません。画面を開き直してください。', 'danger');
+                    }
+                    return;
+                }
+                // 保存前の一覧を再利用しないようキャッシュを捨てる
+                if (window.ReservationUsers && window.ReservationUsers.clearCache) window.ReservationUsers.clearCache();
+
                 // バリデーション
                 const toast = (msg, type) => {
                     if (typeof window.pageToast === 'function') {

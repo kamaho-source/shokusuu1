@@ -300,6 +300,10 @@ class MUserInfoController extends AppController
         $selectedRooms = [];
         if (!empty($mUserInfo->m_user_group)) {
             foreach ($mUserInfo->m_user_group as $group) {
+                // active_flag=1 は部屋異動で無効化された旧所属。選択済みに含めると保存で復活する。
+                if ((int)$group->active_flag !== 0) {
+                    continue;
+                }
                 $selectedRooms[] = $group->i_id_room;
             }
         }

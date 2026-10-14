@@ -167,6 +167,8 @@
                     return;
                 }
                 formData.append('d_reservation_date', date);
+                // 保存前の利用者一覧を開き直した画面で再利用しないようキャッシュを捨てる
+                if (window.ReservationUsers && window.ReservationUsers.clearCache) window.ReservationUsers.clearCache();
                 showLoading();
                 fetch(form.action, { method: 'POST', body: formData, headers: { 'X-CSRF-Token': csrfToken, 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }})
                     .then(response => {

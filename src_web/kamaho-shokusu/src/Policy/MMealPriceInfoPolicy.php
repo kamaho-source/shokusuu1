@@ -20,6 +20,14 @@ class MMealPriceInfoPolicy
         return $this->isAuthenticated($user);
     }
 
+    /**
+     * 食事集計（全職員の氏名・職員ID・食数・控除額）のExcel出力。管理者のみ。
+     */
+    public function canExportMealSummary(?IdentityInterface $user, MMealPriceInfo $resource): bool
+    {
+        return $this->isAdmin($user);
+    }
+
     public function canAdd(?IdentityInterface $user, MMealPriceInfo $resource): bool
     {
         return $this->isAdmin($user);
