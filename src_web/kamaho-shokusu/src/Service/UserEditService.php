@@ -45,7 +45,17 @@ class UserEditService
         $conn->begin();
 
         try {
-            $userGroupTable->deleteAll(['i_id_user' => $userId]);
+            // 削除するのは「現在所属している行(active_flag=0)」と、今回選択された部屋の行だけ。
+            // 部屋異動で無効化された旧部屋の行(active_flag=1)まで消して作り直すと、
+            // 保存のたびに旧部屋の所属が復活して食数が二重になる。
+            $deleteConditions = ['active_flag' => 0];
+            if ($roomIds !== []) {
+                $deleteConditions = ['OR' => [
+                    'active_flag'  => 0,
+                    'i_id_room IN' => array_map('intval', $roomIds),
+                ]];
+            }
+            $userGroupTable->deleteAll(['i_id_user' => $userId] + $deleteConditions);
 
             $entity = $userInfoTable->patchEntity($entity, $data, ['associated' => ['MUserGroup']]);
             $entity->m_user_group = $newUserGroups;

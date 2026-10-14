@@ -51,6 +51,15 @@ class MUserGroupFixture extends TestFixture
                 'dt_update'     => '2024-09-07 15:59:52',
                 'c_update_user' => 'system',
             ],
+            [
+                'i_id_user'     => 6,
+                'i_id_room'     => 1,
+                'active_flag'   => 0,
+                'dt_create'     => '2024-09-07 15:59:52',
+                'c_create_user' => 'system',
+                'dt_update'     => '2024-09-07 15:59:52',
+                'c_update_user' => 'system',
+            ],
         ];
         parent::init();
     }

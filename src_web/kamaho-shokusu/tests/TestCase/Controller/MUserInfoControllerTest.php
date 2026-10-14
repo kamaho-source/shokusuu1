@@ -125,11 +125,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/1');
+        $this->post('/MUserInfo/restore/6');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
         $this->assertSame(0, (int)$user->i_del_flag);
     }
 
@@ -138,11 +138,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/1');
+        $this->post('/MUserInfo/restore/6');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
         $this->assertSame(1, (int)$user->i_del_flag);
     }
 
@@ -221,6 +221,76 @@ class MUserInfoControllerTest extends TestCase
 
         $user = $this->getTableLocator()->get('MUserInfo')->get(2);
         $this->assertSame(3, (int)$user->i_admin);
+    }
+
+    /**
+     * 別の権限（ブロック長）を持つユーザーへ、確認(overwrite)なしで管理者を付与すると拒否される。
+     * 画面の確認を経ない上書きで、ブロック長が黙って管理者に置き換わるのを防ぐ。
+     */
+    public function testRoleChangeWithoutOverwriteConfirmationIsRejected(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 1]);
+
+        $this->assertResponseCode(409);
+        $this->assertSame(2, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 確認済み(overwrite=1)なら、別の権限から変更できる（排他のため置き換わる）。
+     */
+    public function testRoleChangeWithOverwriteConfirmationSucceeds(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 1, 'overwrite' => 1]);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 古い画面から「管理者を解除」されても、ブロック長権限を消さない。
+     */
+    public function testAdminOffDoesNotWipeBlockLeader(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 0]);
+
+        $this->assertResponseCode(409);
+        $this->assertSame(2, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 削除済みユーザーは、ログイン済みセッションでも使い続けられない（ログイン画面へ戻される）。
+     */
+    public function testDeletedUserSessionIsLoggedOut(): void
+    {
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 6,
+                'c_login_account' => 'deleted_user',
+                'c_user_name'     => '削除済みユーザー',
+                'i_admin'         => 0,
+                'i_user_level'    => 0,
+            ],
+        ]);
+        $this->get('/MUserInfo/view/6');
+        $this->assertRedirectContains('/MUserInfo/login');
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true): void
