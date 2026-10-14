@@ -340,6 +340,15 @@ class MUserInfoController extends AppController
         $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
         $loginId   = (string)($identity?->get('c_login_account') ?? '');
 
+        if (in_array((int)$isAdmin, [0, 1, 2], true)) {
+            $conflict = $this->userPermissionService->findRoleConflict(
+                (int)$user->i_admin, (int)$isAdmin, 1, $this->isOverwriteConfirmed($data)
+            );
+            if ($conflict !== null) {
+                return $apiResponse->error($this->response, $conflict, 409);
+            }
+        }
+
         if ($this->userPermissionService->updatePermission($user, (int)$isAdmin, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
             return $apiResponse->success($this->response, [], '管理者権限が正常に更新されました。');
         }
@@ -376,10 +385,26 @@ class MUserInfoController extends AppController
         $loginId   = (string)($identity?->get('c_login_account') ?? '');
 
         $value = (int)$isSystemAdmin === 1 ? 3 : 0;
+        $conflict = $this->userPermissionService->findRoleConflict(
+            (int)$user->i_admin, $value, 3, $this->isOverwriteConfirmed($data)
+        );
+        if ($conflict !== null) {
+            return $apiResponse->error($this->response, $conflict, 409);
+        }
         if ($this->userPermissionService->updatePermission($user, $value, $updatedBy, $actorId, $this->getClientIp(), $loginId, true)) {
             return $apiResponse->success($this->response, [], 'システム管理者権限が正常に更新されました。');
         }
         return $apiResponse->error($this->response, 'システム管理者権限の更新に失敗しました。', 500);
+    }
+
+    /**
+     * 画面で「別の権限から変更しますか？」に同意して送られたリクエストか。
+     *
+     * @param array<string, mixed> $data
+     */
+    private function isOverwriteConfirmed(array $data): bool
+    {
+        return filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
     public function updateUserLevel()
@@ -410,6 +435,15 @@ class MUserInfoController extends AppController
         $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
         $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
         $loginId   = (string)($identity?->get('c_login_account') ?? '');
+
+        if (in_array((int)$level, [0, 1, 2], true)) {
+            $conflict = $this->userPermissionService->findRoleConflict(
+                (int)$user->i_admin, (int)$level, 2, $this->isOverwriteConfirmed($data)
+            );
+            if ($conflict !== null) {
+                return $apiResponse->error($this->response, $conflict, 409);
+            }
+        }
 
         if ($this->userPermissionService->updatePermission($user, (int)$level, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
             return $apiResponse->success($this->response, [], 'ブロック長権限が正常に更新されました。');

@@ -13,6 +13,55 @@ use Cake\ORM\TableRegistry;
  */
 class UserPermissionService
 {
+    private const ROLE_LABELS = [
+        UserRole::ADMIN        => '管理者',
+        UserRole::BLOCK_LEADER => 'ブロック長',
+        UserRole::SYSTEM_ADMIN => 'システム管理者',
+    ];
+
+    /**
+     * ブロック長・管理者・システム管理者は排他（1ユーザー1つまで）。
+     * 画面の確認なしに別の権限へ上書きされたり、別の権限を解除で消してしまうのを防ぐ。
+     *
+     * - 付与: 既に別の権限を持つ場合は $overwrite（画面で「本当に変更しますか？」に同意）が必要
+     * - 解除: 解除対象($offTargetRole)以外の権限を持つ場合は拒否（古い画面からの操作で他の権限を消さない）
+     *
+     * @param int  $currentValue   現在の i_admin
+     * @param int  $newValue       新しい権限値（0 は解除）
+     * @param int  $offTargetRole  解除操作が対象とする権限（付与のときは $newValue と同じ）
+     * @param bool $overwrite      別の権限からの変更を承認済みか
+     * @return string|null 競合メッセージ（問題なければ null）
+     */
+    public function findRoleConflict(int $currentValue, int $newValue, int $offTargetRole, bool $overwrite): ?string
+    {
+        if ($newValue === $currentValue) {
+            return null;
+        }
+        $currentLabel = self::ROLE_LABELS[$currentValue] ?? null;
+
+        if ($newValue !== UserRole::GENERAL) {
+            if ($currentLabel === null || $overwrite) {
+                return null;
+            }
+
+            return sprintf(
+                '現在は「%s」です。「%s」へ変更するには確認が必要です。画面を更新してやり直してください。',
+                $currentLabel,
+                self::ROLE_LABELS[$newValue] ?? '権限'
+            );
+        }
+
+        if ($currentLabel === null || $currentValue === $offTargetRole) {
+            return null;
+        }
+
+        return sprintf(
+            '現在は「%s」のため、「%s」の解除は行えません。画面を更新してやり直してください。',
+            $currentLabel,
+            self::ROLE_LABELS[$offTargetRole] ?? '権限'
+        );
+    }
+
     /**
      * @param \App\Model\Entity\MUserInfo $user             MUserInfo エンティティ（取得・認可済み）
      * @param int    $value             新しい権限値
