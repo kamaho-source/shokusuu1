@@ -22,7 +22,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <div class="mUserInfo index content">
-    <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
+    <?php if (!empty($canRegisterUsers)): ?>
         <div class="d-flex flex-wrap gap-2 mb-3">
             <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>
             <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary']) ?>

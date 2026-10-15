@@ -78,7 +78,7 @@ class MUserInfoController extends AppController
         try {
             $this->Authorization->authorize($resource, 'importForm');
         } catch (ForbiddenException $e) {
-            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+            $this->Flash->error(__('この機能を利用する権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
 
@@ -126,7 +126,15 @@ class MUserInfoController extends AppController
         $loginId    = (string)($identity?->get('c_login_account') ?? '');
 
         try {
-            $results = $this->userBulkImportService->import($records, $createUser, $actorId, $this->getClientIp(), $loginId);
+            $results = $this->userBulkImportService->import(
+                $records,
+                $createUser,
+                $actorId,
+                $this->getClientIp(),
+                $loginId,
+                !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0)),
+                $this->allowedRoomIdsForRegistration($identity)
+            );
         } catch (\Throwable $e) {
             $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
             throw new BadRequestException('インポート処理中にエラーが発生しました。');
@@ -179,7 +187,9 @@ class MUserInfoController extends AppController
             $userRoomLabels[$uid] = $roomService->buildAffiliationLabel($roomNames, $totalActiveRooms);
         }
 
-        $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted'));
+        $canRegisterUsers = $this->Authorization->can($resource, 'add');
+
+        $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted', 'canRegisterUsers'));
     }
 
     public function add()
@@ -201,7 +211,10 @@ class MUserInfoController extends AppController
         $mUserInfo->i_enable     = 0;
         $mUserInfo->i_disp_no    = $maxDispNo;
         $mUserInfo->i_user_age   = (int)$this->request->getData('age');
-        $mUserInfo->i_user_level = (int)$this->request->getData('role');
+        // 管理者以外（職員・ブロック長）は児童のみ登録できる
+        $identityForRole = $this->request->getAttribute('identity');
+        $childOnly       = !UserRole::isAdmin((int)($identityForRole?->get('i_admin') ?? 0));
+        $mUserInfo->i_user_level = $childOnly ? 1 : (int)$this->request->getData('role');
         if ($mUserInfo->i_user_level === 0) {
             $mUserInfo->i_id_staff = $this->request->getData('staff_id');
         }
@@ -211,14 +224,31 @@ class MUserInfoController extends AppController
         if ($this->request->is('post')) {
             $data = $this->request->getData();
 
-            if ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
+            $allowedRoomIds = $this->allowedRoomIdsForRegistration($identityForRole);
+            $postedRoomIds  = array_map(
+                static fn($g) => (int)($g['i_id_room'] ?? 0),
+                array_filter((array)($data['MUserGroup'] ?? []), 'is_array')
+            );
+
+            if ($childOnly && (string)($data['role'] ?? '') !== '1') {
+                $this->Flash->error(__('管理者以外は児童のみ登録できます。'));
+            } elseif ($allowedRoomIds !== null && $allowedRoomIds === []) {
+                $this->Flash->error(__('所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。'));
+            } elseif ($allowedRoomIds !== null && array_filter($postedRoomIds) === []) {
+                $this->Flash->error(__('登録先の部屋を選択してください。'));
+            } elseif ($allowedRoomIds !== null && array_diff(array_filter($postedRoomIds), $allowedRoomIds) !== []) {
+                $this->Flash->error(__('自分が所属していない部屋には登録できません。'));
+            } elseif ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
                 $this->Flash->error(__('このログインIDは既に使用されています。他のIDをお試しください。'));
             } else {
                 $user              = $this->request->getAttribute('identity');
                 $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
 
                 try {
-                    $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data);
+                    // 管理者以外も登録できるため、権限・状態系の項目は POST から受け取らない
+                    $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
+                        'fields' => ['c_login_account', 'c_login_passwd', 'c_user_name', 'c_create_user'],
+                    ]);
 
                     if ($mUserInfo->hasErrors()) {
                         throw new \Exception('バリデーションエラーが発生しました。');
@@ -241,14 +271,41 @@ class MUserInfoController extends AppController
             }
         }
 
-        $rooms = $this->MRoomInfo->find('list', [
+        $roomsQuery = $this->MRoomInfo->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ])->where(['i_del_flg' => 0])->toArray();
+        ])->where(['i_del_flg' => 0]);
+        $allowedForView = $this->allowedRoomIdsForRegistration($identityForRole);
+        if ($allowedForView !== null) {
+            $roomsQuery->where(['i_id_room IN' => $allowedForView ?: [0]]);
+        }
+        $rooms = $roomsQuery->toArray();
 
         $ages  = range(1, 80);
-        $roles = [0 => '職員', 1 => '児童', 3 => 'その他'];
+        $roles = $childOnly ? [1 => '児童'] : [0 => '職員', 1 => '児童', 3 => 'その他'];
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
+    }
+
+    /**
+     * ユーザー登録で選べる部屋ID。管理者・システム管理者は制限なし(null)、
+     * それ以外（職員・ブロック長）は自分が所属中(active_flag=0)の部屋のみ。
+     *
+     * @return list<int>|null
+     */
+    private function allowedRoomIdsForRegistration(?object $identity): ?array
+    {
+        if ($identity === null || UserRole::isAdmin((int)($identity->get('i_admin') ?? 0))) {
+            return null;
+        }
+
+        $ids = $this->fetchTable('MUserGroup')->find()
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => (int)$identity->get('i_id_user'), 'active_flag' => 0])
+            ->all()
+            ->map(static fn($g) => (int)$g->i_id_room)
+            ->toList();
+
+        return array_values(array_unique($ids));
     }
 
     public function edit($id = null)

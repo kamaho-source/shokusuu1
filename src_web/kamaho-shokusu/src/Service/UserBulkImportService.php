@@ -18,9 +18,11 @@ class UserBulkImportService
      * @param string $createUser  作成者ユーザー名
      * @param int    $actorId     操作者ユーザーID
      * @param string $ipAddress   操作元IPアドレス
+     * @param bool   $childOnly   true のとき児童(role=1)以外の行を失敗にする（管理者以外の操作者用）
+     * @param list<int>|null $allowedRoomIds 登録先に指定できる部屋ID。null は制限なし
      * @return array{processed: int, created: int, skipped: int, failed: int, errors: array}
      */
-    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): array
+    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = '', string $actorLoginId = '', bool $childOnly = false, ?array $allowedRoomIds = null): array
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -78,6 +80,46 @@ class UserBulkImportService
                     $results['processed']++;
                     $results['errors'][$rowNo][] = 'role の値が不正です（職員/児童/その他 または 0/1/3 を指定してください）。';
                     continue;
+                }
+
+                if ($childOnly && $level !== 1) {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = '管理者以外は児童（role=児童）のみ登録できます。';
+                    continue;
+                }
+
+                if ($allowedRoomIds !== null && $allowedRoomIds === []) {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = '所属している部屋がないため登録できません。';
+                    continue;
+                }
+
+                if ($allowedRoomIds !== null && $roomName1 === '' && $roomName2 === '') {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = '登録先の部屋（room_name1）が必要です。';
+                    continue;
+                }
+
+                if ($allowedRoomIds !== null) {
+                    // 部屋名は重複し得るため、所属部屋の中から名前を解決する。見つからなければ拒否する
+                    $denied = false;
+                    foreach (array_filter([$roomName1, $roomName2], fn($n) => $n !== '') as $rn) {
+                        $hit = $allowedRoomIds === [] ? null : $roomInfoTable->find()
+                            ->where(['c_room_name' => $rn, 'i_id_room IN' => $allowedRoomIds])
+                            ->first();
+                        if (!$hit) {
+                            $denied = true;
+                        }
+                    }
+                    if ($denied) {
+                        $results['failed']++;
+                        $results['processed']++;
+                        $results['errors'][$rowNo][] = '自分が所属していない部屋、または存在しない部屋には登録できません。';
+                        continue;
+                    }
                 }
 
                 if ($level === 0 && $staffId === '') {
@@ -162,7 +204,11 @@ class UserBulkImportService
                     $roomNames = array_filter([$roomName1, $roomName2], fn($n) => $n !== '');
 
                     foreach ($roomNames as $roomName) {
-                        $room = $roomInfoTable->find()->where(['c_room_name' => $roomName])->first();
+                        $roomQuery = $roomInfoTable->find()->where(['c_room_name' => $roomName]);
+                        if ($allowedRoomIds !== null) {
+                            $roomQuery->where(['i_id_room IN' => $allowedRoomIds ?: [0]]);
+                        }
+                        $room = $roomQuery->first();
                         if ($room && $userId) {
                             $userGroup = $userGroupTable->newEntity([
                                 'i_id_user'     => $userId,
