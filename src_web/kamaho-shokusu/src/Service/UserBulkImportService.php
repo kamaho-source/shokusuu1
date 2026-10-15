@@ -93,7 +93,8 @@ class UserBulkImportService
                     $denied = false;
                     foreach (array_filter([$roomName1, $roomName2], fn($n) => $n !== '') as $rn) {
                         $r = $roomInfoTable->find()->where(['c_room_name' => $rn])->first();
-                        if ($r && !in_array((int)$r->i_id_room, $allowedRoomIds, true)) {
+                        // 非管理者は、存在しない部屋名でも所属なしのユーザーを作らせない
+                        if (!$r || !in_array((int)$r->i_id_room, $allowedRoomIds, true)) {
                             $denied = true;
                         }
                     }

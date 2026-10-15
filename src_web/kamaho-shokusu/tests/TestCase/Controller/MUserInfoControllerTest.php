@@ -342,6 +342,47 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(1, $this->postAddAs(2, 0, ['c_login_account' => 'reg_own_room', 'MUserGroup' => [['i_id_room' => 1]]]));
     }
 
+    private function postImportAs(int $adminValue, int $userLevel, array $records): array
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => $adminValue, 'i_user_level' => $userLevel], ['i_id_user' => 2]);
+        $this->session(['Auth' => [
+            'i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => 'テスト',
+            'i_admin' => $adminValue, 'i_user_level' => $userLevel, 'i_id_room' => 1,
+        ]]);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/import-json', ['records' => $records]);
+
+        return (array)json_decode((string)$this->_response->getBody(), true);
+    }
+
+    /** 一括登録: 管理者以外は児童のみ・所属部屋のみ（コントローラー経由）。 */
+    public function testImportJsonAsNonAdminIsLimitedToChildAndOwnRoom(): void
+    {
+        $json = $this->postImportAs(2, 0, [
+            ['_row' => 1, 'login_id' => 'imp_staff', 'name' => 'A', 'role' => '職員', 'staff_id' => '900002'],
+            ['_row' => 2, 'login_id' => 'imp_child', 'name' => 'B', 'role' => '児童'],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, $json['summary']['created'] ?? null);
+        $this->assertSame(1, $json['summary']['failed'] ?? null);
+        $t = $this->getTableLocator()->get('MUserInfo');
+        $this->assertSame(0, $t->find()->where(['c_login_account' => 'imp_staff'])->count());
+        $child = $t->find()->where(['c_login_account' => 'imp_child'])->firstOrFail();
+        $this->assertSame(1, (int)$child->i_user_level);
+        $this->assertContains((int)($child->i_admin ?? 0), [0]);
+    }
+
+    /** 一括登録: 児童は実行できない。 */
+    public function testImportJsonAsChildIsForbidden(): void
+    {
+        $this->postImportAs(0, 1, [['_row' => 1, 'login_id' => 'imp_x', 'name' => 'A', 'role' => '児童']]);
+
+        $this->assertResponseCode(403);
+        $this->assertSame(0, $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'imp_x'])->count());
+    }
+
     /** 管理者は任意の部屋へ登録できる（従来どおり）。 */
     public function testAdminCanRegisterToAnyRoom(): void
     {
