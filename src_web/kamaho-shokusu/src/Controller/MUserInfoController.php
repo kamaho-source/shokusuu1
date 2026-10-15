@@ -232,6 +232,10 @@ class MUserInfoController extends AppController
 
             if ($childOnly && (string)($data['role'] ?? '') !== '1') {
                 $this->Flash->error(__('管理者以外は児童のみ登録できます。'));
+            } elseif ($allowedRoomIds !== null && $allowedRoomIds === []) {
+                $this->Flash->error(__('所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。'));
+            } elseif ($allowedRoomIds !== null && array_filter($postedRoomIds) === []) {
+                $this->Flash->error(__('登録先の部屋を選択してください。'));
             } elseif ($allowedRoomIds !== null && array_diff(array_filter($postedRoomIds), $allowedRoomIds) !== []) {
                 $this->Flash->error(__('自分が所属していない部屋には登録できません。'));
             } elseif ($this->userCreateService->loginAccountExists($data['c_login_account'])) {

@@ -25,6 +25,7 @@ class MUserInfoControllerTest extends TestCase
     protected array $fixtures = [
         'app.MUserInfo',
         'app.MUserGroup',
+        'app.MRoomInfo',
     ];
 
     public function setUp(): void
@@ -361,7 +362,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $json = $this->postImportAs(2, 0, [
             ['_row' => 1, 'login_id' => 'imp_staff', 'name' => 'A', 'role' => '職員', 'staff_id' => '900002'],
-            ['_row' => 2, 'login_id' => 'imp_child', 'name' => 'B', 'role' => '児童'],
+            ['_row' => 2, 'login_id' => 'imp_child', 'name' => 'B', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet'],
         ]);
 
         $this->assertResponseOk();
@@ -409,6 +410,23 @@ class MUserInfoControllerTest extends TestCase
         $this->enableSecurityToken();
         $this->post('/MUserInfo/delete/3');
         $this->assertSame(1, (int)$t->get(3)->i_del_flag);
+    }
+
+    /** 非管理者: 所属部屋がない場合、部屋を選ばない場合は登録できない（サーバー側で拒否）。 */
+    public function testNonAdminWithoutRoomOrWithoutSelectionCannotRegister(): void
+    {
+        // 部屋を何も選ばない
+        $this->assertSame(0, $this->postAddAs(2, 0, ['MUserGroup' => []]));
+
+        // 所属部屋が無い職員（所属を無効化）
+        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 2]);
+        $this->assertSame(0, $this->postAddAs(0, 0, ['c_login_account' => 'no_room_staff']));
+    }
+
+    /** 管理者は部屋を選ばなくても登録できる（従来どおり）。 */
+    public function testAdminCanRegisterWithoutRoom(): void
+    {
+        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => []]));
     }
 
     /** 管理者は任意の部屋へ登録できる（従来どおり）。 */

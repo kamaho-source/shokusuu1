@@ -89,6 +89,20 @@ class UserBulkImportService
                     continue;
                 }
 
+                if ($allowedRoomIds !== null && $allowedRoomIds === []) {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = '所属している部屋がないため登録できません。';
+                    continue;
+                }
+
+                if ($allowedRoomIds !== null && $roomName1 === '' && $roomName2 === '') {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = '登録先の部屋（room_name1）が必要です。';
+                    continue;
+                }
+
                 if ($allowedRoomIds !== null) {
                     // 部屋名は重複し得るため、所属部屋の中から名前を解決する。見つからなければ拒否する
                     $denied = false;

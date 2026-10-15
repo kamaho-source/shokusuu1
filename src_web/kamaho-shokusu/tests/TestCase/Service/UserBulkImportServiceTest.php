@@ -122,6 +122,30 @@ class UserBulkImportServiceTest extends TestCase
         $this->assertSame(1, $allowed['created']);
     }
 
+    public function testImport_nonAdminWithoutRoomOrNoAffiliation_failsRow(): void
+    {
+        $noRoomName = $this->service->import(
+            [['_row' => 1, 'login_id' => 'nr_a', 'name' => 'A', 'role' => '児童']],
+            'staff', 2, '127.0.0.1', '', true, [1]
+        );
+        $this->assertSame(1, $noRoomName['failed']);
+        $this->assertStringContainsString('部屋', $noRoomName['errors'][1][0]);
+
+        $noAffiliation = $this->service->import(
+            [['_row' => 1, 'login_id' => 'nr_b', 'name' => 'B', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet']],
+            'staff', 2, '127.0.0.1', '', true, []
+        );
+        $this->assertSame(1, $noAffiliation['failed']);
+        $this->assertStringContainsString('所属している部屋がない', $noAffiliation['errors'][1][0]);
+
+        // 管理者(制限なし)は部屋なしでも従来どおり作成できる
+        $admin = $this->service->import(
+            [['_row' => 1, 'login_id' => 'nr_c', 'name' => 'C', 'role' => '児童']],
+            'admin', 1, '127.0.0.1'
+        );
+        $this->assertSame(1, $admin['created']);
+    }
+
     // ----------------------------------------------------------------
     // import — 職員にstaff_idが必須
     // ----------------------------------------------------------------
