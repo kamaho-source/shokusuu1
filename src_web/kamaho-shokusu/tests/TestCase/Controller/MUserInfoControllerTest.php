@@ -383,6 +383,34 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(0, $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'imp_x'])->count());
     }
 
+    /**
+     * 登録権限を広げても、削除は管理者のみ。正例（管理者は削除できる）と対にして、
+     * リクエストの不備による見かけ上の拒否でないことを担保する。
+     */
+    public function testDeleteIsStillAdminOnlyForStaffAndBlockLeader(): void
+    {
+        $t = $this->getTableLocator()->get('MUserInfo');
+
+        foreach ([[0, 0], [2, 0]] as [$adm, $lvl]) {
+            $t->updateAll(['i_del_flag' => 0], ['i_id_user' => 3]);
+            $t->updateAll(['i_admin' => $adm, 'i_user_level' => $lvl], ['i_id_user' => 2]);
+            $this->session(['Auth' => ['i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => 'テスト',
+                'i_admin' => $adm, 'i_user_level' => $lvl, 'i_id_room' => 1]]);
+            $this->enableCsrfToken();
+            $this->enableSecurityToken();
+            $this->post('/MUserInfo/delete/3');
+            $this->assertSame(0, (int)$t->get(3)->i_del_flag, "i_admin=$adm は他人を削除できない");
+        }
+
+        // 正例: 管理者なら同じ形のリクエストで削除できる
+        $t->updateAll(['i_del_flag' => 0], ['i_id_user' => 3]);
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/delete/3');
+        $this->assertSame(1, (int)$t->get(3)->i_del_flag);
+    }
+
     /** 管理者は任意の部屋へ登録できる（従来どおり）。 */
     public function testAdminCanRegisterToAnyRoom(): void
     {
