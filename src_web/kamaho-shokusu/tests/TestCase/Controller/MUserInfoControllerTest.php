@@ -24,6 +24,7 @@ class MUserInfoControllerTest extends TestCase
      */
     protected array $fixtures = [
         'app.MUserInfo',
+        'app.MUserGroup',
     ];
 
     public function setUp(): void
@@ -332,6 +333,19 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->assertSame(0, $this->postAddAs(2, 0, ['role' => 0, 'staff_id' => '900001']));
         $this->assertSame(0, $this->postAddAs(0, 0, ['role' => 3]));
+    }
+
+    /** 管理者以外は、自分が所属していない部屋へは登録できない（所属部屋は 1）。 */
+    public function testNonAdminCannotRegisterToOtherRoom(): void
+    {
+        $this->assertSame(0, $this->postAddAs(2, 0, ['MUserGroup' => [['i_id_room' => 2]]]));
+        $this->assertSame(1, $this->postAddAs(2, 0, ['c_login_account' => 'reg_own_room', 'MUserGroup' => [['i_id_room' => 1]]]));
+    }
+
+    /** 管理者は任意の部屋へ登録できる（従来どおり）。 */
+    public function testAdminCanRegisterToAnyRoom(): void
+    {
+        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => [['i_id_room' => 2]]]));
     }
 
     /** 管理者は職員も登録できる（従来どおり）。 */

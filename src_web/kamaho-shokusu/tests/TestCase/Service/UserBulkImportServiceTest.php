@@ -106,6 +106,22 @@ class UserBulkImportServiceTest extends TestCase
         $this->assertStringContainsString('児童', $result['errors'][1][0]);
     }
 
+    public function testImport_allowedRoomIds_rejectsOtherRoomAndAllowsOwn(): void
+    {
+        $records = [
+            ['_row' => 1, 'login_id' => 'room_ng', 'name' => 'A', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet'],
+            ['_row' => 2, 'login_id' => 'room_ok', 'name' => 'B', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet'],
+        ];
+
+        $denied = $this->service->import([$records[0]], 'staff', 2, '127.0.0.1', '', true, [99]);
+        $this->assertSame(1, $denied['failed']);
+        $this->assertSame(0, $denied['created']);
+        $this->assertStringContainsString('所属していない部屋', $denied['errors'][1][0]);
+
+        $allowed = $this->service->import([$records[1]], 'staff', 2, '127.0.0.1', '', true, [1]);
+        $this->assertSame(1, $allowed['created']);
+    }
+
     // ----------------------------------------------------------------
     // import — 職員にstaff_idが必須
     // ----------------------------------------------------------------

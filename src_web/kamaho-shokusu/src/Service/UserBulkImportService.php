@@ -19,9 +19,10 @@ class UserBulkImportService
      * @param int    $actorId     操作者ユーザーID
      * @param string $ipAddress   操作元IPアドレス
      * @param bool   $childOnly   true のとき児童(role=1)以外の行を失敗にする（管理者以外の操作者用）
+     * @param list<int>|null $allowedRoomIds 登録先に指定できる部屋ID。null は制限なし
      * @return array{processed: int, created: int, skipped: int, failed: int, errors: array}
      */
-    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = '', string $actorLoginId = '', bool $childOnly = false): array
+    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = '', string $actorLoginId = '', bool $childOnly = false, ?array $allowedRoomIds = null): array
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -86,6 +87,22 @@ class UserBulkImportService
                     $results['processed']++;
                     $results['errors'][$rowNo][] = '管理者以外は児童（role=児童）のみ登録できます。';
                     continue;
+                }
+
+                if ($allowedRoomIds !== null) {
+                    $denied = false;
+                    foreach (array_filter([$roomName1, $roomName2], fn($n) => $n !== '') as $rn) {
+                        $r = $roomInfoTable->find()->where(['c_room_name' => $rn])->first();
+                        if ($r && !in_array((int)$r->i_id_room, $allowedRoomIds, true)) {
+                            $denied = true;
+                        }
+                    }
+                    if ($denied) {
+                        $results['failed']++;
+                        $results['processed']++;
+                        $results['errors'][$rowNo][] = '自分が所属していない部屋には登録できません。';
+                        continue;
+                    }
                 }
 
                 if ($level === 0 && $staffId === '') {

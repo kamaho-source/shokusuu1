@@ -132,7 +132,8 @@ class MUserInfoController extends AppController
                 $actorId,
                 $this->getClientIp(),
                 $loginId,
-                !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0))
+                !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0)),
+                $this->allowedRoomIdsForRegistration($identity)
             );
         } catch (\Throwable $e) {
             $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
@@ -223,8 +224,16 @@ class MUserInfoController extends AppController
         if ($this->request->is('post')) {
             $data = $this->request->getData();
 
+            $allowedRoomIds = $this->allowedRoomIdsForRegistration($identityForRole);
+            $postedRoomIds  = array_map(
+                static fn($g) => (int)($g['i_id_room'] ?? 0),
+                array_filter((array)($data['MUserGroup'] ?? []), 'is_array')
+            );
+
             if ($childOnly && (string)($data['role'] ?? '') !== '1') {
                 $this->Flash->error(__('管理者以外は児童のみ登録できます。'));
+            } elseif ($allowedRoomIds !== null && array_diff(array_filter($postedRoomIds), $allowedRoomIds) !== []) {
+                $this->Flash->error(__('自分が所属していない部屋には登録できません。'));
             } elseif ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
                 $this->Flash->error(__('このログインIDは既に使用されています。他のIDをお試しください。'));
             } else {
@@ -258,14 +267,41 @@ class MUserInfoController extends AppController
             }
         }
 
-        $rooms = $this->MRoomInfo->find('list', [
+        $roomsQuery = $this->MRoomInfo->find('list', [
             'keyField'   => 'i_id_room',
             'valueField' => 'c_room_name',
-        ])->where(['i_del_flg' => 0])->toArray();
+        ])->where(['i_del_flg' => 0]);
+        $allowedForView = $this->allowedRoomIdsForRegistration($identityForRole);
+        if ($allowedForView !== null) {
+            $roomsQuery->where(['i_id_room IN' => $allowedForView ?: [0]]);
+        }
+        $rooms = $roomsQuery->toArray();
 
         $ages  = range(1, 80);
         $roles = $childOnly ? [1 => '児童'] : [0 => '職員', 1 => '児童', 3 => 'その他'];
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
+    }
+
+    /**
+     * ユーザー登録で選べる部屋ID。管理者・システム管理者は制限なし(null)、
+     * それ以外（職員・ブロック長）は自分が所属中(active_flag=0)の部屋のみ。
+     *
+     * @return list<int>|null
+     */
+    private function allowedRoomIdsForRegistration(?object $identity): ?array
+    {
+        if ($identity === null || UserRole::isAdmin((int)($identity->get('i_admin') ?? 0))) {
+            return null;
+        }
+
+        $ids = $this->fetchTable('MUserGroup')->find()
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => (int)$identity->get('i_id_user'), 'active_flag' => 0])
+            ->all()
+            ->map(static fn($g) => (int)$g->i_id_room)
+            ->toList();
+
+        return array_values(array_unique($ids));
     }
 
     public function edit($id = null)
