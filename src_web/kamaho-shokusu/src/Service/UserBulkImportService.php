@@ -90,18 +90,20 @@ class UserBulkImportService
                 }
 
                 if ($allowedRoomIds !== null) {
+                    // 部屋名は重複し得るため、所属部屋の中から名前を解決する。見つからなければ拒否する
                     $denied = false;
                     foreach (array_filter([$roomName1, $roomName2], fn($n) => $n !== '') as $rn) {
-                        $r = $roomInfoTable->find()->where(['c_room_name' => $rn])->first();
-                        // 非管理者は、存在しない部屋名でも所属なしのユーザーを作らせない
-                        if (!$r || !in_array((int)$r->i_id_room, $allowedRoomIds, true)) {
+                        $hit = $allowedRoomIds === [] ? null : $roomInfoTable->find()
+                            ->where(['c_room_name' => $rn, 'i_id_room IN' => $allowedRoomIds])
+                            ->first();
+                        if (!$hit) {
                             $denied = true;
                         }
                     }
                     if ($denied) {
                         $results['failed']++;
                         $results['processed']++;
-                        $results['errors'][$rowNo][] = '自分が所属していない部屋には登録できません。';
+                        $results['errors'][$rowNo][] = '自分が所属していない部屋、または存在しない部屋には登録できません。';
                         continue;
                     }
                 }
@@ -188,7 +190,11 @@ class UserBulkImportService
                     $roomNames = array_filter([$roomName1, $roomName2], fn($n) => $n !== '');
 
                     foreach ($roomNames as $roomName) {
-                        $room = $roomInfoTable->find()->where(['c_room_name' => $roomName])->first();
+                        $roomQuery = $roomInfoTable->find()->where(['c_room_name' => $roomName]);
+                        if ($allowedRoomIds !== null) {
+                            $roomQuery->where(['i_id_room IN' => $allowedRoomIds ?: [0]]);
+                        }
+                        $room = $roomQuery->first();
                         if ($room && $userId) {
                             $userGroup = $userGroupTable->newEntity([
                                 'i_id_user'     => $userId,
