@@ -24,6 +24,22 @@ class MUserInfoPolicyTest extends TestCase
         $this->assertFalse($policy->canView($other, $resource));
     }
 
+    public function testRegisterAllowedForStaffAndBlockLeaderButNotChildOrUnset(): void
+    {
+        $policy = new MUserInfoPolicy();
+        $resource = new MUserInfo();
+
+        foreach (['add', 'import', 'importForm', 'importJson'] as $action) {
+            $method = 'can' . ucfirst($action);
+            $this->assertTrue($policy->$method(new PolicyTestIdentity(['i_admin' => 1]), $resource), "$action admin");
+            $this->assertTrue($policy->$method(new PolicyTestIdentity(['i_admin' => 2, 'i_user_level' => 1]), $resource), "$action block leader");
+            $this->assertTrue($policy->$method(new PolicyTestIdentity(['i_admin' => 0, 'i_user_level' => 0]), $resource), "$action staff");
+            $this->assertFalse($policy->$method(new PolicyTestIdentity(['i_admin' => 0, 'i_user_level' => 1]), $resource), "$action child");
+            $this->assertFalse($policy->$method(new PolicyTestIdentity(['i_admin' => 0]), $resource), "$action level unset");
+            $this->assertFalse($policy->$method(new PolicyTestIdentity(['i_admin' => null, 'i_user_level' => null]), $resource), "$action null");
+        }
+    }
+
     public function testCanDeleteRequiresAdmin(): void
     {
         $policy = new MUserInfoPolicy();
