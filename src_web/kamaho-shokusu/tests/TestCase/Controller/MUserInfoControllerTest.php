@@ -293,6 +293,56 @@ class MUserInfoControllerTest extends TestCase
         $this->assertRedirectContains('/MUserInfo/login');
     }
 
+    private function postAddAs(int $adminValue, int $userLevel, array $extra = []): int
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => $adminValue, 'i_user_level' => $userLevel], ['i_id_user' => 2]);
+        $this->session(['Auth' => [
+            'i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => 'テスト',
+            'i_admin' => $adminValue, 'i_user_level' => $userLevel, 'i_id_room' => 1,
+        ]]);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $before = $table->find()->count();
+        $this->post('/MUserInfo/add', $extra + [
+            'c_login_account' => 'reg_by_role',
+            'c_login_passwd'  => 'password123',
+            'c_user_name'     => '登録テスト',
+            'role' => 1, 'age' => 10, 'age_group' => 1, 'i_user_gender' => 1,
+            'MUserGroup' => [['i_id_room' => 1]],
+        ]);
+
+        return $table->find()->count() - $before;
+    }
+
+    /** 一般職員（i_admin=0, 職員）もユーザー登録できる。 */
+    public function testGeneralStaffCanRegisterUser(): void
+    {
+        $this->assertSame(1, $this->postAddAs(0, 0));
+    }
+
+    /** ブロック長もユーザー登録できる。 */
+    public function testBlockLeaderCanRegisterUser(): void
+    {
+        $this->assertSame(1, $this->postAddAs(2, 0));
+    }
+
+    /** 職員以外（児童など）は登録できない。 */
+    public function testChildCannotRegisterUser(): void
+    {
+        $this->assertSame(0, $this->postAddAs(0, 1));
+    }
+
+    /** 非管理者が POST で権限・状態を指定しても反映されない（権限昇格の防止）。 */
+    public function testRegisterIgnoresPrivilegedFieldsFromPost(): void
+    {
+        $this->assertSame(1, $this->postAddAs(0, 0, ['i_admin' => 3, 'i_enable' => 1, 'i_del_flag' => 1]));
+        $created = $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'reg_by_role'])->firstOrFail();
+        $this->assertContains((int)($created->i_admin ?? 0), [0]);
+        $this->assertSame(0, (int)$created->i_enable);
+        $this->assertSame(0, (int)$created->i_del_flag);
+    }
+
     private function setAuthenticatedSession(bool $isAdmin = true): void
     {
         $this->session([

@@ -78,7 +78,7 @@ class MUserInfoController extends AppController
         try {
             $this->Authorization->authorize($resource, 'importForm');
         } catch (ForbiddenException $e) {
-            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+            $this->Flash->error(__('この機能を利用する権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
 
@@ -179,7 +179,9 @@ class MUserInfoController extends AppController
             $userRoomLabels[$uid] = $roomService->buildAffiliationLabel($roomNames, $totalActiveRooms);
         }
 
-        $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted'));
+        $canRegisterUsers = $this->Authorization->can($resource, 'add');
+
+        $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted', 'canRegisterUsers'));
     }
 
     public function add()
@@ -218,7 +220,10 @@ class MUserInfoController extends AppController
                 $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
 
                 try {
-                    $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data);
+                    // 管理者以外も登録できるため、権限・状態系の項目は POST から受け取らない
+                    $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
+                        'fields' => ['c_login_account', 'c_login_passwd', 'c_user_name', 'c_create_user'],
+                    ]);
 
                     if ($mUserInfo->hasErrors()) {
                         throw new \Exception('バリデーションエラーが発生しました。');
