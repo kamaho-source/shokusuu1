@@ -18,9 +18,10 @@ class UserBulkImportService
      * @param string $createUser  作成者ユーザー名
      * @param int    $actorId     操作者ユーザーID
      * @param string $ipAddress   操作元IPアドレス
+     * @param bool   $childOnly   true のとき児童(role=1)以外の行を失敗にする（管理者以外の操作者用）
      * @return array{processed: int, created: int, skipped: int, failed: int, errors: array}
      */
-    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): array
+    public function import(array $records, string $createUser, int $actorId = 0, string $ipAddress = '', string $actorLoginId = '', bool $childOnly = false): array
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -77,6 +78,13 @@ class UserBulkImportService
                     $results['failed']++;
                     $results['processed']++;
                     $results['errors'][$rowNo][] = 'role の値が不正です（職員/児童/その他 または 0/1/3 を指定してください）。';
+                    continue;
+                }
+
+                if ($childOnly && $level !== 1) {
+                    $results['failed']++;
+                    $results['processed']++;
+                    $results['errors'][$rowNo][] = '管理者以外は児童（role=児童）のみ登録できます。';
                     continue;
                 }
 

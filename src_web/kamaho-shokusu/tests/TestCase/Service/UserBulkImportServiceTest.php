@@ -89,6 +89,24 @@ class UserBulkImportServiceTest extends TestCase
     }
 
     // ----------------------------------------------------------------
+    // import — 管理者以外は児童のみ
+    // ----------------------------------------------------------------
+
+    public function testImport_childOnly_rejectsNonChildRows(): void
+    {
+        $records = [
+            ['_row' => 1, 'login_id' => 'co_staff', 'name' => 'A', 'role' => '職員', 'staff_id' => '1'],
+            ['_row' => 2, 'login_id' => 'co_other', 'name' => 'B', 'role' => 'その他'],
+        ];
+
+        $result = $this->service->import($records, 'staff', 2, '127.0.0.1', '', true);
+
+        $this->assertSame(2, $result['failed']);
+        $this->assertSame(0, $result['created']);
+        $this->assertStringContainsString('児童', $result['errors'][1][0]);
+    }
+
+    // ----------------------------------------------------------------
     // import — 職員にstaff_idが必須
     // ----------------------------------------------------------------
 

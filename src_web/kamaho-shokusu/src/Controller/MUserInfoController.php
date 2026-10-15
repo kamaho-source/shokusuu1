@@ -126,7 +126,14 @@ class MUserInfoController extends AppController
         $loginId    = (string)($identity?->get('c_login_account') ?? '');
 
         try {
-            $results = $this->userBulkImportService->import($records, $createUser, $actorId, $this->getClientIp(), $loginId);
+            $results = $this->userBulkImportService->import(
+                $records,
+                $createUser,
+                $actorId,
+                $this->getClientIp(),
+                $loginId,
+                !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0))
+            );
         } catch (\Throwable $e) {
             $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
             throw new BadRequestException('インポート処理中にエラーが発生しました。');
@@ -203,7 +210,10 @@ class MUserInfoController extends AppController
         $mUserInfo->i_enable     = 0;
         $mUserInfo->i_disp_no    = $maxDispNo;
         $mUserInfo->i_user_age   = (int)$this->request->getData('age');
-        $mUserInfo->i_user_level = (int)$this->request->getData('role');
+        // 管理者以外（職員・ブロック長）は児童のみ登録できる
+        $identityForRole = $this->request->getAttribute('identity');
+        $childOnly       = !UserRole::isAdmin((int)($identityForRole?->get('i_admin') ?? 0));
+        $mUserInfo->i_user_level = $childOnly ? 1 : (int)$this->request->getData('role');
         if ($mUserInfo->i_user_level === 0) {
             $mUserInfo->i_id_staff = $this->request->getData('staff_id');
         }
@@ -213,7 +223,9 @@ class MUserInfoController extends AppController
         if ($this->request->is('post')) {
             $data = $this->request->getData();
 
-            if ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
+            if ($childOnly && (string)($data['role'] ?? '') !== '1') {
+                $this->Flash->error(__('管理者以外は児童のみ登録できます。'));
+            } elseif ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
                 $this->Flash->error(__('このログインIDは既に使用されています。他のIDをお試しください。'));
             } else {
                 $user              = $this->request->getAttribute('identity');
@@ -252,7 +264,7 @@ class MUserInfoController extends AppController
         ])->where(['i_del_flg' => 0])->toArray();
 
         $ages  = range(1, 80);
-        $roles = [0 => '職員', 1 => '児童', 3 => 'その他'];
+        $roles = $childOnly ? [1 => '児童'] : [0 => '職員', 1 => '児童', 3 => 'その他'];
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
     }
 

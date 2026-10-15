@@ -327,6 +327,19 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(1, $this->postAddAs(2, 0));
     }
 
+    /** 管理者以外は、職員(role=0)など児童以外を登録できない。 */
+    public function testNonAdminCannotRegisterNonChild(): void
+    {
+        $this->assertSame(0, $this->postAddAs(2, 0, ['role' => 0, 'staff_id' => '900001']));
+        $this->assertSame(0, $this->postAddAs(0, 0, ['role' => 3]));
+    }
+
+    /** 管理者は職員も登録できる（従来どおり）。 */
+    public function testAdminCanRegisterStaff(): void
+    {
+        $this->assertSame(1, $this->postAddAs(1, 0, ['role' => 0, 'staff_id' => '900001']));
+    }
+
     /** 職員以外（児童など）は登録できない。 */
     public function testChildCannotRegisterUser(): void
     {

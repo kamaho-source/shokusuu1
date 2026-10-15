@@ -100,10 +100,14 @@ class MUserInfoPolicy
             return false;
         }
 
-        $get = static fn(string $key): int => match (true) {
-            is_object($identity) && method_exists($identity, 'get') => (int)$identity->get($key),
-            is_array($identity), $identity instanceof \ArrayAccess => (int)($identity[$key] ?? -1),
-            default => -1,
+        // 未設定(NULL)は -1 として扱い、どの Identity 形式でも職員(0)とみなさない
+        $get = static function (string $key) use ($identity): int {
+            $v = match (true) {
+                is_object($identity) && method_exists($identity, 'get') => $identity->get($key),
+                is_array($identity), $identity instanceof \ArrayAccess => $identity[$key] ?? null,
+                default => null,
+            };
+            return $v === null ? -1 : (int)$v;
         };
 
         $admin = $get('i_admin');
