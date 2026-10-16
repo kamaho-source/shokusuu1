@@ -92,10 +92,7 @@ class ReservationBulkService
             $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
             $blockLeaderInRoom = false;
             if ($isBlockLeader) {
-                $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                    'i_id_user' => $loginUserId,
-                    'i_id_room' => $roomId,
-                ]);
+                $blockLeaderInRoom = $this->roomAccessService->isActiveMember($loginUserId, (int)$roomId);
             }
             $existingMap = [];
             if (!empty($dates) && !empty($userIds)) {
@@ -511,10 +508,7 @@ class ReservationBulkService
                 $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
                 $blockLeaderInRoom = false;
                 if ($isBlockLeader && $roomId !== null) {
-                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                        'i_id_user' => $userId,
-                        'i_id_room' => (int)$roomId,
-                    ]);
+                    $blockLeaderInRoom = $this->roomAccessService->isActiveMember($userId, (int)$roomId);
                 }
             }
 
@@ -650,10 +644,7 @@ class ReservationBulkService
                 $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
                 $blockLeaderInRoom = false;
                 if ($isBlockLeader && $roomId !== null) {
-                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                        'i_id_user' => $userId,
-                        'i_id_room' => (int)$roomId,
-                    ]);
+                    $blockLeaderInRoom = $this->roomAccessService->isActiveMember($userId, (int)$roomId);
                 }
                 foreach ($dates as $date => $checkedDate) {
                     if (!$checkedDate) {

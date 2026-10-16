@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Domain\Exception\InvalidInputException;
+use App\Domain\Exception\UnauthorizedException;
 use App\Service\ReservationWriteService;
+use Cake\Datasource\ConnectionManager;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -54,6 +56,54 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
             loginUserId: 1,
             loginUserName: '管理者ユーザー',
         );
+    }
+
+    // ----------------------------------------------------------------
+    // 退出済み・削除済みの部屋には書き込めない（画面の選択肢と基準を揃える）
+    // ----------------------------------------------------------------
+
+    private function addRoomMembership(int $userId, int $roomId, int $activeFlag, int $roomDelFlg): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', [
+            'i_id_room' => $roomId, 'c_room_name' => '部屋' . $roomId, 'i_disp_no' => $roomId,
+            'i_enable' => 1, 'i_del_flg' => $roomDelFlg,
+        ]);
+        $db->insert('m_user_group', [
+            'i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => $activeFlag,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function futurePayload(): array
+    {
+        return ['date' => date('Y-m-d', strtotime('+20 days')), 'meal' => 3, 'value' => 1, 'userId' => 1];
+    }
+
+    public function testProcessToggle_activeMembershipInLiveRoom_succeeds(): void
+    {
+        $this->addRoomMembership(1, 30, 0, 0); // 正例（所属が有効・部屋も有効）
+
+        $result = $this->service->processToggle(30, $this->futurePayload(), 1, '管理者ユーザー');
+
+        $this->assertNotEmpty($result);
+    }
+
+    public function testProcessToggle_leftRoom_isRejected(): void
+    {
+        $this->addRoomMembership(1, 31, 1, 0); // 退出済み(active_flag=1)
+
+        $this->expectException(UnauthorizedException::class);
+        $this->service->processToggle(31, $this->futurePayload(), 1, '管理者ユーザー');
+    }
+
+    public function testProcessToggle_deletedRoom_isRejected(): void
+    {
+        $this->addRoomMembership(1, 32, 0, 1); // 部屋が削除済み(i_del_flg=1)
+
+        $this->expectException(UnauthorizedException::class);
+        $this->service->processToggle(32, $this->futurePayload(), 1, '管理者ユーザー');
     }
 
     // ----------------------------------------------------------------

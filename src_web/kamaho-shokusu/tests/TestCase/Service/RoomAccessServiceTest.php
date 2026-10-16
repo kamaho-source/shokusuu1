@@ -154,4 +154,53 @@ class RoomAccessServiceTest extends TestCase
         $this->assertArrayHasKey(3, $rooms);
         $this->assertArrayNotHasKey(98, $rooms);
     }
+
+    // ----------------------------------------------------------------
+    // isActiveMember（予約の書き込み可否の判定: 有効な所属か）
+    // ----------------------------------------------------------------
+
+    private function addMembership(int $userId, int $roomId, int $activeFlag, int $roomDelFlg = 0): void
+    {
+        $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
+        $db  = ConnectionManager::get('test');
+        $db->insert('m_room_info', [
+            'i_id_room' => $roomId, 'c_room_name' => '部屋' . $roomId, 'i_disp_no' => $roomId,
+            'i_enable' => 1, 'i_del_flg' => $roomDelFlg, 'dt_create' => $now, 'dt_update' => $now,
+        ]);
+        $db->insert('m_user_group', [
+            'i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => $activeFlag,
+            'dt_create' => $now, 'dt_update' => $now,
+        ]);
+    }
+
+    public function testIsActiveMember_activeMembershipInLiveRoom_true(): void
+    {
+        $this->assertTrue($this->service->isActiveMember(10, 2));
+        $this->assertTrue($this->service->isActiveMember(10, 3));
+    }
+
+    public function testIsActiveMember_leftRoom_false(): void
+    {
+        $this->addMembership(10, 21, 1); // 退出済み(active_flag=1)
+
+        $this->assertFalse($this->service->isActiveMember(10, 21));
+    }
+
+    public function testIsActiveMember_deletedRoom_false(): void
+    {
+        $this->addMembership(10, 22, 0, 1); // 所属は有効だが部屋が削除済み
+
+        $this->assertFalse($this->service->isActiveMember(10, 22));
+    }
+
+    public function testIsActiveMember_notAMember_false(): void
+    {
+        $this->assertFalse($this->service->isActiveMember(10, 99));
+    }
+
+    public function testIsActiveMember_invalidIds_false(): void
+    {
+        $this->assertFalse($this->service->isActiveMember(0, 2));
+        $this->assertFalse($this->service->isActiveMember(10, 0));
+    }
 }

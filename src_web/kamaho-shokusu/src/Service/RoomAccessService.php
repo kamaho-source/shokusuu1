@@ -77,6 +77,31 @@ class RoomAccessService
         return in_array($roomId, $this->getUserRoomIds($userId), true);
     }
 
+    /**
+     * 有効な所属か（所属が退出済み(active_flag=1)でなく、部屋が削除済み(i_del_flg=1)でもない）。
+     *
+     * 予約の書き込み可否の判定に使う。画面の選択肢（active_flag=0 の所属のみ）と基準を揃える。
+     */
+    public function isActiveMember(int $userId, int $roomId): bool
+    {
+        if ($userId <= 0 || $roomId <= 0) {
+            return false;
+        }
+
+        return TableRegistry::getTableLocator()->get('MUserGroup')->find()
+            ->innerJoin(
+                ['MRoomInfo' => 'm_room_info'],
+                ['MRoomInfo.i_id_room = MUserGroup.i_id_room']
+            )
+            ->where([
+                'MUserGroup.i_id_user'   => $userId,
+                'MUserGroup.i_id_room'   => $roomId,
+                'MUserGroup.active_flag' => 0,
+                'MRoomInfo.i_del_flg'    => 0,
+            ])
+            ->count() > 0;
+    }
+
     public function hasAnyAffiliation(int $userId): bool
     {
         return !empty($this->getUserRoomIds($userId));
