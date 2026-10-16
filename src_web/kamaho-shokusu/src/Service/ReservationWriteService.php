@@ -272,6 +272,16 @@ class ReservationWriteService
 
     private ?RoomAccessService $roomAccessService = null;
 
+    /** @var array<int, bool> */
+    private array $roomAvailableCache = [];
+
+    private function isRoomAvailable(int $roomId): bool
+    {
+        $this->roomAccessService ??= new RoomAccessService();
+
+        return $this->roomAvailableCache[$roomId] ??= $this->roomAccessService->isRoomAvailable($roomId);
+    }
+
     private function isActiveMember(int $userId, int $roomId): bool
     {
         $this->roomAccessService ??= new RoomAccessService();
@@ -321,6 +331,11 @@ class ReservationWriteService
         $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1) || $blockLeaderInRoom;
         if ($targetUserId !== $loginUserId && !$canEditOther) {
             throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
+        }
+
+        // 管理者でも、存在しない・削除済みの部屋には登録も取消もできない
+        if ($isAdmin && !$this->isRoomAvailable($roomId)) {
+            throw new UnauthorizedException('選択された部屋は利用できません。');
         }
 
         // 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属していること

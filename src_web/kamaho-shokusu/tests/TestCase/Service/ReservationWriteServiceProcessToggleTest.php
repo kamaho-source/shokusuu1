@@ -203,18 +203,36 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertSame(0, $this->eatFlag(3, 37, 3), '管理者の取消が反映されている');
     }
 
+    /** 管理者でも、削除済み・存在しない部屋には登録も取消もできない */
+    public function testProcessToggle_adminCannotTouchDeletedOrMissingRoom(): void
+    {
+        $this->addRoomMembership(3, 56, 0, 1);   // 削除済みの部屋
+        $this->reservationTableInsert(3, 56, date('Y-m-d', strtotime('+20 days')), 3);
+
+        foreach ([[56, 0], [56, 1], [9999, 0]] as [$room, $value]) {
+            try {
+                $this->service->processToggle($room, $this->togglePayload(3, $value), 1, '管理者');
+                $this->fail("管理者でも拒否される: room={$room} value={$value}");
+            } catch (UnauthorizedException $e) {
+                $this->assertSame('選択された部屋は利用できません。', $e->getMessage());
+            }
+        }
+        $this->assertSame(1, $this->eatFlag(3, 56, 3), '削除済みの部屋の予約は変更されない');
+    }
+
     /** 行が無い取消（value=0）では、所属外・削除済みの部屋に無効値の行を作らない */
     public function testProcessToggle_cancelWithoutExistingRow_doesNotCreateRowInNotMemberRoom(): void
     {
         $this->addRoomMembership(1, 54, 1, 0);   // 管理者(user 1)は退出済み
         $this->addRoomMembership(2, 55, 0, 1);   // 削除済みの部屋
 
-        foreach ([[54, 1, '管理者'], [55, 1, '管理者']] as [$room, $actor, $name]) {
+        // 管理者本人が退出済みの部屋(54)も、対象(user 3)が未所属なので「行が無い取消」は拒否される
+        foreach ([54 => '対象ユーザーは指定された部屋に所属していません。', 55 => '選択された部屋は利用できません。'] as $room => $message) {
             try {
-                $this->service->processToggle($room, $this->togglePayload(3, 0), $actor, $name);
+                $this->service->processToggle($room, $this->togglePayload(3, 0), 1, '管理者');
                 $this->fail('行が無い取消は拒否される');
             } catch (UnauthorizedException $e) {
-                $this->assertSame('対象ユーザーは指定された部屋に所属していません。', $e->getMessage());
+                $this->assertSame($message, $e->getMessage());
             }
             $this->assertNull($this->eatFlag(3, $room, 3), '行が作られていない');
         }

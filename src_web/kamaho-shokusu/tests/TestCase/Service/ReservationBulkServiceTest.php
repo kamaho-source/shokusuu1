@@ -773,4 +773,23 @@ class ReservationBulkServiceTest extends TestCase
         $row = $this->fetchReservation(3, '2026-06-12', 1, 58);
         $this->assertSame(0, (int)$row->i_change_flag, '取消された');
     }
+
+    /** 同じ利用者・日付・食事の有効行が2つの部屋にあっても、認可した部屋の取消が空振りしない */
+    public function testGroupBulkAdd_cancelWorksWhenSameMealActiveInTwoRooms(): void
+    {
+        $this->addRoomWithMembers(59, 0, [2 => 0, 3 => 0]);
+        $this->addRoomWithMembers(60, 0, [3 => 0]);
+        foreach ([59, 60] as $room) {
+            $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => $room, 'eat_flag' => 1, 'i_change_flag' => 1]);
+        }
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '59', 'day_users' => ['2026-06-12' => ['3' => ['1' => '0']]]],
+            2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 59)->eat_flag, '認可した部屋の予約が取消された');
+        $this->assertSame(1, (int)$this->fetchReservation(3, '2026-06-12', 1, 60)->eat_flag, '他部屋の予約は残る');
+    }
 }
