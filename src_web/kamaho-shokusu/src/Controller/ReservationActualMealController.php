@@ -431,7 +431,7 @@ class ReservationActualMealController extends ReservationBaseController
         $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
         $canViewAll    = $isAdmin || $isOfficeUser;
         $canViewRoom   = $canViewAll || $isBlockLeader || $isStaffUser;
-        $canUseAllMode = $canViewAll || ($isStaffUser && !$isBlockLeader);
+        $canUseAllMode = $canViewAll || $isBlockLeader || $isStaffUser;
 
         $session      = $this->request->getSession();
         $viewMode     = $this->request->getQuery('mode') ?? $session->read('mealCountGrid.mode') ?? 'individual';

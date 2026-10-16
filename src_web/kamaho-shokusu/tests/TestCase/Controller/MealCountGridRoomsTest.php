@@ -33,28 +33,51 @@ class MealCountGridRoomsTest extends TestCase
             'i_id_user' => 2, 'i_id_room' => 2, 'active_flag' => 0,
             'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
         ]);
+    }
+
+    private function loginAs(int $iAdmin): void
+    {
+        // 権限はセッションではなく DB の値で判定されるため、DB 側も合わせる
+        ConnectionManager::get('test')->update('m_user_info', ['i_admin' => $iAdmin], ['i_id_user' => 2]);
         $this->session(['Auth' => [
             'i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => '職員ユーザー',
-            'i_admin' => 0, 'i_user_level' => 0,
+            'i_admin' => $iAdmin, 'i_user_level' => 0,
         ]]);
     }
 
-    /** @return array<string, array{0: string}> */
-    public static function modes(): array
+    /** @return array<string, array{0: int, 1: string}> */
+    public static function cases(): array
     {
-        return ['各部屋' => ['room'], '全部' => ['all']];
+        return [
+            '一般職員/各部屋'   => [0, 'room'],
+            '一般職員/全部'     => [0, 'all'],
+            'ブロック長/各部屋' => [2, 'room'],
+            'ブロック長/全部'   => [2, 'all'],
+        ];
     }
 
     /**
-     * @dataProvider modes
+     * @dataProvider cases
      */
-    public function testStaffWithTwoRoomsSeesBothRooms(string $mode): void
+    public function testUserWithTwoRoomsSeesBothRooms(int $iAdmin, string $mode): void
     {
+        $this->loginAs($iAdmin);
         $this->get('/TReservationInfo/meal-count-grid?mode=' . $mode);
 
         $this->assertResponseOk();
         $this->assertResponseContains('Lorem ipsum dolor sit amet'); // 部屋1
         $this->assertResponseContains('第二の部屋');                  // 部屋2
         $this->assertResponseNotContains('第三の部屋');               // 所属していない部屋は出ない
+    }
+
+    /** ブロック長にも「全部」モードが選択肢として出て、選択状態になる */
+    public function testBlockLeaderCanSelectAllMode(): void
+    {
+        $this->loginAs(2);
+        $this->get('/TReservationInfo/meal-count-grid?mode=all');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('value="all"'); // 「全部」が選択肢にある
+        $this->assertResponseContains('<option value="all"        selected>');
     }
 }
