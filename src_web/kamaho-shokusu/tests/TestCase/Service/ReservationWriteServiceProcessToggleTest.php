@@ -198,9 +198,34 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->addRoomMembership(3, 37, 1, 0);   // 児童は退出済み。管理者(user 1)は未所属
         $this->reservationTableInsert(3, 37, date('Y-m-d', strtotime('+20 days')), 3);
 
-        $result = $this->service->processToggle(37, $this->togglePayload(3, 0), 1, '管理者');
+        $this->service->processToggle(37, $this->togglePayload(3, 0), 1, '管理者');
 
-        $this->assertNotEmpty($result);
+        $this->assertSame(0, $this->eatFlag(3, 37, 3), '管理者の取消が反映されている');
+    }
+
+    /** 行が無い取消（value=0）では、所属外・削除済みの部屋に無効値の行を作らない */
+    public function testProcessToggle_cancelWithoutExistingRow_doesNotCreateRowInNotMemberRoom(): void
+    {
+        $this->addRoomMembership(1, 54, 1, 0);   // 管理者(user 1)は退出済み
+        $this->addRoomMembership(2, 55, 0, 1);   // 削除済みの部屋
+
+        foreach ([[54, 1, '管理者'], [55, 1, '管理者']] as [$room, $actor, $name]) {
+            try {
+                $this->service->processToggle($room, $this->togglePayload(3, 0), $actor, $name);
+                $this->fail('行が無い取消は拒否される');
+            } catch (UnauthorizedException $e) {
+                $this->assertSame('対象ユーザーは指定された部屋に所属していません。', $e->getMessage());
+            }
+            $this->assertNull($this->eatFlag(3, $room, 3), '行が作られていない');
+        }
+    }
+
+    private function eatFlag(int $userId, int $roomId, int $meal): ?int
+    {
+        $row = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => $userId, 'i_id_room' => $roomId, 'i_reservation_type' => $meal])->first();
+
+        return $row === null ? null : (int)$row->eat_flag;
     }
 
     /** グループ予約: 取消のみなら、対象が退出済みでも通る */
@@ -208,6 +233,7 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
     {
         $this->addRoomMembership(2, 38, 0, 0);
         $this->addMember(3, 38, 1);
+        $this->reservationTableInsert(3, 38, date('Y-m-d', strtotime('+20 days')), 1);
 
         $result = $this->service->processGroupReservation(
             date('Y-m-d', strtotime('+20 days')),
@@ -222,6 +248,7 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         );
 
         $this->assertNotEmpty($result);
+        $this->assertSame(0, $this->eatFlag(3, 38, 1), '退出済みの児童の予約が取消されている');
     }
 
     /** グループ予約: 操作者が部屋に所属していないと、対象が有効所属でも書けない */

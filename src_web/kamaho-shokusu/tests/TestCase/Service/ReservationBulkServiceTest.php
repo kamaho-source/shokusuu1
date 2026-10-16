@@ -742,4 +742,35 @@ class ReservationBulkServiceTest extends TestCase
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
     }
+
+    /** グループの取消は認可した部屋の行だけを対象にし、同じ利用者の他部屋の予約を巻き込まない */
+    public function testGroupBulkAdd_cancelDoesNotTouchOtherRoomsRows(): void
+    {
+        $this->addRoomWithMembers(56, 0, [2 => 0, 3 => 0]);   // 職員と児童が所属する部屋
+        $this->addRoomWithMembers(57, 0, [3 => 0]);           // 職員は所属しない別部屋
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 57, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '56', 'day_users' => ['2026-06-12' => ['3' => ['1' => '0']]]],
+            2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(1, (int)$this->fetchReservation(3, '2026-06-12', 1, 57)->eat_flag, '他部屋(57)の予約は取消されない');
+    }
+
+    public function testBulkChangeEdit_cancelForLeftChildActuallyDeactivatesRow(): void
+    {
+        $this->addRoomWithMembers(58, 0, [2 => 0, 3 => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 58, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkChangeEdit(
+            ['2026-06-12' => ['3' => ['1' => '0']]],
+            58, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $row = $this->fetchReservation(3, '2026-06-12', 1, 58);
+        $this->assertSame(0, (int)$row->i_change_flag, '取消された');
+    }
 }

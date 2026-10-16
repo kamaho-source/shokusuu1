@@ -574,6 +574,10 @@ class ReservationBulkService
                             // 走査完了後のトランザクション内でまとめて行う
                             if (!(int)$checked) {
                                 $activeRow = $existingActiveMap[$date][(int)$targetUserId][$mealType] ?? null;
+                                // 取消は、認可した部屋（$roomId）の行だけを対象にする（他部屋の予約を巻き込まない）
+                                if ($activeRow !== null && $roomId !== null && (int)$activeRow->i_id_room !== (int)$roomId) {
+                                    $activeRow = null;
+                                }
                                 if ($activeRow !== null) {
                                     if (!$canCancelTarget) {
                                         return [

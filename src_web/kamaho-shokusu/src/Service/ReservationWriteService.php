@@ -178,9 +178,8 @@ class ReservationWriteService
         $targetUserLevels = $this->fetchUserLevels($userIds);
         $blockLeaderInRoom = false;
         if ($isBlockLeader && $roomId !== null) {
-            $blockLeaderInRoom = (new RoomAccessService())->isActiveMember($loginUserId, $roomId);
+            $blockLeaderInRoom = $this->isActiveMember($loginUserId, $roomId);
         }
-        $roomAccess = new RoomAccessService();
         foreach ($userIds as $targetUserId) {
             $targetUserLevel = $targetUserLevels[$targetUserId] ?? 0;
             $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
@@ -189,7 +188,7 @@ class ReservationWriteService
             }
             if (!$isAdmin && $roomId !== null) {
                 // 他人の予約を扱うには、操作者本人も部屋に有効所属していること
-                if ($targetUserId !== $loginUserId && !$roomAccess->isActiveMember($loginUserId, $roomId)) {
+                if ($targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
                     throw new UnauthorizedException('この部屋を操作する権限がありません。');
                 }
                 // 登録（1を含む）は対象（本人を含む）が有効所属していること。取消のみなら所属は要求しない。
@@ -200,7 +199,7 @@ class ReservationWriteService
                         break;
                     }
                 }
-                if ($wantsRegister && !$roomAccess->isActiveMember($targetUserId, $roomId)) {
+                if ($wantsRegister && !$this->isActiveMember($targetUserId, $roomId)) {
                     throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
                 }
             }
@@ -268,6 +267,18 @@ class ReservationWriteService
         return $this->ok('予約が正常に登録されました。', ['date' => $reservationDate], $this->redirectToIndex());
     }
 
+    /** @var array<string, bool> リクエスト内の所属判定キャッシュ（bulk-toggle の件数ぶんの再問い合わせを避ける） */
+    private array $activeMemberCache = [];
+
+    private ?RoomAccessService $roomAccessService = null;
+
+    private function isActiveMember(int $userId, int $roomId): bool
+    {
+        $this->roomAccessService ??= new RoomAccessService();
+
+        return $this->activeMemberCache[$userId . ':' . $roomId] ??= $this->roomAccessService->isActiveMember($userId, $roomId);
+    }
+
     public function processToggle(
         int $roomId,
         array $payload,
@@ -306,22 +317,30 @@ class ReservationWriteService
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
 
-        $roomAccess        = new RoomAccessService();
-        $blockLeaderInRoom = $isBlockLeader && $roomAccess->isActiveMember($loginUserId, $roomId);
+        $blockLeaderInRoom = $isBlockLeader && $this->isActiveMember($loginUserId, $roomId);
         $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1) || $blockLeaderInRoom;
         if ($targetUserId !== $loginUserId && !$canEditOther) {
             throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
         }
 
         // 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属していること
-        if (!$isAdmin && $targetUserId !== $loginUserId && !$roomAccess->isActiveMember($loginUserId, $roomId)) {
+        if (!$isAdmin && $targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
             throw new UnauthorizedException('この部屋を操作する権限がありません。');
         }
 
-        // 登録は、対象ユーザーが指定部屋に有効所属していること（他部屋への不正書き込みを防ぐ）。
-        // 取消（value=0）は、退出後に残った予約を消せるよう所属を要求しない。
-        if ($value !== 0 && !$roomAccess->isActiveMember($targetUserId, $roomId)) {
-            throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
+        // 対象ユーザーが指定部屋に有効所属していること（他部屋への不正書き込みを防ぐ）。
+        // 取消（value=0）は、退出後に残った予約を消せるよう所属を要求しない。ただし既存の予約がある場合に限る
+        // （行が無い取消で、所属外・削除済みの部屋に無効値の行が作られるのを防ぐ）。
+        if (!$this->isActiveMember($targetUserId, $roomId)) {
+            $canCancelExisting = $value === 0 && $this->reservationTable->exists([
+                'i_id_user'          => $targetUserId,
+                'i_id_room'          => $roomId,
+                'd_reservation_date' => $dateStr,
+                'i_reservation_type' => $meal,
+            ]);
+            if (!$canCancelExisting) {
+                throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
+            }
         }
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
