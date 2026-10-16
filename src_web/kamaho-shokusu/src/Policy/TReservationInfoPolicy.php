@@ -361,9 +361,10 @@ class TReservationInfoPolicy
             return true;
         }
 
-        // 管理者は所属外の部屋も扱えるが、削除済みの部屋は扱えない
+        // 管理者は部屋を問わず許可する（削除済み・存在しない部屋への書き込みは、各サービス側で拒否する）。
+        // この判定は読み取り系（過去の履歴の閲覧など）でも共有されるため、ここでは削除状態を見ない。
         if ($this->isAdmin($user)) {
-            return !$this->roomAccessService->isRoomDeleted($requestedRoomId);
+            return true;
         }
 
         $userId = $this->getUserId($user);

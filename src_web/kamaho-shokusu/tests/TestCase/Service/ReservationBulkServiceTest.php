@@ -122,7 +122,8 @@ class ReservationBulkServiceTest extends TestCase
                 'i_id_room'        => (string)$roomId,
                 'day_users'        => $dayUsers,
             ],
-            99,
+            // 非管理者は、操作者本人が部屋に有効所属している必要がある（user 2 = 部屋1所属の職員）
+            $isAdmin ? 99 : 2,
             'tester',
             $this->reservationTable,
             $this->userTable,
@@ -669,5 +670,76 @@ class ReservationBulkServiceTest extends TestCase
 
         $this->assertFalse($result['ok']);
         $this->assertNull($this->fetchReservation(3, '2026-06-10', 1, 49));
+    }
+
+    // ---------------------------------------------------------------------------
+    // 操作者の所属・取消方向（退出後に残った予約は取消せる）
+    // ---------------------------------------------------------------------------
+
+    /** グループ登録: 部屋に所属していない職員は、その部屋の児童（有効所属）にも書き込めない */
+    public function testGroupBulkAdd_actorNotMemberOfRoom_isRejected(): void
+    {
+        $this->addRoomWithMembers(50, 0, [3 => 0]); // 児童(user 3)は有効所属、職員(user 2)は未所属
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '50', 'day_users' => ['2026-06-10' => ['3' => ['1' => '1']]]],
+            2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertNull($this->fetchReservation(3, '2026-06-10', 1, 50));
+    }
+
+    /** グループ: 退出済みの児童の既存予約は、職員（部屋の有効所属）が取消せる。登録は拒否される */
+    public function testGroupBulkAdd_staffCanCancelButNotRegisterForLeftChild(): void
+    {
+        $this->addRoomWithMembers(51, 0, [2 => 0, 3 => 1]); // 児童は退出済み
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 51, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $register = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '51', 'day_users' => ['2026-06-13' => ['3' => ['1' => '1']]]],
+            2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
+        );
+        $this->assertFalse($register['ok'], '退出済みの児童への登録は拒否');
+
+        $cancel = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '51', 'day_users' => ['2026-06-12' => ['3' => ['1' => '0']]]],
+            2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
+        );
+        $this->assertTrue($cancel['ok'], $cancel['message'] ?? '');
+        $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 51)->eat_flag);
+    }
+
+    /** 一括変更: 退出済みの児童の予約を取消（0）できるが、新規登録（1）はできない */
+    public function testBulkChangeEdit_cancelForLeftChildAllowed_registerRejected(): void
+    {
+        $this->addRoomWithMembers(52, 0, [2 => 0, 3 => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 52, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $cancel = $this->service->processBulkChangeEdit(
+            ['2026-06-12' => ['3' => ['1' => '0']]],
+            52, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
+        );
+        $this->assertTrue($cancel['ok'], $cancel['message'] ?? '');
+
+        $register = $this->service->processBulkChangeEdit(
+            ['2026-06-13' => ['3' => ['1' => '1']]],
+            52, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
+        );
+        $this->assertFalse($register['ok']);
+    }
+
+    /** 管理者は、所属外の部屋の予約も取消できる（本番にある代理入力の取消） */
+    public function testBulkChangeEdit_adminCanCancelInNotMemberRoom(): void
+    {
+        $this->addRoomWithMembers(53, 0, [3 => 1]); // 管理者(user 1)は未所属
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 53, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkChangeEdit(
+            ['2026-06-12' => ['3' => ['1' => '0']]],
+            53, 'tester', $this->reservationTable, $this->userTable, [], 1, true, 0, false
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
     }
 }

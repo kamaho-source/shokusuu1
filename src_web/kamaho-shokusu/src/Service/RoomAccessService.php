@@ -79,20 +79,6 @@ class RoomAccessService
     }
 
     /**
-     * 部屋が削除済み(i_del_flg=1)か。存在しない部屋は false（読み取り系で「空の結果」を返す既存挙動を保つ）。
-     */
-    public function isRoomDeleted(int $roomId): bool
-    {
-        if ($roomId <= 0) {
-            return false;
-        }
-
-        return TableRegistry::getTableLocator()->get('MRoomInfo')->find()
-            ->where(['i_id_room' => $roomId, 'i_del_flg' => 1])
-            ->count() > 0;
-    }
-
-    /**
      * 部屋が存在し、削除されていないか（管理者が所属外の部屋を扱う場合の最低条件）。
      */
     public function isRoomAvailable(int $roomId): bool

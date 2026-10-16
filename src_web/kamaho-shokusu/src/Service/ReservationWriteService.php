@@ -187,9 +187,22 @@ class ReservationWriteService
             if ($targetUserId !== $loginUserId && !$canEditOther) {
                 throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
             }
-            // 管理者以外は、対象（本人を含む）が部屋に有効所属していること
-            if (!$isAdmin && $roomId !== null && !$roomAccess->isActiveMember($targetUserId, $roomId)) {
-                throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
+            if (!$isAdmin && $roomId !== null) {
+                // 他人の予約を扱うには、操作者本人も部屋に有効所属していること
+                if ($targetUserId !== $loginUserId && !$roomAccess->isActiveMember($loginUserId, $roomId)) {
+                    throw new UnauthorizedException('この部屋を操作する権限がありません。');
+                }
+                // 登録（1を含む）は対象（本人を含む）が有効所属していること。取消のみなら所属は要求しない。
+                $wantsRegister = false;
+                foreach ((array)($data['users'][$targetUserId] ?? []) as $selected) {
+                    if ((is_bool($selected) ? ($selected ? 1 : 0) : (int)$selected) === 1) {
+                        $wantsRegister = true;
+                        break;
+                    }
+                }
+                if ($wantsRegister && !$roomAccess->isActiveMember($targetUserId, $roomId)) {
+                    throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
+                }
             }
         }
 
@@ -300,9 +313,14 @@ class ReservationWriteService
             throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
         }
 
-        // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
-        $belongsToRoom = $roomAccess->isActiveMember($targetUserId, $roomId);
-        if (!$belongsToRoom) {
+        // 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属していること
+        if (!$isAdmin && $targetUserId !== $loginUserId && !$roomAccess->isActiveMember($loginUserId, $roomId)) {
+            throw new UnauthorizedException('この部屋を操作する権限がありません。');
+        }
+
+        // 登録は、対象ユーザーが指定部屋に有効所属していること（他部屋への不正書き込みを防ぐ）。
+        // 取消（value=0）は、退出後に残った予約を消せるよう所属を要求しない。
+        if ($value !== 0 && !$roomAccess->isActiveMember($targetUserId, $roomId)) {
             throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
         }
 

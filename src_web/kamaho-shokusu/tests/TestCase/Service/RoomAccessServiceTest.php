@@ -222,16 +222,13 @@ class RoomAccessServiceTest extends TestCase
         $this->assertTrue($this->service->userCanAccessRoom(10, 2));
     }
 
-    public function testRoomState_deletedAvailableMissing(): void
+    public function testIsRoomAvailable_deletedAndMissing(): void
     {
         $this->addMembership(10, 25, 0, 1);
 
-        $this->assertTrue($this->service->isRoomDeleted(25));
         $this->assertFalse($this->service->isRoomAvailable(25));
-        $this->assertFalse($this->service->isRoomDeleted(2));
         $this->assertTrue($this->service->isRoomAvailable(2));
-        // 存在しない部屋: 削除済みではないが、利用可能でもない
-        $this->assertFalse($this->service->isRoomDeleted(9999));
+        // 存在しない部屋は利用可能ではない
         $this->assertFalse($this->service->isRoomAvailable(9999));
     }
 }

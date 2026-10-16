@@ -147,7 +147,8 @@ class ReservationBulkService
                             if ((int)$existing->i_change_flag !== $changeFlag) {
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
-                                if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
+                                // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
+                                if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId, $changeFlag === 0)) {
                                     $connection->rollback();
                                     return [
                                         'ok'      => false,
@@ -551,6 +552,17 @@ class ReservationBulkService
                             $blockLeaderInRoom,
                             $roomId !== null ? (int)$roomId : null
                         );
+                        // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
+                        $canCancelTarget = $this->canEditTargetUser(
+                            (int)$targetUserId,
+                            $userId,
+                            $isAdmin,
+                            $isLoginStaff,
+                            (int)($userLevelMapBulk[(int)$targetUserId] ?? 0),
+                            $blockLeaderInRoom,
+                            $roomId !== null ? (int)$roomId : null,
+                            true
+                        );
                         foreach ($mealData as $mealType => $checked) {
                             $mealType = (int)$mealType;
                             if (!in_array($mealType, [1, 2, 3, 4], true)) {
@@ -563,7 +575,7 @@ class ReservationBulkService
                             if (!(int)$checked) {
                                 $activeRow = $existingActiveMap[$date][(int)$targetUserId][$mealType] ?? null;
                                 if ($activeRow !== null) {
-                                    if (!$canEditTarget) {
+                                    if (!$canCancelTarget) {
                                         return [
                                             'ok'      => false,
                                             'message' => '他ユーザーの予約を更新する権限がありません。',
@@ -862,7 +874,8 @@ class ReservationBulkService
         bool $isLoginStaff,
         int $targetUserLevel,
         bool $blockLeaderInRoom,
-        ?int $roomId = null
+        ?int $roomId = null,
+        bool $isCancel = false
     ): bool {
         if ($isAdmin) {
             // 管理者は所属外の部屋でも扱える（削除済みの部屋は呼び出し側の部屋検証で弾く）
@@ -870,13 +883,20 @@ class ReservationBulkService
         }
 
         if ($targetUserId === $loginUserId) {
-            // 自分自身でも、有効に所属していない部屋の予約は操作させない
-            return $roomId === null || $this->isActiveMemberCached($loginUserId, $roomId);
+            // 自分自身でも、有効に所属していない部屋への登録は操作させない。
+            // 取消は、退出後に残った自分の予約を消せるよう所属を要求しない。
+            return $isCancel || $roomId === null || $this->isActiveMemberCached($loginUserId, $roomId);
         }
 
-        // 他人の予約は、権限（職員→児童／部屋のブロック長）に加えて、対象が部屋に有効所属していること
-        if ($roomId !== null && !$this->isActiveMemberCached($targetUserId, $roomId)) {
-            return false;
+        if ($roomId !== null) {
+            // 他人の予約を扱うには、操作者本人が部屋に有効所属していること
+            if (!$this->isActiveMemberCached($loginUserId, $roomId)) {
+                return false;
+            }
+            // 登録は対象も有効所属していること。取消は、対象が退出済みでも行える。
+            if (!$isCancel && !$this->isActiveMemberCached($targetUserId, $roomId)) {
+                return false;
+            }
         }
 
         return ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;

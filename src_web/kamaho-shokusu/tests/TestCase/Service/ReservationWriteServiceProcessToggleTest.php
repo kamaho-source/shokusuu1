@@ -149,6 +149,110 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertNotEmpty($result);
     }
 
+    /** @return array<string, mixed> */
+    private function togglePayload(int $userId, int $value, int $meal = 3, int $days = 20): array
+    {
+        return ['date' => date('Y-m-d', strtotime("+{$days} days")), 'meal' => $meal, 'value' => $value, 'userId' => $userId];
+    }
+
+    private function addMember(int $userId, int $roomId, int $activeFlag): void
+    {
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => $activeFlag,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+    }
+
+    /** 取消（value=0）は、対象が退出済みでも行える。登録（value=1）は拒否される */
+    public function testProcessToggle_cancelAllowedForLeftChild_registerRejected(): void
+    {
+        $this->addRoomMembership(2, 35, 0, 0);   // 職員(user 2)は有効所属
+        $this->addMember(3, 35, 1);               // 児童(user 3)は退出済み
+        $day = 20;
+        $this->reservationTableInsert(3, 35, date('Y-m-d', strtotime("+{$day} days")), 3);
+
+        $cancel = $this->service->processToggle(35, $this->togglePayload(3, 0, 3, $day), 2, '職員');
+        $this->assertNotEmpty($cancel);
+        $row = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => 3, 'i_id_room' => 35, 'i_reservation_type' => 3])->first();
+        $this->assertSame(0, (int)$row->eat_flag, '取消されている');
+
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('対象ユーザーは指定された部屋に所属していません。');
+        $this->service->processToggle(35, $this->togglePayload(3, 1, 3, 21), 2, '職員');
+    }
+
+    /** 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属している必要がある */
+    public function testProcessToggle_actorNotMember_cannotEditChild(): void
+    {
+        $this->addRoomMembership(3, 36, 0, 0);   // 児童のみ有効所属。職員(user 2)は未所属
+
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('この部屋を操作する権限がありません。');
+        $this->service->processToggle(36, $this->togglePayload(3, 1), 2, '職員');
+    }
+
+    /** 管理者は、所属外の部屋で他人の予約を取消せる（対象が退出済みでも） */
+    public function testProcessToggle_adminCanCancelForNotMemberTarget(): void
+    {
+        $this->addRoomMembership(3, 37, 1, 0);   // 児童は退出済み。管理者(user 1)は未所属
+        $this->reservationTableInsert(3, 37, date('Y-m-d', strtotime('+20 days')), 3);
+
+        $result = $this->service->processToggle(37, $this->togglePayload(3, 0), 1, '管理者');
+
+        $this->assertNotEmpty($result);
+    }
+
+    /** グループ予約: 取消のみなら、対象が退出済みでも通る */
+    public function testProcessGroupReservation_cancelOnly_allowedForLeftTarget(): void
+    {
+        $this->addRoomMembership(2, 38, 0, 0);
+        $this->addMember(3, 38, 1);
+
+        $result = $this->service->processGroupReservation(
+            date('Y-m-d', strtotime('+20 days')),
+            ['i_id_room' => 38, 'users' => [3 => [1 => 0]]],
+            [38 => '部屋38'],
+            '職員',
+            fn() => true,
+            2,
+            false,
+            0,
+            false
+        );
+
+        $this->assertNotEmpty($result);
+    }
+
+    /** グループ予約: 操作者が部屋に所属していないと、対象が有効所属でも書けない */
+    public function testProcessGroupReservation_actorNotMember_isRejected(): void
+    {
+        $this->addRoomMembership(3, 39, 0, 0);
+
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('この部屋を操作する権限がありません。');
+        $this->service->processGroupReservation(
+            date('Y-m-d', strtotime('+20 days')),
+            ['i_id_room' => 39, 'users' => [3 => [1 => 1]]],
+            [39 => '部屋39'],
+            '職員',
+            fn() => true,
+            2,
+            false,
+            0,
+            false
+        );
+    }
+
+    private function reservationTableInsert(int $userId, int $roomId, string $date, int $meal): void
+    {
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => $userId, 'd_reservation_date' => $date, 'i_reservation_type' => $meal, 'i_id_room' => $roomId,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+    }
+
     // ----------------------------------------------------------------
     // processBulkToggle（エクセル食数予約の一括登録）
     // ----------------------------------------------------------------

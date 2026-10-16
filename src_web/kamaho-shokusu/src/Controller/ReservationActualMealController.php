@@ -337,6 +337,25 @@ class ReservationActualMealController extends ReservationBaseController
         $actor        = (string)($authUser?->get('c_user_name') ?? 'system');
         $actorLoginId = (string)($authUser?->get('c_login_account') ?? '');
 
+        // 存在しない・削除済みの部屋には、管理者でも書き込めない。
+        // 非管理者は、対象ユーザーが部屋に有効所属していること（既に行がある場合の更新は除く）。
+        $roomAccess = new \App\Service\RoomAccessService();
+        if (!$roomAccess->isRoomAvailable($roomId)) {
+            return $this->apiResponseService->error($this->response, '選択された部屋は利用できません。', 403);
+        }
+        $isAdminActor = UserRole::isAdmin((int)($authUser?->get('i_admin') ?? 0));
+        if (!$isAdminActor && !$roomAccess->isActiveMember($targetUid, $roomId)) {
+            $hasRow = $this->TIndividualReservationInfo->exists([
+                'i_id_user'          => $targetUid,
+                'd_reservation_date' => $date,
+                'i_id_room'          => $roomId,
+                'i_reservation_type' => $mealType,
+            ]);
+            if (!$hasRow) {
+                return $this->apiResponseService->error($this->response, '対象ユーザーは指定された部屋に所属していません。', 403);
+            }
+        }
+
         $service = new ActualMealManagementService();
         $result  = $service->saveActualMeal(
             $this->TIndividualReservationInfo,
