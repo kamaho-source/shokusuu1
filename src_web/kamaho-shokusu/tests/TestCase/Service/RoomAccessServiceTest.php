@@ -203,4 +203,35 @@ class RoomAccessServiceTest extends TestCase
         $this->assertFalse($this->service->isActiveMember(0, 2));
         $this->assertFalse($this->service->isActiveMember(10, 0));
     }
+
+    public function testGetAccessibleRooms_excludesDeletedRooms(): void
+    {
+        $this->addMembership(10, 23, 0, 1); // 所属は有効だが部屋が削除済み
+
+        $rooms = $this->service->getAccessibleRooms(TableRegistry::getTableLocator()->get('MRoomInfo'), 10);
+
+        $this->assertArrayNotHasKey(23, $rooms);
+        $this->assertSame([2, 3], array_keys($rooms));
+    }
+
+    public function testUserCanAccessRoom_deletedRoom_false(): void
+    {
+        $this->addMembership(10, 24, 0, 1);
+
+        $this->assertFalse($this->service->userCanAccessRoom(10, 24));
+        $this->assertTrue($this->service->userCanAccessRoom(10, 2));
+    }
+
+    public function testRoomState_deletedAvailableMissing(): void
+    {
+        $this->addMembership(10, 25, 0, 1);
+
+        $this->assertTrue($this->service->isRoomDeleted(25));
+        $this->assertFalse($this->service->isRoomAvailable(25));
+        $this->assertFalse($this->service->isRoomDeleted(2));
+        $this->assertTrue($this->service->isRoomAvailable(2));
+        // 存在しない部屋: 削除済みではないが、利用可能でもない
+        $this->assertFalse($this->service->isRoomDeleted(9999));
+        $this->assertFalse($this->service->isRoomAvailable(9999));
+    }
 }

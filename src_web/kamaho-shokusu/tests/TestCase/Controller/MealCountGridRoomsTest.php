@@ -77,7 +77,7 @@ class MealCountGridRoomsTest extends TestCase
         $this->get('/TReservationInfo/meal-count-grid?mode=all');
 
         $this->assertResponseOk();
-        $this->assertResponseContains('value="all"'); // 「全部」が選択肢にある
-        $this->assertResponseContains('<option value="all"        selected>');
+        // 「全部」が選択肢にあり、選択状態になっている（空白の数には依存しない）
+        $this->assertMatchesRegularExpression('/<option value="all"\s+selected>/', (string)$this->_response->getBody());
     }
 }

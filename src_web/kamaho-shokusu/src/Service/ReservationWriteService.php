@@ -180,11 +180,16 @@ class ReservationWriteService
         if ($isBlockLeader && $roomId !== null) {
             $blockLeaderInRoom = (new RoomAccessService())->isActiveMember($loginUserId, $roomId);
         }
+        $roomAccess = new RoomAccessService();
         foreach ($userIds as $targetUserId) {
             $targetUserLevel = $targetUserLevels[$targetUserId] ?? 0;
             $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
             if ($targetUserId !== $loginUserId && !$canEditOther) {
                 throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
+            }
+            // 管理者以外は、対象（本人を含む）が部屋に有効所属していること
+            if (!$isAdmin && $roomId !== null && !$roomAccess->isActiveMember($targetUserId, $roomId)) {
+                throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
             }
         }
 

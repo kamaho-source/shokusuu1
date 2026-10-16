@@ -361,8 +361,9 @@ class TReservationInfoPolicy
             return true;
         }
 
+        // 管理者は所属外の部屋も扱えるが、削除済みの部屋は扱えない
         if ($this->isAdmin($user)) {
-            return true;
+            return !$this->roomAccessService->isRoomDeleted($requestedRoomId);
         }
 
         $userId = $this->getUserId($user);

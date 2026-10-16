@@ -106,6 +106,49 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->service->processToggle(32, $this->futurePayload(), 1, '管理者ユーザー');
     }
 
+    /** グループ予約: 対象ユーザーが部屋に有効所属していないと、非管理者は書き込めない */
+    public function testProcessGroupReservation_targetNotActiveMember_isRejected(): void
+    {
+        $this->addRoomMembership(2, 33, 0, 0); // 職員(user 2)は有効所属
+        // 児童(user 3)は部屋33に所属していない
+
+        $this->expectException(UnauthorizedException::class);
+        $this->service->processGroupReservation(
+            date('Y-m-d', strtotime('+20 days')),
+            ['i_id_room' => 33, 'users' => [3 => [1 => 1]]],
+            [33 => '部屋33'],
+            '職員',
+            fn() => true,
+            2,
+            false,
+            0,
+            false
+        );
+    }
+
+    public function testProcessGroupReservation_targetActiveMember_succeeds(): void
+    {
+        $this->addRoomMembership(2, 34, 0, 0);
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => 3, 'i_id_room' => 34, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+
+        $result = $this->service->processGroupReservation(
+            date('Y-m-d', strtotime('+20 days')),
+            ['i_id_room' => 34, 'users' => [3 => [1 => 1]]],
+            [34 => '部屋34'],
+            '職員',
+            fn() => true,
+            2,
+            false,
+            0,
+            false
+        );
+
+        $this->assertNotEmpty($result);
+    }
+
     // ----------------------------------------------------------------
     // processBulkToggle（エクセル食数予約の一括登録）
     // ----------------------------------------------------------------
