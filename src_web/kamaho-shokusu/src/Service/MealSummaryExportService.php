@@ -37,6 +37,10 @@ class MealSummaryExportService
         $monthlyData = [];
         foreach ($users as $user) {
             $mealCounts    = $this->countMeals($user->i_id_user, $year, $month);
+            // 削除（退職）済み職員は、その月に実績がある場合のみ控除表に載せる
+            if ((int)$user->i_del_flag === 1 && array_sum($mealCounts) === 0) {
+                continue;
+            }
             $mealTotalPrice = $this->calcTotalPrice($mealCounts, $mealPrices);
 
             $monthlyData[] = [
@@ -115,8 +119,8 @@ class MealSummaryExportService
     {
         $table = TableRegistry::getTableLocator()->get('MUserInfo');
         return $table->find()
-            ->select(['i_id_user', 'c_user_name', 'i_id_staff'])
-            ->where(['i_id_staff IS NOT' => null, 'i_del_flag' => 0])
+            ->select(['i_id_user', 'c_user_name', 'i_id_staff', 'i_del_flag'])
+            ->where(['i_id_staff IS NOT' => null])
             ->all()
             ->toArray();
     }
