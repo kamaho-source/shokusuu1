@@ -177,13 +177,9 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertSame(true, $responseJson['ok'] ?? null);
         $this->assertArrayHasKey('users', $responseJson['data'] ?? []);
 
-        // 無効なルームIDでテスト（ユーザーが存在しない場合）
+        // 所属していない（存在しない）部屋は、管理者でも拒否される（#821）
         $this->get('/TReservationInfo/getUsersByRoomForBulk/999');
-        $this->assertResponseOk(); // エラーではなく空の結果を返すべき
-        $responseJson = json_decode((string)$this->_response->getBody(), true);
-        $this->assertSame(true, $responseJson['ok'] ?? null);
-        $this->assertArrayHasKey('users', $responseJson['data'] ?? []);
-        $this->assertEmpty($responseJson['data']['users']);
+        $this->assertResponseCode(403);
     }
 
     public function testGetUsersByRoomUsesChangeFlagAtFourteenDays(): void

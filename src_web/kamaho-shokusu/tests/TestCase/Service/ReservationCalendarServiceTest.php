@@ -158,11 +158,11 @@ class ReservationCalendarServiceTest extends TestCase
     // getRoomsForUser — DB使用
     // ----------------------------------------------------------------
 
-    public function testGetRoomsForUser_adminReturnsAllRooms(): void
+    public function testGetRoomsForUser_includeAllRoomsReturnsAllRooms(): void
     {
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [], isAdmin: true);
+        $result = $this->service->getRoomsForUser($roomTable, [], includeAllRooms: true);
 
         $this->assertIsArray($result);
         $this->assertArrayHasKey(1, $result); // fixture にid=1の部屋が存在する
@@ -172,7 +172,7 @@ class ReservationCalendarServiceTest extends TestCase
     {
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [], isAdmin: false);
+        $result = $this->service->getRoomsForUser($roomTable, [], includeAllRooms: false);
 
         $this->assertSame([], $result);
     }
@@ -183,7 +183,7 @@ class ReservationCalendarServiceTest extends TestCase
         $this->insertRoom(2, '第二の部屋', 0);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], includeAllRooms: false, isOfficeUser: false, isBlockLeader: true);
 
         $this->assertSame([1, 2], array_keys($result));
     }
@@ -194,7 +194,7 @@ class ReservationCalendarServiceTest extends TestCase
         $this->insertRoom(3, '削除済みの部屋', 1);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 3], isAdmin: false, isOfficeUser: false, isBlockLeader: true);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 3], includeAllRooms: false, isOfficeUser: false, isBlockLeader: true);
 
         $this->assertSame([1], array_keys($result));
     }
@@ -205,7 +205,7 @@ class ReservationCalendarServiceTest extends TestCase
         $this->insertRoom(2, '第二の部屋', 0);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], includeAllRooms: false);
 
         $this->assertSame([1, 2], array_keys($result));
     }
@@ -217,7 +217,7 @@ class ReservationCalendarServiceTest extends TestCase
         $this->insertRoom(3, '第三の部屋', 0);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], includeAllRooms: false);
 
         $this->assertSame([1, 2], array_keys($result));
     }
