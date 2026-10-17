@@ -96,6 +96,29 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
+     * 削除済みユーザーは、削除時に所属が退出済みになるが、一覧・詳細では削除前の所属部屋を表示する。
+     */
+    public function testDeletedUserShowsRoomsBeforeDeletion(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $base = $rooms->get(1)->toArray();
+        $rooms->updateAll(['c_room_name' => '削除前のルーム'], ['i_id_room' => 1]);
+        // 部屋が1つだけだと「全部屋所属」の表示になるため、有効な部屋をもう1つ作る
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '別のルーム'] + $base);
+        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 6]);
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_del_flag' => 1], ['i_id_user' => 6]);
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view/6');
+        $this->assertResponseOk();
+        $this->assertResponseContains('削除前のルーム');
+
+        $this->get('/MUserInfo?show_deleted=1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('削除前のルーム');
+    }
+
+    /**
      * Test view method
      *
      * @return void

@@ -171,7 +171,7 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? []);
+            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], (int)$u->i_del_flag === 1);
         }
 
         $roomService      = new RoomService();
@@ -514,7 +514,7 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? []);
+        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
 
         $this->set(compact('mUserInfo', 'userRooms'));
     }
@@ -522,15 +522,17 @@ class MUserInfoController extends AppController
     /**
      * 現在所属している部屋名の一覧。退出済み(active_flag=1)と削除済み部屋は含めない。
      * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
+     * 削除済みユーザーは、削除時に所属が全て退出済みになるため、削除前の所属を見られるよう退出済みも含める。
      *
      * @param iterable<\App\Model\Entity\MUserGroup> $groups
+     * @param bool $includeLeft 退出済み(active_flag=1)の部屋も含めるか
      * @return list<string>
      */
-    private function activeRoomNames(iterable $groups): array
+    private function activeRoomNames(iterable $groups, bool $includeLeft = false): array
     {
         $names = [];
         foreach ($groups as $group) {
-            if ((int)($group->active_flag ?? 0) !== 0
+            if ((!$includeLeft && (int)($group->active_flag ?? 0) !== 0)
                 || empty($group->m_room_info)
                 || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
             ) {
