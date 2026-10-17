@@ -58,14 +58,18 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                             ) ?>
                         </div>
                     <?php endif; ?>
-                    <?php /* 新規登録と同じ並び。性別・年代・役職・職員IDは管理者だけ変更できる。年齢は全員表示だけ。 */ ?>
+                    <?php /* 新規登録と同じ並び。年代・役職は管理者だけ変更できる。性別・職員IDは本人も変更できる。年齢は全員表示だけ。 */ ?>
+                    <?php $readonlyRow = function (string $label, string $value): string {
+                        return '<div class="mb-3"><span class="form-label d-block">' . h($label) . '</span>'
+                            . '<span class="form-control-plaintext">' . h($value) . '</span></div>';
+                    }; ?>
+                    <div class="mb-3">
+                        <?= $this->Form->control('i_user_gender', [
+                            'type' => 'select', 'options' => UserProfileOptions::GENDERS, 'empty' => $keepOption(UserProfileOptions::GENDERS, $mUserInfo->i_user_gender),
+                            'label' => '性別', 'class' => 'form-select', 'required' => false,
+                        ]) ?>
+                    </div>
                     <?php if ($isAdmin): ?>
-                        <div class="mb-3">
-                            <?= $this->Form->control('i_user_gender', [
-                                'type' => 'select', 'options' => UserProfileOptions::GENDERS, 'empty' => $keepOption(UserProfileOptions::GENDERS, $mUserInfo->i_user_gender),
-                                'label' => '性別', 'class' => 'form-select', 'required' => false,
-                            ]) ?>
-                        </div>
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_rank', [
                                 'type' => 'select', 'options' => UserProfileOptions::AGE_GROUPS, 'empty' => $keepOption(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank),
@@ -73,18 +77,9 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                             ]) ?>
                         </div>
                     <?php else: ?>
-                        <dl class="row mb-0">
-                            <dt class="col-sm-3 fw-normal text-muted"><?= __('性別') ?></dt>
-                            <dd class="col-sm-9"><?= h(UserProfileOptions::label(UserProfileOptions::GENDERS, $mUserInfo->i_user_gender)) ?></dd>
-                            <dt class="col-sm-3 fw-normal text-muted"><?= __('年代') ?></dt>
-                            <dd class="col-sm-9"><?= h(UserProfileOptions::label(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank)) ?></dd>
-                        </dl>
+                        <?= $readonlyRow(__('年代'), UserProfileOptions::label(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank)) ?>
                     <?php endif; ?>
-                    <div class="mb-3">
-                        <label class="form-label" for="ageReadonly"><?= __('年齢') ?></label>
-                        <input type="text" id="ageReadonly" class="form-control-plaintext" readonly
-                               value="<?= $mUserInfo->i_user_age ? h($mUserInfo->i_user_age) . '歳' : __('未設定') ?>">
-                    </div>
+                    <?= $readonlyRow(__('年齢'), $mUserInfo->i_user_age ? $mUserInfo->i_user_age . '歳' : __('未設定')) ?>
                     <?php if ($isAdmin): ?>
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_level', [
@@ -94,20 +89,15 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                                 'data-original' => (string)$mUserInfo->i_user_level,
                             ]) ?>
                         </div>
+                    <?php else: ?>
+                        <?= $readonlyRow(__('役職'), UserProfileOptions::label(UserProfileOptions::USER_LEVELS, $mUserInfo->i_user_level)) ?>
+                    <?php endif; ?>
+                    <?php if ($isAdmin || (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL): ?>
                         <div class="mb-3" id="staffIdField">
                             <?= $this->Form->control('i_id_staff', [
-                                'type' => 'text', 'label' => '職員ID', 'class' => 'form-control',
+                                'type' => 'text', 'label' => '職員ID', 'class' => 'form-control', 'required' => false,
                             ]) ?>
                         </div>
-                    <?php else: ?>
-                        <dl class="row">
-                            <dt class="col-sm-3 fw-normal text-muted"><?= __('役職') ?></dt>
-                            <dd class="col-sm-9"><?= h(UserProfileOptions::label(UserProfileOptions::USER_LEVELS, $mUserInfo->i_user_level)) ?></dd>
-                            <?php if ($mUserInfo->i_id_staff): ?>
-                                <dt class="col-sm-3 fw-normal text-muted"><?= __('職員ID') ?></dt>
-                                <dd class="col-sm-9"><?= h($mUserInfo->i_id_staff) ?></dd>
-                            <?php endif; ?>
-                        </dl>
                     <?php endif; ?>
                     <div class="mb-3">
                         <label>所属部屋</label>

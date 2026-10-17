@@ -220,7 +220,7 @@ class MUserInfoProfileTest extends TestCase
         $this->assertSame(9, (int)$this->user(2)->i_user_age);
     }
 
-    /** 管理者以外が自分を編集するとき、性別・年代・役職・職員ID・年齢・権限を送っても変わらない */
+    /** 管理者以外が自分を編集するとき、性別は変えられるが、年代・役職・年齢・権限は送っても変わらない。児童は職員IDも持たない */
     public function testNonAdminSelfEditIgnoresProfileAndPrivilegeFields(): void
     {
         $this->loginAs(2, 0);
@@ -233,7 +233,7 @@ class MUserInfoProfileTest extends TestCase
         $this->assertRedirectContains('/MUserInfo');
         $u = $this->user(2);
         $this->assertSame('名前は変えられる', $u->c_user_name);
-        $this->assertSame([2, 3, 1, null, 9, 0, 0], [
+        $this->assertSame([1, 3, 1, null, 9, 0, 0], [
             (int)$u->i_user_gender, (int)$u->i_user_rank, (int)$u->i_user_level, $u->i_id_staff,
             (int)$u->i_user_age, (int)$u->i_admin, (int)$u->i_del_flag,
         ]);
@@ -250,9 +250,34 @@ class MUserInfoProfileTest extends TestCase
         $this->get('/MUserInfo/edit/2');
         $this->assertResponseOk();
         $this->assertResponseNotContains('name="i_user_level"');
-        $this->assertResponseNotContains('name="i_user_gender"');
+        $this->assertResponseNotContains('name="i_user_rank"');
+        $this->assertResponseContains('name="i_user_gender"');
+        $this->assertResponseNotContains('name="i_id_staff"'); // 児童は職員IDを持たない
         $this->assertResponseContains('児童');
         $this->assertResponseContains('9歳');
+    }
+
+    /** 職員は自分の職員IDを変えられる。空なら変えず、不正な値は拒否する */
+    public function testStaffCanChangeOwnStaffId(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 0, 'i_id_staff' => 100], ['i_id_user' => 2]);
+        $this->loginAs(2, 0);
+
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseContains('name="i_id_staff"');
+
+        $this->postEdit(2, ['i_id_staff' => '123456']);
+        $this->assertRedirectContains('/MUserInfo');
+        $this->assertSame(123456, (int)$this->user(2)->i_id_staff);
+
+        $this->postEdit(2, ['i_id_staff' => '']);
+        $this->assertSame(123456, (int)$this->user(2)->i_id_staff);
+
+        $this->postEdit(2, ['i_id_staff' => 'abc']);
+        $this->assertResponseOk();
+        $this->assertResponseContains('職員IDは9桁以内の数字で入力してください。');
+        $this->assertSame(123456, (int)$this->user(2)->i_id_staff);
+        $this->assertSame(0, (int)$this->user(2)->i_user_level);
     }
 
     /** 変更前→変更後を監査ログに残す */
@@ -280,7 +305,7 @@ class MUserInfoProfileTest extends TestCase
                 'role' => '0', 'staff_id' => $staffId, 'i_user_gender' => '1', 'age_group' => '7', 'age' => '30',
                 'MUserGroup' => [['i_id_room' => 1]],
             ]);
-            $this->assertFlashMessage('職員IDは9桁以内の数字で入力してください。');
+            $this->assertResponseContains('職員IDは9桁以内の数字で入力してください。');
             $this->assertSame(0, $table->find()->where(['c_login_account' => 'new_staff_' . $i])->count());
         }
     }

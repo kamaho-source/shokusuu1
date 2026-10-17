@@ -345,13 +345,21 @@ class MUserInfoController extends AppController
             $actorId   = $user ? (int)$user->get('i_id_user') : 0;
             $loginId   = (string)($user?->get('c_login_account') ?? '');
 
-            // 年齢・権限・状態は誰も編集画面からは変えられない。性別・年代・役職・職員IDは管理者だけ。
-            // 役職(i_user_level)は権限判定に使うため、本人が自分で変えられないようにする。
-            $fields = ['c_login_account', 'c_user_name', 'c_update_user', 'dt_update'];
-            $profileError = null;
-            if (UserRole::isAdmin((int)($user?->get('i_admin') ?? 0))) {
-                $fields = array_merge($fields, ['i_user_gender', 'i_user_rank', 'i_user_level', 'i_id_staff']);
-                [$data, $profileError] = $this->normalizeProfileForEdit($data, $mUserInfo->i_user_level);
+            // 年齢・権限・状態は誰も編集画面からは変えられない。年代・役職は管理者だけ。
+            // 役職(i_user_level)は権限判定に、年代は食数の区分に使うため、本人は変えられない。
+            // 管理者以外（=本人）は性別と、職員なら自分の職員IDを変えられる。
+            $fields = ['c_login_account', 'c_user_name', 'c_update_user', 'dt_update', 'i_user_gender'];
+            $isAdminActor = UserRole::isAdmin((int)($user?->get('i_admin') ?? 0));
+            if ($isAdminActor) {
+                $fields = array_merge($fields, ['i_user_rank', 'i_user_level', 'i_id_staff']);
+            }
+            if (!$isAdminActor) {
+                unset($data['i_user_rank'], $data['i_user_level']);
+            }
+            [$data, $profileError] = $this->normalizeProfileForEdit($data, $mUserInfo->i_user_level);
+            if (!$isAdminActor && $profileError === null && (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL) {
+                $fields[] = 'i_id_staff';
+                [$data, $profileError] = $this->normalizeOwnStaffId($data);
             }
 
             try {
@@ -425,6 +433,26 @@ class MUserInfoController extends AppController
             if ($currentLevel !== UserProfileOptions::STAFF_LEVEL) {
                 return [$data, __('役職が職員のときは職員IDを入力してください。')];
             }
+            return [$data, null];
+        }
+        if (!$this->isValidStaffId($staffId)) {
+            return [$data, __('職員IDは9桁以内の数字で入力してください。')];
+        }
+
+        return [$data, null];
+    }
+
+    /**
+     * 本人（職員）が自分の職員IDを保存するときの確認。空なら変えない。
+     *
+     * @param array<string, mixed> $data
+     * @return array{0: array<string, mixed>, 1: string|null} [整えたデータ, エラー文]
+     */
+    private function normalizeOwnStaffId(array $data): array
+    {
+        $staffId = trim((string)($data['i_id_staff'] ?? ''));
+        if ($staffId === '') {
+            unset($data['i_id_staff']);
             return [$data, null];
         }
         if (!$this->isValidStaffId($staffId)) {
