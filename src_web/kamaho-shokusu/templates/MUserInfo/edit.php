@@ -4,10 +4,12 @@
  * @var \App\Model\Entity\MUserInfo $mUserInfo
  * @var array $rooms
  * @var array $selectedRooms
+ * @var \App\Model\Entity\User $user
  */
 $this->assign('title', 'ユーザー情報の編集');
 // $rooms は部屋情報の配列としてコントローラから渡されることを想定しています。
 // $selectedRooms はユーザーが現在所属している部屋のID配列です。
+$isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -36,6 +38,15 @@ $this->assign('title', 'ユーザー情報の編集');
                             'class' => 'form-control'
                         ]) ?>
                     </div>
+                    <?php if ($isAdmin): ?>
+                        <div class="mb-3">
+                            <?= $this->Html->link(
+                                __('🔑 パスワード変更'),
+                                ['action' => 'adminChangePassword', '?' => ['user_id' => $mUserInfo->i_id_user]],
+                                ['class' => 'link-primary']
+                            ) ?>
+                        </div>
+                    <?php endif; ?>
                     <div class="mb-3">
                         <label>所属部屋</label>
                         <?php foreach ($rooms as $id => $name): ?>
