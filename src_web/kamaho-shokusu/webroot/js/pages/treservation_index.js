@@ -865,7 +865,8 @@ function openModalById(id){
                 }
 
                 // 部屋の選択肢。予約中の部屋が選択肢に無い（退出済みなど）場合も、現状が分かるよう選択肢に足す
-                var useRoomSelect = roomId == null && roomChoice && roomChoice.roomNames;
+                // 所属部屋が1つでも、食事ごとの部屋は表示する（一括設定だけを部屋が複数のときに出す）
+                var useRoomSelect = !!(roomChoice && roomChoice.roomNames);
                 var roomOptions = {};
                 var allRoomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
                 if (useRoomSelect) {
@@ -874,9 +875,12 @@ function openModalById(id){
                         var r = detail[m.key] && detail[m.key + 'Room'];
                         if (r && !roomOptions[String(r)]) roomOptions[String(r)] = allRoomNames[r] || ('部屋' + r);
                     });
+                    if (roomId != null && !roomOptions[String(roomId)]) roomOptions[String(roomId)] = allRoomNames[roomId] || ('部屋' + roomId);
                 }
+                var showBulk = useRoomSelect && Object.keys(roomOptions).length > 1;
                 var firstReservedRoom = detail.breakfastRoom || detail.lunchRoom || detail.dinnerRoom || detail.bentoRoom;
                 var defaultRoomStr = firstReservedRoom ? String(firstReservedRoom)
+                    : roomId != null ? String(roomId)
                     : (roomChoice && roomChoice.defaultRoomId != null && roomOptions[String(roomChoice.defaultRoomId)]
                         ? String(roomChoice.defaultRoomId) : '');
 
@@ -930,7 +934,7 @@ function openModalById(id){
                 // 食事の部屋を一括設定（部屋が複数のときだけ）
                 var bulkSelectEl = null;
                 var bulkBtn = null;
-                if (useRoomSelect) {
+                if (showBulk) {
                     var bulk = document.createElement('div');
                     bulk.style.cssText = 'margin-bottom:14px';
                     bulk.appendChild(sectionTitle('🏠', '食事の部屋を一括設定'));
