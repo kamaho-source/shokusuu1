@@ -52,6 +52,7 @@ class ReservationCalendarService
                 'MUserGroup.i_id_user' => $userId,
                 'MUserGroup.active_flag' => 0,
                 'MRoomInfo.c_room_name LIKE' => '%事務所%',
+                'MRoomInfo.i_del_flg' => 0, // 削除済みの事務所の所属では事務所ユーザーにしない
             ])
             ->count() > 0;
     }

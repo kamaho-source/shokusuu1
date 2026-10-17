@@ -2782,7 +2782,9 @@ document.addEventListener('shown.bs.modal', function(ev) {
         modalEl.addEventListener('hidden.bs.modal', function() {
             form.reset();
             sourceValidation.innerHTML = '';
-            targetValidation.innerHTML = '';
+            // 前回選んだコピー先が残ったまま次に実行されないよう、選択も消す（未定義だった targetValidation の参照で以降が止まっていた）
+            targetDates = [];
+            renderTargetDates();
             document.getElementById('copy-preview').style.display = 'none';
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> コピーを実行';

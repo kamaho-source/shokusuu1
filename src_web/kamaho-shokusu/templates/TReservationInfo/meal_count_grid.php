@@ -267,15 +267,19 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                 || ($inLoginRoom && ($isAdmin || $blockLeaderHere || ($canViewRoom && $uLevel === 1)));
                             // 非管理者・非ブロック長（その部屋）の職員が他の職員行を見ている場合はホバー注意文を付与
                             $isOtherStaff        = !$isAdmin && !$blockLeaderHere && in_array($uLevel, [0, 7], true) && $uid !== $loginUserId;
+                            // 閲覧のみの理由（所属外の部屋の行は区分を問わず。#821）
+                            $readonlyMsg         = $uid === $loginUserId ? ''
+                                : (!$inLoginRoom ? '所属していない部屋の予約は操作できません。'
+                                : ($isOtherStaff ? '他の職員の予約は操作できません。' : ''));
                         ?>
                         <tr data-user-id="<?= h($uid) ?>" data-room-id="<?= h($roomId) ?>" data-user-level="<?= h($uLevel) ?>"
-                            <?= $isOtherStaff ? 'class="mcg-row-readonly"' : '' ?>>
+                            <?= $readonlyMsg !== '' ? 'class="mcg-row-readonly"' : '' ?>>
                             <td class="col-row"><?= h($rowNum++) ?></td>
                             <td class="col-room" title="<?= h($roomName) ?>"><?= h($roomName) ?></td>
                             <td class="col-name" title="<?= h($u['name']) ?>">
                                 <?= h($u['name']) ?>
-                                <?php if ($isOtherStaff): ?>
-                                <span class="mcg-badge-readonly" title="他の職員の予約は操作できません。">閲覧</span>
+                                <?php if ($readonlyMsg !== ''): ?>
+                                <span class="mcg-badge-readonly" title="<?= h($readonlyMsg) ?>">閲覧</span>
                                 <?php endif; ?>
                             </td>
                             <?php
@@ -303,8 +307,8 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                     if ($isOtherRoomLocked) {
                                         $otherRoomName = $allRooms[$otherRoomId] ?? '他の部屋';
                                         $attrs .= ' data-conflict-msg="' . h($otherRoomName . 'で予約済みのため選択できません') . '"';
-                                    } elseif ($isOtherStaff && !$isPast) {
-                                        $attrs .= ' data-no-edit-msg="他の職員の予約は操作できません。"';
+                                    } elseif ($readonlyMsg !== '' && !$isPast) {
+                                        $attrs .= ' data-no-edit-msg="' . h($readonlyMsg) . '"';
                                     }
                                     if ($toggleable) {
                                         $attrs .= ' title="' . h($u['name'] . ' ' . $d . ' ' . $mealLabel) . '"'
