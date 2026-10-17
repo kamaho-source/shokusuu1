@@ -6,10 +6,18 @@ namespace App\Policy;
 use App\Domain\ValueObject\UserRole;
 
 use App\Model\Entity\MUserInfo;
+use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
 
 class MUserInfoPolicy
 {
+    private RoomAccessService $roomAccessService;
+
+    public function __construct(?RoomAccessService $roomAccessService = null)
+    {
+        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+    }
+
     public function canIndex(?IdentityInterface $user, MUserInfo $resource): bool
     {
         return $this->getOriginalIdentity($user) !== null;
@@ -17,7 +25,7 @@ class MUserInfoPolicy
 
     public function canView(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user) || $this->isOwner($user, $resource);
+        return $this->isAdmin($user) || $this->isOwner($user, $resource) || $this->canManageChild($user, $resource);
     }
 
     public function canAdd(?IdentityInterface $user, MUserInfo $resource): bool
@@ -67,7 +75,65 @@ class MUserInfoPolicy
 
     public function canEdit(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user) || $this->isOwner($user, $resource);
+        return $this->isAdmin($user) || $this->isOwner($user, $resource) || $this->canManageChild($user, $resource);
+    }
+
+    /**
+     * 役職(i_user_level)を変更できるか。管理者が他のユーザーの役職を変えるときだけ。
+     * 自分自身の役職は変更できない（権限の取り違え・昇格を防ぐ）。
+     */
+    public function canChangeRole(?IdentityInterface $user, MUserInfo $resource): bool
+    {
+        return $this->isAdmin($user) && !$this->isOwner($user, $resource);
+    }
+
+    /**
+     * 職員(i_user_level=0)またはブロック長が、同じ部屋に現在所属している児童を編集できるか。
+     * 管理者以外は児童のみ登録できる、というユーザー登録の考え方に合わせる。
+     */
+    private function canManageChild(?IdentityInterface $user, MUserInfo $resource): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        // 対象は、権限が付いていない一般の児童（削除済みを除く）だけ
+        if ($identity === null
+            || (int)$resource->i_user_level !== 1
+            || (int)($resource->i_admin ?? 0) !== 0
+            || (int)($resource->i_del_flag ?? 0) !== 0
+        ) {
+            return false;
+        }
+
+        $get = static function (string $key) use ($identity): int {
+            $v = match (true) {
+                is_object($identity) && method_exists($identity, 'get') => $identity->get($key),
+                is_array($identity), $identity instanceof \ArrayAccess => $identity[$key] ?? null,
+                default => null,
+            };
+            return $v === null ? -1 : (int)$v;
+        };
+
+        $actorId = $get('i_id_user');
+        if ($actorId <= 0 || $actorId === (int)$resource->i_id_user) {
+            return false;
+        }
+        // 職員は i_user_level 0 と 7（予約まわりの職員判定と同じ）
+        if (!UserRole::isBlockLeader($get('i_admin')) && !in_array($get('i_user_level'), [0, 7], true)) {
+            return false;
+        }
+
+        // 双方が現在所属している（退出済み・削除済みの部屋を除く）部屋が1つでもあること
+        $shared = array_intersect(
+            $this->roomAccessService->getUserRoomIds($actorId),
+            $this->roomAccessService->getUserRoomIds((int)$resource->i_id_user)
+        );
+        foreach ($shared as $roomId) {
+            if ($this->roomAccessService->isActiveMember($actorId, (int)$roomId)
+                && $this->roomAccessService->isActiveMember((int)$resource->i_id_user, (int)$roomId)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function canDelete(?IdentityInterface $user, MUserInfo $resource): bool
