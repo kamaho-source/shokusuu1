@@ -54,15 +54,6 @@ $canEdit = $mUserInfo->i_id_user === $currentUserId || $isAdmin;
                         <?php endif; ?>
                     </dd>
                 </dl>
-                <?php if ($isAdmin && (int)($mUserInfo->i_del_flag ?? 1) === 0): ?>
-                <div class="mt-3">
-                    <?= $this->Html->link(
-                        __('🔑 パスワード変更'),
-                        ['action' => 'adminChangePassword', '?' => ['user_id' => $mUserInfo->i_id_user]],
-                        ['class' => 'btn btn-outline-primary btn-sm']
-                    ) ?>
-                </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>

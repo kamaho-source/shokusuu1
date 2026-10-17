@@ -102,27 +102,23 @@ class MUserInfoControllerTest extends TestCase
         // 編集画面は i_del_flg = 0 の部屋だけを出すので、NULL の部屋は詳細にも出さない
         $this->assertResponseNotContains('削除フラグ未設定の部屋');
         $this->assertResponseContains('staff_user');
-        $this->assertResponseContains('admin_change_password?user_id=2');
+        // パスワード変更は編集画面にだけ置く（詳細画面には出さない）
+        $this->assertResponseNotContains('admin_change_password?user_id=2');
     }
 
     /**
      * 削除済みユーザーは変更画面の対象に入らない（押しても未選択になる）ため、
-     * 詳細・編集ともにパスワード変更ボタンを出さない。
+     * 編集画面にパスワード変更ボタンを出さない。
      *
      * @return void
-     * @uses \App\Controller\MUserInfoController::view()
      * @uses \App\Controller\MUserInfoController::edit()
      */
     public function testPasswordChangeButtonHiddenForDeletedUser(): void
     {
         $this->setAuthenticatedSession(true);
 
-        $this->get('/MUserInfo/view/6');
-        $this->assertResponseOk();
-        $this->assertResponseContains('deleted_user');
-        $this->assertResponseNotContains('admin_change_password?user_id=6');
-
         $this->get('/MUserInfo/edit/6');
+        $this->assertResponseContains('deleted_user');
         $this->assertResponseOk();
         $this->assertResponseNotContains('admin_change_password?user_id=6');
     }
