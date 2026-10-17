@@ -345,15 +345,13 @@ class ReservationBulkService
                     'message' => (string)$roomValidation,
                 ];
             }
-            // 管理者以外は、自分が有効に所属している部屋にしか登録できない
-            if (!$isAdmin) {
-                foreach ($selectedRoomIds as $selectedRoomId) {
-                    if (!$this->isActiveMemberCached($userId, (int)$selectedRoomId)) {
-                        return [
-                            'ok' => false,
-                            'message' => '所属していない部屋には登録できません。',
-                        ];
-                    }
+            // 自分が有効に所属している部屋にしか登録できない（管理者も同じ。#821）
+            foreach ($selectedRoomIds as $selectedRoomId) {
+                if (!$this->isActiveMemberCached($userId, (int)$selectedRoomId)) {
+                    return [
+                        'ok' => false,
+                        'message' => '所属していない部屋には登録できません。',
+                    ];
                 }
             }
             $dateValidation = $this->validateNormalReservationDates($selectedDates, true);
@@ -886,11 +884,6 @@ class ReservationBulkService
         ?int $roomId = null,
         bool $isCancel = false
     ): bool {
-        if ($isAdmin) {
-            // 管理者は所属外の部屋でも扱える（削除済みの部屋は呼び出し側の部屋検証で弾く）
-            return true;
-        }
-
         if ($targetUserId === $loginUserId) {
             // 自分自身でも、有効に所属していない部屋への登録は操作させない。
             // 取消は、退出後に残った自分の予約を消せるよう所属を要求しない。
@@ -908,7 +901,8 @@ class ReservationBulkService
             }
         }
 
-        return ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
+        // 管理者は所属部屋内なら対象の区分を問わず扱える（所属外の部屋は上の所属判定で弾く。#821）
+        return $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
     }
 
     /** @var array<string, bool> 同一リクエスト内の所属判定キャッシュ（行ごとの再問い合わせを避ける） */

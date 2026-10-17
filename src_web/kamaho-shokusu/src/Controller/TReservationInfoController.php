@@ -87,16 +87,10 @@ class TReservationInfoController extends ReservationBaseController
         $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
         $isBlockLeader = UserRole::isBlockLeader((int)($user->i_admin ?? 0));
         $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
-        $canViewAllRooms = $isAdmin || $isOfficeUser;
-        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser, $isBlockLeader);
-
-        // 子どもUI用の部屋一覧。子どもUIでは管理者であっても「所属している部屋」だけを表示する。
-        // 業務UIの部屋ピッカー($rooms→availableRoomNames)やエクセル食数予約は従来どおり全部屋のまま。
-        // 事務所ユーザー(isOfficeUser)は対象外。所属部屋が未設定の管理者は選べなくなるため従来どおり全部屋。
+        // 管理者・システム管理者も所属部屋のみ（#821）。全部屋の集計を見られるのは事務所ユーザーだけ。
+        $canViewAllRooms = $isOfficeUser;
+        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false, $isOfficeUser, $isBlockLeader);
         $authorizedRooms = $rooms;
-        if ($isAdmin && !$isOfficeUser && !empty($userRoomIds)) {
-            $authorizedRooms = array_intersect_key($rooms, array_flip(array_map('intval', $userRoomIds)));
-        }
 
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
         $calRoomId = null;
@@ -108,9 +102,10 @@ class TReservationInfoController extends ReservationBaseController
         } elseif (!$canViewAllRooms && $userRoomId !== null && isset($rooms[(int)$userRoomId])) {
             $calRoomId = (int)$userRoomId;
         }
+        // 所属部屋が無い場合に全部屋の集計へ落ちないよう、該当なしの ID で絞る
         $calRoomFilter = $calRoomId !== null
             ? [$calRoomId]
-            : ((!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null);
+            : (!$canViewAllRooms ? ($userRoomIds ?: [0]) : null);
 
         // 初期表示は前月〜翌2ヶ月の範囲に絞る（FullCalendarの表示範囲に合わせる）
         // サービス側が endDate を排他的（<）に扱うため、viewEnd は翌々月末の翌日（月初）を指定する
@@ -247,14 +242,13 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $isAdmin = UserRole::isAdmin((int)($user->i_admin ?? 0));
-        $canViewAllRooms = $isAdmin || $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
+        $canViewAllRooms = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
 
         $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
 
         $mealDataArray = $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,
-            (!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null,
+            !$canViewAllRooms ? ($userRoomIds ?: [0]) : null,
             $startDate->format('Y-m-d'),
             $endDate->format('Y-m-d')
         );

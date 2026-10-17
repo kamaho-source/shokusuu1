@@ -65,9 +65,14 @@ class ReservationCopyController extends ReservationBaseController
                 );
             }
 
+            $roomIds = $this->copyService->resolveTargetRoomIds($norm['roomId'], (int)($user?->get('i_id_user') ?? 0));
+            if ($roomIds === null) {
+                return $this->apiResponseService->error($this->response, '所属していない部屋はコピーできません。', 403);
+            }
+
             $result = ($norm['mode'] === 'week')
-                ? $this->copyService->copyWeek($norm['src'], $norm['dst'], $norm['roomId'], false, $user, $norm['onlyChildren'])
-                : $this->copyService->copyMonth($norm['src'], $norm['dst'], $norm['roomId'], false, $user, $norm['onlyChildren']);
+                ? $this->copyService->copyWeek($norm['src'], $norm['dst'], $roomIds, false, $user, $norm['onlyChildren'])
+                : $this->copyService->copyMonth($norm['src'], $norm['dst'], $roomIds, false, $user, $norm['onlyChildren']);
 
             $msg = ($norm['mode'] === 'week') ? '週コピーが完了しました。' : '月コピーが完了しました。';
 
@@ -127,9 +132,15 @@ class ReservationCopyController extends ReservationBaseController
                 );
             }
 
+            $user    = $this->request->getAttribute('identity') ?: null;
+            $roomIds = $this->copyService->resolveTargetRoomIds($norm['roomId'], (int)($user?->get('i_id_user') ?? 0));
+            if ($roomIds === null) {
+                return $this->apiResponseService->error($this->response, '所属していない部屋はコピーできません。', 403);
+            }
+
             $preview = ($norm['mode'] === 'week')
-                ? $this->copyService->previewWeek($norm['src'], $norm['dst'], $norm['roomId'], $norm['onlyChildren'])
-                : $this->copyService->previewMonth($norm['src'], $norm['dst'], $norm['roomId'], $norm['onlyChildren']);
+                ? $this->copyService->previewWeek($norm['src'], $norm['dst'], $roomIds, $norm['onlyChildren'])
+                : $this->copyService->previewMonth($norm['src'], $norm['dst'], $roomIds, $norm['onlyChildren']);
 
             return $this->apiResponseService->success($this->response, ['preview' => $preview]);
         } catch (\Throwable $e) {

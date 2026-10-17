@@ -56,9 +56,14 @@ class ReservationCalendarService
             ->count() > 0;
     }
 
-    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false, bool $isBlockLeader = false): array
+    /**
+     * 部屋の選択肢を返す。管理者・システム管理者も所属部屋のみ（#821）。
+     *
+     * @param bool $includeAllRooms 全部屋を返すか（食数グリッドの事務所ユーザー用。管理者には渡さない）
+     */
+    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $includeAllRooms, bool $isOfficeUser = false, bool $isBlockLeader = false): array
     {
-        if ($isAdmin) {
+        if ($includeAllRooms) {
             // m_room_info には i_disp_no カラムが存在するため固定使用
             $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
