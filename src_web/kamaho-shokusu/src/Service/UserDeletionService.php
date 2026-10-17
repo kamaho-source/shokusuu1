@@ -43,11 +43,12 @@ class UserDeletionService
         $result = (bool)$userInfoTable->save($user);
 
         if ($result) {
-            // 未承認の個別予約情報を削除（物理削除またはキャンセル）
+            // 未承認の翌日以降の予約のみ削除する（過去日分は控除の実績のため残す）
             $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
             $reservationTable->deleteAll([
                 'i_id_user' => $user->i_id_user,
                 'i_approval_status' => 0, // 未承認のみ
+                'd_reservation_date >' => date('Y-m-d'), // 当日分は実績として残す
             ]);
         }
 
