@@ -39,12 +39,12 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
                             'class' => 'form-control'
                         ]) ?>
                     </div>
-                    <?php if ($isAdmin): ?>
+                    <?php if ($isAdmin && (int)($mUserInfo->i_del_flag ?? 1) === 0): ?>
                         <div class="mb-3">
                             <?= $this->Html->link(
                                 __('🔑 パスワード変更'),
                                 ['action' => 'adminChangePassword', '?' => ['user_id' => $mUserInfo->i_id_user]],
-                                ['class' => 'link-primary']
+                                ['class' => 'btn btn-outline-primary btn-sm']
                             ) ?>
                         </div>
                     <?php endif; ?>
