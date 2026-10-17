@@ -233,6 +233,10 @@ class MUserInfoController extends AppController
                 || !isset(UserProfileOptions::GENDERS[(int)($data['i_user_gender'] ?? 0)])
             ) {
                 $this->Flash->error(__('性別・年代・年齢を選択してください。'));
+            } elseif ($mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL
+                && !$this->isValidStaffId(trim((string)($data['staff_id'] ?? '')))
+            ) {
+                $this->Flash->error(__('職員IDは9桁以内の数字で入力してください。'));
             } elseif ($allowedRoomIds !== null && $allowedRoomIds === []) {
                 $this->Flash->error(__('所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。'));
             } elseif ($allowedRoomIds !== null && array_filter($postedRoomIds) === []) {
@@ -423,12 +427,20 @@ class MUserInfoController extends AppController
             }
             return [$data, null];
         }
-        // 職員IDの列は数値（int）。数字以外は黙って空で保存され、大きすぎる値は SQL エラーになるため、ここで止める
-        if (!ctype_digit($staffId) || strlen($staffId) > 9) {
+        if (!$this->isValidStaffId($staffId)) {
             return [$data, __('職員IDは9桁以内の数字で入力してください。')];
         }
 
         return [$data, null];
+    }
+
+    /**
+     * 職員IDとして保存できるか。列は数値（int）なので、数字以外は黙って空で保存され、
+     * 大きすぎる値は SQL エラーになる。9桁以内の数字に限る（新規登録・編集で共通）。
+     */
+    private function isValidStaffId(string $staffId): bool
+    {
+        return ctype_digit($staffId) && strlen($staffId) <= 9;
     }
 
     public function updateAdminStatus()

@@ -268,6 +268,23 @@ class MUserInfoProfileTest extends TestCase
         $this->assertArrayNotHasKey('i_user_rank', $detail['changes']);
     }
 
+    /** 新規登録でも、職員IDは9桁以内の数字に限る（SQL エラーの「予期しないエラー」にしない） */
+    public function testAddRejectsInvalidStaffId(): void
+    {
+        $this->loginAs(1, 1);
+        $this->enableRetainFlashMessages();
+        $table = $this->getTableLocator()->get('MUserInfo');
+        foreach (['S-001', '99999999999'] as $i => $staffId) {
+            $this->post('/MUserInfo/add', [
+                'c_login_account' => 'new_staff_' . $i, 'c_login_passwd' => 'password123', 'c_user_name' => '新規職員',
+                'role' => '0', 'staff_id' => $staffId, 'i_user_gender' => '1', 'age_group' => '7', 'age' => '30',
+                'MUserGroup' => [['i_id_room' => 1]],
+            ]);
+            $this->assertFlashMessage('職員IDは9桁以内の数字で入力してください。');
+            $this->assertSame(0, $table->find()->where(['c_login_account' => 'new_staff_' . $i])->count());
+        }
+    }
+
     /** 新規登録で、生年月日は保存しない。年齢・年代・性別が範囲外なら登録しない */
     public function testAddValidatesAgeAndDoesNotNeedBirthDate(): void
     {
