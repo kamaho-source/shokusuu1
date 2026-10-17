@@ -177,8 +177,11 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertSame(true, $responseJson['ok'] ?? null);
         $this->assertArrayHasKey('users', $responseJson['data'] ?? []);
 
-        // 所属していない（存在しない）部屋は、管理者でも拒否される（#821）
-        $this->get('/TReservationInfo/getUsersByRoomForBulk/999');
+        // 存在するが所属していない部屋は、管理者でも拒否される（#821）
+        \Cake\Datasource\ConnectionManager::get('test')->insert('m_room_info', [
+            'i_id_room' => 72, 'c_room_name' => '部屋72', 'i_disp_no' => 72, 'i_enable' => 1, 'i_del_flg' => 0,
+        ]);
+        $this->get('/TReservationInfo/getUsersByRoomForBulk/72');
         $this->assertResponseCode(403);
     }
 

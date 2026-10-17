@@ -219,6 +219,17 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertSame(0, $this->eatFlag(3, 38, 3), '管理者の取消が反映されている');
     }
 
+    /** 管理者は、所属部屋なら職員（大人）の予約も代理で登録できる（児童に限らない） */
+    public function testProcessToggle_adminCanRegisterForAdultInOwnRoom(): void
+    {
+        $this->addRoomMembership(2, 39, 0, 0);   // 職員(user 2, i_user_level=0)
+        $this->addMember(1, 39, 0);               // 管理者(user 1)も有効所属
+
+        $this->service->processToggle(39, $this->togglePayload(2, 1), 1, '管理者');
+
+        $this->assertSame(1, $this->eatFlag(2, 39, 3), '管理者の代理登録が反映されている');
+    }
+
     /** 管理者でも、削除済み・存在しない部屋には登録も取消もできない */
     public function testProcessToggle_adminCannotTouchDeletedOrMissingRoom(): void
     {

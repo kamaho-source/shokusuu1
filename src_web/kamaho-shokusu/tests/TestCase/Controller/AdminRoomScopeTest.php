@@ -116,7 +116,7 @@ class AdminRoomScopeTest extends TestCase
         $this->assertSame($userId, $this->viewVariable('selectedUserId'), '所属外の利用者を指定しても本人に戻る');
     }
 
-    public function testMealCountGridRoomModeRejectsNotMemberRoom(): void
+    public function testMealCountGridRoomModeFallsBackToOwnRoom(): void
     {
         $this->loginAs(1);
         $this->get('/TReservationInfo/meal-count-grid?mode=room&room_id=71');
@@ -184,5 +184,53 @@ class AdminRoomScopeTest extends TestCase
         $this->enableCsrfToken();
         $this->post('/TReservationInfo/copy', ['mode' => 'week', 'source_start' => '2026-06-01', 'target_start' => '2026-06-08']);
         $this->assertResponseCode(403);
+        $this->assertResponseContains('所属している部屋がないため');
+    }
+
+    /** 予約カレンダーの食数: 削除済みの部屋にしか所属がない・所属が無いときは、全部屋や削除済みの部屋の集計にならない */
+    public function testCalendarCountsExcludeNotMemberAndDeletedRooms(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 73, 'c_room_name' => '部屋73', 'i_disp_no' => 73, 'i_enable' => 1, 'i_del_flg' => 1]);
+        // システム管理者(user 4)の所属は、削除済みの部屋73だけにする
+        $db->delete('m_user_group', ['i_id_user' => 4]);
+        $db->insert('m_user_group', [
+            'i_id_user' => 4, 'i_id_room' => 73, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+        foreach ([[5, 71], [4, 73]] as [$userId, $roomId]) {
+            $db->insert('t_individual_reservation_info', [
+                'd_reservation_date' => date('Y-m-d'), 'i_id_user' => $userId, 'i_reservation_type' => 2, 'i_id_room' => $roomId,
+                'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+            ]);
+        }
+
+        $this->loginAs(4);
+        $this->get('/TReservationInfo');
+        $this->assertResponseOk();
+        $this->assertSame([], $this->viewVariable('mealDataArray'), '所属外・削除済みの部屋の食数は数えない');
+
+        $db->delete('m_user_group', ['i_id_user' => 4]);
+        $this->get('/TReservationInfo');
+        $this->assertSame([], $this->viewVariable('mealDataArray'), '所属部屋が無くても全部屋の集計にならない');
+    }
+
+    /** 事務所ユーザーを兼ねる管理者は、事務所ユーザーと同じ扱い（食数一括管理の部屋・全部屋モードは所属部屋のみ） */
+    public function testOfficeAdminMealCountGridRoomAndAllModesAreAffiliatedOnly(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 74, 'c_room_name' => '事務所', 'i_disp_no' => 74, 'i_enable' => 1, 'i_del_flg' => 0]);
+        $db->insert('m_user_group', [
+            'i_id_user' => 1, 'i_id_room' => 74, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+        $this->loginAs(1);
+
+        $this->get('/TReservationInfo/meal-count-grid?mode=all');
+        $this->assertResponseOk();
+        $this->assertSame([1, 70, 74], array_keys($this->viewVariable('allRooms')));
+
+        $this->get('/TReservationInfo/meal-count-grid?mode=room&room_id=71');
+        $this->assertNotSame(71, $this->viewVariable('selectedRoomId'));
     }
 }

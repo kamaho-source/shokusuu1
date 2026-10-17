@@ -767,6 +767,22 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 58)->i_change_flag, '直前変更として取消されている');
     }
 
+    /** グループ: 所属外の部屋は、既存予約があっても何も返さずに拒否する（利用者名を漏らさない。#821） */
+    public function testGroupBulkAdd_adminNotMemberRoom_isRejectedWithoutLeakingNames(): void
+    {
+        $this->addRoomWithMembers(60, 0, [3 => 0]); // 管理者(user 99)は未所属
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 60, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '60', 'day_users' => ['2026-06-12' => ['3' => ['1' => '1']]]],
+            99, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, true, 0, false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('所属していない部屋には登録できません。', $result['message']);
+        $this->assertArrayNotHasKey('skipped', $result);
+    }
+
     /** グループの取消は認可した部屋の行だけを対象にし、同じ利用者の他部屋の予約を巻き込まない */
     public function testGroupBulkAdd_cancelDoesNotTouchOtherRoomsRows(): void
     {
