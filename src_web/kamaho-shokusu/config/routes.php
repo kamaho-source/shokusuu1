@@ -217,6 +217,10 @@ return function (RouteBuilder $routes): void {
             '/TReservationInfo/direct-register',
             ['controller' => 'ReservationDirectRegister', 'action' => 'register']
         )->setMethods(['POST']);
+        $builder->connect(
+            '/TReservationInfo/change-room',
+            ['controller' => 'ReservationDirectRegister', 'action' => 'changeRoom']
+        )->setMethods(['POST']);
 
         // ── 予約トグル（ReservationToggleController） ──
         $builder->connect(

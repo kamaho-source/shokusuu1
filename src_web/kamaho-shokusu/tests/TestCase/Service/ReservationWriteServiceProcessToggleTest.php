@@ -449,4 +449,49 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertStringContainsString('過去日', $results[2]['message']);
         $this->assertStringNotContainsString('エラーコード', $results[2]['message']);
     }
+
+    // ----------------------------------------------------------------
+    // processRoomChange: 旧部屋の取消と新部屋の登録を1トランザクションで行う
+    // ----------------------------------------------------------------
+
+    /** @return array<int, int> [roomId => eat_flag] */
+    private function eatFlagsByRoom(int $userId, string $date, int $meal): array
+    {
+        $rows = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_reservation_type' => $meal])
+            ->all();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int)$r->i_id_room] = (int)$r->eat_flag;
+        }
+
+        return $map;
+    }
+
+    public function testProcessRoomChange_movesReservation(): void
+    {
+        $this->addRoomMembership(1, 40, 0, 0);
+        $this->addRoomMembership(1, 41, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 40, $date, 3);
+
+        $this->service->processRoomChange(40, 41, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
+
+        $this->assertSame([40 => 0, 41 => 1], $this->eatFlagsByRoom(1, $date, 3));
+    }
+
+    public function testProcessRoomChange_rollsBackWhenDestinationRejected(): void
+    {
+        $this->addRoomMembership(1, 42, 0, 0);
+        $this->addRoomMembership(1, 43, 1, 0); // 移動先は退出済み
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 42, $date, 3);
+
+        try {
+            $this->service->processRoomChange(42, 43, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (UnauthorizedException $e) {
+            $this->assertSame([42 => 1], $this->eatFlagsByRoom(1, $date, 3), '旧部屋の予約が残っている');
+        }
+    }
 }

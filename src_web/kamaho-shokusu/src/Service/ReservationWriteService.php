@@ -507,6 +507,40 @@ class ReservationWriteService
     }
 
     /**
+     * 予約済みの食事を別の部屋へ移す（旧部屋を取消 → 新部屋で登録）。
+     *
+     * 2つの toggle を1トランザクションで行い、どちらかが失敗したら旧部屋の予約を残す。
+     * 権限・所属・過去日・直前ルールは processToggle をそのまま通す。
+     *
+     * @param array{date:string, meal:int, userId?:int} $payload
+     * @return array{value: bool, details: array, affected: array}
+     * @throws DomainException 権限不足・所属外・競合・入力不正など
+     */
+    public function processRoomChange(
+        int $fromRoomId,
+        int $toRoomId,
+        array $payload,
+        int $loginUserId,
+        string $loginUserName
+    ): array {
+        $result = $this->reservationTable->getConnection()->transactional(
+            function () use ($fromRoomId, $toRoomId, $payload, $loginUserId, $loginUserName): array {
+                $this->processToggle($fromRoomId, ['value' => 0] + $payload, $loginUserId, $loginUserName, false);
+
+                return $this->processToggle($toRoomId, ['value' => 1] + $payload, $loginUserId, $loginUserName, false);
+            }
+        );
+
+        $this->invalidateCachesForDateRooms(
+            (string)$result['affected']['date'],
+            [$fromRoomId, $toRoomId],
+            [(int)$result['affected']['userId']]
+        );
+
+        return $result;
+    }
+
+    /**
      * 予期しない例外を、画面・監査ログに出してよい短い原因に変換する。
      * 生のメッセージ（SQL 文・テーブル名など）は含めない。
      * エラーコードは DB 由来なら「DB-<MySQL エラー番号>」、それ以外は「SYS-0000」。
