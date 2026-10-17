@@ -131,7 +131,18 @@ class MUserInfoControllerTest extends TestCase
         $this->get('/MUserInfo/edit/1');
         $this->assertResponseOk();
         $this->assertResponseContains('ユーザー詳細を表示する');
-        $this->assertResponseContains('/MUserInfo/view/1');
+        $this->assertResponseContains('href="/MUserInfo/view/1"');
+    }
+
+    /**
+     * 一般ユーザーも、自分の編集画面から自分の詳細へ移動できる。
+     */
+    public function testEditHasLinkToViewForOwner(): void
+    {
+        $this->setAuthenticatedSession(false);
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseOk();
+        $this->assertResponseContains('href="/MUserInfo/view/2"');
     }
 
     /**
