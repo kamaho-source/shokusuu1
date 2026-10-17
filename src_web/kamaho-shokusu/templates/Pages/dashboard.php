@@ -41,6 +41,7 @@ $roleFlags = $dashboard['roleFlags'] ?? ['isAdmin' => false, 'isBlockLeader' => 
 $isAdmin = (bool)($roleFlags['isAdmin'] ?? false);
 $isBlockLeader = (bool)($roleFlags['isBlockLeader'] ?? false);
 $isSysAdmin = $user && (int)($user->get('i_admin') ?? 0) === 3;
+$hasReportAccess = $user && (int)($user->get('i_report_access') ?? 0) === 1;
 $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
 // DashboardService から渡されたダッシュボード用データを展開する
@@ -390,6 +391,28 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="menu-icon" style="background:#e8f5e9;color:#2e7d32;">📈</div>
                         <div class="menu-title-text">部屋使用率</div>
                         <div class="menu-desc">部屋ごとの食事利用率・低使用率部屋のピックアップ</div>
+                    </a>
+                </div>
+            <?php endif; ?>
+
+            <?php /* システムレポート: レポート閲覧権限(i_report_access=1)のユーザーのみ表示する */ ?>
+            <?php if ($hasReportAccess): ?>
+                <div class="section-title">システムレポート</div>
+                <div class="card-grid">
+                    <a class="menu-card" href="<?= $this->Url->build('/SystemReport') ?>">
+                        <div class="menu-icon" style="background:#ecfdf5;color:#059669;">🏢</div>
+                        <div class="menu-title-text">部屋別使用率</div>
+                        <div class="menu-desc">部屋ごとの子供・大人の予約数と使用率</div>
+                    </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/SystemReport/dailyChildren') ?>">
+                        <div class="menu-icon" style="background:#eff6ff;color:#2563eb;">📉</div>
+                        <div class="menu-title-text">日別子供総数</div>
+                        <div class="menu-desc">日ごとの子供の予約件数の推移</div>
+                    </a>
+                    <a class="menu-card" href="<?= $this->Url->build('/SystemReport/loginReport') ?>">
+                        <div class="menu-icon" style="background:#f8fafc;color:#475569;">👤</div>
+                        <div class="menu-title-text">ログイン情報</div>
+                        <div class="menu-desc">ユーザー別のログイン回数と履歴</div>
                     </a>
                 </div>
             <?php endif; ?>
