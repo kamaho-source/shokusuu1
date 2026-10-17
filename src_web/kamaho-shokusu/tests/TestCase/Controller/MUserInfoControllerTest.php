@@ -96,26 +96,50 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
-     * 削除済みユーザーは、削除時に所属が退出済みになるが、一覧・詳細では削除前の所属部屋を表示する。
+     * 削除済みユーザーの所属を作る。部屋1(現役)、部屋2(別の現役)、部屋3(削除済み)。
+     * ユーザー6は部屋1・部屋3に所属していたが、削除時に全て退出済みになっている。
      */
-    public function testDeletedUserShowsRoomsBeforeDeletion(): void
+    private function prepareDeletedUserRooms(): void
     {
         $rooms = $this->getTableLocator()->get('MRoomInfo');
         $base = $rooms->get(1)->toArray();
         $rooms->updateAll(['c_room_name' => '削除前のルーム'], ['i_id_room' => 1]);
         // 部屋が1つだけだと「全部屋所属」の表示になるため、有効な部屋をもう1つ作る
         $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '別のルーム'] + $base);
-        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 6]);
-        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_del_flag' => 1], ['i_id_user' => 6]);
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 3, 'c_room_name' => '削除済みのルーム', 'i_del_flg' => 1] + $base);
 
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groupBase = $groups->find()->where(['i_id_user' => 6])->firstOrFail()->toArray();
+        unset($groupBase['i_id_group'], $groupBase['id']);
+        $groups->updateAll(['active_flag' => 1], ['i_id_user' => 6]);
+        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 3, 'active_flag' => 1] + $groupBase);
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_del_flag' => 1], ['i_id_user' => 6]);
+    }
+
+    /**
+     * 削除済みユーザーの詳細では、削除前の所属部屋を表示する。削除済みの部屋は表示しない。
+     */
+    public function testDeletedUserViewShowsRoomsBeforeDeletion(): void
+    {
+        $this->prepareDeletedUserRooms();
         $this->setAuthenticatedSession();
         $this->get('/MUserInfo/view/6');
         $this->assertResponseOk();
         $this->assertResponseContains('削除前のルーム');
+        $this->assertResponseNotContains('削除済みのルーム');
+    }
 
+    /**
+     * 削除済みユーザーの一覧でも、削除前の所属部屋を表示する。削除済みの部屋は表示しない。
+     */
+    public function testDeletedUserIndexShowsRoomsBeforeDeletion(): void
+    {
+        $this->prepareDeletedUserRooms();
+        $this->setAuthenticatedSession();
         $this->get('/MUserInfo?show_deleted=1');
         $this->assertResponseOk();
         $this->assertResponseContains('削除前のルーム');
+        $this->assertResponseNotContains('削除済みのルーム');
     }
 
     /**
