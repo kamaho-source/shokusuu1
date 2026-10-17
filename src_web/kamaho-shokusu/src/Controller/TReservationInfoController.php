@@ -81,7 +81,12 @@ class TReservationInfoController extends ReservationBaseController
         $user     = $this->MUserInfo->get($userId);
         $today    = Date::today();
 
-        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
+        // 有効な所属部屋（退出済み・削除済みを除く）。既定の部屋もこの中から選ぶ
+        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
+            $this->MRoomInfo,
+            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
+            false
+        ));
         $userRoomId  = $this->calendarService->getPrimaryRoomId($userRoomIds);
 
         $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
@@ -195,10 +200,22 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
         }
 
+        // 合計は有効な所属部屋のみ（管理者も同じ。#821）。全部屋の合計は事務所ユーザーだけ
+        $userId  = (int)$this->Authentication->getIdentity()?->get('i_id_user');
+        $roomIds = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId)
+            ? null
+            : array_keys($this->calendarService->getRoomsForUser(
+                $this->MRoomInfo,
+                $this->calendarService->getUserRoomIds($this->MUserGroup, $userId),
+                false
+            ));
+
         $events = $this->calendarService->buildTotalEvents(
             $this->TIndividualReservationInfo,
             $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
+            $endDate->format('Y-m-d'),
+            null,
+            $roomIds
         );
 
         return $this->apiResponseService->success($this->response, ['events' => $events]);

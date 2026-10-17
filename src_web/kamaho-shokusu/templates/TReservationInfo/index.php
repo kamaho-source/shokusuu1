@@ -159,8 +159,9 @@ $JS_TOGGLE_BASE      = json_encode($toggleBase ?? '', $jsonFlags);
 $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', $jsonFlags);
 
 // 予約コピーAPI（JSON）
-$copyApi = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'copy', '_ext' => 'json'], ['fullBase' => false]);
-$copyPreviewApi = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'copyPreview', '_ext' => 'json'], ['fullBase' => false]);
+// ReservationCopy のルート（/TReservationInfo/copy, /TReservationInfo/copyPreview）。TReservationInfo には copy アクションが無い
+$copyApi = $this->Url->build(['controller' => 'ReservationCopy', 'action' => 'copy'], ['fullBase' => false]);
+$copyPreviewApi = $this->Url->build(['controller' => 'ReservationCopy', 'action' => 'copyPreview'], ['fullBase' => false]);
 
 $jsConfigVars = compact(
     'basePath',

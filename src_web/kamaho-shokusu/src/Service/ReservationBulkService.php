@@ -894,7 +894,8 @@ class ReservationBulkService
     ): bool {
         if ($targetUserId === $loginUserId) {
             // 自分自身でも、有効に所属していない部屋への登録は操作させない。
-            // 取消は、退出後に残った自分の予約を消せるよう所属を要求しない。
+            // 取消はここでは所属を要求しないが、グループ一括登録の入口と Policy（canAccessRoom）で
+            // 操作者が有効所属していない部屋は先に拒否されるため、退出済みの部屋の自分の予約は取り消せない（#821 で確認済みの仕様）。
             return $isCancel || $roomId === null || $this->isActiveMemberCached($loginUserId, $roomId);
         }
 

@@ -67,7 +67,9 @@ class ReservationCalendarService
             // m_room_info には i_disp_no カラムが存在するため固定使用
             $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
+            // 削除済みの部屋は選択肢に出さない
             $query = $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+                ->where(['i_del_flg' => 0])
                 ->orderBy($roomOrder);
 
             return $query->toArray();
@@ -82,6 +84,7 @@ class ReservationCalendarService
                 ->where([
                     'i_id_room IN' => $userRoomIds,
                     'c_room_name LIKE' => '%事務所%',
+                    'i_del_flg' => 0,
                 ])
                 ->orderBy(['c_room_name' => 'ASC', 'i_id_room' => 'ASC'])
                 ->toArray();
@@ -302,11 +305,15 @@ class ReservationCalendarService
         return $events;
     }
 
+    /**
+     * @param array<int>|null $roomIds 集計する部屋（null は全部屋。事務所ユーザー用）
+     */
     public function buildTotalEvents(
         Table $reservationTable,
         string $startDate,
         string $endDate,
-        ?Date $borderDate = null
+        ?Date $borderDate = null,
+        ?array $roomIds = null
     ): array {
         $borderDate = $borderDate ?? $this->datePolicy->changeBoundaryDate();
 
@@ -314,6 +321,9 @@ class ReservationCalendarService
             ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
             ->where(['d_reservation_date >=' => $startDate])
             ->where(['d_reservation_date <' => $endDate]);
+        if ($roomIds !== null) {
+            $query->where(['i_id_room IN' => $roomIds ?: [0]]);
+        }
 
         $rows = $query->toArray();
 

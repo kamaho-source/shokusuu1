@@ -260,12 +260,11 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                             $uLevel              = (int)($u['i_user_level'] ?? 0);
                             // ブロック長がその部屋に所属しているか
                             $blockLeaderHere     = $isBlockLeader && in_array($roomId, $loginRoomIds ?? [], true);
-                            // 編集可否: 部屋所属の管理者・ブロック長は全員、部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
-                            // 管理者も所属外の部屋は編集できない（事務所ユーザーを兼ねる管理者の個人モード。#821）
-                            $canEditRow          = ($isAdmin && in_array($roomId, $loginRoomIds ?? [], true))
-                                || $blockLeaderHere
-                                || ($uid === $loginUserId)
-                                || ($canViewRoom && $uLevel === 1);
+                            // 編集可否: 部屋所属の管理者・ブロック長は全員、部屋所属で部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
+                            // 他人の行は、ログインユーザーがその部屋に所属しているときだけ（事務所ユーザー・事務所兼管理者の個人モード。#821）
+                            $inLoginRoom         = in_array($roomId, $loginRoomIds ?? [], true);
+                            $canEditRow          = ($uid === $loginUserId)
+                                || ($inLoginRoom && ($isAdmin || $blockLeaderHere || ($canViewRoom && $uLevel === 1)));
                             // 非管理者・非ブロック長（その部屋）の職員が他の職員行を見ている場合はホバー注意文を付与
                             $isOtherStaff        = !$isAdmin && !$blockLeaderHere && in_array($uLevel, [0, 7], true) && $uid !== $loginUserId;
                         ?>
