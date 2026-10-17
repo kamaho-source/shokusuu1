@@ -4,6 +4,7 @@
  * @var mixed $rooms
  * @var \App\Model\Entity\MUserInfo $mUserInfo
  */
+use App\Domain\ValueObject\UserProfileOptions;
 ?>
 </fieldset>
 
@@ -15,6 +16,7 @@ $this->assign('title', 'ユーザー情報の追加');
 $this->Html->css('bootstrap-icons.css', ['block' => true]);
 $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 $this->Html->script('realtime-validation.js', ['block' => true]);
+$this->Html->script('birth-date-age.js', ['block' => true]);
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -49,18 +51,30 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                         <div id="login-id-error" class="invalid-feedback"></div>
                     </div>
 
-                    <!-- 生年月日 -->
-                    <div class="mb-3">
-                        <?= $this->Form->control('birth_date', [
-                            'type'        => 'text',
-                            'label'       => ['text' => '生年月日', 'class' => 'form-label'],
-                            'class'       => 'form-control',
-                            'id'          => 'birthDate',
-                            'placeholder' => '例: 1990-04-01',
-                            'pattern'     => '\d{4}-\d{2}-\d{2}',
-                            'inputmode'   => 'numeric'
-                        ]) ?>
-                    </div>
+                    <!-- 生年月日（保存しない。年齢・年代を自動で選ぶためだけに使う） -->
+                    <fieldset class="mb-3">
+                        <legend class="form-label fs-6 mb-1"><?= __('生年月日') ?></legend>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <input type="text" id="birthYear" name="birth_year" class="form-control" style="max-width:7rem"
+                                   inputmode="numeric" maxlength="4" placeholder="例: 2015" aria-label="生まれた年（西暦）"
+                                   value="<?= h((string)$this->request->getData('birth_year')) ?>">
+                            <span>年</span>
+                            <select id="birthMonth" name="birth_month" class="form-select" style="max-width:6rem" aria-label="生まれた月">
+                                <option value="">--</option>
+                                <?php for ($m = 1; $m <= 12; $m++): ?>
+                                    <option value="<?= $m ?>" <?= (string)$this->request->getData('birth_month') === (string)$m ? 'selected' : '' ?>><?= $m ?></option>
+                                <?php endfor; ?>
+                            </select>
+                            <span>月</span>
+                            <select id="birthDay" name="birth_day" class="form-select" style="max-width:6rem" aria-label="生まれた日"
+                                    data-selected="<?= h((string)$this->request->getData('birth_day')) ?>">
+                                <option value="">--</option>
+                            </select>
+                            <span>日</span>
+                        </div>
+                        <div id="birthDateFeedback" class="invalid-feedback d-block" aria-live="polite"></div>
+                        <div class="form-text"><?= __('入力すると年齢と年代が自動で選ばれます（生年月日は保存されません）。選んだ後も変更できます。') ?></div>
+                    </fieldset>
 
                     <!-- パスワード -->
                     <div class="mb-3">
@@ -105,7 +119,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     <div class="mb-3">
                         <?= $this->Form->control('i_user_gender', [
                             'type'              => 'select',
-                            'options'           => [1 => '男性', 2 => '女性'],
+                            'options'           => UserProfileOptions::GENDERS,
                             'label'             => ['text' => '性別 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
@@ -116,19 +130,12 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                         <div class="invalid-feedback"></div>
                     </div>
 
-                    <!-- どの年代が食べたか -->
+                    <!-- 年代 -->
                     <div class="mb-3">
                         <?= $this->Form->control('age_group', [
                             'type'              => 'select',
-                            'options'           => [
-                                1 => '3~5才',
-                                2 => '低学年',
-                                3 => '中学年',
-                                4 => '高学年',
-                                5 => '中学生',
-                                6 => '高校生',
-                                7 => '大人'
-                            ],
+                            'options'           => UserProfileOptions::AGE_GROUPS,
+                            'id'                => 'ageGroupSelect',
                             'label'             => ['text' => '年代選択 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
@@ -139,18 +146,19 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                         <div class="invalid-feedback"></div>
                     </div>
 
-                    <!-- 年齢 -->
+                    <!-- 年齢（入力エラーで画面が再表示されても選択が残るようフォームヘルパーで出す） -->
                     <div class="mb-3">
-                        <label for="ageSelect" class="form-label">年齢 <span class="text-danger" aria-hidden="true">*</span></label>
-                        <select id="ageSelect" name="age" class="form-control"
-                                aria-required="true"
-                                data-validate="required"
-                                data-msg-required="年齢を選択してください。">
-                            <option value="">選択してください</option>
-                            <?php for ($i = 1; $i <= 80; $i++): ?>
-                                <option value="<?= $i ?>"><?= $i ?>歳</option>
-                            <?php endfor; ?>
-                        </select>
+                        <?= $this->Form->control('age', [
+                            'type'              => 'select',
+                            'options'           => array_combine($ages, array_map(static fn(int $a) => $a . '歳', $ages)),
+                            'id'                => 'ageSelect',
+                            'label'             => ['text' => '年齢 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
+                            'class'             => 'form-control',
+                            'empty'             => '選択してください',
+                            'aria-required'     => 'true',
+                            'data-validate'     => 'required',
+                            'data-msg-required' => '年齢を選択してください。',
+                        ]) ?>
                         <div class="invalid-feedback">年齢を選択してください。</div>
                     </div>
 
@@ -158,7 +166,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     <div class="mb-3">
                         <?= $this->Form->control('role', [
                             'type'              => 'select',
-                            'options'           => $roles ?? [0 => '職員', 1 => '児童', 3 => 'その他'],
+                            'options'           => $roles ?? UserProfileOptions::USER_LEVELS,
                             'label'             => ['text' => '役職 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',
@@ -215,33 +223,54 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
         const roleSelect = document.querySelector('[name="role"]');
 
         /* ==================================================================
-           生年月日選択 → 年齢自動設定
+           生年月日（年は入力・月日は選択）→ 年齢・年代を自動で選ぶ
         ================================================================== */
-        const birthDateInput = document.getElementById('birthDate');
-        const ageSelect      = document.getElementById('ageSelect');
+        const birthYear     = document.getElementById('birthYear');
+        const birthMonth    = document.getElementById('birthMonth');
+        const birthDay      = document.getElementById('birthDay');
+        const birthFeedback = document.getElementById('birthDateFeedback');
+        const ageSelect     = document.getElementById('ageSelect');
+        const ageGroupSelect = document.getElementById('ageGroupSelect');
 
-        const calcAge = (value) => {
-            if (!value) return null;
-            const [year, month, day] = value.split('-').map(Number);
-            const today = new Date();
-            let age = today.getFullYear() - year;
-            if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) {
-                age--;
+        // 日の選択肢を、選んだ年・月の末日に合わせる
+        const fillDays = () => {
+            const y = Number(birthYear.value) || 2000;   // 年が未入力なら、うるう年として 29 日まで出す
+            const m = Number(birthMonth.value);
+            const last = m ? BirthDateAge.daysInMonth(y, m) : 31;
+            const keep = birthDay.value || birthDay.dataset.selected || '';
+            birthDay.dataset.selected = '';
+            birthDay.innerHTML = '<option value="">--</option>';
+            for (let d = 1; d <= last; d++) {
+                birthDay.add(new Option(String(d), String(d), false, String(d) === keep));
             }
-            return age;
         };
 
-        const setAge = () => {
-            const age = calcAge(birthDateInput.value.trim());
-            if (Number.isInteger(age) && age >= 1 && age <= 80) {
-                ageSelect.value = String(age);
-                setTimeout(() => { ageSelect.value = String(age); }, 10);
+        const applyBirthDate = () => {
+            birthFeedback.textContent = '';
+            const y = birthYear.value.trim();
+            if (!y || !birthMonth.value || !birthDay.value) return;   // そろうまでは何もしない
+            if (!/^\d{4}$/.test(y)) {
+                birthFeedback.textContent = '年は西暦4桁の数字で入力してください。';
+                return;
+            }
+            const r = BirthDateAge.fromBirthDate(Number(y), Number(birthMonth.value), Number(birthDay.value), new Date());
+            if (r.error) {
+                birthFeedback.textContent = r.error;
+                return;
+            }
+            if (r.age >= <?= UserProfileOptions::MIN_AGE ?> && r.age <= <?= UserProfileOptions::MAX_AGE ?>) {
+                ageSelect.value = String(r.age);
             } else {
-                ageSelect.value = '';
+                birthFeedback.textContent = '年齢が選択肢の範囲外のため、年齢は手で選んでください。';
             }
+            ageGroupSelect.value = String(r.ageGroup);
+            [ageSelect, ageGroupSelect].forEach(el => el.dispatchEvent(new Event('change', { bubbles: true })));
         };
 
-        ['input', 'change'].forEach(ev => birthDateInput.addEventListener(ev, setAge));
+        birthYear.addEventListener('input', () => { fillDays(); applyBirthDate(); });
+        birthMonth.addEventListener('change', () => { fillDays(); applyBirthDate(); });
+        birthDay.addEventListener('change', applyBirthDate);
+        fillDays();
 
         /* ==================================================================
            役職 = 職員 のときだけ職員ID入力欄を表示
