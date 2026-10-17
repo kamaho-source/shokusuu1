@@ -93,6 +93,36 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
+     * 所属中・退出済み・削除済みの部屋が混在するとき、所属中の部屋だけが表示される。
+     */
+    public function testViewHidesLeftAndDeletedRooms(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $base = $rooms->get(1)->toArray();
+        $addRoom = function (int $id, string $name, int $delFlg) use ($rooms, $base): void {
+            $row = ['i_id_room' => $id, 'c_room_name' => $name, 'i_del_flg' => $delFlg] + $base;
+            $rooms->getConnection()->insert('m_room_info', $row);
+        };
+        $rooms->updateAll(['c_room_name' => '現在の部屋'], ['i_id_room' => 1]);
+        $addRoom(2, '退出した部屋', 0);
+        $addRoom(3, '削除された部屋', 1);
+
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groupBase = $groups->find()->where(['i_id_user' => 1])->firstOrFail()->toArray();
+        unset($groupBase['i_id_group'], $groupBase['id']);
+        foreach ([[2, 1], [3, 0]] as [$roomId, $activeFlag]) {
+            $groups->getConnection()->insert('m_user_group', ['i_id_room' => $roomId, 'active_flag' => $activeFlag] + $groupBase);
+        }
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('現在の部屋');
+        $this->assertResponseNotContains('退出した部屋');
+        $this->assertResponseNotContains('削除された部屋');
+    }
+
+    /**
      * Test add method
      *
      * @return void
