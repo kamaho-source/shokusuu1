@@ -41,9 +41,8 @@ final class UserProfileOptions
     public const MAX_AGE = 80;
 
     /**
-     * 年代が切り替わる年齢 => その年齢からの年代（i_user_rank）。これより若ければ 1（3~5才）。
-     * 年度更新バッチ（FiscalRolloverCommand）が年齢を1つ上げるときに年代を進める境目と同じ。
-     * 新規登録で生年月日から年代を自動で選ぶときもこの表を使う。
+     * 年度更新バッチ（FiscalRolloverCommand）が年代を進める境目: 年齢 => その年齢からの年代（i_user_rank）。
+     * 新規登録では生年月日が分かるため、この表ではなく4月2日区切りの学年で選ぶ（webroot/js/birth-date-age.js）。
      *
      * @var array<int, int>
      */
@@ -55,22 +54,6 @@ final class UserProfileOptions
         16 => 6, // 高校生
         19 => 7, // 大人
     ];
-
-    /**
-     * 年齢から年代を返す。
-     */
-    public static function ageGroupForAge(int $age): int
-    {
-        $group = 1;
-        foreach (self::AGE_GROUP_FROM_AGE as $fromAge => $rank) {
-            if ($age < $fromAge) {
-                return $group;
-            }
-            $group = $rank;
-        }
-
-        return $group;
-    }
 
     /**
      * 選択肢の表示名を返す。値が無ければ「未設定」、選択肢に無い値ならその値をそのまま示す。

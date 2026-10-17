@@ -12,30 +12,12 @@ use PHPUnit\Framework\TestCase;
 class UserProfileOptionsTest extends TestCase
 {
     /**
-     * 年齢 → 年代は、年度更新バッチ（FiscalRolloverCommand）が年代を進める境目と同じ。
+     * 年度更新バッチ（FiscalRolloverCommand）が年代を進める境目。以前バッチに直書きしていた表と同じであること。
      * 6→7 低学年、9→10 中学年、11→12 高学年、12→13 中学生、15→16 高校生、18→19 大人。
-     *
-     * @return array<string, array{0: int, 1: int}>
      */
-    public static function ages(): array
+    public function testAgeGroupFromAgeMatchesFiscalRollover(): void
     {
-        return [
-            '1歳' => [1, 1], '6歳' => [6, 1],
-            '7歳' => [7, 2], '9歳' => [9, 2],
-            '10歳' => [10, 3], '11歳' => [11, 3],
-            '12歳' => [12, 4],
-            '13歳' => [13, 5], '15歳' => [15, 5],
-            '16歳' => [16, 6], '18歳' => [18, 6],
-            '19歳' => [19, 7], '80歳' => [80, 7],
-        ];
-    }
-
-    /**
-     * @dataProvider ages
-     */
-    public function testAgeGroupForAge(int $age, int $group): void
-    {
-        $this->assertSame($group, UserProfileOptions::ageGroupForAge($age));
+        $this->assertSame([7 => 2, 10 => 3, 12 => 4, 13 => 5, 16 => 6, 19 => 7], UserProfileOptions::AGE_GROUP_FROM_AGE);
     }
 
     public function testLabel(): void

@@ -351,13 +351,12 @@ class MUserInfoController extends AppController
             }
 
             try {
-                if ($profileError !== null) {
-                    $this->Flash->error($profileError);
-                } elseif ($this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, $this->getClientIp(), $loginId, $fields)) {
+                if ($profileError === null && $this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, $this->getClientIp(), $loginId, $fields)) {
                     $this->Flash->success(__('ユーザー情報が更新されました。'));
                     return $this->redirect(['action' => 'index']);
                 }
-                $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
+                // 入力の誤りはその理由だけを出す（汎用の「保存に失敗」を重ねない）
+                $this->Flash->error($profileError ?? __('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
             } catch (\Exception $e) {
                 $this->log('userEdit error: ' . $e->getMessage(), 'error');
                 $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
@@ -424,9 +423,9 @@ class MUserInfoController extends AppController
             }
             return [$data, null];
         }
-        // 職員IDの列は数値。数字以外を入れると黙って空で保存されるため、ここで止める
-        if (!ctype_digit($staffId)) {
-            return [$data, __('職員IDは数字で入力してください。')];
+        // 職員IDの列は数値（int）。数字以外は黙って空で保存され、大きすぎる値は SQL エラーになるため、ここで止める
+        if (!ctype_digit($staffId) || strlen($staffId) > 9) {
+            return [$data, __('職員IDは9桁以内の数字で入力してください。')];
         }
 
         return [$data, null];

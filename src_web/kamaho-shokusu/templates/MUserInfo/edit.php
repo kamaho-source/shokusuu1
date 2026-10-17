@@ -13,6 +13,7 @@ $this->assign('title', 'ユーザー情報の編集');
 $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
 // 未設定や選択肢に無い値（古いデータの役職7など）は、選び直さない限りそのまま残す。
 // 空の選択肢を出さないと、ブラウザが先頭の選択肢を選んだ状態になり、保存で黙って書き換わる。
+// （空の選択肢を選んだまま送れるよう、テーブルの検証から付く required は外している）
 $keepOption = static function (array $options, int|string|null $value): string|false {
     if ($value === null || $value === '') {
         return '未設定';
@@ -62,13 +63,13 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_gender', [
                                 'type' => 'select', 'options' => UserProfileOptions::GENDERS, 'empty' => $keepOption(UserProfileOptions::GENDERS, $mUserInfo->i_user_gender),
-                                'label' => '性別', 'class' => 'form-select',
+                                'label' => '性別', 'class' => 'form-select', 'required' => false,
                             ]) ?>
                         </div>
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_rank', [
                                 'type' => 'select', 'options' => UserProfileOptions::AGE_GROUPS, 'empty' => $keepOption(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank),
-                                'label' => '年代', 'class' => 'form-select',
+                                'label' => '年代', 'class' => 'form-select', 'required' => false,
                             ]) ?>
                         </div>
                     <?php else: ?>
@@ -89,7 +90,7 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                             <?= $this->Form->control('i_user_level', [
                                 'type' => 'select', 'options' => UserProfileOptions::USER_LEVELS,
                                 'empty' => $keepOption(UserProfileOptions::USER_LEVELS, $mUserInfo->i_user_level),
-                                'label' => '役職', 'class' => 'form-select', 'id' => 'userLevelSelect',
+                                'label' => '役職', 'class' => 'form-select', 'id' => 'userLevelSelect', 'required' => false,
                                 'data-original' => (string)$mUserInfo->i_user_level,
                             ]) ?>
                         </div>

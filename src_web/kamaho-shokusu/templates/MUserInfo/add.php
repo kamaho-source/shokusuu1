@@ -73,7 +73,7 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
                             <span>日</span>
                         </div>
                         <div id="birthDateFeedback" class="invalid-feedback d-block" aria-live="polite"></div>
-                        <div class="form-text"><?= __('入力すると年齢と年代が自動で選ばれます（年代は年度更新と同じ年齢の区切り。生年月日は保存されません）。選んだ後も変更できます。') ?></div>
+                        <div class="form-text"><?= __('入力すると年齢と年代（4月2日区切りの学年）が自動で選ばれます（生年月日は保存されません）。選んだ後も変更できます。') ?></div>
                     </fieldset>
 
                     <!-- パスワード -->
@@ -246,8 +246,6 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
             }
         };
 
-        // 年代の境目（年度更新バッチと同じ表）
-        const ageGroupFromAge = <?= json_encode(UserProfileOptions::AGE_GROUP_FROM_AGE) ?>;
         // 自動で選んだ値。生年月日を直して自動で選べなくなったら、自動で入れた値だけを取り消す（手で選んだ値は残す）
         const auto = { age: null, ageGroup: null };
         const setAuto = (select, key, value) => {
@@ -272,7 +270,7 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
                 clearAuto();
                 return;
             }
-            const r = BirthDateAge.fromBirthDate(Number(y), Number(birthMonth.value), Number(birthDay.value), new Date(), ageGroupFromAge);
+            const r = BirthDateAge.fromBirthDate(Number(y), Number(birthMonth.value), Number(birthDay.value), new Date());
             if (r.error) {
                 birthFeedback.textContent = r.error;
                 clearAuto();

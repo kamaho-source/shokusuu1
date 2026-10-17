@@ -166,6 +166,41 @@ class MUserInfoProfileTest extends TestCase
         $this->assertSame(1, (int)$this->user(2)->i_user_level);
     }
 
+    /**
+     * 未設定・定義外の値の選択欄は required を付けない。
+     * テーブルの検証から required が付くと、名前だけ直す保存をブラウザが止めてしまう。
+     */
+    public function testProfileSelectsAreNotRequiredInBrowser(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_rank' => null, 'i_user_level' => 7], ['i_id_user' => 2]);
+        $this->loginAs(1, 1);
+        $this->get('/MUserInfo/edit/2');
+
+        $this->assertResponseOk();
+        $this->assertDoesNotMatchRegularExpression('/<select[^>]*name="i_user_(gender|rank|level)"[^>]*required/u', (string)$this->_response->getBody());
+    }
+
+    /** 入力の誤りは、その理由だけを出す（「保存に失敗しました」を重ねない） */
+    public function testProfileErrorShowsOnlyItsReason(): void
+    {
+        $this->loginAs(1, 1);
+        $this->enableRetainFlashMessages();
+        $this->postEdit(2, ['i_user_gender' => '2', 'i_user_rank' => '3', 'i_user_level' => '0', 'i_id_staff' => '']);
+
+        $this->assertFlashMessage('役職が職員のときは職員IDを入力してください。');
+        $this->assertCount(1, $this->_flashMessages['flash'] ?? []);
+    }
+
+    /** 職員IDの列（int）に入らない桁数は、SQL エラーにせず入力エラーにする */
+    public function testTooLongStaffIdIsRejected(): void
+    {
+        $this->loginAs(1, 1);
+        $this->postEdit(2, ['i_user_gender' => '2', 'i_user_rank' => '3', 'i_user_level' => '0', 'i_id_staff' => '99999999999']);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, (int)$this->user(2)->i_user_level);
+    }
+
     public function testInvalidOptionValueIsRejected(): void
     {
         $this->loginAs(1, 1);
