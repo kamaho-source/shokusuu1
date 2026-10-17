@@ -417,8 +417,16 @@ class MUserInfoController extends AppController
             $data['i_id_staff'] = null;
             return [$data, null];
         }
-        if ($currentLevel !== UserProfileOptions::STAFF_LEVEL && trim((string)($data['i_id_staff'] ?? '')) === '') {
-            return [$data, __('役職が職員のときは職員IDを入力してください。')];
+        $staffId = trim((string)($data['i_id_staff'] ?? ''));
+        if ($staffId === '') {
+            if ($currentLevel !== UserProfileOptions::STAFF_LEVEL) {
+                return [$data, __('役職が職員のときは職員IDを入力してください。')];
+            }
+            return [$data, null];
+        }
+        // 職員IDの列は数値。数字以外を入れると黙って空で保存されるため、ここで止める
+        if (!ctype_digit($staffId)) {
+            return [$data, __('職員IDは数字で入力してください。')];
         }
 
         return [$data, null];

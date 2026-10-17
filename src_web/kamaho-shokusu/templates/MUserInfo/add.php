@@ -73,7 +73,7 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
                             <span>日</span>
                         </div>
                         <div id="birthDateFeedback" class="invalid-feedback d-block" aria-live="polite"></div>
-                        <div class="form-text"><?= __('入力すると年齢と年代が自動で選ばれます（生年月日は保存されません）。選んだ後も変更できます。') ?></div>
+                        <div class="form-text"><?= __('入力すると年齢と年代が自動で選ばれます（年代は年度更新と同じ年齢の区切り。生年月日は保存されません）。選んだ後も変更できます。') ?></div>
                     </fieldset>
 
                     <!-- パスワード -->
@@ -234,7 +234,8 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
 
         // 日の選択肢を、選んだ年・月の末日に合わせる
         const fillDays = () => {
-            const y = Number(birthYear.value) || 2000;   // 年が未入力なら、うるう年として 29 日まで出す
+            // 年が4桁そろうまでは、うるう年として 29 日まで出す（入力途中の「2」「20」で2月29日が消えないように）
+            const y = /^\d{4}$/.test(birthYear.value.trim()) ? Number(birthYear.value.trim()) : 2000;
             const m = Number(birthMonth.value);
             const last = m ? BirthDateAge.daysInMonth(y, m) : 31;
             const keep = birthDay.value || birthDay.dataset.selected || '';
@@ -245,26 +246,45 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
             }
         };
 
+        // 年代の境目（年度更新バッチと同じ表）
+        const ageGroupFromAge = <?= json_encode(UserProfileOptions::AGE_GROUP_FROM_AGE) ?>;
+        // 自動で選んだ値。生年月日を直して自動で選べなくなったら、自動で入れた値だけを取り消す（手で選んだ値は残す）
+        const auto = { age: null, ageGroup: null };
+        const setAuto = (select, key, value) => {
+            select.value = value === null ? '' : String(value);
+            auto[key] = value === null ? null : String(value);
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        };
+        const clearAuto = () => {
+            if (auto.age !== null && ageSelect.value === auto.age) setAuto(ageSelect, 'age', null);
+            if (auto.ageGroup !== null && ageGroupSelect.value === auto.ageGroup) setAuto(ageGroupSelect, 'ageGroup', null);
+        };
+
         const applyBirthDate = () => {
             birthFeedback.textContent = '';
             const y = birthYear.value.trim();
-            if (!y || !birthMonth.value || !birthDay.value) return;   // そろうまでは何もしない
-            if (!/^\d{4}$/.test(y)) {
-                birthFeedback.textContent = '年は西暦4桁の数字で入力してください。';
+            if (!y || !birthMonth.value || !birthDay.value) {   // そろうまでは何もしない
+                clearAuto();
                 return;
             }
-            const r = BirthDateAge.fromBirthDate(Number(y), Number(birthMonth.value), Number(birthDay.value), new Date());
+            if (!/^\d{4}$/.test(y)) {
+                birthFeedback.textContent = '年は西暦4桁の数字で入力してください。';
+                clearAuto();
+                return;
+            }
+            const r = BirthDateAge.fromBirthDate(Number(y), Number(birthMonth.value), Number(birthDay.value), new Date(), ageGroupFromAge);
             if (r.error) {
                 birthFeedback.textContent = r.error;
+                clearAuto();
                 return;
             }
             if (r.age >= <?= UserProfileOptions::MIN_AGE ?> && r.age <= <?= UserProfileOptions::MAX_AGE ?>) {
-                ageSelect.value = String(r.age);
+                setAuto(ageSelect, 'age', r.age);
             } else {
                 birthFeedback.textContent = '年齢が選択肢の範囲外のため、年齢は手で選んでください。';
+                clearAuto();
             }
-            ageGroupSelect.value = String(r.ageGroup);
-            [ageSelect, ageGroupSelect].forEach(el => el.dispatchEvent(new Event('change', { bubbles: true })));
+            setAuto(ageGroupSelect, 'ageGroup', r.ageGroup);
         };
 
         birthYear.addEventListener('input', () => { fillDays(); applyBirthDate(); });

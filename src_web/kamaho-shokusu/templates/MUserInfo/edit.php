@@ -11,6 +11,14 @@ $this->assign('title', 'ユーザー情報の編集');
 // $rooms は部屋情報の配列としてコントローラから渡されることを想定しています。
 // $selectedRooms はユーザーが現在所属している部屋のID配列です。
 $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
+// 未設定や選択肢に無い値（古いデータの役職7など）は、選び直さない限りそのまま残す。
+// 空の選択肢を出さないと、ブラウザが先頭の選択肢を選んだ状態になり、保存で黙って書き換わる。
+$keepOption = static function (array $options, int|string|null $value): string|false {
+    if ($value === null || $value === '') {
+        return '未設定';
+    }
+    return isset($options[(int)$value]) ? false : UserProfileOptions::label($options, $value) . '（変更しない）';
+};
 ?>
 <div class="row">
     <aside class="col-md-3">
@@ -53,13 +61,13 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
                     <?php if ($isAdmin): ?>
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_gender', [
-                                'type' => 'select', 'options' => UserProfileOptions::GENDERS, 'empty' => $mUserInfo->i_user_gender === null ? '未設定' : false,
+                                'type' => 'select', 'options' => UserProfileOptions::GENDERS, 'empty' => $keepOption(UserProfileOptions::GENDERS, $mUserInfo->i_user_gender),
                                 'label' => '性別', 'class' => 'form-select',
                             ]) ?>
                         </div>
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_rank', [
-                                'type' => 'select', 'options' => UserProfileOptions::AGE_GROUPS, 'empty' => $mUserInfo->i_user_rank === null ? '未設定' : false,
+                                'type' => 'select', 'options' => UserProfileOptions::AGE_GROUPS, 'empty' => $keepOption(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank),
                                 'label' => '年代', 'class' => 'form-select',
                             ]) ?>
                         </div>
@@ -80,7 +88,7 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_level', [
                                 'type' => 'select', 'options' => UserProfileOptions::USER_LEVELS,
-                                'empty' => $mUserInfo->i_user_level === null ? '未設定' : false,
+                                'empty' => $keepOption(UserProfileOptions::USER_LEVELS, $mUserInfo->i_user_level),
                                 'label' => '役職', 'class' => 'form-select', 'id' => 'userLevelSelect',
                                 'data-original' => (string)$mUserInfo->i_user_level,
                             ]) ?>
@@ -135,8 +143,9 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
         // 役職は権限と食数集計（子ども・大人の区分）に影響するので、変えたときは保存前に確認する
         level.form.addEventListener('submit', (e) => {
             const before = level.dataset.original;
-            if (before === '' || before === level.value) return;
-            const msg = '役職を「' + (labels[before] || '未設定') + '」から「' + labels[level.value] + '」に変更します。\n'
+            // 「変更しない」（空）のまま、または元と同じなら確認しない
+            if (level.value === '' || before === level.value) return;
+            const msg = '役職を「' + (before === '' ? '未設定' : (labels[before] || '定義外の値（' + before + '）')) + '」から「' + labels[level.value] + '」に変更します。\n'
                 + '権限や食数の集計（子ども・大人の区分）が変わります。よろしいですか？';
             if (!window.confirm(msg)) e.preventDefault();
         });

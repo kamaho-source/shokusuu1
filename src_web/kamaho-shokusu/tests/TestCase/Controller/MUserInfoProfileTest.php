@@ -77,7 +77,10 @@ class MUserInfoProfileTest extends TestCase
         $this->get('/MUserInfo/view/2');
 
         $this->assertResponseOk();
-        $this->assertSame(4, substr_count((string)$this->_response->getBody(), '未設定'));
+        $body = (string)$this->_response->getBody();
+        foreach (['性別', '年代', '年齢', '役職'] as $label) {
+            $this->assertMatchesRegularExpression('#<th>' . $label . '</th>\s*<td>未設定</td>#u', $body, $label);
+        }
     }
 
     public function testAdminCanEditProfileFields(): void
@@ -133,6 +136,34 @@ class MUserInfoProfileTest extends TestCase
         $this->assertSame('改名', $u->c_user_name);
         $this->assertNull($u->i_user_gender);
         $this->assertNull($u->i_user_rank);
+    }
+
+    /**
+     * 選択肢に無い古い値（役職7・性別0）は、選び直さない限り保存で書き換わらない。
+     * 空の選択肢が無いと、ブラウザが先頭の選択肢を選んだ状態になり黙って書き換わっていた。
+     */
+    public function testUndefinedLegacyValuesAreKept(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 7, 'i_user_gender' => 0], ['i_id_user' => 2]);
+        $this->loginAs(1, 1);
+
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseContains('定義外の値（7）（変更しない）');
+
+        $this->postEdit(2, ['i_user_gender' => '', 'i_user_rank' => '3', 'i_user_level' => '', 'c_user_name' => '改名']);
+        $this->assertRedirectContains('/MUserInfo');
+        $u = $this->user(2);
+        $this->assertSame([7, 0, '改名'], [(int)$u->i_user_level, (int)$u->i_user_gender, $u->c_user_name]);
+    }
+
+    /** 職員IDの列は数値。数字以外は黙って空で保存されるので、エラーにして止める */
+    public function testNonNumericStaffIdIsRejected(): void
+    {
+        $this->loginAs(1, 1);
+        $this->postEdit(2, ['i_user_gender' => '2', 'i_user_rank' => '3', 'i_user_level' => '0', 'i_id_staff' => 'S-001']);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, (int)$this->user(2)->i_user_level);
     }
 
     public function testInvalidOptionValueIsRejected(): void

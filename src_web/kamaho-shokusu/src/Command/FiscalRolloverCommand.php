@@ -1,6 +1,7 @@
 <?php
 namespace App\Command;
 
+use App\Domain\ValueObject\UserProfileOptions;
 use App\Service\AuditLogService;
 use Cake\Command\Command;
 use Cake\Console\Arguments;
@@ -145,14 +146,12 @@ class FiscalRolloverCommand extends Command
             $activeWhere = ['i_enable' => 0, 'i_user_age IS NOT' => null];
 
             // 境界年齢の遷移: (現在の年齢 => 設定する i_user_rank)
-            $transitions = [
-                6  => 2, // 6 -> 7 で rank=2（年長 → 小学生(低学年)）
-                9  => 3, // 9 -> 10 で rank=3（低学年 → 中学年）
-                11 => 4, // 11 -> 12 で rank=4（中学年 → 高学年）
-                12 => 5, // 12 -> 13 で rank=5（高学年 → 中学生）
-                15 => 6, // 15 -> 16 で rank=6（中学生 → 高校生）
-                18 => 7, // 18 -> 19 で rank=7（高校生 → 成人など、施設ルールに合わせて）
-            ];
+            // 新規登録で生年月日から年代を選ぶときと同じ表（UserProfileOptions::AGE_GROUP_FROM_AGE）を使う。
+            // 例: 6 -> 7 で rank=2（低学年）、9 -> 10 で rank=3（中学年）… 18 -> 19 で rank=7（大人）
+            $transitions = [];
+            foreach (UserProfileOptions::AGE_GROUP_FROM_AGE as $fromAge => $rank) {
+                $transitions[$fromAge - 1] = $rank;
+            }
 
             // 1) 年齢+1 と rank 更新を「1つの UPDATE 文」で同時に行う。
             //    複数の UPDATE 文に分けて処理すると、後続の文が前の文の書き込み結果を
