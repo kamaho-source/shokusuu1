@@ -523,9 +523,11 @@ class MUserInfoController extends AppController
         $userRooms = [];
         if (!empty($mUserInfo->m_user_group)) {
             foreach ($mUserInfo->m_user_group as $group) {
-                if (!empty($group->m_room_info)) {
-                    $userRooms[] = $group->m_room_info->c_room_name;
+                // 退出済み・削除済みの部屋は所属として表示しない（編集画面の所属と揃える）
+                if ((int)$group->active_flag !== 0 || empty($group->m_room_info) || (int)$group->m_room_info->i_del_flg !== 0) {
+                    continue;
                 }
+                $userRooms[] = $group->m_room_info->c_room_name;
             }
         }
 

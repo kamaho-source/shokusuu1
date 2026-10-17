@@ -70,6 +70,29 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
+     * 詳細画面に所属部屋が表示される。退出済みの部屋は表示しない。
+     */
+    public function testViewShowsActiveRoomsOnly(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $rooms->updateAll(['c_room_name' => '現在の部屋'], ['i_id_room' => 1]);
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groups->updateAll(['active_flag' => 1], ['i_id_user' => 2, 'i_id_room' => 1]);
+        $groups->updateAll(['active_flag' => 0], ['i_id_user' => 1, 'i_id_room' => 1]);
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('所属部屋');
+        $this->assertResponseContains('現在の部屋');
+
+        $this->get('/MUserInfo/view/2');
+        $this->assertResponseOk();
+        $this->assertResponseContains('所属なし');
+        $this->assertResponseNotContains('現在の部屋');
+    }
+
+    /**
      * Test add method
      *
      * @return void
