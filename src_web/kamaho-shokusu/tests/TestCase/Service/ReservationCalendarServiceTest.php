@@ -232,4 +232,28 @@ class ReservationCalendarServiceTest extends TestCase
             'i_del_flg'   => $delFlg,
         ]);
     }
+
+    /** 管理者の部屋の選択肢にも削除済みの部屋は出さない（#819） */
+    public function testGetRoomsForUser_adminExcludesDeletedRooms(): void
+    {
+        $this->insertRoom(3, '削除済みの部屋', 1);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [], isAdmin: true);
+
+        $this->assertArrayHasKey(1, $result);
+        $this->assertArrayNotHasKey(3, $result);
+    }
+
+    /** 事務所ユーザーの部屋の選択肢にも削除済みの部屋は出さない（#819） */
+    public function testGetRoomsForUser_officeExcludesDeletedRooms(): void
+    {
+        $this->insertRoom(4, '旧事務所', 1);
+        $this->insertRoom(5, '事務所', 0);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [4, 5], isAdmin: false, isOfficeUser: true);
+
+        $this->assertSame([5], array_keys($result));
+    }
 }

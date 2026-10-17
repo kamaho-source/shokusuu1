@@ -550,4 +550,21 @@ class MUserInfoControllerTest extends TestCase
             ],
         ]);
     }
+
+    /**
+     * ユーザー一覧の所属部屋に、異動で抜けた所属を含めない（#819）。
+     * 以前は旧所属も数えられ、部屋が1つの環境では「全部屋所属」と誤表示された。
+     */
+    public function testIndexExcludesWithdrawnRoomFromAffiliation(): void
+    {
+        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 2]);
+        $this->setAuthenticatedSession();
+
+        $this->get('/MUserInfo');
+
+        $this->assertResponseOk();
+        $labels = $this->viewVariable('userRoomLabels');
+        $this->assertSame('未所属', $labels[2]);
+        $this->assertSame('全部屋所属', $labels[1]);
+    }
 }

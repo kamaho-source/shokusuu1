@@ -347,7 +347,7 @@ class RoomTransferScheduleService
 
         $rooms = array_filter([$roomFromId, $roomToId]);
         foreach ($rooms as $roomId) {
-            Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $today), 'default');
+            Cache::delete(sprintf(ReservationReportService::USERS_BY_ROOM_EDIT_CACHE_KEY, $roomId, $today), 'default');
         }
 
         Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');

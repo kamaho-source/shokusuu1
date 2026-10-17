@@ -169,18 +169,13 @@ class MUserInfoController extends AppController
 
         $mUserInfo = $this->paginate($query, ['limit' => 200, 'maxLimit' => 200]);
 
-        $userRooms = [];
+        // 異動で抜けた所属・削除済みの部屋は、表示にも「全部屋所属」の判定にも含めない
+        $roomService = new RoomService();
+        $userRooms   = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = [];
-            foreach ($u->m_user_group ?? [] as $group) {
-                // 削除済み部屋は表示・全部屋所属判定に含めない
-                if (!empty($group->m_room_info) && (int)($group->m_room_info->i_del_flg ?? 0) === 0) {
-                    $userRooms[$u->i_id_user][] = $group->m_room_info->c_room_name;
-                }
-            }
+            $userRooms[$u->i_id_user] = $roomService->currentRoomNames($u->m_user_group ?? []);
         }
 
-        $roomService      = new RoomService();
         $totalActiveRooms = $roomService->countActiveRooms();
         $userRoomLabels   = [];
         foreach ($userRooms as $uid => $roomNames) {
