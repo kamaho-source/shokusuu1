@@ -146,7 +146,8 @@ class FiscalRolloverCommand extends Command
             $activeWhere = ['i_enable' => 0, 'i_user_age IS NOT' => null];
 
             // 境界年齢の遷移: (現在の年齢 => 設定する i_user_rank)
-            // 新規登録で生年月日から年代を選ぶときと同じ表（UserProfileOptions::AGE_GROUP_FROM_AGE）を使う。
+            // 年代を進める境目は UserProfileOptions::AGE_GROUP_FROM_AGE に置いている。
+            // （新規登録は生年月日が分かるため、別のルール＝4月2日区切りの学年で年代を選ぶ）
             // 例: 6 -> 7 で rank=2（低学年）、9 -> 10 で rank=3（中学年）… 18 -> 19 で rank=7（大人）
             $transitions = [];
             foreach (UserProfileOptions::AGE_GROUP_FROM_AGE as $fromAge => $rank) {
