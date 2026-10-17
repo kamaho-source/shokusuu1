@@ -173,13 +173,7 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = [];
-            foreach ($u->m_user_group ?? [] as $group) {
-                // 削除済み部屋は表示・全部屋所属判定に含めない
-                if (!empty($group->m_room_info) && (int)($group->m_room_info->i_del_flg ?? 0) === 0) {
-                    $userRooms[$u->i_id_user][] = $group->m_room_info->c_room_name;
-                }
-            }
+            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], (int)$u->i_del_flag === 1);
         }
 
         $roomService      = new RoomService();
@@ -575,16 +569,36 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = [];
-        if (!empty($mUserInfo->m_user_group)) {
-            foreach ($mUserInfo->m_user_group as $group) {
-                if (!empty($group->m_room_info)) {
-                    $userRooms[] = $group->m_room_info->c_room_name;
-                }
-            }
-        }
+        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
 
         $this->set(compact('mUserInfo', 'userRooms'));
+    }
+
+    /**
+     * 現在所属している部屋名の一覧。既定では、退出済み(active_flag=1)と削除済み部屋は含めない。
+     * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
+     * 削除済みユーザーは、削除時に所属が全て退出済みになるため、削除前の所属を見られるよう退出済みも含める。
+     * 削除前に異動で退出していた部屋と区別できないため、それも含まれる（復元で全所属が戻る挙動と同じ集合）。
+     *
+     * @param iterable<\App\Model\Entity\MUserGroup> $groups
+     * @param bool $includeLeft 退出済み(active_flag=1)の部屋も含めるか
+     * @return list<string>
+     */
+    private function activeRoomNames(iterable $groups, bool $includeLeft = false): array
+    {
+        $names = [];
+        foreach ($groups as $group) {
+            $isLeft = (int)($group->active_flag ?? 0) !== 0;
+            if (($isLeft && !$includeLeft)
+                || empty($group->m_room_info)
+                || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
+            ) {
+                continue;
+            }
+            $names[] = $group->m_room_info->c_room_name;
+        }
+
+        return $names;
     }
 
     public function delete($id = null)
