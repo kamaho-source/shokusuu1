@@ -15,6 +15,7 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
     <aside class="col-md-3">
         <div class="list-group">
             <h4 class="list-group-item list-group-item-action active"><?= __('操作') ?></h4>
+            <?= $this->Html->link(__('ユーザー詳細を表示する'), ['action' => 'view', $mUserInfo->i_id_user], ['class' => 'list-group-item list-group-item-action']) ?>
             <?= $this->Html->link(__('ユーザー情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
         </div>
     </aside>

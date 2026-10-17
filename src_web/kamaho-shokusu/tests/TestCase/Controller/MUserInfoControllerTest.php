@@ -123,6 +123,18 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
+     * 編集画面の操作メニューに、ユーザー詳細へのリンクがある。
+     */
+    public function testEditHasLinkToView(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/edit/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('ユーザー詳細を表示する');
+        $this->assertResponseContains('/MUserInfo/view/1');
+    }
+
+    /**
      * Test add method
      *
      * @return void
