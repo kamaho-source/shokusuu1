@@ -233,4 +233,74 @@ class AdminRoomScopeTest extends TestCase
         $this->get('/TReservationInfo/meal-count-grid?mode=room&room_id=71');
         $this->assertNotSame(71, $this->viewVariable('selectedRoomId'));
     }
+
+    /** 事務所兼管理者の食数一括管理（個人）: 所属外の部屋の児童の行は編集できない表示にする */
+    public function testOfficeAdminIndividualGridRowsOfNotMemberRoomAreNotEditable(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 74, 'c_room_name' => '事務所', 'i_disp_no' => 74, 'i_enable' => 1, 'i_del_flg' => 0]);
+        foreach ([[1, 74], [3, 71]] as [$userId, $roomId]) { // 管理者は事務所にも所属、児童(user 3)は部屋1と所属外の71に所属
+            $db->insert('m_user_group', [
+                'i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => 0,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+            ]);
+        }
+        $this->loginAs(1);
+        $this->get('/TReservationInfo/meal-count-grid?mode=individual&user_id=3&week=' . date('Y-m-d', strtotime('monday next week')));
+        $this->assertResponseOk();
+
+        $body = (string)$this->_response->getBody();
+        $row = function (int $roomId) use ($body): string {
+            $start = strpos($body, '<tr data-user-id="3" data-room-id="' . $roomId . '"');
+            $this->assertNotFalse($start, "部屋{$roomId}の行が表示されている");
+
+            return substr($body, $start, strpos($body, '</tr>', $start) - $start);
+        };
+        $this->assertStringContainsString('mcg-toggleable', $row(1), '所属部屋の児童は編集できる');
+        $this->assertStringNotContainsString('mcg-toggleable', $row(71), '所属外の部屋の児童は編集できない');
+    }
+
+    /** 予約コピーの API は ReservationCopy のルートを指す（以前は存在しない TReservationInfo::copy を指していた） */
+    public function testCopyApiUrlsPointToReservationCopyRoutes(): void
+    {
+        $this->loginAs(1);
+        $this->get('/TReservationInfo');
+
+        $this->assertResponseContains('copyApi: "/TReservationInfo/copy"');
+        $this->assertResponseContains('copyPreviewApi: "/TReservationInfo/copyPreview"');
+    }
+
+    /** events API の合計食数は所属部屋のみ（管理者も同じ） */
+    public function testEventsTotalsAreAffiliatedRoomsOnly(): void
+    {
+        $db = ConnectionManager::get('test');
+        $date = date('Y-m-d', strtotime('+3 days'));
+        foreach ([[4, 70], [5, 71]] as [$userId, $roomId]) {
+            $db->insert('t_individual_reservation_info', [
+                'd_reservation_date' => $date, 'i_id_user' => $userId, 'i_reservation_type' => 2, 'i_id_room' => $roomId,
+                'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+            ]);
+        }
+        $this->loginAs(4);
+        $this->get('/TReservationInfo/events?start=' . $date . '&end=' . date('Y-m-d', strtotime($date . ' +1 day')));
+
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('合計食数: 2');
+        $this->assertResponseContains('合計食数: 1');
+    }
+
+    /** 一括登録フォームの送信先（bulk-add-submit）が一括登録の処理に届く */
+    public function testBulkAddSubmitDashedRouteReachesBulkController(): void
+    {
+        $this->loginAs(1);
+        $this->enableCsrfToken();
+        $this->configRequest(['headers' => ['Accept' => 'application/json', 'X-Requested-With' => 'XMLHttpRequest']]);
+        $this->post('/TReservationInfo/bulk-add-submit', [
+            'reservation_type' => 'group',
+            'i_id_room' => 71,
+            'day_users' => [date('Y-m-d', strtotime('+30 days')) => ['5' => ['1' => '1']]],
+        ]);
+
+        $this->assertResponseContains('所属していない部屋には登録できません。');
+    }
 }

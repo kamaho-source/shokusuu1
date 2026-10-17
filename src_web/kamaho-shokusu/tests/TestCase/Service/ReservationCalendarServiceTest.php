@@ -232,4 +232,18 @@ class ReservationCalendarServiceTest extends TestCase
             'i_del_flg'   => $delFlg,
         ]);
     }
+
+    /** 全部屋（事務所ユーザー用）でも、削除済みの部屋は選択肢に出さない */
+    public function testGetRoomsForUser_includeAllRoomsExcludesDeletedRooms(): void
+    {
+        \Cake\Datasource\ConnectionManager::get('test')->insert('m_room_info', [
+            'i_id_room' => 75, 'c_room_name' => '削除済み', 'i_disp_no' => 75, 'i_enable' => 1, 'i_del_flg' => 1,
+        ]);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [], includeAllRooms: true);
+
+        $this->assertArrayHasKey(1, $result);
+        $this->assertArrayNotHasKey(75, $result);
+    }
 }
