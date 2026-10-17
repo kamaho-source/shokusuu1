@@ -70,23 +70,6 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
-     * 削除済みユーザーは変更画面の対象に入らない（押しても未選択になる）ため、
-     * 編集画面にパスワード変更ボタンを出さない。
-     *
-     * @return void
-     * @uses \App\Controller\MUserInfoController::edit()
-     */
-    public function testPasswordChangeButtonHiddenForDeletedUser(): void
-    {
-        $this->setAuthenticatedSession(true);
-
-        $this->get('/MUserInfo/edit/6');
-        $this->assertResponseContains('deleted_user');
-        $this->assertResponseOk();
-        $this->assertResponseNotContains('admin_change_password?user_id=6');
-    }
-
-    /**
      * Test add method
      *
      * @return void
@@ -141,6 +124,23 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseContains('admin_change_password?user_id=2');
         // リンクではなくボタンの見た目で表示する
         $this->assertResponseRegExp('/<a [^>]*class="btn btn-outline-primary btn-sm"[^>]*>🔑 パスワード変更<\/a>/u');
+    }
+
+    /**
+     * 削除済みユーザーは変更画面の対象に入らない（押しても未選択になる）ため、
+     * 編集画面にパスワード変更ボタンを出さない。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::edit()
+     */
+    public function testPasswordChangeButtonHiddenForDeletedUser(): void
+    {
+        $this->setAuthenticatedSession(true);
+
+        $this->get('/MUserInfo/edit/6');
+        $this->assertResponseContains('deleted_user');
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('admin_change_password?user_id=6');
     }
 
     /**
