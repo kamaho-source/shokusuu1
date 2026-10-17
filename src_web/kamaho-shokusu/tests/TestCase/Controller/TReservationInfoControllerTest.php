@@ -766,8 +766,10 @@ class TReservationInfoControllerTest extends TestCase
         $this->get('/TReservationInfo/getUsersByRoomForEdit/1');
         $this->assertResponseCode(400);
 
-        $this->get('/TReservationInfo/getUsersByRoomForEdit/1?date=2026-02-30');
-        $this->assertResponseCode(400);
+        foreach (['', 'abc', '2026-02-30', '2026-1-5', '2026-11-11x'] as $bad) {
+            $this->get('/TReservationInfo/getUsersByRoomForEdit/1?date=' . urlencode($bad));
+            $this->assertResponseCode(400, "date={$bad}");
+        }
 
         $this->get('/TReservationInfo/getUsersByRoomForEdit/1?date=' . Date::today()->addDays(22)->format('Y-m-d'));
         $this->assertResponseOk();

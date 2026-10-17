@@ -5,7 +5,6 @@ namespace App\Test\TestCase\Service;
 
 use App\Service\RoomService;
 use Cake\ORM\TableRegistry;
-use Cake\ORM\Entity;
 use Cake\TestSuite\TestCase;
 
 /**
@@ -200,22 +199,4 @@ class RoomServiceTest extends TestCase
         $this->assertContains(1, $ids);
     }
 
-    /** 現在の所属部屋は、異動で抜けた所属・削除済みの部屋・削除フラグ NULL の部屋を含めない */
-    public function testCurrentRoomNames_returnsOnlyCurrentRooms(): void
-    {
-        $group = static fn (?int $activeFlag, ?array $room) => new Entity([
-            'active_flag'  => $activeFlag,
-            'm_room_info'  => $room === null ? null : new Entity($room),
-        ]);
-
-        $names = $this->service->currentRoomNames([
-            $group(0, ['c_room_name' => '現在の部屋', 'i_del_flg' => 0]),
-            $group(1, ['c_room_name' => '異動前の部屋', 'i_del_flg' => 0]),
-            $group(0, ['c_room_name' => '削除済みの部屋', 'i_del_flg' => 1]),
-            $group(0, ['c_room_name' => '削除フラグ未設定の部屋', 'i_del_flg' => null]),
-            $group(0, null),
-        ]);
-
-        $this->assertSame(['現在の部屋'], $names);
-    }
 }

@@ -152,6 +152,5 @@ class MealReportingService
     {
         Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
         ReservationReportService::invalidateMealCountsCache($today);
-        Cache::delete(sprintf(ReservationReportService::USERS_BY_ROOM_EDIT_CACHE_KEY, $roomId, $today), 'default');
     }
 }

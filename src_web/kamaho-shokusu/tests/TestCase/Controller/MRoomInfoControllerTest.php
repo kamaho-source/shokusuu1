@@ -149,4 +149,17 @@ class MRoomInfoControllerTest extends TestCase
         $this->assertRedirectContains('/MRoomInfo');
         $this->assertFlashMessage('この部屋は削除されています。');
     }
+
+    /** 削除フラグが NULL の部屋は一覧（i_del_flg = 0）に出ないので、詳細も開かない（#819） */
+    public function testViewNullDeleteFlagRoomRedirects(): void
+    {
+        $this->getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => null], ['i_id_room' => 1]);
+        $this->setAuthenticatedSession();
+        $this->enableRetainFlashMessages();
+
+        $this->get('/MRoomInfo/view/1');
+
+        $this->assertRedirectContains('/MRoomInfo');
+        $this->assertFlashMessage('この部屋は削除されています。');
+    }
 }

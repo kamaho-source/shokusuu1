@@ -976,7 +976,6 @@ class ReservationBulkService
                 continue;
             }
             ReservationReportService::invalidateMealCountsCache($date);
-            Cache::delete(sprintf(ReservationReportService::USERS_BY_ROOM_EDIT_CACHE_KEY, $roomId, $date), 'default');
             if ($date === $today && isset($dayUsers[$date]) && is_array($dayUsers[$date])) {
                 foreach (array_keys($dayUsers[$date]) as $uid) {
                     Cache::delete(sprintf('today_report:%d:%s', (int)$uid, $date), 'default');

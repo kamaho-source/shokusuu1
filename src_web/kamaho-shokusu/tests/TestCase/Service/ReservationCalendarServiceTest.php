@@ -245,6 +245,19 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertArrayNotHasKey(3, $result);
     }
 
+    /**
+     * 削除済みの事務所だけに所属するユーザーは事務所ユーザーとして扱わない（#819）。
+     * 扱うと全部屋を閲覧できる権限が付いてしまう。
+     */
+    public function testIsOfficeUser_deletedOfficeOnly_returnsFalse(): void
+    {
+        $this->insertRoom(6, '旧事務所', 1);
+        $groups = TableRegistry::getTableLocator()->get('MUserGroup');
+        $groups->updateAll(['i_id_room' => 6], ['i_id_user' => 2]);
+
+        $this->assertFalse($this->service->isOfficeUser($groups, TableRegistry::getTableLocator()->get('MRoomInfo'), 2));
+    }
+
     /** 事務所ユーザーの部屋の選択肢にも削除済みの部屋は出さない（#819） */
     public function testGetRoomsForUser_officeExcludesDeletedRooms(): void
     {

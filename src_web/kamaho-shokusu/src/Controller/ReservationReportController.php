@@ -75,7 +75,8 @@ class ReservationReportController extends ReservationBaseController
         $this->autoRender = false;
 
         // 日付が無い・不正だと SQL エラー(500)になっていたため、先に 400 で返す
-        if (!is_string($date) || \DateTimeImmutable::createFromFormat('!Y-m-d', $date)?->format('Y-m-d') !== $date) {
+        $parsed = is_string($date) ? \DateTimeImmutable::createFromFormat('!Y-m-d', $date) : false;
+        if ($parsed === false || $parsed->format('Y-m-d') !== $date) {
             return $this->apiResponseService->error($this->response, '日付（YYYY-MM-DD）を指定してください。', 400);
         }
 

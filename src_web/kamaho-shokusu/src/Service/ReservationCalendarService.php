@@ -51,6 +51,7 @@ class ReservationCalendarService
             ->where([
                 'MUserGroup.i_id_user' => $userId,
                 'MUserGroup.active_flag' => 0,
+                'MRoomInfo.i_del_flg' => 0,
                 'MRoomInfo.c_room_name LIKE' => '%事務所%',
             ])
             ->count() > 0;

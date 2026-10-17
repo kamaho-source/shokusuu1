@@ -12,12 +12,6 @@ class ReservationReportService
     private const REPORT_CACHE_SCHEMA_VERSION = 2;
     private const MEAL_COUNTS_CACHE_SUFFIX = 'v2';
 
-    /**
-     * 直前編集用の部屋別利用者一覧のキャッシュキー。
-     * 読む側と消す側で同じ書式を使うこと（以前は読む側だけ :v2 付きで、更新後も消えなかった）。
-     */
-    public const USERS_BY_ROOM_EDIT_CACHE_KEY = 'users_by_room_edit:%d:%s:v3';
-
     private function getReportCacheVersion(): int
     {
         $v = Cache::read('reservation_version', 'default');
@@ -80,11 +74,8 @@ class ReservationReportService
         int $roomId,
         string $date
     ): array {
-        $cacheKey = sprintf(self::USERS_BY_ROOM_EDIT_CACHE_KEY, $roomId, $date);
-        $cached = Cache::read($cacheKey, 'default');
-        if (is_array($cached)) {
-            return $cached;
-        }
+        // キャッシュしない。1部屋・1日分の軽い読み取りで、更新する経路（直前編集・コピー・
+        // ユーザー削除・部屋異動など）すべてで消すのは漏れやすく、古い一覧が返っていたため。
         $usersByRoom = $userGroupTable->find()
             ->enableAutoFields(false)
             ->select(['i_id_user', 'i_id_room', 'MUserInfo.c_user_name'])
@@ -95,7 +86,6 @@ class ReservationReportService
 
         $userIds = collection($usersByRoom)->extract('i_id_user')->toList();
         if ($userIds === []) {
-            Cache::write($cacheKey, [], 'default');
             return [];
         }
 
@@ -147,7 +137,6 @@ class ReservationReportService
             ];
         }
 
-        Cache::write($cacheKey, $completeUserInfo, 'default');
         return $completeUserInfo;
     }
 

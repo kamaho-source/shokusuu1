@@ -8,7 +8,6 @@ use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use App\Service\ReservationWriteService;
-use Cake\Cache\Cache;
 use Cake\TestSuite\TestCase;
 
 /**
@@ -87,17 +86,15 @@ class ReservationReportServiceEffectiveFlagTest extends TestCase
     }
 
     /**
-     * 予約を更新したら、直前編集用の部屋別利用者一覧のキャッシュも消える（#819）。
-     * 以前は読む側のキーだけ :v2 付きで、消す側と一致せず古い一覧が返り続けていた。
+     * 予約を更新したら、直前編集用の部屋別利用者一覧にすぐ反映される（#819）。
+     * 以前はキャッシュを読む側と消す側のキーが食い違い、古い一覧が返り続けていた。
      */
-    public function testGetUsersByRoomForEdit_cacheIsClearedAfterToggle(): void
+    public function testGetUsersByRoomForEdit_reflectsToggleImmediately(): void
     {
         $locator = TableRegistry::getTableLocator();
         $userGroupTable   = $locator->get('MUserGroup');
         $reservationTable = $locator->get('TIndividualReservationInfo');
         $date = Date::today('Asia/Tokyo')->addDays(20)->format('Y-m-d');
-        Cache::delete(sprintf(ReservationReportService::USERS_BY_ROOM_EDIT_CACHE_KEY, 1, $date), 'default');
-
         $before = $this->findUser($this->service->getUsersByRoomForEdit($userGroupTable, $reservationTable, 1, $date), 1);
         $this->assertFalse($before['meals']['morning']);
 
