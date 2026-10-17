@@ -18,6 +18,10 @@ $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 $this->Html->script('realtime-validation.js', ['block' => true]);
 $this->Html->script('birth-date-age.js', ['block' => true]);
 ?>
+<style>
+    /* パスワード欄の伏せ字（type=password を使わないため。Chrome・Safari・Edge・Firefox で効く） */
+    .masked-password { -webkit-text-security: disc; }
+</style>
 <div class="row">
     <aside class="col-md-3">
         <div class="list-group">
@@ -88,10 +92,14 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
                         ]) ?>
                         <div class="position-relative">
                             <?= $this->Form->control('c_login_passwd', [
-                                'type'              => 'password',
-                                'class'             => 'form-control pe-5',
+                                // type=password にすると Chrome が保存済みのID・パスワードの候補を出す（autocomplete では止まらない）。
+                                // 新しい人のパスワードを決める欄なので、文字欄を伏せ字で表示して候補を出させない。
+                                'type'              => 'text',
+                                'class'             => 'form-control pe-5 masked-password',
                                 'id'                => 'inputPassword',
-                                'autocomplete'      => 'new-password',
+                                'autocomplete'      => 'off',
+                                'autocapitalize'    => 'off',
+                                'spellcheck'        => 'false',
                                 'label'             => false,
                                 'div'               => false,
                                 'aria-required'     => 'true',
@@ -318,15 +326,9 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
         const eyeIcon       = document.getElementById('eyeIcon');
         const passwordInput = document.getElementById('inputPassword');
         eyeIcon.addEventListener('click', () => {
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                eyeIcon.src        = '<?= $this->Html->Url->image('eye.svg') ?>';
-                eyeIcon.alt        = 'パスワード表示';
-            } else {
-                passwordInput.type = 'password';
-                eyeIcon.src        = '<?= $this->Html->Url->image('eye-slash.svg') ?>';
-                eyeIcon.alt        = 'パスワード非表示';
-            }
+            const masked = passwordInput.classList.toggle('masked-password');
+            eyeIcon.src  = masked ? '<?= $this->Html->Url->image('eye-slash.svg') ?>' : '<?= $this->Html->Url->image('eye.svg') ?>';
+            eyeIcon.alt  = masked ? 'パスワード非表示' : 'パスワード表示';
         });
 
         /* ==================================================================
