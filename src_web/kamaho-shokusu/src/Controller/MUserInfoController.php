@@ -21,6 +21,9 @@ use Cake\Http\Exception\GoneException;
 
 class MUserInfoController extends AppController
 {
+    /** 編集画面で選べる役職(i_user_level)。0=職員 / 1=児童 / 3=その他 */
+    private const EDITABLE_ROLES = [0, 1, 3];
+
     protected $MUserInfo;
     protected $MRoomInfo;
 
@@ -317,15 +320,51 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
+        $canChangeRole = $this->Authorization->can($mUserInfo, 'changeRole')
+            && in_array((int)$mUserInfo->i_user_level, self::EDITABLE_ROLES, true);
+        // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、所属部屋を変更できない
+        $canEditRooms = $this->Authorization->can($mUserInfo, 'changeRole')
+            || (int)$this->request->getAttribute('identity')?->get('i_id_user') === (int)$mUserInfo->i_id_user;
+        $roleError = null;
+
         if ($this->request->is(['patch', 'post', 'put'])) {
-            $data = $this->request->getData();
-            $user                  = $this->request->getAttribute('identity');
-            $data['c_update_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
-            $data['dt_update']     = date('Y-m-d H:i:s');
+            $posted = $this->request->getData();
+            $user   = $this->request->getAttribute('identity');
+            // 権限・状態系の項目を POST から受け取らないよう、編集できる項目だけを取り出す
+            $data = [
+                'c_login_account' => $posted['c_login_account'] ?? $mUserInfo->c_login_account,
+                'c_user_name'     => $posted['c_user_name'] ?? $mUserInfo->c_user_name,
+                'c_update_user'   => $user ? $user->get('c_user_name') : '不明なユーザー',
+                'dt_update'       => date('Y-m-d H:i:s'),
+            ];
+
+            if ($canChangeRole && isset($posted['i_user_level']) && (string)$posted['i_user_level'] !== '') {
+                $newRole = (int)$posted['i_user_level'];
+                if (!in_array($newRole, self::EDITABLE_ROLES, true)) {
+                    $roleError = __('役職の値が正しくありません。');
+                } elseif ($newRole === 0) {
+                    // 職員にするときは職員IDが必須。他の役職へ変えるときは、入力済みの職員IDを消さない。
+                    $staffId = trim((string)($posted['i_id_staff'] ?? $mUserInfo->i_id_staff ?? ''));
+                    if ($staffId === '') {
+                        $roleError = __('役職を職員にする場合は、職員IDを入力してください。');
+                    } else {
+                        $data['i_id_staff'] = $staffId;
+                    }
+                }
+                if ($roleError === null) {
+                    $data['i_user_level'] = $newRole;
+                }
+            }
 
             $roomIds = [];
-            if (!empty($data['rooms'])) {
-                foreach ($data['rooms'] as $roomId => $activeFlag) {
+            if (!$canEditRooms) {
+                foreach ($mUserInfo->m_user_group ?? [] as $group) {
+                    if ((int)$group->active_flag === 0) {
+                        $roomIds[] = (int)$group->i_id_room;
+                    }
+                }
+            } elseif (!empty($posted['rooms'])) {
+                foreach ($posted['rooms'] as $roomId => $activeFlag) {
                     if ($activeFlag === '1') {
                         $roomIds[] = (int)$roomId;
                     }
@@ -336,12 +375,18 @@ class MUserInfoController extends AppController
             $actorId   = $user ? (int)$user->get('i_id_user') : 0;
             $loginId   = (string)($user?->get('c_login_account') ?? '');
 
+            if ($roleError !== null) {
+                $this->Flash->error($roleError);
+            }
+
             try {
-                if ($this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
-                    $this->Flash->success(__('ユーザー情報が更新されました。'));
-                    return $this->redirect(['action' => 'index']);
+                if ($roleError === null) {
+                    if ($this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
+                        $this->Flash->success(__('ユーザー情報が更新されました。'));
+                        return $this->redirect(['action' => 'index']);
+                    }
+                    $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
                 }
-                $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
             } catch (\Exception $e) {
                 $this->log('userEdit error: ' . $e->getMessage(), 'error');
                 $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
@@ -361,7 +406,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms'));
+        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms'));
     }
 
     public function updateAdminStatus()
@@ -570,8 +615,9 @@ class MUserInfoController extends AppController
         }
 
         $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
+        $canEdit   = $this->Authorization->can($mUserInfo, 'edit');
 
-        $this->set(compact('mUserInfo', 'userRooms'));
+        $this->set(compact('mUserInfo', 'userRooms', 'canEdit'));
     }
 
     /**

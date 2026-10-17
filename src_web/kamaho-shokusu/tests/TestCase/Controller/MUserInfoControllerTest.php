@@ -321,6 +321,141 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseNotContains('admin_change_password?user_id=2');
     }
 
+    private function postEdit(int $id, array $data): void
+    {
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/edit/' . $id, $data);
+    }
+
+    private function userRow(int $id): \App\Model\Entity\MUserInfo
+    {
+        return $this->getTableLocator()->get('MUserInfo')->get($id);
+    }
+
+    /**
+     * 管理者は、他のユーザーの役職を変更できる。職員IDは保持される。
+     */
+    public function testAdminCanChangeRoleOfOtherUser(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_id_staff' => 777], ['i_id_user' => 2]);
+        $this->setAuthenticatedSession();
+        $this->postEdit(2, ['c_login_account' => 'staff_user', 'c_user_name' => '職員', 'i_user_level' => '3', 'rooms' => [1 => '1']]);
+
+        $this->assertRedirect(['action' => 'index']);
+        $row = $this->userRow(2);
+        $this->assertSame(3, (int)$row->i_user_level);
+        $this->assertSame(777, (int)$row->i_id_staff);
+    }
+
+    /**
+     * 役職を職員にするときは職員IDが必須。無ければ変更しない。
+     */
+    public function testChangingRoleToStaffRequiresStaffId(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->postEdit(3, ['c_login_account' => 'non_staff_user', 'c_user_name' => '児童', 'i_user_level' => '0', 'i_id_staff' => '', 'rooms' => [1 => '1']]);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('職員IDを入力してください');
+        $this->assertSame(1, (int)$this->userRow(3)->i_user_level);
+
+        $this->postEdit(3, ['c_login_account' => 'non_staff_user', 'c_user_name' => '児童', 'i_user_level' => '0', 'i_id_staff' => '4321', 'rooms' => [1 => '1']]);
+        $this->assertRedirect(['action' => 'index']);
+        $row = $this->userRow(3);
+        $this->assertSame(0, (int)$row->i_user_level);
+        $this->assertSame(4321, (int)$row->i_id_staff);
+    }
+
+    /**
+     * 役職として選べない値（管理者を表す 2 など）は保存しない。
+     */
+    public function testInvalidRoleValueIsRejected(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->postEdit(3, ['c_login_account' => 'non_staff_user', 'c_user_name' => '児童', 'i_user_level' => '2', 'rooms' => [1 => '1']]);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, (int)$this->userRow(3)->i_user_level);
+    }
+
+    /**
+     * 自分自身の役職は、管理者でも変更できない（欄が出ず、送っても反映されない）。
+     */
+    public function testAdminCannotChangeOwnRole(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/edit/1');
+        $this->assertResponseNotContains('id="edit-role"');
+
+        $this->postEdit(1, ['c_login_account' => 'admin_user', 'c_user_name' => '管理者', 'i_user_level' => '3', 'rooms' => [1 => '1']]);
+        $this->assertSame(0, (int)$this->userRow(1)->i_user_level);
+    }
+
+    /**
+     * 管理者でないユーザーは、自分の編集で役職・権限を書き換えられない。
+     */
+    public function testNonAdminCannotEscalateOwnRoleOrAdmin(): void
+    {
+        $this->setAuthenticatedSession(false);
+        $this->postEdit(2, [
+            'c_login_account' => 'staff_user', 'c_user_name' => '職員', 'rooms' => [1 => '1'],
+            'i_user_level' => '3', 'i_admin' => '3', 'i_enable' => '1', 'i_del_flag' => '1',
+        ]);
+
+        $row = $this->userRow(2);
+        $this->assertSame(0, (int)$row->i_user_level);
+        $this->assertSame(0, (int)$row->i_admin);
+        $this->assertSame(0, (int)$row->i_enable);
+        $this->assertSame(0, (int)$row->i_del_flag);
+    }
+
+    /**
+     * 管理者が他のユーザーを編集するときは、役職の欄が表示される。
+     */
+    public function testEditShowsRoleFieldForAdminOnOtherUser(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseOk();
+        $this->assertResponseContains('id="edit-role"');
+        $this->assertResponseContains('その他');
+
+        $this->setAuthenticatedSession(false);
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseNotContains('id="edit-role"');
+    }
+
+    /**
+     * 職員が同じ部屋の児童を編集できる。役職欄・所属部屋の欄は出ず、保存しても所属は変わらない。
+     */
+    public function testStaffCanEditChildInSameRoomWithoutRoleOrRooms(): void
+    {
+        $this->setAuthenticatedSession(false);
+        $this->get('/MUserInfo/edit/3');
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('id="edit-role"');
+        $this->assertResponseNotContains('所属部屋');
+
+        $this->postEdit(3, ['c_login_account' => 'non_staff_user', 'c_user_name' => '名前変更', 'i_user_level' => '0', 'rooms' => []]);
+        $this->assertRedirect(['action' => 'index']);
+        $row = $this->userRow(3);
+        $this->assertSame('名前変更', $row->c_user_name);
+        $this->assertSame(1, (int)$row->i_user_level);
+        $active = $this->getTableLocator()->get('MUserGroup')->find()->where(['i_id_user' => 3, 'active_flag' => 0])->count();
+        $this->assertSame(1, $active);
+    }
+
+    /**
+     * 職員でも、児童でないユーザー（他の職員）は編集できない。
+     */
+    public function testStaffCannotEditNonChildUser(): void
+    {
+        $this->setAuthenticatedSession(false);
+        $this->get('/MUserInfo/edit/5');
+        $this->assertRedirect(['action' => 'index']);
+    }
+
     /**
      * Test delete method
      *
