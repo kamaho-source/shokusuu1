@@ -133,6 +133,7 @@ class RoomAccessService
             ->select([
                 'room_id' => 'MRoomInfo.i_id_room',
                 'room_name' => 'MRoomInfo.c_room_name',
+                'disp_no' => 'MRoomInfo.i_disp_no',
             ])
             ->innerJoin(
                 ['MUserGroup' => 'm_user_group'],
@@ -143,7 +144,9 @@ class RoomAccessService
                 'MUserGroup.active_flag' => 0,
                 'MRoomInfo.i_del_flg' => 0,
             ])
-            ->distinct(['MRoomInfo.i_id_room', 'MRoomInfo.c_room_name'])
+            ->distinct(['MRoomInfo.i_id_room', 'MRoomInfo.c_room_name', 'MRoomInfo.i_disp_no'])
+            // 既定の部屋（先頭）と選択肢の並びを、他の部屋一覧と同じ表示順に固定する
+            ->orderBy(['MRoomInfo.i_disp_no' => 'ASC', 'MRoomInfo.i_id_room' => 'ASC'])
             ->enableHydration(false)
             ->toArray();
 

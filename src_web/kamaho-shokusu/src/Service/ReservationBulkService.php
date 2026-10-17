@@ -455,6 +455,14 @@ class ReservationBulkService
                     'message' => (string)$roomValidation,
                 ];
             }
+            // 操作者自身が有効に所属している部屋でなければ、何も書かずに拒否する（管理者も同じ。#821）。
+            // 先に弾かないと、既存予約のスキップ通知で所属外の部屋の利用者名を返してしまう。
+            if (!$this->isActiveMemberCached($userId, (int)$roomId)) {
+                return [
+                    'ok' => false,
+                    'message' => '所属していない部屋には登録できません。',
+                ];
+            }
             $candidateDates = !empty($dayUsers) ? array_keys($dayUsers) : array_keys(array_filter($dates));
             $dateValidation = $this->validateNormalReservationDates($candidateDates, false);
             if ($dateValidation !== true) {

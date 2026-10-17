@@ -26,6 +26,16 @@ class ReservationCopyController extends ReservationBaseController
     }
 
     /**
+     * コピー対象の部屋が無いときの理由。部屋を選んだか（所属外）、所属全部屋か（所属部屋なし）で分ける。
+     */
+    private function copyRoomDeniedMessage(?int $requestedRoomId): string
+    {
+        return $requestedRoomId !== null
+            ? '所属していない部屋はコピーできません。'
+            : '所属している部屋がないため、コピーできません。';
+    }
+
+    /**
      * 予約コピー実行API（週／月）。
      *
      * @return Response|null
@@ -67,7 +77,7 @@ class ReservationCopyController extends ReservationBaseController
 
             $roomIds = $this->copyService->resolveTargetRoomIds($norm['roomId'], (int)($user?->get('i_id_user') ?? 0));
             if ($roomIds === null) {
-                return $this->apiResponseService->error($this->response, '所属していない部屋はコピーできません。', 403);
+                return $this->apiResponseService->error($this->response, $this->copyRoomDeniedMessage($norm['roomId']), 403);
             }
 
             $result = ($norm['mode'] === 'week')
@@ -135,7 +145,7 @@ class ReservationCopyController extends ReservationBaseController
             $user    = $this->request->getAttribute('identity') ?: null;
             $roomIds = $this->copyService->resolveTargetRoomIds($norm['roomId'], (int)($user?->get('i_id_user') ?? 0));
             if ($roomIds === null) {
-                return $this->apiResponseService->error($this->response, '所属していない部屋はコピーできません。', 403);
+                return $this->apiResponseService->error($this->response, $this->copyRoomDeniedMessage($norm['roomId']), 403);
             }
 
             $preview = ($norm['mode'] === 'week')

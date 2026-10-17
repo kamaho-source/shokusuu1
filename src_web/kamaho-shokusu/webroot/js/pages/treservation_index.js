@@ -2541,10 +2541,11 @@ document.addEventListener('shown.bs.modal', function(ev) {
             try {
                 const sourceStr = ymd(source);
                 const onlyChildren = document.getElementById('copy-only-children')?.checked || false;
-                const roomIdInput = document.querySelector('input[name="room_id"]');
+                const roomIdInput = document.getElementById('res-copy-room');
                 const roomId = roomIdInput?.value || null;
                 
                 let totalCount = 0;
+                let errorMessage = null;
                 const results = [];
                 
                 // 各コピー先の件数を取得
@@ -2569,19 +2570,30 @@ document.addEventListener('shown.bs.modal', function(ev) {
                         }
                     });
                     
-                    if (res.ok) {
-                        const raw = await res.json();
-                        const data = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
-                        if (data && data.ok === true && data.preview) {
-                            const count = data.preview.will_copy || 0;
-                            totalCount += count;
-                            results.push({ target: targetStr, count: count });
-                        }
+                    if (!res.ok) {
+                        // 拒否（所属外の部屋など）を「対象データなし」と取り違えないよう、サーバーの理由を出す
+                        const rawErr = await res.json().catch(() => null);
+                        const errData = rawErr && window.normalizeApiPayload ? window.normalizeApiPayload(rawErr) : rawErr;
+                        errorMessage = errData?.message || `プレビューを取得できませんでした（${res.status}）`;
+                        break;
+                    }
+                    const raw = await res.json();
+                    const data = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
+                    if (data && data.ok === true && data.preview) {
+                        const count = data.preview.will_copy || 0;
+                        totalCount += count;
+                        results.push({ target: targetStr, count: count });
                     }
                 }
                 
                 // プレビュー表示を更新
-                if (totalCount > 0) {
+                if (errorMessage) {
+                    const errEl = document.createElement('div');
+                    errEl.className = 'text-danger';
+                    errEl.textContent = errorMessage;
+                    previewContent.replaceChildren(errEl);
+                    preview.style.display = 'block';
+                } else if (totalCount > 0) {
                     let html = `<div class="mb-2"><strong>コピー予定件数：${totalCount}件</strong></div>`;
                     if (results.length > 1) {
                         html += '<div class="small text-muted">内訳：</div><ul class="small mb-0">';
@@ -2618,6 +2630,8 @@ document.addEventListener('shown.bs.modal', function(ev) {
         // 子供のみチェックボックスの変更
         const onlyChildrenCheckbox = document.getElementById('copy-only-children');
         if (onlyChildrenCheckbox) onlyChildrenCheckbox.addEventListener('change', validateInputs);
+        // 対象の部屋を変えたら件数を取り直す
+        document.getElementById('res-copy-room')?.addEventListener('change', validateInputs);
 
         async function postCopy(payload){
             const res = await fetch(copyApi, {
@@ -2668,7 +2682,8 @@ document.addEventListener('shown.bs.modal', function(ev) {
                         mode,
                         source_start: ymd(sourceStart),
                         target_start: targetDateStr,
-                        room_id: null, // すべての部屋
+                        // 未選択（所属全部屋）なら null。選んだ部屋はそのまま送る
+                        room_id: document.getElementById('res-copy-room')?.value || null,
                         overwrite: 0,
                         only_children: onlyChildren ? 1 : 0
                     };

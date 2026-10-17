@@ -102,10 +102,10 @@ class TReservationInfoController extends ReservationBaseController
         } elseif (!$canViewAllRooms && $userRoomId !== null && isset($rooms[(int)$userRoomId])) {
             $calRoomId = (int)$userRoomId;
         }
-        // 所属部屋が無い場合に全部屋の集計へ落ちないよう、該当なしの ID で絞る
+        // 集計は有効な所属部屋（削除済みの部屋を除く）だけ。所属部屋が無い場合に全部屋の集計へ落ちないよう、該当なしの ID で絞る
         $calRoomFilter = $calRoomId !== null
             ? [$calRoomId]
-            : (!$canViewAllRooms ? ($userRoomIds ?: [0]) : null);
+            : (!$canViewAllRooms ? (array_keys($rooms) ?: [0]) : null);
 
         // 初期表示は前月〜翌2ヶ月の範囲に絞る（FullCalendarの表示範囲に合わせる）
         // サービス側が endDate を排他的（<）に扱うため、viewEnd は翌々月末の翌日（月初）を指定する
@@ -244,7 +244,12 @@ class TReservationInfoController extends ReservationBaseController
 
         $canViewAllRooms = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
 
-        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
+        // 集計は有効な所属部屋（削除済みの部屋を除く）だけ。index と同じ基準
+        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
+            $this->MRoomInfo,
+            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
+            false
+        ));
 
         $mealDataArray = $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,

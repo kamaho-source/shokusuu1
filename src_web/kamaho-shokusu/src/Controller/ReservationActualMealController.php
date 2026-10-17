@@ -397,6 +397,7 @@ class ReservationActualMealController extends ReservationBaseController
         $actor        = (string)($authUser?->get('c_user_name') ?? 'system');
         $actorLoginId = (string)($authUser?->get('c_login_account') ?? '');
 
+        $authorizedPairs = [];
         foreach ($keys as $key) {
             $targetUid = (int)($key['user_id']  ?? 0);
             $roomId    = (int)($key['room_id']   ?? 0);
@@ -407,12 +408,18 @@ class ReservationActualMealController extends ReservationBaseController
                 return $this->apiResponseService->error($this->response, '申請対象の形式が正しくありません。', 400);
             }
 
+            // 認可の結果は部屋と対象者だけで決まるため、同じ組は1回だけ問い合わせる
+            $authKey = $roomId . ':' . $targetUid;
+            if (isset($authorizedPairs[$authKey])) {
+                continue;
+            }
             if ($denied = $this->authorizeReservation('actualMealRequestApproval', [
                 'i_id_room' => $roomId,
                 'i_id_user' => $targetUid,
             ], true)) {
                 return $denied;
             }
+            $authorizedPairs[$authKey] = true;
         }
 
         $service       = new ActualMealManagementService();
@@ -473,7 +480,8 @@ class ReservationActualMealController extends ReservationBaseController
             $isBlockLeader
         );
 
-        if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
+        // 部屋・全部屋モードは所属部屋のみ。事務所ユーザーを兼ねる管理者も同じ（#821）
+        if ($viewMode === 'room' || $viewMode === 'all') {
             $allRooms = array_intersect_key($allRooms, array_flip($userRoomIds));
         }
 
