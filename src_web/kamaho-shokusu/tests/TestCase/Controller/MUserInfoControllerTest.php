@@ -76,6 +76,23 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('現在のルーム');
         $this->assertResponseNotContains('退出したルーム');
+        // 退出済みを数えると全部屋所属と誤判定されるため、その表示にならないこと
+        $this->assertResponseNotContains('全部屋所属');
+    }
+
+    /**
+     * 現在の所属が無く、退出済みの部屋だけがあるユーザーは「未所属」になる。
+     */
+    public function testIndexShowsUnaffiliatedWhenAllRoomsLeft(): void
+    {
+        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 1]);
+        $this->getTableLocator()->get('MRoomInfo')->updateAll(['c_room_name' => '退出したルーム'], ['i_id_room' => 1]);
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => 1], ['i_id_user' => 1]);
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo?limit=200');
+        $this->assertResponseOk();
+        $this->assertResponseContains('未所属');
     }
 
     /**
