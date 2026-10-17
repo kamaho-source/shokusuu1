@@ -51,6 +51,9 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->get('/MUserInfo');
         $this->assertResponseOk();
+        $this->assertResponseContains('ログインID');
+        $this->assertResponseContains('staff_user');
+        $this->assertResponseNotContains('表示順');
     }
 
     /**
