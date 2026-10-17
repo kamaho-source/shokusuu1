@@ -82,8 +82,9 @@ class MUserInfoControllerTest extends TestCase
         $base = ['i_disp_no' => 1, 'i_enable' => 1, 'dt_create' => '2024-07-29 09:11:06', 'c_create_user' => 'test'];
         $rooms->saveOrFail($rooms->newEntity($base + ['i_id_room' => 2, 'c_room_name' => '異動前の部屋', 'i_del_flg' => 0], ['accessibleFields' => ['*' => true]]));
         $rooms->saveOrFail($rooms->newEntity($base + ['i_id_room' => 3, 'c_room_name' => '削除済みの部屋', 'i_del_flg' => 1], ['accessibleFields' => ['*' => true]]));
+        $rooms->saveOrFail($rooms->newEntity($base + ['i_id_room' => 4, 'c_room_name' => '削除フラグ未設定の部屋', 'i_del_flg' => null], ['accessibleFields' => ['*' => true]]));
         $groups = $this->getTableLocator()->get('MUserGroup');
-        foreach ([[2, 1], [3, 0]] as [$roomId, $activeFlag]) {
+        foreach ([[2, 1], [3, 0], [4, 0]] as [$roomId, $activeFlag]) {
             $groups->saveOrFail($groups->newEntity(
                 ['i_id_user' => 2, 'i_id_room' => $roomId, 'active_flag' => $activeFlag, 'dt_create' => '2024-09-07 15:59:52', 'c_create_user' => 'test'],
                 ['accessibleFields' => ['*' => true]]
@@ -98,7 +99,32 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseContains('Lorem ipsum dolor sit amet');
         $this->assertResponseNotContains('異動前の部屋');
         $this->assertResponseNotContains('削除済みの部屋');
+        // 編集画面は i_del_flg = 0 の部屋だけを出すので、NULL の部屋は詳細にも出さない
+        $this->assertResponseNotContains('削除フラグ未設定の部屋');
+        $this->assertResponseContains('staff_user');
         $this->assertResponseContains('admin_change_password?user_id=2');
+    }
+
+    /**
+     * 削除済みユーザーは変更画面の対象に入らない（押しても未選択になる）ため、
+     * 詳細・編集ともにパスワード変更ボタンを出さない。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::view()
+     * @uses \App\Controller\MUserInfoController::edit()
+     */
+    public function testPasswordChangeButtonHiddenForDeletedUser(): void
+    {
+        $this->setAuthenticatedSession(true);
+
+        $this->get('/MUserInfo/view/6');
+        $this->assertResponseOk();
+        $this->assertResponseContains('deleted_user');
+        $this->assertResponseNotContains('admin_change_password?user_id=6');
+
+        $this->get('/MUserInfo/edit/6');
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('admin_change_password?user_id=6');
     }
 
     /**
@@ -116,6 +142,7 @@ class MUserInfoControllerTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertResponseContains('所属部屋はありません');
+        $this->assertResponseContains('staff_user');
         $this->assertResponseNotContains('admin_change_password?user_id=2');
     }
 

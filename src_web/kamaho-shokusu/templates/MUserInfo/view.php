@@ -49,17 +49,17 @@ $canEdit = $mUserInfo->i_id_user === $currentUserId || $isAdmin;
                             <span class="text-muted"><?= __('所属部屋はありません') ?></span>
                         <?php else: ?>
                             <?php foreach ($userRooms as $roomName): ?>
-                                <span class="badge rounded-pill text-bg-light border fw-normal fs-6 me-1 mb-1"><?= h($roomName) ?></span>
+                                <span class="badge rounded-pill text-bg-light border fw-normal fs-6 text-wrap text-break text-start me-1 mb-1"><?= h($roomName) ?></span>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </dd>
                 </dl>
-                <?php if ($isAdmin): ?>
+                <?php if ($isAdmin && (int)($mUserInfo->i_del_flag ?? 1) === 0): ?>
                 <div class="mt-3">
                     <?= $this->Html->link(
                         __('🔑 パスワード変更'),
                         ['action' => 'adminChangePassword', '?' => ['user_id' => $mUserInfo->i_id_user]],
-                        ['class' => 'btn btn-outline-primary btn-sm', 'role' => 'button']
+                        ['class' => 'btn btn-outline-primary btn-sm']
                     ) ?>
                 </div>
                 <?php endif; ?>
