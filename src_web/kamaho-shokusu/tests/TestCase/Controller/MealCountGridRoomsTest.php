@@ -80,4 +80,33 @@ class MealCountGridRoomsTest extends TestCase
         // 「全部」が選択肢にあり、選択状態になっている（空白の数には依存しない）
         $this->assertMatchesRegularExpression('/<option value="all"\s+selected>/', (string)$this->_response->getBody());
     }
+
+    /**
+     * エクセル食数予約は特例として、管理者にだけ削除済みの部屋も選択肢に出す（#819）。
+     * 事務所ユーザーには出さない。
+     */
+    public function testDeletedRoomIsShownOnlyToAdmin(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 4, 'c_room_name' => '削除済みの部屋', 'i_disp_no' => 4, 'i_enable' => 1, 'i_del_flg' => 1]);
+
+        $this->loginAs(1);
+        $this->get('/TReservationInfo/meal-count-grid?mode=all');
+        $this->assertResponseOk();
+        $this->assertArrayHasKey(4, $this->viewVariable('allRooms'));
+
+        // 事務所ユーザー（一般職員で、事務所の部屋に所属）には、削除済みの部屋に所属していても出さない
+        $db->insert('m_room_info', ['i_id_room' => 5, 'c_room_name' => '事務所', 'i_disp_no' => 5, 'i_enable' => 1, 'i_del_flg' => 0]);
+        foreach ([5, 4] as $roomId) {
+            $db->insert('m_user_group', [
+                'i_id_user' => 2, 'i_id_room' => $roomId, 'active_flag' => 0,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+            ]);
+        }
+        $this->loginAs(0);
+        $this->get('/TReservationInfo/meal-count-grid?mode=all');
+        $this->assertResponseOk();
+        $this->assertArrayNotHasKey(4, $this->viewVariable('allRooms'));
+        $this->assertArrayHasKey(5, $this->viewVariable('allRooms'));
+    }
 }

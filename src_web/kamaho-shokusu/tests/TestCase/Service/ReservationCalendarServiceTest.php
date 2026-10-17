@@ -245,6 +245,17 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertArrayNotHasKey(3, $result);
     }
 
+    /** エクセル食数予約は特例として、管理者に削除済みの部屋も出す（#819） */
+    public function testGetRoomsForUser_adminIncludesDeletedRoomsWhenRequested(): void
+    {
+        $this->insertRoom(3, '削除済みの部屋', 1);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [], isAdmin: true, includeDeletedRooms: true);
+
+        $this->assertArrayHasKey(3, $result);
+    }
+
     /**
      * 削除済みの事務所だけに所属するユーザーは事務所ユーザーとして扱わない（#819）。
      * 扱うと全部屋を閲覧できる権限が付いてしまう。

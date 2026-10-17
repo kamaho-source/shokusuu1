@@ -470,7 +470,9 @@ class ReservationActualMealController extends ReservationBaseController
             $userRoomIds,
             $canViewAll,
             $isOfficeUser,
-            $isBlockLeader
+            $isBlockLeader,
+            // エクセル食数予約は特例として、管理者にだけ削除済みの部屋も出す（過去の食数を見るため）
+            includeDeletedRooms: $isAdmin
         );
 
         if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
