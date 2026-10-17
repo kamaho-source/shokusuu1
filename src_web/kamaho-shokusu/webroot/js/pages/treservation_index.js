@@ -827,9 +827,9 @@ function openModalById(id){
             }
 
             /**
-             * 食事選択ポップアップを表示する（画面中央のダイアログ）。
+             * 食事選択ポップアップを、クリックした位置の近くに表示する（カレンダーは隠さない）。
              * 所属部屋が複数なら「食事の部屋を一括設定」と、食事ごとの部屋プルダウンを出す。
-             * @param {MouseEvent} jsEvent 未使用（呼び出し側との互換のため残す）
+             * @param {MouseEvent} jsEvent ポップアップの表示位置に使う
              * @param {string} dateStr YYYY-MM-DD
              * @param {number|null} roomId 部屋が確定している場合の部屋ID。null なら roomChoice のプルダウンで選ばせる
              * @param {{roomNames: Object, defaultRoomId: (number|null)}} [roomChoice] 所属部屋が複数の場合の部屋候補
@@ -904,24 +904,18 @@ function openModalById(id){
                     return t;
                 }
 
-                var backdrop = document.createElement('div');
-                backdrop.style.cssText = 'position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,.3)';
-
                 var picker = document.createElement('div');
                 picker.id = '__dateClickMealPicker';
                 picker.setAttribute('role', 'dialog');
-                picker.setAttribute('aria-modal', 'true');
                 picker.style.cssText = [
                     'position:fixed',
                     'z-index:99999',
-                    'left:50%',
-                    'top:50%',
-                    'transform:translate(-50%,-50%)',
                     'width:min(560px, calc(100vw - 32px))',
                     'max-height:calc(100vh - 32px)',
                     'overflow-y:auto',
                     'background:#fff',
                     'border-radius:10px',
+                    'border:1px solid #d1d5db',
                     'box-shadow:0 8px 24px rgba(0,0,0,.2)',
                     'padding:18px 20px 14px',
                     'font-size:14px',
@@ -1130,13 +1124,13 @@ function openModalById(id){
 
                 function closePicker() {
                     picker.remove();
-                    backdrop.remove();
                     document.removeEventListener('keydown', escHandler, true);
+                    document.removeEventListener('click', mealOutsideHandler, true);
                 }
                 function escHandler(e) { if (e.key === 'Escape') closePicker(); }
+                function mealOutsideHandler(e) { if (!picker.contains(e.target)) closePicker(); }
 
                 cancelBtn.addEventListener('click', function() { closePicker(); });
-                backdrop.addEventListener('click', function() { closePicker(); });
 
                 confirmBtn.addEventListener('click', function() {
                     function roomOf(e) { return e.roomSel ? parseInt(e.roomSel.value, 10) : roomId; }
@@ -1210,10 +1204,16 @@ function openModalById(id){
                 detailLinkWrap.appendChild(detailAnchor);
                 picker.appendChild(detailLinkWrap);
 
-                document.body.appendChild(backdrop);
+                // クリックした位置の近くに出す（画面外にはみ出す分は内側へ寄せる）
                 document.body.appendChild(picker);
+                var cx = jsEvent && jsEvent.clientX != null ? jsEvent.clientX : 16;
+                var cy = jsEvent && jsEvent.clientY != null ? jsEvent.clientY : 16;
+                var x = Math.max(16, Math.min(cx + 8, window.innerWidth  - picker.offsetWidth  - 16));
+                var y = Math.max(16, Math.min(cy + 8, window.innerHeight - picker.offsetHeight - 16));
+                picker.style.left = x + 'px';
+                picker.style.top  = y + 'px';
                 document.addEventListener('keydown', escHandler, true);
-                confirmBtn.focus();
+                setTimeout(function() { document.addEventListener('click', mealOutsideHandler, true); }, 0);
             }
 
             var calendar = new FullCalendar.Calendar(calendarEl, {
