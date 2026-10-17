@@ -841,10 +841,10 @@ function openModalById(id){
 
                 var detail = MY_DETAILS[dateStr] || { breakfast: false, lunch: false, dinner: false, bento: false };
                 var meals = [
-                    { idx: 1, key: 'breakfast', label: '朝食', icon: '🌅', bg: '#fff1f1', border: '#fbd5d5' },
-                    { idx: 2, key: 'lunch',     label: '昼食', icon: '☀️', bg: '#fff8ec', border: '#fbe3bd' },
-                    { idx: 3, key: 'dinner',    label: '夕食', icon: '🌙', bg: '#f1f2ff', border: '#d9dcfb' },
-                    { idx: 4, key: 'bento',     label: '弁当', icon: '🍱', bg: '#edfaf3', border: '#c8eedb' },
+                    { idx: 1, key: 'breakfast', label: '朝食', icon: 'bi-sunrise-fill',    color: '#ef4444', circle: '#fde4e4', bg: '#fff1f1', border: '#fbd5d5' },
+                    { idx: 2, key: 'lunch',     label: '昼食', icon: 'bi-sun-fill',        color: '#f59e0b', circle: 'transparent', bg: '#fff8ec', border: '#fbe3bd' },
+                    { idx: 3, key: 'dinner',    label: '夕食', icon: 'bi-moon-stars-fill', color: '#5b21b6', circle: '#e4e3fb', bg: '#f1f2ff', border: '#d9dcfb' },
+                    { idx: 4, key: 'bento',     label: '弁当', icon: 'bi-briefcase-fill',  color: '#1f2937', circle: '#6ee7b7', bg: '#edfaf3', border: '#c8eedb' },
                 ];
                 var availableMeals = editMode ? meals : meals.filter(function(m) { return !detail[m.key]; });
 
@@ -901,10 +901,25 @@ function openModalById(id){
                     });
                     return sel;
                 }
+                function biIcon(cls, css) {
+                    var i = document.createElement('i');
+                    i.className = 'bi ' + cls;
+                    i.setAttribute('aria-hidden', 'true');
+                    if (css) i.style.cssText = css;
+                    return i;
+                }
                 function sectionTitle(icon, text) {
                     var t = document.createElement('div');
                     t.style.cssText = 'font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:4px';
-                    t.textContent = icon + ' ' + text;
+                    if (icon === 'fork-knife') {
+                        // Bootstrap Icons 1.11.3 にはナイフとフォークが無いため SVG で描く
+                        t.insertAdjacentHTML('beforeend', '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="#1f2937">'
+                            + '<path d="M5 2h1.5v6H8V2h1.5v6H11V2h1.5v7a3 3 0 0 1-2.5 2.96V22h-2.5V11.96A3 3 0 0 1 5 9V2z"/>'
+                            + '<path d="M17.5 2C15.6 2 14 4.7 14 8v6h2.5v8H19V2h-1.5z"/></svg>');
+                    } else {
+                        t.appendChild(biIcon(icon, 'font-size:18px;color:#1f2937'));
+                    }
+                    t.appendChild(document.createTextNode(text));
                     return t;
                 }
 
@@ -937,7 +952,11 @@ function openModalById(id){
                 if (showBulk) {
                     var bulk = document.createElement('div');
                     bulk.style.cssText = 'margin-bottom:14px';
-                    bulk.appendChild(sectionTitle('🏠', '食事の部屋を一括設定'));
+                    var bulkTitle = sectionTitle('bi-house-door-fill', '食事の部屋を一括設定');
+                    var bulkQ = biIcon('bi-question-circle', 'font-size:14px;color:#6b7280;font-weight:400');
+                    bulkQ.title = '選択した部屋を、すべての食事にまとめて適用できます。';
+                    bulkTitle.appendChild(bulkQ);
+                    bulk.appendChild(bulkTitle);
                     var bulkHelp = document.createElement('div');
                     bulkHelp.textContent = '選択した部屋を、すべての食事にまとめて適用できます。';
                     bulkHelp.style.cssText = 'font-size:12px;color:#6b7280;margin-bottom:8px';
@@ -953,20 +972,24 @@ function openModalById(id){
                     bulkBtn = document.createElement('button');
                     bulkBtn.type = 'button';
                     bulkBtn.className = 'btn btn-outline-primary btn-sm';
-                    bulkBtn.textContent = '⇄ 一括設定';
+                    bulkBtn.appendChild(biIcon('bi-arrow-left-right', 'margin-right:6px'));
+                    bulkBtn.appendChild(document.createTextNode('一括設定'));
                     bulkRow.appendChild(bulkLabel);
                     bulkRow.appendChild(bulkSelectEl);
                     bulkRow.appendChild(bulkBtn);
                     bulk.appendChild(bulkRow);
 
                     var bulkNote = document.createElement('div');
-                    bulkNote.textContent = 'ⓘ 一括設定を行うと、朝食・昼食・夕食・弁当に選択した部屋が適用されます。個別に変更する場合は、下の各項目から編集してください。';
-                    bulkNote.style.cssText = 'font-size:12px;color:#4b5563;background:#f1f5fb;border-radius:6px;padding:6px 10px;margin-top:8px';
+                    bulkNote.appendChild(biIcon('bi-info-circle-fill', 'color:#3b82f6;font-size:14px;line-height:1.5'));
+                    var bulkNoteText = document.createElement('span');
+                    bulkNoteText.textContent = '一括設定を行うと、朝食・昼食・夕食・弁当に選択した部屋が適用されます。個別に変更する場合は、下の各項目から編集してください。';
+                    bulkNote.appendChild(bulkNoteText);
+                    bulkNote.style.cssText = 'display:flex;gap:8px;font-size:12px;color:#4b5563;background:#f1f5fb;border-radius:6px;padding:6px 10px;margin-top:8px';
                     bulk.appendChild(bulkNote);
                     picker.appendChild(bulk);
                 }
 
-                picker.appendChild(sectionTitle('🍴', '食事ごとの設定'));
+                picker.appendChild(sectionTitle('fork-knife', '食事ごとの設定'));
                 var summaryEl = document.createElement('div');
                 summaryEl.style.cssText = 'font-size:12px;color:#6b7280;margin-bottom:8px';
                 if (useRoomSelect) picker.appendChild(summaryEl);
@@ -1012,8 +1035,10 @@ function openModalById(id){
                         + 'background:' + m.bg + ';border:1px solid ' + m.border;
 
                     var name = document.createElement('span');
-                    name.textContent = m.icon + ' ' + m.label;
-                    name.style.cssText = 'font-weight:600;white-space:nowrap;min-width:64px';
+                    name.style.cssText = 'font-weight:600;white-space:nowrap;min-width:84px;display:flex;align-items:center;gap:8px';
+                    name.appendChild(biIcon(m.icon, 'display:inline-flex;align-items:center;justify-content:center;'
+                        + 'width:32px;height:32px;border-radius:50%;font-size:18px;color:' + m.color + ';background:' + m.circle));
+                    name.appendChild(document.createTextNode(m.label));
                     row.appendChild(name);
 
                     var roomSel = null;
@@ -1037,7 +1062,7 @@ function openModalById(id){
                     cb.checked = editMode ? !!detail[m.key] : (!blocked && m.idx !== 4);
                     cb.disabled = blocked;
                     cb.setAttribute('aria-label', m.label + 'を予約する');
-                    cb.style.cssText = 'width:18px;height:18px;cursor:' + (blocked ? 'not-allowed' : 'pointer');
+                    cb.style.cssText = 'width:18px;height:18px;accent-color:#2563eb;cursor:' + (blocked ? 'not-allowed' : 'pointer');
                     var span = document.createElement('span');
                     span.textContent = '予約する';
                     span.style.fontSize = '13px';
