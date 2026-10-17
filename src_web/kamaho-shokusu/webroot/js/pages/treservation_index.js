@@ -244,14 +244,21 @@ function openModalById(id){
                 var actionLabel = action
                     ? '<span class="badge bg-danger ms-1">' + action + '</span>'
                     : '';
+                // 子どもが読む文面。キャンセルは「ごはんやお金がむだになる」ことを伝える。
+                var message = action === 'キャンセル'
+                    ? 'このごはんは、もう<strong>お店に注文してあります</strong>。<br>'
+                        + 'いま<strong>キャンセルすると、ごはんやお金がむだになってしまう</strong>ことがあります。<br>'
+                        + '<strong>基本はキャンセルできません。</strong>どうしても必要なときだけにしてね。'
+                    : 'このごはんは、もう<strong>お店に注文してあります</strong>。<br>'
+                        + '<strong>あとから変えるのは基本ダメ</strong>です。どうしても必要なときだけにしてね。';
                 return '<div class="late-notice-alert alert alert-danger mb-0">'
                     + '<i class="bi bi-exclamation-circle-fill me-1"></i>'
-                    + 'この期間はすでに<strong>発注済</strong>です。内容をよく確認してください。'
+                    + message
                     + '</div>'
                     + '<dl class="late-notice-detail row g-0 mt-2 mb-1">'
-                    + '<dt class="col-4 text-muted small">対象日</dt>'
+                    + '<dt class="col-4 text-muted small">日にち</dt>'
                     + '<dd class="col-8 fw-semibold mb-1">' + date + '</dd>'
-                    + '<dt class="col-4 text-muted small">食事種別</dt>'
+                    + '<dt class="col-4 text-muted small">ごはん</dt>'
                     + '<dd class="col-8 fw-semibold mb-1">' + mealJaFull[mealIdx] + actionLabel + '</dd>'
                     + '</dl>';
             }
@@ -1233,9 +1240,14 @@ function openModalById(id){
                     }
 
                     // 予約OFF → 部屋選択不要（既存レコードの削除）
-                    var offRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                        ? window.__TRESP.calRoomId
-                        : (window.__TRESP && window.__TRESP.roomId != null ? window.__TRESP.roomId : null);
+                    // 取り消しは「実際に予約した部屋」へ送る。カレンダーの絞り込み部屋(calRoomId)を使うと
+                    // 別の部屋へ送られ、画面は取消済みに見えるのに予約が残る。
+                    var bookedRoomId = detail[mealKey + 'Room'];
+                    var offRoomId = (bookedRoomId != null && bookedRoomId !== '')
+                        ? bookedRoomId
+                        : ((window.__TRESP && window.__TRESP.calRoomId != null)
+                            ? window.__TRESP.calRoomId
+                            : (window.__TRESP && window.__TRESP.roomId != null ? window.__TRESP.roomId : null));
                     if (!offRoomId) {
                         if (window.pageToast) window.pageToast('部屋が特定できません', 'warning');
                         return;

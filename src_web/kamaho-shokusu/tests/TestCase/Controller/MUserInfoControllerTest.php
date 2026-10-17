@@ -24,6 +24,8 @@ class MUserInfoControllerTest extends TestCase
      */
     protected array $fixtures = [
         'app.MUserInfo',
+        'app.MUserGroup',
+        'app.MRoomInfo',
     ];
 
     public function setUp(): void
@@ -128,11 +130,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/1');
+        $this->post('/MUserInfo/restore/6');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
         $this->assertSame(0, (int)$user->i_del_flag);
     }
 
@@ -141,11 +143,11 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false);
         $this->enableCsrfToken();
         $this->enableSecurityToken();
-        $this->post('/MUserInfo/restore/1');
+        $this->post('/MUserInfo/restore/6');
         $this->assertResponseSuccess();
         $this->assertRedirect(['action' => 'index']);
 
-        $user = $this->getTableLocator()->get('MUserInfo')->get(1);
+        $user = $this->getTableLocator()->get('MUserInfo')->get(6);
         $this->assertSame(1, (int)$user->i_del_flag);
     }
 
@@ -224,6 +226,238 @@ class MUserInfoControllerTest extends TestCase
 
         $user = $this->getTableLocator()->get('MUserInfo')->get(2);
         $this->assertSame(3, (int)$user->i_admin);
+    }
+
+    /**
+     * 別の権限（ブロック長）を持つユーザーへ、確認(overwrite)なしで管理者を付与すると拒否される。
+     * 画面の確認を経ない上書きで、ブロック長が黙って管理者に置き換わるのを防ぐ。
+     */
+    public function testRoleChangeWithoutOverwriteConfirmationIsRejected(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 1]);
+
+        $this->assertResponseCode(409);
+        $this->assertSame(2, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 確認済み(overwrite=1)なら、別の権限から変更できる（排他のため置き換わる）。
+     */
+    public function testRoleChangeWithOverwriteConfirmationSucceeds(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 1, 'overwrite' => 1]);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 古い画面から「管理者を解除」されても、ブロック長権限を消さない。
+     */
+    public function testAdminOffDoesNotWipeBlockLeader(): void
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => 2], ['i_id_user' => 3]);
+
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/update-admin-status', ['i_id_user' => 3, 'i_admin' => 0]);
+
+        $this->assertResponseCode(409);
+        $this->assertSame(2, (int)$table->get(3)->i_admin);
+    }
+
+    /**
+     * 削除済みユーザーは、ログイン済みセッションでも使い続けられない（ログイン画面へ戻される）。
+     */
+    public function testDeletedUserSessionIsLoggedOut(): void
+    {
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 6,
+                'c_login_account' => 'deleted_user',
+                'c_user_name'     => '削除済みユーザー',
+                'i_admin'         => 0,
+                'i_user_level'    => 0,
+            ],
+        ]);
+        $this->get('/MUserInfo/view/6');
+        $this->assertRedirectContains('/MUserInfo/login');
+    }
+
+    private function postAddAs(int $adminValue, int $userLevel, array $extra = []): int
+    {
+        $table = $this->getTableLocator()->get('MUserInfo');
+        $table->updateAll(['i_admin' => $adminValue, 'i_user_level' => $userLevel], ['i_id_user' => 2]);
+        $this->session(['Auth' => [
+            'i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => 'テスト',
+            'i_admin' => $adminValue, 'i_user_level' => $userLevel, 'i_id_room' => 1,
+        ]]);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $before = $table->find()->count();
+        $this->post('/MUserInfo/add', $extra + [
+            'c_login_account' => 'reg_by_role',
+            'c_login_passwd'  => 'password123',
+            'c_user_name'     => '登録テスト',
+            'role' => 1, 'age' => 10, 'age_group' => 1, 'i_user_gender' => 1,
+            'MUserGroup' => [['i_id_room' => 1]],
+        ]);
+
+        return $table->find()->count() - $before;
+    }
+
+    /** 一般職員（i_admin=0, 職員）もユーザー登録できる。 */
+    public function testGeneralStaffCanRegisterUser(): void
+    {
+        $this->assertSame(1, $this->postAddAs(0, 0));
+    }
+
+    /** ブロック長もユーザー登録できる。 */
+    public function testBlockLeaderCanRegisterUser(): void
+    {
+        $this->assertSame(1, $this->postAddAs(2, 0));
+    }
+
+    /** 管理者以外は、職員(role=0)など児童以外を登録できない。 */
+    public function testNonAdminCannotRegisterNonChild(): void
+    {
+        $this->assertSame(0, $this->postAddAs(2, 0, ['role' => 0, 'staff_id' => '900001']));
+        $this->assertSame(0, $this->postAddAs(0, 0, ['role' => 3]));
+    }
+
+    /** 管理者以外は、自分が所属していない部屋へは登録できない（所属部屋は 1）。 */
+    public function testNonAdminCannotRegisterToOtherRoom(): void
+    {
+        $this->assertSame(0, $this->postAddAs(2, 0, ['MUserGroup' => [['i_id_room' => 2]]]));
+        $this->assertSame(1, $this->postAddAs(2, 0, ['c_login_account' => 'reg_own_room', 'MUserGroup' => [['i_id_room' => 1]]]));
+    }
+
+    private function postImportAs(int $adminValue, int $userLevel, array $records): array
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => $adminValue, 'i_user_level' => $userLevel], ['i_id_user' => 2]);
+        $this->session(['Auth' => [
+            'i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => 'テスト',
+            'i_admin' => $adminValue, 'i_user_level' => $userLevel, 'i_id_room' => 1,
+        ]]);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/import-json', ['records' => $records]);
+
+        return (array)json_decode((string)$this->_response->getBody(), true);
+    }
+
+    /** 一括登録: 管理者以外は児童のみ・所属部屋のみ（コントローラー経由）。 */
+    public function testImportJsonAsNonAdminIsLimitedToChildAndOwnRoom(): void
+    {
+        $json = $this->postImportAs(2, 0, [
+            ['_row' => 1, 'login_id' => 'imp_staff', 'name' => 'A', 'role' => '職員', 'staff_id' => '900002'],
+            ['_row' => 2, 'login_id' => 'imp_child', 'name' => 'B', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet'],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, $json['summary']['created'] ?? null);
+        $this->assertSame(1, $json['summary']['failed'] ?? null);
+        $t = $this->getTableLocator()->get('MUserInfo');
+        $this->assertSame(0, $t->find()->where(['c_login_account' => 'imp_staff'])->count());
+        $child = $t->find()->where(['c_login_account' => 'imp_child'])->firstOrFail();
+        $this->assertSame(1, (int)$child->i_user_level);
+        $this->assertContains((int)($child->i_admin ?? 0), [0]);
+    }
+
+    /** 一括登録: 児童は実行できない。 */
+    public function testImportJsonAsChildIsForbidden(): void
+    {
+        $this->postImportAs(0, 1, [['_row' => 1, 'login_id' => 'imp_x', 'name' => 'A', 'role' => '児童']]);
+
+        $this->assertResponseCode(403);
+        $this->assertSame(0, $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'imp_x'])->count());
+    }
+
+    /**
+     * 登録権限を広げても、削除は管理者のみ。正例（管理者は削除できる）と対にして、
+     * リクエストの不備による見かけ上の拒否でないことを担保する。
+     */
+    public function testDeleteIsStillAdminOnlyForStaffAndBlockLeader(): void
+    {
+        $t = $this->getTableLocator()->get('MUserInfo');
+
+        foreach ([[0, 0], [2, 0]] as [$adm, $lvl]) {
+            $t->updateAll(['i_del_flag' => 0], ['i_id_user' => 3]);
+            $t->updateAll(['i_admin' => $adm, 'i_user_level' => $lvl], ['i_id_user' => 2]);
+            $this->session(['Auth' => ['i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => 'テスト',
+                'i_admin' => $adm, 'i_user_level' => $lvl, 'i_id_room' => 1]]);
+            $this->enableCsrfToken();
+            $this->enableSecurityToken();
+            $this->post('/MUserInfo/delete/3');
+            $this->assertSame(0, (int)$t->get(3)->i_del_flag, "i_admin=$adm は他人を削除できない");
+        }
+
+        // 正例: 管理者なら同じ形のリクエストで削除できる
+        $t->updateAll(['i_del_flag' => 0], ['i_id_user' => 3]);
+        $this->setAuthenticatedSession(true);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MUserInfo/delete/3');
+        $this->assertSame(1, (int)$t->get(3)->i_del_flag);
+    }
+
+    /** 非管理者: 所属部屋がない場合、部屋を選ばない場合は登録できない（サーバー側で拒否）。 */
+    public function testNonAdminWithoutRoomOrWithoutSelectionCannotRegister(): void
+    {
+        // 部屋を何も選ばない
+        $this->assertSame(0, $this->postAddAs(2, 0, ['MUserGroup' => []]));
+
+        // 所属部屋が無い職員（所属を無効化）
+        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 2]);
+        $this->assertSame(0, $this->postAddAs(0, 0, ['c_login_account' => 'no_room_staff']));
+    }
+
+    /** 管理者は部屋を選ばなくても登録できる（従来どおり）。 */
+    public function testAdminCanRegisterWithoutRoom(): void
+    {
+        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => []]));
+    }
+
+    /** 管理者は任意の部屋へ登録できる（従来どおり）。 */
+    public function testAdminCanRegisterToAnyRoom(): void
+    {
+        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => [['i_id_room' => 2]]]));
+    }
+
+    /** 管理者は職員も登録できる（従来どおり）。 */
+    public function testAdminCanRegisterStaff(): void
+    {
+        $this->assertSame(1, $this->postAddAs(1, 0, ['role' => 0, 'staff_id' => '900001']));
+    }
+
+    /** 職員以外（児童など）は登録できない。 */
+    public function testChildCannotRegisterUser(): void
+    {
+        $this->assertSame(0, $this->postAddAs(0, 1));
+    }
+
+    /** 非管理者が POST で権限・状態を指定しても反映されない（権限昇格の防止）。 */
+    public function testRegisterIgnoresPrivilegedFieldsFromPost(): void
+    {
+        $this->assertSame(1, $this->postAddAs(0, 0, ['i_admin' => 3, 'i_enable' => 1, 'i_del_flag' => 1]));
+        $created = $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'reg_by_role'])->firstOrFail();
+        $this->assertContains((int)($created->i_admin ?? 0), [0]);
+        $this->assertSame(0, (int)$created->i_enable);
+        $this->assertSame(0, (int)$created->i_del_flag);
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true): void

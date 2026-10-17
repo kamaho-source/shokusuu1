@@ -176,6 +176,7 @@ function mcgRegisterAll() {
     }).then(function (results) {
         var successKeys = [];
         var failCount   = 0;
+        var failReasons = Object.create(null); // 理由 -> 件数
 
         results.forEach(function (result, i) {
             var key   = entries[i][0];
@@ -198,6 +199,8 @@ function mcgRegisterAll() {
                 mcgFlashCell(entry.td, entry.desired === 1);
             } else {
                 failCount++;
+                var why = (result.reason && result.reason.message) || '原因不明のエラー';
+                failReasons[why] = (failReasons[why] || 0) + 1;
                 /* ロールバック */
                 _mcgPending.delete(key);
                 entry.td.dataset.reserved = entry.original;
@@ -242,7 +245,10 @@ function mcgRegisterAll() {
             mcgShowToast(successKeys.length + '件を登録しました', 'success');
         }
         if (failCount > 0) {
-            mcgShowToast(failCount + '件の登録に失敗しました', 'error');
+            var detail = Object.keys(failReasons).map(function (m) {
+                return m + '（' + failReasons[m] + '件）';
+            }).join(' / ');
+            mcgShowToast(failCount + '件の登録に失敗しました：' + detail, 'error');
         }
 
         mcgUpdateRegisterBtn();
@@ -460,7 +466,7 @@ function mcgShowToast(message, type) {
     setTimeout(function () {
         toast.classList.add('mcg-toast--hiding');
         setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 250);
-    }, 2700);
+    }, type === 'error' ? 8000 : 2700);
 }
 
 /* ─────────────────────────────────────────────

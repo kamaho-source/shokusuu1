@@ -50,6 +50,14 @@ class ReservationBulkService
             ];
         }
 
+        // 存在しない・削除済みの部屋には、管理者でも書き込めない（管理者以外は有効な所属の判定で弾かれる）
+        if ($isAdmin && !$this->roomAccessService->isRoomAvailable((int)$roomId)) {
+            return [
+                'ok'      => false,
+                'message' => '選択された部屋情報が不正です。画面を再読み込みして再実行してください。',
+            ];
+        }
+
         $connection = $reservationTable->getConnection();
         $connection->begin();
         try {
@@ -92,10 +100,7 @@ class ReservationBulkService
             $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
             $blockLeaderInRoom = false;
             if ($isBlockLeader) {
-                $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                    'i_id_user' => $loginUserId,
-                    'i_id_room' => $roomId,
-                ]);
+                $blockLeaderInRoom = $this->isActiveMemberCached($loginUserId, (int)$roomId);
             }
             $existingMap = [];
             if (!empty($dates) && !empty($userIds)) {
@@ -142,7 +147,8 @@ class ReservationBulkService
                             if ((int)$existing->i_change_flag !== $changeFlag) {
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
-                                if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
+                                // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
+                                if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId, $changeFlag === 0)) {
                                     $connection->rollback();
                                     return [
                                         'ok'      => false,
@@ -339,6 +345,17 @@ class ReservationBulkService
                     'message' => (string)$roomValidation,
                 ];
             }
+            // 管理者以外は、自分が有効に所属している部屋にしか登録できない
+            if (!$isAdmin) {
+                foreach ($selectedRoomIds as $selectedRoomId) {
+                    if (!$this->isActiveMemberCached($userId, (int)$selectedRoomId)) {
+                        return [
+                            'ok' => false,
+                            'message' => '所属していない部屋には登録できません。',
+                        ];
+                    }
+                }
+            }
             $dateValidation = $this->validateNormalReservationDates($selectedDates, true);
             if ($dateValidation !== true) {
                 return [
@@ -511,10 +528,7 @@ class ReservationBulkService
                 $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
                 $blockLeaderInRoom = false;
                 if ($isBlockLeader && $roomId !== null) {
-                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                        'i_id_user' => $userId,
-                        'i_id_room' => (int)$roomId,
-                    ]);
+                    $blockLeaderInRoom = $this->isActiveMemberCached($userId, (int)$roomId);
                 }
             }
 
@@ -538,6 +552,17 @@ class ReservationBulkService
                             $blockLeaderInRoom,
                             $roomId !== null ? (int)$roomId : null
                         );
+                        // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
+                        $canCancelTarget = $this->canEditTargetUser(
+                            (int)$targetUserId,
+                            $userId,
+                            $isAdmin,
+                            $isLoginStaff,
+                            (int)($userLevelMapBulk[(int)$targetUserId] ?? 0),
+                            $blockLeaderInRoom,
+                            $roomId !== null ? (int)$roomId : null,
+                            true
+                        );
                         foreach ($mealData as $mealType => $checked) {
                             $mealType = (int)$mealType;
                             if (!in_array($mealType, [1, 2, 3, 4], true)) {
@@ -549,8 +574,17 @@ class ReservationBulkService
                             // 走査完了後のトランザクション内でまとめて行う
                             if (!(int)$checked) {
                                 $activeRow = $existingActiveMap[$date][(int)$targetUserId][$mealType] ?? null;
+                                // 取消は、認可した部屋（$roomId）の行だけを対象にする（他部屋の予約を巻き込まない）。
+                                // 同じ利用者・日付・食事の有効行が複数の部屋にあるときは、その部屋の行を引き直す
+                                // （$existingActiveMap は最後に読んだ行で上書きされるため、取消が空振りしてしまう）。
+                                if ($roomId !== null) {
+                                    $activeRow = $existingRoomMap[$date][(int)$targetUserId][$mealType][(int)$roomId] ?? null;
+                                    if ($activeRow !== null && (int)$activeRow->eat_flag !== 1) {
+                                        $activeRow = null;
+                                    }
+                                }
                                 if ($activeRow !== null) {
-                                    if (!$canEditTarget) {
+                                    if (!$canCancelTarget) {
                                         return [
                                             'ok'      => false,
                                             'message' => '他ユーザーの予約を更新する権限がありません。',
@@ -650,10 +684,7 @@ class ReservationBulkService
                 $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
                 $blockLeaderInRoom = false;
                 if ($isBlockLeader && $roomId !== null) {
-                    $blockLeaderInRoom = (bool)TableRegistry::getTableLocator()->get('MUserGroup')->exists([
-                        'i_id_user' => $userId,
-                        'i_id_room' => (int)$roomId,
-                    ]);
+                    $blockLeaderInRoom = $this->isActiveMemberCached($userId, (int)$roomId);
                 }
                 foreach ($dates as $date => $checkedDate) {
                     if (!$checkedDate) {
@@ -852,18 +883,42 @@ class ReservationBulkService
         bool $isLoginStaff,
         int $targetUserLevel,
         bool $blockLeaderInRoom,
-        ?int $roomId = null
+        ?int $roomId = null,
+        bool $isCancel = false
     ): bool {
         if ($isAdmin) {
+            // 管理者は所属外の部屋でも扱える（削除済みの部屋は呼び出し側の部屋検証で弾く）
             return true;
         }
 
         if ($targetUserId === $loginUserId) {
-            // 自分自身でも、所属していない部屋の予約は操作させない
-            return $roomId === null || $this->roomAccessService->userCanAccessRoom($loginUserId, $roomId);
+            // 自分自身でも、有効に所属していない部屋への登録は操作させない。
+            // 取消は、退出後に残った自分の予約を消せるよう所属を要求しない。
+            return $isCancel || $roomId === null || $this->isActiveMemberCached($loginUserId, $roomId);
+        }
+
+        if ($roomId !== null) {
+            // 他人の予約を扱うには、操作者本人が部屋に有効所属していること
+            if (!$this->isActiveMemberCached($loginUserId, $roomId)) {
+                return false;
+            }
+            // 登録は対象も有効所属していること。取消は、対象が退出済みでも行える。
+            if (!$isCancel && !$this->isActiveMemberCached($targetUserId, $roomId)) {
+                return false;
+            }
         }
 
         return ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
+    }
+
+    /** @var array<string, bool> 同一リクエスト内の所属判定キャッシュ（行ごとの再問い合わせを避ける） */
+    private array $activeMemberCache = [];
+
+    private function isActiveMemberCached(int $userId, int $roomId): bool
+    {
+        $key = $userId . ':' . $roomId;
+
+        return $this->activeMemberCache[$key] ??= $this->roomAccessService->isActiveMember($userId, $roomId);
     }
 
     private function validateNormalReservationDates(array $dates, bool $enforceNormalRule): string|bool
@@ -902,7 +957,7 @@ class ReservationBulkService
             return '部屋が選択されていません。';
         }
 
-        $found = (int)$roomTable->find()->where(['i_id_room IN' => $roomIds])->count();
+        $found = (int)$roomTable->find()->where(['i_id_room IN' => $roomIds, 'i_del_flg' => 0])->count();
         if ($found !== count($roomIds)) {
             return '選択された部屋情報が不正です。画面を再読み込みして再実行してください。';
         }

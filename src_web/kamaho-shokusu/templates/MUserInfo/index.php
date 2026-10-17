@@ -22,7 +22,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
 <div class="mUserInfo index content">
-    <?php if ($isAdmin || $user->get('i_user_level') === 0): ?>
+    <?php if (!empty($canRegisterUsers)): ?>
         <div class="d-flex flex-wrap gap-2 mb-3">
             <?= $this->Html->link(__('新しくユーザを追加'), ['action' => 'add'], ['class' => 'btn btn-success']) ?>
             <?= $this->Html->link(__('一括ユーザー登録'), ['action' => 'importForm'], ['class' => 'btn btn-primary']) ?>
@@ -64,7 +64,7 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             </thead>
             <tbody>
             <?php foreach ($mUserInfo as $userInfo): ?>
-                <tr>
+                <tr data-role="<?= (int)($userInfo->i_admin ?? 0) ?>">
                     <td class="d-none d-md-table-cell text-muted small"><?= h($userInfo->i_id_user) ?></td>
                     <td><?= h($userInfo->c_login_account) ?></td>
                     <td><?= h($userInfo->c_user_name) ?></td>
@@ -206,102 +206,70 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             document.querySelector('input[name="_csrfToken"]')?.value ||
             '';
 
-        // ---- 管理者トグル ----
-        document.querySelectorAll('.admin-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId   = this.getAttribute('data-user-id');
-                const userName = this.getAttribute('data-user-name');
-                const isAdmin  = this.checked ? 1 : 0;
-                const message  = isAdmin
-                    ? `${userName} に管理者権限を付与しますか？`
-                    : `${userName} から管理者権限を削除しますか？`;
+        // ---- 権限トグル（ブロック長・管理者・システム管理者は排他：1ユーザー1つまで） ----
+        // 行の現在権限は tr[data-role]（0=一般 / 1=管理者 / 2=ブロック長 / 3=システム管理者）で持つ。
+        const ROLES = {
+            1: { label: '管理者',         cls: 'admin-checkbox',        url: '/MUserInfo/update-admin-status',        body: (id, on, ow) => ({ i_id_user: id, i_admin: on ? 1 : 0, overwrite: ow }) },
+            2: { label: 'ブロック長',     cls: 'block-leader-checkbox', url: '/MUserInfo/update-user-level',          body: (id, on, ow) => ({ i_id_user: id, i_admin: on ? 2 : 0, overwrite: ow }) },
+            3: { label: 'システム管理者', cls: 'system-admin-checkbox', url: '/MUserInfo/update-system-admin-status', body: (id, on, ow) => ({ i_id_user: id, i_system_admin: on ? 1 : 0, overwrite: ow }) },
+        };
 
-                const ok = await window.ConfirmPopup.show(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch(BASE_PATH + '/MUserInfo/update-admin-status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_admin: isAdmin })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        window.ConfirmPopup.showResult('管理者権限を更新しました。');
-                    } else {
-                        window.ConfirmPopup.showResult(payload.message || '管理者権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
-                    }
-                })
-                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+        // 行の表示を現在権限に合わせる（該当するスイッチだけ ON）
+        const syncRow = (tr, role) => {
+            tr.dataset.role = String(role);
+            Object.keys(ROLES).forEach(r => {
+                const el = tr.querySelector('.' + ROLES[r].cls);
+                if (el) el.checked = (parseInt(r, 10) === role);
             });
-        });
+        };
 
-        // ---- ブロック長トグル ----
-        document.querySelectorAll('.block-leader-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId       = this.getAttribute('data-user-id');
-                const userName     = this.getAttribute('data-user-name');
-                const currentAdmin = parseInt(this.getAttribute('data-current-admin'), 10);
-                const isBlock      = this.checked;
-                const newAdmin     = isBlock ? 2 : (currentAdmin === 2 ? 0 : currentAdmin);
-                const message      = isBlock
-                    ? `${userName} をブロック長に設定しますか？`
-                    : `${userName} からブロック長権限を削除しますか？`;
+        Object.keys(ROLES).forEach(key => {
+            const target = parseInt(key, 10);
+            const cfg    = ROLES[key];
+            document.querySelectorAll('.' + cfg.cls).forEach(cb => {
+                cb.addEventListener('change', async function () {
+                    const tr       = this.closest('tr');
+                    const userId   = this.getAttribute('data-user-id');
+                    const userName = this.getAttribute('data-user-name');
+                    const turnOn   = this.checked;
+                    const current  = parseInt(tr.dataset.role || '0', 10);
+                    const revert   = () => syncRow(tr, current);
 
-                const ok = await window.ConfirmPopup.show(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch(BASE_PATH + '/MUserInfo/update-user-level', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_admin: newAdmin })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        this.setAttribute('data-current-admin', newAdmin);
-                        window.ConfirmPopup.showResult('ブロック長権限を更新しました。');
+                    let message;
+                    let overwrite = false;
+                    if (turnOn && current !== 0 && current !== target) {
+                        // 別の権限からの変更（排他のため置き換わる）
+                        overwrite = true;
+                        message = `${userName} は現在「${ROLES[current].label}」です。「${cfg.label}」に変更すると「${ROLES[current].label}」権限は外れます。本当に変更しますか？`;
+                    } else if (turnOn) {
+                        message = `${userName} を${cfg.label}に設定しますか？`;
                     } else {
-                        window.ConfirmPopup.showResult(payload.message || 'ブロック長権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
+                        message = `${userName} から${cfg.label}権限を削除しますか？`;
                     }
-                })
-                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
-            });
-        });
 
-        // ---- システム管理者トグル ----
-        document.querySelectorAll('.system-admin-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId        = this.getAttribute('data-user-id');
-                const userName      = this.getAttribute('data-user-name');
-                const isSystemAdmin = this.checked ? 1 : 0;
-                const message       = isSystemAdmin
-                    ? `${userName} にシステム管理者権限を付与しますか？`
-                    : `${userName} からシステム管理者権限を削除しますか？`;
+                    const ok = await window.ConfirmPopup.show(message);
+                    if (!ok) { revert(); return; }
 
-                const ok = await window.ConfirmPopup.show(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch(BASE_PATH + '/MUserInfo/update-system-admin-status', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_system_admin: isSystemAdmin })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        window.ConfirmPopup.showResult('システム管理者権限を更新しました。');
-                    } else {
-                        window.ConfirmPopup.showResult(payload.message || 'システム管理者権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
+                    try {
+                        const res  = await fetch(BASE_PATH + cfg.url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                            body: JSON.stringify(cfg.body(userId, turnOn, overwrite))
+                        });
+                        const data    = await res.json();
+                        const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
+                        if (payload.ok === true || payload.success) {
+                            syncRow(tr, turnOn ? target : 0);
+                            window.ConfirmPopup.showResult(`${cfg.label}権限を更新しました。`);
+                        } else {
+                            revert();
+                            window.ConfirmPopup.showResult(payload.message || `${cfg.label}権限の更新に失敗しました。`, false);
+                        }
+                    } catch (e) {
+                        revert();
+                        window.ConfirmPopup.showResult('エラーが発生しました。', false);
                     }
-                })
-                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
+                });
             });
         });
 

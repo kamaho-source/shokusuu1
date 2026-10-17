@@ -22,22 +22,22 @@ class MUserInfoPolicy
 
     public function canAdd(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->canRegisterUsers($user);
     }
 
     public function canImport(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->canRegisterUsers($user);
     }
 
     public function canImportForm(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->canRegisterUsers($user);
     }
 
     public function canImportJson(?IdentityInterface $user, MUserInfo $resource): bool
     {
-        return $this->isAdmin($user);
+        return $this->canRegisterUsers($user);
     }
 
     public function canAddRoomToUser(?IdentityInterface $user, MUserInfo $resource): bool
@@ -88,6 +88,32 @@ class MUserInfoPolicy
     public function canRestore(?IdentityInterface $user, MUserInfo $resource): bool
     {
         return $this->isAdmin($user) || $this->isSystemAdmin($user);
+    }
+
+    /**
+     * ユーザー登録（個別・一括）ができるか。管理者・システム管理者・ブロック長・職員(i_user_level=0)。
+     */
+    private function canRegisterUsers(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        // 未設定(NULL)は -1 として扱い、どの Identity 形式でも職員(0)とみなさない
+        $get = static function (string $key) use ($identity): int {
+            $v = match (true) {
+                is_object($identity) && method_exists($identity, 'get') => $identity->get($key),
+                is_array($identity), $identity instanceof \ArrayAccess => $identity[$key] ?? null,
+                default => null,
+            };
+            return $v === null ? -1 : (int)$v;
+        };
+
+        $admin = $get('i_admin');
+        return UserRole::isAdmin($admin)
+            || UserRole::isBlockLeader($admin)
+            || $get('i_user_level') === 0;
     }
 
     private function isAdmin(?IdentityInterface $user): bool

@@ -158,7 +158,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     <div class="mb-3">
                         <?= $this->Form->control('role', [
                             'type'              => 'select',
-                            'options'           => [0 => '職員', 1 => '児童', 3 => 'その他'],
+                            'options'           => $roles ?? [0 => '職員', 1 => '児童', 3 => 'その他'],
                             'label'             => ['text' => '役職 <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'empty'             => '選択してください',

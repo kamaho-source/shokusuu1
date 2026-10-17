@@ -110,12 +110,12 @@ $kidMeals = [
                 <span class="badge kid-chip bg-<?= ($todayReservation['dinner']??false)?'success':'secondary' ?> mx-1">🌙 夜：<?= ($todayReservation['dinner']??false)?'○':'－' ?></span>
                 <span class="badge kid-chip bg-<?= ($todayReservation['bento']??false)?'success':'secondary' ?> mx-1">🍱 弁当：<?= ($todayReservation['bento']??false)?'○':'－' ?></span>
             </div>
-            <div class="small mt-2 text-black">直前（きょう〜14日先）は<strong>発注済</strong>です。変更・追加の前に内容をよく確認してください。</div>
+            <div class="small mt-2 text-black">きょう〜14日先のごはんは、もう<strong>発注（注文）してあります</strong>。<strong>変えるのは基本ダメ</strong>です。どうしても必要なときだけ、よく考えてからにしてください。</div>
         </div>
     <?php else: ?>
         <div class="alert alert-warning py-3">
             <div class="fw-bold" style="font-size:1.05rem;">📆 きょう（<?= h($todayKey) ?>）：予約なし</div>
-            <div class="mt-1 small">直前（きょう〜14日先）でも<strong>変更・追加OK</strong>ですが、<strong>発注済</strong>です。</div>
+            <div class="mt-1 small">きょう〜14日先のごはんは、もう<strong>発注（注文）してあります</strong>。<strong>あとから変えるのは基本ダメ</strong>です。どうしても必要なときだけにしてください。</div>
         </div>
     <?php endif; ?>
 </div>
@@ -185,7 +185,7 @@ for ($i=0; $i<$daysToShow; $i++):
             </div>
 
             <?php if ($isLastMinute): ?>
-                <div class="mt-2 small text-muted">※直前（発注済）です。変更・追加はできますが、内容をよく確認してください。</div>
+                <div class="mt-2 small text-muted">※もう発注（注文）してあります。変えるのは基本ダメです。どうしても必要なときだけにしてください。</div>
             <?php endif; ?>
         </div>
     </div>
