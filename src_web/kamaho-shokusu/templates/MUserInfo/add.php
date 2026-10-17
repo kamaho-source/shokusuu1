@@ -34,7 +34,9 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
                 <?= $this->Form->create($mUserInfo ?? null, [
                     'class'      => 'needs-validation',
                     'novalidate' => true,
-                    'id'         => 'reservation-form'
+                    'id'         => 'reservation-form',
+                    // 新しいユーザーを作る画面なので、ブラウザに保存された（ログイン中の人の）ID・パスワードを入れさせない
+                    'autocomplete' => 'off',
                 ]) ?>
                 <p class="text-muted small mb-3"><span class="text-danger" aria-hidden="true">*</span> は必須項目です</p>
                 <fieldset>
@@ -44,6 +46,7 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
                             'label'             => ['text' => 'ログインID <span class="text-danger" aria-hidden="true">*</span>', 'class' => 'form-label', 'escape' => false],
                             'class'             => 'form-control',
                             'id'                => 'c_login_account',
+                            'autocomplete'      => 'off',
                             'aria-required'     => 'true',
                             'data-validate'     => 'required',
                             'data-msg-required' => 'ログインIDを入力してください。',
@@ -88,6 +91,7 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
                                 'type'              => 'password',
                                 'class'             => 'form-control pe-5',
                                 'id'                => 'inputPassword',
+                                'autocomplete'      => 'new-password',
                                 'label'             => false,
                                 'div'               => false,
                                 'aria-required'     => 'true',

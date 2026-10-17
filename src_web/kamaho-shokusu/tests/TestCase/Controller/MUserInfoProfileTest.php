@@ -280,6 +280,16 @@ class MUserInfoProfileTest extends TestCase
         $this->assertSame(0, (int)$this->user(2)->i_user_level);
     }
 
+    /** 新規登録では、ブラウザに保存されたログイン中の人の ID・パスワードを自動入力させない */
+    public function testAddScreenDisablesCredentialAutofill(): void
+    {
+        $this->loginAs(1, 1);
+        $this->get('/MUserInfo/add');
+        $this->assertResponseOk();
+        $this->assertResponseRegExp('/<input[^>]*name="c_login_account"[^>]*autocomplete="off"|<input[^>]*autocomplete="off"[^>]*name="c_login_account"/');
+        $this->assertResponseRegExp('/<input[^>]*name="c_login_passwd"[^>]*autocomplete="new-password"|<input[^>]*autocomplete="new-password"[^>]*name="c_login_passwd"/');
+    }
+
     /** 変更前→変更後を監査ログに残す */
     public function testEditRecordsChangesInAuditLog(): void
     {
