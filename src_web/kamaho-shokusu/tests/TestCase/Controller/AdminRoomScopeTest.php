@@ -79,7 +79,7 @@ class AdminRoomScopeTest extends TestCase
         $this->assertSame($expectedRoomIds, array_keys($this->viewVariable('rooms')));
         $this->assertSame($expectedRoomIds, array_keys($this->viewVariable('authorizedRooms')));
         $this->assertFalse($this->viewVariable('canViewAllRooms'), '全部屋の集計は事務所ユーザーのみ');
-        $this->assertNull($this->viewVariable('calRoomId'), '所属外の部屋は指定しても選ばれない');
+        $this->assertSame($expectedRoomIds[0], $this->viewVariable('calRoomId'), '所属外の部屋は指定しても選ばれず、既定の部屋になる');
     }
 
     /** @dataProvider adminProvider */
@@ -258,6 +258,7 @@ class AdminRoomScopeTest extends TestCase
         };
         $this->assertStringContainsString('mcg-toggleable', $row(1), '所属部屋の児童は編集できる');
         $this->assertStringNotContainsString('mcg-toggleable', $row(71), '所属外の部屋の児童は編集できない');
+        $this->assertStringContainsString('所属していない部屋の予約は操作できません。', $row(71), '閲覧のみの理由を出す');
     }
 
     /** 予約コピーの API は ReservationCopy のルートを指す（以前は存在しない TReservationInfo::copy を指していた） */
@@ -302,5 +303,29 @@ class AdminRoomScopeTest extends TestCase
         ]);
 
         $this->assertResponseContains('所属していない部屋には登録できません。');
+    }
+
+    /** 事務所ユーザーの全部屋の合計からも、削除済みの部屋の予約を除く */
+    public function testOfficeUserTotalsExcludeDeletedRooms(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 74, 'c_room_name' => '事務所', 'i_disp_no' => 74, 'i_enable' => 1, 'i_del_flg' => 0]);
+        $db->insert('m_room_info', ['i_id_room' => 73, 'c_room_name' => '部屋73', 'i_disp_no' => 73, 'i_enable' => 1, 'i_del_flg' => 1]);
+        $db->insert('m_user_group', [
+            'i_id_user' => 4, 'i_id_room' => 74, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+        $date = date('Y-m-d', strtotime('+3 days'));
+        foreach ([[5, 71], [5, 73]] as [$userId, $roomId]) { // 71 は有効（所属外でも事務所ユーザーは数える）、73 は削除済み
+            $db->insert('t_individual_reservation_info', [
+                'd_reservation_date' => $date, 'i_id_user' => $userId, 'i_reservation_type' => $roomId === 71 ? 2 : 3, 'i_id_room' => $roomId,
+                'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+            ]);
+        }
+        $this->loginAs(4);
+        $this->get('/TReservationInfo/events?start=' . $date . '&end=' . date('Y-m-d', strtotime($date . ' +1 day')));
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('合計食数: 1');
     }
 }

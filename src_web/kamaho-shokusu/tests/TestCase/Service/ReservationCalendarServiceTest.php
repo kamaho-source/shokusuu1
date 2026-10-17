@@ -236,14 +236,70 @@ class ReservationCalendarServiceTest extends TestCase
     /** 全部屋（事務所ユーザー用）でも、削除済みの部屋は選択肢に出さない */
     public function testGetRoomsForUser_includeAllRoomsExcludesDeletedRooms(): void
     {
-        \Cake\Datasource\ConnectionManager::get('test')->insert('m_room_info', [
-            'i_id_room' => 75, 'c_room_name' => '削除済み', 'i_disp_no' => 75, 'i_enable' => 1, 'i_del_flg' => 1,
-        ]);
+        $this->insertRoom(75, '削除済み', 1);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
         $result = $this->service->getRoomsForUser($roomTable, [], includeAllRooms: true);
 
         $this->assertArrayHasKey(1, $result);
         $this->assertArrayNotHasKey(75, $result);
+    }
+
+    private function addMember(int $userId, int $roomId): void
+    {
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+    }
+
+    /** 削除済みの事務所にしか所属がない場合は、事務所ユーザーにしない（全部屋の集計を見せない） */
+    public function testIsOfficeUser_deletedOfficeRoomDoesNotCount(): void
+    {
+        $this->insertRoom(76, '旧事務所', 1);
+        $this->addMember(2, 76);
+        $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
+        $roomTable      = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $this->assertFalse($this->service->isOfficeUser($userGroupTable, $roomTable, 2));
+
+        $this->insertRoom(77, '事務所', 0);
+        $this->addMember(2, 77);
+        $this->assertTrue($this->service->isOfficeUser($userGroupTable, $roomTable, 2));
+    }
+
+    /** 事務所ユーザーの部屋の選択肢から、削除済みの事務所を除く */
+    public function testGetRoomsForUser_officeExcludesDeletedRooms(): void
+    {
+        $this->insertRoom(76, '旧事務所', 1);
+        $this->insertRoom(77, '事務所', 0);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [76, 77], includeAllRooms: false, isOfficeUser: true);
+
+        $this->assertSame([77], array_keys($result));
+    }
+
+    /** buildTotalEvents: 部屋の指定が空なら0件（全部屋に落ちない）。null は全部屋、指定ありはその部屋だけ */
+    public function testBuildTotalEvents_roomFilter(): void
+    {
+        $date = '2026-11-20';
+        foreach ([[1, 1], [2, 2]] as [$userId, $roomId]) {
+            ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+                'd_reservation_date' => $date, 'i_id_user' => $userId, 'i_reservation_type' => 2, 'i_id_room' => $roomId,
+                'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+            ]);
+        }
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $total = function (?array $roomIds) use ($table, $date): string {
+            $titles = array_column($this->service->buildTotalEvents($table, $date, '2026-11-21', null, $roomIds), 'title');
+
+            return implode(',', $titles);
+        };
+
+        $this->assertSame('', $total([]));
+        $this->assertSame('合計食数: 1', $total([1]));
+        $this->assertStringContainsString('合計食数: ', $total(null));
+        $this->assertNotSame('合計食数: 1', $total(null), '全部屋は部屋1だけより多い');
     }
 }
