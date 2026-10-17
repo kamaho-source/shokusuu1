@@ -122,6 +122,8 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('パスワード変更');
         $this->assertResponseContains('admin_change_password?user_id=2');
+        // リンクではなくボタンの見た目で表示する
+        $this->assertResponseRegExp('/<a [^>]*class="btn btn-outline-primary btn-sm"[^>]*>🔑 パスワード変更<\/a>/u');
     }
 
     /**
