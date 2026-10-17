@@ -51,18 +51,29 @@ class ReservationCalendarService
             ->where([
                 'MUserGroup.i_id_user' => $userId,
                 'MUserGroup.active_flag' => 0,
+                'MRoomInfo.i_del_flg' => 0,
                 'MRoomInfo.c_room_name LIKE' => '%事務所%',
             ])
             ->count() > 0;
     }
 
-    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false, bool $isBlockLeader = false): array
+    /**
+     * 部屋の選択肢を返す。
+     *
+     * @param bool $includeDeletedRooms $isAdmin のとき、削除済みの部屋も返すか。
+     *   エクセル食数予約の管理者だけ、特例として全部屋を出す（削除済みの部屋の過去の食数を見るため）。
+     *   それ以外（他の画面・事務所ユーザーなど）では、削除済みの部屋は予約できないので出さない。
+     */
+    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false, bool $isBlockLeader = false, bool $includeDeletedRooms = false): array
     {
+        $notDeleted = $includeDeletedRooms ? [] : ['i_del_flg' => 0];
+
         if ($isAdmin) {
             // m_room_info には i_disp_no カラムが存在するため固定使用
             $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
             $query = $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+                ->where($notDeleted)
                 ->orderBy($roomOrder);
 
             return $query->toArray();
@@ -77,6 +88,7 @@ class ReservationCalendarService
                 ->where([
                     'i_id_room IN' => $userRoomIds,
                     'c_room_name LIKE' => '%事務所%',
+                    'i_del_flg' => 0,
                 ])
                 ->orderBy(['c_room_name' => 'ASC', 'i_id_room' => 'ASC'])
                 ->toArray();

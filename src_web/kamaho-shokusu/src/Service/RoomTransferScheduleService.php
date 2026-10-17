@@ -345,11 +345,6 @@ class RoomTransferScheduleService
         // 有効開始日以降の今日分だけキャッシュ削除（全日削除は重すぎるため当日のみ対象）
         ReservationReportService::invalidateMealCountsCache($today);
 
-        $rooms = array_filter([$roomFromId, $roomToId]);
-        foreach ($rooms as $roomId) {
-            Cache::delete(sprintf('users_by_room_edit:%d:%s', $roomId, $today), 'default');
-        }
-
         Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
 
         $current = Cache::read('reservation_version', 'default');

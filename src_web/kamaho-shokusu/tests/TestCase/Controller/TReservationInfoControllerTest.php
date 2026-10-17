@@ -757,4 +757,21 @@ class TReservationInfoControllerTest extends TestCase
 
         return false;
     }
+
+    /** 日付が無い・不正なときは SQL エラー(500)ではなく 400 を返す（#819） */
+    public function testGetUsersByRoomForEditRequiresValidDate(): void
+    {
+        $this->setAuthenticatedSession();
+
+        $this->get('/TReservationInfo/getUsersByRoomForEdit/1');
+        $this->assertResponseCode(400);
+
+        foreach (['', 'abc', '2026-02-30', '2026-1-5', '2026-11-11x'] as $bad) {
+            $this->get('/TReservationInfo/getUsersByRoomForEdit/1?date=' . urlencode($bad));
+            $this->assertResponseCode(400, "date={$bad}");
+        }
+
+        $this->get('/TReservationInfo/getUsersByRoomForEdit/1?date=' . Date::today()->addDays(22)->format('Y-m-d'));
+        $this->assertResponseOk();
+    }
 }
