@@ -133,11 +133,16 @@ class MealReportingService
 
     private function getPrimaryRoomId(Table $userGroupTable, int $userId): ?int
     {
+        // 削除済みの部屋は選ばない
         $row = $userGroupTable->find()
             ->enableAutoFields(false)
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
-            ->orderAsc('i_id_room')
+            ->select(['i_id_room' => 'MUserGroup.i_id_room'])
+            ->innerJoin(
+                ['MRoomInfo' => 'm_room_info'],
+                ['MRoomInfo.i_id_room = MUserGroup.i_id_room']
+            )
+            ->where(['MUserGroup.i_id_user' => $userId, 'MUserGroup.active_flag' => 0, 'MRoomInfo.i_del_flg' => 0])
+            ->orderAsc('MUserGroup.i_id_room')
             ->first();
 
         return $row ? (int)$row->i_id_room : null;
