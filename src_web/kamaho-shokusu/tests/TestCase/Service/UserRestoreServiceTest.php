@@ -62,6 +62,17 @@ class UserRestoreServiceTest extends TestCase
         $this->assertSame(0, (int)$refreshed->i_del_flag);
     }
 
+    public function testRestore_reenablesLogin(): void
+    {
+        $user = $this->userTable()->get(1);
+        $user->i_enable = 1; // 削除時に立つ値
+        $this->userTable()->save($user);
+
+        (new UserRestoreService())->restore($this->userTable()->get(1), 'admin', 99);
+
+        $this->assertSame(0, (int)$this->userTable()->get(1)->i_enable);
+    }
+
     // ----------------------------------------------------------------
     // restore — 成功時の監査ログ
     // ----------------------------------------------------------------

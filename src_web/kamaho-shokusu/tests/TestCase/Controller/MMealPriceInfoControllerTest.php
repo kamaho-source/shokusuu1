@@ -138,6 +138,24 @@ class MMealPriceInfoControllerTest extends TestCase
         }
     }
 
+    /**
+     * 管理者以外（子どもアカウント）は控除データを取得できない。
+     */
+    public function testExportMealSummary_deniedForNonAdmin(): void
+    {
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 3,
+                'c_login_account' => 'non_staff_user',
+                'c_user_name'     => '児童',
+                'i_admin'         => 0,
+                'i_user_level'    => 1,
+            ],
+        ]);
+        $this->get('/MMealPriceInfo/exportMealSummary?year=2026&month=10');
+        $this->assertResponseCode(403);
+    }
+
     private function setAuthenticatedSession(): void
     {
         $this->session([

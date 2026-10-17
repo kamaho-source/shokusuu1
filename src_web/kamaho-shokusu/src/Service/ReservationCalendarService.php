@@ -82,32 +82,19 @@ class ReservationCalendarService
                 ->toArray();
         }
 
-        // ブロック長は複数部屋に所属しうるため、所属している全部屋を返す
-        if ($isBlockLeader) {
-            if (empty($userRoomIds)) {
-                return [];
-            }
-
-            return $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
-                ->where([
-                    'i_id_room IN' => $userRoomIds,
-                    'i_del_flg'    => 0,
-                ])
-                ->orderBy(['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'])
-                ->toArray();
-        }
-
-        $primaryRoomId = $this->getPrimaryRoomId($userRoomIds);
-        if ($primaryRoomId === null) {
+        // 複数部屋に所属するユーザー（ブロック長・職員）には、所属している全部屋を返す。
+        // $isBlockLeader は呼び出し側との互換のため残している（挙動は区別しない）。
+        if (empty($userRoomIds)) {
             return [];
         }
 
-        $room = $roomTable->find()
-            ->select(['i_id_room', 'c_room_name'])
-            ->where(['i_id_room' => $primaryRoomId])
-            ->first();
-
-        return $room ? [$room->i_id_room => $room->c_room_name] : [];
+        return $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+            ->where([
+                'i_id_room IN' => $userRoomIds,
+                'i_del_flg'    => 0,
+            ])
+            ->orderBy(['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'])
+            ->toArray();
     }
 
     public function buildMealCountsByDate(

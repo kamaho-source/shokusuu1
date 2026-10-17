@@ -41,7 +41,7 @@ $pastDateUnavailableMessage = (string)Configure::read(
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="lateNoticeTitle">
-                    <i class="bi bi-exclamation-triangle-fill"></i>警告：直前の変更・追加
+                    <i class="bi bi-exclamation-triangle-fill"></i>ちょっと待って！もう注文してあるよ
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="とじる"></button>
             </div>
@@ -52,18 +52,18 @@ $pastDateUnavailableMessage = (string)Configure::read(
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="lateAgreeCheck" aria-describedby="lateAgreeHelp">
                         <label class="form-check-label fw-semibold" for="lateAgreeCheck">
-                            発注済みであることを理解しました（内容をよく確認します）
+                            もう注文してあることが分かりました
                         </label>
-                        <div id="lateAgreeHelp" class="form-text mt-1">チェックすると「同意して進む」ボタンが有効になります。</div>
+                        <div id="lateAgreeHelp" class="form-text mt-1">チェックすると「それでも進む」ボタンが押せるようになります。</div>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <a id="lateProceed" href="#" class="btn btn-danger disabled" aria-disabled="true" tabindex="-1" role="button">
-                    <i class="bi bi-check-lg me-1"></i>同意して進む
+                    <i class="bi bi-check-lg me-1"></i>それでも進む
                 </a>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="bi bi-x-lg me-1"></i>戻る
+                    <i class="bi bi-x-lg me-1"></i>やめる（もどる）
                 </button>
             </div>
         </div>

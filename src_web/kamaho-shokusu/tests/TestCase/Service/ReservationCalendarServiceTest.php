@@ -199,15 +199,27 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertSame([1], array_keys($result));
     }
 
-    /** ブロック長以外の一般ユーザーは従来どおり primary room のみ */
-    public function testGetRoomsForUser_regularUserReturnsPrimaryRoomOnly(): void
+    /** ブロック長以外（職員など）も、複数部屋に所属していれば全部屋を返す */
+    public function testGetRoomsForUser_regularUserReturnsAllBelongingRooms(): void
     {
         $this->insertRoom(2, '第二の部屋', 0);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
         $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false);
 
-        $this->assertSame([1], array_keys($result));
+        $this->assertSame([1, 2], array_keys($result));
+    }
+
+    /** 所属していない部屋は返さない */
+    public function testGetRoomsForUser_regularUserDoesNotReturnOtherRooms(): void
+    {
+        $this->insertRoom(2, '第二の部屋', 0);
+        $this->insertRoom(3, '第三の部屋', 0);
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+
+        $result = $this->service->getRoomsForUser($roomTable, [1, 2], isAdmin: false);
+
+        $this->assertSame([1, 2], array_keys($result));
     }
 
     private function insertRoom(int $roomId, string $roomName, int $delFlg): void

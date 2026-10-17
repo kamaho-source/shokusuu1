@@ -33,6 +33,7 @@ class UserRestoreService
 
         try {
             $user->i_del_flag    = 0;
+            $user->i_enable      = 0; // 削除時に立てた無効化も戻す（ログイン可能にする）
             $user->dt_update     = date('Y-m-d H:i:s');
             $user->c_update_user = $updatedBy;
 
