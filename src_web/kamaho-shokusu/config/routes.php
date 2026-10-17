@@ -41,6 +41,8 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
+        // 一括登録フォーム（bulk_add_form.js）の送信先
+        $builder->connect('/TReservationInfo/bulk-add-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit'])->setMethods(['POST']);
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForBulk/{roomId}',

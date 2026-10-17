@@ -74,12 +74,11 @@ class ReservationViewService
             'valueField' => 'c_room_name',
         ])->toArray();
 
+        // 管理者・システム管理者も所属部屋のみ（#821）
         $authorizedRooms = [];
         if ($user !== null) {
             $userId = $user->get('i_id_user');
-            if ($isAdmin) {
-                $authorizedRooms = $rooms;
-            } elseif ($userId) {
+            if ($userId) {
                 $authorizedRooms = $queryService->getAuthorizedRooms(
                     $roomTable,
                     $userGroupTable,
@@ -88,13 +87,10 @@ class ReservationViewService
             }
         }
 
+        // 所属部屋が無い（退出済み・削除済みのみ）場合は、どの部屋も表示しない
         $activeRoomId = (int)($requestedRoomId ?? 0);
-        if ($activeRoomId === 0 || !isset($authorizedRooms[$activeRoomId])) {
-            if (!empty($authorizedRooms)) {
-                $activeRoomId = (int)array_key_first($authorizedRooms);
-            } elseif ($userRoomId !== null) {
-                $activeRoomId = (int)$userRoomId;
-            }
+        if (!isset($authorizedRooms[$activeRoomId])) {
+            $activeRoomId = !empty($authorizedRooms) ? (int)array_key_first($authorizedRooms) : 0;
         }
 
         $activeRoomName = $authorizedRooms[$activeRoomId] ?? ($rooms[$activeRoomId] ?? '');

@@ -121,7 +121,7 @@ foreach ($myReservationDates as $reservedDate) {
     ];
 }
 
-// 朝昼夜弁当の食数表示（管理者：全部屋、管理者以外の職員：所属する全部屋の合計）
+// 朝昼夜弁当の食数表示（事務所ユーザー：全部屋、それ以外（管理者を含む）：所属する全部屋の合計）
 if (!$useKidUI && !empty($mealDataArray)) {
     $mealTypes = ['1'=>'朝','2'=>'昼','3'=>'夜','4'=>'弁'];
     foreach ($mealDataArray as $date => $meals) {
@@ -159,8 +159,9 @@ $JS_TOGGLE_BASE      = json_encode($toggleBase ?? '', $jsonFlags);
 $JS_CURRENT_ROOM     = json_encode($currentRoomId ?? '', $jsonFlags);
 
 // 予約コピーAPI（JSON）
-$copyApi = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'copy', '_ext' => 'json'], ['fullBase' => false]);
-$copyPreviewApi = $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'copyPreview', '_ext' => 'json'], ['fullBase' => false]);
+// ReservationCopy のルート（/TReservationInfo/copy, /TReservationInfo/copyPreview）。TReservationInfo には copy アクションが無い
+$copyApi = $this->Url->build(['controller' => 'ReservationCopy', 'action' => 'copy'], ['fullBase' => false]);
+$copyPreviewApi = $this->Url->build(['controller' => 'ReservationCopy', 'action' => 'copyPreview'], ['fullBase' => false]);
 
 $jsConfigVars = compact(
     'basePath',
@@ -211,7 +212,7 @@ $kidSectionVars['isChild'] = $useKidUI;
 /** @noinspection PhpUndefinedVariableInspection */
 $calRoomId = isset($calRoomId) ? $calRoomId : null;
 /** @noinspection PhpUndefinedVariableInspection */
-$canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : $isAdmin;
+$canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : false;
 $bizSectionVars = [
     'user' => $user,
     'rooms' => $rooms ?? [],

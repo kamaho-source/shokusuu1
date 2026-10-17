@@ -18,7 +18,7 @@
 $user = isset($user) ? $user : null;
 $rooms = isset($rooms) ? $rooms : [];
 $isAdmin = isset($isAdmin) ? (bool)$isAdmin : false;
-$canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : $isAdmin;
+$canViewAllRooms = isset($canViewAllRooms) ? (bool)$canViewAllRooms : false;
 $calRoomId = isset($calRoomId) ? $calRoomId : null;
 $copyModalVars = [
     'rooms' => $rooms,

@@ -192,15 +192,42 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->service->processToggle(36, $this->togglePayload(3, 1), 2, '職員');
     }
 
-    /** 管理者は、所属外の部屋で他人の予約を取消せる（対象が退出済みでも） */
-    public function testProcessToggle_adminCanCancelForNotMemberTarget(): void
+    /** 管理者でも、所属外の部屋では他人の予約を取消せない（#821） */
+    public function testProcessToggle_adminCannotCancelInNotMemberRoom(): void
     {
         $this->addRoomMembership(3, 37, 1, 0);   // 児童は退出済み。管理者(user 1)は未所属
         $this->reservationTableInsert(3, 37, date('Y-m-d', strtotime('+20 days')), 3);
 
-        $this->service->processToggle(37, $this->togglePayload(3, 0), 1, '管理者');
+        try {
+            $this->service->processToggle(37, $this->togglePayload(3, 0), 1, '管理者');
+            $this->fail('所属外の部屋は拒否される');
+        } catch (UnauthorizedException $e) {
+            $this->assertSame('この部屋を操作する権限がありません。', $e->getMessage());
+        }
+        $this->assertSame(1, $this->eatFlag(3, 37, 3), '予約は変更されない');
+    }
 
-        $this->assertSame(0, $this->eatFlag(3, 37, 3), '管理者の取消が反映されている');
+    /** 管理者は、所属部屋なら退出済みの対象の予約も取消せる */
+    public function testProcessToggle_adminCanCancelForLeftTargetInOwnRoom(): void
+    {
+        $this->addRoomMembership(3, 38, 1, 0);   // 児童は退出済み
+        $this->addMember(1, 38, 0);               // 管理者(user 1)は有効所属
+        $this->reservationTableInsert(3, 38, date('Y-m-d', strtotime('+20 days')), 3);
+
+        $this->service->processToggle(38, $this->togglePayload(3, 0), 1, '管理者');
+
+        $this->assertSame(0, $this->eatFlag(3, 38, 3), '管理者の取消が反映されている');
+    }
+
+    /** 管理者は、所属部屋なら職員（大人）の予約も代理で登録できる（児童に限らない） */
+    public function testProcessToggle_adminCanRegisterForAdultInOwnRoom(): void
+    {
+        $this->addRoomMembership(2, 39, 0, 0);   // 職員(user 2, i_user_level=0)
+        $this->addMember(1, 39, 0);               // 管理者(user 1)も有効所属
+
+        $this->service->processToggle(39, $this->togglePayload(2, 1), 1, '管理者');
+
+        $this->assertSame(1, $this->eatFlag(2, 39, 3), '管理者の代理登録が反映されている');
     }
 
     /** 管理者でも、削除済み・存在しない部屋には登録も取消もできない */
@@ -226,8 +253,8 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->addRoomMembership(1, 54, 1, 0);   // 管理者(user 1)は退出済み
         $this->addRoomMembership(2, 55, 0, 1);   // 削除済みの部屋
 
-        // 管理者本人が退出済みの部屋(54)も、対象(user 3)が未所属なので「行が無い取消」は拒否される
-        foreach ([54 => '対象ユーザーは指定された部屋に所属していません。', 55 => '選択された部屋は利用できません。'] as $room => $message) {
+        // 管理者本人が退出済みの部屋(54)は、所属外として拒否される（#821）
+        foreach ([54 => 'この部屋を操作する権限がありません。', 55 => '選択された部屋は利用できません。'] as $room => $message) {
             try {
                 $this->service->processToggle($room, $this->togglePayload(3, 0), 1, '管理者');
                 $this->fail('行が無い取消は拒否される');

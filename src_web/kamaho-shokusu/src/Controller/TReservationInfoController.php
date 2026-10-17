@@ -81,36 +81,36 @@ class TReservationInfoController extends ReservationBaseController
         $user     = $this->MUserInfo->get($userId);
         $today    = Date::today();
 
-        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
+        // 有効な所属部屋（退出済み・削除済みを除く）。既定の部屋もこの中から選ぶ
+        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
+            $this->MRoomInfo,
+            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
+            false
+        ));
         $userRoomId  = $this->calendarService->getPrimaryRoomId($userRoomIds);
 
         $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
         $isBlockLeader = UserRole::isBlockLeader((int)($user->i_admin ?? 0));
         $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
-        $canViewAllRooms = $isAdmin || $isOfficeUser;
-        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, $isAdmin, $isOfficeUser, $isBlockLeader);
-
-        // 子どもUI用の部屋一覧。子どもUIでは管理者であっても「所属している部屋」だけを表示する。
-        // 業務UIの部屋ピッカー($rooms→availableRoomNames)やエクセル食数予約は従来どおり全部屋のまま。
-        // 事務所ユーザー(isOfficeUser)は対象外。所属部屋が未設定の管理者は選べなくなるため従来どおり全部屋。
+        // 管理者・システム管理者も所属部屋のみ（#821）。全部屋の集計を見られるのは事務所ユーザーだけ。
+        $canViewAllRooms = $isOfficeUser;
+        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false, $isOfficeUser, $isBlockLeader);
         $authorizedRooms = $rooms;
-        if ($isAdmin && !$isOfficeUser && !empty($userRoomIds)) {
-            $authorizedRooms = array_intersect_key($rooms, array_flip(array_map('intval', $userRoomIds)));
-        }
 
+        // 選べない部屋（所属外など）を指定されたときは、指定なしと同じ既定の部屋にする（選択欄の表示と集計を揃える）
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
+        $requestedCalRoomId = ($calRoomIdQuery !== null && $calRoomIdQuery !== '') ? (int)$calRoomIdQuery : null;
         $calRoomId = null;
-        if ($calRoomIdQuery !== null && $calRoomIdQuery !== '') {
-            $requestedCalRoomId = (int)$calRoomIdQuery;
-            if (isset($rooms[$requestedCalRoomId])) {
-                $calRoomId = $requestedCalRoomId;
-            }
+        if ($requestedCalRoomId !== null && isset($rooms[$requestedCalRoomId])) {
+            $calRoomId = $requestedCalRoomId;
         } elseif (!$canViewAllRooms && $userRoomId !== null && isset($rooms[(int)$userRoomId])) {
             $calRoomId = (int)$userRoomId;
         }
+        // 集計は削除済みの部屋を除く。事務所ユーザーは有効な全部屋、それ以外は有効な所属部屋。
+        // 所属部屋が無い場合に全部屋の集計へ落ちないよう、該当なしの ID で絞る
         $calRoomFilter = $calRoomId !== null
             ? [$calRoomId]
-            : ((!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null);
+            : $this->countableRoomIds($canViewAllRooms, $userRoomIds);
 
         // 初期表示は前月〜翌2ヶ月の範囲に絞る（FullCalendarの表示範囲に合わせる）
         // サービス側が endDate を排他的（<）に扱うため、viewEnd は翌々月末の翌日（月初）を指定する
@@ -200,13 +200,42 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
         }
 
+        // 合計は有効な所属部屋のみ（管理者も同じ。#821）。全部屋の合計は事務所ユーザーだけ
+        $userId  = (int)$this->Authentication->getIdentity()?->get('i_id_user');
+        $roomIds = $this->countableRoomIds(
+            $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId),
+            array_keys($this->calendarService->getRoomsForUser(
+                $this->MRoomInfo,
+                $this->calendarService->getUserRoomIds($this->MUserGroup, $userId),
+                false
+            ))
+        );
+
         $events = $this->calendarService->buildTotalEvents(
             $this->TIndividualReservationInfo,
             $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
+            $endDate->format('Y-m-d'),
+            null,
+            $roomIds
         );
 
         return $this->apiResponseService->success($this->response, ['events' => $events]);
+    }
+
+    /**
+     * 食数の集計対象の部屋。事務所ユーザーは有効な全部屋、それ以外は有効な所属部屋（どちらも削除済みを除く。#821）。
+     * 空のときは該当なしの ID を返し、全部屋の集計に落ちないようにする。
+     *
+     * @param array<int> $validUserRoomIds 有効な所属部屋
+     * @return array<int>
+     */
+    private function countableRoomIds(bool $isOfficeUser, array $validUserRoomIds): array
+    {
+        $roomIds = $isOfficeUser
+            ? array_keys($this->calendarService->getRoomsForUser($this->MRoomInfo, [], true))
+            : $validUserRoomIds;
+
+        return $roomIds ?: [0];
     }
 
     /**
@@ -247,14 +276,18 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $isAdmin = UserRole::isAdmin((int)($user->i_admin ?? 0));
-        $canViewAllRooms = $isAdmin || $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
+        $canViewAllRooms = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
 
-        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId);
+        // 集計は有効な所属部屋（削除済みの部屋を除く）だけ。index と同じ基準
+        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
+            $this->MRoomInfo,
+            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
+            false
+        ));
 
         $mealDataArray = $this->calendarService->buildMealCountsByDate(
             $this->TIndividualReservationInfo,
-            (!$canViewAllRooms && !empty($userRoomIds)) ? $userRoomIds : null,
+            $this->countableRoomIds($canViewAllRooms, $userRoomIds),
             $startDate->format('Y-m-d'),
             $endDate->format('Y-m-d')
         );

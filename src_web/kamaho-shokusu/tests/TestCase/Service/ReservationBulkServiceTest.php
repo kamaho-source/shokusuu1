@@ -67,6 +67,12 @@ class ReservationBulkServiceTest extends TestCase
             'MRoomInfo',
             ['table' => 'm_room_info']
         );
+
+        // callBulkAdd の管理者（user 99）は部屋1に有効所属している。管理者も所属外の部屋は扱えない（#821）
+        $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => 99, 'i_id_room' => 1, 'active_flag' => 0, 'dt_create' => $now, 'dt_update' => $now,
+        ]);
     }
 
     // ---------------------------------------------------------------------------
@@ -604,12 +610,14 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertStringContainsString('部屋情報が不正', $result['message']);
     }
 
-    public function testPersonalBulkAdd_adminCanUseNotMemberRoom_butNotDeletedRoom(): void
+    public function testPersonalBulkAdd_adminCannotUseNotMemberOrDeletedRoom(): void
     {
         $this->addRoomWithMembers(43, 0, []);   // 未所属の有効な部屋
         $this->addRoomWithMembers(44, 1, []);   // 削除済みの部屋
 
-        $this->assertTrue($this->callPersonalBulkAdd(43, true)['ok'], '管理者は所属外の部屋でも可（従来どおり）');
+        $notMember = $this->callPersonalBulkAdd(43, true);
+        $this->assertFalse($notMember['ok'], '管理者も所属外の部屋は不可（#821）');
+        $this->assertSame('所属していない部屋には登録できません。', $notMember['message']);
         $this->assertFalse($this->callPersonalBulkAdd(44, true)['ok'], '管理者でも削除済みの部屋は不可');
     }
 
@@ -729,8 +737,8 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertFalse($register['ok']);
     }
 
-    /** 管理者は、所属外の部屋の予約も取消できる（本番にある代理入力の取消） */
-    public function testBulkChangeEdit_adminCanCancelInNotMemberRoom(): void
+    /** 管理者でも、所属外の部屋の予約は取消できない（#821） */
+    public function testBulkChangeEdit_adminCannotCancelInNotMemberRoom(): void
     {
         $this->addRoomWithMembers(53, 0, [3 => 1]); // 管理者(user 1)は未所属
         $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 53, 'eat_flag' => 1, 'i_change_flag' => 1]);
@@ -740,7 +748,39 @@ class ReservationBulkServiceTest extends TestCase
             53, 'tester', $this->reservationTable, $this->userTable, [], 1, true, 0, false
         );
 
+        $this->assertFalse($result['ok']);
+        $this->assertSame(1, (int)$this->fetchReservation(3, '2026-06-12', 1, 53)->eat_flag, '予約は変更されない');
+    }
+
+    /** 管理者は、所属部屋なら退出済みの対象の予約も取消できる */
+    public function testBulkChangeEdit_adminCanCancelLeftTargetInOwnRoom(): void
+    {
+        $this->addRoomWithMembers(58, 0, [1 => 0, 3 => 1]); // 管理者(user 1)は有効所属、児童は退出済み
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 58, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkChangeEdit(
+            ['2026-06-12' => ['3' => ['1' => '0']]],
+            58, 'tester', $this->reservationTable, $this->userTable, [], 1, true, 0, false
+        );
+
         $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 58)->i_change_flag, '直前変更として取消されている');
+    }
+
+    /** グループ: 所属外の部屋は、既存予約があっても何も返さずに拒否する（利用者名を漏らさない。#821） */
+    public function testGroupBulkAdd_adminNotMemberRoom_isRejectedWithoutLeakingNames(): void
+    {
+        $this->addRoomWithMembers(60, 0, [3 => 0]); // 管理者(user 99)は未所属
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 60, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '60', 'day_users' => ['2026-06-12' => ['3' => ['1' => '1']]]],
+            99, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, true, 0, false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('所属していない部屋には登録できません。', $result['message']);
+        $this->assertArrayNotHasKey('skipped', $result);
     }
 
     /** グループの取消は認可した部屋の行だけを対象にし、同じ利用者の他部屋の予約を巻き込まない */
