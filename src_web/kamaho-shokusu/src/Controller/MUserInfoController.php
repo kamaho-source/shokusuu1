@@ -331,8 +331,11 @@ class MUserInfoController extends AppController
             $posted = $this->request->getData();
             $user   = $this->request->getAttribute('identity');
             // 権限・状態系の項目を POST から受け取らないよう、編集できる項目だけを取り出す
+            // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、氏名のみ変更できる（ログインIDは認証情報のため）
             $data = [
-                'c_login_account' => $posted['c_login_account'] ?? $mUserInfo->c_login_account,
+                'c_login_account' => $canEditRooms
+                    ? ($posted['c_login_account'] ?? $mUserInfo->c_login_account)
+                    : $mUserInfo->c_login_account,
                 'c_user_name'     => $posted['c_user_name'] ?? $mUserInfo->c_user_name,
                 'c_update_user'   => $user ? $user->get('c_user_name') : '不明なユーザー',
                 'dt_update'       => date('Y-m-d H:i:s'),
@@ -342,17 +345,19 @@ class MUserInfoController extends AppController
                 $newRole = (int)$posted['i_user_level'];
                 if (!in_array($newRole, self::EDITABLE_ROLES, true)) {
                     $roleError = __('役職の値が正しくありません。');
-                } elseif ($newRole === 0) {
+                } elseif ($newRole !== (int)$mUserInfo->i_user_level) {
+                    // 役職が変わるときだけ反映する（職員IDなしの既存の職員を、役職を変えずに編集できるようにする）。
                     // 職員にするときは職員IDが必須。他の役職へ変えるときは、入力済みの職員IDを消さない。
                     $staffId = trim((string)($posted['i_id_staff'] ?? $mUserInfo->i_id_staff ?? ''));
-                    if ($staffId === '') {
+                    if ($newRole === 0 && $staffId === '') {
                         $roleError = __('役職を職員にする場合は、職員IDを入力してください。');
-                    } else {
+                    }
+                    if ($newRole === 0 && $roleError === null) {
                         $data['i_id_staff'] = $staffId;
                     }
-                }
-                if ($roleError === null) {
-                    $data['i_user_level'] = $newRole;
+                    if ($roleError === null) {
+                        $data['i_user_level'] = $newRole;
+                    }
                 }
             }
 

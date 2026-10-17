@@ -94,7 +94,12 @@ class MUserInfoPolicy
     private function canManageChild(?IdentityInterface $user, MUserInfo $resource): bool
     {
         $identity = $this->getOriginalIdentity($user);
-        if ($identity === null || (int)$resource->i_user_level !== 1) {
+        // 対象は、権限が付いていない一般の児童（削除済みを除く）だけ
+        if ($identity === null
+            || (int)$resource->i_user_level !== 1
+            || (int)($resource->i_admin ?? 0) !== 0
+            || (int)($resource->i_del_flag ?? 0) !== 0
+        ) {
             return false;
         }
 
@@ -111,16 +116,24 @@ class MUserInfoPolicy
         if ($actorId <= 0 || $actorId === (int)$resource->i_id_user) {
             return false;
         }
-        if (!UserRole::isBlockLeader($get('i_admin')) && $get('i_user_level') !== 0) {
+        // 職員は i_user_level 0 と 7（予約まわりの職員判定と同じ）
+        if (!UserRole::isBlockLeader($get('i_admin')) && !in_array($get('i_user_level'), [0, 7], true)) {
             return false;
         }
 
+        // 双方が現在所属している（退出済み・削除済みの部屋を除く）部屋が1つでもあること
         $shared = array_intersect(
             $this->roomAccessService->getUserRoomIds($actorId),
             $this->roomAccessService->getUserRoomIds((int)$resource->i_id_user)
         );
+        foreach ($shared as $roomId) {
+            if ($this->roomAccessService->isActiveMember($actorId, (int)$roomId)
+                && $this->roomAccessService->isActiveMember((int)$resource->i_id_user, (int)$roomId)) {
+                return true;
+            }
+        }
 
-        return $shared !== [];
+        return false;
     }
 
     public function canDelete(?IdentityInterface $user, MUserInfo $resource): bool

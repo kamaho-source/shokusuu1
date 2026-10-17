@@ -32,7 +32,9 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
                     <div class="mb-3">
                         <?= $this->Form->control('c_login_account', [
                             'label' => 'ログインID',
-                            'class' => 'form-control'
+                            'class' => 'form-control',
+                            // 職員・ブロック長が児童を編集するときは変更できない（認証情報のため）
+                            'readonly' => !$canEditRooms,
                         ]) ?>
                     </div>
                     <div class="mb-3">

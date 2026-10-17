@@ -427,6 +427,38 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertSame(false, $responseJson['ok'] ?? null);
     }
 
+    /**
+     * 役職「その他」(i_user_level=3) の一般ユーザーは、詳細フォーム(add)を開ける。職員向けの一括登録・コピーは開けない。
+     */
+    public function testOtherRoleUserCanOpenAddButNotStaffOnlyScreens(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 3], ['i_id_user' => 3]);
+        $this->setAuthenticatedSession(false, 3);
+
+        $this->get('/TReservationInfo/add?date=' . (new Date('+30 days'))->format('Y-m-d'));
+        $this->assertResponseOk();
+
+        $this->get('/TReservationInfo/bulk-add-form');
+        $this->assertResponseCode(403);
+    }
+
+    /**
+     * 予約のナビゲーションは、職員でない一般ユーザー（その他・児童）にも表示される。
+     */
+    public function testReservationNavIsShownToNonStaffUsers(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 3], ['i_id_user' => 3]);
+        $this->setAuthenticatedSession(false, 3);
+        $this->get('/TReservationInfo');
+        $this->assertResponseOk();
+        $this->assertResponseRegExp('#<a class="nav-link" href="[^"]*/TReservationInfo"[^>]*>\s*<i class="bi bi-calendar3"></i>予約#u');
+
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 1], ['i_id_user' => 3]);
+        $this->get('/TReservationInfo');
+        $this->assertResponseOk();
+        $this->assertResponseRegExp('#<a class="nav-link" href="[^"]*/TReservationInfo"[^>]*>\s*<i class="bi bi-calendar3"></i>予約#u');
+    }
+
     public function testCopyAsNonAdminDenied(): void
     {
         $this->setAuthenticatedSession(false, 1);

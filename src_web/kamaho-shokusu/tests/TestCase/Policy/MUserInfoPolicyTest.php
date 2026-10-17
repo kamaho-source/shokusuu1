@@ -92,4 +92,24 @@ class MUserInfoPolicyTest extends TestCase
             $this->assertFalse($policy->$method($staff, $staffTarget), "$method non-child target");
         }
     }
+
+    /**
+     * 児童編集の対象は、権限の付いていない一般の児童だけ。職員は i_user_level 0 と 7。
+     */
+    public function testManageChildRequiresPlainChildAndStaffLevels(): void
+    {
+        $policy = new MUserInfoPolicy(new TestRoomAccessService([2 => [1], 20 => [1]]));
+        $make = static function (array $values): MUserInfo {
+            $e = new MUserInfo();
+            $e->set($values + ['i_id_user' => 20, 'i_user_level' => 1, 'i_admin' => 0, 'i_del_flag' => 0], ['guard' => false]);
+            return $e;
+        };
+        $level7 = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 7]);
+        $level0 = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 0]);
+
+        $this->assertTrue($policy->canEdit($level7, $make([])));
+        $this->assertFalse($policy->canEdit($level0, $make(['i_admin' => 1])), '権限付きの児童は対象外');
+        $this->assertFalse($policy->canEdit($level0, $make(['i_admin' => 2])), 'ブロック長の児童は対象外');
+        $this->assertFalse($policy->canEdit($level0, $make(['i_del_flag' => 1])), '削除済みは対象外');
+    }
 }

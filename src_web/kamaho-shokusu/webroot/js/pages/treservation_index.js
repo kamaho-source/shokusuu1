@@ -1254,14 +1254,17 @@ function openModalById(id){
 
 function unlockForChildren(wrap){
         if (!wrap || window.__IS_STAFF) return;
+        // 変化があるときだけ書き換える。無条件に書くと、属性を監視する MutationObserver が自分自身を呼び続けて固まる。
         wrap.querySelectorAll('input[type="checkbox"][name^="users"]').forEach(function(cb){
-            cb.disabled = false;
-            cb.removeAttribute('data-locked');
+            if (cb.disabled) { cb.disabled = false; }
+            if (cb.hasAttribute('data-locked')) { cb.removeAttribute('data-locked'); }
             if (cb.title &&
                 (cb.title.includes('直前予約のため') || cb.title.includes('直前期間のため'))) {
                 cb.removeAttribute('title');
             }
-            cb.classList?.remove('deletion-blocked');
+            if (cb.classList && cb.classList.contains('deletion-blocked')) {
+                cb.classList.remove('deletion-blocked');
+            }
         });
     }
 
