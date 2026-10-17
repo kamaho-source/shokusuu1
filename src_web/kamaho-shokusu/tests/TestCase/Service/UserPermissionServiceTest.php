@@ -216,4 +216,28 @@ class UserPermissionServiceTest extends TestCase
         $log = $this->lastAuditLog();
         $this->assertSame(0, (int)$log->i_result);
     }
+
+    // ----------------------------------------------------------------
+    // findRoleConflict — ブロック長・管理者・システム管理者の排他
+    // ----------------------------------------------------------------
+
+    public function testFindRoleConflict_grantFromGeneralIsAllowed(): void
+    {
+        $this->assertNull((new UserPermissionService())->findRoleConflict(0, 1, 1, false));
+    }
+
+    public function testFindRoleConflict_grantOverOtherRoleNeedsConfirmation(): void
+    {
+        $this->assertNotNull((new UserPermissionService())->findRoleConflict(2, 1, 1, false));
+        $this->assertNull((new UserPermissionService())->findRoleConflict(2, 1, 1, true));
+    }
+
+    public function testFindRoleConflict_offOnlyAffectsOwnRole(): void
+    {
+        $this->assertNull((new UserPermissionService())->findRoleConflict(1, 0, 1, false));
+        $this->assertNull((new UserPermissionService())->findRoleConflict(0, 0, 1, false));
+        // ブロック長のユーザーに対する「管理者を解除」は他の権限を消すので拒否
+        $this->assertNotNull((new UserPermissionService())->findRoleConflict(2, 0, 1, false));
+        $this->assertNotNull((new UserPermissionService())->findRoleConflict(3, 0, 2, false));
+    }
 }

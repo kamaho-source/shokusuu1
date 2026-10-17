@@ -50,7 +50,9 @@ $canGroup = $canGroup ?? false;
         <div class="header-actions">
             <div class="room-select-wrap">
                 <select class="form-select room-select" id="room-select">
-                    <option value="">部屋を選択</option>
+                    <?php if (empty($rooms)): ?>
+                        <option value="">部屋を選択</option>
+                    <?php endif; ?>
                     <?php foreach ($rooms as $rid => $rname): ?>
                         <option value="<?= h($rid) ?>" <?= ((string)$rid === (string)$selectedRoomId) ? 'selected' : '' ?>>
                             <?= h($rname) ?>

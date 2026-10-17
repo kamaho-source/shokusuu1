@@ -89,6 +89,64 @@ class UserBulkImportServiceTest extends TestCase
     }
 
     // ----------------------------------------------------------------
+    // import — 管理者以外は児童のみ
+    // ----------------------------------------------------------------
+
+    public function testImport_childOnly_rejectsNonChildRows(): void
+    {
+        $records = [
+            ['_row' => 1, 'login_id' => 'co_staff', 'name' => 'A', 'role' => '職員', 'staff_id' => '1'],
+            ['_row' => 2, 'login_id' => 'co_other', 'name' => 'B', 'role' => 'その他'],
+        ];
+
+        $result = $this->service->import($records, 'staff', 2, '127.0.0.1', '', true);
+
+        $this->assertSame(2, $result['failed']);
+        $this->assertSame(0, $result['created']);
+        $this->assertStringContainsString('児童', $result['errors'][1][0]);
+    }
+
+    public function testImport_allowedRoomIds_rejectsOtherRoomAndAllowsOwn(): void
+    {
+        $records = [
+            ['_row' => 1, 'login_id' => 'room_ng', 'name' => 'A', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet'],
+            ['_row' => 2, 'login_id' => 'room_ok', 'name' => 'B', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet'],
+        ];
+
+        $denied = $this->service->import([$records[0]], 'staff', 2, '127.0.0.1', '', true, [99]);
+        $this->assertSame(1, $denied['failed']);
+        $this->assertSame(0, $denied['created']);
+        $this->assertStringContainsString('所属していない部屋', $denied['errors'][1][0]);
+
+        $allowed = $this->service->import([$records[1]], 'staff', 2, '127.0.0.1', '', true, [1]);
+        $this->assertSame(1, $allowed['created']);
+    }
+
+    public function testImport_nonAdminWithoutRoomOrNoAffiliation_failsRow(): void
+    {
+        $noRoomName = $this->service->import(
+            [['_row' => 1, 'login_id' => 'nr_a', 'name' => 'A', 'role' => '児童']],
+            'staff', 2, '127.0.0.1', '', true, [1]
+        );
+        $this->assertSame(1, $noRoomName['failed']);
+        $this->assertStringContainsString('部屋', $noRoomName['errors'][1][0]);
+
+        $noAffiliation = $this->service->import(
+            [['_row' => 1, 'login_id' => 'nr_b', 'name' => 'B', 'role' => '児童', 'room_name1' => 'Lorem ipsum dolor sit amet']],
+            'staff', 2, '127.0.0.1', '', true, []
+        );
+        $this->assertSame(1, $noAffiliation['failed']);
+        $this->assertStringContainsString('所属している部屋がない', $noAffiliation['errors'][1][0]);
+
+        // 管理者(制限なし)は部屋なしでも従来どおり作成できる
+        $admin = $this->service->import(
+            [['_row' => 1, 'login_id' => 'nr_c', 'name' => 'C', 'role' => '児童']],
+            'admin', 1, '127.0.0.1'
+        );
+        $this->assertSame(1, $admin['created']);
+    }
+
+    // ----------------------------------------------------------------
     // import — 職員にstaff_idが必須
     // ----------------------------------------------------------------
 

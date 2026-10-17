@@ -194,7 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!raw) return;
             const data = JSON.parse(raw);
             if (!data || typeof data !== 'object') return;
-            if (!window.__ROOM_ID && data.roomId && roomSelect) {
+            if (!window.__ROOM_ID && data.roomId && roomSelect
+                && Array.from(roomSelect.options).some((o) => o.value === String(data.roomId))) {
                 roomSelect.value = data.roomId;
                 roomHidden.value = data.roomId;
             }
@@ -910,6 +911,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchUsers(window.__ROOM_ID, activeDate);
     } else {
         if (roomSelect?.value) {
+            roomHidden.value = roomSelect.value;
             updateWeekTabRoom(roomSelect.value);
             updateRoomValidation();
             fetchUsers(roomSelect.value, activeDate);

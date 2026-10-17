@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Infrastructure\AI\OpenRouterClient;
+use App\Infrastructure\AI\GroqClient;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Service\AiStatsContextService;
 use App\Service\AuditLogService;
@@ -20,7 +20,7 @@ use Cake\Log\Log;
  */
 final class StatsAiController extends AppController
 {
-    private const OPENROUTER_MODEL   = 'openrouter/free';
+    private const AI_MODEL           = 'openai/gpt-oss-120b';
     private const MESSAGE_LIMIT      = 20;
     /** 監査ログに保存する質問・回答の最大文字数 */
     private const LOG_QUESTION_MAX   = 2000;
@@ -116,9 +116,9 @@ final class StatsAiController extends AppController
         $this->request->allowMethod(['post']);
         $this->Authorization->authorize($this, 'askStream');
 
-        $apiKey = env('OPENROUTER_API_KEY');
+        $apiKey = env('GROQ_API_KEY');
         if (empty($apiKey)) {
-            Log::error('OPENROUTER_API_KEY is not set in .env');
+            Log::error('GROQ_API_KEY is not set in .env');
             throw new InternalErrorException('AI機能の設定が不十分です。');
         }
 
@@ -164,7 +164,7 @@ final class StatsAiController extends AppController
         header('X-Accel-Buffering: no');
         header('Connection: keep-alive');
 
-        $client = new OpenRouterClient(self::OPENROUTER_MODEL, (string)$apiKey);
+        $client = new GroqClient(self::AI_MODEL, (string)$apiKey);
         $result = $client->streamChat($apiMessages, function (string $content): void {
             echo 'data: ' . json_encode(
                 ['content' => $content],

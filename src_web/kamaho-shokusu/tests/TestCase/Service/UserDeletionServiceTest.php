@@ -18,6 +18,7 @@ class UserDeletionServiceTest extends TestCase
         'app.MUserInfo',
         'app.MUserGroup',
         'app.TAuditLog',
+        'app.TIndividualReservationInfo',
     ];
 
     private function auditTable(): \Cake\ORM\Table
@@ -119,5 +120,31 @@ class UserDeletionServiceTest extends TestCase
 
         $log = $this->lastAuditLog();
         $this->assertNull($log->c_ip_address);
+    }
+
+    public function testSoftDelete_removesOnlyUnapprovedFromTomorrow(): void
+    {
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $table->deleteAll(['i_id_user' => 1]);
+        $d = static fn(string $m): string => date('Y-m-d', strtotime($m));
+        // 日付ごとに type を変えて主キー衝突を避ける
+        $rows = [
+            [$d('-5 days'), 0, 1], [$d('today'), 0, 2], [$d('+1 day'), 0, 3], [$d('+5 days'), 2, 4],
+        ];
+        foreach ($rows as [$date, $status, $type]) {
+            $row = $table->newEntity([
+                'i_id_user' => 1, 'i_id_room' => 1, 'd_reservation_date' => $date,
+                'i_reservation_type' => $type, 'eat_flag' => 1,
+            ]);
+            $row->i_approval_status = $status; // マスアサイン不可の項目
+            $table->saveOrFail($row);
+        }
+
+        (new UserDeletionService())->softDelete($this->userTable()->get(1), 'admin', 99);
+
+        $left = $table->find()->where(['i_id_user' => 1])->all()
+            ->map(fn($r) => $r->d_reservation_date->format('Y-m-d'))->toList();
+        sort($left);
+        $this->assertSame([$d('-5 days'), $d('today'), $d('+5 days')], $left, '過去・当日の未承認と承認済みは残り、翌日以降の未承認だけ消える');
     }
 }

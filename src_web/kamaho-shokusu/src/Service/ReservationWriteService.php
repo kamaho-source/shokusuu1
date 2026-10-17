@@ -178,17 +178,30 @@ class ReservationWriteService
         $targetUserLevels = $this->fetchUserLevels($userIds);
         $blockLeaderInRoom = false;
         if ($isBlockLeader && $roomId !== null) {
-            $userGroupTable    = TableRegistry::getTableLocator()->get('MUserGroup');
-            $blockLeaderInRoom = (bool)$userGroupTable->exists([
-                'i_id_user' => $loginUserId,
-                'i_id_room' => $roomId,
-            ]);
+            $blockLeaderInRoom = $this->isActiveMember($loginUserId, $roomId);
         }
         foreach ($userIds as $targetUserId) {
             $targetUserLevel = $targetUserLevels[$targetUserId] ?? 0;
             $canEditOther    = $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
             if ($targetUserId !== $loginUserId && !$canEditOther) {
                 throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
+            }
+            if (!$isAdmin && $roomId !== null) {
+                // 他人の予約を扱うには、操作者本人も部屋に有効所属していること
+                if ($targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
+                    throw new UnauthorizedException('この部屋を操作する権限がありません。');
+                }
+                // 登録（1を含む）は対象（本人を含む）が有効所属していること。取消のみなら所属は要求しない。
+                $wantsRegister = false;
+                foreach ((array)($data['users'][$targetUserId] ?? []) as $selected) {
+                    if ((is_bool($selected) ? ($selected ? 1 : 0) : (int)$selected) === 1) {
+                        $wantsRegister = true;
+                        break;
+                    }
+                }
+                if ($wantsRegister && !$this->isActiveMember($targetUserId, $roomId)) {
+                    throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
+                }
             }
         }
 
@@ -254,6 +267,28 @@ class ReservationWriteService
         return $this->ok('予約が正常に登録されました。', ['date' => $reservationDate], $this->redirectToIndex());
     }
 
+    /** @var array<string, bool> リクエスト内の所属判定キャッシュ（bulk-toggle の件数ぶんの再問い合わせを避ける） */
+    private array $activeMemberCache = [];
+
+    private ?RoomAccessService $roomAccessService = null;
+
+    /** @var array<int, bool> */
+    private array $roomAvailableCache = [];
+
+    private function isRoomAvailable(int $roomId): bool
+    {
+        $this->roomAccessService ??= new RoomAccessService();
+
+        return $this->roomAvailableCache[$roomId] ??= $this->roomAccessService->isRoomAvailable($roomId);
+    }
+
+    private function isActiveMember(int $userId, int $roomId): bool
+    {
+        $this->roomAccessService ??= new RoomAccessService();
+
+        return $this->activeMemberCache[$userId . ':' . $roomId] ??= $this->roomAccessService->isActiveMember($userId, $roomId);
+    }
+
     public function processToggle(
         int $roomId,
         array $payload,
@@ -292,23 +327,35 @@ class ReservationWriteService
         }
         $targetUserLevel = (int)$targetUser->i_user_level;
 
-        $userGroupTable    = TableRegistry::getTableLocator()->get('MUserGroup');
-        $blockLeaderInRoom = $isBlockLeader && (bool)$userGroupTable->exists([
-            'i_id_user' => $loginUserId,
-            'i_id_room' => $roomId,
-        ]);
+        $blockLeaderInRoom = $isBlockLeader && $this->isActiveMember($loginUserId, $roomId);
         $canEditOther = $isAdmin || (($isStaffUser || $isBlockLeader) && $targetUserLevel === 1) || $blockLeaderInRoom;
         if ($targetUserId !== $loginUserId && !$canEditOther) {
             throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
         }
 
-        // 対象ユーザーが指定部屋に所属しているか確認（他部屋への不正書き込みを防ぐ）
-        $belongsToRoom = $userGroupTable->exists([
-            'i_id_user' => $targetUserId,
-            'i_id_room' => $roomId,
-        ]);
-        if (!$belongsToRoom) {
-            throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
+        // 管理者でも、存在しない・削除済みの部屋には登録も取消もできない
+        if ($isAdmin && !$this->isRoomAvailable($roomId)) {
+            throw new UnauthorizedException('選択された部屋は利用できません。');
+        }
+
+        // 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属していること
+        if (!$isAdmin && $targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
+            throw new UnauthorizedException('この部屋を操作する権限がありません。');
+        }
+
+        // 対象ユーザーが指定部屋に有効所属していること（他部屋への不正書き込みを防ぐ）。
+        // 取消（value=0）は、退出後に残った予約を消せるよう所属を要求しない。ただし既存の予約がある場合に限る
+        // （行が無い取消で、所属外・削除済みの部屋に無効値の行が作られるのを防ぐ）。
+        if (!$this->isActiveMember($targetUserId, $roomId)) {
+            $canCancelExisting = $value === 0 && $this->reservationTable->exists([
+                'i_id_user'          => $targetUserId,
+                'i_id_room'          => $roomId,
+                'd_reservation_date' => $dateStr,
+                'i_reservation_type' => $meal,
+            ]);
+            if (!$canCancelExisting) {
+                throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
+            }
         }
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
@@ -394,8 +441,9 @@ class ReservationWriteService
         } catch (\InvalidArgumentException $e) {
             throw new InvalidInputException($e->getMessage());
         } catch (\Throwable $e) {
+            // 生の例外メッセージ（SQL 文など）は利用者に返さず、ログファイルにだけ残す。
             Log::error('toggle処理で予期しない例外: ' . $e->getMessage());
-            throw new PersistenceException('Internal Server Error');
+            throw new PersistenceException('予約の更新に失敗しました（' . self::describeSystemError($e) . '）');
         }
     }
 
@@ -447,8 +495,9 @@ class ReservationWriteService
             } catch (DomainException $e) {
                 $results[$i] = ['ok' => false, 'message' => $e->getMessage()];
             } catch (\Throwable $e) {
+                // SQL 文やテーブル名を含みうる生の例外メッセージは画面・監査ログに出さず、ログファイルにだけ残す。
                 Log::error('一括toggleで予期しない例外: ' . $e->getMessage());
-                $results[$i] = ['ok' => false, 'message' => '登録に失敗しました。'];
+                $results[$i] = ['ok' => false, 'message' => '予約の更新に失敗しました（' . self::describeSystemError($e) . '）'];
             }
         }
 
@@ -458,6 +507,43 @@ class ReservationWriteService
         }
 
         return $results;
+    }
+
+    /**
+     * 予期しない例外を、画面・監査ログに出してよい短い原因に変換する。
+     * 生のメッセージ（SQL 文・テーブル名など）は含めない。
+     * エラーコードは DB 由来なら「DB-<MySQL エラー番号>」、それ以外は「SYS-0000」。
+     *
+     * @param \Throwable $e
+     * @return string 例: 「他の操作と同時に更新されたため。もう一度お試しください [エラーコード: DB-1213]」
+     */
+    public static function describeSystemError(\Throwable $e): string
+    {
+        $pdo = $e;
+        while ($pdo !== null && !$pdo instanceof \PDOException) {
+            $pdo = $pdo->getPrevious();
+        }
+        if ($pdo === null) {
+            return 'システムエラーのため。管理者にお問い合わせください [エラーコード: SYS-0000]';
+        }
+
+        // MySQL のエラー番号。クエリ失敗は "SQLSTATE[23000]: Integrity constraint violation: 1062 ..."、
+        // 接続失敗は "SQLSTATE[HY000] [2002] Connection refused" の形。
+        $code = (int)($pdo->errorInfo[1] ?? 0);
+        if ($code === 0 && preg_match('/SQLSTATE\[\w+\](?:\s*\[(\d+)\]|:[^:]*:\s*(\d+))/', $pdo->getMessage(), $m)) {
+            $code = (int)(($m[1] ?? '') !== '' ? $m[1] : $m[2]);
+        }
+
+        $text = match ($code) {
+            1213 => '他の操作と同時に更新されたため。もう一度お試しください',
+            1205 => '他の操作の処理待ちで時間切れになったため。もう一度お試しください',
+            1062 => '同じ予約がすでに登録されているため',
+            1451, 1452 => '部屋または利用者のデータが見つからないため',
+            // 接続断などの技術的な原因は利用者に説明せず、エラーコードで管理者が判別する。
+            default => 'システムエラーのため。管理者にお問い合わせください',
+        };
+
+        return sprintf('%s [エラーコード: DB-%04d]', $text, $code);
     }
 
     /**
