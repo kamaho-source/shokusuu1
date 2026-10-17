@@ -39,7 +39,7 @@ $user       = $request->getAttribute('identity');
 $iAdmin     = $user ? (int)$user->i_admin : 0;
 $isAdmin    = in_array($iAdmin, [1, 3]);
 $isSysAdmin = ($iAdmin === 3);
-$hasReportAccess = $user && (int)($user->i_report_access ?? 0) === 1;
+$hasReportAccess = $user && ($isAdmin || (int)($user->i_report_access ?? 0) === 1);
 $isStaff    = $user && ($isAdmin || in_array((int)$user->i_user_level, [0, 7]));
 $isChild    = $user && (int)$user->i_user_level === 1;
 $notificationUnreadCount = $notificationUnreadCount ?? 0;
