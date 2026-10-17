@@ -520,14 +520,13 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        // 編集画面の「所属部屋」と同じ基準で出す（異動で無効化された旧所属・削除済みの部屋は含めない）。
-        // 削除フラグが NULL の部屋は、編集画面（i_del_flg = 0 で抽出）と同じく出さない。
         $userRooms = [];
-        foreach ($mUserInfo->m_user_group ?? [] as $group) {
-            if ((int)$group->active_flag !== 0 || empty($group->m_room_info) || (int)($group->m_room_info->i_del_flg ?? 1) !== 0) {
-                continue;
+        if (!empty($mUserInfo->m_user_group)) {
+            foreach ($mUserInfo->m_user_group as $group) {
+                if (!empty($group->m_room_info)) {
+                    $userRooms[] = $group->m_room_info->c_room_name;
+                }
             }
-            $userRooms[] = $group->m_room_info->c_room_name;
         }
 
         $this->set(compact('mUserInfo', 'userRooms'));

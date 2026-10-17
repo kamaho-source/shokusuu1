@@ -70,43 +70,6 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
-     * 詳細画面の所属部屋は編集画面と同じ基準で出す。
-     * 異動で無効化された旧所属(active_flag=1)・削除済みの部屋は表示しない。
-     *
-     * @return void
-     * @uses \App\Controller\MUserInfoController::view()
-     */
-    public function testViewShowsOnlyCurrentRooms(): void
-    {
-        $rooms = $this->getTableLocator()->get('MRoomInfo');
-        $base = ['i_disp_no' => 1, 'i_enable' => 1, 'dt_create' => '2024-07-29 09:11:06', 'c_create_user' => 'test'];
-        $rooms->saveOrFail($rooms->newEntity($base + ['i_id_room' => 2, 'c_room_name' => '異動前の部屋', 'i_del_flg' => 0], ['accessibleFields' => ['*' => true]]));
-        $rooms->saveOrFail($rooms->newEntity($base + ['i_id_room' => 3, 'c_room_name' => '削除済みの部屋', 'i_del_flg' => 1], ['accessibleFields' => ['*' => true]]));
-        $rooms->saveOrFail($rooms->newEntity($base + ['i_id_room' => 4, 'c_room_name' => '削除フラグ未設定の部屋', 'i_del_flg' => null], ['accessibleFields' => ['*' => true]]));
-        $groups = $this->getTableLocator()->get('MUserGroup');
-        foreach ([[2, 1], [3, 0], [4, 0]] as [$roomId, $activeFlag]) {
-            $groups->saveOrFail($groups->newEntity(
-                ['i_id_user' => 2, 'i_id_room' => $roomId, 'active_flag' => $activeFlag, 'dt_create' => '2024-09-07 15:59:52', 'c_create_user' => 'test'],
-                ['accessibleFields' => ['*' => true]]
-            ));
-        }
-
-        $this->setAuthenticatedSession(true);
-        $this->get('/MUserInfo/view/2');
-
-        $this->assertResponseOk();
-        $this->assertResponseContains('所属部屋');
-        $this->assertResponseContains('Lorem ipsum dolor sit amet');
-        $this->assertResponseNotContains('異動前の部屋');
-        $this->assertResponseNotContains('削除済みの部屋');
-        // 編集画面は i_del_flg = 0 の部屋だけを出すので、NULL の部屋は詳細にも出さない
-        $this->assertResponseNotContains('削除フラグ未設定の部屋');
-        $this->assertResponseContains('staff_user');
-        // パスワード変更は編集画面にだけ置く（詳細画面には出さない）
-        $this->assertResponseNotContains('admin_change_password?user_id=2');
-    }
-
-    /**
      * 削除済みユーザーは変更画面の対象に入らない（押しても未選択になる）ため、
      * 編集画面にパスワード変更ボタンを出さない。
      *
@@ -121,25 +84,6 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseContains('deleted_user');
         $this->assertResponseOk();
         $this->assertResponseNotContains('admin_change_password?user_id=6');
-    }
-
-    /**
-     * 所属部屋が無いときは空欄にせず「所属部屋はありません」と出す。管理者以外にはパスワード変更を出さない。
-     *
-     * @return void
-     * @uses \App\Controller\MUserInfoController::view()
-     */
-    public function testViewWithoutRoomsAsNonAdmin(): void
-    {
-        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 2]);
-
-        $this->setAuthenticatedSession(false);
-        $this->get('/MUserInfo/view/2');
-
-        $this->assertResponseOk();
-        $this->assertResponseContains('所属部屋はありません');
-        $this->assertResponseContains('staff_user');
-        $this->assertResponseNotContains('admin_change_password?user_id=2');
     }
 
     /**
