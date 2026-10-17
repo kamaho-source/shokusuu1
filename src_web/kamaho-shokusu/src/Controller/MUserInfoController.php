@@ -171,13 +171,7 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = [];
-            foreach ($u->m_user_group ?? [] as $group) {
-                // 削除済み部屋は表示・全部屋所属判定に含めない
-                if (!empty($group->m_room_info) && (int)($group->m_room_info->i_del_flg ?? 0) === 0) {
-                    $userRooms[$u->i_id_user][] = $group->m_room_info->c_room_name;
-                }
-            }
+            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? []);
         }
 
         $roomService      = new RoomService();
@@ -520,18 +514,32 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = [];
-        if (!empty($mUserInfo->m_user_group)) {
-            foreach ($mUserInfo->m_user_group as $group) {
-                // 退出済み・削除済みの部屋は所属として表示しない（編集画面の所属と揃える）
-                if ((int)$group->active_flag !== 0 || empty($group->m_room_info) || (int)$group->m_room_info->i_del_flg !== 0) {
-                    continue;
-                }
-                $userRooms[] = $group->m_room_info->c_room_name;
-            }
-        }
+        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? []);
 
         $this->set(compact('mUserInfo', 'userRooms'));
+    }
+
+    /**
+     * 現在所属している部屋名の一覧。退出済み(active_flag=1)と削除済み部屋は含めない。
+     * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
+     *
+     * @param iterable<\App\Model\Entity\MUserGroup> $groups
+     * @return list<string>
+     */
+    private function activeRoomNames(iterable $groups): array
+    {
+        $names = [];
+        foreach ($groups as $group) {
+            if ((int)($group->active_flag ?? 0) !== 0
+                || empty($group->m_room_info)
+                || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
+            ) {
+                continue;
+            }
+            $names[] = $group->m_room_info->c_room_name;
+        }
+
+        return $names;
     }
 
     public function delete($id = null)

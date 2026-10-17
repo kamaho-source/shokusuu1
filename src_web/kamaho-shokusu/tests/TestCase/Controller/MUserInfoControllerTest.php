@@ -57,6 +57,28 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
+     * 一覧の所属表示でも、退出済みの部屋は所属として表示しない（詳細画面と揃える）。
+     */
+    public function testIndexHidesLeftRooms(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $base = $rooms->get(1)->toArray();
+        $rooms->updateAll(['c_room_name' => '現在のルーム'], ['i_id_room' => 1]);
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '退出したルーム'] + $base);
+
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groupBase = $groups->find()->where(['i_id_user' => 1])->firstOrFail()->toArray();
+        unset($groupBase['i_id_group'], $groupBase['id']);
+        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 2, 'active_flag' => 1] + $groupBase);
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo');
+        $this->assertResponseOk();
+        $this->assertResponseContains('現在のルーム');
+        $this->assertResponseNotContains('退出したルーム');
+    }
+
+    /**
      * Test view method
      *
      * @return void
