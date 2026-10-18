@@ -12,6 +12,7 @@ use App\Service\ReservationWriteService;
 use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
 use App\Exception\ApprovedReservationException;
+use App\Exception\DuplicateMealReservationException;
 use App\Exception\OptimisticLockConflictException;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
@@ -906,13 +907,13 @@ class TReservationInfoController extends ReservationBaseController
                     $this->Flash->success(__($payload['message']));
                     return $this->redirect(['action' => 'index']);
 
-                } catch (ApprovedReservationException $e) {
-                    $this->log('直前編集 承認済み変更拒否: ' . $e->getMessage(), 'warning');
+                } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
+                    $this->log('直前編集 変更拒否: ' . $e->getMessage(), 'warning');
                     if ($wantsJson) {
                         return $this->response->withStatus(409)->withType('application/json')
                             ->withStringBody(json_encode([
                                 'ok'      => false,
-                                'status'  => 'approved',
+                                'status'  => $e instanceof DuplicateMealReservationException ? 'conflict' : 'approved',
                                 'message' => $e->getMessage(),
                                 'data'    => [],
                             ], JSON_UNESCAPED_UNICODE));

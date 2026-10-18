@@ -232,4 +232,23 @@ class ReservationCalendarServiceTest extends TestCase
             'i_del_flg'   => $delFlg,
         ]);
     }
+
+    public function testBuildMyReservationDetails_cancelledRowInOldRoomDoesNotHideMovedReservation(): void
+    {
+        // 部屋変更の後は、移動先の有効な行と、元の部屋の取消済みの行が並ぶ
+        $date = Date::today()->addDays(40)->format('Y-m-d');
+        $db = ConnectionManager::get('test');
+        foreach ([[3, 1], [9, 0]] as [$roomId, $flag]) {
+            $db->insert('t_individual_reservation_info', [
+                'i_id_user' => 9902, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => $roomId,
+                'eat_flag' => $flag, 'i_change_flag' => $flag, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+            ]);
+        }
+
+        $details = $this->service->buildMyReservationDetails(TableRegistry::getTableLocator()->get('TIndividualReservationInfo'), 9902);
+
+        $this->assertSame(1, $details[$date]['breakfast']);
+        $this->assertSame(3, $details[$date]['breakfastRoom']);
+    }
 }

@@ -11,6 +11,7 @@ use App\Domain\Exception\PersistenceException;
 use App\Domain\Exception\UnauthorizedException;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
+use App\Exception\DuplicateMealReservationException;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
@@ -417,7 +418,7 @@ class ReservationWriteService
                 'details'  => $result['details'] ?? [],
                 'affected' => ['date' => $dateStr, 'roomId' => $roomId, 'userId' => $targetUserId],
             ];
-        } catch (ApprovedReservationException $e) {
+        } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
             throw new ConflictException($e->getMessage());
         } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
             $errors = $e->getEntity()?->getErrors() ?? [];
@@ -525,6 +526,17 @@ class ReservationWriteService
     ): array {
         $result = $this->reservationTable->getConnection()->transactional(
             function () use ($fromRoomId, $toRoomId, $payload, $loginUserId, $loginUserName): array {
+                // 古い画面からの操作で、取消済み・移動済みの予約を「部屋変更」として登録し直さないよう、
+                // 変更前の部屋に有効な予約があることを確かめる
+                // 日付・食事の形式が不正な場合は、この後の processToggle が入力エラーとして返す
+                $targetUserId = isset($payload['userId']) ? (int)$payload['userId'] : $loginUserId;
+                $dateStr = (string)($payload['date'] ?? '');
+                $meal = (int)($payload['meal'] ?? 0);
+                $canCheck = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr) === 1 && in_array($meal, [1, 2, 3, 4], true);
+                if ($canCheck && !in_array($fromRoomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal), true)) {
+                    throw new ConflictException('変更前の部屋の予約が見つかりません。画面を再読み込みしてください。');
+                }
+
                 $this->processToggle($fromRoomId, ['value' => 0] + $payload, $loginUserId, $loginUserName, false);
 
                 return $this->processToggle($toRoomId, ['value' => 1] + $payload, $loginUserId, $loginUserName, false);

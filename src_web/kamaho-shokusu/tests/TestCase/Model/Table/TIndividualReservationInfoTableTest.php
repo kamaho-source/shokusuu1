@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Model\Table;
 
 use App\Exception\ApprovedReservationException;
+use App\Exception\DuplicateMealReservationException;
 use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
@@ -188,5 +189,79 @@ class TIndividualReservationInfoTableTest extends TestCase
 
         // 弁当側の更新もトランザクションごとロールバックされる
         $this->assertSame(0, (int)$this->fetchRow(4)->eat_flag, '弁当の更新がロールバックされていない');
+    }
+
+    // ----------------------------------------------------------------
+    // 同じ食事を複数の部屋で同時に有効にしない（二重予約・食数の二重計上の防止）
+    // ----------------------------------------------------------------
+
+    private function insertMealRow(int $roomId, string $date, int $eat, int $chg): void
+    {
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 9901, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => $roomId,
+            'eat_flag' => $eat, 'i_change_flag' => $chg, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+    }
+
+    private function newMealEntity(int $roomId, string $date): \Cake\Datasource\EntityInterface
+    {
+        $e = $this->TIndividualReservationInfo->newEmptyEntity();
+        $e->i_id_user = 9901;
+        $e->d_reservation_date = $date;
+        $e->i_reservation_type = 3;
+        $e->i_id_room = $roomId;
+        $e->eat_flag = 1;
+        $e->i_change_flag = 1;
+        $e->i_version = 1;
+
+        return $e;
+    }
+
+    private function farDate(): string
+    {
+        return Date::today()->addDays(40)->format('Y-m-d');
+    }
+
+    public function testSave_rejectsSameMealEffectiveInAnotherRoom(): void
+    {
+        $this->insertMealRow(1, $this->farDate(), 1, 1);
+
+        $this->expectException(DuplicateMealReservationException::class);
+        $this->TIndividualReservationInfo->save($this->newMealEntity(2, $this->farDate()));
+    }
+
+    public function testSave_allowsWhenOtherRoomIsCancelled(): void
+    {
+        $this->insertMealRow(1, $this->farDate(), 0, 0);
+
+        $this->assertNotFalse($this->TIndividualReservationInfo->save($this->newMealEntity(2, $this->farDate())));
+    }
+
+    public function testSave_skipsCheckForActualMealRecording(): void
+    {
+        $this->insertMealRow(1, $this->farDate(), 1, 1);
+
+        $saved = $this->TIndividualReservationInfo->save($this->newMealEntity(2, $this->farDate()), ['checkDuplicateRoom' => false]);
+        $this->assertNotFalse($saved);
+    }
+
+    public function testUpdateRowWithVersion_rejectsTurningOnWhileOtherRoomEffective(): void
+    {
+        $this->insertMealRow(1, $this->farDate(), 1, 1);
+        $this->insertMealRow(2, $this->farDate(), 0, 0);
+        $row = $this->TIndividualReservationInfo->find()->where(['i_id_user' => 9901, 'i_id_room' => 2])->firstOrFail();
+
+        $this->expectException(DuplicateMealReservationException::class);
+        $this->TIndividualReservationInfo->updateRowWithVersion($row, ['eat_flag' => 1, 'i_change_flag' => 1]);
+    }
+
+    public function testUpdateRowWithVersion_allowsMovingTheSameRowToAnotherRoom(): void
+    {
+        $this->insertMealRow(1, $this->farDate(), 1, 1);
+        $row = $this->TIndividualReservationInfo->find()->where(['i_id_user' => 9901, 'i_id_room' => 1])->firstOrFail();
+
+        $this->assertTrue($this->TIndividualReservationInfo->updateRowWithVersion($row, ['i_id_room' => 2]));
+        $this->assertSame([2], $this->TIndividualReservationInfo->findEffectiveRoomIds(9901, $this->farDate(), 3));
     }
 }

@@ -261,7 +261,7 @@ class ActualMealManagementService
                 $newEntity->c_create_user      = $actor;
                 $newEntity->i_approval_status  = 0;
 
-                if (!$reservationTable->save($newEntity)) {
+                if (!$reservationTable->save($newEntity, ['checkDuplicateRoom' => false])) {
                     return ['ok' => false, 'message' => '保存に失敗しました。'];
                 }
                 return ['ok' => true, 'message' => '保存しました。', 'version' => 1];

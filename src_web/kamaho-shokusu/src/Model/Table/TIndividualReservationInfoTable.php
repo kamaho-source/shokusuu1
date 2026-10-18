@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Model\Table;
 
 use App\Exception\ApprovedReservationException;
+use App\Exception\DuplicateMealReservationException;
 use ArrayObject;
 use Cake\Datasource\EntityInterface;
 use Cake\Event\EventInterface;
@@ -45,6 +46,19 @@ class TIndividualReservationInfoTable extends Table
      */
     public function beforeSave(EventInterface $event, EntityInterface $entity, ArrayObject $options): void
     {
+        // 実食の記録は「実際に食べた部屋」を残すため、予約の二重チェックの対象外にできる
+        if (($options['checkDuplicateRoom'] ?? true) !== false) {
+            $this->assertNotEffectiveInOtherRoom(
+                (int)$entity->i_id_user,
+                $this->toDateString($entity->d_reservation_date),
+                (int)$entity->i_reservation_type,
+                (int)$entity->i_id_room,
+                [(int)($entity->getOriginal('i_id_room') ?? $entity->i_id_room)],
+                $entity->eat_flag,
+                $entity->i_change_flag,
+            );
+        }
+
         if (!$entity->isNew()) {
             return;
         }
@@ -147,6 +161,78 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
+     * 同じ利用者・日付・食事で、有効な予約がある部屋IDを返す。
+     *
+     * 有効値は、直前期間（当日〜14日先）なら i_change_flag、それ以外は eat_flag（集計と同じ基準）。
+     *
+     * @return list<int>
+     */
+    public function findEffectiveRoomIds(int $userId, string $date, int $mealType): array
+    {
+        $rows = $this->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_room', 'eat_flag', 'i_change_flag'])
+            ->where([
+                'i_id_user'          => $userId,
+                'd_reservation_date' => $date,
+                'i_reservation_type' => $mealType,
+            ])
+            ->all();
+
+        $roomIds = [];
+        foreach ($rows as $r) {
+            if ($this->effectiveValue($date, $r->eat_flag, $r->i_change_flag) === 1) {
+                $roomIds[] = (int)$r->i_id_room;
+            }
+        }
+
+        return $roomIds;
+    }
+
+    /**
+     * 保存・更新後の行が有効になるとき、同じ食事が他の部屋で有効なら拒否する。
+     *
+     * @param list<int> $selfRoomIds 自分自身の行として除外する部屋（部屋を書き換える更新では元の部屋）
+     * @throws \App\Exception\DuplicateMealReservationException 他の部屋で有効な予約がある場合
+     */
+    private function assertNotEffectiveInOtherRoom(
+        int $userId,
+        string $date,
+        int $mealType,
+        int $roomId,
+        array $selfRoomIds,
+        int|string|null $eatFlag,
+        int|string|null $changeFlag
+    ): void {
+        $eat = $eatFlag === null ? null : (int)$eatFlag;
+        $chg = $changeFlag === null ? null : (int)$changeFlag;
+        if ($this->effectiveValue($date, $eat, $chg) !== 1) {
+            return;
+        }
+        $others = array_diff($this->findEffectiveRoomIds($userId, $date, $mealType), [$roomId], $selfRoomIds);
+        if ($others !== []) {
+            throw new DuplicateMealReservationException();
+        }
+    }
+
+    private function effectiveValue(string $date, ?int $eatFlag, ?int $changeFlag): int
+    {
+        $d = new Date($date);
+        $today = Date::today();
+        $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
+        if ($isLastMinute && $changeFlag !== null) {
+            return $changeFlag;
+        }
+
+        return (int)($eatFlag ?? 0);
+    }
+
+    private function toDateString(Date|string|null $date): string
+    {
+        return $date instanceof Date ? $date->format('Y-m-d') : (string)$date;
+    }
+
+    /**
      * 承認済みレコードかどうかを返す。
      *
      * @param int    $userId
@@ -205,6 +291,16 @@ class TIndividualReservationInfoTable extends Table
         $date     = $row->d_reservation_date instanceof Date
             ? $row->d_reservation_date->format('Y-m-d')
             : (string)$row->d_reservation_date;
+
+        $this->assertNotEffectiveInOtherRoom(
+            $userId,
+            $date,
+            $mealType,
+            (int)($updateFields['i_id_room'] ?? $roomId),
+            [$roomId],
+            $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
+            $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
+        );
 
         $expectedVersion = (int)($row->i_version ?? 1);
         $set = $updateFields;

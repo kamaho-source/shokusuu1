@@ -186,6 +186,16 @@ class ReservationCopyService
                     continue;
                 }
 
+                // コピー先の日に同じ食事を別の部屋で予約済みなら、二重予約になるためスキップする
+                $otherRooms = array_diff(
+                    $this->TIndividualReservationInfo->findEffectiveRoomIds((int)$r['i_id_user'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type']),
+                    [(int)$r['i_id_room']]
+                );
+                if ($otherRooms !== []) {
+                    $skipped++;
+                    continue;
+                }
+
                 $existing = $this->TIndividualReservationInfo->find()
                     ->enableAutoFields(false)
                     ->select([
@@ -332,6 +342,16 @@ class ReservationCopyService
 
                 if ($dstDate < $today) {
                     $invalidDate++;
+                    continue;
+                }
+
+                // コピー先の日に同じ食事を別の部屋で予約済みなら、二重予約になるためスキップする
+                $otherRooms = array_diff(
+                    $this->TIndividualReservationInfo->findEffectiveRoomIds((int)$r['i_id_user'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type']),
+                    [(int)$r['i_id_room']]
+                );
+                if ($otherRooms !== []) {
+                    $skipped++;
                     continue;
                 }
 

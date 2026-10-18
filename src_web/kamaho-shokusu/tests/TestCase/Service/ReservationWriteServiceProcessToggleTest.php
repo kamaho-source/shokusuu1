@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Service;
 
+use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\UnauthorizedException;
 use App\Service\ReservationWriteService;
@@ -492,6 +493,35 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
             $this->fail('UnauthorizedException が出るはず');
         } catch (UnauthorizedException $e) {
             $this->assertSame([42 => 1], $this->eatFlagsByRoom(1, $date, 3), '旧部屋の予約が残っている');
+        }
+    }
+
+    public function testProcessRoomChange_rejectsWhenSourceHasNoReservation(): void
+    {
+        $this->addRoomMembership(1, 44, 0, 0);
+        $this->addRoomMembership(1, 45, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+
+        try {
+            $this->service->processRoomChange(44, 45, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('ConflictException が出るはず');
+        } catch (ConflictException $e) {
+            $this->assertSame([], $this->eatFlagsByRoom(1, $date, 3), '移動先に予約が作られていない');
+        }
+    }
+
+    public function testProcessToggle_rejectsSameMealAlreadyReservedInAnotherRoom(): void
+    {
+        $this->addRoomMembership(1, 46, 0, 0);
+        $this->addRoomMembership(1, 47, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 46, $date, 3);
+
+        try {
+            $this->service->processToggle(47, ['date' => $date, 'meal' => 3, 'value' => 1, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('ConflictException が出るはず');
+        } catch (ConflictException $e) {
+            $this->assertSame([46 => 1], $this->eatFlagsByRoom(1, $date, 3));
         }
     }
 }

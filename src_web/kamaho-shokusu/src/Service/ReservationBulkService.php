@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
+use App\Exception\DuplicateMealReservationException;
 use Cake\Core\Configure;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
@@ -208,7 +209,7 @@ class ReservationBulkService
                 'updated' => $updated,
                 'created' => $created,
             ];
-        } catch (ApprovedReservationException $e) {
+        } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
             $connection->rollback();
             return [
                 'ok' => false,
@@ -786,7 +787,7 @@ class ReservationBulkService
                     }
                 }
                 $connection->commit();
-            } catch (ApprovedReservationException $e) {
+            } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
                 $connection->rollback();
                 return [
                     'ok' => false,

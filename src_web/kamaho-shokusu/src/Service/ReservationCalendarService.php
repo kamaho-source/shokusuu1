@@ -202,6 +202,11 @@ class ReservationCalendarService
                 ? (int)$r->i_change_flag
                 : (int)($r->eat_flag ?? 0);
 
+            // 部屋変更の後は、元の部屋に取消済みの行が残る。行の並び順で有効な予約を上書きしない
+            if ($effective === 0 && $details[$dateStr][$key] === 1) {
+                continue;
+            }
+
             $details[$dateStr][$key]          = $effective;
             $details[$dateStr][$key . 'Room'] = ($effective === 1) ? (int)$r->i_id_room : null;
         }
