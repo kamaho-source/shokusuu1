@@ -218,6 +218,7 @@ class ReservationChangeEditService
                 }
             }
 
+            $isLastMinute = TIndividualReservationInfoTable::isLastMinute($date);
             $existingByRoom = [];
             $existingAny = [];
             if (!empty($targetUserIds)) {
@@ -309,11 +310,14 @@ class ReservationChangeEditService
                                         'i_change_flag' => 0,
                                         'c_update_user' => $loginUser?->get('c_user_name') ?? 'system',
                                         'dt_update' => DateTime::now('Asia/Tokyo'),
-                                    ] + (TIndividualReservationInfoTable::isLastMinute($date) ? [] : ['eat_flag' => 0]),
+                                    ] + ($isLastMinute ? [] : ['eat_flag' => 0]),
                                 ];
                             }
                         }
-                        if ((int)$targetRow->i_change_flag !== $changeFlag || (int)$targetRow->i_id_room !== $roomId) {
+                        if ((int)$targetRow->i_change_flag !== $changeFlag
+                            || (int)$targetRow->i_id_room !== $roomId
+                            || (!$isLastMinute && (int)$targetRow->eat_flag !== $changeFlag)
+                        ) {
                             $updateKey = implode(':', [$userId, $mealType, (int)$targetRow->i_id_room]);
                             $rowsToUpdate[$updateKey] = [
                                 'row' => $targetRow,
@@ -322,7 +326,8 @@ class ReservationChangeEditService
                                     'i_id_room' => $roomId,
                                     'c_update_user' => $loginUser?->get('c_user_name') ?? 'system',
                                     'dt_update' => DateTime::now('Asia/Tokyo'),
-                                ],
+                                // 直前期間外は eat_flag が有効値なので、そろえないと「どの部屋でも食べない」状態になる
+                                ] + ($isLastMinute ? [] : ['eat_flag' => $changeFlag]),
                             ];
                             $updated[] = "{$userId}:{$mealType}";
                         }
@@ -335,7 +340,7 @@ class ReservationChangeEditService
                             'd_reservation_date' => $date,
                             'i_reservation_type' => $mealType,
                             'i_id_room'          => $roomId,
-                            'eat_flag'           => 0,
+                            'eat_flag'           => $isLastMinute ? 0 : $changeFlag,
                             'i_change_flag'      => $changeFlag,
                             'i_version'          => 1,
                             'c_create_user'      => $loginUser?->get('c_user_name') ?? 'system',

@@ -1104,6 +1104,10 @@ function openModalById(id){
                         var lockNote = document.createElement('div');
                         lockNote.textContent = '「' + (allRoomNames[lockedRoom] || ('部屋' + lockedRoom)) + '」は所属外の部屋のため、ここでは変更できません。変更が必要な場合は管理者に連絡してください。';
                         lockNote.style.cssText = 'flex-basis:100%;font-size:12px;color:#6b7280';
+                        lockNote.id = '__mealPickerLock' + m.idx;
+                        // 操作できない理由を、スクリーンリーダーでも読み上げる
+                        cb.setAttribute('aria-describedby', lockNote.id);
+                        if (roomSel) roomSel.setAttribute('aria-describedby', lockNote.id);
                         row.appendChild(lockNote);
                     }
 

@@ -21,6 +21,8 @@ class MealReportingService
 {
     private const MEAL_TYPES = [1, 2, 3, 4];
 
+    private const EAT_REPORT_MEAL_TYPES = [1, 2, 3];
+
     /**
      * 「食べない」で報告する（全食種を eat_flag=0, i_change_flag=0 に設定）。
      *
@@ -51,6 +53,11 @@ class MealReportingService
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $today,
                 'i_reservation_type IN' => self::MEAL_TYPES,
+                // 承認済みの行は変えない（他の書き込み経路と同じく、承認後の内容を守る）
+                'OR' => [
+                    'i_approval_status IS'     => null,
+                    'i_approval_status NOT IN' => TIndividualReservationInfoTable::APPROVED_STATUSES,
+                ],
             ]
         );
 
@@ -86,7 +93,7 @@ class MealReportingService
     }
 
     /**
-     * 「食べる」で報告する（全食種を代表部屋で eat_flag=1, i_change_flag=1 に設定）。
+     * 「食べる」で報告する（朝・昼・夕を代表部屋で eat_flag=1, i_change_flag=1 に設定）。
      *
      * 別の部屋ですでに有効な食事は、その部屋の予約のまま残す（代表部屋にも付けると二重に数えられるため）。
      *
@@ -107,7 +114,12 @@ class MealReportingService
 
         try {
             $reservationTable->getConnection()->transactional(function () use ($reservationTable, $userId, $userName, $roomId, $today): void {
-                foreach (self::MEAL_TYPES as $mealType) {
+                // 「食べる」は朝・昼・夕。弁当は昼食と同時に有効にできないため付けない。
+                // 弁当をすでに予約している日は、昼食も付けない（弁当のまま）
+                foreach (self::EAT_REPORT_MEAL_TYPES as $mealType) {
+                    if ($mealType === 2 && $this->hasEffectiveMeal($reservationTable, $userId, $today, 4)) {
+                        continue;
+                    }
                     $rows = $reservationTable->find()
                         ->enableAutoFields(false)
                         ->select(['i_id_room', 'd_reservation_date', 'eat_flag', 'i_change_flag'])
@@ -182,6 +194,22 @@ class MealReportingService
             ->first();
 
         return $row ? (int)$row->i_id_room : null;
+    }
+
+    private function hasEffectiveMeal(Table $reservationTable, int $userId, string $date, int $mealType): bool
+    {
+        $rows = $reservationTable->find()
+            ->enableAutoFields(false)
+            ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
+            ->where(['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_reservation_type' => $mealType])
+            ->all();
+        foreach ($rows as $r) {
+            if (TIndividualReservationInfoTable::isEffectiveRow($r)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

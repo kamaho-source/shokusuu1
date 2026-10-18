@@ -167,6 +167,9 @@ class TIndividualReservationInfoTable extends Table
 
     /**
      * 予約行（d_reservation_date・eat_flag・i_change_flag を持つ）が有効かどうか。
+     *
+     * @param object $row 予約行（エンティティまたは select の結果）
+     * @return bool
      */
     public static function isEffectiveRow(object $row): bool
     {
@@ -242,6 +245,9 @@ class TIndividualReservationInfoTable extends Table
 
     /**
      * 直前期間（当日〜14日先）かどうか。
+     *
+     * @param string $date YYYY-MM-DD
+     * @return bool
      */
     public static function isLastMinute(string $date): bool
     {
@@ -253,6 +259,13 @@ class TIndividualReservationInfoTable extends Table
 
     /**
      * 予約行の有効値（1=食べる）を返す。直前期間（当日〜14日先）は i_change_flag、それ以外は eat_flag。
+     *
+     * ponytail: 有効値の基準は Table に置いている。Domain の値オブジェクトへ移すのは、判定を使う箇所がさらに増えたとき
+     *
+     * @param string $date YYYY-MM-DD
+     * @param int|string|null $eatFlag
+     * @param int|string|null $changeFlag
+     * @return int 1=有効 / 0=無効
      */
     public static function effectiveValue(string $date, int|string|null $eatFlag, int|string|null $changeFlag): int
     {
@@ -333,7 +346,11 @@ class TIndividualReservationInfoTable extends Table
 
         // 無効→有効になる更新と、部屋を書き換える更新だけを確かめる（有効なままの更新は、既存の二重予約があっても止めない）
         $roomChanged = isset($updateFields['i_id_room']) && (int)$updateFields['i_id_room'] !== $roomId;
-        if ($roomChanged || !self::isEffectiveRow($row)) {
+        // toggleMeal などはエンティティに新しい値を入れてから呼ぶため、更新前の値（original）で「元は無効だったか」を見る
+        $wasEffective = $row instanceof EntityInterface
+            ? self::effectiveValue($date, $row->getOriginal('eat_flag'), $row->getOriginal('i_change_flag')) === 1
+            : self::isEffectiveRow($row);
+        if ($roomChanged || !$wasEffective) {
             $this->assertNotEffectiveInOtherRoom(
                 $userId,
                 $date,

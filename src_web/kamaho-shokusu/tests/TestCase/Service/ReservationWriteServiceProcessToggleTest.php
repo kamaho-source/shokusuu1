@@ -567,4 +567,25 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
             $this->assertSame([50 => 0], $this->eatFlagsByRoom(1, $date, 3), '移動先に予約が作られている');
         }
     }
+
+    public function testProcessToggle_rejectsReactivatingCancelledRowWhileAnotherRoomIsEffective(): void
+    {
+        // 部屋変更の後に残る取消済み行（既存行）を ON にする経路。新規保存ではなく更新を通る
+        $this->addRoomMembership(1, 48, 0, 0);
+        $this->addRoomMembership(1, 49, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 49, $date, 3);
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 48,
+            'eat_flag' => 0, 'i_change_flag' => 0, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+
+        try {
+            $this->service->processToggle(48, ['date' => $date, 'meal' => 3, 'value' => 1, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('DuplicateMealConflictException が出るはず');
+        } catch (DuplicateMealConflictException $e) {
+            $this->assertSame([48 => 0, 49 => 1], $this->eatFlagsByRoom(1, $date, 3));
+        }
+    }
 }

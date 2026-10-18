@@ -582,7 +582,7 @@ class ReservationBulkService
                                 // （$existingActiveMap は最後に読んだ行で上書きされるため、取消が空振りしてしまう）。
                                 if ($roomId !== null) {
                                     $activeRow = $existingRoomMap[$date][(int)$targetUserId][$mealType][(int)$roomId] ?? null;
-                                    if ($activeRow !== null && (int)$activeRow->eat_flag !== 1) {
+                                    if ($activeRow !== null && !TIndividualReservationInfoTable::isEffectiveRow($activeRow)) {
                                         $activeRow = null;
                                     }
                                 }

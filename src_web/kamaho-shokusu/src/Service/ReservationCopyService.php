@@ -204,6 +204,7 @@ class ReservationCopyService
                         'i_reservation_type',
                         'i_id_room',
                         'eat_flag',
+                        'i_change_flag',
                         'i_approval_status',
                         'i_version',
                     ])
@@ -216,7 +217,7 @@ class ReservationCopyService
                     ->first();
                 if ($existing) {
                     // プレビュー（willSkipExisting）と同一のスキップ判定にそろえる
-                    if ((int)$existing->eat_flag === 1
+                    if (TIndividualReservationInfoTable::isEffectiveRow($existing)
                         || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true)) {
                         $skipped++;
                         continue;
@@ -363,6 +364,7 @@ class ReservationCopyService
                         'i_reservation_type',
                         'i_id_room',
                         'eat_flag',
+                        'i_change_flag',
                         'i_approval_status',
                         'i_version',
                     ])
@@ -375,7 +377,7 @@ class ReservationCopyService
                     ->first();
                 if ($existing) {
                     // プレビュー（willSkipExisting）と同一のスキップ判定にそろえる
-                    if ((int)$existing->eat_flag === 1
+                    if (TIndividualReservationInfoTable::isEffectiveRow($existing)
                         || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true)) {
                         $skipped++;
                         continue;
@@ -633,7 +635,7 @@ class ReservationCopyService
 
         $existing = $this->TIndividualReservationInfo->find()
             ->enableAutoFields(false)
-            ->select(['eat_flag', 'i_approval_status'])
+            ->select(['d_reservation_date', 'eat_flag', 'i_change_flag', 'i_approval_status'])
             ->where([
                 'i_id_user'          => $userId,
                 'i_id_room'          => $roomId,
@@ -646,7 +648,7 @@ class ReservationCopyService
             return false;
         }
 
-        return (int)$existing->eat_flag === 1
+        return TIndividualReservationInfoTable::isEffectiveRow($existing)
             || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true);
     }
 }

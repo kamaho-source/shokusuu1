@@ -250,12 +250,15 @@ class RoomTransferScheduleService
                 && !TIndividualReservationInfoTable::isEffectiveRow($destRow)
                 && TIndividualReservationInfoTable::isEffectiveRow($old)
             ) {
+                // 新規作成の分岐と同じく、承認状態を引き継ぐ。版は上げて、古い画面からの更新を競合として止める
                 $indvResTable->updateAll(
                     [
-                        'eat_flag'      => $eatFlag,
-                        'i_change_flag' => (int)$old->i_change_flag,
-                        'c_update_user' => 'batch',
-                        'dt_update'     => $now,
+                        'eat_flag'          => $eatFlag,
+                        'i_change_flag'     => (int)$old->i_change_flag,
+                        'i_approval_status' => (int)($old->i_approval_status ?? 0),
+                        'i_version'         => max((int)$destRow->i_version, (int)$old->i_version) + 1,
+                        'c_update_user'     => 'batch',
+                        'dt_update'         => $now,
                     ],
                     [
                         'i_id_user'          => $userId,
@@ -264,8 +267,11 @@ class RoomTransferScheduleService
                         'i_reservation_type' => $mealType,
                     ]
                 );
-                if ($eatFlag === 1 && (int)$destRow->eat_flag !== 1) {
+                // 集計は eat_flag=1 の行数。移行元の行は消えるので -1、移行先は 0→1 になったときだけ +1
+                if ($eatFlag === 1) {
                     $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomFromId, $mealType, -1, $now);
+                }
+                if ($eatFlag === 1 && (int)$destRow->eat_flag !== 1) {
                     $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomToId, $mealType, +1, $now);
                 }
             }

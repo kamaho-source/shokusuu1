@@ -228,11 +228,11 @@ class ReservationChangeEditServiceTest extends TestCase
         return Date::today()->addDays(3)->format('Y-m-d');
     }
 
-    private function insertMeal(int $roomId, int $eat, int $chg): void
+    private function insertMeal(int $roomId, int $eat, int $chg, ?string $date = null): void
     {
         ConnectionManager::get('test')->insert('t_individual_reservation_info', [
             'i_id_user'          => 3,
-            'd_reservation_date' => $this->nearDate(),
+            'd_reservation_date' => $date ?? $this->nearDate(),
             'i_reservation_type' => 1,
             'i_id_room'          => $roomId,
             'eat_flag'           => $eat,
@@ -244,12 +244,12 @@ class ReservationChangeEditServiceTest extends TestCase
         ]);
     }
 
-    private function eatInRoom(int $roomId): void
+    private function eatInRoom(int $roomId, ?string $date = null): void
     {
         $this->service->processUpdate(
             [3 => [1 => ['i_change_flag' => 1]]],
             [3],
-            $this->nearDate(),
+            $date ?? $this->nearDate(),
             $roomId,
             null,
             TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
@@ -259,10 +259,10 @@ class ReservationChangeEditServiceTest extends TestCase
     }
 
     /** @return array<int, array{int, int}> [roomId => [eat_flag, i_change_flag]] */
-    private function flagsByRoom(): array
+    private function flagsByRoom(?string $date = null): array
     {
         $rows = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
-            ->where(['i_id_user' => 3, 'd_reservation_date' => $this->nearDate(), 'i_reservation_type' => 1])
+            ->where(['i_id_user' => 3, 'd_reservation_date' => $date ?? $this->nearDate(), 'i_reservation_type' => 1])
             ->orderByAsc('i_id_room')
             ->all();
         $map = [];
@@ -304,5 +304,17 @@ class ReservationChangeEditServiceTest extends TestCase
         $this->eatInRoom(4);
 
         $this->assertSame([1 => [0, 0], 4 => [0, 1]], $this->flagsByRoom());
+    }
+
+    /** 直前期間外は eat_flag が有効値。部屋を移しても、どの部屋でも食べない状態にしない */
+    public function testProcessUpdate_farDate_movingKeepsTheReservation(): void
+    {
+        $far = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertMeal(1, 1, 1, $far);
+        $this->insertMeal(2, 0, 0, $far);
+
+        $this->eatInRoom(2, $far);
+
+        $this->assertSame([1 => [0, 0], 2 => [1, 1]], $this->flagsByRoom($far));
     }
 }

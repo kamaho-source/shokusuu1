@@ -112,4 +112,38 @@ class MealReportingServiceTest extends TestCase
             '60:3' => [0, 0],
         ], $this->flags());
     }
+
+    public function testReportNoMeal_leavesApprovedRowsUnchanged(): void
+    {
+        $this->insertMeal(60, 3, 1, 1);
+        ConnectionManager::get('test')->update('t_individual_reservation_info', ['i_approval_status' => 2], ['i_id_user' => 1, 'i_id_room' => 60]);
+
+        $this->service->reportNoMeal($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertSame([1, 1], $this->flags()['60:3']);
+    }
+
+    public function testReportEat_withNoRows_registersBreakfastLunchDinnerButNotBento(): void
+    {
+        $result = $this->service->reportEat($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertTrue($result['ok'], $result['message']);
+        $flags = $this->flags();
+        $this->assertSame([1, 1], $flags['1:1']);
+        $this->assertSame([1, 1], $flags['1:2']);
+        $this->assertSame([1, 1], $flags['1:3']);
+        $this->assertArrayNotHasKey('1:4', $flags);
+    }
+
+    public function testReportEat_keepsBentoAndDoesNotAddLunch(): void
+    {
+        $this->insertMeal(1, 4, 1, 1);
+
+        $result = $this->service->reportEat($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertTrue($result['ok'], $result['message']);
+        $flags = $this->flags();
+        $this->assertSame([1, 1], $flags['1:4']);
+        $this->assertArrayNotHasKey('1:2', $flags);
+    }
 }
