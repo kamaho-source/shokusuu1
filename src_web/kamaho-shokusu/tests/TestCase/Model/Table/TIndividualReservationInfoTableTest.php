@@ -195,7 +195,7 @@ class TIndividualReservationInfoTableTest extends TestCase
     // 同じ食事を複数の部屋で同時に有効にしない（二重予約・食数の二重計上の防止）
     // ----------------------------------------------------------------
 
-    private function insertMealRow(int $roomId, string $date, int $eat, int $chg): void
+    private function insertMealRow(int $roomId, string $date, int $eat, ?int $chg): void
     {
         ConnectionManager::get('test')->insert('t_individual_reservation_info', [
             'i_id_user' => 9901, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => $roomId,
@@ -263,5 +263,59 @@ class TIndividualReservationInfoTableTest extends TestCase
 
         $this->assertTrue($this->TIndividualReservationInfo->updateRowWithVersion($row, ['i_id_room' => 2]));
         $this->assertSame([2], $this->TIndividualReservationInfo->findEffectiveRoomIds(9901, $this->farDate(), 3));
+    }
+
+    private function nearDate(): string
+    {
+        return Date::today()->addDays(3)->format('Y-m-d');
+    }
+
+    public function testSave_lastMinuteUsesChangeFlag_rejectsWhenOtherRoomAddedLastMinute(): void
+    {
+        // 直前期間は i_change_flag が有効値。当初予定なし（eat0）でも直前に追加した部屋は有効
+        $this->insertMealRow(1, $this->nearDate(), 0, 1);
+
+        $this->expectException(DuplicateMealReservationException::class);
+        $this->TIndividualReservationInfo->save($this->newMealEntity(2, $this->nearDate()));
+    }
+
+    public function testSave_lastMinuteUsesChangeFlag_allowsWhenOtherRoomCancelledLastMinute(): void
+    {
+        // 当初予定あり（eat1）でも、直前に取り消した部屋（chg0）は有効ではない
+        $this->insertMealRow(1, $this->nearDate(), 1, 0);
+
+        $this->assertNotFalse($this->TIndividualReservationInfo->save($this->newMealEntity(2, $this->nearDate())));
+    }
+
+    public function testUpdateRowWithVersion_allowsCancellingWhileAnotherRoomIsEffective(): void
+    {
+        // 以前からの二重予約は、片方を取り消して解消できる
+        $this->insertMealRow(1, $this->farDate(), 1, 1);
+        $this->insertMealRow(2, $this->farDate(), 1, 1);
+        $row = $this->TIndividualReservationInfo->find()->where(['i_id_user' => 9901, 'i_id_room' => 2])->firstOrFail();
+
+        $this->assertTrue($this->TIndividualReservationInfo->updateRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0]));
+    }
+
+    public function testUpdateRowWithVersion_allowsUpdatingAnAlreadyEffectiveRowInPlace(): void
+    {
+        // 有効なままの更新（同じ部屋）は、既存の二重予約があっても止めない
+        $this->insertMealRow(1, $this->farDate(), 1, 1);
+        $this->insertMealRow(2, $this->farDate(), 1, 1);
+        $row = $this->TIndividualReservationInfo->find()->where(['i_id_user' => 9901, 'i_id_room' => 2])->firstOrFail();
+
+        $this->assertTrue($this->TIndividualReservationInfo->updateRowWithVersion($row, ['eat_flag' => 1, 'i_change_flag' => 1]));
+    }
+
+    public function testDuplicateMessage_namesTheDateAndMeal(): void
+    {
+        $this->insertMealRow(1, $this->farDate(), 1, 1);
+
+        try {
+            $this->TIndividualReservationInfo->save($this->newMealEntity(2, $this->farDate()));
+            $this->fail('DuplicateMealReservationException が出るはず');
+        } catch (DuplicateMealReservationException $e) {
+            $this->assertStringContainsString($this->farDate() . ' の夕食', $e->getMessage());
+        }
     }
 }

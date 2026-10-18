@@ -6,6 +6,7 @@ namespace App\Test\TestCase\Service;
 use App\Exception\ApprovedReservationException;
 use App\Service\ReservationChangeEditService;
 use Cake\Datasource\ConnectionManager;
+use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -215,5 +216,93 @@ class ReservationChangeEditServiceTest extends TestCase
                 ->first();
             $this->assertSame(1, (int)$row->i_change_flag, '承認済みの予約が変更されている');
         }
+    }
+
+    // ----------------------------------------------------------------
+    // processUpdate — 同じ食事を複数の部屋で同時に有効にしない（部屋の移動として扱う）
+    // ----------------------------------------------------------------
+
+    /** 直前期間（当日〜14日先）の日付 */
+    private function nearDate(): string
+    {
+        return Date::today()->addDays(3)->format('Y-m-d');
+    }
+
+    private function insertMeal(int $roomId, int $eat, int $chg): void
+    {
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user'          => 3,
+            'd_reservation_date' => $this->nearDate(),
+            'i_reservation_type' => 1,
+            'i_id_room'          => $roomId,
+            'eat_flag'           => $eat,
+            'i_change_flag'      => $chg,
+            'i_approval_status'  => 0,
+            'i_version'          => 1,
+            'dt_create'          => '2026-01-01 00:00:00',
+            'c_create_user'      => 'test',
+        ]);
+    }
+
+    private function eatInRoom(int $roomId): void
+    {
+        $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 1]]],
+            [3],
+            $this->nearDate(),
+            $roomId,
+            null,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+    }
+
+    /** @return array<int, array{int, int}> [roomId => [eat_flag, i_change_flag]] */
+    private function flagsByRoom(): array
+    {
+        $rows = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => 3, 'd_reservation_date' => $this->nearDate(), 'i_reservation_type' => 1])
+            ->orderByAsc('i_id_room')
+            ->all();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int)$r->i_id_room] = [(int)$r->eat_flag, (int)$r->i_change_flag];
+        }
+
+        return $map;
+    }
+
+    /** 部屋Aが有効（eat0/chg1）のまま部屋Bの行（当初予定あり・直前取消 1/0）を「食べる」にすると、Aが取り消される */
+    public function testProcessUpdate_eatInOtherRoom_cancelsEffectiveRoom(): void
+    {
+        $this->insertMeal(1, 0, 1);
+        $this->insertMeal(2, 1, 0);
+
+        $this->eatInRoom(2);
+
+        $this->assertSame([1 => [0, 0], 2 => [1, 1]], $this->flagsByRoom());
+    }
+
+    /** 部屋Bに取消済み行（0/0）があっても「食べる」にでき、部屋Aが取り消される */
+    public function testProcessUpdate_eatInRoomWithCancelledRow_cancelsEffectiveRoom(): void
+    {
+        $this->insertMeal(1, 0, 1);
+        $this->insertMeal(2, 0, 0);
+
+        $this->eatInRoom(2);
+
+        $this->assertSame([1 => [0, 0], 2 => [0, 1]], $this->flagsByRoom());
+    }
+
+    /** 行を書き換えて移すときは、取消済み行（部屋1）ではなく有効な行（部屋2）を移す */
+    public function testProcessUpdate_movesEffectiveRowRatherThanCancelledRow(): void
+    {
+        $this->insertMeal(1, 0, 0);
+        $this->insertMeal(2, 0, 1);
+
+        $this->eatInRoom(4);
+
+        $this->assertSame([1 => [0, 0], 4 => [0, 1]], $this->flagsByRoom());
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\UnauthorizedException;
 use App\Service\ReservationWriteService;
@@ -519,9 +520,51 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
 
         try {
             $this->service->processToggle(47, ['date' => $date, 'meal' => 3, 'value' => 1, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('DuplicateMealConflictException が出るはず');
+        } catch (DuplicateMealConflictException $e) {
+            $this->assertStringContainsString('の夕食は、別の部屋ですでに予約されています', $e->getMessage());
+            $this->assertSame([46 => 1], $this->eatFlagsByRoom(1, $date, 3));
+        }
+    }
+
+    /** 部屋の移動（新しい部屋のON → 古い部屋のOFF の順）でも両方成功し、結果は送った順番で返る */
+    public function testProcessBulkToggle_onBeforeOffForRoomMove_bothSucceedInSentOrder(): void
+    {
+        $this->addRoomMembership(1, 48, 0, 0); // 部屋A
+        $this->addRoomMembership(1, 49, 0, 0); // 部屋B
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 48, $date, 3);
+
+        $results = $this->service->processBulkToggle([
+            ['roomId' => 49, 'userId' => 1, 'date' => $date, 'meal' => 3, 'value' => 1],
+            ['roomId' => 48, 'userId' => 1, 'date' => $date, 'meal' => 3, 'value' => 0],
+        ], 1, '管理者ユーザー');
+
+        $this->assertSame([0, 1], array_keys($results), '結果が送った順番になっていない');
+        $this->assertTrue($results[0]['ok'], $results[0]['message'] ?? '');
+        $this->assertTrue($results[0]['value'], 'キー0は部屋BのONの結果のはず');
+        $this->assertTrue($results[1]['ok'], $results[1]['message'] ?? '');
+        $this->assertFalse($results[1]['value'], 'キー1は部屋AのOFFの結果のはず');
+        $this->assertSame([48 => 0, 49 => 1], $this->eatFlagsByRoom(1, $date, 3));
+    }
+
+    /** 移動元に取消済み行（0/0）しかないときは部屋変更を拒否し、移動先に行を作らない */
+    public function testProcessRoomChange_rejectsWhenSourceHasOnlyCancelledRow(): void
+    {
+        $this->addRoomMembership(1, 50, 0, 0);
+        $this->addRoomMembership(1, 51, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 50, $date, 3);
+        TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->updateAll(
+            ['eat_flag' => 0, 'i_change_flag' => 0],
+            ['i_id_user' => 1, 'i_id_room' => 50, 'd_reservation_date' => $date, 'i_reservation_type' => 3]
+        );
+
+        try {
+            $this->service->processRoomChange(50, 51, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
             $this->fail('ConflictException が出るはず');
         } catch (ConflictException $e) {
-            $this->assertSame([46 => 1], $this->eatFlagsByRoom(1, $date, 3));
+            $this->assertSame([50 => 0], $this->eatFlagsByRoom(1, $date, 3), '移動先に予約が作られている');
         }
     }
 }

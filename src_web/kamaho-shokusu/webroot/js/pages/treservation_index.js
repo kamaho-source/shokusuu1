@@ -757,8 +757,8 @@ function openModalById(id){
                         if (window.pageToast) window.pageToast(addedLabels + 'の予約を登録しました。', 'success');
                     }
                     if (skippedLabels && window.pageToast) {
-                        // サーバーは「登録済み」と「昼食・弁当の同時予約」を区別せずスキップする
-                        window.pageToast(skippedLabels + 'は登録できませんでした。すでに登録済みか、昼食とお弁当は同時に予約できないためです。', 'warning');
+                        // サーバーは「登録済み」「別の部屋で予約済み」「昼食・弁当の同時予約」を区別せずスキップする
+                        window.pageToast(skippedLabels + 'は登録できませんでした。すでに登録済みか、別の部屋で予約済みか、昼食とお弁当は同時に予約できないためです。', 'warning');
                     }
                     return true;
                 });
@@ -1052,7 +1052,10 @@ function openModalById(id){
 
                 var checkboxEntries = [];
                 availableMeals.forEach(function(m) {
-                    var blocked = isBlockedByConflict(m.idx);
+                    // 所属外（退出済み・削除済み）の部屋の予約は、本人では変更・取消できない（サーバーが拒否する）ので表示だけにする
+                    var lockedRoom = editMode && detail[m.key] && outsideRooms[String(detail[m.key + 'Room'])]
+                        ? String(detail[m.key + 'Room']) : null;
+                    var blocked = isBlockedByConflict(m.idx) || !!lockedRoom;
 
                     var row = document.createElement('div');
                     // 狭い画面では「予約する」を次の行へ回し、部屋名が読める幅を残す
@@ -1097,8 +1100,15 @@ function openModalById(id){
                     label.appendChild(span);
                     row.appendChild(label);
 
+                    if (lockedRoom) {
+                        var lockNote = document.createElement('div');
+                        lockNote.textContent = '「' + (allRoomNames[lockedRoom] || ('部屋' + lockedRoom)) + '」は所属外の部屋のため、ここでは変更できません。変更が必要な場合は管理者に連絡してください。';
+                        lockNote.style.cssText = 'flex-basis:100%;font-size:12px;color:#6b7280';
+                        row.appendChild(lockNote);
+                    }
+
                     picker.appendChild(row);
-                    checkboxEntries.push({ cb: cb, idx: m.idx, span: span, row: label, roomSel: roomSel, label: m.label, blocked: blocked });
+                    checkboxEntries.push({ cb: cb, idx: m.idx, span: span, row: label, roomSel: roomSel, label: m.label, blocked: blocked, locked: !!lockedRoom });
                 });
 
                 /** 全食事の部屋がそろっているかを見出し下に表示する */
@@ -1120,14 +1130,16 @@ function openModalById(id){
                             return;
                         }
                         hideConflictMsg();
-                        checkboxEntries.forEach(function(e) { if (!e.roomSel.disabled) e.roomSel.value = bulkSelectEl.value; });
+                        // 所属外の予約（表示だけの行）以外に当てる。昼食↔弁当で一時的に無効な行も、後で選べるようにそろえておく
+                        checkboxEntries.forEach(function(e) { if (!e.locked) e.roomSel.value = bulkSelectEl.value; });
                         updateRoomSummary();
                     });
                 }
                 updateRoomSummary();
 
                 // 動的排他制御：昼食↔弁当のチェック変化を監視
-                function updateLunchBentoExclusion() {
+                function updateLunchBentoExclusion(silent) {
+                    var notify = silent === true ? function() {} : showConflictMsg;
                     var lunchEntry = checkboxEntries.find(function(e) { return e.idx === 2; });
                     var bentoEntry = checkboxEntries.find(function(e) { return e.idx === 4; });
                     if (!lunchEntry || !bentoEntry) { if (!initialBlockMsg) hideConflictMsg(); return; }
@@ -1139,7 +1151,7 @@ function openModalById(id){
                         bentoEntry.span.style.color = '#adb5bd';
                         bentoEntry.row.style.cursor = 'not-allowed';
                         if (bentoEntry.roomSel) bentoEntry.roomSel.disabled = true;
-                        showConflictMsg('お昼を選択しているとお弁当は予約できません。');
+                        notify('お昼を選択しているとお弁当は予約できません。');
                     } else if (bentoEntry.cb.checked) {
                         lunchEntry.cb.checked  = false;
                         lunchEntry.cb.disabled = true;
@@ -1147,7 +1159,7 @@ function openModalById(id){
                         lunchEntry.span.style.color = '#adb5bd';
                         lunchEntry.row.style.cursor = 'not-allowed';
                         if (lunchEntry.roomSel) lunchEntry.roomSel.disabled = true;
-                        showConflictMsg('お弁当を選択しているとお昼は予約できません。');
+                        notify('お弁当を選択しているとお昼は予約できません。');
                     } else {
                         [lunchEntry, bentoEntry].forEach(function(e) {
                             e.cb.disabled = false;
@@ -1163,7 +1175,8 @@ function openModalById(id){
                 checkboxEntries.forEach(function(e) {
                     e.cb.addEventListener('change', updateLunchBentoExclusion);
                 });
-                if (editMode) updateLunchBentoExclusion();
+                // 新規でも、最初から昼食にチェックが入っていれば弁当を選べない状態から始める（メッセージは操作時だけ出す）
+                updateLunchBentoExclusion(!editMode);
 
                 var footer = document.createElement('div');
                 footer.style.cssText = 'display:flex;gap:10px;margin-top:12px';
@@ -1200,7 +1213,7 @@ function openModalById(id){
                     // 差分: 予約済み→未チェック＝取消 / 未予約→チェック＝追加 / 予約済みで部屋が変わった＝部屋変更
                     var removeIndices = editMode
                         ? checkboxEntries
-                            .filter(function(e) { return detail[MEAL_KEY_MAP[e.idx]] && selectedIndices.indexOf(e.idx) === -1; })
+                            .filter(function(e) { return !e.locked && detail[MEAL_KEY_MAP[e.idx]] && selectedIndices.indexOf(e.idx) === -1; })
                             .map(function(e) { return e.idx; })
                         : [];
                     var adds = selected.filter(function(e) { return !detail[MEAL_KEY_MAP[e.idx]]; });
@@ -1232,10 +1245,12 @@ function openModalById(id){
 
                     // 取消 → 部屋変更 → 追加の順に1つずつ実行する（昼食↔弁当の入れ替えで競合させない）。
                     // 1つでも失敗したら、その後は送らない（取消が拒否されたのに追加だけ通ると、意図しない状態になるため）
-                    var stopped = false;
+                    var failed = false;
+                    var stopped = false; // 失敗のため送らなかった処理があるか
                     function step(run) {
                         return function(ok) {
-                            if (stopped || ok === false) { stopped = true; return false; }
+                            if (ok === false) failed = true;
+                            if (failed) { stopped = true; return false; }
                             return run();
                         };
                     }

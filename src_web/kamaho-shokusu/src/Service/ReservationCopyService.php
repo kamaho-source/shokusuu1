@@ -442,6 +442,7 @@ class ReservationCopyService
      * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields
      * @return bool false = 楽観的ロック競合
      * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     * @throws \App\Exception\DuplicateMealReservationException 更新で有効になる行が、他の部屋の有効な予約と重なる場合
      */
     private function updateReservationRowWithVersion(object $row, array $updateFields): bool
     {
@@ -625,6 +626,11 @@ class ReservationCopyService
      */
     private function willSkipExisting(int $userId, int $roomId, string $date, int $mealType): bool
     {
+        // 本処理と同じく、別の部屋で同じ食事を予約済みならスキップに数える
+        if (array_diff($this->TIndividualReservationInfo->findEffectiveRoomIds($userId, $date, $mealType), [$roomId]) !== []) {
+            return true;
+        }
+
         $existing = $this->TIndividualReservationInfo->find()
             ->enableAutoFields(false)
             ->select(['eat_flag', 'i_approval_status'])

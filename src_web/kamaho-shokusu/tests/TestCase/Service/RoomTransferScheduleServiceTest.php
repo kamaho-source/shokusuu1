@@ -125,4 +125,83 @@ class RoomTransferScheduleServiceTest extends TestCase
         $this->assertSame(2, (int)$migrated->i_approval_status, '異動で承認状態がリセットされている');
         $this->assertSame(1, (int)$migrated->eat_flag);
     }
+
+    // ----------------------------------------------------------------
+    // 個人予約の移行 — 二重予約防止との組み合わせ
+    // ----------------------------------------------------------------
+
+    private function insertReservation(int $roomId, string $date, int $eat, int $chg): void
+    {
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user'          => 1,
+            'd_reservation_date' => $date,
+            'i_reservation_type' => 1,
+            'i_id_room'          => $roomId,
+            'eat_flag'           => $eat,
+            'i_change_flag'      => $chg,
+            'i_approval_status'  => 0,
+            'i_version'          => 1,
+            'dt_create'          => '2026-01-01 00:00:00',
+            'c_create_user'      => 'test',
+        ]);
+    }
+
+    private function scheduleTransfer(string $today): void
+    {
+        // user 1 を部屋1 → 部屋2 へ異動
+        ConnectionManager::get('test')->insert('m_room_transfer_schedule', [
+            'i_id_user'        => 1,
+            'i_id_room_from'   => 1,
+            'i_id_room_to'     => 2,
+            'd_effective_date' => $today,
+            'i_status'         => 0,
+            'dt_create'        => '2026-01-01 00:00:00',
+            'c_create_user'    => 'test',
+        ]);
+    }
+
+    /** @return array<int, int> [roomId => eat_flag] */
+    private function eatFlagsByRoom(string $date): array
+    {
+        $rows = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => 1])
+            ->orderByAsc('i_id_room')
+            ->all();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int)$r->i_id_room] = (int)$r->eat_flag;
+        }
+
+        return $map;
+    }
+
+    /** 移行先に取消済み行があっても、移行元の有効な予約が引き継がれて消えない */
+    public function testApplyPending_cancelledRowInDestination_takesOverEffectiveReservation(): void
+    {
+        $today  = Date::today('Asia/Tokyo')->format('Y-m-d');
+        $future = Date::today('Asia/Tokyo')->addDays(20)->format('Y-m-d');
+        $this->insertReservation(1, $future, 1, 1);
+        $this->insertReservation(2, $future, 0, 0);
+        $this->scheduleTransfer($today);
+
+        $result = $this->service->applyPending($today);
+
+        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $this->assertSame([2 => 1], $this->eatFlagsByRoom($future), '異動で予約が消えている');
+    }
+
+    /** 第三の部屋に以前からの二重予約が残っていても、異動は止まらない */
+    public function testApplyPending_existingDuplicateInThirdRoom_doesNotStopTransfer(): void
+    {
+        $today  = Date::today('Asia/Tokyo')->format('Y-m-d');
+        $future = Date::today('Asia/Tokyo')->addDays(20)->format('Y-m-d');
+        $this->insertReservation(1, $future, 1, 1);
+        $this->insertReservation(3, $future, 1, 1);
+        $this->scheduleTransfer($today);
+
+        $result = $this->service->applyPending($today);
+
+        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $this->assertSame([2 => 1, 3 => 1], $this->eatFlagsByRoom($future));
+    }
 }

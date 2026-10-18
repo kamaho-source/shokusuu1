@@ -6,6 +6,7 @@ namespace App\Service;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
+use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\Core\Configure;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
@@ -371,7 +372,7 @@ class ReservationBulkService
             if (!empty($selectedDates) && !empty($selectedMealTypes)) {
                 $existingRows = $reservationTable->find()
                     ->enableAutoFields(false)
-                    ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_version'])
+                    ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
                     ->where([
                         'd_reservation_date IN' => $selectedDates,
                         'i_reservation_type IN' => $selectedMealTypes,
@@ -383,7 +384,7 @@ class ReservationBulkService
                     $mealTypeKey = (int)$row->i_reservation_type;
                     $roomKey = (int)$row->i_id_room;
                     $existingRoomMap[$dateKey][$mealTypeKey][$roomKey] = $row;
-                    if ((int)$row->eat_flag === 1) {
+                    if (TIndividualReservationInfoTable::isEffectiveRow($row)) {
                         $existingActiveMap[$dateKey][$mealTypeKey] = $row;
                     }
                 }
@@ -509,7 +510,7 @@ class ReservationBulkService
                         $mealTypeKey = (int)$row->i_reservation_type;
                         $roomKey = (int)$row->i_id_room;
                         $existingRoomMap[$dateKey][$uid][$mealTypeKey][$roomKey] = $row;
-                        if ((int)$row->eat_flag === 1) {
+                        if (TIndividualReservationInfoTable::isEffectiveRow($row)) {
                             $existingActiveMap[$dateKey][$uid][$mealTypeKey] = $row;
                         }
                     }
@@ -652,7 +653,7 @@ class ReservationBulkService
                 if (!empty($selectedDates) && !empty($userIds)) {
                     $rows = $reservationTable->find()
                         ->enableAutoFields(false)
-                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_version'])
+                        ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
                         ->where([
                             'd_reservation_date IN' => $selectedDates,
                             'i_id_user IN' => $userIds,
@@ -665,7 +666,7 @@ class ReservationBulkService
                         $mealTypeKey = (int)$row->i_reservation_type;
                         $roomKey = (int)$row->i_id_room;
                         $existingRoomMap[$dateKey][$uid][$mealTypeKey][$roomKey] = $row;
-                        if ((int)$row->eat_flag === 1) {
+                        if (TIndividualReservationInfoTable::isEffectiveRow($row)) {
                             $existingActiveMap[$dateKey][$uid][$mealTypeKey] = $row;
                         }
                     }
@@ -1050,6 +1051,7 @@ class ReservationBulkService
      * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields
      * @return bool false = 楽観的ロック競合
      * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     * @throws \App\Exception\DuplicateMealReservationException 更新で有効になる行が、他の部屋の有効な予約と重なる場合
      */
     private function updateReservationRowWithVersion(Table $reservationTable, object $row, array $updateFields): bool
     {

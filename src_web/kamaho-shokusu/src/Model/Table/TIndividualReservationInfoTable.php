@@ -38,11 +38,16 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
-     * マルチテナント環境の DB では tenant_id / facility_id が NOT NULL のため、新規行に既定値を補完する。
+     * 保存前の処理。
+     *
+     * - 同じ利用者・日・食事が、他の部屋ですでに有効なら拒否する（二重予約の防止）。
+     *   実食の記録など、意図して対象外にする保存は $options['checkDuplicateRoom'] = false を渡す。
+     * - マルチテナント環境の DB では tenant_id / facility_id が NOT NULL のため、新規行に既定値を補完する。
      *
      * @param \Cake\Event\EventInterface<\Cake\ORM\Table> $event
      * @param \Cake\Datasource\EntityInterface $entity
      * @param \ArrayObject<string, mixed> $options
+     * @throws \App\Exception\DuplicateMealReservationException 他の部屋で同じ食事が有効な場合
      */
     public function beforeSave(EventInterface $event, EntityInterface $entity, ArrayObject $options): void
     {
@@ -161,6 +166,18 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
+     * 予約行（d_reservation_date・eat_flag・i_change_flag を持つ）が有効かどうか。
+     */
+    public static function isEffectiveRow(object $row): bool
+    {
+        $date = $row->d_reservation_date instanceof Date
+            ? $row->d_reservation_date->format('Y-m-d')
+            : (string)$row->d_reservation_date;
+
+        return self::effectiveValue($date, $row->eat_flag ?? null, $row->i_change_flag ?? null) === 1;
+    }
+
+    /**
      * 同じ利用者・日付・食事で、有効な予約がある部屋IDを返す。
      *
      * 有効値は、直前期間（当日〜14日先）なら i_change_flag、それ以外は eat_flag（集計と同じ基準）。
@@ -181,7 +198,7 @@ class TIndividualReservationInfoTable extends Table
 
         $roomIds = [];
         foreach ($rows as $r) {
-            if ($this->effectiveValue($date, $r->eat_flag, $r->i_change_flag) === 1) {
+            if (self::effectiveValue($date, $r->eat_flag, $r->i_change_flag) === 1) {
                 $roomIds[] = (int)$r->i_id_room;
             }
         }
@@ -206,21 +223,42 @@ class TIndividualReservationInfoTable extends Table
     ): void {
         $eat = $eatFlag === null ? null : (int)$eatFlag;
         $chg = $changeFlag === null ? null : (int)$changeFlag;
-        if ($this->effectiveValue($date, $eat, $chg) !== 1) {
+        if (self::effectiveValue($date, $eat, $chg) !== 1) {
             return;
         }
         $others = array_diff($this->findEffectiveRoomIds($userId, $date, $mealType), [$roomId], $selfRoomIds);
-        if ($others !== []) {
-            throw new DuplicateMealReservationException();
+        if ($others === []) {
+            return;
         }
+
+        // 一括処理でも原因が分かるよう、誰の・いつの・どの食事かを文言に入れる（失敗時だけ名前を引く）
+        $user = $this->MUserInfo->find()->select(['c_user_name'])->where(['i_id_user' => $userId])->first();
+        $who = $user !== null ? (string)$user->c_user_name : ('利用者ID ' . $userId);
+        $mealLabel = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'][$mealType] ?? '食事';
+        throw new DuplicateMealReservationException(
+            "{$who}さんの {$date} の{$mealLabel}は、別の部屋ですでに予約されています。画面を再読み込みしてください。"
+        );
     }
 
-    private function effectiveValue(string $date, ?int $eatFlag, ?int $changeFlag): int
+    /**
+     * 直前期間（当日〜14日先）かどうか。
+     */
+    public static function isLastMinute(string $date): bool
     {
         $d = new Date($date);
         $today = Date::today();
-        $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
-        if ($isLastMinute && $changeFlag !== null) {
+
+        return $d >= $today && $d <= $today->addDays(14);
+    }
+
+    /**
+     * 予約行の有効値（1=食べる）を返す。直前期間（当日〜14日先）は i_change_flag、それ以外は eat_flag。
+     */
+    public static function effectiveValue(string $date, int|string|null $eatFlag, int|string|null $changeFlag): int
+    {
+        $eatFlag = $eatFlag === null ? null : (int)$eatFlag;
+        $changeFlag = $changeFlag === null ? null : (int)$changeFlag;
+        if (self::isLastMinute($date) && $changeFlag !== null) {
             return $changeFlag;
         }
 
@@ -282,6 +320,7 @@ class TIndividualReservationInfoTable extends Table
      * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields 更新する列と値
      * @return bool true=更新成功 / false=楽観的ロック競合
      * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     * @throws \App\Exception\DuplicateMealReservationException 更新で有効になる行が、他の部屋の有効な予約と重なる場合
      */
     public function updateRowWithVersion(object $row, array $updateFields): bool
     {
@@ -292,15 +331,19 @@ class TIndividualReservationInfoTable extends Table
             ? $row->d_reservation_date->format('Y-m-d')
             : (string)$row->d_reservation_date;
 
-        $this->assertNotEffectiveInOtherRoom(
-            $userId,
-            $date,
-            $mealType,
-            (int)($updateFields['i_id_room'] ?? $roomId),
-            [$roomId],
-            $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
-            $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
-        );
+        // 無効→有効になる更新と、部屋を書き換える更新だけを確かめる（有効なままの更新は、既存の二重予約があっても止めない）
+        $roomChanged = isset($updateFields['i_id_room']) && (int)$updateFields['i_id_room'] !== $roomId;
+        if ($roomChanged || !self::isEffectiveRow($row)) {
+            $this->assertNotEffectiveInOtherRoom(
+                $userId,
+                $date,
+                $mealType,
+                (int)($updateFields['i_id_room'] ?? $roomId),
+                [$roomId],
+                $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
+                $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
+            );
+        }
 
         $expectedVersion = (int)($row->i_version ?? 1);
         $set = $updateFields;
@@ -343,6 +386,7 @@ class TIndividualReservationInfoTable extends Table
      * @return array{ value: bool, details: array{breakfast:bool,lunch:bool,dinner:bool,bento:bool} }
      * @throws \InvalidArgumentException $meal が 1〜4 以外の場合
      * @throws \App\Exception\ApprovedReservationException 対象または相互排他の相手が承認済みの場合
+     * @throws \App\Exception\DuplicateMealReservationException 他の部屋で同じ食事が有効な場合
      * @throws \Cake\ORM\Exception\PersistenceFailedException 新規保存失敗、または楽観的ロック競合の場合
      */
     public function toggleMeal(

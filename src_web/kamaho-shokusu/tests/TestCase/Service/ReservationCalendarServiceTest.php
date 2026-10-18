@@ -251,4 +251,22 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertSame(1, $details[$date]['breakfast']);
         $this->assertSame(3, $details[$date]['breakfastRoom']);
     }
+
+    public function testBuildMyReservationDetails_cancelledRowFirstThenEffectiveRow(): void
+    {
+        $date = Date::today()->addDays(41)->format('Y-m-d');
+        $db = ConnectionManager::get('test');
+        foreach ([[2, 0], [8, 1]] as [$roomId, $flag]) {
+            $db->insert('t_individual_reservation_info', [
+                'i_id_user' => 9903, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => $roomId,
+                'eat_flag' => $flag, 'i_change_flag' => $flag, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+            ]);
+        }
+
+        $details = $this->service->buildMyReservationDetails(TableRegistry::getTableLocator()->get('TIndividualReservationInfo'), 9903);
+
+        $this->assertSame(1, $details[$date]['dinner']);
+        $this->assertSame(8, $details[$date]['dinnerRoom']);
+    }
 }

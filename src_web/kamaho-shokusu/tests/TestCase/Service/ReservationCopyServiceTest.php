@@ -355,4 +355,22 @@ class ReservationCopyServiceTest extends TestCase
         $this->assertSame(1, $copy['skipped']);
         $this->assertSame(0, (int)$this->fetchRow('2030-01-15')->eat_flag, '承認済みの行が上書きされている');
     }
+
+    /**
+     * コピー先の日に別の部屋で同じ食事が有効なら、プレビューもスキップに数え、実行結果と一致する。
+     */
+    public function testPreviewSkipsWhenSameMealEffectiveInAnotherRoom(): void
+    {
+        $this->insertRow('2030-01-08');                          // コピー元（部屋1）
+        $this->insertRow('2030-01-15', ['i_id_room' => 2]);      // コピー先の日、別の部屋で有効
+
+        $preview = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false);
+        $copy    = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $preview['will_skip'], '別の部屋で有効な食事がプレビューでスキップに数えられていない');
+        $this->assertSame(0, $preview['will_copy']);
+        $this->assertSame($preview['will_copy'], $copy['copied']);
+        $this->assertSame($preview['will_skip'], $copy['skipped']);
+        $this->assertNull($this->fetchRow('2030-01-15'), '部屋1にもコピーされて二重予約になっている');
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\DomainException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\NotFoundException;
@@ -12,6 +13,7 @@ use App\Domain\Exception\UnauthorizedException;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
+use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
@@ -418,7 +420,9 @@ class ReservationWriteService
                 'details'  => $result['details'] ?? [],
                 'affected' => ['date' => $dateStr, 'roomId' => $roomId, 'userId' => $targetUserId],
             ];
-        } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
+        } catch (DuplicateMealReservationException $e) {
+            throw new DuplicateMealConflictException($e->getMessage());
+        } catch (ApprovedReservationException $e) {
             throw new ConflictException($e->getMessage());
         } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
             $errors = $e->getEntity()?->getErrors() ?? [];
@@ -464,7 +468,17 @@ class ReservationWriteService
         /** @var array<string, array{rooms: int[], users: int[]}> $affectedByDate */
         $affectedByDate = [];
 
-        foreach (array_values($items) as $i => $item) {
+        // 取消（value=0）を先に処理する。部屋を移す操作で「新しい部屋をON」が先に来ると、
+        // 二重予約として拒否されるため。結果は送られた順番（キー）のまま返す
+        $ordered = array_values($items);
+        uksort($ordered, static function (int $a, int $b) use ($ordered): int {
+            $va = (int)($ordered[$a]['value'] ?? 1) === 0 ? 0 : 1;
+            $vb = (int)($ordered[$b]['value'] ?? 1) === 0 ? 0 : 1;
+
+            return [$va, $a] <=> [$vb, $b];
+        });
+
+        foreach ($ordered as $i => $item) {
             $roomId  = (int)($item['roomId'] ?? $item['i_id_room'] ?? 0);
             $payload = [
                 'date'  => (string)($item['date'] ?? ''),
@@ -503,6 +517,7 @@ class ReservationWriteService
         foreach ($affectedByDate as $date => $a) {
             $this->invalidateCachesForDateRooms($date, $a['rooms'], $a['users']);
         }
+        ksort($results);
 
         return $results;
     }
@@ -729,7 +744,7 @@ class ReservationWriteService
         foreach ($selectedRoomPerMeal as $mealType => $roomId) {
             if ($roomId === null) {
                 foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
-                    if ((int)$row->eat_flag !== 1) {
+                    if (!TIndividualReservationInfoTable::isEffectiveRow($row)) {
                         continue;
                     }
                     if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
@@ -741,7 +756,7 @@ class ReservationWriteService
             }
 
             foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
-                if ((int)$row->i_id_room === (int)$roomId || (int)$row->eat_flag !== 1) {
+                if ((int)$row->i_id_room === (int)$roomId || !TIndividualReservationInfoTable::isEffectiveRow($row)) {
                     continue;
                 }
                 if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
@@ -753,7 +768,7 @@ class ReservationWriteService
             $existing = $existingMap[(int)$mealType][(int)$roomId] ?? null;
 
             if ($existing) {
-                if ((int)$existing->eat_flag === 0) {
+                if (!TIndividualReservationInfoTable::isEffectiveRow($existing)) {
                     if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
                         throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                     }
@@ -903,7 +918,7 @@ class ReservationWriteService
 
                 if ($valueInt !== 1) {
                     $existing = $existingMap[(int)$targetUserId][(int)$mealType][(int)$roomId] ?? null;
-                    if ($existing && (int)$existing->eat_flag === 1) {
+                    if ($existing && TIndividualReservationInfoTable::isEffectiveRow($existing)) {
                         if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
                             throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                         }
@@ -915,7 +930,7 @@ class ReservationWriteService
                 $existing     = $userMealRows[(int)$roomId] ?? null;
 
                 foreach ($userMealRows as $existingRoomId => $row) {
-                    if ((int)$existingRoomId === (int)$roomId || (int)$row->eat_flag !== 1) {
+                    if ((int)$existingRoomId === (int)$roomId || !TIndividualReservationInfoTable::isEffectiveRow($row)) {
                         continue;
                     }
                     if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
@@ -924,7 +939,7 @@ class ReservationWriteService
                 }
 
                 if ($existing) {
-                    if ((int)$existing->eat_flag === 0) {
+                    if (!TIndividualReservationInfoTable::isEffectiveRow($existing)) {
                         if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
                             throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                         }
@@ -966,6 +981,7 @@ class ReservationWriteService
      * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields
      * @return bool false = 楽観的ロック競合
      * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     * @throws \App\Exception\DuplicateMealReservationException 更新で有効になる行が、他の部屋の有効な予約と重なる場合
      */
     private function updateReservationRowWithVersion(object $row, array $updateFields): bool
     {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Table\TIndividualReservationInfoTable;
 use App\Model\Table\MRoomTransferScheduleTable;
 use Cake\Cache\Cache;
 use Cake\I18n\Date;
@@ -234,13 +235,40 @@ class RoomTransferScheduleService
             $mealType = (int)$old->i_reservation_type;
             $eatFlag  = (int)$old->eat_flag;
 
-            // 移行先に同一PKが既にある場合はスキップ（古い行のみ削除）
-            $alreadyExists = $indvResTable->exists([
-                'i_id_user'          => $userId,
-                'i_id_room'          => $roomToId,
-                'd_reservation_date' => $dateStr,
-                'i_reservation_type' => $mealType,
-            ]);
+            // 移行先に同一PKが既にある場合は新規作成しない（古い行のみ削除）。
+            // ただし移行先が取消済みの行（部屋変更で残る）なら、古い行の予約を引き継ぐ。そうしないと予約が消える
+            $destRow = $indvResTable->find()
+                ->where([
+                    'i_id_user'          => $userId,
+                    'i_id_room'          => $roomToId,
+                    'd_reservation_date' => $dateStr,
+                    'i_reservation_type' => $mealType,
+                ])
+                ->first();
+            $alreadyExists = $destRow !== null;
+            if ($destRow !== null
+                && !TIndividualReservationInfoTable::isEffectiveRow($destRow)
+                && TIndividualReservationInfoTable::isEffectiveRow($old)
+            ) {
+                $indvResTable->updateAll(
+                    [
+                        'eat_flag'      => $eatFlag,
+                        'i_change_flag' => (int)$old->i_change_flag,
+                        'c_update_user' => 'batch',
+                        'dt_update'     => $now,
+                    ],
+                    [
+                        'i_id_user'          => $userId,
+                        'i_id_room'          => $roomToId,
+                        'd_reservation_date' => $dateStr,
+                        'i_reservation_type' => $mealType,
+                    ]
+                );
+                if ($eatFlag === 1 && (int)$destRow->eat_flag !== 1) {
+                    $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomFromId, $mealType, -1, $now);
+                    $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomToId, $mealType, +1, $now);
+                }
+            }
 
             $indvResTable->deleteAll([
                 'i_id_user'          => $userId,
@@ -267,7 +295,9 @@ class RoomTransferScheduleService
                 // （引き継がないと承認済みの予約が未承認に戻る一方で集計だけ加算されてしまう）
                 // i_approval_status は mass assign 不可のため個別に設定する。
                 $newRow->set('i_approval_status', (int)($old->i_approval_status ?? 0));
-                $indvResTable->saveOrFail($newRow);
+                // 既存の行を部屋ごと移すだけで二重予約は増えないため、重複チェックは行わない
+                // （別の部屋に以前からの二重予約が残っていても、異動全体を止めない）
+                $indvResTable->saveOrFail($newRow, ['checkDuplicateRoom' => false]);
 
                 // eat_flag=1 の行だけ集計テーブルを更新
                 if ($eatFlag === 1) {

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Table\TIndividualReservationInfoTable;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
 use Cake\I18n\DateTime;
@@ -227,6 +228,7 @@ class ReservationChangeEditService
                         'd_reservation_date',
                         'i_reservation_type',
                         'i_id_room',
+                        'eat_flag',
                         'i_change_flag',
                         'i_version',
                     ])
@@ -241,7 +243,10 @@ class ReservationChangeEditService
                     $mealType = (int)$row->i_reservation_type;
                     $rid = (int)$row->i_id_room;
                     $existingByRoom[$uid][$mealType][$rid] = $row;
-                    $existingAny[$uid][$mealType] ??= $row;
+                    // 部屋を書き換えて移すときは、有効な行を優先して選ぶ（取消済みの行を移すと二重予約になる）
+                    if (!isset($existingAny[$uid][$mealType]) || TIndividualReservationInfoTable::isEffectiveRow($row)) {
+                        $existingAny[$uid][$mealType] = $row;
+                    }
                 }
             }
 
@@ -291,6 +296,23 @@ class ReservationChangeEditService
                         }
 
                         $targetRow = $existingInRoom ?? $existingForMeal;
+                        // この部屋で食べるなら、他の部屋で有効な同じ食事は取り消す（部屋の移動として扱う）
+                        if ($changeFlag === 1) {
+                            foreach ($existingByRoom[$userId][$mealType] ?? [] as $otherRoomId => $otherRow) {
+                                if ($otherRow === $targetRow || !TIndividualReservationInfoTable::isEffectiveRow($otherRow)) {
+                                    continue;
+                                }
+                                $rowsToUpdate[implode(':', [$userId, $mealType, (int)$otherRoomId])] = [
+                                    'row' => $otherRow,
+                                    // 直前期間の当初予定（eat_flag）は残す。直前期間外は eat_flag が有効値なので 0 にする
+                                    'set' => [
+                                        'i_change_flag' => 0,
+                                        'c_update_user' => $loginUser?->get('c_user_name') ?? 'system',
+                                        'dt_update' => DateTime::now('Asia/Tokyo'),
+                                    ] + (TIndividualReservationInfoTable::isLastMinute($date) ? [] : ['eat_flag' => 0]),
+                                ];
+                            }
+                        }
                         if ((int)$targetRow->i_change_flag !== $changeFlag || (int)$targetRow->i_id_room !== $roomId) {
                             $updateKey = implode(':', [$userId, $mealType, (int)$targetRow->i_id_room]);
                             $rowsToUpdate[$updateKey] = [
@@ -357,6 +379,7 @@ class ReservationChangeEditService
      * @param array{eat_flag?: int, i_change_flag?: int, i_id_room?: int, c_update_user?: string, dt_update?: \Cake\I18n\DateTime} $updateFields
      * @return bool false = 楽観的ロック競合
      * @throws \App\Exception\ApprovedReservationException 承認済み行を更新しようとした場合
+     * @throws \App\Exception\DuplicateMealReservationException 更新で有効になる行が、他の部屋の有効な予約と重なる場合
      */
     private function updateReservationRowWithVersion(Table $reservationTable, object $row, array $updateFields): bool
     {
