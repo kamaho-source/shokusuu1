@@ -246,6 +246,10 @@ class RoomTransferScheduleService
                 ])
                 ->first();
             $alreadyExists = $destRow !== null;
+            // 集計（t_reservation_info）は eat_flag=1 の行数。移行先に行がある場合も、移行元の行は消えるので -1 する
+            if ($alreadyExists && $eatFlag === 1) {
+                $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomFromId, $mealType, -1, $now);
+            }
             if ($destRow !== null
                 && !TIndividualReservationInfoTable::isEffectiveRow($destRow)
                 && TIndividualReservationInfoTable::isEffectiveRow($old)
@@ -267,12 +271,10 @@ class RoomTransferScheduleService
                         'i_reservation_type' => $mealType,
                     ]
                 );
-                // 集計は eat_flag=1 の行数。移行元の行は消えるので -1、移行先は 0→1 になったときだけ +1
-                if ($eatFlag === 1) {
-                    $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomFromId, $mealType, -1, $now);
-                }
-                if ($eatFlag === 1 && (int)$destRow->eat_flag !== 1) {
-                    $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomToId, $mealType, +1, $now);
+                // 移行先の eat_flag が変わった分だけ、移行先の集計を増減する
+                $destDelta = $eatFlag - ((int)$destRow->eat_flag === 1 ? 1 : 0);
+                if ($destDelta !== 0) {
+                    $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomToId, $mealType, $destDelta, $now);
                 }
             }
 

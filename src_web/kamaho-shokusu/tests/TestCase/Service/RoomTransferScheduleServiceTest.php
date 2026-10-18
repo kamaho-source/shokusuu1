@@ -204,4 +204,33 @@ class RoomTransferScheduleServiceTest extends TestCase
         $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
         $this->assertSame([2 => 1, 3 => 1], $this->eatFlagsByRoom($future));
     }
+
+    /** 移行先に有効な行があっても、移行元の行は消えるので、移行元の部屋の人数を1減らす */
+    public function testApplyPending_destinationAlreadyEffective_decrementsSourceCount(): void
+    {
+        $today  = Date::today('Asia/Tokyo')->format('Y-m-d');
+        $future = Date::today('Asia/Tokyo')->addDays(20)->format('Y-m-d');
+        $this->insertReservation(1, $future, 1, 1);
+        $this->insertReservation(2, $future, 1, 1);
+        $db = ConnectionManager::get('test');
+        foreach ([1, 2] as $roomId) {
+            $db->insert('t_reservation_info', [
+                'd_reservation_date' => $future, 'i_id_room' => $roomId, 'c_reservation_type' => 1,
+                'i_taberu_ninzuu' => 1, 'i_tabenai_ninzuu' => 0,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+            ]);
+        }
+        $this->scheduleTransfer($today);
+
+        $result = $this->service->applyPending($today);
+
+        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $counts = [];
+        foreach (TableRegistry::getTableLocator()->get('TReservationInfo')->find()
+            ->where(['d_reservation_date' => $future, 'c_reservation_type' => 1])->all() as $r) {
+            $counts[(int)$r->i_id_room] = (int)$r->i_taberu_ninzuu;
+        }
+        $this->assertSame(0, $counts[1] ?? null, '移行元の人数が減っていない');
+        $this->assertSame(1, $counts[2] ?? null);
+    }
 }

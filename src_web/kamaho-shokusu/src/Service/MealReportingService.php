@@ -89,6 +89,24 @@ class MealReportingService
             $this->invalidateCaches($userId, $rid, $today);
         }
 
+        // 承認済みの食事は変えていないので、黙って「報告しました」にしない
+        $approvedRows = $reservationTable->find()
+            ->enableAutoFields(false)
+            ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
+            ->where([
+                'i_id_user'            => $userId,
+                'd_reservation_date'   => $today,
+                'i_approval_status IN' => TIndividualReservationInfoTable::APPROVED_STATUSES,
+            ])
+            ->all();
+        $approvedLeft = false;
+        foreach ($approvedRows as $r) {
+            $approvedLeft = $approvedLeft || TIndividualReservationInfoTable::isEffectiveRow($r);
+        }
+        if ($approvedLeft) {
+            return ['ok' => true, 'message' => '食べないで報告しました。承認済みの食事は変更されていません。'];
+        }
+
         return ['ok' => true, 'message' => '食べないで報告しました。'];
     }
 
@@ -149,6 +167,10 @@ class MealReportingService
                                 'd_reservation_date' => $today,
                                 'i_reservation_type' => $mealType,
                                 'i_id_room'          => $roomId,
+                                'OR' => [
+                                    'i_approval_status IS'     => null,
+                                    'i_approval_status NOT IN' => TIndividualReservationInfoTable::APPROVED_STATUSES,
+                                ],
                             ]
                         );
                         continue;
