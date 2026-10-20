@@ -12,24 +12,29 @@ jobs:
     steps:
       - name: Check source branch for PR to main
         if: github.base_ref == 'main'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [[ "${{ github.head_ref }}" != release ]] && \
-             [[ "${{ github.head_ref }}" != release/* ]]; then
-            echo "ERROR: main へのPRは release または release/* ブランチからのみ許可されています。"
-            echo "現在のブランチ: ${{ github.head_ref }}"
+          if [[ "$HEAD_REF" != release ]] && \
+             [[ "$HEAD_REF" != release/* ]] && \
+             [[ "$HEAD_REF" != hotfix/* ]]; then
+            echo "ERROR: main へのPRは release・release/*・hotfix/* ブランチからのみ許可されています。"
+            echo "現在のブランチ: $HEAD_REF"
             exit 1
           fi
-          echo "OK: ${{ github.head_ref }} -> main"
+          echo "OK: $HEAD_REF -> main"
 
       - name: Check source branch for PR to develop
         if: github.base_ref == 'develop'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [[ "${{ github.head_ref }}" != feature/* ]] && \
-             [[ "${{ github.head_ref }}" != fix/* ]] && \
-             [[ "${{ github.head_ref }}" != hotfix/* ]] && \
-             [[ "${{ github.head_ref }}" != main ]]; then
+          if [[ "$HEAD_REF" != feature/* ]] && \
+             [[ "$HEAD_REF" != fix/* ]] && \
+             [[ "$HEAD_REF" != hotfix/* ]] && \
+             [[ "$HEAD_REF" != main ]]; then
             echo "ERROR: develop へのPRは feature/・fix/・hotfix/・main ブランチからのみ許可されています。"
-            echo "現在のブランチ: ${{ github.head_ref }}"
+            echo "現在のブランチ: $HEAD_REF"
             exit 1
           fi
-          echo "OK: ${{ github.head_ref }} -> develop"
+          echo "OK: $HEAD_REF -> develop"

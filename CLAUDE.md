@@ -139,7 +139,7 @@ git checkout -b feature/xxx origin/main
 gh pr create --base develop --title "feat: 機能名" --body "..."
 ```
 
-**本番リリースは `release` ブランチを介して行うこと（develop → release → main）。develop から直接 main へはマージしない**（`branch-check` が `release`・`release/*` 以外の main 向けPRを弾く）。
+**本番リリースは `release` ブランチを介して行うこと（develop → release → main）。develop から直接 main へはマージしない**（`branch-check` が `release`・`release/*`・`hotfix/*` 以外の main 向けPRを弾く。`hotfix/*` は緊急修正用で、main へマージ後に release・develop へ cherry-pick する）。
 
 ```bash
 # ① develop の内容を release へ昇格
