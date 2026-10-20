@@ -91,7 +91,7 @@ class MUserInfoPolicy
     }
 
     /**
-     * ユーザー登録（個別・一括）ができるか。管理者・システム管理者・ブロック長・職員(i_user_level=0)。
+     * ユーザー登録（個別・一括）ができるか。管理者・システム管理者・ブロック長・職員(i_user_level=0 と 7)。
      */
     private function canRegisterUsers(?IdentityInterface $user): bool
     {
@@ -110,10 +110,8 @@ class MUserInfoPolicy
             return $v === null ? -1 : (int)$v;
         };
 
-        $admin = $get('i_admin');
-        return UserRole::isAdmin($admin)
-            || UserRole::isBlockLeader($admin)
-            || $get('i_user_level') === 0;
+        $level = $get('i_user_level');
+        return UserRole::canRegisterUsers($get('i_admin'), $level === -1 ? null : $level);
     }
 
     private function isAdmin(?IdentityInterface $user): bool

@@ -16,6 +16,9 @@ final class UserRole
     public const BLOCK_LEADER = 2;
     public const SYSTEM_ADMIN = 3;
 
+    /** 職員として扱う i_user_level（0 と 7。予約まわりの職員判定と同じ）。 */
+    public const STAFF_LEVELS = [0, 7];
+
     /** 管理者またはシステム管理者かどうかを返す。 */
     public static function isAdmin(int $value): bool
     {
@@ -26,6 +29,16 @@ final class UserRole
     public static function isBlockLeader(int $value): bool
     {
         return $value === self::BLOCK_LEADER;
+    }
+
+    /**
+     * ユーザー登録（個別・一括）ができるロールかを返す。管理者・システム管理者・ブロック長・職員(i_user_level=0 と 7)。
+     * 権限判定（MUserInfoPolicy）とメニュー表示（レイアウト）の両方がこれを使う。
+     * i_user_level が未設定(NULL)のときは職員とみなさない。
+     */
+    public static function canRegisterUsers(int $iAdmin, ?int $userLevel): bool
+    {
+        return self::isAdmin($iAdmin) || self::isBlockLeader($iAdmin) || in_array($userLevel, self::STAFF_LEVELS, true);
     }
 
     /** システム管理者かどうかを返す。 */

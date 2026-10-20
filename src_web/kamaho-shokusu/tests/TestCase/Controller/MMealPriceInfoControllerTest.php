@@ -156,6 +156,45 @@ class MMealPriceInfoControllerTest extends TestCase
         $this->assertResponseCode(403);
     }
 
+    /**
+     * 単価一覧・詳細は管理者のみ。ブロック長・職員・児童は閲覧できず、ログイン画面・一覧へ戻される。
+     *
+     * @return array<string, array{int, int, bool}>
+     */
+    public static function priceViewProvider(): array
+    {
+        return [
+            '管理者'         => [1, 0, true],
+            'システム管理者' => [3, 0, true],
+            'ブロック長'     => [2, 0, false],
+            '職員'           => [0, 0, false],
+            '児童'           => [0, 1, false],
+        ];
+    }
+
+    /**
+     * @dataProvider priceViewProvider
+     */
+    public function testIndexAndGetMealSummaryOnlyForAdmin(int $iAdmin, int $userLevel, bool $allowed): void
+    {
+        // 権限はセッション値ではなく DB の値で判定されるため、DB 側を更新する
+        $this->getTableLocator()->get('MUserInfo')->updateAll(
+            ['i_admin' => $iAdmin, 'i_user_level' => $userLevel],
+            ['i_id_user' => 2]
+        );
+        $this->session(['Auth' => ['i_id_user' => 2, 'c_login_account' => 'staff_user', 'c_user_name' => 'テスト', 'i_admin' => $iAdmin, 'i_user_level' => $userLevel]]);
+
+        $this->get('/MMealPriceInfo');
+        $allowed ? $this->assertResponseOk() : $this->assertRedirectContains('/MUserInfo/login');
+
+        $this->get('/MMealPriceInfo/view/1');
+        $allowed ? $this->assertResponseOk() : $this->assertRedirectContains('/MMealPriceInfo');
+
+        // 食事控除表は拒否を例外のまま返す（exportMealSummary と同じく 403）
+        $this->get('/MMealPriceInfo/GetMealSummary');
+        $allowed ? $this->assertResponseOk() : $this->assertResponseCode(403);
+    }
+
     private function setAuthenticatedSession(): void
     {
         $this->session([
