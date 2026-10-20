@@ -49,15 +49,14 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             <thead class="table-hover">
             <tr>
                 <th class="d-none d-md-table-cell" style="width:5%;"><?= $this->Paginator->sort('i_id_user', ['label' => 'No.']) ?></th>
-                <th style="width:10%;"><?= $this->Paginator->sort('c_login_account', ['label' => 'ログインID']) ?></th>
                 <th><?= $this->Paginator->sort('c_user_name', ['label' => 'ユーザー名']) ?></th>
+                <th class="d-none d-md-table-cell" style="width:8%;"><?= $this->Paginator->sort('i_disp_no', ['label' => '表示順']) ?></th>
                 <th><?= __('所属部屋') ?></th>
                 <?php if ($isAdmin || $isSystemAdmin): ?>
                     <th><?= __('ブロック長') ?></th>
                     <th><?= __('管理者権限') ?></th>
                     <?php if ($isSystemAdmin): ?>
                         <th><?= __('システム管理者') ?></th>
-                        <th><?= __('レポート閲覧') ?></th>
                     <?php endif; ?>
                 <?php endif; ?>
                 <th class="actions"><?= __('操作') ?></th>
@@ -67,8 +66,8 @@ $csrfToken = $this->request->getAttribute('csrfToken');
             <?php foreach ($mUserInfo as $userInfo): ?>
                 <tr data-role="<?= (int)($userInfo->i_admin ?? 0) ?>">
                     <td class="d-none d-md-table-cell text-muted small"><?= h($userInfo->i_id_user) ?></td>
-                    <td><?= h($userInfo->c_login_account) ?></td>
                     <td><?= h($userInfo->c_user_name) ?></td>
+                    <td class="d-none d-md-table-cell text-center"><?= $userInfo->i_disp_no !== null ? $this->Number->format($userInfo->i_disp_no) : '' ?></td>
                     <td><?= h($userRoomLabels[$userInfo->i_id_user] ?? '未所属') ?></td>
                     <?php if ($isAdmin || $isSystemAdmin): ?>
                         <td class="text-center">
@@ -93,14 +92,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                                 <div class="form-check form-switch d-inline-block">
                                     <input class="form-check-input system-admin-checkbox" type="checkbox" role="switch"
                                            <?= (int)$userInfo->i_admin === 3 ? 'checked' : '' ?>
-                                           data-user-id="<?= h($userInfo->i_id_user) ?>"
-                                           data-user-name="<?= h($userInfo->c_user_name) ?>">
-                                </div>
-                            </td>
-                            <td class="text-center">
-                                <div class="form-check form-switch d-inline-block">
-                                    <input class="form-check-input report-access-checkbox" type="checkbox" role="switch"
-                                           <?= (int)$userInfo->i_report_access === 1 ? 'checked' : '' ?>
                                            data-user-id="<?= h($userInfo->i_id_user) ?>"
                                            data-user-name="<?= h($userInfo->c_user_name) ?>">
                                 </div>
@@ -279,38 +270,6 @@ $csrfToken = $this->request->getAttribute('csrfToken');
                         window.ConfirmPopup.showResult('エラーが発生しました。', false);
                     }
                 });
-            });
-        });
-
-        // ---- レポート閲覧権限トグル ----
-        document.querySelectorAll('.report-access-checkbox').forEach(cb => {
-            cb.addEventListener('change', async function () {
-                const userId       = this.getAttribute('data-user-id');
-                const userName     = this.getAttribute('data-user-name');
-                const reportAccess = this.checked ? 1 : 0;
-                const message      = reportAccess
-                    ? `${userName} にシステムレポートの閲覧権限を付与しますか？`
-                    : `${userName} からシステムレポートの閲覧権限を削除しますか？`;
-
-                const ok = await window.ConfirmPopup.show(message);
-                if (!ok) { this.checked = !this.checked; return; }
-
-                fetch(BASE_PATH + '/MUserInfo/update-report-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
-                    body: JSON.stringify({ i_id_user: userId, i_report_access: reportAccess })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
-                    if (payload.ok === true || payload.success) {
-                        window.ConfirmPopup.showResult('レポート閲覧権限を更新しました。');
-                    } else {
-                        window.ConfirmPopup.showResult(payload.message || 'レポート閲覧権限の更新に失敗しました。', false);
-                        this.checked = !this.checked;
-                    }
-                })
-                .catch(() => { window.ConfirmPopup.showResult('エラーが発生しました。', false); this.checked = !this.checked; });
             });
         });
 

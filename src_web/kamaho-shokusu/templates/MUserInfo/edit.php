@@ -4,18 +4,15 @@
  * @var \App\Model\Entity\MUserInfo $mUserInfo
  * @var array $rooms
  * @var array $selectedRooms
- * @var \App\Model\Entity\User $user
  */
 $this->assign('title', 'ユーザー情報の編集');
 // $rooms は部屋情報の配列としてコントローラから渡されることを想定しています。
 // $selectedRooms はユーザーが現在所属している部屋のID配列です。
-$isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
 ?>
 <div class="row">
     <aside class="col-md-3">
         <div class="list-group">
             <h4 class="list-group-item list-group-item-action active"><?= __('操作') ?></h4>
-            <?= $this->Html->link(__('ユーザー詳細を表示する'), ['action' => 'view', $mUserInfo->i_id_user], ['class' => 'list-group-item list-group-item-action']) ?>
             <?= $this->Html->link(__('ユーザー情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
         </div>
     </aside>
@@ -39,15 +36,6 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
                             'class' => 'form-control'
                         ]) ?>
                     </div>
-                    <?php if ($isAdmin && (int)($mUserInfo->i_del_flag ?? 1) === 0): ?>
-                        <div class="mb-3">
-                            <?= $this->Html->link(
-                                __('🔑 パスワード変更'),
-                                ['action' => 'adminChangePassword', '?' => ['user_id' => $mUserInfo->i_id_user]],
-                                ['class' => 'btn btn-outline-primary btn-sm']
-                            ) ?>
-                        </div>
-                    <?php endif; ?>
                     <div class="mb-3">
                         <label>所属部屋</label>
                         <?php foreach ($rooms as $id => $name): ?>
