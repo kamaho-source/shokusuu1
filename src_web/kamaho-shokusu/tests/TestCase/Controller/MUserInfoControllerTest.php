@@ -460,7 +460,7 @@ class MUserInfoControllerTest extends TestCase
     /**
      * ナビの「ユーザ一覧」は、ユーザー登録ができる人（管理者・ブロック長・職員0）だけに出る。
      *
-     * @return array<string, array{int, int, bool}>
+     * @return array<string, array{int, int|null, bool}>
      */
     public static function userListMenuProvider(): array
     {
@@ -472,13 +472,14 @@ class MUserInfoControllerTest extends TestCase
             '職員(7)'        => [0, 7, false],
             '児童'           => [0, 1, false],
             'その他'         => [0, 3, false],
+            '役職未設定'     => [0, null, false],
         ];
     }
 
     /**
      * @dataProvider userListMenuProvider
      */
-    public function testUserListMenuVisibility(int $iAdmin, int $userLevel, bool $visible): void
+    public function testUserListMenuVisibility(int $iAdmin, ?int $userLevel, bool $visible): void
     {
         // 権限はセッション値ではなく DB の値で判定されるため、DB 側を更新する
         $this->getTableLocator()->get('MUserInfo')->updateAll(
@@ -499,6 +500,10 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $marker = '<i class="bi bi-people"></i>ユーザ一覧';
         $visible ? $this->assertResponseContains($marker) : $this->assertResponseNotContains($marker);
+
+        // 入口が見える人は、登録画面にも実際に進める
+        $this->get('/MUserInfo/add');
+        $visible ? $this->assertResponseOk() : $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']);
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true): void

@@ -41,9 +41,9 @@ $isAdmin    = in_array($iAdmin, [1, 3]);
 $isSysAdmin = ($iAdmin === 3);
 $isStaff    = $user && ($isAdmin || in_array((int)$user->i_user_level, [0, 7]));
 $isChild    = $user && (int)$user->i_user_level === 1;
-// ユーザー登録ができる人（MUserInfoPolicy::canRegisterUsers と同じ条件）だけに一覧への入口を出す
+// ユーザー登録ができる人（MUserInfoPolicy::canRegisterUsers と同じ条件。NULL は職員とみなさない）だけに一覧への入口を出す
 // ponytail: Policy と二重管理。条件が増えるなら View に判定結果を渡す形にする
-$canOpenUserList = $user && ($isAdmin || $iAdmin === 2 || (int)$user->i_user_level === 0);
+$canOpenUserList = $user && ($isAdmin || $iAdmin === 2 || ($user->i_user_level !== null && (int)$user->i_user_level === 0));
 $notificationUnreadCount = $notificationUnreadCount ?? 0;
 $recentNotifications     = $recentNotifications ?? [];
 ?>
@@ -88,7 +88,8 @@ $recentNotifications     = $recentNotifications ?? [];
                         <?php endif; ?>
                     <?php endif; ?>
 
-                    <?php if ($user && $user->i_admin): ?>
+                    <?php /* 単価一覧・食事控除表・部屋異動予約はいずれも管理者専用 */ ?>
+                    <?php if ($user && $isAdmin): ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" id="adminDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-journal-text"></i>予約管理
