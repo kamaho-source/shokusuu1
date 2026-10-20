@@ -41,6 +41,9 @@ $isAdmin    = in_array($iAdmin, [1, 3]);
 $isSysAdmin = ($iAdmin === 3);
 $isStaff    = $user && ($isAdmin || in_array((int)$user->i_user_level, [0, 7]));
 $isChild    = $user && (int)$user->i_user_level === 1;
+// ユーザー登録ができる人（MUserInfoPolicy::canRegisterUsers と同じ条件）だけに一覧への入口を出す
+// ponytail: Policy と二重管理。条件が増えるなら View に判定結果を渡す形にする
+$canOpenUserList = $user && ($isAdmin || $iAdmin === 2 || (int)$user->i_user_level === 0);
 $notificationUnreadCount = $notificationUnreadCount ?? 0;
 $recentNotifications     = $recentNotifications ?? [];
 ?>
@@ -76,7 +79,7 @@ $recentNotifications     = $recentNotifications ?? [];
                                 <i class="bi bi-door-open"></i>部屋情報
                             </a>
                         </li>
-                        <?php if ($isAdmin): ?>
+                        <?php if ($canOpenUserList): ?>
                             <li class="nav-item">
                                 <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>">
                                     <i class="bi bi-people"></i>ユーザ一覧

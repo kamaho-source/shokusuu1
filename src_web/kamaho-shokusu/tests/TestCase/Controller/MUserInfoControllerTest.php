@@ -457,6 +457,50 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(0, (int)$created->i_del_flag);
     }
 
+    /**
+     * ナビの「ユーザ一覧」は、ユーザー登録ができる人（管理者・ブロック長・職員0）だけに出る。
+     *
+     * @return array<string, array{int, int, bool}>
+     */
+    public static function userListMenuProvider(): array
+    {
+        return [
+            '管理者'         => [1, 0, true],
+            'システム管理者' => [3, 0, true],
+            'ブロック長'     => [2, 0, true],
+            '職員(0)'        => [0, 0, true],
+            '職員(7)'        => [0, 7, false],
+            '児童'           => [0, 1, false],
+            'その他'         => [0, 3, false],
+        ];
+    }
+
+    /**
+     * @dataProvider userListMenuProvider
+     */
+    public function testUserListMenuVisibility(int $iAdmin, int $userLevel, bool $visible): void
+    {
+        // 権限はセッション値ではなく DB の値で判定されるため、DB 側を更新する
+        $this->getTableLocator()->get('MUserInfo')->updateAll(
+            ['i_admin' => $iAdmin, 'i_user_level' => $userLevel],
+            ['i_id_user' => 2]
+        );
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 2,
+                'c_login_account' => 'staff_user',
+                'c_user_name'     => 'テストユーザー',
+                'i_admin'         => $iAdmin,
+                'i_user_level'    => $userLevel,
+                'i_id_room'       => 1,
+            ],
+        ]);
+        $this->get('/MUserInfo');
+        $this->assertResponseOk();
+        $marker = '<i class="bi bi-people"></i>ユーザ一覧';
+        $visible ? $this->assertResponseContains($marker) : $this->assertResponseNotContains($marker);
+    }
+
     private function setAuthenticatedSession(bool $isAdmin = true): void
     {
         $this->session([
