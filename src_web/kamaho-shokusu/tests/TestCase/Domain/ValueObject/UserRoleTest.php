@@ -124,7 +124,7 @@ class UserRoleTest extends TestCase
             'システム管理者'         => [3, 1, true],
             'ブロック長'             => [2, 1, true],
             '職員(0)'                => [0, 0, true],
-            '職員(7)'                => [0, 7, false],
+            '職員(7)'                => [0, 7, true],
             '児童'                   => [0, 1, false],
             '役職未設定は職員でない' => [0, null, false],
         ];

@@ -91,7 +91,7 @@ class MUserInfoPolicy
     }
 
     /**
-     * ユーザー登録（個別・一括）ができるか。管理者・システム管理者・ブロック長・職員(i_user_level=0)。
+     * ユーザー登録（個別・一括）ができるか。管理者・システム管理者・ブロック長・職員(i_user_level=0 と 7)。
      */
     private function canRegisterUsers(?IdentityInterface $user): bool
     {
