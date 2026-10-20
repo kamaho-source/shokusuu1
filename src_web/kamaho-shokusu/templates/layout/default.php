@@ -41,9 +41,11 @@ $isAdmin    = in_array($iAdmin, [1, 3]);
 $isSysAdmin = ($iAdmin === 3);
 $isStaff    = $user && ($isAdmin || in_array((int)$user->i_user_level, [0, 7]));
 $isChild    = $user && (int)$user->i_user_level === 1;
-// ユーザー登録ができる人（MUserInfoPolicy::canRegisterUsers と同じ条件。NULL は職員とみなさない）だけに一覧への入口を出す
-// ponytail: Policy と二重管理。条件が増えるなら View に判定結果を渡す形にする
-$canOpenUserList = $user && ($isAdmin || $iAdmin === 2 || ($user->i_user_level !== null && (int)$user->i_user_level === 0));
+// ユーザー登録ができる人（MUserInfoPolicy と同じ UserRole::canRegisterUsers）だけに一覧への入口を出す
+$canOpenUserList = $user && \App\Domain\ValueObject\UserRole::canRegisterUsers(
+    $iAdmin,
+    $user->i_user_level === null ? null : (int)$user->i_user_level
+);
 $notificationUnreadCount = $notificationUnreadCount ?? 0;
 $recentNotifications     = $recentNotifications ?? [];
 ?>

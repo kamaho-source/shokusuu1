@@ -28,6 +28,16 @@ final class UserRole
         return $value === self::BLOCK_LEADER;
     }
 
+    /**
+     * ユーザー登録（個別・一括）ができるロールかを返す。管理者・システム管理者・ブロック長・職員(i_user_level=0)。
+     * 権限判定（MUserInfoPolicy）とメニュー表示（レイアウト）の両方がこれを使う。
+     * i_user_level が未設定(NULL)のときは職員とみなさない。
+     */
+    public static function canRegisterUsers(int $iAdmin, ?int $userLevel): bool
+    {
+        return self::isAdmin($iAdmin) || self::isBlockLeader($iAdmin) || $userLevel === 0;
+    }
+
     /** システム管理者かどうかを返す。 */
     public static function isSystemAdmin(int $value): bool
     {

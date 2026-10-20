@@ -110,10 +110,8 @@ class MUserInfoPolicy
             return $v === null ? -1 : (int)$v;
         };
 
-        $admin = $get('i_admin');
-        return UserRole::isAdmin($admin)
-            || UserRole::isBlockLeader($admin)
-            || $get('i_user_level') === 0;
+        $level = $get('i_user_level');
+        return UserRole::canRegisterUsers($get('i_admin'), $level === -1 ? null : $level);
     }
 
     private function isAdmin(?IdentityInterface $user): bool
