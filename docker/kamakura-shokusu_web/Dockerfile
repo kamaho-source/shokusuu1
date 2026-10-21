@@ -1,4 +1,5 @@
-FROM php:8.3-apache
+# CVE-2026-109618 / CVE-2026-109619（php2shell）修正版。`8.3-apache` タグが 8.3.36 以降を指したら戻してよい
+FROM php:8.3.36-apache
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
