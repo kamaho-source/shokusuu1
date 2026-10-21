@@ -45,7 +45,7 @@ jobs:
     name: Deploy to VPS
     needs: phpunit
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 20
     env:
       SLACK_USERNAME: DeployBot
       SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
@@ -63,7 +63,7 @@ jobs:
           password: ${{ secrets.PROD_SSH_PASSWORD }}
           port: 22
           timeout: 60s
-          command_timeout: 45m  # PHP をソースからビルドする間（一時対応中）は長めに取る
+          command_timeout: 20m
           envs: REPO_URL,BRANCH,DB_NAME,DB_USER,DB_PASS,DB_ROOT_PASS,DB_CONTAINER,RESEND_API_KEY,SLACK_CONTACT_WEBHOOK
           script: |
             set -euo pipefail
