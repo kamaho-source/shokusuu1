@@ -45,18 +45,8 @@ $currentUserId = $user->get('i_id_user');
                             <td><?= h($mUserInfo->i_id_staff) ?></td>
                         </tr>
                     <?php endif; ?>
-                    <tr>
-                        <th><?= __('所属部屋') ?></th>
-                        <td>
-                            <?php if (empty($userRooms)): ?>
-                                <span class="text-muted"><?= __('所属なし') ?></span>
-                            <?php else: ?>
-                                <?php foreach ($userRooms as $roomName): ?>
-                                    <span class="badge bg-primary me-1"><?= h($roomName) ?></span>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
+
+
                 </table>
                 </div>
             </div>
