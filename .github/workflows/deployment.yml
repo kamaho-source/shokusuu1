@@ -108,7 +108,9 @@ jobs:
             # 停止中のリバースプロキシを先に起動して名前競合を回避
             docker start docker-network-reverse-1 2>/dev/null || true
             # ベースイメージの最新パッチを取り込んで再ビルド（変化があれば次の up でコンテナを再作成）
-            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" build --pull kamakura-shokusu_web
+            # ponytail: php:8.3.36-apache の公開待ちの間は、ビルドに失敗しても手動で入れた 8.3.36 イメージのまま続行する。公開後はこの || を外す
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" build --pull kamakura-shokusu_web \
+              || echo "WARN: イメージのビルドに失敗したため、現在のイメージのまま続行します"
             # アプリサービスのみ起動・再作成（--no-depsで他サービスを処理しない）
             docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d --no-deps kamakura-shokusu_web kamakura-shokusu_db
             # DBコンテナが受付可能になるまで待機（最大30秒）
