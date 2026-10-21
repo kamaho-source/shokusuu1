@@ -91,11 +91,16 @@ jobs:
             fi
 
             # ── メンテナンス画面 ON（成功・失敗・中断のいずれでも終了時に必ず OFF） ──
+            # 手動で ON にしていた場合（デプロイ前からファイルがある）は、デプロイ後も ON のまま残す
             MAINT_FLAG="$DEPLOY_PATH/src_web/kamaho-shokusu/MAINTENANCE"
-            trap 'rm -f "$MAINT_FLAG"; echo "[MAINTENANCE] OFF"' EXIT
-            trap 'exit 1' HUP INT TERM
-            touch "$MAINT_FLAG"
-            echo "[MAINTENANCE] ON"
+            if [ -f "$MAINT_FLAG" ]; then
+              echo "[MAINTENANCE] 手動で ON 済み — デプロイ後も ON のまま（解除: rm ${MAINT_FLAG}）"
+            else
+              trap 'rm -f "$MAINT_FLAG"; echo "[MAINTENANCE] OFF"' EXIT
+              trap 'exit 1' HUP INT TERM
+              touch "$MAINT_FLAG"
+              echo "[MAINTENANCE] ON"
+            fi
 
             # ── コンテナ起動 ────────────────────────────────────────────────────
             echo "── Starting Docker containers ───────────────────────────────────"
