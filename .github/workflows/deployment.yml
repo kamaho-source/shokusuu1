@@ -3,6 +3,8 @@ name: Deploy to Sakura VPS
 on:
   push:
     branches: [ main ]
+  # 公式イメージ(php:8.3-apache)のセキュリティ更新を、コード変更なしで本番に取り込むための手動実行
+  workflow_dispatch:
 
 concurrency:
   group: deploy-to-vps
@@ -92,6 +94,8 @@ jobs:
             echo "── Starting Docker containers ───────────────────────────────────"
             # 停止中のリバースプロキシを先に起動して名前競合を回避
             docker start docker-network-reverse-1 2>/dev/null || true
+            # ベースイメージの最新パッチを取り込んで再ビルド（変化があれば次の up でコンテナを再作成）
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" build --pull kamakura-shokusu_web
             # アプリサービスのみ起動・再作成（--no-depsで他サービスを処理しない）
             docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d --no-deps kamakura-shokusu_web kamakura-shokusu_db
             # DBコンテナが受付可能になるまで待機（最大30秒）
