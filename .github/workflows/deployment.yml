@@ -96,9 +96,10 @@ jobs:
             if [ -f "$MAINT_FLAG" ]; then
               echo "[MAINTENANCE] 手動で ON 済み — デプロイ後も ON のまま（解除: rm ${MAINT_FLAG}）"
             else
-              trap 'rm -f "$MAINT_FLAG"; echo "[MAINTENANCE] OFF"' EXIT
+              # 中身が空 = デプロイが作ったもの。途中で手動 ON（中身 "manual"）にされた場合は消さない
+              trap '[ -s "$MAINT_FLAG" ] || rm -f "$MAINT_FLAG"; echo "[MAINTENANCE] 終了時: $([ -f "$MAINT_FLAG" ] && echo ON || echo OFF)"' EXIT
               trap 'exit 1' HUP INT TERM
-              touch "$MAINT_FLAG"
+              : > "$MAINT_FLAG"
               echo "[MAINTENANCE] ON"
             fi
 
