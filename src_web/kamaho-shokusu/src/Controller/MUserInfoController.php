@@ -5,6 +5,7 @@ namespace App\Controller;
 
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
+use App\Service\AuditLogService;
 use App\Service\RoomService;
 use App\Service\UserBulkImportService;
 use App\Service\UserCreateService;
@@ -62,6 +63,7 @@ class MUserInfoController extends AppController
             'updateAdminStatus',
             'updateUserLevel',
             'updateSystemAdminStatus',
+            'updateReportAccess',
             'addUserRooms',
         ]);
     }
@@ -171,13 +173,7 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = [];
-            foreach ($u->m_user_group ?? [] as $group) {
-                // 削除済み部屋は表示・全部屋所属判定に含めない
-                if (!empty($group->m_room_info) && (int)($group->m_room_info->i_del_flg ?? 0) === 0) {
-                    $userRooms[$u->i_id_user][] = $group->m_room_info->c_room_name;
-                }
-            }
+            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], (int)$u->i_del_flag === 1);
         }
 
         $roomService      = new RoomService();
@@ -464,6 +460,59 @@ class MUserInfoController extends AppController
         return filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
+    public function updateReportAccess()
+    {
+        $this->request->allowMethod(['post']);
+        $apiResponse = new ApiResponseService();
+
+        $data           = $this->request->getData();
+        $userId         = $data['i_id_user'] ?? null;
+        $reportAccess   = $data['i_report_access'] ?? null;
+
+        if (is_null($userId) || is_null($reportAccess)) {
+            return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
+        }
+
+        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
+        if (!$user) {
+            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
+        }
+
+        try {
+            $this->Authorization->authorize($user, 'updateReportAccess');
+        } catch (ForbiddenException $e) {
+            return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
+        }
+
+        $identity  = $this->request->getAttribute('identity');
+        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
+        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
+        $loginId   = (string)($identity?->get('c_login_account') ?? '');
+        $value     = (int)$reportAccess === 1 ? 1 : 0;
+
+        $table            = $this->MUserInfo;
+        $user->i_report_access = $value;
+        $user->dt_update       = date('Y-m-d H:i:s');
+        $user->c_update_user   = $updatedBy;
+
+        if ($table->save($user)) {
+            AuditLogService::record(
+                'user',
+                'user_report_access_change',
+                $updatedBy,
+                $actorId,
+                'm_user_info',
+                (string)$user->i_id_user,
+                ['target_user_name' => $user->c_user_name, 'i_report_access' => $value],
+                $this->getClientIp() ?: null,
+                1,
+                $loginId
+            );
+            return $apiResponse->success($this->response, [], 'レポートアクセス権を更新しました。');
+        }
+        return $apiResponse->error($this->response, 'レポートアクセス権の更新に失敗しました。', 500);
+    }
+
     public function updateUserLevel()
     {
         $this->request->allowMethod(['post']);
@@ -520,16 +569,36 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = [];
-        if (!empty($mUserInfo->m_user_group)) {
-            foreach ($mUserInfo->m_user_group as $group) {
-                if (!empty($group->m_room_info)) {
-                    $userRooms[] = $group->m_room_info->c_room_name;
-                }
-            }
-        }
+        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
 
         $this->set(compact('mUserInfo', 'userRooms'));
+    }
+
+    /**
+     * 現在所属している部屋名の一覧。既定では、退出済み(active_flag=1)と削除済み部屋は含めない。
+     * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
+     * 削除済みユーザーは、削除時に所属が全て退出済みになるため、削除前の所属を見られるよう退出済みも含める。
+     * 削除前に異動で退出していた部屋と区別できないため、それも含まれる（復元で全所属が戻る挙動と同じ集合）。
+     *
+     * @param iterable<\App\Model\Entity\MUserGroup> $groups
+     * @param bool $includeLeft 退出済み(active_flag=1)の部屋も含めるか
+     * @return list<string>
+     */
+    private function activeRoomNames(iterable $groups, bool $includeLeft = false): array
+    {
+        $names = [];
+        foreach ($groups as $group) {
+            $isLeft = (int)($group->active_flag ?? 0) !== 0;
+            if (($isLeft && !$includeLeft)
+                || empty($group->m_room_info)
+                || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
+            ) {
+                continue;
+            }
+            $names[] = $group->m_room_info->c_room_name;
+        }
+
+        return $names;
     }
 
     public function delete($id = null)
@@ -752,6 +821,13 @@ class MUserInfoController extends AppController
             }
 
             $this->Flash->error(__('パスワードの変更に失敗しました。'));
+        } elseif ($this->request->is('get')) {
+            // 編集画面の「パスワード変更」リンクから ?user_id= 付きで遷移してきた場合、対象ユーザーを事前選択する。
+            // 存在しない・削除済みユーザーIDは無視し、通常の未選択状態にフォールバックする。
+            $queryUserId = $this->request->getQuery('user_id');
+            if ($queryUserId !== null && isset($users[$queryUserId])) {
+                $selectedUser = $this->fetchTable('MUserInfo')->get((int)$queryUserId);
+            }
         }
 
         $this->set(compact('users', 'selectedUser'));
