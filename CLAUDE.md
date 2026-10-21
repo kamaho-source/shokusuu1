@@ -125,17 +125,16 @@ vendor/bin/phpunit tests/TestCase/Domain/   # 層ごと
 ```
 main     ← 本番リリース用（release からのみマージ）
 release  ← リリース準備用ブランチ（develop → release → main の順に昇格）
-develop  ← 統合ブランチ（PRのベース。feature/・fix/ の起点は main）
+develop  ← 統合ブランチ（feature/・fix/ の起点・PRのベース）
 feature/ ← 機能開発
 fix/     ← バグ修正
 hotfix/  ← 緊急本番修正（main から作成し main・develop の両方へ反映）
 ```
 
-**新規ブランチ（feature/・fix/ 等）は、ユーザーから起点の指定がない限り必ず `main` から切ること。PRのベースブランチは必ず `develop` を指定すること。**
+**通常の開発ブランチ（feature/・fix/）は必ず `develop` から切ること。PRのベースブランチは必ず `develop` を指定すること。**
 
 ```bash
-git fetch origin main
-git checkout -b feature/xxx origin/main
+git checkout -b feature/xxx develop
 gh pr create --base develop --title "feat: 機能名" --body "..."
 ```
 
