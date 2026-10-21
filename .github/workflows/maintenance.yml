@@ -9,8 +9,8 @@ on:
       mode:
         description: 'on=メンテナンス画面を出す / off=解除 / status=状態確認のみ'
         type: choice
-        options: [status, on, off]
-        default: status
+        options: ['status', 'on', 'off']
+        default: 'status'
       target:
         description: '対象環境'
         type: choice
