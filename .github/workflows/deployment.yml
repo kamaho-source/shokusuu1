@@ -90,6 +90,13 @@ jobs:
               git reset --hard "origin/$BRANCH"
             fi
 
+            # ── メンテナンス画面 ON（成功・失敗・中断のいずれでも終了時に必ず OFF） ──
+            MAINT_FLAG="$DEPLOY_PATH/src_web/kamaho-shokusu/MAINTENANCE"
+            trap 'rm -f "$MAINT_FLAG"; echo "[MAINTENANCE] OFF"' EXIT
+            trap 'exit 1' HUP INT TERM
+            touch "$MAINT_FLAG"
+            echo "[MAINTENANCE] ON"
+
             # ── コンテナ起動 ────────────────────────────────────────────────────
             echo "── Starting Docker containers ───────────────────────────────────"
             # 停止中のリバースプロキシを先に起動して名前競合を回避
