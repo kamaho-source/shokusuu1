@@ -80,8 +80,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push
-        # ponytail: php:8.3.36-apache の公開待ちの間は、ビルドに失敗しても ghcr の既存 :staging イメージのままデプロイを続ける（本番 deployment.yml と同じ一時対応）。公開後はこの行を外す
-        continue-on-error: true
         uses: docker/build-push-action@v5
         with:
           context: docker/kamakura-shokusu_web
