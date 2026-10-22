@@ -2,6 +2,7 @@
 ##########################
 /config/app_local.php
 /MAINTENANCE
+/webroot/maintenance.json
 /config/.env
 /logs/*
 /tmp/*
