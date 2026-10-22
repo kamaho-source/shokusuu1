@@ -16,6 +16,18 @@ on:
         type: choice
         options: [production, staging]
         default: production
+      start_time:
+        description: '開始時間（on のとき画面に表示。例: 10/22 14:00。空欄=実行した時刻）'
+        required: false
+        default: ''
+      end_time:
+        description: '終了予定時間（on のとき画面に表示。例: 10/22 15:00頃 / 本日中。空欄=未定）'
+        required: false
+        default: ''
+      reason:
+        description: '内容（on のとき画面に表示。例: セキュリティ更新のため。空欄=表示しない）'
+        required: false
+        default: ''
 
 # デプロイ(deploy-to-vps)とは別グループ。同じにするとデプロイを cancel してしまうため
 concurrency:
@@ -27,13 +39,17 @@ permissions:
 
 env:
   MODE: ${{ inputs.mode }}
+  START_TIME: ${{ inputs.start_time }}
+  END_TIME: ${{ inputs.end_time }}
+  REASON: ${{ inputs.reason }}
   # ON/OFF・状態確認を行うスクリプト（本番・ステージング共通）
   SCRIPT: |
     set -euo pipefail
     FLAG="/home/ubuntu/shokusuu1/src_web/kamaho-shokusu/MAINTENANCE"
+    INFO_FILE="/home/ubuntu/shokusuu1/src_web/kamaho-shokusu/webroot/maintenance.json"
     case "$MODE" in
-      on)  echo manual > "$FLAG" ;;
-      off) rm -f "$FLAG" ;;
+      on)  printf '%s' "$INFO" | base64 -d > "$INFO_FILE"; echo manual > "$FLAG" ;;
+      off) rm -f "$FLAG" "$INFO_FILE" ;;
     esac
     STATE=$([ -f "$FLAG" ] && echo ON || echo OFF)
     CODE=$(curl -s -o /dev/null -m 10 -w '%{http_code}' http://localhost:8091/kamaho-shokusu/MUserInfo/login || echo 000)
@@ -48,6 +64,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # 画面に出す情報(JSON)。入力値は jq でエスケープし、画面側も textContent で表示する
+      # SSH 先のシェルで $ や ` が展開されないよう base64 で渡す
+      - name: 表示内容の作成
+        run: |
+          START="${START_TIME:-$(TZ=Asia/Tokyo date '+%-m/%-d %H:%M')}"
+          INFO=$(jq -cn --arg start "${START:0:40}" --arg end "${END_TIME:0:40}" --arg reason "${REASON:0:100}" \
+            '{start: $start, end: $end, reason: $reason}')
+          echo "INFO=$(printf '%s' "$INFO" | base64 -w0)" >> "$GITHUB_ENV"
+          echo "表示内容: $INFO"
+
       - name: 本番
         if: inputs.target == 'production'
         uses: appleboy/ssh-action@v1.2.2
@@ -58,7 +84,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 2m
-          envs: MODE
+          envs: MODE,INFO
           script: ${{ env.SCRIPT }}
 
       - name: ステージング
@@ -71,7 +97,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 2m
-          envs: MODE
+          envs: MODE,INFO
           script: ${{ env.SCRIPT }}
 
       - name: 結果
