@@ -317,4 +317,34 @@ class ReservationChangeEditServiceTest extends TestCase
 
         $this->assertSame([1 => [0, 0], 2 => [1, 1]], $this->flagsByRoom($far));
     }
+
+    /** 職員（user 2）は直前期間に部屋を移せない（change-room API と同じ扱い）。部屋1の予約が残り、部屋2には作らない */
+    public function testProcessUpdate_staffLastMinute_cannotMoveRoom(): void
+    {
+        $date = $this->nearDate();
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 1,
+            'eat_flag' => 0, 'i_change_flag' => 1, 'i_approval_status' => 0, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        $this->service->processUpdate(
+            [2 => [1 => ['i_change_flag' => 1]]],
+            [2],
+            $date,
+            2,
+            null,
+            $reservationTable,
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $rows = $reservationTable->find()
+            ->where(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 1])
+            ->all()
+            ->combine('i_id_room', fn($r) => [(int)$r->eat_flag, (int)$r->i_change_flag])
+            ->toArray();
+        $this->assertSame([1 => [0, 1]], $rows);
+    }
 }

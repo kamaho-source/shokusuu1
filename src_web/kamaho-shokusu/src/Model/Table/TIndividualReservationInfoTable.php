@@ -23,6 +23,8 @@ class TIndividualReservationInfoTable extends Table
      */
     public const APPROVED_STATUSES = [1, 2];
 
+    private const MEAL_LABELS = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'];
+
     public function initialize(array $config): void
     {
         parent::initialize($config);
@@ -235,12 +237,54 @@ class TIndividualReservationInfoTable extends Table
         }
 
         // 一括処理でも原因が分かるよう、誰の・いつの・どの食事かを文言に入れる（失敗時だけ名前を引く）
-        $user = $this->MUserInfo->find()->select(['c_user_name'])->where(['i_id_user' => $userId])->first();
-        $who = $user !== null ? (string)$user->c_user_name : ('利用者ID ' . $userId);
-        $mealLabel = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'][$mealType] ?? '食事';
+        $mealLabel = self::MEAL_LABELS[$mealType] ?? '食事';
         throw new DuplicateMealReservationException(
-            "{$who}さんの {$date} の{$mealLabel}は、別の部屋ですでに予約されています。画面を再読み込みしてください。"
+            "{$this->userLabel($userId)}さんの {$date} の{$mealLabel}は、別の部屋ですでに予約されています。画面を再読み込みしてください。"
         );
+    }
+
+    /**
+     * 既存行を有効にする更新で、昼食と弁当が別の部屋どうしで同時に有効になるなら拒否する。
+     * 同じ部屋の相手は toggleMeal が取り消すため、ここでは対象の部屋以外だけを見る
+     * （新規行の保存は buildRules の uniqueLunchBentoEffective が全部屋を見る）。
+     *
+     * @throws \App\Exception\DuplicateMealReservationException 別の部屋で相手の食事が有効な場合
+     */
+    private function assertNoLunchBentoInOtherRoom(
+        int $userId,
+        string $date,
+        int $mealType,
+        int $roomId,
+        int|string|null $eatFlag,
+        int|string|null $changeFlag
+    ): void {
+        if (!in_array($mealType, [2, 4], true)) {
+            return;
+        }
+        $eat = $eatFlag === null ? null : (int)$eatFlag;
+        $chg = $changeFlag === null ? null : (int)$changeFlag;
+        if (self::effectiveValue($date, $eat, $chg) !== 1) {
+            return;
+        }
+        $opponent = $mealType === 2 ? 4 : 2;
+        if (array_diff($this->findEffectiveRoomIds($userId, $date, $opponent), [$roomId]) === []) {
+            return;
+        }
+
+        throw new DuplicateMealReservationException(sprintf(
+            '%sさんの %s は、別の部屋で%sが予約されているため%sは予約できません（昼食と弁当は同時に予約できません）。',
+            $this->userLabel($userId),
+            $date,
+            self::MEAL_LABELS[$opponent],
+            self::MEAL_LABELS[$mealType]
+        ));
+    }
+
+    private function userLabel(int $userId): string
+    {
+        $user = $this->MUserInfo->find()->select(['c_user_name'])->where(['i_id_user' => $userId])->first();
+
+        return $user !== null ? (string)$user->c_user_name : ('利用者ID ' . $userId);
     }
 
     /**
@@ -357,6 +401,14 @@ class TIndividualReservationInfoTable extends Table
                 $mealType,
                 (int)($updateFields['i_id_room'] ?? $roomId),
                 [$roomId],
+                $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
+                $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
+            );
+            $this->assertNoLunchBentoInOtherRoom(
+                $userId,
+                $date,
+                $mealType,
+                (int)($updateFields['i_id_room'] ?? $roomId),
                 $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
                 $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
             );

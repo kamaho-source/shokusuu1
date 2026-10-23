@@ -53,7 +53,10 @@ class TReservationInfoPolicy
             return false;
         }
 
-        if (!$this->canAccessRoom($user, $resource)) {
+        // 退出済み・削除済みの部屋に残った自分の予約は、取消だけ許す（取り消す行があるかは processToggle が確かめる）
+        $isSelfCancel = $resource->get('cancel_only') === true
+            && (int)($resource->get('i_id_user') ?? 0) === $this->getUserId($user);
+        if (!$isSelfCancel && !$this->canAccessRoom($user, $resource)) {
             return false;
         }
 

@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var mixed $JS_AVAILABLE_ROOM_NAMES
+ * @var string $JS_PICKER_ROOM_NAMES
  * @var string $JS_CURRENT_ROOM
  * @var string $JS_EXISTING_EVENTS
  * @var string $JS_MY_DETAILS
@@ -59,6 +60,7 @@ $pastDateUnavailableMessage = (string)Configure::read(
         myDetails: <?= $JS_MY_DETAILS ?>,
         roomNames: <?= $JS_ROOM_NAMES ?? '{}' ?>,
         availableRoomNames: <?= $JS_AVAILABLE_ROOM_NAMES ?? '{}' ?>,
+        pickerRoomNames: <?= $JS_PICKER_ROOM_NAMES ?? '{}' ?>,
         currentRoom: <?= $JS_CURRENT_ROOM ?>,
         toggleBase: <?= $JS_TOGGLE_BASE ?>,
         directRegisterUrl: <?= json_encode($this->Url->build('/TReservationInfo/direct-register'), JSON_UNESCAPED_SLASHES) ?>,

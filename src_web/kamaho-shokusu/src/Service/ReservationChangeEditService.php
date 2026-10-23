@@ -296,6 +296,14 @@ class ReservationChangeEditService
                             continue;
                         }
 
+                        // 職員の部屋変更は、直前期間は食数が部屋ごとに変わるため取消と同じく認めない（change-room API と同じ扱い）
+                        if ($isLastMinute && $changeFlag === 1 && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel)
+                            && $this->hasEffectiveRowInOtherRoom($existingByRoom[$userId][$mealType] ?? [], $roomId)
+                        ) {
+                            $skipped[] = "利用者ID {$userId} は職員のため、直前期間（14日以内）は部屋の変更はできません。";
+                            continue;
+                        }
+
                         $targetRow = $existingInRoom ?? $existingForMeal;
                         // この部屋で食べるなら、他の部屋で有効な同じ食事は取り消す（部屋の移動として扱う）
                         if ($changeFlag === 1) {
@@ -389,5 +397,21 @@ class ReservationChangeEditService
     private function updateReservationRowWithVersion(Table $reservationTable, object $row, array $updateFields): bool
     {
         return $reservationTable->updateRowWithVersion($row, $updateFields);
+    }
+
+    /**
+     * 同じ利用者・日付・食事の行のうち、指定の部屋以外に有効な予約があるか。
+     *
+     * @param array<int, object> $rowsByRoom 部屋ID => 予約行
+     */
+    private function hasEffectiveRowInOtherRoom(array $rowsByRoom, int $roomId): bool
+    {
+        foreach ($rowsByRoom as $rid => $row) {
+            if ((int)$rid !== $roomId && TIndividualReservationInfoTable::isEffectiveRow($row)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

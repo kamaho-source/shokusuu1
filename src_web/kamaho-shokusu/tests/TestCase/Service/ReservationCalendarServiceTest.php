@@ -269,4 +269,20 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertSame(1, $details[$date]['dinner']);
         $this->assertSame(8, $details[$date]['dinnerRoom']);
     }
+
+    /** 直前期間外は eat_flag が有効値（集計・予約の書き込みと同じ基準）。予約コピーで eat1/chg0 の行ができても予約ありと表示する */
+    public function testBuildMyReservationDetails_farDateUsesEatFlag(): void
+    {
+        $date = Date::today()->addDays(42)->format('Y-m-d');
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 9904, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'i_id_room' => 5,
+            'eat_flag' => 1, 'i_change_flag' => 0, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+
+        $details = $this->service->buildMyReservationDetails(TableRegistry::getTableLocator()->get('TIndividualReservationInfo'), 9904);
+
+        $this->assertSame(1, $details[$date]['lunch']);
+        $this->assertSame(5, $details[$date]['lunchRoom']);
+    }
 }

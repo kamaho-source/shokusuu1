@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -131,9 +132,8 @@ class ReservationCalendarService
             $dateStr = $r->d_reservation_date->format('Y-m-d');
             $type    = (int)$r->i_reservation_type;
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            // 有効値は集計・予約の書き込みと同じ基準（直前期間は i_change_flag、それ以外は eat_flag）
+            $effective = TIndividualReservationInfoTable::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
 
             if ($effective !== 1) {
                 continue;
@@ -198,9 +198,8 @@ class ReservationCalendarService
                 ];
             }
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            // 有効値は集計・予約の書き込みと同じ基準（直前期間は i_change_flag、それ以外は eat_flag）
+            $effective = TIndividualReservationInfoTable::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
 
             // 部屋変更の後は、元の部屋に取消済みの行が残る。行の並び順で有効な予約を上書きしない
             if ($effective === 0 && $details[$dateStr][$key] === 1) {
@@ -320,9 +319,8 @@ class ReservationCalendarService
         $dateCounts = [];
         foreach ($rows as $r) {
             $dateStr = $r->d_reservation_date->format('Y-m-d');
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            // 有効値は集計・予約の書き込みと同じ基準（直前期間は i_change_flag、それ以外は eat_flag）
+            $effective = TIndividualReservationInfoTable::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
             if ($effective === 1) {
                 $dateCounts[$dateStr] = ($dateCounts[$dateStr] ?? 0) + 1;
             }

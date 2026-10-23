@@ -166,7 +166,10 @@ class ReservationDirectRegisterController extends ReservationBaseController
         $fromRoomId = (int)($payload['fromRoomId'] ?? 0);
         $toRoomId   = (int)($payload['toRoomId'] ?? 0);
         if ($dateStr === '' || $meal <= 0 || $fromRoomId <= 0 || $toRoomId <= 0) {
-            return $this->apiResponseService->error($this->response, 'date, meal, fromRoomId and toRoomId are required.', 400);
+            // 権限判定の前に返すため、未判定のまま 500 にならないよう判定を省いたことを明示する
+            $this->Authorization->skipAuthorization();
+
+            return $this->apiResponseService->error($this->response, '日付・食事・変更前と変更後の部屋を指定してください。', 400);
         }
 
         $loginUser     = $this->request->getAttribute('identity');

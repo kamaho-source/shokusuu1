@@ -615,15 +615,28 @@ function openModalById(id){
              * @param {number[]} [mealIndices] 登録する食事IDの配列。省略時は未予約の全食事を対象とする
              */
             /**
-             * 所属部屋が1つだけのユーザーは部屋選択を省略し、その部屋IDを返す。
-             * 所属部屋が2つ以上・0件の場合は null（従来どおり部屋ピッカーを出す）。
-             * @param {Object} roomNames {roomId: roomName}
-             * @returns {number|null}
+             * 予約ポップアップを開く。部屋の選択肢は所属していて削除されていない部屋（管理者も同じ。#821）。
+             * 所属部屋が1つならその部屋で確定し、部屋のプルダウンは出さない。
+             * 複数なら、表示中の部屋 → 代表部屋 → 先頭の部屋の順で、部屋を初期選択しておく。
+             * @param {MouseEvent} jsEvent ポップアップの表示位置に使う
+             * @param {string} dateStr YYYY-MM-DD
+             * @param {boolean} [editMode] 予約済みの食事も表示して編集する
              */
-            function resolveRoomWithoutPicker(roomNames) {
-                var ids = (window.__TRESP && window.__TRESP.roomIds) || [];
-                if (ids.length !== 1) return null;
-                return roomNames[String(ids[0])] ? parseInt(ids[0], 10) : null;
+            function openMealPicker(jsEvent, dateStr, editMode) {
+                var t = window.__TRESP || {};
+                var roomNames = t.pickerRoomNames || {};
+                var ids = Object.keys(roomNames);
+                if (ids.length === 0) {
+                    if (window.pageToast) window.pageToast('所属している部屋がありません。部屋を選択してください（所属部屋は管理者が設定します）。', 'warning');
+                    return;
+                }
+                var defaultRoomId = [t.calRoomId, t.roomId]
+                    .filter(function(r) { return r != null && roomNames[String(r)]; })[0];
+                if (defaultRoomId == null) defaultRoomId = parseInt(ids[0], 10);
+                showMealPickerForDate(jsEvent, dateStr, ids.length === 1 ? parseInt(ids[0], 10) : null, {
+                    roomNames: roomNames,
+                    defaultRoomId: defaultRoomId
+                }, editMode);
             }
 
             /**
@@ -647,20 +660,7 @@ function openModalById(id){
                     }
 
                     // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
-                    // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
-                    var roomNames = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
-                    if (Object.keys(roomNames).length === 0) {
-                        if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
-                        return;
-                    }
-                    var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                        ? window.__TRESP.calRoomId
-                        : null;
-                    // 所属部屋が1つなら部屋確定、複数なら食事選択画面内の部屋プルダウンで選ばせる
-                    showMealPickerForDate(jsEvent, dateStr, resolveRoomWithoutPicker(roomNames), {
-                        roomNames: roomNames,
-                        defaultRoomId: defaultRoomId
-                    });
+                    openMealPicker(jsEvent, dateStr, false);
                 } catch (e) {
                     console.warn('startDateReservation error:', e);
                 }
@@ -809,7 +809,8 @@ function openModalById(id){
 
             function roomNameOf(roomId) {
                 var t = window.__TRESP || {};
-                return (t.availableRoomNames && t.availableRoomNames[roomId])
+                return (t.pickerRoomNames && t.pickerRoomNames[roomId])
+                    || (t.availableRoomNames && t.availableRoomNames[roomId])
                     || (t.roomNames && t.roomNames[roomId])
                     || String(roomId);
             }
@@ -879,18 +880,14 @@ function openModalById(id){
                 }
 
                 // 部屋の選択肢は所属部屋。予約中の部屋が所属部屋に無い（退出済み・削除済みなど）場合は、
-                // 現状が分かるよう「（所属外）」として表示だけし、新しく選ぶことはできないようにする
-                // 所属部屋が1つでも、食事ごとの部屋は表示する（一括設定だけを所属部屋が複数のときに出す）
-                var useRoomSelect = !!(roomChoice && roomChoice.roomNames);
+                // 現状が分かるよう「（所属外）」として表示し、部屋の変更はできないが取消はできるようにする
+                // 所属部屋が1つなら部屋は確定しているので、部屋のプルダウンは出さない
+                var useRoomSelect = !!(roomChoice && roomChoice.roomNames && Object.keys(roomChoice.roomNames).length > 1);
                 var roomOptions = {};
                 var outsideRooms = {};
                 var allRoomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
                 if (useRoomSelect) {
                     Object.keys(roomChoice.roomNames).forEach(function(rid) { roomOptions[rid] = roomChoice.roomNames[rid]; });
-                    if (roomId != null && !roomOptions[String(roomId)]) roomOptions[String(roomId)] = allRoomNames[roomId] || ('部屋' + roomId);
-                }
-                var memberRoomCount = Object.keys(roomOptions).length;
-                if (useRoomSelect) {
                     meals.forEach(function(m) {
                         var r = detail[m.key] && detail[m.key + 'Room'];
                         if (r && !roomOptions[String(r)]) {
@@ -899,7 +896,7 @@ function openModalById(id){
                         }
                     });
                 }
-                var showBulk = useRoomSelect && memberRoomCount > 1;
+                var showBulk = useRoomSelect;
                 var firstReservedRoom = [detail.breakfastRoom, detail.lunchRoom, detail.dinnerRoom, detail.bentoRoom]
                     .filter(function(r) { return r && !outsideRooms[String(r)]; })[0];
                 var defaultRoomStr = firstReservedRoom ? String(firstReservedRoom)
@@ -1052,10 +1049,10 @@ function openModalById(id){
 
                 var checkboxEntries = [];
                 availableMeals.forEach(function(m) {
-                    // 所属外（退出済み・削除済み）の部屋の予約は、本人では変更・取消できない（サーバーが拒否する）ので表示だけにする
+                    // 所属外（退出済み・削除済み）の部屋に残った予約は、部屋を変えられない。取消（チェックを外す）だけできる
                     var lockedRoom = editMode && detail[m.key] && outsideRooms[String(detail[m.key + 'Room'])]
                         ? String(detail[m.key + 'Room']) : null;
-                    var blocked = isBlockedByConflict(m.idx) || !!lockedRoom;
+                    var blocked = isBlockedByConflict(m.idx);
 
                     var row = document.createElement('div');
                     // 狭い画面では「予約する」を次の行へ回し、部屋名が読める幅を残す
@@ -1078,7 +1075,7 @@ function openModalById(id){
                         var reserved = detail[m.key] && detail[m.key + 'Room'];
                         roomSel = buildRoomSelect(reserved ? String(reserved) : defaultRoomStr, m.label + 'の部屋');
                         roomSel.style.cssText = 'flex:1 1 140px;min-width:140px;width:auto';
-                        roomSel.disabled = blocked;
+                        roomSel.disabled = blocked || !!lockedRoom;
                         row.appendChild(roomLbl);
                         row.appendChild(roomSel);
                     }
@@ -1102,7 +1099,7 @@ function openModalById(id){
 
                     if (lockedRoom) {
                         var lockNote = document.createElement('div');
-                        lockNote.textContent = '「' + (allRoomNames[lockedRoom] || ('部屋' + lockedRoom)) + '」は所属外の部屋のため、ここでは変更できません。変更が必要な場合は管理者に連絡してください。';
+                        lockNote.textContent = '「' + (allRoomNames[lockedRoom] || ('部屋' + lockedRoom)) + '」は所属外の部屋のため、部屋は変更できません。チェックを外して保存すると取り消せます。';
                         lockNote.style.cssText = 'flex-basis:100%;font-size:12px;color:#6b7280';
                         lockNote.id = '__mealPickerLock' + m.idx;
                         // 操作できない理由を、スクリーンリーダーでも読み上げる
@@ -1131,6 +1128,7 @@ function openModalById(id){
                     bulkBtn.addEventListener('click', function() {
                         if (!bulkSelectEl.value) {
                             showConflictMsg('一括設定する部屋を選択してください。');
+                            if (window.pageToast) window.pageToast('一括設定する部屋を選択してください。', 'warning');
                             return;
                         }
                         hideConflictMsg();
@@ -1170,7 +1168,7 @@ function openModalById(id){
                             e.cb.style.cursor  = 'pointer';
                             e.span.style.color = '';
                             e.row.style.cursor = 'pointer';
-                            if (e.roomSel) e.roomSel.disabled = e.blocked;
+                            if (e.roomSel) e.roomSel.disabled = e.blocked || e.locked;
                         });
                         if (!initialBlockMsg) hideConflictMsg();
                     }
@@ -1217,7 +1215,7 @@ function openModalById(id){
                     // 差分: 予約済み→未チェック＝取消 / 未予約→チェック＝追加 / 予約済みで部屋が変わった＝部屋変更
                     var removeIndices = editMode
                         ? checkboxEntries
-                            .filter(function(e) { return !e.locked && detail[MEAL_KEY_MAP[e.idx]] && selectedIndices.indexOf(e.idx) === -1; })
+                            .filter(function(e) { return detail[MEAL_KEY_MAP[e.idx]] && selectedIndices.indexOf(e.idx) === -1; })
                             .map(function(e) { return e.idx; })
                         : [];
                     var adds = selected.filter(function(e) { return !detail[MEAL_KEY_MAP[e.idx]]; });
@@ -1237,7 +1235,9 @@ function openModalById(id){
                     }
                     var noRoom = adds.concat(moves).filter(function(e) { return !roomOf(e); });
                     if (noRoom.length > 0) {
-                        showConflictMsg(noRoom.map(function(e) { return e.label; }).join('・') + 'の部屋を選択してください。');
+                        var noRoomMsg = noRoom.map(function(e) { return e.label; }).join('・') + 'の部屋を選択してください。';
+                        showConflictMsg(noRoomMsg);
+                        if (window.pageToast) window.pageToast(noRoomMsg, 'warning');
                         return;
                     }
 
@@ -1453,17 +1453,7 @@ function openModalById(id){
 
                     // 人数クリックは即ON/OFFせず、食事区分の編集ポップアップを開く
                     // （チェックを付ける＝予約、外す＝取消。保存時に差分を反映する）
-                    var roomNames = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
-                    if (Object.keys(roomNames).length === 0) {
-                        if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
-                        return;
-                    }
-                    var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                        ? window.__TRESP.calRoomId : null;
-                    showMealPickerForDate(info.jsEvent, date, resolveRoomWithoutPicker(roomNames), {
-                        roomNames: roomNames,
-                        defaultRoomId: defaultRoomId
-                    }, true);
+                    openMealPicker(info.jsEvent, date, true);
                 }
             });
 

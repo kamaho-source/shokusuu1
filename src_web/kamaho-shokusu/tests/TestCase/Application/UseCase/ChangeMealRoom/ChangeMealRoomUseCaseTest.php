@@ -85,4 +85,15 @@ class ChangeMealRoomUseCaseTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->createInput(8, 7, 5);
     }
+
+    /** 暦にない日付は DB へ送る前に入力エラーにする（以前は SQL の日付エラーで 500 になっていた） */
+    public function testInput_rejectsNonexistentDate(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('日付が正しくありません。');
+        new ChangeMealRoomInput(
+            date: '2027-02-30', meal: 3, fromRoomId: 8, toRoomId: 7,
+            loginUserId: 10, loginUserName: 'テストユーザー', targetUserId: 10,
+        );
+    }
 }

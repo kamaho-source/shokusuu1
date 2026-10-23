@@ -99,6 +99,10 @@ class TReservationInfoController extends ReservationBaseController
             $authorizedRooms = array_intersect_key($rooms, array_flip(array_map('intval', $userRoomIds)));
         }
 
+        // カレンダーの予約ポップアップで選べる部屋。管理者も所属外の部屋には予約できないため（#821）、
+        // 役割を問わず「所属していて削除されていない部屋」に限る
+        $pickerRooms = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false);
+
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
         $calRoomId = null;
         if ($calRoomIdQuery !== null && $calRoomIdQuery !== '') {
@@ -161,6 +165,7 @@ class TReservationInfoController extends ReservationBaseController
             'userRoomId',
             'rooms',
             'authorizedRooms',
+            'pickerRooms',
             'today',
             'staff_user',
             'isAdmin',

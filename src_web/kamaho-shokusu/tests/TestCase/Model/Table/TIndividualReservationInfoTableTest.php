@@ -318,4 +318,23 @@ class TIndividualReservationInfoTableTest extends TestCase
             $this->assertStringContainsString($this->farDate() . ' の夕食', $e->getMessage());
         }
     }
+
+    /** 別の部屋に弁当が有効なまま、取消済みの昼食行を有効に戻すと拒否する（新規保存の buildRules と同じ扱い） */
+    public function testUpdateRowWithVersion_rejectsLunchWhileBentoEffectiveInAnotherRoom(): void
+    {
+        $conn = ConnectionManager::get('test');
+        foreach ([[1, 4, 1], [2, 2, 0]] as [$roomId, $meal, $flag]) {
+            $conn->insert('t_individual_reservation_info', [
+                'i_id_user' => 9901, 'd_reservation_date' => $this->farDate(), 'i_reservation_type' => $meal, 'i_id_room' => $roomId,
+                'eat_flag' => $flag, 'i_change_flag' => $flag, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+            ]);
+        }
+        $row = $this->TIndividualReservationInfo->find()
+            ->where(['i_id_user' => 9901, 'i_id_room' => 2, 'i_reservation_type' => 2])->firstOrFail();
+
+        $this->expectException(DuplicateMealReservationException::class);
+        $this->expectExceptionMessage('別の部屋で弁当が予約されているため昼食は予約できません');
+        $this->TIndividualReservationInfo->updateRowWithVersion($row, ['eat_flag' => 1, 'i_change_flag' => 1]);
+    }
 }

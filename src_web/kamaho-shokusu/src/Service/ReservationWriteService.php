@@ -292,6 +292,14 @@ class ReservationWriteService
         return $this->activeMemberCache[$userId . ':' . $roomId] ??= $this->roomAccessService->isActiveMember($userId, $roomId);
     }
 
+    /** YYYY-MM-DD の形式で、暦に実在する日付か */
+    private static function isValidYmd(string $date): bool
+    {
+        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $d !== false && $d->format('Y-m-d') === $date;
+    }
+
     public function processToggle(
         int $roomId,
         array $payload,
@@ -336,8 +344,16 @@ class ReservationWriteService
             throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
         }
 
-        // 管理者でも、存在しない・削除済みの部屋には登録も取消もできない
-        if ($isAdmin && !$this->isRoomAvailable($roomId)) {
+        // 管理者でも、存在しない・削除済みの部屋には登録できない。削除前に残った予約の取消だけは許す
+        // 入力の検証はこの後で行うため、ここでは形式が正しいときだけ行を探す（不正な日付で SQL を投げない）
+        $cancelsExisting = $value === 0 && in_array($meal, [1, 2, 3, 4], true) && self::isValidYmd($dateStr)
+            && $this->reservationTable->exists([
+            'i_id_user'          => $targetUserId,
+            'i_id_room'          => $roomId,
+            'd_reservation_date' => $dateStr,
+            'i_reservation_type' => $meal,
+        ]);
+        if ($isAdmin && !$cancelsExisting && !$this->isRoomAvailable($roomId)) {
             throw new UnauthorizedException('選択された部屋は利用できません。');
         }
 
@@ -350,13 +366,7 @@ class ReservationWriteService
         // 取消（value=0）は、退出後に残った予約を消せるよう所属を要求しない。ただし既存の予約がある場合に限る
         // （行が無い取消で、所属外・削除済みの部屋に無効値の行が作られるのを防ぐ）。
         if (!$this->isActiveMember($targetUserId, $roomId)) {
-            $canCancelExisting = $value === 0 && $this->reservationTable->exists([
-                'i_id_user'          => $targetUserId,
-                'i_id_room'          => $roomId,
-                'd_reservation_date' => $dateStr,
-                'i_reservation_type' => $meal,
-            ]);
-            if (!$canCancelExisting) {
+            if (!$cancelsExisting) {
                 throw new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。');
             }
         }
@@ -364,10 +374,9 @@ class ReservationWriteService
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
             throw new InvalidInputException('Invalid date format (Y-m-d).');
         }
-        try {
-            new Date($dateStr);
-        } catch (\Throwable $e) {
-            throw new InvalidInputException('Invalid date value.');
+        // 2026-02-30 のような暦にない日付は Date が翌月へ繰り越すため、形式とあわせて実在を確かめる
+        if (!self::isValidYmd($dateStr)) {
+            throw new InvalidInputException('日付が正しくありません。');
         }
 
         $datePolicy = new ReservationDatePolicy();
@@ -547,7 +556,7 @@ class ReservationWriteService
                 $targetUserId = isset($payload['userId']) ? (int)$payload['userId'] : $loginUserId;
                 $dateStr = (string)($payload['date'] ?? '');
                 $meal = (int)($payload['meal'] ?? 0);
-                $canCheck = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr) === 1 && in_array($meal, [1, 2, 3, 4], true);
+                $canCheck = self::isValidYmd($dateStr) && in_array($meal, [1, 2, 3, 4], true);
                 if ($canCheck && !in_array($fromRoomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal), true)) {
                     throw new ConflictException('変更前の部屋の予約が見つかりません。画面を再読み込みしてください。');
                 }

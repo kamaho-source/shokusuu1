@@ -6,7 +6,7 @@ namespace App\Application\UseCase\ChangeMealRoom;
 /**
  * 予約済み食事の部屋変更の Input DTO。
  *
- * @throws \InvalidArgumentException 食事区分が1-4以外、部屋IDが不正、変更前後が同じ部屋の場合
+ * @throws \InvalidArgumentException 日付が暦にない、食事区分が1-4以外、部屋IDが不正、変更前後が同じ部屋の場合
  */
 final class ChangeMealRoomInput
 {
@@ -19,6 +19,10 @@ final class ChangeMealRoomInput
         public readonly string $loginUserName,
         public readonly int    $targetUserId,
     ) {
+        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if ($d === false || $d->format('Y-m-d') !== $date) {
+            throw new \InvalidArgumentException('日付が正しくありません。');
+        }
         if (!in_array($meal, [1, 2, 3, 4], true)) {
             throw new \InvalidArgumentException("Invalid meal index: {$meal}. Must be 1, 2, 3, or 4.");
         }

@@ -198,6 +198,24 @@ class MealReportingService
         $this->invalidateCaches($userId, $roomId, $today);
         Cache::write(sprintf('today_report:%d:%s', $userId, $today), 1, 'default');
 
+        // 承認済みで取消のままの食事は変えていないので、「食べない」の報告と同じく黙って「報告しました」にしない
+        $approvedRows = $reservationTable->find()
+            ->enableAutoFields(false)
+            ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
+            ->where([
+                'i_id_user'             => $userId,
+                'd_reservation_date'    => $today,
+                'i_id_room'             => $roomId,
+                'i_reservation_type IN' => self::EAT_REPORT_MEAL_TYPES,
+                'i_approval_status IN'  => TIndividualReservationInfoTable::APPROVED_STATUSES,
+            ])
+            ->all();
+        foreach ($approvedRows as $r) {
+            if (!TIndividualReservationInfoTable::isEffectiveRow($r)) {
+                return ['ok' => true, 'message' => '食べるで報告しました。承認済みの食事は変更されていません。'];
+            }
+        }
+
         return ['ok' => true, 'message' => '食べるで報告しました。'];
     }
 

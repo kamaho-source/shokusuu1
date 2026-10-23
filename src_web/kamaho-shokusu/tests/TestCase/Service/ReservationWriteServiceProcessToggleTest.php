@@ -240,12 +240,13 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
     }
 
     /** 管理者でも、削除済み・存在しない部屋には登録も取消もできない */
-    public function testProcessToggle_adminCannotTouchDeletedOrMissingRoom(): void
+    /** 管理者でも、削除済み・存在しない部屋には登録できない。削除前に残った予約の取消だけは許す */
+    public function testProcessToggle_adminCannotRegisterInDeletedOrMissingRoomButCanCancelLeftover(): void
     {
         $this->addRoomMembership(3, 56, 0, 1);   // 削除済みの部屋
         $this->reservationTableInsert(3, 56, date('Y-m-d', strtotime('+20 days')), 3);
 
-        foreach ([[56, 0], [56, 1], [9999, 0]] as [$room, $value]) {
+        foreach ([[56, 1], [9999, 0]] as [$room, $value]) {
             try {
                 $this->service->processToggle($room, $this->togglePayload(3, $value), 1, '管理者');
                 $this->fail("管理者でも拒否される: room={$room} value={$value}");
@@ -253,7 +254,10 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
                 $this->assertSame('選択された部屋は利用できません。', $e->getMessage());
             }
         }
-        $this->assertSame(1, $this->eatFlag(3, 56, 3), '削除済みの部屋の予約は変更されない');
+        $this->assertSame(1, $this->eatFlag(3, 56, 3), '登録の拒否では予約は変わらない');
+
+        $this->service->processToggle(56, $this->togglePayload(3, 0), 1, '管理者');
+        $this->assertSame(0, $this->eatFlag(3, 56, 3), '削除済みの部屋に残った予約は取り消せる');
     }
 
     /** 行が無い取消（value=0）では、所属外・削除済みの部屋に無効値の行を作らない */

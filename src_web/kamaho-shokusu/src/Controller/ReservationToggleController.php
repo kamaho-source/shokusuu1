@@ -55,6 +55,7 @@ class ReservationToggleController extends ReservationBaseController
         if ($denied = $this->authorizeReservation('toggle', [
             'i_id_room' => (int)$roomId,
             'i_id_user' => $targetUserId,
+            'cancel_only' => isset($payload['value']) && (int)$payload['value'] === 0,
         ], true)) {
             return $denied;
         }
