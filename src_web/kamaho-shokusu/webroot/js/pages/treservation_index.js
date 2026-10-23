@@ -1396,7 +1396,7 @@ function unlockForChildren(wrap){
             var scope = root || document;
             var roomSelect = null;
 
-            // URL テンプレートは reservation-users.js / treservation_index.inline.js 冒頭で設定済み
+            // URL テンプレートは reservation-users.js / 本ファイル冒頭で設定済み
 
             if (!window.fetchUserData) {
                 window.fetchUserData = function(roomId) {
