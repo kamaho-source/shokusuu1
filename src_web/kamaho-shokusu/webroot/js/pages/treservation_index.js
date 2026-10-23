@@ -2875,7 +2875,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
         if (tr && tr.getAttribute('data-is-staff') === '1') return true;
         var userLevel = cb.dataset.userLevel || cb.getAttribute('data-user-level');
         if (!userLevel && tr) userLevel = tr.dataset.userLevel || tr.getAttribute('data-user-level');
-        if (userLevel != null && userLevel !== '') return ['0', '7'].includes(String(userLevel));
+        if (userLevel != null && userLevel !== '') return String(userLevel) === '0';
         // 判別不能な場合はログインユーザーに合わせる
         return !!window.__IS_STAFF;
     }

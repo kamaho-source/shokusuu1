@@ -587,8 +587,8 @@ document.addEventListener('DOMContentLoaded', () => {
             lockedByRoom[roomId][activeDate][uid] = lockedByRoom[roomId][activeDate][uid] || {};
             serverReservedByRoom[roomId][activeDate][uid] = serverReservedByRoom[roomId][activeDate][uid] || {};
             Object.keys(resMap[uid]).forEach((type) => {
-                // 直前編集で職員(0・7)はキャンセル不可のため、既存分はロック
-                const isStaff = window.__CHANGE_EDIT && [0, 7].includes(userLevelsByRoom[roomId]?.[uid]);
+                // 直前編集で職員(0)はキャンセル不可のため、既存分はロック
+                const isStaff = window.__CHANGE_EDIT && userLevelsByRoom[roomId]?.[uid] === 0;
                 if (isStaff) {
                     lockedByRoom[roomId][activeDate][uid][Number(type)] = true;
                 }
