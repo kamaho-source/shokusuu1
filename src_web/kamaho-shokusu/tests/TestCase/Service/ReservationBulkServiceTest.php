@@ -402,6 +402,37 @@ class ReservationBulkServiceTest extends TestCase
     }
 
     /**
+     * 直前一括編集: 職員の既存予約は、取消（チェックOFF）の指定があっても取消されない。
+     * 職員レベル 0 と 7 のどちらも同じ。
+     *
+     * @dataProvider staffLevelProvider
+     */
+    public function testBulkChangeEditDoesNotCancelStaffReservation(int $staffLevel): void
+    {
+        $this->userTable->updateAll(['i_user_level' => $staffLevel], ['i_id_user' => 1]);
+        $this->insertReservation([
+            'i_id_user'          => 1,
+            'd_reservation_date' => '2026-06-10',
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+        ]);
+
+        $this->callBulkChangeEdit(['2026-06-10' => ['1' => ['1' => '0']]], true, 99);
+
+        $row = $this->fetchReservation(1, '2026-06-10', 1, 1);
+        $this->assertNotNull($row);
+        $this->assertSame(1, (int)$row->i_change_flag, "職員(level {$staffLevel})の予約が取消されている");
+    }
+
+    /** @return array<string, array{int}> */
+    public static function staffLevelProvider(): array
+    {
+        return ['職員(0)' => [0], '職員(7)' => [7]];
+    }
+
+    /**
      * 週次一括登録: 他ユーザーの既存有効予約（＝スキップされる行）がペイロードに
      * 含まれていても保存が拒否されない（回帰テスト）
      */

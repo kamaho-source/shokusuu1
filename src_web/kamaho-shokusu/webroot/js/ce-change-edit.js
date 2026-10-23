@@ -9,7 +9,7 @@
     // ---- ユーザー判定
     function isStaffUser(u){
         if (u && typeof u.isStaff === 'boolean') return u.isStaff;
-        return Number((u && (u.i_user_level != null ? u.i_user_level : u.userLevel))) === 0;
+        return [0, 7].includes(Number((u && (u.i_user_level != null ? u.i_user_level : u.userLevel))));
     }
 
     // ---- mealType 取得
