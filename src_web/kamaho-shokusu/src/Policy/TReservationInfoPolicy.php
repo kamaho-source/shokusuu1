@@ -292,7 +292,7 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return UserRole::isStaffLevel((int)$identity->get('i_user_level'));
+            return UserRole::isStaffLevel((int)($identity->get('i_user_level') ?? -1));
         }
 
         if (is_array($identity)) {

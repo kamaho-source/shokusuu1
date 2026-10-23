@@ -142,7 +142,7 @@ class ReservationBulkService
                         $existing = $existingMap[$date][$userId][$mealType] ?? null;
 
                         if ($existing) {
-                            if ($targetUserLevel === 0 && $changeFlag === 0) {
+                            if ($targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0) {
                                 continue;
                             }
                             if ((int)$existing->i_change_flag !== $changeFlag) {

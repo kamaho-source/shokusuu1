@@ -193,6 +193,18 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->service->processToggle(38, $this->togglePayload(2, 0, 3, 14), 2, '職員');
     }
 
+    /** 職員レベル 7 も、職員(0)と同じく直前編集の期間は自分の予約を取消せない */
+    public function testProcessToggle_level7StaffCannotCancelOnLastMinuteDay14(): void
+    {
+        ConnectionManager::get('test')->update('m_user_info', ['i_user_level' => 7], ['i_id_user' => 2]);
+        $this->addRoomMembership(2, 40, 0, 0);
+        $this->reservationTableInsert(2, 40, date('Y-m-d', strtotime('+14 days')), 3);
+
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('職員は直前編集でのキャンセルはできません。');
+        $this->service->processToggle(40, $this->togglePayload(2, 0, 3, 14), 2, '職員');
+    }
+
     /** 15日後は直前編集の期間外なので、職員も通常どおり取消せる */
     public function testProcessToggle_staffCanCancelOutsideLastMinuteWindowDay15(): void
     {

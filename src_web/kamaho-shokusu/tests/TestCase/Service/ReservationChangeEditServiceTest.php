@@ -122,6 +122,28 @@ class ReservationChangeEditServiceTest extends TestCase
         $this->assertTrue($result[0]['isStaff']);
     }
 
+    public function testBuildUsersForJson_level7_isStaffTrue(): void
+    {
+        $users = [
+            ['id' => 1, 'name' => '職員(7)', 'i_user_level' => 7],
+        ];
+
+        $result = $this->service->buildUsersForJson($users, null, false, false);
+
+        $this->assertTrue($result[0]['isStaff']);
+    }
+
+    public function testBuildUsersForJson_nullUserLevel_isStaffFalse(): void
+    {
+        $users = [
+            ['id' => 1, 'name' => '役職未設定', 'i_user_level' => null],
+        ];
+
+        $result = $this->service->buildUsersForJson($users, null, false, false);
+
+        $this->assertFalse($result[0]['isStaff']);
+    }
+
     public function testBuildUsersForJson_childUserLevel_isStaffFalse(): void
     {
         $users = [
