@@ -292,15 +292,15 @@ class TReservationInfoPolicy
         }
 
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return in_array((int)$identity->get('i_user_level'), [0, 7], true);
+            return UserRole::isStaffLevel((int)($identity->get('i_user_level') ?? -1));
         }
 
         if (is_array($identity)) {
-            return in_array((int)($identity['i_user_level'] ?? -1), [0, 7], true);
+            return UserRole::isStaffLevel((int)($identity['i_user_level'] ?? -1));
         }
 
         if ($identity instanceof \ArrayAccess) {
-            return in_array((int)($identity['i_user_level'] ?? -1), [0, 7], true);
+            return UserRole::isStaffLevel((int)($identity['i_user_level'] ?? -1));
         }
 
         return false;

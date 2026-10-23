@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\AI\UserTokenizer;
 use Cake\ORM\TableRegistry;
 
@@ -297,7 +298,7 @@ final class AiStatsContextService
     /**
      * 職員（大人）別の入力状況を構築する。未入力（0件）の職員も含める。
      *
-     * 「最も入力していない職員」を判定できるよう、在籍職員（i_user_level=0）全員を
+     * 「最も入力していない職員」を判定できるよう、在籍職員（i_user_level=0 と 7）全員を
      * 分母とし、期間内の申告レコード件数を入力の少ない順に並べる。
      * 職員は [U:<ハッシュ>] トークンで仮名化し、氏名・内部IDは外部AIへ渡さない。
      */
@@ -307,7 +308,7 @@ final class AiStatsContextService
         $staff = $userTable->find()
             ->select(['i_id_user'])
             ->where([
-                'i_user_level' => self::LEVEL_STAFF,
+                'i_user_level IN' => UserRole::STAFF_LEVELS,
                 'i_del_flag'   => 0,
             ])
             ->disableHydration()
