@@ -174,7 +174,7 @@ class ReservationWriteService
             throw new UnauthorizedException('ログインユーザーを特定できないため予約を更新できません。');
         }
 
-        $isLoginStaff    = in_array($loginUserLevel, [0, 7], true);
+        $isLoginStaff    = UserRole::isStaffLevel($loginUserLevel);
         $targetUserLevels = $this->fetchUserLevels($userIds);
         $blockLeaderInRoom = false;
         if ($isBlockLeader && $roomId !== null) {
@@ -316,7 +316,7 @@ class ReservationWriteService
         $loginStaff    = $loginUser ? $loginUser->i_id_staff : null;
         $hasStaffId    = $loginStaff !== null && $loginStaff !== '' && $loginStaff !== 0;
         // i_user_level=0,7 は職員レベル（staffId 有無を問わず子供の予約を編集可）
-        $isStaffUser   = $loginUser ? in_array((int)($loginUser->i_user_level ?? -1), [0, 7], true) : false;
+        $isStaffUser   = $loginUser ? UserRole::isStaffLevel((int)($loginUser->i_user_level ?? -1)) : false;
 
         $targetUser = $this->userTable->find()
             ->select(['i_user_level'])
@@ -379,10 +379,7 @@ class ReservationWriteService
             throw new InvalidInputException('Invalid value (0 or 1).');
         }
 
-        $targetDate   = new Date($dateStr);
-        $today        = Date::today('Asia/Tokyo');
-        $lastDeadline = $today->addDays(14);
-        $isLastMinute = ($targetDate >= $today && $targetDate <= $lastDeadline);
+        $isLastMinute = $datePolicy->isLastMinuteWindow(new Date($dateStr));
 
         $exists = $this->reservationTable->exists([
             'i_id_user'          => $targetUserId,

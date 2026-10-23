@@ -19,6 +19,12 @@ final class UserRole
     /** 職員として扱う i_user_level（0 と 7。予約まわりの職員判定と同じ）。 */
     public const STAFF_LEVELS = [0, 7];
 
+    /** i_user_level が職員（0 または 7）かどうかを返す。 */
+    public static function isStaffLevel(int $userLevel): bool
+    {
+        return in_array($userLevel, self::STAFF_LEVELS, true);
+    }
+
     /** 管理者またはシステム管理者かどうかを返す。 */
     public static function isAdmin(int $value): bool
     {

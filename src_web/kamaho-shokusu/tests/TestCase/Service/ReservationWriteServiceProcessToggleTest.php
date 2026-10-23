@@ -182,6 +182,28 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->service->processToggle(35, $this->togglePayload(3, 1, 3, 21), 2, '職員');
     }
 
+    /** 直前編集の期間（今日〜14日後）は、職員は自分の予約を取消せない */
+    public function testProcessToggle_staffCannotCancelOnLastMinuteBoundaryDay14(): void
+    {
+        $this->addRoomMembership(2, 38, 0, 0);
+        $this->reservationTableInsert(2, 38, date('Y-m-d', strtotime('+14 days')), 3);
+
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('職員は直前編集でのキャンセルはできません。');
+        $this->service->processToggle(38, $this->togglePayload(2, 0, 3, 14), 2, '職員');
+    }
+
+    /** 15日後は直前編集の期間外なので、職員も通常どおり取消せる */
+    public function testProcessToggle_staffCanCancelOutsideLastMinuteWindowDay15(): void
+    {
+        $this->addRoomMembership(2, 39, 0, 0);
+        $this->reservationTableInsert(2, 39, date('Y-m-d', strtotime('+15 days')), 3);
+
+        $this->service->processToggle(39, $this->togglePayload(2, 0, 3, 15), 2, '職員');
+
+        $this->assertSame(0, $this->eatFlag(2, 39, 3), '取消が反映されている');
+    }
+
     /** 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属している必要がある */
     public function testProcessToggle_actorNotMember_cannotEditChild(): void
     {
