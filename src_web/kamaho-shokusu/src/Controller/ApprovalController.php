@@ -19,6 +19,8 @@ use Cake\Http\Response;
  */
 class ApprovalController extends AppController
 {
+    use JsonResponseTrait;
+
     private ApprovalService $approvalService;
     private RoomAccessService $roomAccessService;
 
@@ -313,19 +315,6 @@ class ApprovalController extends AppController
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
-
-    private function jsonResponse(array $data, int $status = 200): Response
-    {
-        return $this->response
-            ->withStatus($status)
-            ->withType('application/json')
-            ->withStringBody(json_encode($data, JSON_UNESCAPED_UNICODE));
-    }
-
-    private function jsonError(string $message, int $status = 400): Response
-    {
-        return $this->jsonResponse(['success' => false, 'error' => $message], $status);
-    }
 
     private function jsonForbidden(): Response
     {

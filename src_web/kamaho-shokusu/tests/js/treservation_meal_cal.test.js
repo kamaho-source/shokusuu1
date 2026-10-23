@@ -115,12 +115,12 @@ describe('treservation_meal_cal.js', () => {
             expect(html).toContain('弁当');
         });
 
-        test('ユーザーが 0 名の食事種別は「なし」と表示される', async () => {
+        test('予約者が 0 名のときは「予約者はいません」と表示される', async () => {
             mockFetch([]);
             window.openMealCalUserModal('2026-06-18', '10');
             await new Promise(resolve => setTimeout(resolve, 0));
             const html = document.getElementById('mealCalModalContent').innerHTML;
-            expect(html).toContain('なし');
+            expect(html).toContain('予約者はいません');
         });
 
         // escHtml の動作を buildModalContent 経由で検証する
