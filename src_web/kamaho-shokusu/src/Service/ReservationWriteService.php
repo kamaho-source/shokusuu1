@@ -388,7 +388,7 @@ class ReservationWriteService
             'i_reservation_type' => $meal,
         ]);
 
-        if (!$isAdmin && $isLastMinute && $targetUserLevel === 0 && $value === 0 && $exists) {
+        if (!$isAdmin && $isLastMinute && UserRole::isStaffLevel($targetUserLevel) && $value === 0 && $exists) {
             throw new UnauthorizedException('職員は直前編集でのキャンセルはできません。');
         }
 
