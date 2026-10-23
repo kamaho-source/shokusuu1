@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\AI\UserTokenizer;
 use Cake\ORM\TableRegistry;
 
@@ -307,7 +308,7 @@ final class AiStatsContextService
         $staff = $userTable->find()
             ->select(['i_id_user'])
             ->where([
-                'i_user_level' => self::LEVEL_STAFF,
+                'i_user_level IN' => UserRole::STAFF_LEVELS,
                 'i_del_flag'   => 0,
             ])
             ->disableHydration()
