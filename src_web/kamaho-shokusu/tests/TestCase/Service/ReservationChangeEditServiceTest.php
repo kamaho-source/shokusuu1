@@ -347,4 +347,32 @@ class ReservationChangeEditServiceTest extends TestCase
             ->toArray();
         $this->assertSame([1 => [0, 1]], $rows);
     }
+
+    /** 同じ保存で「弁当を外して昼食を入れる」と、取消を先に行うので拒否されない（児童 user 3） */
+    public function testProcessUpdate_swapBentoToLunchInOneSave(): void
+    {
+        $date = $this->nearDate();
+        foreach ([[4, 1], [2, 0]] as [$meal, $flag]) {
+            ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+                'i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => $meal, 'i_id_room' => 1,
+                'eat_flag' => 0, 'i_change_flag' => $flag, 'i_approval_status' => 0, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+            ]);
+        }
+        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        $this->service->processUpdate(
+            [3 => [2 => ['i_change_flag' => 1], 4 => ['i_change_flag' => 0]]],
+            [3],
+            $date,
+            1,
+            null,
+            $reservationTable,
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $this->assertSame([1], $reservationTable->findEffectiveRoomIds(3, $date, 2));
+        $this->assertSame([], $reservationTable->findEffectiveRoomIds(3, $date, 4));
+    }
 }

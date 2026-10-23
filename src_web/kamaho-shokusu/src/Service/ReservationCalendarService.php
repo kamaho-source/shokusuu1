@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -14,6 +13,19 @@ class ReservationCalendarService
     public function __construct(?ReservationDatePolicy $datePolicy = null)
     {
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
+    }
+
+    /**
+     * カレンダーに出す有効値。食数の報告・集計（ReservationDatePolicy::shouldUseChangeFlag）と同じく、
+     * 境界日（今日+14日）以前は過去日も含めて i_change_flag（null なら eat_flag）、それより先は eat_flag。
+     */
+    private function displayValue(string $date, int|string|null $eatFlag, int|string|null $changeFlag): int
+    {
+        if ($changeFlag !== null && $this->datePolicy->shouldUseChangeFlag(new Date($date))) {
+            return (int)$changeFlag;
+        }
+
+        return (int)($eatFlag ?? 0);
     }
 
     public function getUserRoomIds(Table $userGroupTable, int $userId): array
@@ -132,8 +144,7 @@ class ReservationCalendarService
             $dateStr = $r->d_reservation_date->format('Y-m-d');
             $type    = (int)$r->i_reservation_type;
 
-            // 有効値は集計・予約の書き込みと同じ基準（直前期間は i_change_flag、それ以外は eat_flag）
-            $effective = TIndividualReservationInfoTable::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
+            $effective = $this->displayValue($dateStr, $r->eat_flag, $r->i_change_flag);
 
             if ($effective !== 1) {
                 continue;
@@ -198,8 +209,7 @@ class ReservationCalendarService
                 ];
             }
 
-            // 有効値は集計・予約の書き込みと同じ基準（直前期間は i_change_flag、それ以外は eat_flag）
-            $effective = TIndividualReservationInfoTable::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
+            $effective = $this->displayValue($dateStr, $r->eat_flag, $r->i_change_flag);
 
             // 部屋変更の後は、元の部屋に取消済みの行が残る。行の並び順で有効な予約を上書きしない
             if ($effective === 0 && $details[$dateStr][$key] === 1) {
@@ -319,8 +329,7 @@ class ReservationCalendarService
         $dateCounts = [];
         foreach ($rows as $r) {
             $dateStr = $r->d_reservation_date->format('Y-m-d');
-            // 有効値は集計・予約の書き込みと同じ基準（直前期間は i_change_flag、それ以外は eat_flag）
-            $effective = TIndividualReservationInfoTable::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
+            $effective = $this->displayValue($dateStr, $r->eat_flag, $r->i_change_flag);
             if ($effective === 1) {
                 $dateCounts[$dateStr] = ($dateCounts[$dateStr] ?? 0) + 1;
             }

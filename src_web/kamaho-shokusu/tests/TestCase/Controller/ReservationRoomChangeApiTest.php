@@ -130,4 +130,42 @@ class ReservationRoomChangeApiTest extends TestCase
             'i_id_user' => 3, 'i_id_room' => 2, 'i_reservation_type' => 1,
         ]));
     }
+
+    /** 取消でも、他人の予約には cancel_only の緩和を使えない（児童 user 3 が職員 user 2 の予約を取り消す） */
+    public function testToggle_cancelOnlyDoesNotApplyToOtherUsers(): void
+    {
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $this->farDate(), 'i_reservation_type' => 3, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+        $this->loginChild();
+        $this->post('/TReservationInfo/toggle/1', ['date' => $this->farDate(), 'meal' => 3, 'value' => 0, 'userId' => 2]);
+
+        $this->assertResponseCode(403);
+        $row = $this->getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => 2, 'i_id_room' => 1, 'i_reservation_type' => 3])->firstOrFail();
+        $this->assertSame(1, (int)$row->eat_flag);
+    }
+
+    /** 退出済みの部屋に残った予約は、部屋の変更（移動）はできない。取消だけ許す */
+    public function testChangeRoom_fromExitedRoomIsRejected(): void
+    {
+        $this->leftoverReservationInRoom2(false);
+        $this->loginChild();
+        $this->post('/TReservationInfo/change-room', ['date' => $this->farDate(), 'meal' => 3, 'fromRoomId' => 2, 'toRoomId' => 1, 'userId' => 3]);
+
+        $this->assertResponseCode(403);
+        $this->assertSame([1, 1], $this->dinnerFlagsInRoom2());
+    }
+
+    /** 中身のない要求でも 500 にせず、理由付きの 400 を返す */
+    public function testChangeRoom_emptyBodyReturns400(): void
+    {
+        $this->loginChild();
+        $this->post('/TReservationInfo/change-room', []);
+
+        $this->assertResponseCode(400);
+        $this->assertResponseContains('部屋を指定してください');
+    }
 }

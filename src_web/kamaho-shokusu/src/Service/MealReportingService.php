@@ -130,8 +130,10 @@ class MealReportingService
 
         $today = Date::today('Asia/Tokyo')->format('Y-m-d');
 
+        // 代表部屋の既存行を「食べる」にしようとした食事（承認済みなら更新されずに残る）
+        $updatedMealTypes = [];
         try {
-            $reservationTable->getConnection()->transactional(function () use ($reservationTable, $userId, $userName, $roomId, $today): void {
+            $reservationTable->getConnection()->transactional(function () use ($reservationTable, $userId, $userName, $roomId, $today, &$updatedMealTypes): void {
                 // 「食べる」は朝・昼・夕。弁当は昼食と同時に有効にできないため付けない。
                 // 弁当をすでに予約している日は、昼食も付けない（弁当のまま）
                 foreach (self::EAT_REPORT_MEAL_TYPES as $mealType) {
@@ -155,6 +157,7 @@ class MealReportingService
                     }
 
                     if ($hasPrimaryRow) {
+                        $updatedMealTypes[] = $mealType;
                         $reservationTable->updateAll(
                             [
                                 'eat_flag'      => 1,
@@ -198,7 +201,10 @@ class MealReportingService
         $this->invalidateCaches($userId, $roomId, $today);
         Cache::write(sprintf('today_report:%d:%s', $userId, $today), 1, 'default');
 
-        // 承認済みで取消のままの食事は変えていないので、「食べない」の報告と同じく黙って「報告しました」にしない
+        // 承認済みのため変えられなかった食事があれば、「食べない」の報告と同じく黙って「報告しました」にしない
+        if ($updatedMealTypes === []) {
+            return ['ok' => true, 'message' => '食べるで報告しました。'];
+        }
         $approvedRows = $reservationTable->find()
             ->enableAutoFields(false)
             ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
@@ -206,7 +212,7 @@ class MealReportingService
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $today,
                 'i_id_room'             => $roomId,
-                'i_reservation_type IN' => self::EAT_REPORT_MEAL_TYPES,
+                'i_reservation_type IN' => $updatedMealTypes,
                 'i_approval_status IN'  => TIndividualReservationInfoTable::APPROVED_STATUSES,
             ])
             ->all();

@@ -154,8 +154,13 @@ $JS_TODAY            = json_encode($today, $jsonFlags);
 $JS_ROOM_NAMES       = json_encode($reservationRoomNames, $jsonFlags);
 // このユーザーが新規予約できる部屋名（カレンダークリック時の部屋選択ピッカー用）
 $JS_AVAILABLE_ROOM_NAMES = json_encode($rooms ?? [], $jsonFlags);
-// 予約ポップアップで選べる部屋（所属していて削除されていない部屋。管理者も同じ）
-$JS_PICKER_ROOM_NAMES = json_encode((object)($pickerRooms ?? []), $jsonFlags);
+// 予約ポップアップで選べる部屋（所属していて削除されていない部屋。管理者も同じ）。
+// JS のオブジェクトにすると部屋IDの昇順に並び替わるため、表示順を保つよう配列で渡す
+$pickerRoomList = [];
+foreach (($pickerRooms ?? []) as $rid => $rname) {
+    $pickerRoomList[] = ['id' => (int)$rid, 'name' => (string)$rname];
+}
+$JS_PICKER_ROOMS = json_encode($pickerRoomList, $jsonFlags);
 
 // 子供用: トグルURLテンプレートと初期room
 $JS_TOGGLE_BASE      = json_encode($toggleBase ?? '', $jsonFlags);
@@ -185,7 +190,7 @@ $jsConfigVars = compact(
     'JS_TOGGLE_BASE',
     'JS_ROOM_NAMES',
     'JS_AVAILABLE_ROOM_NAMES',
-    'JS_PICKER_ROOM_NAMES',
+    'JS_PICKER_ROOMS',
     'csrfToken',
     'serverToday',
     'copyApi',

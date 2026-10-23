@@ -59,21 +59,30 @@ class ReservationDirectRegisterController extends ReservationBaseController
 
         $payload = (array)$this->request->getData();
         if (empty($payload)) {
-            $payload = (array)($this->request->input('json_decode', true) ?? []);
+            $payload = (array)(json_decode((string)$this->request->getBody(), true) ?? []);
         }
 
         $roomId = isset($payload['roomId']) ? (int)$payload['roomId'] : 0;
         if ($roomId <= 0) {
+            // 権限判定の前に返すため、未判定のまま 500 にならないよう判定を省いたことを明示する
+            $this->Authorization->skipAuthorization();
+
             return $this->apiResponseService->error($this->response, 'roomId is required.', 400);
         }
 
         $dateStr = (string)($payload['date'] ?? '');
         if ($dateStr === '') {
+            // 権限判定の前に返すため、未判定のまま 500 にならないよう判定を省いたことを明示する
+            $this->Authorization->skipAuthorization();
+
             return $this->apiResponseService->error($this->response, 'date is required.', 400);
         }
 
         $rawMeals = isset($payload['meals']) && is_array($payload['meals']) ? $payload['meals'] : [];
         if (empty($rawMeals)) {
+            // 権限判定の前に返すため、未判定のまま 500 にならないよう判定を省いたことを明示する
+            $this->Authorization->skipAuthorization();
+
             return $this->apiResponseService->error($this->response, 'meals is required.', 400);
         }
         $mealIndices = array_values(array_unique(array_map('intval', $rawMeals)));
@@ -158,7 +167,7 @@ class ReservationDirectRegisterController extends ReservationBaseController
 
         $payload = (array)$this->request->getData();
         if (empty($payload)) {
-            $payload = (array)($this->request->input('json_decode', true) ?? []);
+            $payload = (array)(json_decode((string)$this->request->getBody(), true) ?? []);
         }
 
         $dateStr    = (string)($payload['date'] ?? '');

@@ -624,17 +624,21 @@ function openModalById(id){
              */
             function openMealPicker(jsEvent, dateStr, editMode) {
                 var t = window.__TRESP || {};
-                var roomNames = t.pickerRoomNames || {};
-                var ids = Object.keys(roomNames);
-                if (ids.length === 0) {
+                var list = t.pickerRooms || [];
+                var roomNames = {};
+                list.forEach(function(r) { roomNames[String(r.id)] = r.name; });
+                var ids = list.map(function(r) { return String(r.id); }); // 部屋の表示順
+                if (ids.length === 0 && !editMode) {
                     if (window.pageToast) window.pageToast('所属している部屋がありません。部屋を選択してください（所属部屋は管理者が設定します）。', 'warning');
                     return;
                 }
+                // 所属部屋が0でも、編集では残った予約の取消（チェックを外す）だけできるよう開く
                 var defaultRoomId = [t.calRoomId, t.roomId]
                     .filter(function(r) { return r != null && roomNames[String(r)]; })[0];
-                if (defaultRoomId == null) defaultRoomId = parseInt(ids[0], 10);
+                if (defaultRoomId == null && ids.length > 0) defaultRoomId = parseInt(ids[0], 10);
                 showMealPickerForDate(jsEvent, dateStr, ids.length === 1 ? parseInt(ids[0], 10) : null, {
                     roomNames: roomNames,
+                    roomOrder: ids,
                     defaultRoomId: defaultRoomId
                 }, editMode);
             }
@@ -809,7 +813,8 @@ function openModalById(id){
 
             function roomNameOf(roomId) {
                 var t = window.__TRESP || {};
-                return (t.pickerRoomNames && t.pickerRoomNames[roomId])
+                var picked = (t.pickerRooms || []).filter(function(r) { return String(r.id) === String(roomId); })[0];
+                return (picked && picked.name)
                     || (t.availableRoomNames && t.availableRoomNames[roomId])
                     || (t.roomNames && t.roomNames[roomId])
                     || String(roomId);
@@ -882,20 +887,23 @@ function openModalById(id){
                 // 部屋の選択肢は所属部屋。予約中の部屋が所属部屋に無い（退出済み・削除済みなど）場合は、
                 // 現状が分かるよう「（所属外）」として表示し、部屋の変更はできないが取消はできるようにする
                 // 所属部屋が1つなら部屋は確定しているので、部屋のプルダウンは出さない
-                var useRoomSelect = !!(roomChoice && roomChoice.roomNames && Object.keys(roomChoice.roomNames).length > 1);
+                var memberRooms = (roomChoice && roomChoice.roomNames) || {};
+                var useRoomSelect = Object.keys(memberRooms).length > 1;
+                // 選択肢の並び（オブジェクトのキーは部屋IDの昇順に並び替わるため、順番は別に持つ）
+                var roomOrder = ((roomChoice && roomChoice.roomOrder) || Object.keys(memberRooms)).slice();
                 var roomOptions = {};
                 var outsideRooms = {};
                 var allRoomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
-                if (useRoomSelect) {
-                    Object.keys(roomChoice.roomNames).forEach(function(rid) { roomOptions[rid] = roomChoice.roomNames[rid]; });
-                    meals.forEach(function(m) {
-                        var r = detail[m.key] && detail[m.key + 'Room'];
-                        if (r && !roomOptions[String(r)]) {
-                            roomOptions[String(r)] = (allRoomNames[r] || ('部屋' + r)) + '（所属外）';
-                            outsideRooms[String(r)] = true;
-                        }
-                    });
-                }
+                Object.keys(memberRooms).forEach(function(rid) { roomOptions[rid] = memberRooms[rid]; });
+                // 所属部屋が1つ・0でも、所属外の部屋に残った予約はそれと分かるよう印を付ける
+                meals.forEach(function(m) {
+                    var r = detail[m.key] && detail[m.key + 'Room'];
+                    if (r && !memberRooms[String(r)] && !outsideRooms[String(r)]) {
+                        roomOptions[String(r)] = (allRoomNames[r] || ('部屋' + r)) + '（所属外）';
+                        outsideRooms[String(r)] = true;
+                        roomOrder.push(String(r));
+                    }
+                });
                 var showBulk = useRoomSelect;
                 var firstReservedRoom = [detail.breakfastRoom, detail.lunchRoom, detail.dinnerRoom, detail.bentoRoom]
                     .filter(function(r) { return r && !outsideRooms[String(r)]; })[0];
@@ -912,7 +920,7 @@ function openModalById(id){
                     ph.value = '';
                     ph.textContent = '部屋を選択';
                     sel.appendChild(ph);
-                    Object.keys(roomOptions).forEach(function(rid) {
+                    roomOrder.forEach(function(rid) {
                         var opt = document.createElement('option');
                         opt.value = rid;
                         opt.textContent = roomOptions[rid];
@@ -1115,7 +1123,8 @@ function openModalById(id){
                 /** 全食事の部屋がそろっているかを見出し下に表示する */
                 function updateRoomSummary() {
                     if (!useRoomSelect) return;
-                    var vals = checkboxEntries.map(function(e) { return e.roomSel.value; });
+                    // 所属外で部屋を変えられない行は比べない（そろえられないため）
+                    var vals = checkboxEntries.filter(function(e) { return !e.locked; }).map(function(e) { return e.roomSel.value; });
                     var same = vals.every(function(v) { return v === vals[0]; });
                     summaryEl.textContent = same && vals[0]
                         ? '各食事の部屋を設定してください。すべて「' + roomOptions[vals[0]] + '」に統一されています。'

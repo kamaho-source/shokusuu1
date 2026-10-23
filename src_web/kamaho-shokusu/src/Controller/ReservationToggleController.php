@@ -42,12 +42,15 @@ class ReservationToggleController extends ReservationBaseController
 
         $payload = (array)$this->request->getData();
         if (empty($payload)) {
-            $payload = (array)($this->request->input('json_decode', true) ?? []);
+            $payload = (array)(json_decode((string)$this->request->getBody(), true) ?? []);
         }
         if ($roomId === null) {
             $roomId = isset($payload['roomId']) ? (int)$payload['roomId'] : (int)($payload['i_id_room'] ?? 0);
         }
         if ($roomId <= 0) {
+            // 権限判定の前に返すため、未判定のまま 500 にならないよう判定を省いたことを明示する
+            $this->Authorization->skipAuthorization();
+
             return $this->apiResponseService->error($this->response, 'roomId is required.', 400);
         }
         $targetUserId = isset($payload['userId']) ? (int)$payload['userId'] : 0;
@@ -119,7 +122,7 @@ class ReservationToggleController extends ReservationBaseController
 
         $payload = (array)$this->request->getData();
         if (empty($payload)) {
-            $payload = (array)($this->request->input('json_decode', true) ?? []);
+            $payload = (array)(json_decode((string)$this->request->getBody(), true) ?? []);
         }
 
         $items = $payload['items'] ?? null;

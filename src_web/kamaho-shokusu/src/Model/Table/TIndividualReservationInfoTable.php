@@ -244,17 +244,16 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
-     * 既存行を有効にする更新で、昼食と弁当が別の部屋どうしで同時に有効になるなら拒否する。
-     * 同じ部屋の相手は toggleMeal が取り消すため、ここでは対象の部屋以外だけを見る
-     * （新規行の保存は buildRules の uniqueLunchBentoEffective が全部屋を見る）。
+     * 既存行を有効にする更新で、昼食と弁当が同時に有効になるなら拒否する（同じ部屋・別の部屋とも）。
+     * 新規行の保存は buildRules の uniqueLunchBentoEffective が同じく全部屋を見る。
+     * 入れ替えるときは、呼び出し側が相手の取消を先に行うこと（toggleMeal も相手を先に取り消す）。
      *
-     * @throws \App\Exception\DuplicateMealReservationException 別の部屋で相手の食事が有効な場合
+     * @throws \App\Exception\DuplicateMealReservationException 相手の食事が有効な場合
      */
-    private function assertNoLunchBentoInOtherRoom(
+    private function assertNoLunchBentoConflict(
         int $userId,
         string $date,
         int $mealType,
-        int $roomId,
         int|string|null $eatFlag,
         int|string|null $changeFlag
     ): void {
@@ -267,12 +266,12 @@ class TIndividualReservationInfoTable extends Table
             return;
         }
         $opponent = $mealType === 2 ? 4 : 2;
-        if (array_diff($this->findEffectiveRoomIds($userId, $date, $opponent), [$roomId]) === []) {
+        if ($this->findEffectiveRoomIds($userId, $date, $opponent) === []) {
             return;
         }
 
         throw new DuplicateMealReservationException(sprintf(
-            '%sさんの %s は、別の部屋で%sが予約されているため%sは予約できません（昼食と弁当は同時に予約できません）。',
+            '%sさんの %s は、%sが予約されているため%sは予約できません（昼食と弁当は同時に予約できません）。',
             $this->userLabel($userId),
             $date,
             self::MEAL_LABELS[$opponent],
@@ -404,11 +403,10 @@ class TIndividualReservationInfoTable extends Table
                 $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
                 $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
             );
-            $this->assertNoLunchBentoInOtherRoom(
+            $this->assertNoLunchBentoConflict(
                 $userId,
                 $date,
                 $mealType,
-                (int)($updateFields['i_id_room'] ?? $roomId),
                 $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
                 $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
             );
@@ -510,50 +508,7 @@ class TIndividualReservationInfoTable extends Table
                 throw new ApprovedReservationException();
             }
 
-            $isNew = false;
-            if (!$entity) {
-                $entity = $this->newEmptyEntity();
-                $entity->i_id_user          = $userId;
-                $entity->d_reservation_date = $date;
-                $entity->i_id_room          = $roomId;
-                $entity->i_reservation_type = $meal;
-                // 新規: 作成情報のみ設定（更新情報は設定しない）
-                $entity->dt_create     = $now;
-                $entity->c_create_user = $actor;
-                $entity->i_version     = 1;
-                $isNew = true;
-            }
-
-            // フラグの確定（NULL を残さない）
-            if ($isLastMinute) {
-                $entity->i_change_flag = (int)$changeFlag;                // 0/1
-                $entity->eat_flag      = (int)($entity->eat_flag ?? 0);   // 既存NULLを0に
-            } else {
-                $entity->eat_flag      = (int)$eatFlag;                   // 0/1
-                $entity->i_change_flag = (int)$changeFlag;                // 通常予約でも1にする
-            }
-
-            // 監査: 新規か更新かで分岐
-            if ($isNew) {
-                // 既に上で dt_create/c_create_user を設定済み。dt_update は触らない（NULLのまま）
-                $this->saveOrFail($entity);
-            } else {
-                // 既存行: 更新情報のみ
-                $nextVersion = (int)($entity->i_version ?? 1) + 1;
-                $ok = $this->updateRowWithVersion($entity, [
-                    'eat_flag'      => (int)$entity->eat_flag,
-                    'i_change_flag' => (int)$entity->i_change_flag,
-                    'dt_update'     => $now,
-                    'c_update_user' => $actor,
-                ]);
-                if (!$ok) {
-                    $entity->setError('conflict', '予約が更新されています。画面を再読み込みしてください。');
-                    throw new PersistenceFailedException($entity, 'Optimistic lock conflict.');
-                }
-                $entity->i_version = $nextVersion;
-            }
-
-            // 昼/弁の相互排他：ON にしたら相手は OFF
+            // 昼/弁の相互排他：ON にするなら相手を先に OFF にする（相手が有効なまま ON にすると updateRowWithVersion が拒否するため）
             if ($on && in_array($meal, [2, 4], true)) {
                 $opponentMeal = ($meal === 2) ? 4 : 2;
 
@@ -621,6 +576,49 @@ class TIndividualReservationInfoTable extends Table
                     }
                     $opponent->i_version = $oppNextVersion;
                 }
+            }
+
+            $isNew = false;
+            if (!$entity) {
+                $entity = $this->newEmptyEntity();
+                $entity->i_id_user          = $userId;
+                $entity->d_reservation_date = $date;
+                $entity->i_id_room          = $roomId;
+                $entity->i_reservation_type = $meal;
+                // 新規: 作成情報のみ設定（更新情報は設定しない）
+                $entity->dt_create     = $now;
+                $entity->c_create_user = $actor;
+                $entity->i_version     = 1;
+                $isNew = true;
+            }
+
+            // フラグの確定（NULL を残さない）
+            if ($isLastMinute) {
+                $entity->i_change_flag = (int)$changeFlag;                // 0/1
+                $entity->eat_flag      = (int)($entity->eat_flag ?? 0);   // 既存NULLを0に
+            } else {
+                $entity->eat_flag      = (int)$eatFlag;                   // 0/1
+                $entity->i_change_flag = (int)$changeFlag;                // 通常予約でも1にする
+            }
+
+            // 監査: 新規か更新かで分岐
+            if ($isNew) {
+                // 既に上で dt_create/c_create_user を設定済み。dt_update は触らない（NULLのまま）
+                $this->saveOrFail($entity);
+            } else {
+                // 既存行: 更新情報のみ
+                $nextVersion = (int)($entity->i_version ?? 1) + 1;
+                $ok = $this->updateRowWithVersion($entity, [
+                    'eat_flag'      => (int)$entity->eat_flag,
+                    'i_change_flag' => (int)$entity->i_change_flag,
+                    'dt_update'     => $now,
+                    'c_update_user' => $actor,
+                ]);
+                if (!$ok) {
+                    $entity->setError('conflict', '予約が更新されています。画面を再読み込みしてください。');
+                    throw new PersistenceFailedException($entity, 'Optimistic lock conflict.');
+                }
+                $entity->i_version = $nextVersion;
             }
 
             // “有効値”詳細

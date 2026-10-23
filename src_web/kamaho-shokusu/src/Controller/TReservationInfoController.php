@@ -751,7 +751,7 @@ class TReservationInfoController extends ReservationBaseController
             if ($this->request->is(['post', 'put'])) {
                 $earlyData = $this->request->getData();
                 if (empty($earlyData)) {
-                    $earlyParsed = $this->request->input('json_decode', true);
+                    $earlyParsed = json_decode((string)$this->request->getBody(), true);
                     if (is_array($earlyParsed)) {
                         $earlyData = $earlyParsed;
                     }
@@ -877,7 +877,7 @@ class TReservationInfoController extends ReservationBaseController
             if ($this->request->is(['post', 'put'])) {
                 $data = $this->request->getData();
                 if (empty($data)) {
-                    $parsed = $this->request->input('json_decode', true);
+                    $parsed = json_decode((string)$this->request->getBody(), true);
                     if (is_array($parsed)) {
                         $data = $parsed;
                     }

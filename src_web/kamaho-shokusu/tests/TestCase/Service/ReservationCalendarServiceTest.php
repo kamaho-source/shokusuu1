@@ -285,4 +285,22 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertSame(1, $details[$date]['lunch']);
         $this->assertSame(5, $details[$date]['lunchRoom']);
     }
+
+    /** 過ぎた日は、食数の報告と同じく i_change_flag で判定する（直前期間に追加した予約 eat0/chg1 を消さない） */
+    public function testBuildMyReservationDetails_pastDateUsesChangeFlag(): void
+    {
+        $date = Date::today()->subDays(3)->format('Y-m-d');
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 9905, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 5,
+            'eat_flag' => 0, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        $details = $this->service->buildMyReservationDetails($table, 9905);
+        $counts = $this->service->buildMealCountsByDate($table, [5]);
+
+        $this->assertSame(1, $details[$date]['dinner']);
+        $this->assertSame(1, $counts[$date][3]);
+    }
 }

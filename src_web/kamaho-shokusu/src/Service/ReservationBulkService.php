@@ -134,6 +134,8 @@ class ReservationBulkService
                     }
                     $targetUserLevel = $userLevels[$userId] ?? null;
 
+                    // 取消を先に行う（昼食⇔弁当の入れ替えで、取り消す前の相手と「同時に有効」と判定されないようにする）
+                    uasort($meals, static fn($a, $b): int => ((int)$a === 1) <=> ((int)$b === 1));
                     foreach ($meals as $mealTypeRaw => $checked) {
                         $mealType = (int)$mealTypeRaw;
                         if (!in_array($mealType, [1, 2, 3, 4], true)) {

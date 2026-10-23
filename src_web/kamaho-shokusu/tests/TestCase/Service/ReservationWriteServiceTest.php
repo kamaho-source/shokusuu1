@@ -433,4 +433,20 @@ class ReservationWriteServiceTest extends TestCase
             $this->alwaysValid()
         );
     }
+
+    /** 直前編集の個人モードでも、職員（user 2）は直前期間に別の部屋へ予約を移せない（change-room と同じ扱い） */
+    public function testIndividualStaffLastMinuteCannotMoveRoom(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9, 'eat_flag' => 0]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 1]]]), $this->rooms(), 2, '職員', $this->alwaysValid());
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (\App\Domain\Exception\UnauthorizedException $e) {
+            $this->assertSame('直前期間（14日以内）は職員の部屋変更はできません。', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(2, $date, 3, 9)->i_change_flag, '元の部屋の予約が残る');
+        $this->assertNull($this->fetchReservation(2, $date, 3, 1), '移動先に行を作らない');
+    }
 }

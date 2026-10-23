@@ -94,6 +94,9 @@ class ReservationWriteService
             }
             $connection->commit();
         } catch (\App\Domain\Exception\DomainException $e) {
+            if ($connection->inTransaction()) {
+                $connection->rollback();
+            }
             throw $e;
         } catch (\RuntimeException $e) {
             $connection->rollback();
@@ -317,6 +320,10 @@ class ReservationWriteService
         $dateStr = (string)($payload['date'] ?? '');
         $meal    = isset($payload['meal'])  ? (int)$payload['meal']  : null;
         $value   = isset($payload['value']) ? (int)$payload['value'] : null;
+        // 暦にない日付は、権限・所属の判定より先に入力エラーで返す（理由が分かるように）
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr) === 1 && !self::isValidYmd($dateStr)) {
+            throw new InvalidInputException('日付が正しくありません。');
+        }
 
         $loginUser = $this->userTable->find()
             ->select(['i_admin', 'i_user_level', 'i_id_staff'])
@@ -560,6 +567,10 @@ class ReservationWriteService
                 if ($canCheck && !in_array($fromRoomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal), true)) {
                     throw new ConflictException('変更前の部屋の予約が見つかりません。画面を再読み込みしてください。');
                 }
+                // 退出済み・削除済みの部屋に残った予約は、取消だけ許す（管理者も、部屋の移動はできない）
+                if (!$this->isRoomAvailable($fromRoomId) || !$this->isActiveMember($targetUserId, $fromRoomId)) {
+                    throw new UnauthorizedException('所属外・削除済みの部屋の予約は部屋を変更できません。取り消してから登録し直してください。');
+                }
 
                 $this->processToggle($fromRoomId, ['value' => 0] + $payload, $loginUserId, $loginUserName, false);
 
@@ -750,6 +761,11 @@ class ReservationWriteService
         $duplicates = [];
         $performed  = false;
 
+        // 取消（部屋が null）を先に行う。昼食⇔弁当の入れ替えで、取り消す前の相手と「同時に有効」と判定されないようにする
+        uasort($selectedRoomPerMeal, static fn($a, $b): int => ($a !== null) <=> ($b !== null));
+        $staffLastMinute = TIndividualReservationInfoTable::isLastMinute($reservationDate)
+            && UserRole::isStaffLevel((int)($this->userTable->find()->select(['i_user_level'])->where(['i_id_user' => $userId])->first()?->i_user_level ?? -1));
+
         foreach ($selectedRoomPerMeal as $mealType => $roomId) {
             if ($roomId === null) {
                 foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
@@ -767,6 +783,10 @@ class ReservationWriteService
             foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
                 if ((int)$row->i_id_room === (int)$roomId || !TIndividualReservationInfoTable::isEffectiveRow($row)) {
                     continue;
+                }
+                // 別の部屋の予約を取り消してこの部屋へ移すのは部屋変更。職員は直前期間にはできない（change-room と同じ扱い）
+                if ($staffLastMinute) {
+                    throw new UnauthorizedException('直前期間（14日以内）は職員の部屋変更はできません。');
                 }
                 if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
                     throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
@@ -918,6 +938,8 @@ class ReservationWriteService
         $duplicates    = [];
 
         foreach ($users as $targetUserId => $meals) {
+            // 取消を先に行う（昼食⇔弁当の入れ替えで、取り消す前の相手と「同時に有効」と判定されないようにする）
+            uasort($meals, static fn($a, $b): int => ((int)$a === 1) <=> ((int)$b === 1));
             foreach ($meals as $mealType => $selected) {
                 $valueInt = is_bool($selected) ? ($selected ? 1 : 0) : (int)$selected;
 

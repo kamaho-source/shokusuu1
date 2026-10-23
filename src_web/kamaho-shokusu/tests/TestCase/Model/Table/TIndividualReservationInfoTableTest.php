@@ -334,7 +334,43 @@ class TIndividualReservationInfoTableTest extends TestCase
             ->where(['i_id_user' => 9901, 'i_id_room' => 2, 'i_reservation_type' => 2])->firstOrFail();
 
         $this->expectException(DuplicateMealReservationException::class);
-        $this->expectExceptionMessage('別の部屋で弁当が予約されているため昼食は予約できません');
+        $this->expectExceptionMessage('弁当が予約されているため昼食は予約できません');
         $this->TIndividualReservationInfo->updateRowWithVersion($row, ['eat_flag' => 1, 'i_change_flag' => 1]);
+    }
+
+    /** 同じ部屋でも、弁当が有効なまま昼食の行を有効に戻すと拒否する（toggleMeal 以外の経路は相手を取り消さないため） */
+    public function testUpdateRowWithVersion_rejectsLunchWhileBentoEffectiveInSameRoom(): void
+    {
+        $conn = ConnectionManager::get('test');
+        foreach ([[4, 1], [2, 0]] as [$meal, $flag]) {
+            $conn->insert('t_individual_reservation_info', [
+                'i_id_user' => 9901, 'd_reservation_date' => $this->farDate(), 'i_reservation_type' => $meal, 'i_id_room' => 1,
+                'eat_flag' => $flag, 'i_change_flag' => $flag, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+            ]);
+        }
+        $row = $this->TIndividualReservationInfo->find()
+            ->where(['i_id_user' => 9901, 'i_id_room' => 1, 'i_reservation_type' => 2])->firstOrFail();
+
+        $this->expectException(DuplicateMealReservationException::class);
+        $this->TIndividualReservationInfo->updateRowWithVersion($row, ['eat_flag' => 1, 'i_change_flag' => 1]);
+    }
+
+    /** toggleMeal は相手（弁当）を先に取り消すので、同じ部屋で弁当から昼食へ切り替えられる */
+    public function testToggleMeal_switchesBentoToLunchInSameRoom(): void
+    {
+        $conn = ConnectionManager::get('test');
+        foreach ([[4, 1], [2, 0]] as [$meal, $flag]) {
+            $conn->insert('t_individual_reservation_info', [
+                'i_id_user' => 9901, 'd_reservation_date' => $this->farDate(), 'i_reservation_type' => $meal, 'i_id_room' => 1,
+                'eat_flag' => $flag, 'i_change_flag' => $flag, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+            ]);
+        }
+
+        $this->TIndividualReservationInfo->toggleMeal(9901, 1, $this->farDate(), 2, true, 't');
+
+        $this->assertSame([1], $this->TIndividualReservationInfo->findEffectiveRoomIds(9901, $this->farDate(), 2));
+        $this->assertSame([], $this->TIndividualReservationInfo->findEffectiveRoomIds(9901, $this->farDate(), 4));
     }
 }

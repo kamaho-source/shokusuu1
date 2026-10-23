@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Exception\DuplicateMealReservationException;
 use App\Service\ReservationCopyService;
 use Cake\Http\Response;
 use Cake\Log\Log;
@@ -79,6 +80,9 @@ class ReservationCopyController extends ReservationBaseController
                 'invalid_date' => $result['invalid_date'] ?? 0,
                 'affected'     => $result['copied']       ?? 0,
             ], $msg);
+        } catch (DuplicateMealReservationException $e) {
+            // 二重予約・昼食と弁当の同時予約になる行があると、コピー全体を取り消す。理由（誰の・いつの・どの食事か）を返す
+            return $this->apiResponseService->error($this->response, 'コピーできませんでした。' . $e->getMessage(), 409);
         } catch (\Throwable $e) {
             Log::error(sprintf('Reservation copy failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
             return $this->apiResponseService->error($this->response, 'コピー処理中にエラーが発生しました。', 500);

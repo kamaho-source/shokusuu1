@@ -359,6 +359,9 @@ class ReservationChangeEditService
                 }
             }
 
+            // 取消を先に行う（昼食⇔弁当の入れ替えで、取り消す前の相手と「同時に有効」と判定されないようにする）
+            uasort($rowsToUpdate, static fn(array $a, array $b): int
+                => (($a['set']['i_change_flag'] ?? 1) !== 0) <=> (($b['set']['i_change_flag'] ?? 1) !== 0));
             foreach ($rowsToUpdate as $item) {
                 $ok = $this->updateReservationRowWithVersion($reservationTable, $item['row'], $item['set']);
                 if (!$ok) {
