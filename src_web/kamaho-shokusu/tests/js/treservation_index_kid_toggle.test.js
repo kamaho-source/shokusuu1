@@ -120,4 +120,34 @@ describe('treservation_index.js / 子どもUIのトグル(callToggle)', () => {
         expect(url).toBe('/TReservationInfo/toggle/914');
         expect(JSON.parse(options.body)).toMatchObject({ meal: 1, value: 0, userId: 4 });
     });
+
+    test('1回目の取消のあとも、別の部屋の予約の取消はその部屋へ送る（応答で部屋の情報を消さない）', async () => {
+        document.querySelector('.kid-card').insertAdjacentHTML('beforeend', `
+            <a href="javascript:void(0)" class="btn kid-meal-btn"
+               data-date="${DATE}" data-meal="2" data-meal-key="lunch"
+               data-has-lunch="1" data-has-bento="0" data-is-last-minute="0" data-is-mine="1"
+               data-meal-class="btn-success" data-neutral-class="btn-outline-secondary"></a>`);
+        document.querySelector('.kid-meal-btn[data-meal="1"]').setAttribute('data-is-mine', '1');
+        window.__TRESP.myDetails = { [DATE]: { breakfast: 1, breakfastRoom: 910, lunch: 1, lunchRoom: 911 } };
+        fetchMock.mockImplementation(() => Promise.resolve({
+            headers: { get: () => 'application/json' },
+            status: 200,
+            json: () => Promise.resolve({ ok: true, data: {
+                value: false,
+                details: { breakfast: false, lunch: false, dinner: false, bento: false },
+                affected: { date: DATE, roomId: 910, userId: 4 },
+            } }),
+        }));
+        loadAndInit();
+
+        document.querySelector('.kid-meal-btn[data-meal="1"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        await flush(); await flush();
+        document.querySelector('.kid-meal-btn[data-meal="2"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        await flush(); await flush();
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const [url, options] = fetchMock.mock.calls[1];
+        expect(url).toBe('/TReservationInfo/toggle/911');
+        expect(JSON.parse(options.body)).toMatchObject({ meal: 2, value: 0 });
+    });
 });

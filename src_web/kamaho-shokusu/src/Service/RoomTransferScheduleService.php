@@ -234,6 +234,9 @@ class RoomTransferScheduleService
                 : (string)$old->d_reservation_date;
             $mealType = (int)$old->i_reservation_type;
             $eatFlag  = (int)$old->eat_flag;
+            // 集計（t_reservation_info）の増減は、食数として数える値で判定する（直前期間は i_change_flag）
+            $datePolicy = new ReservationDatePolicy();
+            $counted  = $datePolicy->countedValue($dateStr, $old->eat_flag, $old->i_change_flag);
 
             // 移行先に同一PKが既にある場合は新規作成しない（古い行のみ削除）。
             // ただし移行先が取消済みの行（部屋変更で残る）なら、古い行の予約を引き継ぐ。そうしないと予約が消える
@@ -246,8 +249,8 @@ class RoomTransferScheduleService
                 ])
                 ->first();
             $alreadyExists = $destRow !== null;
-            // 集計（t_reservation_info）は eat_flag=1 の行数。移行先に行がある場合も、移行元の行は消えるので -1 する
-            if ($alreadyExists && $eatFlag === 1) {
+            // 集計（t_reservation_info）は食べる行の数。移行先に行がある場合も、移行元の行は消えるので -1 する
+            if ($alreadyExists && $counted === 1) {
                 $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomFromId, $mealType, -1, $now);
             }
             if ($destRow !== null
@@ -271,8 +274,8 @@ class RoomTransferScheduleService
                         'i_reservation_type' => $mealType,
                     ]
                 );
-                // 移行先の eat_flag が変わった分だけ、移行先の集計を増減する
-                $destDelta = $eatFlag - ((int)$destRow->eat_flag === 1 ? 1 : 0);
+                // 移行先の数える値が変わった分だけ、移行先の集計を増減する
+                $destDelta = $counted - $datePolicy->countedValue($dateStr, $destRow->eat_flag, $destRow->i_change_flag);
                 if ($destDelta !== 0) {
                     $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomToId, $mealType, $destDelta, $now);
                 }
@@ -307,8 +310,8 @@ class RoomTransferScheduleService
                 // （別の部屋に以前からの二重予約が残っていても、異動全体を止めない）
                 $indvResTable->saveOrFail($newRow, ['checkDuplicateRoom' => false]);
 
-                // eat_flag=1 の行だけ集計テーブルを更新
-                if ($eatFlag === 1) {
+                // 食べる行だけ集計テーブルを更新
+                if ($counted === 1) {
                     $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomFromId, $mealType, -1, $now);
                     $this->adjustGroupReservationCount($groupResTable, $dateStr, $roomToId, $mealType, +1, $now);
                 }

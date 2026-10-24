@@ -373,4 +373,26 @@ class TIndividualReservationInfoTableTest extends TestCase
         $this->assertSame([1], $this->TIndividualReservationInfo->findEffectiveRoomIds(9901, $this->farDate(), 2));
         $this->assertSame([], $this->TIndividualReservationInfo->findEffectiveRoomIds(9901, $this->farDate(), 4));
     }
+
+    /** 過ぎた日も、食数の報告と同じく i_change_flag で有効かを判定する */
+    public function testEffectiveValue_pastDateUsesChangeFlag(): void
+    {
+        $past = Date::today()->subDays(3)->format('Y-m-d');
+
+        $this->assertSame(1, TIndividualReservationInfoTable::effectiveValue($past, 0, 1));
+        $this->assertSame(0, TIndividualReservationInfoTable::effectiveValue($past, 1, 0));
+        $this->assertSame(1, TIndividualReservationInfoTable::effectiveValue($past, 1, null));
+    }
+
+    /** 昼食と弁当の検証ルールの違反だけ、理由の文言を返す */
+    public function testLunchBentoViolation_onlyForTheLunchBentoRule(): void
+    {
+        $e = $this->TIndividualReservationInfo->newEmptyEntity();
+        $e->setError('i_reservation_type', ['uniqueLunchBentoEffective' => 'x']);
+        $other = $this->TIndividualReservationInfo->newEmptyEntity();
+        $other->setError('c_create_user', ['maxLength' => 'x']);
+
+        $this->assertNotNull(TIndividualReservationInfoTable::lunchBentoViolation(new \Cake\ORM\Exception\PersistenceFailedException($e, 'x')));
+        $this->assertNull(TIndividualReservationInfoTable::lunchBentoViolation(new \Cake\ORM\Exception\PersistenceFailedException($other, 'x')));
+    }
 }

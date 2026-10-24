@@ -406,4 +406,21 @@ class ReservationCopyServiceTest extends TestCase
         $this->assertSame([1, 1], [(int)$copied->eat_flag, (int)$copied->i_change_flag], 'コピー先は「食べる」でそろえる');
         $this->assertNull($this->fetchRow('2030-01-16'));
     }
+
+    /** コピー先が直前期間なら、取消済みの既存行を上書きするときに当初予定（eat_flag）を残す */
+    public function testCopyIntoLastMinuteKeepsOriginalPlanOfExistingRow(): void
+    {
+        $dst = Date::today()->addDays(2);
+        $src = $dst->subWeeks(1);
+        $dstMonday = $dst->startOfWeek();
+        $srcMonday = $dstMonday->subWeeks(1);
+        $this->insertRow($src->format('Y-m-d'), ['eat_flag' => 0, 'i_change_flag' => 1]);
+        $this->insertRow($dst->format('Y-m-d'), ['eat_flag' => 1, 'i_change_flag' => 0]);
+
+        $copy = $this->service->copyWeek($srcMonday, $dstMonday, null, false, null, false);
+
+        $this->assertSame(1, $copy['copied']);
+        $row = $this->fetchRow($dst->format('Y-m-d'));
+        $this->assertSame([1, 1], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+    }
 }

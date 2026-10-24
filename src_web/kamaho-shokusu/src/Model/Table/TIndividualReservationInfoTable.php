@@ -173,6 +173,19 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
+     * 保存の失敗が「昼食と弁当の同時予約」の検証ルールによるものなら、その理由の文言を返す。それ以外は null。
+     *
+     * @param \Cake\ORM\Exception\PersistenceFailedException $e
+     * @return string|null
+     */
+    public static function lunchBentoViolation(\Cake\ORM\Exception\PersistenceFailedException $e): ?string
+    {
+        $errors = $e->getEntity()->getError('i_reservation_type');
+
+        return isset($errors['uniqueLunchBentoEffective']) ? '昼食と弁当は同時に予約できません。どちらか一方にしてください。' : null;
+    }
+
+    /**
      * 予約行（d_reservation_date・eat_flag・i_change_flag を持つ）が有効かどうか。
      *
      * @param object $row 予約行（エンティティまたは select の結果）
@@ -306,7 +319,8 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
-     * 予約行の有効値（1=食べる）を返す。直前期間（当日〜14日先）は i_change_flag、それ以外は eat_flag。
+     * 予約行の有効値（1=食べる）を返す。境界日（今日+14日）以前は過去日も含めて i_change_flag（null なら eat_flag）、
+     * それより先は eat_flag。ReservationDatePolicy::countedValue と同じ基準。
      *
      * ponytail: 有効値の基準は Table に置いている。Domain の値オブジェクトへ移すのは、判定を使う箇所がさらに増えたとき
      *
@@ -319,7 +333,9 @@ class TIndividualReservationInfoTable extends Table
     {
         $eatFlag = $eatFlag === null ? null : (int)$eatFlag;
         $changeFlag = $changeFlag === null ? null : (int)$changeFlag;
-        if (self::isLastMinute($date) && $changeFlag !== null) {
+        // 食数の報告・カレンダー・承認（ReservationDatePolicy::countedValue）と同じく、境界日（今日+14日）以前は
+        // 過去日も含めて i_change_flag を見る（過ぎた日に直前の追加・取消を見落とさない）
+        if ($changeFlag !== null && new Date($date) <= Date::today()->addDays(14)) {
             return $changeFlag;
         }
 

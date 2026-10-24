@@ -37,6 +37,12 @@ return function (RouteBuilder $routes): void {
             '/TReservationInfo/bulkAddSubmit',
             ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit']
         )->setMethods(['POST']);
+        // 一括登録画面（bulk_add_form.js）はケバブケースの URL へ送る。ルートが無いと TReservationInfoController に
+        // フォールバックして保存できないため、同じアクションにつなぐ
+        $builder->connect(
+            '/TReservationInfo/bulk-add-submit',
+            ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit']
+        )->setMethods(['POST']);
 
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditForm']);

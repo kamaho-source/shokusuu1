@@ -233,4 +233,28 @@ class RoomTransferScheduleServiceTest extends TestCase
         $this->assertSame(0, $counts[1] ?? null, '移行元の人数が減っていない');
         $this->assertSame(1, $counts[2] ?? null);
     }
+
+    /** 直前期間に追加した予約（eat0/chg1）も、異動で人数（t_reservation_info）を移行元から移行先へ移す */
+    public function testApplyPending_lastMinuteAddedRow_movesTheCount(): void
+    {
+        $today = Date::today('Asia/Tokyo')->format('Y-m-d');
+        $near  = Date::today('Asia/Tokyo')->addDays(5)->format('Y-m-d');
+        $this->insertReservation(1, $near, 0, 1);
+        ConnectionManager::get('test')->insert('t_reservation_info', [
+            'd_reservation_date' => $near, 'i_id_room' => 1, 'c_reservation_type' => 1,
+            'i_taberu_ninzuu' => 1, 'i_tabenai_ninzuu' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+        $this->scheduleTransfer($today);
+
+        $result = $this->service->applyPending($today);
+
+        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $counts = [];
+        foreach (TableRegistry::getTableLocator()->get('TReservationInfo')->find()
+            ->where(['d_reservation_date' => $near, 'c_reservation_type' => 1])->all() as $r) {
+            $counts[(int)$r->i_id_room] = (int)$r->i_taberu_ninzuu;
+        }
+        $this->assertSame([1 => 0, 2 => 1], $counts);
+    }
 }

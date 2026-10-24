@@ -147,7 +147,10 @@ class ReservationBulkService
                         $existing = $existingMap[$date][$userId][$mealType] ?? null;
 
                         if ($existing) {
-                            if ($targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0) {
+                            // 職員の直前取消は認めない（toggle・change-room と同じく、管理者は例外）
+                            if (!$isAdmin && TIndividualReservationInfoTable::isLastMinute((string)$date)
+                                && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0
+                            ) {
                                 // 職員の直前取消は認めない。昼食⇔弁当の入れ替えは取消を伴うので、理由を返して止める
                                 $opponent = [2 => 4, 4 => 2][$mealType] ?? null;
                                 if ($opponent !== null && (int)($meals[$opponent] ?? 0) === 1 && TIndividualReservationInfoTable::isEffectiveRow($existing)) {
@@ -234,7 +237,7 @@ class ReservationBulkService
             Log::error('bulkChangeEditSubmit validation error: ' . json_encode($e->getEntity()->getErrors(), JSON_UNESCAPED_UNICODE));
             return [
                 'ok' => false,
-                'message' => '昼食と弁当は同時に予約できません。どちらか一方にしてください。',
+                'message' => TIndividualReservationInfoTable::lunchBentoViolation($e) ?? '直前編集の保存中にエラーが発生しました。',
             ];
         } catch (\RuntimeException $e) {
             $connection->rollback();
@@ -301,6 +304,7 @@ class ReservationBulkService
             'bento' => '弁当',
         ];
         $skippedMessages = [];
+        $swappedMessages = []; // 昼食⇔弁当の入れ替えで取り消した予約（黙って取り消さず、応答で伝える）
         $rowsToActivate = [];
         $rowsToDeactivate = [];
         $dayUsers = [];
@@ -460,6 +464,12 @@ class ReservationBulkService
                             foreach ($existingRoomMap[$date][$opponent] ?? [] as $oppRoomId => $oppRow) {
                                 if (TIndividualReservationInfoTable::isEffectiveRow($oppRow)) {
                                     $rowsToDeactivate[implode(':', [$date, $userId, $opponent, (int)$oppRoomId])] = $oppRow;
+                                    $swappedMessages[$date . ':' . $opponent] = sprintf(
+                                        '日付 %s は%sを取り消して%sにしました。',
+                                        $date,
+                                        $opponent === 2 ? '昼食' : '弁当',
+                                        $mealTypeInt === 2 ? '昼食' : '弁当'
+                                    );
                                 }
                             }
                         }
@@ -836,7 +846,7 @@ class ReservationBulkService
                 Log::error('bulkAdd validation error: ' . json_encode($e->getEntity()->getErrors(), JSON_UNESCAPED_UNICODE));
                 return [
                     'ok' => false,
-                    'message' => '昼食と弁当は同時に予約できません。どちらか一方にしてください。',
+                    'message' => TIndividualReservationInfoTable::lunchBentoViolation($e) ?? '予約の保存中にエラーが発生しました。',
                 ];
             } catch (\RuntimeException $e) {
                 $connection->rollback();
@@ -901,9 +911,10 @@ class ReservationBulkService
 
         return [
             'ok' => true,
-            'message' => !empty($skippedMessages)
+            'message' => (!empty($skippedMessages)
                 ? "一部の予約は既に存在していたためスキップされました。\n" . implode("\n", $skippedMessages)
-                : "すべての予約が正常に登録されました。",
+                : "すべての予約が正常に登録されました。")
+                . ($swappedMessages !== [] ? "\n" . implode("\n", $swappedMessages) : ''),
             'redirect_url' => './',
         ];
     }

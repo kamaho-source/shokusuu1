@@ -757,4 +757,21 @@ class TReservationInfoControllerTest extends TestCase
 
         return false;
     }
+
+    /** 一括登録画面が送るケバブケースの URL でも、一括登録の保存につながる */
+    public function testBulkAddSubmitKebabCaseRoute(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->enableCsrfToken();
+        $date = (new Date('+2 months'))->format('Y-m-d');
+
+        $this->post('/TReservationInfo/bulk-add-submit', [
+            'reservation_type' => 'personal',
+            'dates' => [$date => 1],
+            'meals' => ['1' => ['1' => 1]],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertArrayHasKey('ok', json_decode((string)$this->_response->getBody(), true));
+    }
 }

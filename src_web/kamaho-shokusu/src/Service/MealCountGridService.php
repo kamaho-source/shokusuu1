@@ -296,11 +296,9 @@ class MealCountGridService
             $change = $row['i_change_flag'];
             $eat    = $row['eat_flag'];
 
-            // i_change_flag が設定済み(直前編集あり)ならそれを優先。
-            // 未設定(NULL)の場合は eat_flag にフォールバック。
-            // 過去日・未来日問わず直前編集を優先することで、
-            // 実食確認なしでも予約数をグリッドに表示できる。
-            $effective = $change !== null ? (int)$change : (int)($eat ?? 0);
+            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、
+            // それより先は eat_flag。i_change_flag が NULL なら eat_flag）
+            $effective = (new ReservationDatePolicy())->countedValue($date, $eat, $change);
 
             $map[$uid][$rid][$date][$type] = $effective === 1;
 

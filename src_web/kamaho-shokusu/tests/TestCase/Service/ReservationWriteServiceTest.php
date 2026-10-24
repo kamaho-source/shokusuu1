@@ -488,4 +488,27 @@ class ReservationWriteServiceTest extends TestCase
         $row = $this->fetchReservation(3, $date, 1, 1);
         $this->assertSame([0, 1], [(int)$row->eat_flag, (int)$row->i_change_flag]);
     }
+
+    /** 個人予約の応答 details は、直前期間でも実際の予約（i_change_flag）を返す */
+    public function testIndividualLastMinuteResponseDetailsReflectTheReservation(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+
+        $result = $this->service->processIndividualReservation($date, json_encode(['meals' => ['1' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $this->assertTrue($result['data']['details']['breakfast']);
+    }
+
+    /** 個人予約の取消は、この画面で扱う部屋の予約だけ（画面に無い部屋の予約は取り消さない） */
+    public function testIndividualCancelDoesNotTouchRoomsOutsideTheForm(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9]);
+
+        $this->service->processIndividualReservation($date, json_encode(['meals' => ['1' => ['1' => 0], '3' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $this->assertSame(0, (int)$this->fetchReservation(3, $date, 1, 1)->eat_flag, '画面の部屋の予約は取り消す');
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag, '画面に無い部屋の予約は残す');
+    }
 }

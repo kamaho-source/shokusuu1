@@ -167,12 +167,8 @@ class ActualMealManagementService
                         $versions[$uid][$date][$mealType] = 1;
                         $statuses[$uid][$date][$mealType] = 0;
                     } else {
-                        // 実効値の判定: i_change_flag が設定済みなら日付に関わらず優先
-                        if ($row['i_change_flag'] !== null) {
-                            $effective = (int)$row['i_change_flag'] === 1;
-                        } else {
-                            $effective = (int)($row['eat_flag'] ?? 0) === 1;
-                        }
+                        // 実効値の判定は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag）
+                        $effective = (new ReservationDatePolicy())->countedValue((string)$date, $row['eat_flag'], $row['i_change_flag']) === 1;
                         $grid[$uid][$date][$mealType]     = $effective;
                         $versions[$uid][$date][$mealType] = (int)($row['i_version'] ?? 1);
                         $statuses[$uid][$date][$mealType] = (int)($row['i_approval_status'] ?? 0);

@@ -221,7 +221,8 @@ class ReservationCopyService
                     ->first();
                 if ($existing) {
                     // willSkipExisting を通っているので、無効で未承認の行。食べるにする
-                    $ok = $this->updateReservationRowWithVersion($existing, $flags + [
+                    // （直前期間は当初予定 eat_flag を残し、i_change_flag だけを立てる。toggle・直前編集と同じ）
+                    $ok = $this->updateReservationRowWithVersion($existing, (TIndividualReservationInfoTable::isLastMinute($dstStr) ? ['i_change_flag' => 1] : $flags) + [
                         'c_update_user' => $actorName,
                         'dt_update'     => new \Cake\I18n\DateTime(),
                     ]);
@@ -374,7 +375,8 @@ class ReservationCopyService
                     ->first();
                 if ($existing) {
                     // willSkipExisting を通っているので、無効で未承認の行。食べるにする
-                    $ok = $this->updateReservationRowWithVersion($existing, $flags + [
+                    // （直前期間は当初予定 eat_flag を残し、i_change_flag だけを立てる。toggle・直前編集と同じ）
+                    $ok = $this->updateReservationRowWithVersion($existing, (TIndividualReservationInfoTable::isLastMinute($dstStr) ? ['i_change_flag' => 1] : $flags) + [
                         'c_update_user' => $actorName,
                         'dt_update'     => new \Cake\I18n\DateTime(),
                     ]);

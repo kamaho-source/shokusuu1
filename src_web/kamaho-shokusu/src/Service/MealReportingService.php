@@ -49,7 +49,7 @@ class MealReportingService
                 'c_update_user' => $userName,
                 'dt_update'     => DateTime::now('Asia/Tokyo'),
                 // 版を上げて、同時に開いていた画面からの古い保存を競合として止める（updateRowWithVersion と同じ）
-                'i_version'     => $reservationTable->updateQuery()->newExpr('i_version + 1'),
+                'i_version'     => $reservationTable->updateQuery()->expr('i_version + 1'),
             ],
             [
                 'i_id_user'             => $userId,
@@ -167,7 +167,7 @@ class MealReportingService
                                 'c_update_user' => $userName,
                                 'dt_update'     => DateTime::now('Asia/Tokyo'),
                                 // 版を上げて、同時に開いていた画面からの古い保存を競合として止める（updateRowWithVersion と同じ）
-                                'i_version'     => $reservationTable->updateQuery()->newExpr('i_version + 1'),
+                                'i_version'     => $reservationTable->updateQuery()->expr('i_version + 1'),
                             ],
                             [
                                 'i_id_user'          => $userId,

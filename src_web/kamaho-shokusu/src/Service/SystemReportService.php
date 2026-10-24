@@ -105,9 +105,6 @@ final class SystemReportService
             ])
             ->all();
 
-        $today  = new \DateTimeImmutable('today');
-        $cutoff = $today->modify('+14 days');
-
         foreach ($reservRows as $row) {
             $roomId = (int)$row->i_id_room;
             $userId = (int)$row->i_id_user;
@@ -117,10 +114,7 @@ final class SystemReportService
             }
 
             $reservDate    = new \DateTimeImmutable((string)$row->d_reservation_date);
-            $isLastMinute  = ($reservDate >= $today && $reservDate <= $cutoff);
-            $effectiveFlag = $isLastMinute && $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            $effectiveFlag = (new ReservationDatePolicy())->countedValue($reservDate->format('Y-m-d'), $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
                 continue;
@@ -194,9 +188,6 @@ final class SystemReportService
             ])
             ->all();
 
-        $today  = new \DateTimeImmutable('today');
-        $cutoff = $today->modify('+14 days');
-
         foreach ($rows as $row) {
             $userId = (int)$row->i_id_user;
             if (!isset($userLevelMap[$userId])) {
@@ -209,10 +200,7 @@ final class SystemReportService
             }
 
             $reservDate    = new \DateTimeImmutable($dateStr);
-            $isLastMinute  = ($reservDate >= $today && $reservDate <= $cutoff);
-            $effectiveFlag = $isLastMinute && $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            $effectiveFlag = (new ReservationDatePolicy())->countedValue($reservDate->format('Y-m-d'), $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
                 continue;

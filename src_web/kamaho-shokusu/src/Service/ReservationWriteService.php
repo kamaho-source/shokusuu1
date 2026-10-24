@@ -77,7 +77,7 @@ class ReservationWriteService
         $connection->begin();
         try {
             ['byRoom' => $existingMap, 'byMeal' => $existingByMeal] = $this->buildIndividualExistingMaps($reservationDate, $userId);
-            $changes            = $this->applyIndividualMealChanges($selectedRoomPerMeal, $existingByMeal, $existingMap, $reservationDate, $userId, $userName);
+            $changes            = $this->applyIndividualMealChanges($selectedRoomPerMeal, $existingByMeal, $existingMap, $reservationDate, $userId, $userName, $rooms);
             $duplicates         = $changes['duplicates'];
             $operationPerformed = $changes['performed'];
 
@@ -774,7 +774,8 @@ class ReservationWriteService
         array  $existingMap,
         string $reservationDate,
         int    $userId,
-        string $userName
+        string $userName,
+        array  $rooms = []
     ): array {
         $toSave     = [];
         $duplicates = [];
@@ -792,6 +793,10 @@ class ReservationWriteService
             if ($roomId === null) {
                 foreach ($existingByMeal[(int)$mealType] ?? [] as $row) {
                     if (!TIndividualReservationInfoTable::isEffectiveRow($row)) {
+                        continue;
+                    }
+                    // 取消は、この画面で扱う部屋の予約だけ（画面に出ていない部屋の予約を巻き込まない）
+                    if ($rooms !== [] && !array_key_exists((int)$row->i_id_room, $rooms)) {
                         continue;
                     }
                     if ($staffLastMinute) {
@@ -860,14 +865,15 @@ class ReservationWriteService
         $type2key = [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
 
         $rows = $this->reservationTable->find()
-            ->select(['i_reservation_type', 'eat_flag'])
+            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag'])
             ->where(['i_id_user' => $userId, 'd_reservation_date' => $date])
             ->all();
 
+        // どの部屋かを問わず、有効な行が1つでもあれば予約あり（直前期間は i_change_flag で判定する）
         foreach ($rows as $r) {
             $k = $type2key[(int)$r->i_reservation_type] ?? null;
-            if ($k) {
-                $states[$k] = ((int)$r->eat_flag === 1);
+            if ($k && TIndividualReservationInfoTable::effectiveValue($date, $r->eat_flag, $r->i_change_flag) === 1) {
+                $states[$k] = true;
             }
         }
         return $states;

@@ -14,6 +14,8 @@ use App\Service\ReservationViewService;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
 use App\Exception\OptimisticLockConflictException;
+use App\Model\Table\TIndividualReservationInfoTable;
+use Cake\ORM\Exception\PersistenceFailedException;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
 use Cake\Routing\Router;
@@ -739,10 +741,7 @@ class TReservationInfoController extends ReservationBaseController
                         ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
                         ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date])
                         ->toArray();
-                    $individualReservations = array_values(array_filter($allIndiv, function ($r) {
-                        $effective = $r->i_change_flag !== null ? (int)$r->i_change_flag : (int)$r->eat_flag;
-                        return $effective === 1;
-                    }));
+                    $individualReservations = array_values(array_filter($allIndiv, fn($r) => $this->datePolicy->countedValue((string)$date, $r->eat_flag, $r->i_change_flag) === 1));
                 }
                 $this->set(compact('room', 'rooms', 'date', 'users', 'userReservations', 'individualReservations'));
                 return $this->render('change_edit');
@@ -866,10 +865,7 @@ class TReservationInfoController extends ReservationBaseController
                         ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
                         ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date])
                         ->toArray();
-                    $individualReservations = array_values(array_filter($allIndiv, function ($r) {
-                        $effective = $r->i_change_flag !== null ? (int)$r->i_change_flag : (int)$r->eat_flag;
-                        return $effective === 1;
-                    }));
+                    $individualReservations = array_values(array_filter($allIndiv, fn($r) => $this->datePolicy->countedValue((string)$date, $r->eat_flag, $r->i_change_flag) === 1));
                 }
                 $this->set(compact('room', 'rooms', 'date', 'users', 'userReservations', 'individualReservations'));
                 return $this->render('change_edit');
@@ -925,6 +921,21 @@ class TReservationInfoController extends ReservationBaseController
                             ], JSON_UNESCAPED_UNICODE));
                     }
                     $this->Flash->error(__($e->getMessage()));
+                } catch (PersistenceFailedException $e) {
+                    // 新しい行の検証ルール（昼食と弁当の同時予約など）。昼食と弁当なら理由を返し、それ以外は下と同じ扱い
+                    $reason = TIndividualReservationInfoTable::lunchBentoViolation($e);
+                    $this->log('直前編集 検証エラー: ' . json_encode($e->getEntity()->getErrors(), JSON_UNESCAPED_UNICODE), 'warning');
+                    $message = $reason ?? '直前予約の更新中にエラーが発生しました。';
+                    if ($wantsJson) {
+                        return $this->response->withStatus($reason !== null ? 409 : 500)->withType('application/json')
+                            ->withStringBody(json_encode([
+                                'ok'      => false,
+                                'status'  => $reason !== null ? 'conflict' : 'error',
+                                'message' => $message,
+                                'data'    => [],
+                            ], JSON_UNESCAPED_UNICODE));
+                    }
+                    $this->Flash->error(__($message));
                 } catch (OptimisticLockConflictException $e) {
                     $this->log('直前編集 競合: ' . $e->getMessage(), 'warning');
                     if ($wantsJson) {

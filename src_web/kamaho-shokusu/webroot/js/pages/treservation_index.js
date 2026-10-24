@@ -383,14 +383,26 @@ function openModalById(id){
             function conflictPair(mealIdx){ if (mealIdx === 2) return 4; if (mealIdx === 4) return 2; return null; }
 
             function applyDetailsAndRefresh(date, payload, btn, mealKey){
-                if (payload && typeof payload.details === 'object') {
-                    var prev = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
-                    MY_DETAILS[date] = {
-                        breakfast: Object.prototype.hasOwnProperty.call(payload.details,'breakfast') ? payload.details.breakfast : prev.breakfast,
-                        lunch:     Object.prototype.hasOwnProperty.call(payload.details,'lunch')     ? payload.details.lunch     : prev.lunch,
-                        dinner:    Object.prototype.hasOwnProperty.call(payload.details,'dinner')    ? payload.details.dinner    : prev.dinner,
-                        bento:     Object.prototype.hasOwnProperty.call(payload.details,'bento')     ? payload.details.bento     : prev.bento
-                    };
+                if (payload && payload.details && typeof payload.details === 'object') {
+                    // 応答の details は、操作した部屋の分だけ。ほかの部屋の予約と、予約している部屋（xxxRoom）は残す
+                    var prev = MY_DETAILS[date] || {};
+                    var next = Object.assign({ breakfast:false, lunch:false, dinner:false, bento:false }, prev);
+                    var rid = payload.affected && payload.affected.roomId != null ? payload.affected.roomId : null;
+                    ['breakfast', 'lunch', 'dinner', 'bento'].forEach(function(k) {
+                        if (!Object.prototype.hasOwnProperty.call(payload.details, k)) return;
+                        var on = !!payload.details[k];
+                        if (on) {
+                            next[k] = true;
+                            next[k + 'Room'] = rid != null ? rid : (prev[k + 'Room'] || null);
+                            return;
+                        }
+                        // 操作した部屋の取消なら外す。別の部屋で予約している食事は、そのまま残す
+                        if (rid == null || prev[k + 'Room'] == null || String(prev[k + 'Room']) === String(rid)) {
+                            next[k] = false;
+                            next[k + 'Room'] = null;
+                        }
+                    });
+                    MY_DETAILS[date] = next;
                 } else {
                     var d = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
                     if (mealKey) d[mealKey] = !!(payload && payload.value);

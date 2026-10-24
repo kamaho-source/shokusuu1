@@ -291,7 +291,8 @@ class ReservationChangeEditService
                     $existingForMeal = $existingAny[$userId][$mealType] ?? null;
 
                     if ($existingInRoom !== null || $existingForMeal !== null) {
-                        if ($targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0) {
+                        // 職員の直前取消は認めない（toggle・change-room と同じく、管理者は例外）
+                        if (!$isAdmin && $isLastMinute && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0) {
                             $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
                             continue;
                         }
