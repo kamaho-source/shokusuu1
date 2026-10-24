@@ -41,7 +41,7 @@ $roleFlags = $dashboard['roleFlags'] ?? ['isAdmin' => false, 'isBlockLeader' => 
 $isAdmin = (bool)($roleFlags['isAdmin'] ?? false);
 $isBlockLeader = (bool)($roleFlags['isBlockLeader'] ?? false);
 $isSysAdmin = $user && (int)($user->get('i_admin') ?? 0) === 3;
-$hasReportAccess = $user && (int)($user->get('i_report_access') ?? 0) === 1;
+$hasReportAccess = $user && ($isAdmin || (int)($user->get('i_report_access') ?? 0) === 1);
 $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
 // DashboardService から渡されたダッシュボード用データを展開する
@@ -395,7 +395,7 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 </div>
             <?php endif; ?>
 
-            <?php /* システムレポート: レポート閲覧権限(i_report_access=1)のユーザーのみ表示する */ ?>
+            <?php /* システムレポート: 管理者とレポート閲覧権限(i_report_access=1)のユーザーに表示する */ ?>
             <?php if ($hasReportAccess): ?>
                 <div class="section-title">システムレポート</div>
                 <div class="card-grid">

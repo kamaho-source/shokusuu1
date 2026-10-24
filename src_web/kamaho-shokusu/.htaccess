@@ -4,8 +4,14 @@
 #    RequestHeader unset Proxy
 #</IfModule>
 
+# メンテナンス: MAINTENANCE があれば全リクエストに 503 とメンテナンス画面を返す（デプロイ中に自動で作成・削除）
+ErrorDocument 503 /kamaho-shokusu/webroot/maintenance.html
+
 <IfModule mod_rewrite.c>
     RewriteEngine on
+    RewriteCond %{DOCUMENT_ROOT}/kamaho-shokusu/MAINTENANCE -f
+    RewriteCond %{REQUEST_URI} !/maintenance\.(html|json)$
+    RewriteRule ^ - [R=503,L]
     RewriteRule    ^(\.well-known/.*)$ $1 [L]
     RewriteRule    ^$    webroot/    [L]
     RewriteRule    (.*) webroot/$1    [L]

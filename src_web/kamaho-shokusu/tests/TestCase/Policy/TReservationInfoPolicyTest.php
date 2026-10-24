@@ -30,6 +30,14 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canAdd($identity, new TReservationInfo()));
     }
 
+    public function testCanAddAsLevel7StaffAllowed(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new TestIdentity(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 7]);
+
+        $this->assertTrue($policy->canAdd($identity, new TReservationInfo()));
+    }
+
     /**
      * 役職「その他」に許可するのは自分の予約の登録だけ。他人分・一括・コピーの操作は許可しない。
      */
@@ -44,6 +52,36 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertFalse($policy->canBulkAddForm($identity, $resource));
         $this->assertFalse($policy->canGetUsersByRoomForBulk($identity, $resource));
         $this->assertFalse($policy->canGetMealCounts($identity, $resource));
+    }
+
+    /**
+     * 認証の identity は MUserInfo エンティティ（object）で渡る。i_user_level が NULL の人は
+     * 職員として扱わない（Controller / Service の判定と揃える）。
+     */
+    public function testCanAddWithNullUserLevelEntityDenied(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new class (['i_id_user' => 1]) extends TestIdentity {
+            public function getOriginalData(): \ArrayAccess|array
+            {
+                return new \App\Model\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => null]);
+            }
+        };
+
+        $this->assertFalse($policy->canAdd($identity, new TReservationInfo()));
+    }
+
+    public function testCanAddWithLevel7EntityAllowed(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new class (['i_id_user' => 1]) extends TestIdentity {
+            public function getOriginalData(): \ArrayAccess|array
+            {
+                return new \App\Model\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 7]);
+            }
+        };
+
+        $this->assertTrue($policy->canAdd($identity, new TReservationInfo()));
     }
 
     public function testCanAddAsChildDenied(): void
@@ -249,5 +287,44 @@ class TReservationInfoPolicyTest extends TestCase
         $resource->set('i_id_room', 3, ['guard' => false]);
 
         $this->assertFalse($policy->canToggle($identity, $resource));
+    }
+
+    /**
+     * 管理者・システム管理者も、所属外の部屋は部屋単位の操作を許可しない（#821）
+     *
+     * @return array<string, array{int}>
+     */
+    public static function adminLevelProvider(): array
+    {
+        return ['管理者' => [1], 'システム管理者' => [3]];
+    }
+
+    /** @dataProvider adminLevelProvider */
+    public function testAdminDeniedForNotMemberRoom(int $adminLevel): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity(['i_id_user' => 10, 'i_admin' => $adminLevel, 'i_user_level' => 0]);
+        $resource = new TReservationInfo();
+        $resource->patch(['i_id_room' => 2, 'i_id_user' => 20], ['guard' => false]);
+
+        $this->assertFalse($policy->canToggle($identity, $resource));
+        $this->assertFalse($policy->canGetUsersByRoom($identity, $resource));
+        $this->assertFalse($policy->canRoomDetails($identity, $resource));
+        $this->assertFalse($policy->canBulkChangeEditSubmit($identity, $resource));
+        $this->assertFalse($policy->canGetRoomMealCounts($identity, $resource));
+        $this->assertFalse($policy->canActualMealSave($identity, $resource));
+    }
+
+    /** @dataProvider adminLevelProvider */
+    public function testAdminAllowedForOtherUserInOwnRoom(int $adminLevel): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([10 => [1]]));
+        $identity = new TestIdentity(['i_id_user' => 10, 'i_admin' => $adminLevel, 'i_user_level' => 0]);
+        $resource = new TReservationInfo();
+        $resource->patch(['i_id_room' => 1, 'i_id_user' => 20], ['guard' => false]);
+
+        $this->assertTrue($policy->canToggle($identity, $resource));
+        $this->assertTrue($policy->canGetUsersByRoom($identity, $resource));
+        $this->assertTrue($policy->canActualMealSave($identity, $resource));
     }
 }

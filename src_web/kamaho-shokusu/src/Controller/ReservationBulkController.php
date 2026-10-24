@@ -126,7 +126,7 @@ class ReservationBulkController extends ReservationBaseController
         $baseWeekParam  = $this->request->getQuery('base_week');
         $formData       = $this->bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
         $canGroup       = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
-            || (int)$this->request->getAttribute('identity')->get('i_user_level') === 0);
+            || UserRole::isStaffLevel((int)$this->request->getAttribute('identity')->get('i_user_level')));
         $isAdmin        = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
         $isBlockLeader  = UserRole::isBlockLeader((int)$this->request->getAttribute('identity')->get('i_admin'));
         $loginRoomIds   = array_keys($rooms);
@@ -231,9 +231,11 @@ class ReservationBulkController extends ReservationBaseController
             [
                 'updated'  => $result['updated'] ?? 0,
                 'created'  => $result['created'] ?? 0,
+                'skipped'  => $result['skipped'] ?? [],
                 'redirect' => './',
             ],
-            '直前編集を保存しました。'
+            // 変更できなかった分は、黙って捨てずに理由を伝える
+            '直前編集を保存しました。' . (($result['skipped'] ?? []) !== [] ? "\n" . implode("\n", $result['skipped']) : '')
         );
     }
 

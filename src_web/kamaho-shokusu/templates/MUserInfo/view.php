@@ -3,7 +3,9 @@
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MUserInfo $mUserInfo
  * @var object $user
+ * @var list<string> $userRooms
  */
+use App\Domain\ValueObject\UserProfileOptions;
 
 $this->assign('title', 'ユーザー情報の表示');
 $currentUserId = $user->get('i_id_user');
@@ -38,6 +40,23 @@ $currentUserId = $user->get('i_id_user');
                     <tr>
                         <th><?= __('ユーザー名') ?></th>
                         <td><?= h($mUserInfo->c_user_name) ?></td>
+                    </tr>
+                    <?php /* 新規登録と同じ並び（性別・年代・年齢・役職・職員ID・所属部屋） */ ?>
+                    <tr>
+                        <th><?= __('性別') ?></th>
+                        <td><?= h(UserProfileOptions::label(UserProfileOptions::GENDERS, $mUserInfo->i_user_gender)) ?></td>
+                    </tr>
+                    <tr>
+                        <th><?= __('年代') ?></th>
+                        <td><?= h(UserProfileOptions::label(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank)) ?></td>
+                    </tr>
+                    <tr>
+                        <th><?= __('年齢') ?></th>
+                        <td><?= $mUserInfo->i_user_age ? h($mUserInfo->i_user_age) . '歳' : __('未設定') ?></td>
+                    </tr>
+                    <tr>
+                        <th><?= __('役職') ?></th>
+                        <td><?= h(UserProfileOptions::label(UserProfileOptions::USER_LEVELS, $mUserInfo->i_user_level)) ?></td>
                     </tr>
                     <?php if ($mUserInfo->i_id_staff): ?>
                         <tr>

@@ -177,13 +177,12 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertSame(true, $responseJson['ok'] ?? null);
         $this->assertArrayHasKey('users', $responseJson['data'] ?? []);
 
-        // 無効なルームIDでテスト（ユーザーが存在しない場合）
-        $this->get('/TReservationInfo/getUsersByRoomForBulk/999');
-        $this->assertResponseOk(); // エラーではなく空の結果を返すべき
-        $responseJson = json_decode((string)$this->_response->getBody(), true);
-        $this->assertSame(true, $responseJson['ok'] ?? null);
-        $this->assertArrayHasKey('users', $responseJson['data'] ?? []);
-        $this->assertEmpty($responseJson['data']['users']);
+        // 存在するが所属していない部屋は、管理者でも拒否される（#821）
+        \Cake\Datasource\ConnectionManager::get('test')->insert('m_room_info', [
+            'i_id_room' => 72, 'c_room_name' => '部屋72', 'i_disp_no' => 72, 'i_enable' => 1, 'i_del_flg' => 0,
+        ]);
+        $this->get('/TReservationInfo/getUsersByRoomForBulk/72');
+        $this->assertResponseCode(403);
     }
 
     public function testGetUsersByRoomUsesChangeFlagAtFourteenDays(): void
@@ -788,5 +787,39 @@ class TReservationInfoControllerTest extends TestCase
         }
 
         return false;
+    }
+
+    /** 一括登録画面が送るケバブケースの URL でも、一括登録の保存につながる */
+    public function testBulkAddSubmitKebabCaseRoute(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->enableCsrfToken();
+        $date = (new Date('+2 months'))->format('Y-m-d');
+
+        $this->post('/TReservationInfo/bulk-add-submit', [
+            'reservation_type' => 'personal',
+            'dates' => [$date => 1],
+            'meals' => ['1' => ['1' => 1]],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertArrayHasKey('ok', json_decode((string)$this->_response->getBody(), true));
+    }
+
+    /** 所属部屋が削除済みだけの職員には、ほかの部屋の食数をカレンダーに出さない（絞り込みが外れて全部屋が見えていた） */
+    public function testIndexDoesNotShowOtherRoomsCountsToStaffWithOnlyDeletedRooms(): void
+    {
+        $conn = ConnectionManager::get('test');
+        $conn->delete('m_user_group', ['i_id_user' => 2]);
+        $conn->insert('m_room_info', ['i_id_room' => 7, 'c_room_name' => '削除済み', 'i_disp_no' => 7, 'i_enable' => 1, 'i_del_flg' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $conn->insert('m_user_group', ['i_id_user' => 2, 'i_id_room' => 7, 'active_flag' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $date = Date::today()->addDays(5)->format('Y-m-d');
+        $this->insertReservation(3, 1, $date, 1, 1, 1);
+
+        $this->setAuthenticatedSession(false, 0);
+        $this->get('/TReservationInfo');
+
+        $this->assertResponseOk();
+        $this->assertSame([], $this->viewVariable('mealDataArray'));
     }
 }

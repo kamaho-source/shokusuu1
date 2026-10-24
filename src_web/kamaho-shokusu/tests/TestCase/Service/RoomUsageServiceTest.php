@@ -53,6 +53,22 @@ class RoomUsageServiceTest extends TestCase
         }
     }
 
+    /** 職員レベル 7 も、職員(0)と同じく「職員別の使用率」に載る */
+    public function testGetRoomUsage_level7StaffIsListedLikeLevel0(): void
+    {
+        $users = \Cake\ORM\TableRegistry::getTableLocator()->get('MUserInfo');
+        $staffOf = fn (array $result): array => array_map(fn ($e) => $e['staff'], $result);
+
+        $users->updateAll(['i_user_level' => 0], ['i_id_user' => 2]);
+        $asLevel0 = $staffOf($this->service->getRoomUsage());
+        $this->assertNotEmpty(array_filter($asLevel0), '比較の前提: 職員が1人以上載っている');
+
+        $users->updateAll(['i_user_level' => 7], ['i_id_user' => 2]);
+        $asLevel7 = $staffOf($this->service->getRoomUsage());
+
+        $this->assertSame($asLevel0, $asLevel7);
+    }
+
     public function testGetRoomUsage_withDateRange_returnsArray(): void
     {
         $from = date('Y-m-01');

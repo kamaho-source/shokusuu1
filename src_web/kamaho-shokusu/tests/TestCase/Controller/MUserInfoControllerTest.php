@@ -247,6 +247,7 @@ class MUserInfoControllerTest extends TestCase
             'c_login_passwd' => 'password123',
             'c_user_name' => '追加テストユーザー',
             'role' => 0,
+            'staff_id' => '900002',
             'age' => 10,
             'age_group' => 1,
             'i_user_gender' => 1,
@@ -334,7 +335,7 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
-     * 管理者は、他のユーザーの役職を変更できる。職員IDは保持される。
+     * 管理者は、他のユーザーの役職を変更できる。職員以外にすると職員IDは持たない（新規登録と同じ）。
      */
     public function testAdminCanChangeRoleOfOtherUser(): void
     {
@@ -345,7 +346,7 @@ class MUserInfoControllerTest extends TestCase
         $this->assertRedirect(['action' => 'index']);
         $row = $this->userRow(2);
         $this->assertSame(3, (int)$row->i_user_level);
-        $this->assertSame(777, (int)$row->i_id_staff);
+        $this->assertNull($row->i_id_staff);
     }
 
     /**
@@ -386,7 +387,7 @@ class MUserInfoControllerTest extends TestCase
     {
         $this->setAuthenticatedSession();
         $this->get('/MUserInfo/edit/1');
-        $this->assertResponseNotContains('id="edit-role"');
+        $this->assertResponseNotContains('id="userLevelSelect"');
 
         $this->postEdit(1, ['c_login_account' => 'admin_user', 'c_user_name' => '管理者', 'i_user_level' => '3', 'rooms' => [1 => '1']]);
         $this->assertSame(0, (int)$this->userRow(1)->i_user_level);
@@ -418,12 +419,12 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->get('/MUserInfo/edit/2');
         $this->assertResponseOk();
-        $this->assertResponseContains('id="edit-role"');
+        $this->assertResponseContains('id="userLevelSelect"');
         $this->assertResponseContains('その他');
 
         $this->setAuthenticatedSession(false);
         $this->get('/MUserInfo/edit/2');
-        $this->assertResponseNotContains('id="edit-role"');
+        $this->assertResponseNotContains('id="userLevelSelect"');
     }
 
     /**
@@ -434,7 +435,7 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false);
         $this->get('/MUserInfo/edit/3');
         $this->assertResponseOk();
-        $this->assertResponseNotContains('id="edit-role"');
+        $this->assertResponseNotContains('id="userLevelSelect"');
         $this->assertResponseNotContains('所属部屋');
 
         $this->postEdit(3, ['c_login_account' => 'non_staff_user', 'c_user_name' => '名前変更', 'i_user_level' => '0', 'rooms' => []]);
@@ -511,7 +512,7 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(false);
         $this->get('/MUserInfo/edit/3');
         $this->assertResponseOk();
-        $this->assertResponseNotContains('id="edit-role"');
+        $this->assertResponseNotContains('id="userLevelSelect"');
     }
 
     /**
@@ -919,6 +920,55 @@ class MUserInfoControllerTest extends TestCase
         $this->assertContains((int)($created->i_admin ?? 0), [0]);
         $this->assertSame(0, (int)$created->i_enable);
         $this->assertSame(0, (int)$created->i_del_flag);
+    }
+
+    /**
+     * ナビの「ユーザ一覧」は、ユーザー登録ができる人（管理者・ブロック長・職員0）だけに出る。
+     *
+     * @return array<string, array{int, int|null, bool}>
+     */
+    public static function userListMenuProvider(): array
+    {
+        return [
+            '管理者'         => [1, 0, true],
+            'システム管理者' => [3, 0, true],
+            'ブロック長'     => [2, 0, true],
+            '職員(0)'        => [0, 0, true],
+            '職員(7)'        => [0, 7, true],
+            '児童'           => [0, 1, false],
+            'その他'         => [0, 3, false],
+            '役職未設定'     => [0, null, false],
+        ];
+    }
+
+    /**
+     * @dataProvider userListMenuProvider
+     */
+    public function testUserListMenuVisibility(int $iAdmin, ?int $userLevel, bool $visible): void
+    {
+        // 権限はセッション値ではなく DB の値で判定されるため、DB 側を更新する
+        $this->getTableLocator()->get('MUserInfo')->updateAll(
+            ['i_admin' => $iAdmin, 'i_user_level' => $userLevel],
+            ['i_id_user' => 2]
+        );
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 2,
+                'c_login_account' => 'staff_user',
+                'c_user_name'     => 'テストユーザー',
+                'i_admin'         => $iAdmin,
+                'i_user_level'    => $userLevel,
+                'i_id_room'       => 1,
+            ],
+        ]);
+        $this->get('/MUserInfo');
+        $this->assertResponseOk();
+        $marker = '<i class="bi bi-people"></i>ユーザ一覧';
+        $visible ? $this->assertResponseContains($marker) : $this->assertResponseNotContains($marker);
+
+        // 入口が見える人は、登録画面にも実際に進める
+        $this->get('/MUserInfo/add');
+        $visible ? $this->assertResponseOk() : $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']);
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true): void

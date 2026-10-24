@@ -3,12 +3,13 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Domain\ValueObject\UserRole;
 use Authorization\IdentityInterface;
 
 /**
  * システムレポート用認可ポリシー
  *
- * i_report_access === 1 のユーザーのみアクセスを許可する。
+ * 管理者（i_admin が 1 または 3）と、i_report_access === 1 のユーザーにアクセスを許可する。
  */
 final class SystemReportPolicy
 {
@@ -62,23 +63,22 @@ final class SystemReportPolicy
 
     private function hasReportAccess(?IdentityInterface $user): bool
     {
+        return UserRole::isAdmin($this->intField($user, 'i_admin'))
+            || $this->intField($user, 'i_report_access') === 1;
+    }
+
+    private function intField(?IdentityInterface $user, string $key): int
+    {
         if ($user === null) {
-            return false;
+            return 0;
         }
         $identity = $user->getOriginalData();
-        if ($identity === null) {
-            return false;
-        }
-
         if (is_object($identity) && method_exists($identity, 'get')) {
-            return (int)$identity->get('i_report_access') === 1;
+            return (int)$identity->get($key);
         }
-        if (is_array($identity)) {
-            return (int)($identity['i_report_access'] ?? 0) === 1;
+        if (is_array($identity) || $identity instanceof \ArrayAccess) {
+            return (int)($identity[$key] ?? 0);
         }
-        if ($identity instanceof \ArrayAccess) {
-            return (int)($identity['i_report_access'] ?? 0) === 1;
-        }
-        return false;
+        return 0;
     }
 }

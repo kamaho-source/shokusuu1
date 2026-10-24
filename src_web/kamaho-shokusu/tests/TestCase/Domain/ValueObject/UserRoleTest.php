@@ -26,6 +26,23 @@ class UserRoleTest extends TestCase
     }
 
     // ----------------------------------------------------------------
+    // isStaffLevel
+    // ----------------------------------------------------------------
+
+    public function testIsStaffLevelTrueOnlyFor0And7(): void
+    {
+        $this->assertTrue(UserRole::isStaffLevel(0));
+        $this->assertTrue(UserRole::isStaffLevel(7));
+    }
+
+    public function testIsStaffLevelFalseForOtherLevels(): void
+    {
+        foreach ([-1, 1, 2, 6, 8] as $level) {
+            $this->assertFalse(UserRole::isStaffLevel($level), "level {$level}");
+        }
+    }
+
+    // ----------------------------------------------------------------
     // isAdmin
     // ----------------------------------------------------------------
 
@@ -107,6 +124,27 @@ class UserRoleTest extends TestCase
     public function testIsAdminExhaustive(int $value, bool $expected): void
     {
         $this->assertSame($expected, UserRole::isAdmin($value));
+    }
+
+    /**
+     * @dataProvider canRegisterUsersProvider
+     */
+    public function testCanRegisterUsers(int $iAdmin, ?int $userLevel, bool $expected): void
+    {
+        $this->assertSame($expected, UserRole::canRegisterUsers($iAdmin, $userLevel));
+    }
+
+    public static function canRegisterUsersProvider(): array
+    {
+        return [
+            '管理者'                 => [1, 1, true],
+            'システム管理者'         => [3, 1, true],
+            'ブロック長'             => [2, 1, true],
+            '職員(0)'                => [0, 0, true],
+            '職員(7)'                => [0, 7, true],
+            '児童'                   => [0, 1, false],
+            '役職未設定は職員でない' => [0, null, false],
+        ];
     }
 
     public static function isAdminProvider(): array
