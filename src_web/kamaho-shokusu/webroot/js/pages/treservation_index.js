@@ -683,8 +683,11 @@ function openModalById(id){
                         return;
                     }
 
-                    // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
-                    openMealPicker(jsEvent, dateStr, false);
+                    // 自分の予約がある日は、人数クリックと同じ「予約を編集」を開く（4食すべてを並べ、予約済みはチェック済み）。
+                    // 新規の画面は未予約の食事だけを並べるため、予約がある日に開くと未登録の食事だけが選択肢に出てしまう
+                    var d = MY_DETAILS[dateStr] || {};
+                    var hasMine = !!(d.breakfast || d.lunch || d.dinner || d.bento);
+                    openMealPicker(jsEvent, dateStr, hasMine);
                 } catch (e) {
                     console.warn('startDateReservation error:', e);
                 }
