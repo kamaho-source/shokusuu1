@@ -22,6 +22,25 @@ class ReservationCopyService
         $this->MUserInfo                  = TableRegistry::getTableLocator()->get('MUserInfo');
     }
 
+    /**
+     * コピー対象の部屋IDを、ログインユーザーの有効な所属部屋に絞って返す（管理者も同じ。#821）。
+     *
+     * 部屋指定なし（画面の「所属全部屋」）は所属部屋すべて。所属外の部屋の指定・所属部屋なしは null。
+     *
+     * @return array<int>|null
+     */
+    public function resolveTargetRoomIds(?int $requestedRoomId, int $loginUserId, ?RoomAccessService $roomAccessService = null): ?array
+    {
+        $roomAccessService ??= new RoomAccessService();
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+        $roomIds = array_keys($roomAccessService->getAccessibleRooms($roomTable, $loginUserId));
+        if ($requestedRoomId !== null) {
+            return in_array($requestedRoomId, $roomIds, true) ? [$requestedRoomId] : null;
+        }
+
+        return $roomIds ?: null;
+    }
+
     public function normalizeCopyParams(array $data): array
     {
         $mode = strtolower((string)($data['mode'] ?? ''));
@@ -87,7 +106,7 @@ class ReservationCopyService
     public function copyWeek(
         Date $srcMonday,
         Date $dstMonday,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $overwrite,
                    $actor,
         bool $onlyChildren
@@ -103,7 +122,7 @@ class ReservationCopyService
     public function copyMonth(
         Date $srcMonthFirst,
         Date $dstMonthFirst,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $overwrite,
                    $actor,
         
@@ -119,14 +138,14 @@ class ReservationCopyService
         Date $srcStart,
         Date $srcEnd,
         int $offsetDays,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $onlyChildren,
         $actor = null
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
         $today    = Date::today('Asia/Tokyo');
 
-        Log::debug('[copyRangeByOffset] srcStart=' . $srcStart->format('Y-m-d') . ', srcEnd=' . $srcEnd->format('Y-m-d') . ', offsetDays=' . $offsetDays . ', roomId=' . ($roomId ?? 'null') . ', onlyChildren=' . ($onlyChildren ? 'true' : 'false'));
+        Log::debug('[copyRangeByOffset] srcStart=' . $srcStart->format('Y-m-d') . ', srcEnd=' . $srcEnd->format('Y-m-d') . ', offsetDays=' . $offsetDays . ', roomId=' . ($roomId === null ? 'null' : implode(',', (array)$roomId)) . ', onlyChildren=' . ($onlyChildren ? 'true' : 'false'));
         
         if ($childIds !== null) {
             Log::debug('[copyRangeByOffset] childIds count: ' . count($childIds));
@@ -137,7 +156,7 @@ class ReservationCopyService
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
         if ($roomId !== null) {
-            $conditions['i_id_room'] = $roomId;
+            $conditions['i_id_room IN'] = (array)$roomId;
         }
         if ($childIds !== null) {
             if (empty($childIds)) {
@@ -254,7 +273,7 @@ class ReservationCopyService
     private function copyMonthSameDay(
         Date $srcMonthFirst,
         Date $dstMonthFirst,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $onlyChildren,
         $actor = null
     ): array {
@@ -266,14 +285,14 @@ class ReservationCopyService
         $srcEnd   = new Date($srcMonthFirst->format('Y-m-t'));
         $dstStart = new Date($dstMonthFirst->format('Y-m-01'));
 
-        Log::debug('[copyMonthSameDay] srcStart=' . $srcStart->format('Y-m-d') . ', srcEnd=' . $srcEnd->format('Y-m-d') . ', dstStart=' . $dstStart->format('Y-m-d') . ', roomId=' . ($roomId ?? 'null') . ', onlyChildren=' . ($onlyChildren ? 'true' : 'false'));
+        Log::debug('[copyMonthSameDay] srcStart=' . $srcStart->format('Y-m-d') . ', srcEnd=' . $srcEnd->format('Y-m-d') . ', dstStart=' . $dstStart->format('Y-m-d') . ', roomId=' . ($roomId === null ? 'null' : implode(',', (array)$roomId)) . ', onlyChildren=' . ($onlyChildren ? 'true' : 'false'));
 
         $conditions = [
             'd_reservation_date >=' => $srcStart->format('Y-m-d'),
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
         if ($roomId !== null) {
-            $conditions['i_id_room'] = $roomId;
+            $conditions['i_id_room IN'] = (array)$roomId;
         }
         if ($childIds !== null) {
             if (empty($childIds)) {
@@ -434,7 +453,7 @@ class ReservationCopyService
     public function previewWeek(
         Date $srcMonday,
         Date $dstMonday,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $onlyChildren
     ): array {
         $offsetDays = (int)$srcMonday->diff($dstMonday)->days * ($srcMonday <= $dstMonday ? 1 : -1);
@@ -450,7 +469,7 @@ class ReservationCopyService
     public function previewMonth(
         Date $srcMonthFirst,
         Date $dstMonthFirst,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $onlyChildren
     ): array {
         $srcStart = new Date($srcMonthFirst->format('Y-m-01'));
@@ -465,7 +484,7 @@ class ReservationCopyService
         Date $srcStart,
         Date $srcEnd,
         int $offsetDays,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $onlyChildren
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
@@ -476,7 +495,7 @@ class ReservationCopyService
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
         if ($roomId !== null) {
-            $conditions['i_id_room'] = $roomId;
+            $conditions['i_id_room IN'] = (array)$roomId;
         }
         if ($childIds !== null) {
             if (empty($childIds)) {
@@ -524,7 +543,7 @@ class ReservationCopyService
     private function previewMonthSameDay(
         Date $srcMonthFirst,
         Date $dstMonthFirst,
-        ?int $roomId,
+        int|array|null $roomId,
         bool $onlyChildren
     ): array {
         $childIds = $onlyChildren ? $this->getChildUserIds() : null;
@@ -539,7 +558,7 @@ class ReservationCopyService
             'd_reservation_date <=' => $srcEnd->format('Y-m-d'),
         ];
         if ($roomId !== null) {
-            $conditions['i_id_room'] = $roomId;
+            $conditions['i_id_room IN'] = (array)$roomId;
         }
         if ($childIds !== null) {
             if (empty($childIds)) {

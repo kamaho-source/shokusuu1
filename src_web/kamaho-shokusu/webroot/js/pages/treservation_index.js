@@ -2161,111 +2161,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
         }
     });
 
-(function(){
-        const copyApi   = window.__TRESP.copyApi;
-        const copyPreviewApi = window.__TRESP.copyPreviewApi;
-        const csrfToken = document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') || '';
-
-        const ymdLocal = (d)=> {
-            const y=d.getFullYear(), m=('0'+(d.getMonth()+1)).slice(-2), day=('0'+d.getDate()).slice(-2);
-            return `${y}-${m}-${day}`;
-        };
-        const startOfWeek = (d)=> {
-            const c = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-            const w = c.getDay(); const diffToMon = (w === 0 ? -6 : 1 - w);
-            c.setDate(c.getDate() + diffToMon); return c;
-        };
-        const startOfMonth = (d)=> new Date(d.getFullYear(), d.getMonth(), 1);
-
-        const refreshCalendarOrReload = ()=> {
-            try {
-                if (window.__reservationCalendar?.refetchEvents) {
-                    window.__reservationCalendar.refetchEvents();
-                    return;
-                }
-            } catch(_) {}
-            location.reload();
-        };
-
-        const openModalBtn      = document.querySelector('#res-copy-modal');
-        const submitBtn         = document.querySelector('#res-copy-submit');
-        const lastWeekQuickBtn  = document.querySelector('#res-copy-btn-lastweek');
-        const form              = document.querySelector('#res-copy-form');
-
-        if (!form) return;
-
-        async function doCopy(payload){
-            const res = await fetch(copyApi, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json; charset=utf-8',
-                    'Accept': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json().catch(()=> ({}));
-            if (!res.ok || data?.ok === false) {
-                const msg = data?.message || `コピーに失敗しました（${res.status}）`;
-                throw new Error(msg);
-            }
-        }
-
-        submitBtn?.addEventListener('click', async ()=>{
-            try {
-                const fd = new FormData(form);
-                const mode         = fd.get('mode');
-                const sourceStart  = fd.get('source_start');
-                const targetStart  = fd.get('target_start');
-                const roomId       = fd.get('room_id') || '';
-                const overwrite    = fd.get('overwrite') ? 1 : 0;
-
-                if (!sourceStart || !targetStart) { notifyUser('コピー元/先の開始日を入力してください。', 'warning'); return; }
-                if (mode !== 'week' && mode !== 'month') { notifyUser('コピー範囲（週／月）を選択してください。', 'warning'); return; }
-
-                await doCopy({
-                    mode,
-                    source_start: sourceStart,
-                    target_start: targetStart,
-                    room_id: roomId || null,
-                    overwrite
-                });
-
-                notifyUser('コピーが完了しました。', 'success');
-                try {
-                    const modalEl = document.getElementById('res-copy-modal');
-                    if (modalEl && window.bootstrap?.Modal) {
-                        window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                    }
-                } catch(_) {}
-                refreshCalendarOrReload();
-            } catch (e) {
-                notifyUser(e?.message || 'コピーに失敗しました。', 'danger');
-            }
-        });
-
-        lastWeekQuickBtn?.addEventListener('click', async ()=>{
-            try {
-                const base = new Date();
-                const thisMon = startOfWeek(base);
-                const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate() - 7);
-
-                await doCopy({
-                    mode: 'week',
-                    source_start: ymdLocal(lastMon),
-                    target_start: ymdLocal(thisMon),
-                    room_id: null,
-                    overwrite: 0
-                });
-
-                notifyUser('先週 → 今週 へのコピーが完了しました。', 'success');
-                refreshCalendarOrReload();
-            } catch (e) {
-                notifyUser(e?.message || 'コピーに失敗しました。', 'danger');
-            }
-        });
-    })();
+// 予約コピーのモーダルは下の IIFE（#res-copy-modal）がすべて扱う。以前ここにあった同じボタンへの重複ハンドラは削除（#821）
 
 if (typeof enforceLastMinuteNoUncheck !== 'function') {
         function enforceLastMinuteNoUncheck(scope){
@@ -2298,6 +2194,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
         if (!modalEl || !form || !submitBtn) return;
 
         const copyApi   = window.__TRESP.copyApi;
+        const copyPreviewApi = window.__TRESP.copyPreviewApi;
         const csrfToken = document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') || '';
 
         const sourceInput = document.getElementById('source_start');
@@ -2541,10 +2438,11 @@ document.addEventListener('shown.bs.modal', function(ev) {
             try {
                 const sourceStr = ymd(source);
                 const onlyChildren = document.getElementById('copy-only-children')?.checked || false;
-                const roomIdInput = document.querySelector('input[name="room_id"]');
+                const roomIdInput = document.getElementById('res-copy-room');
                 const roomId = roomIdInput?.value || null;
                 
                 let totalCount = 0;
+                let errorMessage = null;
                 const results = [];
                 
                 // 各コピー先の件数を取得
@@ -2569,19 +2467,30 @@ document.addEventListener('shown.bs.modal', function(ev) {
                         }
                     });
                     
-                    if (res.ok) {
-                        const raw = await res.json();
-                        const data = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
-                        if (data && data.ok === true && data.preview) {
-                            const count = data.preview.will_copy || 0;
-                            totalCount += count;
-                            results.push({ target: targetStr, count: count });
-                        }
+                    if (!res.ok) {
+                        // 拒否（所属外の部屋など）を「対象データなし」と取り違えないよう、サーバーの理由を出す
+                        const rawErr = await res.json().catch(() => null);
+                        const errData = rawErr && window.normalizeApiPayload ? window.normalizeApiPayload(rawErr) : rawErr;
+                        errorMessage = errData?.message || `プレビューを取得できませんでした（${res.status}）`;
+                        break;
+                    }
+                    const raw = await res.json();
+                    const data = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
+                    if (data && data.ok === true && data.preview) {
+                        const count = data.preview.will_copy || 0;
+                        totalCount += count;
+                        results.push({ target: targetStr, count: count });
                     }
                 }
                 
                 // プレビュー表示を更新
-                if (totalCount > 0) {
+                if (errorMessage) {
+                    const errEl = document.createElement('div');
+                    errEl.className = 'text-danger';
+                    errEl.textContent = errorMessage;
+                    previewContent.replaceChildren(errEl);
+                    preview.style.display = 'block';
+                } else if (totalCount > 0) {
                     let html = `<div class="mb-2"><strong>コピー予定件数：${totalCount}件</strong></div>`;
                     if (results.length > 1) {
                         html += '<div class="small text-muted">内訳：</div><ul class="small mb-0">';
@@ -2618,6 +2527,8 @@ document.addEventListener('shown.bs.modal', function(ev) {
         // 子供のみチェックボックスの変更
         const onlyChildrenCheckbox = document.getElementById('copy-only-children');
         if (onlyChildrenCheckbox) onlyChildrenCheckbox.addEventListener('change', validateInputs);
+        // 対象の部屋を変えたら件数を取り直す
+        document.getElementById('res-copy-room')?.addEventListener('change', validateInputs);
 
         async function postCopy(payload){
             const res = await fetch(copyApi, {
@@ -2662,13 +2573,15 @@ document.addEventListener('shown.bs.modal', function(ev) {
                 let totalSkipped = 0;
                 let totalSource = 0;
                 let failedCount = 0;
+                let failReason = '';
 
                 for (const targetDateStr of targetDates) {
                     const payload = {
                         mode,
                         source_start: ymd(sourceStart),
                         target_start: targetDateStr,
-                        room_id: null, // すべての部屋
+                        // 未選択（所属全部屋）なら null。選んだ部屋はそのまま送る
+                        room_id: document.getElementById('res-copy-room')?.value || null,
                         overwrite: 0,
                         only_children: onlyChildren ? 1 : 0
                     };
@@ -2686,6 +2599,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
                     } catch (e) {
                         console.error('Copy failed for', targetDateStr, e);
                         failedCount++;
+                        failReason = e?.message || failReason;
                     }
                 }
 
@@ -2699,8 +2613,14 @@ document.addEventListener('shown.bs.modal', function(ev) {
                 }
                 if (failedCount > 0) {
                     message += `\n失敗: ${failedCount}件`;
+                    if (failReason) message += `（${failReason}）`;
                 }
                 
+                // 全件失敗は「完了」と言わず、理由だけを出す
+                if (failedCount === targetDates.length) {
+                    toast(`コピーできませんでした。${failReason}`, 'danger');
+                    return;
+                }
                 toast(message, failedCount > 0 ? 'warning' : 'success');
 
                 if (window.__reservationCalendar?.refetchEvents) {
@@ -2862,7 +2782,9 @@ document.addEventListener('shown.bs.modal', function(ev) {
         modalEl.addEventListener('hidden.bs.modal', function() {
             form.reset();
             sourceValidation.innerHTML = '';
-            targetValidation.innerHTML = '';
+            // 前回選んだコピー先が残ったまま次に実行されないよう、選択も消す（未定義だった targetValidation の参照で以降が止まっていた）
+            targetDates = [];
+            renderTargetDates();
             document.getElementById('copy-preview').style.display = 'none';
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> コピーを実行';
