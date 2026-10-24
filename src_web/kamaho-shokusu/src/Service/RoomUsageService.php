@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -68,7 +69,7 @@ class RoomUsageService
             $masterUsers[$roomId][$userId] = true;
             $roomNames[$roomId]            = $row->m_room_info?->c_room_name ?? '';
 
-            if ($userLevel === 0) {
+            if (UserRole::isStaffLevel($userLevel)) {
                 $staffMaster[$roomId][$userId] = true;
                 $staffNames[$userId]           = $row->m_user_info?->c_user_name ?? '';
             }
@@ -102,9 +103,8 @@ class RoomUsageService
                 continue;
             }
 
-            $effectiveEat = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、それより先は eat_flag）
+            $effectiveEat = (new ReservationDatePolicy())->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveEat === 1) {
                 $eatCounts[$roomId] = ($eatCounts[$roomId] ?? 0) + 1;

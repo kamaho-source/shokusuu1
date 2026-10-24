@@ -148,7 +148,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!raw) return;
             const data = JSON.parse(raw);
             if (data && typeof data === 'object') {
-                Object.assign(selectionsByRoom, data.selectionsByRoom || {});
+                // 過ぎた日の選択は画面で直せないので読み込まない（残っていると、保存のたびに過去日として送られ拒否される）
+                const d = new Date();
+                const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                Object.entries(data.selectionsByRoom || {}).forEach(([roomId, byDate]) => {
+                    const kept = {};
+                    Object.entries(byDate || {}).forEach(([date, users]) => {
+                        if (date >= today) kept[date] = users;
+                    });
+                    selectionsByRoom[roomId] = kept;
+                });
             }
         } catch (e) {
             console.warn('failed to load state', e);

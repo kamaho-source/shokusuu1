@@ -6,6 +6,7 @@ namespace App\Test\TestCase\Application\UseCase\DirectRegisterMeals;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsInput;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\PersistenceException;
 use App\Domain\Exception\UnauthorizedException;
 use App\Service\ReservationWriteService;
@@ -96,5 +97,24 @@ class DirectRegisterMealsUseCaseTest extends TestCase
 
         $this->expectException(ConflictException::class);
         $this->createUseCase($writeService)->execute($this->createInput([1]));
+    }
+
+    public function testExecute_skipsMealReservedInAnotherRoom(): void
+    {
+        $writeService = $this->createMock(ReservationWriteService::class);
+        $writeService->expects($this->exactly(3))
+            ->method('processToggle')
+            ->willReturnCallback(function (int $roomId, array $payload): array {
+                if ((int)$payload['meal'] === 2) {
+                    throw new DuplicateMealConflictException();
+                }
+
+                return ['value' => true, 'details' => []];
+            });
+
+        $output = $this->createUseCase($writeService)->execute($this->createInput([1, 2, 3]));
+
+        $this->assertSame([1, 3], $output->registered);
+        $this->assertSame([2], $output->skipped);
     }
 }

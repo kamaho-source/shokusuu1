@@ -156,7 +156,9 @@ class ReservationQueryService
                 ->enableAutoFields(false)
                 ->select([
                     'max_dt' => $snapshotQuery->func()->max(
-                        $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)')
+                        $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)'),
+                        // 型を渡さないと float 扱いになり '2026-10-24 15:04:05' が 2026 になる（年が同じだと競合を検出できない）
+                        ['string']
                     )
                 ])
                 ->where([
@@ -218,7 +220,9 @@ class ReservationQueryService
             ->select([
                 'd_reservation_date',
                 'max_dt' => $snapshotQuery->func()->max(
-                    $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)')
+                    $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)'),
+                    // 型を渡さないと float 扱いになり '2026-10-24 15:04:05' が 2026 になる（年が同じだと競合を検出できない）
+                    ['string']
                 )
             ])
             ->where([
@@ -230,7 +234,9 @@ class ReservationQueryService
 
         $map = [];
         foreach ($rows as $row) {
-            $dateKey = (string)$row->d_reservation_date;
+            // Date を文字列にするとロケール依存の形（例 10/27/26）になり、画面の Y-m-d のキーで引けず競合チェックが効かない。
+            // サーバー側の比較（ReservationBulkService::checkReservationSnapshots）と同じく Y-m-d で取り出す
+            $dateKey = is_object($row->d_reservation_date) ? $row->d_reservation_date->format('Y-m-d') : (string)$row->d_reservation_date;
             $map[$dateKey] = $row->max_dt ? (string)$row->max_dt : null;
         }
         return $map;

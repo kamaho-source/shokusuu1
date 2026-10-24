@@ -26,6 +26,23 @@ class UserRoleTest extends TestCase
     }
 
     // ----------------------------------------------------------------
+    // isStaffLevel
+    // ----------------------------------------------------------------
+
+    public function testIsStaffLevelTrueOnlyFor0And7(): void
+    {
+        $this->assertTrue(UserRole::isStaffLevel(0));
+        $this->assertTrue(UserRole::isStaffLevel(7));
+    }
+
+    public function testIsStaffLevelFalseForOtherLevels(): void
+    {
+        foreach ([-1, 1, 2, 6, 8] as $level) {
+            $this->assertFalse(UserRole::isStaffLevel($level), "level {$level}");
+        }
+    }
+
+    // ----------------------------------------------------------------
     // isAdmin
     // ----------------------------------------------------------------
 

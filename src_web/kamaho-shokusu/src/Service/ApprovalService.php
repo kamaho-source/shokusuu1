@@ -32,6 +32,7 @@ class ApprovalService
 
     private RoomAccessService $roomAccessService;
     private NotificationService $notificationService;
+    private ?ReservationDatePolicy $datePolicy = null;
 
     public function __construct(
         ?RoomAccessService $roomAccessService = null,
@@ -193,7 +194,8 @@ class ApprovalService
                     'bento' => 0,
                 ];
             }
-            if ((int)$row->eat_flag !== 1) {
+            // 直前期間の変更（i_change_flag）も、食数の報告・カレンダーと同じ基準で数える
+            if ($this->datePolicy()->countedValue($reservationDate, $row->eat_flag, $row->i_change_flag) !== 1) {
                 continue;
             }
             switch ((int)$row->i_reservation_type) {
@@ -447,7 +449,7 @@ class ApprovalService
                     'i_tabenai_ninzuu'   => 0,
                 ];
             }
-            if ((int)$row->eat_flag === 1) {
+            if ($this->datePolicy()->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag) === 1) {
                 $grouped[$key]['i_taberu_ninzuu']++;
             } else {
                 $grouped[$key]['i_tabenai_ninzuu']++;
@@ -494,6 +496,11 @@ class ApprovalService
      *         実際に更新に成功したキーのみを返す（自己承認除外・ステータス不一致でスキップした
      *         ものは含まない）。呼び出し元は監査ログの対象件数・IDにはこの戻り値を使うこと。
      */
+    private function datePolicy(): ReservationDatePolicy
+    {
+        return $this->datePolicy ??= new ReservationDatePolicy();
+    }
+
     private function updateApprovalStatus(
         array $keys,
         int $newStatus,

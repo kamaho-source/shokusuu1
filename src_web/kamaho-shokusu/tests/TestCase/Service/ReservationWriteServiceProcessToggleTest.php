@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Service;
 
+use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\UnauthorizedException;
 use App\Service\ReservationWriteService;
@@ -182,6 +184,40 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->service->processToggle(35, $this->togglePayload(3, 1, 3, 21), 2, '職員');
     }
 
+    /** 直前編集の期間（今日〜14日後）は、職員は自分の予約を取消せない */
+    public function testProcessToggle_staffCannotCancelOnLastMinuteBoundaryDay14(): void
+    {
+        $this->addRoomMembership(2, 38, 0, 0);
+        $this->reservationTableInsert(2, 38, date('Y-m-d', strtotime('+14 days')), 3);
+
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('職員は直前編集でのキャンセルはできません。');
+        $this->service->processToggle(38, $this->togglePayload(2, 0, 3, 14), 2, '職員');
+    }
+
+    /** 職員レベル 7 も、職員(0)と同じく直前編集の期間は自分の予約を取消せない */
+    public function testProcessToggle_level7StaffCannotCancelOnLastMinuteDay14(): void
+    {
+        ConnectionManager::get('test')->update('m_user_info', ['i_user_level' => 7], ['i_id_user' => 2]);
+        $this->addRoomMembership(2, 40, 0, 0);
+        $this->reservationTableInsert(2, 40, date('Y-m-d', strtotime('+14 days')), 3);
+
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('職員は直前編集でのキャンセルはできません。');
+        $this->service->processToggle(40, $this->togglePayload(2, 0, 3, 14), 2, '職員');
+    }
+
+    /** 15日後は直前編集の期間外なので、職員も通常どおり取消せる */
+    public function testProcessToggle_staffCanCancelOutsideLastMinuteWindowDay15(): void
+    {
+        $this->addRoomMembership(2, 39, 0, 0);
+        $this->reservationTableInsert(2, 39, date('Y-m-d', strtotime('+15 days')), 3);
+
+        $this->service->processToggle(39, $this->togglePayload(2, 0, 3, 15), 2, '職員');
+
+        $this->assertSame(0, $this->eatFlag(2, 39, 3), '取消が反映されている');
+    }
+
     /** 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属している必要がある */
     public function testProcessToggle_actorNotMember_cannotEditChild(): void
     {
@@ -192,24 +228,51 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->service->processToggle(36, $this->togglePayload(3, 1), 2, '職員');
     }
 
-    /** 管理者は、所属外の部屋で他人の予約を取消せる（対象が退出済みでも） */
-    public function testProcessToggle_adminCanCancelForNotMemberTarget(): void
+    /** 管理者でも、所属外の部屋では他人の予約を取消せない（#821） */
+    public function testProcessToggle_adminCannotCancelInNotMemberRoom(): void
     {
         $this->addRoomMembership(3, 37, 1, 0);   // 児童は退出済み。管理者(user 1)は未所属
         $this->reservationTableInsert(3, 37, date('Y-m-d', strtotime('+20 days')), 3);
 
-        $this->service->processToggle(37, $this->togglePayload(3, 0), 1, '管理者');
-
-        $this->assertSame(0, $this->eatFlag(3, 37, 3), '管理者の取消が反映されている');
+        try {
+            $this->service->processToggle(37, $this->togglePayload(3, 0), 1, '管理者');
+            $this->fail('所属外の部屋は拒否される');
+        } catch (UnauthorizedException $e) {
+            $this->assertSame('この部屋を操作する権限がありません。', $e->getMessage());
+        }
+        $this->assertSame(1, $this->eatFlag(3, 37, 3), '予約は変更されない');
     }
 
-    /** 管理者でも、削除済み・存在しない部屋には登録も取消もできない */
-    public function testProcessToggle_adminCannotTouchDeletedOrMissingRoom(): void
+    /** 管理者は、所属部屋なら退出済みの対象の予約も取消せる */
+    public function testProcessToggle_adminCanCancelForLeftTargetInOwnRoom(): void
+    {
+        $this->addRoomMembership(3, 38, 1, 0);   // 児童は退出済み
+        $this->addMember(1, 38, 0);               // 管理者(user 1)は有効所属
+        $this->reservationTableInsert(3, 38, date('Y-m-d', strtotime('+20 days')), 3);
+
+        $this->service->processToggle(38, $this->togglePayload(3, 0), 1, '管理者');
+
+        $this->assertSame(0, $this->eatFlag(3, 38, 3), '管理者の取消が反映されている');
+    }
+
+    /** 管理者は、所属部屋なら職員（大人）の予約も代理で登録できる（児童に限らない） */
+    public function testProcessToggle_adminCanRegisterForAdultInOwnRoom(): void
+    {
+        $this->addRoomMembership(2, 39, 0, 0);   // 職員(user 2, i_user_level=0)
+        $this->addMember(1, 39, 0);               // 管理者(user 1)も有効所属
+
+        $this->service->processToggle(39, $this->togglePayload(2, 1), 1, '管理者');
+
+        $this->assertSame(1, $this->eatFlag(2, 39, 3), '管理者の代理登録が反映されている');
+    }
+
+    /** 管理者でも、削除済み・存在しない部屋には登録できない。他人の残った予約の取消も、所属外のため拒否する（#821。本人の取消は ReservationRoomChangeApiTest） */
+    public function testProcessToggle_adminCannotRegisterInDeletedOrMissingRoom(): void
     {
         $this->addRoomMembership(3, 56, 0, 1);   // 削除済みの部屋
         $this->reservationTableInsert(3, 56, date('Y-m-d', strtotime('+20 days')), 3);
 
-        foreach ([[56, 0], [56, 1], [9999, 0]] as [$room, $value]) {
+        foreach ([[56, 1], [9999, 0]] as [$room, $value]) {
             try {
                 $this->service->processToggle($room, $this->togglePayload(3, $value), 1, '管理者');
                 $this->fail("管理者でも拒否される: room={$room} value={$value}");
@@ -217,7 +280,15 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
                 $this->assertSame('選択された部屋は利用できません。', $e->getMessage());
             }
         }
-        $this->assertSame(1, $this->eatFlag(3, 56, 3), '削除済みの部屋の予約は変更されない');
+        $this->assertSame(1, $this->eatFlag(3, 56, 3), '登録の拒否では予約は変わらない');
+
+        try {
+            $this->service->processToggle(56, $this->togglePayload(3, 0), 1, '管理者');
+            $this->fail('所属外の部屋の他人の予約は取り消せない');
+        } catch (UnauthorizedException $e) {
+            $this->assertSame('この部屋を操作する権限がありません。', $e->getMessage());
+        }
+        $this->assertSame(1, $this->eatFlag(3, 56, 3));
     }
 
     /** 行が無い取消（value=0）では、所属外・削除済みの部屋に無効値の行を作らない */
@@ -226,8 +297,8 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->addRoomMembership(1, 54, 1, 0);   // 管理者(user 1)は退出済み
         $this->addRoomMembership(2, 55, 0, 1);   // 削除済みの部屋
 
-        // 管理者本人が退出済みの部屋(54)も、対象(user 3)が未所属なので「行が無い取消」は拒否される
-        foreach ([54 => '対象ユーザーは指定された部屋に所属していません。', 55 => '選択された部屋は利用できません。'] as $room => $message) {
+        // 管理者本人が退出済みの部屋(54)は、所属外として拒否される（#821）
+        foreach ([54 => 'この部屋を操作する権限がありません。', 55 => '選択された部屋は利用できません。'] as $room => $message) {
             try {
                 $this->service->processToggle($room, $this->togglePayload(3, 0), 1, '管理者');
                 $this->fail('行が無い取消は拒否される');
@@ -378,7 +449,7 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
             TableRegistry::getTableLocator()->get('MRoomInfo'),
             '/webroot/'
         ) extends ReservationWriteService {
-            public function processToggle(int $roomId, array $payload, int $loginUserId, string $loginUserName, bool $invalidateCache = true): array
+            public function processToggle(int $roomId, array $payload, int $loginUserId, string $loginUserName, bool $invalidateCache = true, bool $adminAnyRoom = false): array
             {
                 return match ((int)$payload['meal']) {
                     1 => throw new \Cake\Database\Exception\QueryException(
@@ -386,7 +457,7 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
                         new \PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock')
                     ),
                     2 => throw new \PDOException('SQLSTATE[HY000] [2002] Connection refused'),
-                    default => parent::processToggle($roomId, $payload, $loginUserId, $loginUserName, $invalidateCache),
+                    default => parent::processToggle($roomId, $payload, $loginUserId, $loginUserName, $invalidateCache, $adminAnyRoom),
                 };
             }
         };
@@ -414,5 +485,161 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         // 通常のエラーはこれまでどおり具体的な理由が出る（エラーコードは付かない）。
         $this->assertStringContainsString('過去日', $results[2]['message']);
         $this->assertStringNotContainsString('エラーコード', $results[2]['message']);
+    }
+
+    // ----------------------------------------------------------------
+    // processRoomChange: 旧部屋の取消と新部屋の登録を1トランザクションで行う
+    // ----------------------------------------------------------------
+
+    /** @return array<int, int> [roomId => eat_flag] */
+    private function eatFlagsByRoom(int $userId, string $date, int $meal): array
+    {
+        $rows = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_reservation_type' => $meal])
+            ->all();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int)$r->i_id_room] = (int)$r->eat_flag;
+        }
+
+        return $map;
+    }
+
+    public function testProcessRoomChange_movesReservation(): void
+    {
+        $this->addRoomMembership(1, 40, 0, 0);
+        $this->addRoomMembership(1, 41, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 40, $date, 3);
+
+        $this->service->processRoomChange(40, 41, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
+
+        $this->assertSame([40 => 0, 41 => 1], $this->eatFlagsByRoom(1, $date, 3));
+    }
+
+    public function testProcessRoomChange_rollsBackWhenDestinationRejected(): void
+    {
+        $this->addRoomMembership(1, 42, 0, 0);
+        $this->addRoomMembership(1, 43, 1, 0); // 移動先は退出済み
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 42, $date, 3);
+
+        try {
+            $this->service->processRoomChange(42, 43, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (UnauthorizedException $e) {
+            $this->assertSame([42 => 1], $this->eatFlagsByRoom(1, $date, 3), '旧部屋の予約が残っている');
+        }
+    }
+
+    public function testProcessRoomChange_rejectsWhenSourceHasNoReservation(): void
+    {
+        $this->addRoomMembership(1, 44, 0, 0);
+        $this->addRoomMembership(1, 45, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+
+        try {
+            $this->service->processRoomChange(44, 45, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('ConflictException が出るはず');
+        } catch (ConflictException $e) {
+            $this->assertSame([], $this->eatFlagsByRoom(1, $date, 3), '移動先に予約が作られていない');
+        }
+    }
+
+    public function testProcessToggle_rejectsSameMealAlreadyReservedInAnotherRoom(): void
+    {
+        $this->addRoomMembership(1, 46, 0, 0);
+        $this->addRoomMembership(1, 47, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 46, $date, 3);
+
+        try {
+            $this->service->processToggle(47, ['date' => $date, 'meal' => 3, 'value' => 1, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('DuplicateMealConflictException が出るはず');
+        } catch (DuplicateMealConflictException $e) {
+            $this->assertStringContainsString('の夕食は、別の部屋ですでに予約されています', $e->getMessage());
+            $this->assertSame([46 => 1], $this->eatFlagsByRoom(1, $date, 3));
+        }
+    }
+
+    /** 部屋の移動（新しい部屋のON → 古い部屋のOFF の順）でも両方成功し、結果は送った順番で返る */
+    public function testProcessBulkToggle_onBeforeOffForRoomMove_bothSucceedInSentOrder(): void
+    {
+        $this->addRoomMembership(1, 48, 0, 0); // 部屋A
+        $this->addRoomMembership(1, 49, 0, 0); // 部屋B
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 48, $date, 3);
+
+        $results = $this->service->processBulkToggle([
+            ['roomId' => 49, 'userId' => 1, 'date' => $date, 'meal' => 3, 'value' => 1],
+            ['roomId' => 48, 'userId' => 1, 'date' => $date, 'meal' => 3, 'value' => 0],
+        ], 1, '管理者ユーザー');
+
+        $this->assertSame([0, 1], array_keys($results), '結果が送った順番になっていない');
+        $this->assertTrue($results[0]['ok'], $results[0]['message'] ?? '');
+        $this->assertTrue($results[0]['value'], 'キー0は部屋BのONの結果のはず');
+        $this->assertTrue($results[1]['ok'], $results[1]['message'] ?? '');
+        $this->assertFalse($results[1]['value'], 'キー1は部屋AのOFFの結果のはず');
+        $this->assertSame([48 => 0, 49 => 1], $this->eatFlagsByRoom(1, $date, 3));
+    }
+
+    /** 移動元に取消済み行（0/0）しかないときは部屋変更を拒否し、移動先に行を作らない */
+    public function testProcessRoomChange_rejectsWhenSourceHasOnlyCancelledRow(): void
+    {
+        $this->addRoomMembership(1, 50, 0, 0);
+        $this->addRoomMembership(1, 51, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 50, $date, 3);
+        TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->updateAll(
+            ['eat_flag' => 0, 'i_change_flag' => 0],
+            ['i_id_user' => 1, 'i_id_room' => 50, 'd_reservation_date' => $date, 'i_reservation_type' => 3]
+        );
+
+        try {
+            $this->service->processRoomChange(50, 51, ['date' => $date, 'meal' => 3, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('ConflictException が出るはず');
+        } catch (ConflictException $e) {
+            $this->assertSame([50 => 0], $this->eatFlagsByRoom(1, $date, 3), '移動先に予約が作られている');
+        }
+    }
+
+    public function testProcessToggle_rejectsReactivatingCancelledRowWhileAnotherRoomIsEffective(): void
+    {
+        // 部屋変更の後に残る取消済み行（既存行）を ON にする経路。新規保存ではなく更新を通る
+        $this->addRoomMembership(1, 48, 0, 0);
+        $this->addRoomMembership(1, 49, 0, 0);
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->reservationTableInsert(1, 49, $date, 3);
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 48,
+            'eat_flag' => 0, 'i_change_flag' => 0, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+
+        try {
+            $this->service->processToggle(48, ['date' => $date, 'meal' => 3, 'value' => 1, 'userId' => 1], 1, '管理者ユーザー');
+            $this->fail('DuplicateMealConflictException が出るはず');
+        } catch (DuplicateMealConflictException $e) {
+            $this->assertSame([48 => 0, 49 => 1], $this->eatFlagsByRoom(1, $date, 3));
+        }
+    }
+
+    /** 職員は直前期間に、toggle の昼食⇔弁当の入れ替えで予約を取り消せない */
+    public function testProcessToggle_staffCannotSwapLunchBentoLastMinute(): void
+    {
+        $date = date('Y-m-d', strtotime('+5 days'));
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'i_id_room' => 1,
+            'eat_flag' => 0, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+
+        try {
+            $this->service->processToggle(1, ['date' => $date, 'meal' => 4, 'value' => 1, 'userId' => 2], 2, '職員');
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (UnauthorizedException $e) {
+            $this->assertStringContainsString('お昼とお弁当を入れ替えられません', $e->getMessage());
+        }
+        $this->assertSame([1], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(2, $date, 2));
     }
 }

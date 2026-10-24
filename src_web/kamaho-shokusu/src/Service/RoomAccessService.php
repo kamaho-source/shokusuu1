@@ -37,7 +37,7 @@ class RoomAccessService
 
             return array_values(array_unique($roomIds));
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getUserRoomIds failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getUserRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return [];
         }
     }
@@ -60,10 +60,11 @@ class RoomAccessService
                     'MUserGroup.i_id_user' => $userId,
                     'MUserGroup.active_flag' => 0,
                     'MRoomInfo.c_room_name LIKE' => '%' . self::OFFICE_ROOM_KEYWORD . '%',
+                    'MRoomInfo.i_del_flg' => 0, // 削除済みの事務所の所属では事務所ユーザーにしない
                 ])
                 ->count() > 0;
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#isOfficeUser failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#isOfficeUser failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return false;
         }
     }
@@ -133,6 +134,7 @@ class RoomAccessService
             ->select([
                 'room_id' => 'MRoomInfo.i_id_room',
                 'room_name' => 'MRoomInfo.c_room_name',
+                'disp_no' => 'MRoomInfo.i_disp_no',
             ])
             ->innerJoin(
                 ['MUserGroup' => 'm_user_group'],
@@ -143,7 +145,9 @@ class RoomAccessService
                 'MUserGroup.active_flag' => 0,
                 'MRoomInfo.i_del_flg' => 0,
             ])
-            ->distinct(['MRoomInfo.i_id_room', 'MRoomInfo.c_room_name'])
+            ->distinct(['MRoomInfo.i_id_room', 'MRoomInfo.c_room_name', 'MRoomInfo.i_disp_no'])
+            // 既定の部屋（先頭）と選択肢の並びを、他の部屋一覧と同じ表示順に固定する
+            ->orderBy(['MRoomInfo.i_disp_no' => 'ASC', 'MRoomInfo.i_id_room' => 'ASC'])
             ->enableHydration(false)
             ->toArray();
 
@@ -189,7 +193,7 @@ class RoomAccessService
 
             return array_values(array_unique($roomIds));
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getOfficeRoomIds failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getOfficeRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return [];
         }
     }
@@ -213,7 +217,7 @@ class RoomAccessService
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getRoomsByIds failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getRoomsByIds failed: %s: %s (roomIds=%s)', get_class($e), $e->getMessage(), implode(',', $roomIds)));
             return [];
         }
     }
@@ -232,7 +236,7 @@ class RoomAccessService
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getAllActiveRooms failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getAllActiveRooms failed: %s: %s', get_class($e), $e->getMessage()));
             return [];
         }
     }

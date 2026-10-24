@@ -103,4 +103,86 @@ describe('treservation_index.js / 子どもUIのトグル(callToggle)', () => {
             userId: 4,
         });
     });
+
+    test('取消は、選択中の部屋ではなく予約している部屋へ送る（所属外の部屋に残った予約も取り消せる）', async () => {
+        document.querySelector('.kid-meal-btn').setAttribute('data-is-mine', '1');
+        window.__TRESP.currentRoom = '';
+        window.__TRESP.myDetails = { [DATE]: { breakfast: 1, breakfastRoom: 914 } };
+        loadAndInit();
+
+        const btn = document.querySelector(`.kid-meal-btn[data-date="${DATE}"][data-meal="1"]`);
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        await flush();
+        await flush();
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, options] = fetchMock.mock.calls[0];
+        expect(url).toBe('/TReservationInfo/toggle/914');
+        expect(JSON.parse(options.body)).toMatchObject({ meal: 1, value: 0, userId: 4 });
+    });
+
+    test('1回目の取消のあとも、別の部屋の予約の取消はその部屋へ送る（応答で部屋の情報を消さない）', async () => {
+        document.querySelector('.kid-card').insertAdjacentHTML('beforeend', `
+            <a href="javascript:void(0)" class="btn kid-meal-btn"
+               data-date="${DATE}" data-meal="2" data-meal-key="lunch"
+               data-has-lunch="1" data-has-bento="0" data-is-last-minute="0" data-is-mine="1"
+               data-meal-class="btn-success" data-neutral-class="btn-outline-secondary"></a>`);
+        document.querySelector('.kid-meal-btn[data-meal="1"]').setAttribute('data-is-mine', '1');
+        window.__TRESP.myDetails = { [DATE]: { breakfast: 1, breakfastRoom: 910, lunch: 1, lunchRoom: 911 } };
+        fetchMock.mockImplementation(() => Promise.resolve({
+            headers: { get: () => 'application/json' },
+            status: 200,
+            json: () => Promise.resolve({ ok: true, data: {
+                value: false,
+                details: { breakfast: false, lunch: false, dinner: false, bento: false },
+                affected: { date: DATE, roomId: 910, userId: 4 },
+            } }),
+        }));
+        loadAndInit();
+
+        document.querySelector('.kid-meal-btn[data-meal="1"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        await flush(); await flush();
+        document.querySelector('.kid-meal-btn[data-meal="2"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        await flush(); await flush();
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        const [url, options] = fetchMock.mock.calls[1];
+        expect(url).toBe('/TReservationInfo/toggle/911');
+        expect(JSON.parse(options.body)).toMatchObject({ meal: 2, value: 0 });
+    });
+
+    test('別の部屋の弁当から昼食へ入れ替えると、弁当の予約も画面から消える（相手の取消の応答も反映する）', async () => {
+        document.body.insertAdjacentHTML('beforeend', `
+            <div id="conflictModal"><div id="conflictBody"></div><a id="conflictAction">ok</a><a id="conflictReload"></a></div>`);
+        document.querySelector('.kid-card').insertAdjacentHTML('beforeend', `
+            <a href="javascript:void(0)" class="btn kid-meal-btn"
+               data-date="${DATE}" data-meal="2" data-meal-key="lunch"
+               data-has-lunch="0" data-has-bento="1" data-is-last-minute="0" data-is-mine="0"
+               data-meal-class="btn-success" data-neutral-class="btn-outline-secondary"></a>
+            <a href="javascript:void(0)" class="btn kid-meal-btn"
+               data-date="${DATE}" data-meal="4" data-meal-key="bento"
+               data-has-lunch="0" data-has-bento="1" data-is-last-minute="0" data-is-mine="1"
+               data-meal-class="btn-success" data-neutral-class="btn-outline-secondary"></a>`);
+        window.__TRESP.currentRoom = '910';
+        window.__TRESP.myDetails = { [DATE]: { bento: 1, bentoRoom: 911 } };
+        const replies = [
+            { value: false, details: { breakfast: false, lunch: false, dinner: false, bento: false }, affected: { date: DATE, roomId: 911, userId: 4 } },
+            { value: true,  details: { breakfast: false, lunch: true,  dinner: false, bento: false }, affected: { date: DATE, roomId: 910, userId: 4 } },
+        ];
+        fetchMock.mockImplementation(() => Promise.resolve({
+            headers: { get: () => 'application/json' },
+            status: 200,
+            json: () => Promise.resolve({ ok: true, data: replies.shift() }),
+        }));
+        loadAndInit();
+
+        document.querySelector('.kid-meal-btn[data-meal="2"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        await flush();
+        document.getElementById('conflictAction').onclick && document.getElementById('conflictAction').onclick(new window.MouseEvent('click'));
+        await flush(); await flush(); await flush();
+
+        expect(fetchMock.mock.calls.map((c) => c[0])).toEqual(['/TReservationInfo/toggle/911', '/TReservationInfo/toggle/910']);
+        const bentoBtn = document.querySelector('.kid-meal-btn[data-meal="4"]');
+        expect(bentoBtn.classList.contains('btn-success')).toBe(false);
+    });
 });

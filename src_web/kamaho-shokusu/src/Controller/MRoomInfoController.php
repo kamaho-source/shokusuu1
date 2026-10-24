@@ -63,6 +63,10 @@ class MRoomInfoController extends AppController
             $this->Flash->error(__('あなたは閲覧権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
+        if ((int)($mRoomInfo->i_del_flg ?? 1) !== 0) {
+            $this->Flash->error(__('この部屋は削除されています。'));
+            return $this->redirect(['action' => 'index']);
+        }
 
         $users = $this->roomService->getUsersForRoom($mRoomInfo);
 
