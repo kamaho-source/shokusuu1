@@ -101,7 +101,7 @@ class MUserInfoTable extends Table
         $validator
             ->integer('i_user_rank')
             ->allowEmptyString('i_user_rank', 'create')
-            ->notEmptyString('i_user_rank', '役職を選択してください。');
+            ->notEmptyString('i_user_rank', '年代を選択してください。');
         $validator
             ->dateTime('dt_create')
             ->allowEmptyDateTime('dt_create');

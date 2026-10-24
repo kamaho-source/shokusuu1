@@ -15,11 +15,19 @@ class ReservationCalendarService
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
     }
 
+    /**
+     * 利用者が有効に所属している部屋の ID（退出済みの所属と、削除済みの部屋は含めない）。
+     *
+     * @return list<int>
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
+     */
     public function getUserRoomIds(Table $userGroupTable, int $userId): array
     {
+        // 削除済みの部屋は所属に数えない（代表部屋が削除済みになると、カレンダーで予約を開けなくなるため）
         $userGroups = $userGroupTable->find()
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
+            ->select(['MUserGroup.i_id_room'])
+            ->innerJoin(['MRoomInfo' => 'm_room_info'], ['MRoomInfo.i_id_room = MUserGroup.i_id_room'])
+            ->where(['MUserGroup.i_id_user' => $userId, 'MUserGroup.active_flag' => 0, 'MRoomInfo.i_del_flg' => 0])
             ->toArray();
 
         $roomIds = [];
@@ -51,18 +59,27 @@ class ReservationCalendarService
             ->where([
                 'MUserGroup.i_id_user' => $userId,
                 'MUserGroup.active_flag' => 0,
+                'MRoomInfo.i_del_flg' => 0,
                 'MRoomInfo.c_room_name LIKE' => '%事務所%',
+                'MRoomInfo.i_del_flg' => 0, // 削除済みの事務所の所属では事務所ユーザーにしない
             ])
             ->count() > 0;
     }
 
-    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $isAdmin, bool $isOfficeUser = false, bool $isBlockLeader = false): array
+    /**
+     * 部屋の選択肢を返す。管理者・システム管理者も所属部屋のみ（#821）。
+     *
+     * @param bool $includeAllRooms 全部屋を返すか（食数グリッドの事務所ユーザー用。管理者には渡さない）
+     */
+    public function getRoomsForUser(Table $roomTable, array $userRoomIds, bool $includeAllRooms, bool $isOfficeUser = false, bool $isBlockLeader = false): array
     {
-        if ($isAdmin) {
+        if ($includeAllRooms) {
             // m_room_info には i_disp_no カラムが存在するため固定使用
             $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
 
+            // 削除済みの部屋は選択肢に出さない
             $query = $roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+                ->where(['i_del_flg' => 0])
                 ->orderBy($roomOrder);
 
             return $query->toArray();
@@ -77,6 +94,7 @@ class ReservationCalendarService
                 ->where([
                     'i_id_room IN' => $userRoomIds,
                     'c_room_name LIKE' => '%事務所%',
+                    'i_del_flg' => 0,
                 ])
                 ->orderBy(['c_room_name' => 'ASC', 'i_id_room' => 'ASC'])
                 ->toArray();
@@ -131,9 +149,7 @@ class ReservationCalendarService
             $dateStr = $r->d_reservation_date->format('Y-m-d');
             $type    = (int)$r->i_reservation_type;
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            $effective = $this->datePolicy->countedValue($dateStr, $r->eat_flag, $r->i_change_flag);
 
             if ($effective !== 1) {
                 continue;
@@ -198,9 +214,12 @@ class ReservationCalendarService
                 ];
             }
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            $effective = $this->datePolicy->countedValue($dateStr, $r->eat_flag, $r->i_change_flag);
+
+            // 部屋変更の後は、元の部屋に取消済みの行が残る。行の並び順で有効な予約を上書きしない
+            if ($effective === 0 && $details[$dateStr][$key] === 1) {
+                continue;
+            }
 
             $details[$dateStr][$key]          = $effective;
             $details[$dateStr][$key . 'Room'] = ($effective === 1) ? (int)$r->i_id_room : null;
@@ -297,11 +316,15 @@ class ReservationCalendarService
         return $events;
     }
 
+    /**
+     * @param array<int>|null $roomIds 集計する部屋（null は全部屋。事務所ユーザー用）
+     */
     public function buildTotalEvents(
         Table $reservationTable,
         string $startDate,
         string $endDate,
-        ?Date $borderDate = null
+        ?Date $borderDate = null,
+        ?array $roomIds = null
     ): array {
         $borderDate = $borderDate ?? $this->datePolicy->changeBoundaryDate();
 
@@ -309,15 +332,16 @@ class ReservationCalendarService
             ->select(['d_reservation_date', 'eat_flag', 'i_change_flag'])
             ->where(['d_reservation_date >=' => $startDate])
             ->where(['d_reservation_date <' => $endDate]);
+        if ($roomIds !== null) {
+            $query->where(['i_id_room IN' => $roomIds ?: [0]]);
+        }
 
         $rows = $query->toArray();
 
         $dateCounts = [];
         foreach ($rows as $r) {
             $dateStr = $r->d_reservation_date->format('Y-m-d');
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            $effective = $this->datePolicy->countedValue($dateStr, $r->eat_flag, $r->i_change_flag);
             if ($effective === 1) {
                 $dateCounts[$dateStr] = ($dateCounts[$dateStr] ?? 0) + 1;
             }

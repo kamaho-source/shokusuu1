@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
+use App\Service\AuditLogService;
 use App\Service\RoomService;
 use App\Service\UserBulkImportService;
 use App\Service\UserCreateService;
@@ -62,6 +64,7 @@ class MUserInfoController extends AppController
             'updateAdminStatus',
             'updateUserLevel',
             'updateSystemAdminStatus',
+            'updateReportAccess',
             'addUserRooms',
         ]);
     }
@@ -171,13 +174,7 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = [];
-            foreach ($u->m_user_group ?? [] as $group) {
-                // 削除済み部屋は表示・全部屋所属判定に含めない
-                if (!empty($group->m_room_info) && (int)($group->m_room_info->i_del_flg ?? 0) === 0) {
-                    $userRooms[$u->i_id_user][] = $group->m_room_info->c_room_name;
-                }
-            }
+            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], (int)$u->i_del_flag === 1);
         }
 
         $roomService      = new RoomService();
@@ -230,8 +227,18 @@ class MUserInfoController extends AppController
                 array_filter((array)($data['MUserGroup'] ?? []), 'is_array')
             );
 
+            $age = (int)($data['age'] ?? 0);
             if ($childOnly && (string)($data['role'] ?? '') !== '1') {
                 $this->Flash->error(__('管理者以外は児童のみ登録できます。'));
+            } elseif ($age < UserProfileOptions::MIN_AGE || $age > UserProfileOptions::MAX_AGE
+                || !isset(UserProfileOptions::AGE_GROUPS[(int)($data['age_group'] ?? 0)])
+                || !isset(UserProfileOptions::GENDERS[(int)($data['i_user_gender'] ?? 0)])
+            ) {
+                $this->Flash->error(__('性別・年代・年齢を選択してください。'));
+            } elseif ($mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL
+                && !$this->isValidStaffId(trim((string)($data['staff_id'] ?? '')))
+            ) {
+                $this->Flash->error(__('職員IDは9桁以内の数字で入力してください。'));
             } elseif ($allowedRoomIds !== null && $allowedRoomIds === []) {
                 $this->Flash->error(__('所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。'));
             } elseif ($allowedRoomIds !== null && array_filter($postedRoomIds) === []) {
@@ -281,8 +288,8 @@ class MUserInfoController extends AppController
         }
         $rooms = $roomsQuery->toArray();
 
-        $ages  = range(1, 80);
-        $roles = $childOnly ? [1 => '児童'] : [0 => '職員', 1 => '児童', 3 => 'その他'];
+        $ages  = range(UserProfileOptions::MIN_AGE, UserProfileOptions::MAX_AGE);
+        $roles = $childOnly ? [1 => UserProfileOptions::USER_LEVELS[1]] : UserProfileOptions::USER_LEVELS;
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
     }
 
@@ -321,15 +328,34 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
+        $canChangeRole = $this->Authorization->can($mUserInfo, 'changeRole');
+        // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、所属部屋を変更できない
+        $canEditRooms = $this->Authorization->can($mUserInfo, 'changeRole')
+            || (int)$this->request->getAttribute('identity')?->get('i_id_user') === (int)$mUserInfo->i_id_user;
+
         if ($this->request->is(['patch', 'post', 'put'])) {
-            $data = $this->request->getData();
-            $user                  = $this->request->getAttribute('identity');
-            $data['c_update_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
-            $data['dt_update']     = date('Y-m-d H:i:s');
+            $posted = $this->request->getData();
+            $user   = $this->request->getAttribute('identity');
+            // 権限・状態系の項目を POST から受け取らないよう、編集できる項目だけを取り出す
+            // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、氏名のみ変更できる（ログインIDは認証情報のため）
+            $data = [
+                'c_login_account' => $canEditRooms
+                    ? ($posted['c_login_account'] ?? $mUserInfo->c_login_account)
+                    : $mUserInfo->c_login_account,
+                'c_user_name'     => $posted['c_user_name'] ?? $mUserInfo->c_user_name,
+                'c_update_user'   => $user ? $user->get('c_user_name') : '不明なユーザー',
+                'dt_update'       => date('Y-m-d H:i:s'),
+            ];
 
             $roomIds = [];
-            if (!empty($data['rooms'])) {
-                foreach ($data['rooms'] as $roomId => $activeFlag) {
+            if (!$canEditRooms) {
+                foreach ($mUserInfo->m_user_group ?? [] as $group) {
+                    if ((int)$group->active_flag === 0) {
+                        $roomIds[] = (int)$group->i_id_room;
+                    }
+                }
+            } elseif (!empty($posted['rooms'])) {
+                foreach ($posted['rooms'] as $roomId => $activeFlag) {
                     if ($activeFlag === '1') {
                         $roomIds[] = (int)$roomId;
                     }
@@ -340,12 +366,37 @@ class MUserInfoController extends AppController
             $actorId   = $user ? (int)$user->get('i_id_user') : 0;
             $loginId   = (string)($user?->get('c_login_account') ?? '');
 
+            // 年齢・権限・状態は誰も編集画面からは変えられない。
+            // 役職・職員IDは、管理者が他のユーザーを編集するときだけ（$canChangeRole）。年代は管理者だけ。
+            // 役職(i_user_level)は権限判定に、年代は食数の区分に使うため、本人は変えられない。
+            // 性別は管理者・本人。職員は自分の職員IDを変えられる。職員・ブロック長が児童を編集するときは氏名のみ。
+            $fields = ['c_login_account', 'c_user_name', 'c_update_user', 'dt_update'];
+            $isAdminActor = UserRole::isAdmin((int)($user?->get('i_admin') ?? 0));
+            if ($canEditRooms) {
+                $fields[] = 'i_user_gender';
+                $data += array_intersect_key($posted, ['i_user_gender' => 1, 'i_id_staff' => 1]);
+            }
+            if ($isAdminActor && $canEditRooms) {
+                $fields[] = 'i_user_rank';
+                $data += array_intersect_key($posted, ['i_user_rank' => 1]);
+            }
+            if ($canChangeRole) {
+                $fields = array_merge($fields, ['i_user_level', 'i_id_staff']);
+                $data += array_intersect_key($posted, ['i_user_level' => 1]);
+            }
+            [$data, $profileError] = $this->normalizeProfileForEdit($data, $mUserInfo->i_user_level);
+            if (!$canChangeRole && $canEditRooms && $profileError === null && (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL) {
+                $fields[] = 'i_id_staff';
+                [$data, $profileError] = $this->normalizeOwnStaffId($data);
+            }
+
             try {
-                if ($this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
+                if ($profileError === null && $this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, $this->getClientIp(), $loginId, $fields)) {
                     $this->Flash->success(__('ユーザー情報が更新されました。'));
                     return $this->redirect(['action' => 'index']);
                 }
-                $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
+                // 入力の誤りはその理由だけを出す（汎用の「保存に失敗」を重ねない）
+                $this->Flash->error($profileError ?? __('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
             } catch (\Exception $e) {
                 $this->log('userEdit error: ' . $e->getMessage(), 'error');
                 $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
@@ -365,7 +416,87 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms'));
+        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms'));
+    }
+
+    /**
+     * 編集画面の性別・年代・役職・職員IDを確かめる（管理者が保存するとき）。
+     * 「未設定」（空）で保存したときは、その項目を変えない（既存ユーザーには未入力の人がいるため）。
+     * 役職が職員以外なら職員IDは持たない（新規登録と同じ扱い）。
+     * 職員IDの入力を求めるのは、役職を職員に変えたときだけ（職員IDの無い既存の職員も保存できるように）。
+     *
+     * @param array<string, mixed> $data
+     * @param int|null $currentLevel 保存前の役職
+     * @return array{0: array<string, mixed>, 1: string|null} [整えたデータ, エラー文]
+     */
+    private function normalizeProfileForEdit(array $data, ?int $currentLevel): array
+    {
+        foreach ([
+            'i_user_gender' => UserProfileOptions::GENDERS,
+            'i_user_rank'   => UserProfileOptions::AGE_GROUPS,
+            'i_user_level'  => UserProfileOptions::USER_LEVELS,
+        ] as $field => $options) {
+            if (!array_key_exists($field, $data)) {
+                continue;
+            }
+            if ($data[$field] === '') {
+                // 「未設定」のまま保存したときは変更しない（年代は空にできないテーブルの検証があるため、消すことはしない）
+                unset($data[$field]);
+                continue;
+            }
+            if (!is_scalar($data[$field]) || !ctype_digit((string)$data[$field]) || !isset($options[(int)$data[$field]])) {
+                return [$data, __('性別・年代・役職の選択が正しくありません。')];
+            }
+        }
+
+        if (!array_key_exists('i_user_level', $data)) {
+            return [$data, null];
+        }
+        if ((int)$data['i_user_level'] !== UserProfileOptions::STAFF_LEVEL) {
+            $data['i_id_staff'] = null;
+            return [$data, null];
+        }
+        $staffId = trim((string)($data['i_id_staff'] ?? ''));
+        if ($staffId === '') {
+            if ($currentLevel !== UserProfileOptions::STAFF_LEVEL) {
+                return [$data, __('役職が職員のときは職員IDを入力してください。')];
+            }
+            return [$data, null];
+        }
+        if (!$this->isValidStaffId($staffId)) {
+            return [$data, __('職員IDは9桁以内の数字で入力してください。')];
+        }
+
+        return [$data, null];
+    }
+
+    /**
+     * 本人（職員）が自分の職員IDを保存するときの確認。空なら変えない。
+     *
+     * @param array<string, mixed> $data
+     * @return array{0: array<string, mixed>, 1: string|null} [整えたデータ, エラー文]
+     */
+    private function normalizeOwnStaffId(array $data): array
+    {
+        $staffId = trim((string)($data['i_id_staff'] ?? ''));
+        if ($staffId === '') {
+            unset($data['i_id_staff']);
+            return [$data, null];
+        }
+        if (!$this->isValidStaffId($staffId)) {
+            return [$data, __('職員IDは9桁以内の数字で入力してください。')];
+        }
+
+        return [$data, null];
+    }
+
+    /**
+     * 職員IDとして保存できるか。列は数値（int）なので、数字以外は黙って空で保存され、
+     * 大きすぎる値は SQL エラーになる。9桁以内の数字に限る（新規登録・編集で共通）。
+     */
+    private function isValidStaffId(string $staffId): bool
+    {
+        return ctype_digit($staffId) && strlen($staffId) <= 9;
     }
 
     public function updateAdminStatus()
@@ -464,6 +595,59 @@ class MUserInfoController extends AppController
         return filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
+    public function updateReportAccess()
+    {
+        $this->request->allowMethod(['post']);
+        $apiResponse = new ApiResponseService();
+
+        $data           = $this->request->getData();
+        $userId         = $data['i_id_user'] ?? null;
+        $reportAccess   = $data['i_report_access'] ?? null;
+
+        if (is_null($userId) || is_null($reportAccess)) {
+            return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
+        }
+
+        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
+        if (!$user) {
+            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
+        }
+
+        try {
+            $this->Authorization->authorize($user, 'updateReportAccess');
+        } catch (ForbiddenException $e) {
+            return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
+        }
+
+        $identity  = $this->request->getAttribute('identity');
+        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
+        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
+        $loginId   = (string)($identity?->get('c_login_account') ?? '');
+        $value     = (int)$reportAccess === 1 ? 1 : 0;
+
+        $table            = $this->MUserInfo;
+        $user->i_report_access = $value;
+        $user->dt_update       = date('Y-m-d H:i:s');
+        $user->c_update_user   = $updatedBy;
+
+        if ($table->save($user)) {
+            AuditLogService::record(
+                'user',
+                'user_report_access_change',
+                $updatedBy,
+                $actorId,
+                'm_user_info',
+                (string)$user->i_id_user,
+                ['target_user_name' => $user->c_user_name, 'i_report_access' => $value],
+                $this->getClientIp() ?: null,
+                1,
+                $loginId
+            );
+            return $apiResponse->success($this->response, [], 'レポートアクセス権を更新しました。');
+        }
+        return $apiResponse->error($this->response, 'レポートアクセス権の更新に失敗しました。', 500);
+    }
+
     public function updateUserLevel()
     {
         $this->request->allowMethod(['post']);
@@ -520,16 +704,37 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = [];
-        if (!empty($mUserInfo->m_user_group)) {
-            foreach ($mUserInfo->m_user_group as $group) {
-                if (!empty($group->m_room_info)) {
-                    $userRooms[] = $group->m_room_info->c_room_name;
-                }
+        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
+        $canEdit   = $this->Authorization->can($mUserInfo, 'edit');
+
+        $this->set(compact('mUserInfo', 'userRooms', 'canEdit'));
+    }
+
+    /**
+     * 現在所属している部屋名の一覧。既定では、退出済み(active_flag=1)と削除済み部屋は含めない。
+     * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
+     * 削除済みユーザーは、削除時に所属が全て退出済みになるため、削除前の所属を見られるよう退出済みも含める。
+     * 削除前に異動で退出していた部屋と区別できないため、それも含まれる（復元で全所属が戻る挙動と同じ集合）。
+     *
+     * @param iterable<\App\Model\Entity\MUserGroup> $groups
+     * @param bool $includeLeft 退出済み(active_flag=1)の部屋も含めるか
+     * @return list<string>
+     */
+    private function activeRoomNames(iterable $groups, bool $includeLeft = false): array
+    {
+        $names = [];
+        foreach ($groups as $group) {
+            $isLeft = (int)($group->active_flag ?? 0) !== 0;
+            if (($isLeft && !$includeLeft)
+                || empty($group->m_room_info)
+                || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
+            ) {
+                continue;
             }
+            $names[] = $group->m_room_info->c_room_name;
         }
 
-        $this->set(compact('mUserInfo', 'userRooms'));
+        return $names;
     }
 
     public function delete($id = null)
@@ -752,6 +957,13 @@ class MUserInfoController extends AppController
             }
 
             $this->Flash->error(__('パスワードの変更に失敗しました。'));
+        } elseif ($this->request->is('get')) {
+            // 編集画面の「パスワード変更」リンクから ?user_id= 付きで遷移してきた場合、対象ユーザーを事前選択する。
+            // 存在しない・削除済みユーザーIDは無視し、通常の未選択状態にフォールバックする。
+            $queryUserId = $this->request->getQuery('user_id');
+            if ($queryUserId !== null && isset($users[$queryUserId])) {
+                $selectedUser = $this->fetchTable('MUserInfo')->get((int)$queryUserId);
+            }
         }
 
         $this->set(compact('users', 'selectedUser'));

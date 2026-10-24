@@ -46,7 +46,7 @@ class ReservationReportService
         $counts = [];
         foreach ($rows as $row) {
             $effectiveFlag = $useChangeFlag
-                ? (int)($row['i_change_flag'] ?? 0)
+                ? (int)($row['i_change_flag'] ?? $row['eat_flag'] ?? 0)
                 : (int)($row['eat_flag'] ?? 0);
             if ($effectiveFlag !== 1) {
                 continue;
@@ -74,19 +74,20 @@ class ReservationReportService
         int $roomId,
         string $date
     ): array {
-        $cacheKey = sprintf('users_by_room_edit:%d:%s:v2', $roomId, $date);
-        $cached = Cache::read($cacheKey, 'default');
-        if (is_array($cached)) {
-            return $cached;
-        }
+        // キャッシュしない。1部屋・1日分の軽い読み取りで、更新する経路（直前編集・コピー・
+        // ユーザー削除・部屋異動など）すべてで消すのは漏れやすく、古い一覧が返っていたため。
         $usersByRoom = $userGroupTable->find()
             ->enableAutoFields(false)
             ->select(['i_id_user', 'i_id_room', 'MUserInfo.c_user_name'])
-            ->where(['i_id_room' => $roomId])
+            // 異動で抜けた所属(active_flag≠0)と削除済みユーザーは含めない
+            ->where(['MUserGroup.i_id_room' => $roomId, 'MUserGroup.active_flag' => 0, 'MUserInfo.i_del_flag' => 0])
             ->contain(['MUserInfo'])
             ->toArray();
 
         $userIds = collection($usersByRoom)->extract('i_id_user')->toList();
+        if ($userIds === []) {
+            return [];
+        }
 
         $reservations = $reservationTable->find()
             ->enableAutoFields(false)
@@ -136,7 +137,6 @@ class ReservationReportService
             ];
         }
 
-        Cache::write($cacheKey, $completeUserInfo, 'default');
         return $completeUserInfo;
     }
 
@@ -190,7 +190,7 @@ class ReservationReportService
             }
             $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
             $effectiveFlag = $useChangeFlagCache[$date]
-                ? (int)($reservation['i_change_flag'] ?? 0)
+                ? (int)($reservation['i_change_flag'] ?? $reservation['eat_flag'] ?? 0)
                 : (int)($reservation['eat_flag'] ?? 0);
             if ($effectiveFlag !== 1) {
                 continue;
@@ -291,7 +291,7 @@ class ReservationReportService
             }
             $useChangeFlagCache[$dateKey] ??= $datePolicy->shouldUseChangeFlag(new Date($dateKey));
             $effectiveFlag = $useChangeFlagCache[$dateKey]
-                ? (int)($reservation['i_change_flag'] ?? 0)
+                ? (int)($reservation['i_change_flag'] ?? $reservation['eat_flag'] ?? 0)
                 : (int)($reservation['eat_flag'] ?? 0);
             if ($effectiveFlag !== 1) {
                 continue;
@@ -459,10 +459,11 @@ class ReservationReportService
         ?int $changeFlag,
         array &$useChangeFlagCache
     ): bool {
+        // 境界日以前は i_change_flag（空なら当初予定の eat_flag）。ReservationDatePolicy::countedValue と同じ基準
         $datePolicy = new ReservationDatePolicy();
         $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
         $effectiveFlag = $useChangeFlagCache[$date]
-            ? (int)($changeFlag ?? 0)
+            ? (int)($changeFlag ?? $eatFlag)
             : $eatFlag;
 
         return $effectiveFlag === 1;

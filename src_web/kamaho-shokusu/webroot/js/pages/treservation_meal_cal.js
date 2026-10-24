@@ -122,13 +122,17 @@
                     .then(function (data) {
                         saveBtn.disabled = false;
                         var ok = data.ok === true || data.status === 'success';
+                        var skipped = (data.data && Array.isArray(data.data.skipped)) ? data.data.skipped : [];
+                        // 職員の直前取消・過去日などで、一部の変更ができなかった。どの食事かは応答に無いので、
+                        // 画面の状態は推測で直さず（保存できた分まで戻さないため）、理由と再読み込みの案内を出す
                         if (statusEl) {
-                            statusEl.textContent = ok ? '✓ 保存しました' : ('✗ ' + (data.message || '保存失敗'));
-                            statusEl.className = 'meal-cal-save-status ' + (ok ? 'text-success' : 'text-danger');
-                            setTimeout(function () { statusEl.textContent = ''; }, 2500);
+                            statusEl.textContent = !ok ? ('✗ ' + (data.message || '保存失敗'))
+                                : skipped.length ? ('⚠ ' + skipped.join(' ') + ' 画面を再読み込みして確認してください。') : '✓ 保存しました';
+                            statusEl.className = 'meal-cal-save-status ' + (!ok ? 'text-danger' : skipped.length ? 'text-warning' : 'text-success');
+                            setTimeout(function () { statusEl.textContent = ''; }, skipped.length ? 6000 : 2500);
                         }
                         // 保存成功時にヘッダーバッジを更新
-                        if (ok && item) {
+                        if (ok && item && !skipped.length) {
                             var badges = Array.from(item.querySelectorAll('.meal-cal-badge'));
                             checks.forEach(function (c, i) {
                                 var mt = parseInt(c.dataset.meal, 10);

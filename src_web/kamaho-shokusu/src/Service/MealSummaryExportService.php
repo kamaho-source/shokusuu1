@@ -33,10 +33,11 @@ class MealSummaryExportService
     {
         $mealPrices = $this->fetchMealPrices($year);
         $users      = $this->fetchStaffUsers();
+        $rowsByUser = $this->fetchReservationRowsByUser($users, $year, $month, self::approvalFilterConditions());
 
         $monthlyData = [];
         foreach ($users as $user) {
-            $mealCounts    = $this->countMeals($user->i_id_user, $year, $month);
+            $mealCounts    = $this->countMeals($rowsByUser[$user->i_id_user] ?? []);
             // 削除（退職）済み職員は、その月に実績がある場合のみ控除表に載せる
             if ((int)$user->i_del_flag === 1 && array_sum($mealCounts) === 0) {
                 continue;
@@ -70,10 +71,11 @@ class MealSummaryExportService
     {
         $mealPrices = $this->fetchMealPrices($year);
         $users      = $this->fetchStaffUsers();
+        $rowsByUser = $this->fetchReservationRowsByUser($users, $year, $month, ['i_approval_status IN' => self::PREVIEW_STATUSES]);
 
         $rows = [];
         foreach ($users as $user) {
-            $statusBreakdown = $this->countMealsByStatus($user->i_id_user, $year, $month);
+            $statusBreakdown = $this->countMealsByStatus($rowsByUser[$user->i_id_user] ?? []);
 
             foreach ($statusBreakdown as $status => $counts) {
                 // 食事が1件もないステータスはスキップ
@@ -143,28 +145,56 @@ class MealSummaryExportService
     }
 
     /**
-     * @return array{morning: int, lunch: int, dinner: int, bento: int}
+     * 対象月の予約行を、職員全員ぶん1回のクエリで取得してユーザーID別にまとめる（N+1 回避）。
+     *
+     * 日付は YEAR()/MONTH() ではなく範囲で絞る（インデックスが効き、DB 方言にも依存しない）。
+     *
+     * @param iterable<\Cake\Datasource\EntityInterface> $users
+     * @param array<string, mixed> $extraConditions 承認ステータスなどの追加条件
+     * @return array<int, list<\Cake\Datasource\EntityInterface>> [userId => 予約行[]]
      */
-    private function countMeals(int $userId, int $year, int $month): array
+    private function fetchReservationRowsByUser(iterable $users, int $year, int $month, array $extraConditions): array
     {
-        $conditions = [
-            'i_id_user'                 => $userId,
-            'YEAR(d_reservation_date)'  => $year,
-            'MONTH(d_reservation_date)' => $month,
-        ] + self::approvalFilterConditions();
+        $userIds = [];
+        foreach ($users as $user) {
+            $userIds[] = (int)$user->i_id_user;
+        }
+        if ($userIds === []) {
+            return [];
+        }
+
+        $start = sprintf('%04d-%02d-01', $year, $month);
+        $end   = (new \DateTimeImmutable($start))->modify('+1 month')->format('Y-m-d');
 
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $rows  = $table->find()
-            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
-            ->where($conditions)
-            ->toArray();
+            ->select(['i_id_user', 'i_reservation_type', 'd_reservation_date', 'eat_flag', 'i_change_flag', 'i_approval_status'])
+            ->where([
+                'i_id_user IN'         => $userIds,
+                'd_reservation_date >=' => $start,
+                'd_reservation_date <'  => $end,
+            ] + $extraConditions)
+            ->all();
 
+        $byUser = [];
+        foreach ($rows as $row) {
+            $byUser[(int)$row->i_id_user][] = $row;
+        }
+
+        return $byUser;
+    }
+
+    /**
+     * @param iterable<\Cake\Datasource\EntityInterface> $rows 1ユーザーの対象月の予約行
+     * @return array{morning: int, lunch: int, dinner: int, bento: int}
+     */
+    private function countMeals(iterable $rows): array
+    {
         $counts = ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0];
 
         foreach ($rows as $row) {
-            $effectiveFlag = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、それより先は eat_flag）
+            $effectiveFlag = (new ReservationDatePolicy())->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
                 continue;
@@ -185,30 +215,19 @@ class MealSummaryExportService
     /**
      * ステータス別内訳: 各ステータス(0/1)の有効食事件数を返す。
      *
+     * @param iterable<\Cake\Datasource\EntityInterface> $rows 1ユーザーの対象月の予約行（0/1 のみ）
      * @return array<int, array{morning: int, lunch: int, dinner: int, bento: int}>
      */
-    private function countMealsByStatus(int $userId, int $year, int $month): array
+    private function countMealsByStatus(iterable $rows): array
     {
-        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $rows  = $table->find()
-            ->select(['i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
-            ->where([
-                'i_id_user'                 => $userId,
-                'YEAR(d_reservation_date)'  => $year,
-                'MONTH(d_reservation_date)' => $month,
-                'i_approval_status IN'      => self::PREVIEW_STATUSES,
-            ])
-            ->toArray();
-
         $breakdown = [
             0 => ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0],
             1 => ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0],
         ];
 
         foreach ($rows as $row) {
-            $effectiveFlag = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、それより先は eat_flag）
+            $effectiveFlag = (new ReservationDatePolicy())->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
                 continue;

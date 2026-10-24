@@ -61,9 +61,10 @@ function openModalById(id){
             const roomSelect = document.getElementById('kid-room-select');
             let currentRoomId = window.__TRESP.currentRoom || '';
             const toggleBase = window.__TRESP.toggleBase || '';
-            function getToggleUrl(){
-                if (!currentRoomId) return '';
-                return toggleBase.replace('__ROOM__', encodeURIComponent(String(currentRoomId)));
+            function getToggleUrl(roomId){
+                var rid = roomId || currentRoomId;
+                if (!rid) return '';
+                return toggleBase.replace('__ROOM__', encodeURIComponent(String(rid)));
             }
             if (roomSelect) {
                 roomSelect.addEventListener('change', () => { currentRoomId = roomSelect.value || ''; });
@@ -306,7 +307,11 @@ function openModalById(id){
             }
 
             async function callToggle(dateStr, mealNumber, wantValue, override){
-                const url = getToggleUrl();
+                // 取消は、予約している部屋へ送る（退出済み・削除済みの部屋に残った予約も、部屋を選ばずに取り消せる）
+                const reservedRoom = !wantValue
+                    ? ((MY_DETAILS[dateStr] || {})[({ 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' })[Number(mealNumber)] + 'Room'] || null)
+                    : null;
+                const url = getToggleUrl(reservedRoom);
                 if (!url) {
                     const msg = '先に「利用する部屋」を選択してください。';
                     notifyUser(msg, 'warning');
@@ -376,16 +381,29 @@ function openModalById(id){
             }
 
             function conflictPair(mealIdx){ if (mealIdx === 2) return 4; if (mealIdx === 4) return 2; return null; }
+            var MEAL_KEY_NAMES = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
 
             function applyDetailsAndRefresh(date, payload, btn, mealKey){
-                if (payload && typeof payload.details === 'object') {
-                    var prev = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
-                    MY_DETAILS[date] = {
-                        breakfast: Object.prototype.hasOwnProperty.call(payload.details,'breakfast') ? payload.details.breakfast : prev.breakfast,
-                        lunch:     Object.prototype.hasOwnProperty.call(payload.details,'lunch')     ? payload.details.lunch     : prev.lunch,
-                        dinner:    Object.prototype.hasOwnProperty.call(payload.details,'dinner')    ? payload.details.dinner    : prev.dinner,
-                        bento:     Object.prototype.hasOwnProperty.call(payload.details,'bento')     ? payload.details.bento     : prev.bento
-                    };
+                if (payload && payload.details && typeof payload.details === 'object') {
+                    // 応答の details は、操作した部屋の分だけ。ほかの部屋の予約と、予約している部屋（xxxRoom）は残す
+                    var prev = MY_DETAILS[date] || {};
+                    var next = Object.assign({ breakfast:false, lunch:false, dinner:false, bento:false }, prev);
+                    var rid = payload.affected && payload.affected.roomId != null ? payload.affected.roomId : null;
+                    ['breakfast', 'lunch', 'dinner', 'bento'].forEach(function(k) {
+                        if (!Object.prototype.hasOwnProperty.call(payload.details, k)) return;
+                        var on = !!payload.details[k];
+                        if (on) {
+                            next[k] = true;
+                            next[k + 'Room'] = rid != null ? rid : (prev[k + 'Room'] || null);
+                            return;
+                        }
+                        // 操作した部屋の取消なら外す。別の部屋で予約している食事は、そのまま残す
+                        if (rid == null || prev[k + 'Room'] == null || String(prev[k + 'Room']) === String(rid)) {
+                            next[k] = false;
+                            next[k + 'Room'] = null;
+                        }
+                    });
+                    MY_DETAILS[date] = next;
                 } else {
                     var d = MY_DETAILS[date] || { breakfast:false, lunch:false, dinner:false, bento:false };
                     if (mealKey) d[mealKey] = !!(payload && payload.value);
@@ -397,7 +415,9 @@ function openModalById(id){
             async function resolveConflictSequence(date, targetIdx, targetOn, btn, mealKey){
                 var opponentIdx = conflictPair(targetIdx);
                 if (!opponentIdx) throw new Error('競合先が特定できませんでした。');
-                await callToggle(date, opponentIdx, false, false);
+                // 相手の取消の応答も反映する（相手が別の部屋にあると、2回目の応答だけでは相手が消えないため）
+                var cancelled = await callToggle(date, opponentIdx, false, false);
+                applyDetailsAndRefresh(date, cancelled, null, MEAL_KEY_NAMES[opponentIdx]);
                 var result = await callToggle(date, targetIdx, targetOn, false);
                 applyDetailsAndRefresh(date, result, btn, mealKey);
             }
@@ -553,15 +573,20 @@ function openModalById(id){
                     existingEvents.splice(summaryIdx, 1);
                 }
 
+                // 人数は表示中の部屋（全部屋表示なら全部屋）の数なので、別の部屋への増減は数えない
+                var calRoom = window.__TRESP && window.__TRESP.calRoomId;
+                var countsThisRoom = calRoom == null || roomId == null || String(roomId) === String(calRoom);
                 var delta = newVal ? 1 : -1;
                 var countIdx = -1;
-                for (var j = 0; j < existingEvents.length; j++) {
+                for (var j = 0; countsThisRoom && j < existingEvents.length; j++) {
                     var mev = existingEvents[j];
                     if (mev.start === date && mev.extendedProps && mev.extendedProps.isMealCount && mev.extendedProps.mealType === mealType) {
                         countIdx = j; break;
                     }
                 }
-                if (countIdx !== -1) {
+                if (!countsThisRoom) {
+                    // 何もしない
+                } else if (countIdx !== -1) {
                     var cntMatch = (existingEvents[countIdx].title || '').match(/:\s*(\d+)人/);
                     var newCount = cntMatch ? Math.max(0, parseInt(cntMatch[1], 10) + delta) : Math.max(0, delta);
                     if (newCount <= 0) {
@@ -610,7 +635,36 @@ function openModalById(id){
              * @param {number[]} [mealIndices] 登録する食事IDの配列。省略時は未予約の全食事を対象とする
              */
             /**
-             * 日付を指定して「部屋選択 → 食事選択 → 登録」の流れを開始する。
+             * 予約ポップアップを開く。部屋の選択肢は所属していて削除されていない部屋（管理者も同じ。#821）。
+             * 所属部屋が1つならその部屋で確定し、部屋のプルダウンは出さない。
+             * 複数なら、表示中の部屋 → 代表部屋 → 先頭の部屋の順で、部屋を初期選択しておく。
+             * @param {MouseEvent} jsEvent ポップアップの表示位置に使う
+             * @param {string} dateStr YYYY-MM-DD
+             * @param {boolean} [editMode] 予約済みの食事も表示して編集する
+             */
+            function openMealPicker(jsEvent, dateStr, editMode) {
+                var t = window.__TRESP || {};
+                var list = t.pickerRooms || [];
+                var roomNames = {};
+                list.forEach(function(r) { roomNames[String(r.id)] = r.name; });
+                var ids = list.map(function(r) { return String(r.id); }); // 部屋の表示順
+                if (ids.length === 0 && !editMode) {
+                    if (window.pageToast) window.pageToast('所属している部屋がありません。部屋を選択してください（所属部屋は管理者が設定します）。', 'warning');
+                    return;
+                }
+                // 所属部屋が0でも、編集では残った予約の取消（チェックを外す）だけできるよう開く
+                var defaultRoomId = [t.calRoomId, t.roomId]
+                    .filter(function(r) { return r != null && roomNames[String(r)]; })[0];
+                if (defaultRoomId == null && ids.length > 0) defaultRoomId = parseInt(ids[0], 10);
+                showMealPickerForDate(jsEvent, dateStr, ids.length === 1 ? parseInt(ids[0], 10) : null, {
+                    roomNames: roomNames,
+                    roomOrder: ids,
+                    defaultRoomId: defaultRoomId
+                }, editMode);
+            }
+
+            /**
+             * 日付を指定して「食事選択（部屋プルダウン付き）→ 登録」の流れを開始する。
              *
              * カレンダーの日付セルと、セル内のイベント（未予約バーなど）の
              * どちらをタップしても同じ流れに入れるよう関数に切り出している。
@@ -629,28 +683,63 @@ function openModalById(id){
                         return;
                     }
 
-                    // 部屋選択 → 食事選択 → 登録（他の人が予約済みの日も同様に動作）
-                    // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
-                    var roomNames = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
-                    if (Object.keys(roomNames).length === 0) {
-                        if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
-                        return;
-                    }
-                    var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                        ? window.__TRESP.calRoomId
-                        : null;
-                    var capturedJsEvent = jsEvent;
-                    showRoomPickerForDate(jsEvent, dateStr, roomNames, defaultRoomId, function(selectedRoomId) {
-                        showMealPickerForDate(capturedJsEvent, dateStr, selectedRoomId);
-                    });
+                    // 自分の予約がある日は、人数クリックと同じ「予約を編集」を開く（4食すべてを並べ、予約済みはチェック済み）。
+                    // 新規の画面は未予約の食事だけを並べるため、予約がある日に開くと未登録の食事だけが選択肢に出てしまう
+                    var d = MY_DETAILS[dateStr] || {};
+                    var hasMine = !!(d.breakfast || d.lunch || d.dinner || d.bento);
+                    openMealPicker(jsEvent, dateStr, hasMine);
                 } catch (e) {
                     console.warn('startDateReservation error:', e);
                 }
             }
 
+            /**
+             * 予約系APIのエラーを一般ユーザー向けの文言に変換する。
+             * サーバーが日本語で返したメッセージはそのまま使い、英語や空の場合は HTTP ステータスから補う。
+             * @param {number} status HTTP ステータス（通信失敗は 0）
+             * @param {string} [message] サーバーが返した message
+             * @returns {string}
+             */
+            function reservationErrorText(status, message) {
+                var msg = (message || '').trim();
+                if (msg && /[\u3040-\u30ff\u3400-\u9fff]/.test(msg)) return msg;
+                if (status === 0)   return '通信エラーが発生しました。ネットワーク接続を確認して、もう一度お試しください。';
+                if (status === 401) return 'ログインの有効期限が切れました。再度ログインしてください。';
+                if (status === 403) return 'この操作を行う権限がないか、ページの有効期限が切れています。画面を再読み込みしてもう一度お試しください。';
+                if (status === 404) return '対象のデータが見つかりませんでした。画面を再読み込みしてもう一度お試しください。';
+                if (status === 409) return '他の操作と競合しました。画面を再読み込みして、もう一度お試しください。';
+                if (status >= 500)  return 'サーバーでエラーが発生しました。時間をおいてもう一度お試しください。';
+                return '入力内容に問題があり、予約を登録できませんでした。日付・部屋・食事を確認してください。';
+            }
+
+            /**
+             * POST して { status, body } を返す。本文が JSON でない場合（CSRF エラー画面など）は body を空にする。
+             * 通信失敗は status 0 で返す。
+             */
+            function postReservationJson(url, payload) {
+                var csrf = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
+                return fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json',
+                        'X-CSRF-Token': csrf
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(function(res) {
+                    return res.text().then(function(text) {
+                        var body = {};
+                        try { body = JSON.parse(text) || {}; } catch (e) { body = {}; }
+                        return { status: res.status, body: body };
+                    });
+                })
+                .catch(function() { return { status: 0, body: {} }; });
+            }
+
             function registerMealsDirectly(dateStr, roomId, mealIndices) {
                 var directRegisterUrl = (window.__TRESP && window.__TRESP.directRegisterUrl) || '';
-                var csrf = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
                 var userId = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
 
                 var detail = MY_DETAILS[dateStr] || { breakfast: false, lunch: false, dinner: false, bento: false };
@@ -675,163 +764,132 @@ function openModalById(id){
 
                 var targetIndices = targetMeals.map(function(mt) { return mt.idx; });
 
-                fetch(directRegisterUrl, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json; charset=utf-8',
-                        'Accept': 'application/json',
-                        'X-CSRF-Token': csrf
-                    },
-                    body: JSON.stringify({ date: dateStr, roomId: roomId, meals: targetIndices, userId: userId })
-                })
-                .then(function(res) { return res.json(); })
-                .then(function(data) {
+                return postReservationJson(directRegisterUrl, { date: dateStr, roomId: roomId, meals: targetIndices, userId: userId })
+                .then(function(r) {
+                    var data = r.body;
                     if (data.ok !== true && data.status !== 'success') {
-                        if (window.pageToast) window.pageToast('予約登録に失敗しました。', 'danger');
-                        return;
+                        if (window.pageToast) window.pageToast(reservationErrorText(r.status, data.message), 'danger');
+                        return false;
                     }
-                    var registered = data.data && data.data.registered ? data.data.registered : targetIndices;
+                    var mealNameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+                    var registered = data.data && data.data.registered ? data.data.registered : [];
+                    var skipped    = data.data && data.data.skipped ? data.data.skipped : [];
                     registered.forEach(function(idx) {
                         var mt = allMeals.find(function(m) { return m.idx === idx; });
                         if (mt) applyToggleToLocalState(dateStr, mt.key, mt.idx, true, roomId);
                     });
-                    var mealNameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
                     var addedLabels = registered.map(function(idx) { return mealNameMap[idx] || idx; }).join('・');
+                    var skippedLabels = skipped.map(function(idx) { return mealNameMap[idx] || idx; }).join('・');
                     if (addedLabels) {
                         if (window.pageToast) window.pageToast(addedLabels + 'の予約を登録しました。', 'success');
-                    } else {
-                        if (window.pageToast) window.pageToast('選択した食事はすでに登録済みです。', 'info');
                     }
-                })
-                .catch(function() {
-                    if (window.pageToast) window.pageToast('予約登録に失敗しました。', 'danger');
+                    if (skippedLabels && window.pageToast) {
+                        // サーバーは「登録済み」「別の部屋で予約済み」「昼食・弁当の同時予約」を区別せずスキップする
+                        window.pageToast(skippedLabels + 'は登録できませんでした。すでに登録済みか、別の部屋で予約済みか、昼食とお弁当は同時に予約できないためです。', 'warning');
+                    }
+                    return true;
                 });
             }
 
             /**
-             * クリック位置に部屋選択ドロップダウンを表示する。
-             * defaultRoomId に一致する部屋は「現在選択中」として最上段にハイライト表示する。
-             * onSelect が渡された場合は選択後にそれを呼ぶ。省略時は registerMealsDirectly を呼ぶ。
-             * @param {MouseEvent} jsEvent
-             * @param {string} dateStr
-             * @param {Object} roomNames {roomId: roomName}
-             * @param {number|null} defaultRoomId カレンダーフィルターで選択中の部屋ID（ハイライト用）
-             * @param {function(number):void} [onSelect] 部屋選択後のコールバック(selectedRoomId)
-             */
-            function showRoomPickerForDate(jsEvent, dateStr, roomNames, defaultRoomId, onSelect) {
-                // 既存のピッカーを閉じる
-                var existing = document.getElementById('__dateClickRoomPicker');
-                if (existing) existing.remove();
-
-                var picker = document.createElement('div');
-                picker.id = '__dateClickRoomPicker';
-                picker.style.cssText = [
-                    'position:fixed',
-                    'z-index:99999',
-                    'background:#fff',
-                    'border:1px solid #ccc',
-                    'border-radius:6px',
-                    'box-shadow:0 4px 12px rgba(0,0,0,.2)',
-                    'padding:8px 0',
-                    'min-width:160px',
-                    'font-size:14px',
-                ].join(';');
-
-                var label = document.createElement('div');
-                label.textContent = dateStr + ' — 予約する部屋を選択';
-                label.style.cssText = 'padding:4px 14px 8px;font-size:12px;color:#666;border-bottom:1px solid #eee;margin-bottom:4px';
-                picker.appendChild(label);
-
-                function makeBtn(rid, name, isDefault) {
-                    var btn = document.createElement('button');
-                    btn.type = 'button';
-
-                    var nameSpan = document.createElement('span');
-                    nameSpan.textContent = name;
-
-                    btn.appendChild(nameSpan);
-
-                    if (isDefault) {
-                        var badge = document.createElement('span');
-                        badge.textContent = '選択中';
-                        badge.style.cssText = 'margin-left:8px;font-size:10px;background:#0d6efd;color:#fff;border-radius:3px;padding:1px 5px;vertical-align:middle';
-                        btn.appendChild(badge);
-                        btn.style.cssText = 'display:block;width:100%;text-align:left;padding:7px 14px;border:none;background:#eef3ff;cursor:pointer;white-space:nowrap;font-weight:600';
-                    } else {
-                        btn.style.cssText = 'display:block;width:100%;text-align:left;padding:7px 14px;border:none;background:none;cursor:pointer;white-space:nowrap';
-                    }
-
-                    btn.addEventListener('mouseover', function() { btn.style.background = '#dce8ff'; });
-                    btn.addEventListener('mouseout',  function() { btn.style.background = isDefault ? '#eef3ff' : 'none'; });
-                    btn.addEventListener('click', function() {
-                        picker.remove();
-                        document.removeEventListener('click', outsideHandler, true);
-                        var selectedRoomId = parseInt(rid, 10);
-                        if (typeof onSelect === 'function') {
-                            onSelect(selectedRoomId);
-                        } else {
-                            registerMealsDirectly(dateStr, selectedRoomId);
-                        }
-                    });
-                    return btn;
-                }
-
-                // defaultRoomId の部屋を最上段に配置し、残りを以降に並べる
-                var defaultStr = defaultRoomId != null ? String(defaultRoomId) : null;
-                if (defaultStr && roomNames[defaultStr]) {
-                    picker.appendChild(makeBtn(defaultStr, roomNames[defaultStr], true));
-                    var sep = document.createElement('div');
-                    sep.style.cssText = 'height:1px;background:#eee;margin:4px 0';
-                    picker.appendChild(sep);
-                }
-                Object.keys(roomNames).forEach(function(rid) {
-                    if (rid === defaultStr) return; // 既に上段に追加済み
-                    picker.appendChild(makeBtn(rid, roomNames[rid], false));
-                });
-
-                // ビューポート内に収まるよう位置を調整
-                document.body.appendChild(picker);
-                var x = jsEvent.clientX + 8;
-                var y = jsEvent.clientY + 8;
-                var pw = picker.offsetWidth;
-                var ph = picker.offsetHeight;
-                if (x + pw > window.innerWidth)  x = window.innerWidth  - pw - 8;
-                if (y + ph > window.innerHeight) y = window.innerHeight - ph - 8;
-                picker.style.left = x + 'px';
-                picker.style.top  = y + 'px';
-
-                // ピッカー外クリックで閉じる
-                function outsideHandler(e) {
-                    if (!picker.contains(e.target)) {
-                        picker.remove();
-                        document.removeEventListener('click', outsideHandler, true);
-                    }
-                }
-                setTimeout(function() {
-                    document.addEventListener('click', outsideHandler, true);
-                }, 0);
-            }
-
-            /**
-             * 食事選択ポップアップを表示する。
-             * 朝食・昼食・夕食のチェックボックスを表示し、選択した食事のみ registerMealsDirectly で登録する。
-             * @param {MouseEvent} jsEvent
+             * 自分の予約済みの食事を取り消す（編集ポップアップの「チェックを外して保存」用）。
+             * 取消は既存レコードの削除なので、予約時の部屋（なければ選択中の部屋・所属部屋）を使う。
              * @param {string} dateStr YYYY-MM-DD
-             * @param {number} roomId
+             * @param {number[]} mealIndices 取り消す食事ID（1:朝 2:昼 3:夕 4:弁当）
+             * @returns {Promise<boolean>} すべて取り消せたら true
              */
-            function showMealPickerForDate(jsEvent, dateStr, roomId) {
+            function removeMealsDirectly(dateStr, mealIndices) {
+                if (!mealIndices || mealIndices.length === 0) return Promise.resolve(true);
+                var toggleBase = (window.__TRESP && window.__TRESP.toggleBase) || '';
+                var userId = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
+                var nameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+                var detail = MY_DETAILS[dateStr] || {};
+
+                var jobs = mealIndices.map(function(idx) {
+                    var key = MEAL_KEY_MAP[idx];
+                    var rid = detail[key + 'Room']
+                        || (window.__TRESP && window.__TRESP.calRoomId)
+                        || (window.__TRESP && window.__TRESP.roomId);
+                    if (!rid || !toggleBase) {
+                        return Promise.resolve({ idx: idx, ok: false, message: '予約している部屋を特定できませんでした。画面を再読み込みしてもう一度お試しください。' });
+                    }
+                    return postReservationJson(
+                        toggleBase.replace('__ROOM__', encodeURIComponent(String(rid))),
+                        { date: dateStr, meal: idx, value: 0, userId: userId }
+                    ).then(function(r) {
+                        var ok = r.body.ok === true || r.body.status === 'success';
+                        if (ok) applyToggleToLocalState(dateStr, key, idx, false, rid);
+                        return { idx: idx, ok: ok, message: ok ? '' : reservationErrorText(r.status, r.body.message) };
+                    });
+                });
+
+                return Promise.all(jobs).then(function(results) {
+                    var done = results.filter(function(r) { return r.ok; }).map(function(r) { return nameMap[r.idx]; });
+                    var failed = results.filter(function(r) { return !r.ok; });
+                    if (done.length && window.pageToast) window.pageToast(done.join('・') + 'の予約を取り消しました', 'warning');
+                    if (failed.length && window.pageToast) {
+                        window.pageToast(failed.map(function(r) { return nameMap[r.idx]; }).join('・') + 'の取消ができませんでした。' + failed[0].message, 'danger');
+                    }
+                    return failed.length === 0;
+                });
+            }
+
+            function roomNameOf(roomId) {
+                var t = window.__TRESP || {};
+                var picked = (t.pickerRooms || []).filter(function(r) { return String(r.id) === String(roomId); })[0];
+                return (picked && picked.name)
+                    || (t.availableRoomNames && t.availableRoomNames[roomId])
+                    || (t.roomNames && t.roomNames[roomId])
+                    || ('部屋' + roomId);
+            }
+
+            /**
+             * 予約済みの食事を別の部屋へ移す（旧部屋の取消と新部屋の登録はサーバーが1トランザクションで行う）。
+             * @param {string} dateStr YYYY-MM-DD
+             * @param {number} idx 食事ID（1:朝 2:昼 3:夕 4:弁当）
+             * @param {number} fromRoomId 予約中の部屋
+             * @param {number} toRoomId 移動先の部屋
+             * @returns {Promise<boolean>} 変更できたら true
+             */
+            function moveMealRoom(dateStr, idx, fromRoomId, toRoomId) {
+                var url = (window.__TRESP && window.__TRESP.changeRoomUrl) || '';
+                var userId = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
+                var nameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+                var key = MEAL_KEY_MAP[idx];
+                return postReservationJson(url, { date: dateStr, meal: idx, fromRoomId: fromRoomId, toRoomId: toRoomId, userId: userId })
+                .then(function(r) {
+                    if (r.body.ok !== true && r.body.status !== 'success') {
+                        if (window.pageToast) window.pageToast(nameMap[idx] + 'の部屋を変更できませんでした。' + reservationErrorText(r.status, r.body.message), 'danger');
+                        return false;
+                    }
+                    applyToggleToLocalState(dateStr, key, idx, false, fromRoomId);
+                    applyToggleToLocalState(dateStr, key, idx, true, toRoomId);
+                    if (window.pageToast) window.pageToast(nameMap[idx] + 'の部屋を「' + roomNameOf(toRoomId) + '」に変更しました。', 'success');
+                    return true;
+                });
+            }
+
+            /**
+             * 食事選択ポップアップを、クリックした位置の近くに表示する（カレンダーは隠さない）。
+             * 所属部屋が複数なら「食事の部屋を一括設定」と、食事ごとの部屋プルダウンを出す。
+             * @param {MouseEvent} jsEvent ポップアップの表示位置に使う
+             * @param {string} dateStr YYYY-MM-DD
+             * @param {number|null} roomId 部屋が確定している場合の部屋ID。null なら roomChoice のプルダウンで選ばせる
+             * @param {{roomNames: Object, defaultRoomId: (number|null)}} [roomChoice] 所属部屋が複数の場合の部屋候補
+             * @param {boolean} [editMode] true なら4食すべてを表示し、予約済みをチェック状態にして追加・取消・部屋変更を差分で反映する
+             */
+            function showMealPickerForDate(jsEvent, dateStr, roomId, roomChoice, editMode) {
                 var existing = document.getElementById('__dateClickMealPicker');
                 if (existing) existing.remove();
 
                 var detail = MY_DETAILS[dateStr] || { breakfast: false, lunch: false, dinner: false, bento: false };
                 var meals = [
-                    { idx: 1, key: 'breakfast', label: '朝食' },
-                    { idx: 2, key: 'lunch',     label: '昼食' },
-                    { idx: 3, key: 'dinner',    label: '夕食' },
-                    { idx: 4, key: 'bento',     label: '弁当' },
+                    { idx: 1, key: 'breakfast', label: '朝食', bg: '#fff1f1', border: '#fbd5d5' },
+                    { idx: 2, key: 'lunch',     label: '昼食', bg: '#fff8ec', border: '#fbe3bd' },
+                    { idx: 3, key: 'dinner',    label: '夕食', bg: '#f1f2ff', border: '#d9dcfb' },
+                    { idx: 4, key: 'bento',     label: '弁当', bg: '#edfaf3', border: '#c8eedb' },
                 ];
-                var availableMeals = meals.filter(function(m) { return !detail[m.key]; });
+                var availableMeals = editMode ? meals : meals.filter(function(m) { return !detail[m.key]; });
 
                 if (availableMeals.length === 0) {
                     if (window.pageToast) window.pageToast('朝・昼・夕・弁はすでにすべて登録済みです。', 'info');
@@ -840,6 +898,7 @@ function openModalById(id){
 
                 // 昼食と弁当の競合チェック（既存予約による静的ブロック）
                 function isBlockedByConflict(idx) {
+                    if (editMode) return false; // 編集時は昼食↔弁当を動的排他で扱う
                     return (idx === 4 && detail.lunch) || (idx === 2 && detail.bento);
                 }
                 function conflictMessageFor(idx) {
@@ -848,30 +907,153 @@ function openModalById(id){
                     return '';
                 }
 
+                // 部屋の選択肢は所属部屋。予約中の部屋が所属部屋に無い（退出済み・削除済みなど）場合は、
+                // 現状が分かるよう「（所属外）」として表示し、部屋の変更はできないが取消はできるようにする
+                // 所属部屋が1つなら部屋は確定しているので、部屋のプルダウンは出さない
+                var memberRooms = (roomChoice && roomChoice.roomNames) || {};
+                var useRoomSelect = Object.keys(memberRooms).length > 1;
+                // 所属部屋が0なら新しい予約はできない（部屋を選べない）。残った予約の取消だけを受け付ける
+                var cancelOnly = Object.keys(memberRooms).length === 0 && roomId == null;
+                // 選択肢の並び（オブジェクトのキーは部屋IDの昇順に並び替わるため、順番は別に持つ）
+                var roomOrder = ((roomChoice && roomChoice.roomOrder) || Object.keys(memberRooms)).slice();
+                var roomOptions = {};
+                var outsideRooms = {};
+                var allRoomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
+                Object.keys(memberRooms).forEach(function(rid) { roomOptions[rid] = memberRooms[rid]; });
+                // 所属部屋が1つ・0でも、所属外の部屋に残った予約はそれと分かるよう印を付ける
+                meals.forEach(function(m) {
+                    var r = detail[m.key] && detail[m.key + 'Room'];
+                    if (r && !memberRooms[String(r)] && !outsideRooms[String(r)]) {
+                        roomOptions[String(r)] = (allRoomNames[r] || ('部屋' + r)) + '（所属外）';
+                        outsideRooms[String(r)] = true;
+                        roomOrder.push(String(r));
+                    }
+                });
+                var showBulk = useRoomSelect;
+                var firstReservedRoom = [detail.breakfastRoom, detail.lunchRoom, detail.dinnerRoom, detail.bentoRoom]
+                    .filter(function(r) { return r && !outsideRooms[String(r)]; })[0];
+                var defaultRoomStr = firstReservedRoom ? String(firstReservedRoom)
+                    : roomId != null ? String(roomId)
+                    : (roomChoice && roomChoice.defaultRoomId != null && roomOptions[String(roomChoice.defaultRoomId)]
+                        ? String(roomChoice.defaultRoomId) : '');
+
+                function buildRoomSelect(selected, ariaLabel) {
+                    var sel = document.createElement('select');
+                    sel.className = 'form-select form-select-sm';
+                    sel.setAttribute('aria-label', ariaLabel);
+                    var ph = document.createElement('option');
+                    ph.value = '';
+                    ph.textContent = '部屋を選択';
+                    sel.appendChild(ph);
+                    roomOrder.forEach(function(rid) {
+                        var opt = document.createElement('option');
+                        opt.value = rid;
+                        opt.textContent = roomOptions[rid];
+                        opt.disabled = !!outsideRooms[rid];
+                        if (rid === selected) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                    return sel;
+                }
+                // アイコンは Book1.xlsx のデザイン画像から切り出したもの（webroot/img/meal-picker/）
+                function iconImg(name, size) {
+                    var img = document.createElement('img');
+                    img.src = ((window.__TRESP && window.__TRESP.mealIconBase) || '/img/meal-picker/') + name + '.png';
+                    img.alt = '';
+                    img.width = size;
+                    img.height = size;
+                    img.style.cssText = 'flex:none;mix-blend-mode:multiply';
+                    return img;
+                }
+                function sectionTitle(icon, text) {
+                    var t = document.createElement('div');
+                    t.style.cssText = 'font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:4px';
+                    t.appendChild(iconImg(icon, 20));
+                    t.appendChild(document.createTextNode(text));
+                    return t;
+                }
+
                 var picker = document.createElement('div');
                 picker.id = '__dateClickMealPicker';
+                picker.setAttribute('role', 'dialog');
                 picker.style.cssText = [
                     'position:fixed',
                     'z-index:99999',
+                    'width:min(560px, calc(100vw - 32px))',
+                    'max-height:calc(100vh - 32px)',
+                    'overflow-y:auto',
                     'background:#fff',
-                    'border:1px solid #ccc',
-                    'border-radius:6px',
-                    'box-shadow:0 4px 12px rgba(0,0,0,.2)',
-                    'padding:10px 14px 12px',
-                    'min-width:200px',
+                    'border-radius:10px',
+                    'border:1px solid #d1d5db',
+                    'box-shadow:0 8px 24px rgba(0,0,0,.2)',
+                    'padding:18px 20px 14px',
                     'font-size:14px',
                 ].join(';');
 
                 var header = document.createElement('div');
-                header.textContent = dateStr + ' — 予約する食事を選択';
-                header.style.cssText = 'font-size:12px;color:#666;border-bottom:1px solid #eee;padding-bottom:8px;margin-bottom:8px';
+                header.textContent = dateStr + (editMode ? ' — 予約を編集' : ' — 予約する食事を選択');
+                header.style.cssText = 'font-size:18px;border-bottom:1px solid #e5e7eb;padding-bottom:10px;margin-bottom:12px';
                 picker.appendChild(header);
+                header.id = '__dateClickMealPickerTitle';
+                picker.setAttribute('aria-labelledby', header.id);
+
+                // 食事の部屋を一括設定（部屋が複数のときだけ）
+                var bulkSelectEl = null;
+                var bulkBtn = null;
+                if (showBulk) {
+                    var bulk = document.createElement('div');
+                    bulk.style.cssText = 'margin-bottom:14px';
+                    var bulkTitle = sectionTitle('house', '食事の部屋を一括設定');
+                    var bulkQ = iconImg('question', 16);
+                    bulkQ.title = '選択した部屋を、すべての食事にまとめて適用できます。';
+                    bulkTitle.appendChild(bulkQ);
+                    bulk.appendChild(bulkTitle);
+                    var bulkHelp = document.createElement('div');
+                    bulkHelp.textContent = '選択した部屋を、すべての食事にまとめて適用できます。';
+                    bulkHelp.style.cssText = 'font-size:12px;color:#6b7280;margin-bottom:8px';
+                    bulk.appendChild(bulkHelp);
+
+                    var bulkRow = document.createElement('div');
+                    bulkRow.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+                    var bulkLabel = document.createElement('span');
+                    bulkLabel.textContent = '部屋を選択';
+                    bulkLabel.style.cssText = 'font-size:13px;white-space:nowrap';
+                    bulkSelectEl = buildRoomSelect(defaultRoomStr, '一括設定する部屋');
+                    bulkSelectEl.style.cssText = 'flex:1;min-width:140px;width:auto';
+                    bulkBtn = document.createElement('button');
+                    bulkBtn.type = 'button';
+                    bulkBtn.className = 'btn btn-outline-primary btn-sm';
+                    var bulkArrows = iconImg('arrows', 18);
+                    bulkArrows.style.marginRight = '6px';
+                    bulkArrows.style.verticalAlign = 'middle';
+                    bulkBtn.appendChild(bulkArrows);
+                    bulkBtn.appendChild(document.createTextNode('一括設定'));
+                    bulkRow.appendChild(bulkLabel);
+                    bulkRow.appendChild(bulkSelectEl);
+                    bulkRow.appendChild(bulkBtn);
+                    bulk.appendChild(bulkRow);
+
+                    var bulkNote = document.createElement('div');
+                    bulkNote.appendChild(iconImg('info', 16));
+                    var bulkNoteText = document.createElement('span');
+                    bulkNoteText.textContent = '一括設定を行うと、朝食・昼食・夕食・弁当に選択した部屋が適用されます。個別に変更する場合は、下の各項目から編集してください。';
+                    bulkNote.appendChild(bulkNoteText);
+                    bulkNote.style.cssText = 'display:flex;gap:8px;font-size:12px;color:#4b5563;background:#f1f5fb;border-radius:6px;padding:6px 10px;margin-top:8px';
+                    bulk.appendChild(bulkNote);
+                    picker.appendChild(bulk);
+                }
+
+                picker.appendChild(sectionTitle('fork-knife', '食事ごとの設定'));
+                var summaryEl = document.createElement('div');
+                summaryEl.style.cssText = 'font-size:12px;color:#6b7280;margin-bottom:8px';
+                if (useRoomSelect) picker.appendChild(summaryEl);
 
                 // インラインエラーメッセージ領域
                 var conflictMsgEl = document.createElement('div');
+                conflictMsgEl.setAttribute('role', 'alert');
                 conflictMsgEl.style.cssText = [
                     'display:none',
-                    'font-size:11px',
+                    'font-size:12px',
                     'color:#dc3545',
                     'background:#fff5f5',
                     'border:1px solid #f5c6cb',
@@ -890,9 +1072,16 @@ function openModalById(id){
                     conflictMsgEl.textContent = '';
                 }
 
+                if (cancelOnly) {
+                    var cancelOnlyNote = document.createElement('div');
+                    cancelOnlyNote.textContent = '所属している部屋がないため、新しい予約はできません。予約済みの食事は、チェックを外して保存すると取り消せます。';
+                    cancelOnlyNote.style.cssText = 'font-size:12px;color:#4b5563;background:#f1f5fb;border-radius:6px;padding:6px 10px;margin-bottom:8px';
+                    picker.appendChild(cancelOnlyNote);
+                }
+
                 // 初期状態で静的ブロックがあればメッセージを表示
                 var initialBlockMsg = '';
-                availableMeals.forEach(function(m) {
+                (editMode ? [] : availableMeals).forEach(function(m) {
                     var msg = conflictMessageFor(m.idx);
                     if (msg && !initialBlockMsg) initialBlockMsg = msg;
                 });
@@ -900,30 +1089,100 @@ function openModalById(id){
 
                 var checkboxEntries = [];
                 availableMeals.forEach(function(m) {
-                    var blocked = isBlockedByConflict(m.idx);
+                    // 所属外（退出済み・削除済み）の部屋に残った予約は、部屋を変えられない。取消（チェックを外す）だけできる
+                    var lockedRoom = editMode && detail[m.key] && outsideRooms[String(detail[m.key + 'Room'])]
+                        ? String(detail[m.key + 'Room']) : null;
+                    var blocked = isBlockedByConflict(m.idx) || (cancelOnly && !detail[m.key]);
 
-                    var row = document.createElement('label');
-                    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;cursor:' + (blocked ? 'not-allowed' : 'pointer');
+                    var row = document.createElement('div');
+                    // 狭い画面では「予約する」を次の行へ回し、部屋名が読める幅を残す
+                    row.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 10px;margin-bottom:6px;border-radius:8px;'
+                        + 'background:' + m.bg + ';border:1px solid ' + m.border;
 
+                    var name = document.createElement('span');
+                    name.style.cssText = 'font-weight:600;white-space:nowrap;min-width:84px;display:flex;align-items:center;gap:8px';
+                    var mealIcon = iconImg(m.key, 34);
+                    mealIcon.style.cssText = 'flex:none;border-radius:50%'; // 切り出し画像の四隅の背景色を見せない
+                    name.appendChild(mealIcon);
+                    name.appendChild(document.createTextNode(m.label));
+                    row.appendChild(name);
+
+                    var roomSel = null;
+                    if (useRoomSelect) {
+                        var roomLbl = document.createElement('span');
+                        roomLbl.textContent = '部屋';
+                        roomLbl.style.cssText = 'font-size:12px;color:#6b7280';
+                        var reserved = detail[m.key] && detail[m.key + 'Room'];
+                        roomSel = buildRoomSelect(reserved ? String(reserved) : defaultRoomStr, m.label + 'の部屋');
+                        roomSel.style.cssText = 'flex:1 1 140px;min-width:140px;width:auto';
+                        roomSel.disabled = blocked || !!lockedRoom;
+                        row.appendChild(roomLbl);
+                        row.appendChild(roomSel);
+                    }
+
+                    var label = document.createElement('label');
+                    label.style.cssText = 'display:flex;align-items:center;gap:6px;white-space:nowrap;margin:0 0 0 auto;cursor:' + (blocked ? 'not-allowed' : 'pointer');
                     var cb = document.createElement('input');
                     cb.type = 'checkbox';
                     cb.value = String(m.idx);
-                    cb.checked = !blocked && m.idx !== 4;
+                    cb.checked = editMode ? !!detail[m.key] : (!blocked && m.idx !== 4);
                     cb.disabled = blocked;
-                    cb.style.cssText = 'width:16px;height:16px;cursor:' + (blocked ? 'not-allowed' : 'pointer');
-
+                    cb.setAttribute('aria-label', m.label + 'を予約する');
+                    cb.style.cssText = 'width:18px;height:18px;accent-color:#2563eb;cursor:' + (blocked ? 'not-allowed' : 'pointer');
                     var span = document.createElement('span');
-                    span.textContent = m.label;
+                    span.textContent = '予約する';
+                    span.style.fontSize = '13px';
                     if (blocked) span.style.color = '#adb5bd';
+                    label.appendChild(cb);
+                    label.appendChild(span);
+                    row.appendChild(label);
 
-                    row.appendChild(cb);
-                    row.appendChild(span);
+                    if (lockedRoom) {
+                        var lockNote = document.createElement('div');
+                        lockNote.textContent = '「' + (allRoomNames[lockedRoom] || ('部屋' + lockedRoom)) + '」は所属外の部屋のため、部屋は変更できません。チェックを外して保存すると取り消せます。';
+                        lockNote.style.cssText = 'flex-basis:100%;font-size:12px;color:#6b7280';
+                        lockNote.id = '__mealPickerLock' + m.idx;
+                        // 操作できない理由を、スクリーンリーダーでも読み上げる
+                        cb.setAttribute('aria-describedby', lockNote.id);
+                        if (roomSel) roomSel.setAttribute('aria-describedby', lockNote.id);
+                        row.appendChild(lockNote);
+                    }
+
                     picker.appendChild(row);
-                    checkboxEntries.push({ cb: cb, idx: m.idx, span: span, row: row });
+                    checkboxEntries.push({ cb: cb, idx: m.idx, span: span, row: label, roomSel: roomSel, label: m.label, blocked: blocked, locked: !!lockedRoom });
                 });
 
+                /** 全食事の部屋がそろっているかを見出し下に表示する */
+                function updateRoomSummary() {
+                    if (!useRoomSelect) return;
+                    // 所属外で部屋を変えられない行は比べない（そろえられないため）
+                    var vals = checkboxEntries.filter(function(e) { return !e.locked; }).map(function(e) { return e.roomSel.value; });
+                    var same = vals.every(function(v) { return v === vals[0]; });
+                    summaryEl.textContent = same && vals[0]
+                        ? '各食事の部屋を設定してください。すべて「' + roomOptions[vals[0]] + '」に統一されています。'
+                        : '各食事の部屋を設定してください。食事ごとに異なる部屋が設定されています。';
+                }
+                checkboxEntries.forEach(function(e) {
+                    if (e.roomSel) e.roomSel.addEventListener('change', function() { hideConflictMsg(); updateRoomSummary(); });
+                });
+                if (bulkBtn) {
+                    bulkBtn.addEventListener('click', function() {
+                        if (!bulkSelectEl.value) {
+                            showConflictMsg('一括設定する部屋を選択してください。');
+                            if (window.pageToast) window.pageToast('一括設定する部屋を選択してください。', 'warning');
+                            return;
+                        }
+                        hideConflictMsg();
+                        // 所属外の予約（表示だけの行）以外に当てる。昼食↔弁当で一時的に無効な行も、後で選べるようにそろえておく
+                        checkboxEntries.forEach(function(e) { if (!e.locked) e.roomSel.value = bulkSelectEl.value; });
+                        updateRoomSummary();
+                    });
+                }
+                updateRoomSummary();
+
                 // 動的排他制御：昼食↔弁当のチェック変化を監視
-                function updateLunchBentoExclusion() {
+                function updateLunchBentoExclusion(silent) {
+                    var notify = silent === true ? function() {} : showConflictMsg;
                     var lunchEntry = checkboxEntries.find(function(e) { return e.idx === 2; });
                     var bentoEntry = checkboxEntries.find(function(e) { return e.idx === 4; });
                     if (!lunchEntry || !bentoEntry) { if (!initialBlockMsg) hideConflictMsg(); return; }
@@ -934,20 +1193,24 @@ function openModalById(id){
                         bentoEntry.cb.style.cursor  = 'not-allowed';
                         bentoEntry.span.style.color = '#adb5bd';
                         bentoEntry.row.style.cursor = 'not-allowed';
-                        showConflictMsg('お昼を選択しているとお弁当は予約できません。');
+                        if (bentoEntry.roomSel) bentoEntry.roomSel.disabled = true;
+                        notify('お昼を選択しているとお弁当は予約できません。');
                     } else if (bentoEntry.cb.checked) {
                         lunchEntry.cb.checked  = false;
                         lunchEntry.cb.disabled = true;
                         lunchEntry.cb.style.cursor  = 'not-allowed';
                         lunchEntry.span.style.color = '#adb5bd';
                         lunchEntry.row.style.cursor = 'not-allowed';
-                        showConflictMsg('お弁当を選択しているとお昼は予約できません。');
+                        if (lunchEntry.roomSel) lunchEntry.roomSel.disabled = true;
+                        notify('お弁当を選択しているとお昼は予約できません。');
                     } else {
                         [lunchEntry, bentoEntry].forEach(function(e) {
-                            e.cb.disabled = false;
-                            e.cb.style.cursor  = 'pointer';
-                            e.span.style.color = '';
-                            e.row.style.cursor = 'pointer';
+                            // もともと選べない行（既存予約との競合・所属部屋がない）は、選べないまま残す
+                            e.cb.disabled = e.blocked;
+                            e.cb.style.cursor  = e.blocked ? 'not-allowed' : 'pointer';
+                            e.span.style.color = e.blocked ? '#adb5bd' : '';
+                            e.row.style.cursor = e.blocked ? 'not-allowed' : 'pointer';
+                            if (e.roomSel) e.roomSel.disabled = e.blocked || e.locked;
                         });
                         if (!initialBlockMsg) hideConflictMsg();
                     }
@@ -956,41 +1219,102 @@ function openModalById(id){
                 checkboxEntries.forEach(function(e) {
                     e.cb.addEventListener('change', updateLunchBentoExclusion);
                 });
-
-                var checkboxes = checkboxEntries; // confirmBtn の filter で使う後方互換エイリアス
+                // 新規でも、最初から昼食にチェックが入っていれば弁当を選べない状態から始める（メッセージは操作時だけ出す）
+                updateLunchBentoExclusion(!editMode);
 
                 var footer = document.createElement('div');
-                footer.style.cssText = 'display:flex;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid #eee';
+                footer.style.cssText = 'display:flex;gap:10px;margin-top:12px';
 
                 var cancelBtn = document.createElement('button');
                 cancelBtn.type = 'button';
+                cancelBtn.className = 'btn btn-outline-secondary';
+                cancelBtn.style.flex = '1';
                 cancelBtn.textContent = 'キャンセル';
-                cancelBtn.style.cssText = 'flex:1;padding:6px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:13px';
 
                 var confirmBtn = document.createElement('button');
                 confirmBtn.type = 'button';
-                confirmBtn.textContent = '登録する';
-                confirmBtn.style.cssText = 'flex:1;padding:6px;border:none;border-radius:4px;background:#0d6efd;color:#fff;cursor:pointer;font-size:13px;font-weight:600';
+                confirmBtn.className = 'btn btn-primary';
+                confirmBtn.style.cssText = 'flex:1;font-weight:600';
+                confirmBtn.textContent = editMode ? '保存する' : '登録する';
 
                 function closePicker() {
                     picker.remove();
+                    // 開く前にフォーカスしていた場所へ戻す（キーボード操作で位置を見失わないように）
+                    if (returnFocusEl && document.contains(returnFocusEl) && typeof returnFocusEl.focus === 'function') returnFocusEl.focus();
+                    document.removeEventListener('keydown', escHandler, true);
                     document.removeEventListener('click', mealOutsideHandler, true);
                 }
+                function escHandler(e) { if (e.key === 'Escape') closePicker(); }
+                function mealOutsideHandler(e) { if (!picker.contains(e.target)) closePicker(); }
 
                 cancelBtn.addEventListener('click', function() { closePicker(); });
 
                 confirmBtn.addEventListener('click', function() {
-                    var selectedIndices = checkboxEntries
-                        .filter(function(e) { return e.cb.checked && !e.cb.disabled; })
-                        .map(function(e) { return e.idx; });
+                    function roomOf(e) { return e.roomSel ? parseInt(e.roomSel.value, 10) : roomId; }
+                    var selected = checkboxEntries.filter(function(e) { return e.cb.checked && !e.cb.disabled; });
+                    var selectedIndices = selected.map(function(e) { return e.idx; });
+
+                    // 差分: 予約済み→未チェック＝取消 / 未予約→チェック＝追加 / 予約済みで部屋が変わった＝部屋変更
+                    var removeIndices = editMode
+                        ? checkboxEntries
+                            .filter(function(e) { return detail[MEAL_KEY_MAP[e.idx]] && selectedIndices.indexOf(e.idx) === -1; })
+                            .map(function(e) { return e.idx; })
+                        : [];
+                    var adds = selected.filter(function(e) { return !detail[MEAL_KEY_MAP[e.idx]]; });
+                    var moves = selected.filter(function(e) {
+                        var cur = detail[MEAL_KEY_MAP[e.idx]] && detail[MEAL_KEY_MAP[e.idx] + 'Room'];
+                        return cur && e.roomSel && e.roomSel.value !== String(cur);
+                    });
+
+                    if (!editMode && adds.length === 0) {
+                        showConflictMsg('食事を1つ以上選択してください。');
+                        return;
+                    }
+                    if (editMode && adds.length === 0 && removeIndices.length === 0 && moves.length === 0) {
+                        closePicker();
+                        if (window.pageToast) window.pageToast('変更はありません。', 'info');
+                        return;
+                    }
+                    var noRoom = adds.concat(moves).filter(function(e) { return !roomOf(e); });
+                    if (noRoom.length > 0) {
+                        var noRoomMsg = noRoom.map(function(e) { return e.label; }).join('・') + 'の部屋を選択してください。';
+                        showConflictMsg(noRoomMsg);
+                        if (window.pageToast) window.pageToast(noRoomMsg, 'warning');
+                        return;
+                    }
 
                     closePicker();
 
-                    if (selectedIndices.length === 0) {
-                        if (window.pageToast) window.pageToast('食事を1つ以上選択してください。', 'warning');
-                        return;
+                    // 部屋ごとにまとめて追加する
+                    var addsByRoom = {};
+                    adds.forEach(function(e) { (addsByRoom[roomOf(e)] = addsByRoom[roomOf(e)] || []).push(e.idx); });
+
+                    // 取消 → 部屋変更 → 追加の順に1つずつ実行する（昼食↔弁当の入れ替えで競合させない）。
+                    // 1つでも失敗したら、その後は送らない（取消が拒否されたのに追加だけ通ると、意図しない状態になるため）
+                    var failed = false;
+                    var stopped = false; // 失敗のため送らなかった処理があるか
+                    function step(run) {
+                        return function(ok) {
+                            if (ok === false) failed = true;
+                            if (failed) { stopped = true; return false; }
+                            return run();
+                        };
                     }
-                    registerMealsDirectly(dateStr, roomId, selectedIndices);
+                    var chain = removeMealsDirectly(dateStr, removeIndices);
+                    moves.forEach(function(e) {
+                        chain = chain.then(step(function() {
+                            return moveMealRoom(dateStr, e.idx, detail[MEAL_KEY_MAP[e.idx] + 'Room'], roomOf(e));
+                        }));
+                    });
+                    Object.keys(addsByRoom).forEach(function(rid) {
+                        chain = chain.then(step(function() { return registerMealsDirectly(dateStr, parseInt(rid, 10), addsByRoom[rid]); }));
+                    });
+                    chain.then(function() {
+                        if (stopped && window.pageToast) window.pageToast('途中でエラーになったため、残りの変更は保存していません。内容を確認してもう一度お試しください。', 'danger');
+                    }).catch(function(err) {
+                        console.error('[mealPicker] save failed', err);
+                        if (window.pageToast) window.pageToast('保存中にエラーが発生しました。画面を再読み込みしてください。', 'danger');
+                    });
                 });
 
                 footer.appendChild(cancelBtn);
@@ -998,11 +1322,11 @@ function openModalById(id){
                 picker.appendChild(footer);
 
                 var detailLinkWrap = document.createElement('div');
-                detailLinkWrap.style.cssText = 'text-align:center;margin-top:6px;padding-top:6px;border-top:1px solid #eee';
+                detailLinkWrap.style.cssText = 'text-align:center;margin-top:10px';
                 var detailAnchor = document.createElement('a');
                 detailAnchor.href = '#';
                 detailAnchor.textContent = '詳細フォームで登録する →';
-                detailAnchor.style.cssText = 'font-size:11px;color:#6c757d;text-decoration:none';
+                detailAnchor.style.cssText = 'font-size:12px;color:#6c757d;text-decoration:none';
                 detailAnchor.addEventListener('mouseover', function() { detailAnchor.style.textDecoration = 'underline'; });
                 detailAnchor.addEventListener('mouseout',  function() { detailAnchor.style.textDecoration = 'none'; });
                 detailAnchor.addEventListener('click', function(e) {
@@ -1015,22 +1339,19 @@ function openModalById(id){
                 detailLinkWrap.appendChild(detailAnchor);
                 picker.appendChild(detailLinkWrap);
 
+                // クリックした位置の近くに出す（画面外にはみ出す分は内側へ寄せる）
+                var returnFocusEl = document.activeElement;
                 document.body.appendChild(picker);
-                var x = jsEvent.clientX + 8;
-                var y = jsEvent.clientY + 8;
-                var pw = picker.offsetWidth;
-                var ph = picker.offsetHeight;
-                if (x + pw > window.innerWidth)  x = window.innerWidth  - pw - 8;
-                if (y + ph > window.innerHeight) y = window.innerHeight - ph - 8;
+                var cx = jsEvent && jsEvent.clientX != null ? jsEvent.clientX : 16;
+                var cy = jsEvent && jsEvent.clientY != null ? jsEvent.clientY : 16;
+                var x = Math.max(16, Math.min(cx + 8, window.innerWidth  - picker.offsetWidth  - 16));
+                var y = Math.max(16, Math.min(cy + 8, window.innerHeight - picker.offsetHeight - 16));
                 picker.style.left = x + 'px';
                 picker.style.top  = y + 'px';
-
-                function mealOutsideHandler(e) {
-                    if (!picker.contains(e.target)) { closePicker(); }
-                }
-                setTimeout(function() {
-                    document.addEventListener('click', mealOutsideHandler, true);
-                }, 0);
+                document.addEventListener('keydown', escHandler, true);
+                setTimeout(function() { document.addEventListener('click', mealOutsideHandler, true); }, 0);
+                var firstControl = picker.querySelector('select:not([disabled]), input:not([disabled]), button:not([disabled])');
+                if (firstControl) firstControl.focus();
             }
 
             var calendar = new FullCalendar.Calendar(calendarEl, {
@@ -1096,15 +1417,15 @@ function openModalById(id){
                             badge.textContent = '✓';
                             var titleEl = info.el.querySelector('.fc-event-title');
                             if (titleEl) titleEl.appendChild(badge);
-                            // 予約部屋名をイベント下部に表示
+                            // 予約部屋名をイベント下部に表示（画面を開いた後に予約・変更した部屋も名前を引けるよう roomNameOf を使う）
                             var roomId = detail[mealKey + 'Room'];
-                            var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
-                            if (roomId && roomNames[roomId]) {
-                                label += ' 予約部屋: ' + roomNames[roomId];
+                            if (roomId) {
+                                var reservedRoomName = roomNameOf(roomId);
+                                label += ' 予約部屋: ' + reservedRoomName;
                                 var roomLabel = document.createElement('div');
                                 roomLabel.className = 'meal-room-label';
                                 roomLabel.setAttribute('aria-hidden', 'true');
-                                roomLabel.textContent = '📍 ' + roomNames[roomId];
+                                roomLabel.textContent = '📍 ' + reservedRoomName;
                                 var mainEl = info.el.querySelector('.fc-event-main') || info.el;
                                 mainEl.appendChild(roomLabel);
                             }
@@ -1172,105 +1493,9 @@ function openModalById(id){
                         return;
                     }
 
-                    var mealKeyMap  = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
-                    var mealNameMap = { 1: '朝食', 2: '昼食', 3: '夕食', 4: '弁当' };
-                    var mealKey  = mealKeyMap[mealType];
-                    var mealName = mealNameMap[mealType];
-                    if (!mealKey) return;
-
-                    var detail = MY_DETAILS[date] || { breakfast: false, lunch: false, dinner: false, bento: false };
-                    var newVal = !detail[mealKey];
-
-                    var toggleBase = (window.__TRESP && window.__TRESP.toggleBase) || '';
-                    var csrfToken  = window.__csrfToken || (window.__TRESP && window.__TRESP.csrfToken) || '';
-                    var userId     = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
-                    var toggleKey  = date + ':' + mealType;
-                    window.__TRESP._mealToggleInFlight = window.__TRESP._mealToggleInFlight || {};
-
-                    function doToggleFetchWithRoom(roomId, value, onSuccess, onFail) {
-                        var url = toggleBase.replace('__ROOM__', encodeURIComponent(String(roomId)));
-                        if (!url) { onFail('URL が生成できません'); return; }
-                        if (window.__TRESP._mealToggleInFlight[toggleKey]) return;
-                        window.__TRESP._mealToggleInFlight[toggleKey] = true;
-                        fetch(url, {
-                            method: 'POST',
-                            credentials: 'same-origin',
-                            headers: {
-                                'Content-Type': 'application/json; charset=utf-8',
-                                'Accept': 'application/json',
-                                'X-CSRF-Token': csrfToken
-                            },
-                            body: JSON.stringify({ date: date, meal: mealType, value: value, userId: userId })
-                        })
-                        .then(function(res) { return res.json(); })
-                        .then(function(data) {
-                            var ok = data.ok === true || data.status === 'success';
-                            if (!ok) { onFail(data.message || '予約の変更に失敗しました'); return; }
-                            onSuccess(roomId);
-                        })
-                        .catch(function(err) {
-                            console.error('[mealCalToggle]', err);
-                            onFail('通信エラーが発生しました');
-                        })
-                        .finally(function() {
-                            delete window.__TRESP._mealToggleInFlight[toggleKey];
-                        });
-                    }
-
-                    if (newVal) {
-                        // 予約ON → 部屋選択ドロップダウンを経由して登録
-                        // 新規登録なので「予約可能な部屋」を出す（既存予約の部屋名 roomNames は表示用のため使わない）
-                        var roomNames    = (window.__TRESP && window.__TRESP.availableRoomNames) || {};
-                        var defaultRoomId = (window.__TRESP && window.__TRESP.calRoomId != null)
-                            ? window.__TRESP.calRoomId : null;
-                        if (Object.keys(roomNames).length === 0) {
-                            if (window.pageToast) window.pageToast('利用可能な部屋がありません。', 'warning');
-                            return;
-                        }
-                        showRoomPickerForDate(info.jsEvent, date, roomNames, defaultRoomId, function(selectedRoomId) {
-                            doToggleFetchWithRoom(selectedRoomId, 1,
-                                function onOk(rid) {
-                                    applyToggleToLocalState(date, mealKey, mealType, true, rid);
-                                    if (window.pageToast) window.pageToast(mealName + 'の予約を追加しました', 'success');
-                                },
-                                function onFail(msg) { if (window.pageToast) window.pageToast(msg, 'danger'); }
-                            );
-                        });
-                        return;
-                    }
-
-                    // 予約OFF → 部屋選択不要（既存レコードの削除）
-                    // 取り消しは「実際に予約した部屋」へ送る。カレンダーの絞り込み部屋(calRoomId)を使うと
-                    // 別の部屋へ送られ、画面は取消済みに見えるのに予約が残る。
-                    var bookedRoomId = detail[mealKey + 'Room'];
-                    var offRoomId = (bookedRoomId != null && bookedRoomId !== '')
-                        ? bookedRoomId
-                        : ((window.__TRESP && window.__TRESP.calRoomId != null)
-                            ? window.__TRESP.calRoomId
-                            : (window.__TRESP && window.__TRESP.roomId != null ? window.__TRESP.roomId : null));
-                    if (!offRoomId) {
-                        if (window.pageToast) window.pageToast('部屋が特定できません', 'warning');
-                        return;
-                    }
-                    doToggleFetchWithRoom(offRoomId, 0,
-                        function onOk(rid) {
-                            applyToggleToLocalState(date, mealKey, mealType, false, rid);
-                            if (window.pageToastUndo) {
-                                window.pageToastUndo(mealName + 'の予約を取り消しました', function doUndo() {
-                                    doToggleFetchWithRoom(offRoomId, 1,
-                                        function(r) {
-                                            applyToggleToLocalState(date, mealKey, mealType, true, r);
-                                            if (window.pageToast) window.pageToast(mealName + 'の予約を元に戻しました', 'success');
-                                        },
-                                        function(msg) { if (window.pageToast) window.pageToast(msg, 'danger'); }
-                                    );
-                                });
-                            } else {
-                                if (window.pageToast) window.pageToast(mealName + 'の予約を取り消しました', 'warning');
-                            }
-                        },
-                        function onFail(msg) { if (window.pageToast) window.pageToast(msg, 'danger'); }
-                    );
+                    // 人数クリックは即ON/OFFせず、食事区分の編集ポップアップを開く
+                    // （チェックを付ける＝予約、外す＝取消。保存時に差分を反映する）
+                    openMealPicker(info.jsEvent, date, true);
                 }
             });
 
@@ -1299,14 +1524,17 @@ function openModalById(id){
 
 function unlockForChildren(wrap){
         if (!wrap || window.__IS_STAFF) return;
+        // 変化があるときだけ書き換える。無条件に書くと、属性を監視する MutationObserver が自分自身を呼び続けて固まる。
         wrap.querySelectorAll('input[type="checkbox"][name^="users"]').forEach(function(cb){
-            cb.disabled = false;
-            cb.removeAttribute('data-locked');
+            if (cb.disabled) { cb.disabled = false; }
+            if (cb.hasAttribute('data-locked')) { cb.removeAttribute('data-locked'); }
             if (cb.title &&
                 (cb.title.includes('直前予約のため') || cb.title.includes('直前期間のため'))) {
                 cb.removeAttribute('title');
             }
-            cb.classList?.remove('deletion-blocked');
+            if (cb.classList && cb.classList.contains('deletion-blocked')) {
+                cb.classList.remove('deletion-blocked');
+            }
         });
     }
 
@@ -1396,7 +1624,7 @@ function unlockForChildren(wrap){
             var scope = root || document;
             var roomSelect = null;
 
-            // URL テンプレートは reservation-users.js / treservation_index.inline.js 冒頭で設定済み
+            // URL テンプレートは reservation-users.js / 本ファイル冒頭で設定済み
 
             if (!window.fetchUserData) {
                 window.fetchUserData = function(roomId) {
@@ -2206,111 +2434,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
         }
     });
 
-(function(){
-        const copyApi   = window.__TRESP.copyApi;
-        const copyPreviewApi = window.__TRESP.copyPreviewApi;
-        const csrfToken = document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') || '';
-
-        const ymdLocal = (d)=> {
-            const y=d.getFullYear(), m=('0'+(d.getMonth()+1)).slice(-2), day=('0'+d.getDate()).slice(-2);
-            return `${y}-${m}-${day}`;
-        };
-        const startOfWeek = (d)=> {
-            const c = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-            const w = c.getDay(); const diffToMon = (w === 0 ? -6 : 1 - w);
-            c.setDate(c.getDate() + diffToMon); return c;
-        };
-        const startOfMonth = (d)=> new Date(d.getFullYear(), d.getMonth(), 1);
-
-        const refreshCalendarOrReload = ()=> {
-            try {
-                if (window.__reservationCalendar?.refetchEvents) {
-                    window.__reservationCalendar.refetchEvents();
-                    return;
-                }
-            } catch(_) {}
-            location.reload();
-        };
-
-        const openModalBtn      = document.querySelector('#res-copy-modal');
-        const submitBtn         = document.querySelector('#res-copy-submit');
-        const lastWeekQuickBtn  = document.querySelector('#res-copy-btn-lastweek');
-        const form              = document.querySelector('#res-copy-form');
-
-        if (!form) return;
-
-        async function doCopy(payload){
-            const res = await fetch(copyApi, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: {
-                    'Content-Type': 'application/json; charset=utf-8',
-                    'Accept': 'application/json',
-                    'X-CSRF-Token': csrfToken
-                },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json().catch(()=> ({}));
-            if (!res.ok || data?.ok === false) {
-                const msg = data?.message || `コピーに失敗しました（${res.status}）`;
-                throw new Error(msg);
-            }
-        }
-
-        submitBtn?.addEventListener('click', async ()=>{
-            try {
-                const fd = new FormData(form);
-                const mode         = fd.get('mode');
-                const sourceStart  = fd.get('source_start');
-                const targetStart  = fd.get('target_start');
-                const roomId       = fd.get('room_id') || '';
-                const overwrite    = fd.get('overwrite') ? 1 : 0;
-
-                if (!sourceStart || !targetStart) { notifyUser('コピー元/先の開始日を入力してください。', 'warning'); return; }
-                if (mode !== 'week' && mode !== 'month') { notifyUser('コピー範囲（週／月）を選択してください。', 'warning'); return; }
-
-                await doCopy({
-                    mode,
-                    source_start: sourceStart,
-                    target_start: targetStart,
-                    room_id: roomId || null,
-                    overwrite
-                });
-
-                notifyUser('コピーが完了しました。', 'success');
-                try {
-                    const modalEl = document.getElementById('res-copy-modal');
-                    if (modalEl && window.bootstrap?.Modal) {
-                        window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                    }
-                } catch(_) {}
-                refreshCalendarOrReload();
-            } catch (e) {
-                notifyUser(e?.message || 'コピーに失敗しました。', 'danger');
-            }
-        });
-
-        lastWeekQuickBtn?.addEventListener('click', async ()=>{
-            try {
-                const base = new Date();
-                const thisMon = startOfWeek(base);
-                const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate() - 7);
-
-                await doCopy({
-                    mode: 'week',
-                    source_start: ymdLocal(lastMon),
-                    target_start: ymdLocal(thisMon),
-                    room_id: null,
-                    overwrite: 0
-                });
-
-                notifyUser('先週 → 今週 へのコピーが完了しました。', 'success');
-                refreshCalendarOrReload();
-            } catch (e) {
-                notifyUser(e?.message || 'コピーに失敗しました。', 'danger');
-            }
-        });
-    })();
+// 予約コピーのモーダルは下の IIFE（#res-copy-modal）がすべて扱う。以前ここにあった同じボタンへの重複ハンドラは削除（#821）
 
 if (typeof enforceLastMinuteNoUncheck !== 'function') {
         function enforceLastMinuteNoUncheck(scope){
@@ -2343,6 +2467,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
         if (!modalEl || !form || !submitBtn) return;
 
         const copyApi   = window.__TRESP.copyApi;
+        const copyPreviewApi = window.__TRESP.copyPreviewApi;
         const csrfToken = document.querySelector('meta[name="csrfToken"]')?.getAttribute('content') || '';
 
         const sourceInput = document.getElementById('source_start');
@@ -2586,10 +2711,11 @@ document.addEventListener('shown.bs.modal', function(ev) {
             try {
                 const sourceStr = ymd(source);
                 const onlyChildren = document.getElementById('copy-only-children')?.checked || false;
-                const roomIdInput = document.querySelector('input[name="room_id"]');
+                const roomIdInput = document.getElementById('res-copy-room');
                 const roomId = roomIdInput?.value || null;
                 
                 let totalCount = 0;
+                let errorMessage = null;
                 const results = [];
                 
                 // 各コピー先の件数を取得
@@ -2614,19 +2740,30 @@ document.addEventListener('shown.bs.modal', function(ev) {
                         }
                     });
                     
-                    if (res.ok) {
-                        const raw = await res.json();
-                        const data = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
-                        if (data && data.ok === true && data.preview) {
-                            const count = data.preview.will_copy || 0;
-                            totalCount += count;
-                            results.push({ target: targetStr, count: count });
-                        }
+                    if (!res.ok) {
+                        // 拒否（所属外の部屋など）を「対象データなし」と取り違えないよう、サーバーの理由を出す
+                        const rawErr = await res.json().catch(() => null);
+                        const errData = rawErr && window.normalizeApiPayload ? window.normalizeApiPayload(rawErr) : rawErr;
+                        errorMessage = errData?.message || `プレビューを取得できませんでした（${res.status}）`;
+                        break;
+                    }
+                    const raw = await res.json();
+                    const data = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;
+                    if (data && data.ok === true && data.preview) {
+                        const count = data.preview.will_copy || 0;
+                        totalCount += count;
+                        results.push({ target: targetStr, count: count });
                     }
                 }
                 
                 // プレビュー表示を更新
-                if (totalCount > 0) {
+                if (errorMessage) {
+                    const errEl = document.createElement('div');
+                    errEl.className = 'text-danger';
+                    errEl.textContent = errorMessage;
+                    previewContent.replaceChildren(errEl);
+                    preview.style.display = 'block';
+                } else if (totalCount > 0) {
                     let html = `<div class="mb-2"><strong>コピー予定件数：${totalCount}件</strong></div>`;
                     if (results.length > 1) {
                         html += '<div class="small text-muted">内訳：</div><ul class="small mb-0">';
@@ -2663,6 +2800,8 @@ document.addEventListener('shown.bs.modal', function(ev) {
         // 子供のみチェックボックスの変更
         const onlyChildrenCheckbox = document.getElementById('copy-only-children');
         if (onlyChildrenCheckbox) onlyChildrenCheckbox.addEventListener('change', validateInputs);
+        // 対象の部屋を変えたら件数を取り直す
+        document.getElementById('res-copy-room')?.addEventListener('change', validateInputs);
 
         async function postCopy(payload){
             const res = await fetch(copyApi, {
@@ -2707,13 +2846,15 @@ document.addEventListener('shown.bs.modal', function(ev) {
                 let totalSkipped = 0;
                 let totalSource = 0;
                 let failedCount = 0;
+                let failReason = '';
 
                 for (const targetDateStr of targetDates) {
                     const payload = {
                         mode,
                         source_start: ymd(sourceStart),
                         target_start: targetDateStr,
-                        room_id: null, // すべての部屋
+                        // 未選択（所属全部屋）なら null。選んだ部屋はそのまま送る
+                        room_id: document.getElementById('res-copy-room')?.value || null,
                         overwrite: 0,
                         only_children: onlyChildren ? 1 : 0
                     };
@@ -2731,6 +2872,7 @@ document.addEventListener('shown.bs.modal', function(ev) {
                     } catch (e) {
                         console.error('Copy failed for', targetDateStr, e);
                         failedCount++;
+                        failReason = e?.message || failReason;
                     }
                 }
 
@@ -2744,8 +2886,14 @@ document.addEventListener('shown.bs.modal', function(ev) {
                 }
                 if (failedCount > 0) {
                     message += `\n失敗: ${failedCount}件`;
+                    if (failReason) message += `（${failReason}）`;
                 }
                 
+                // 全件失敗は「完了」と言わず、理由だけを出す
+                if (failedCount === targetDates.length) {
+                    toast(`コピーできませんでした。${failReason}`, 'danger');
+                    return;
+                }
                 toast(message, failedCount > 0 ? 'warning' : 'success');
 
                 if (window.__reservationCalendar?.refetchEvents) {
@@ -2907,7 +3055,9 @@ document.addEventListener('shown.bs.modal', function(ev) {
         modalEl.addEventListener('hidden.bs.modal', function() {
             form.reset();
             sourceValidation.innerHTML = '';
-            targetValidation.innerHTML = '';
+            // 前回選んだコピー先が残ったまま次に実行されないよう、選択も消す（未定義だった targetValidation の参照で以降が止まっていた）
+            targetDates = [];
+            renderTargetDates();
             document.getElementById('copy-preview').style.display = 'none';
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> コピーを実行';
