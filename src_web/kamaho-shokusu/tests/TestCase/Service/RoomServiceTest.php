@@ -182,4 +182,21 @@ class RoomServiceTest extends TestCase
 
         $this->assertSame($before - 1, $this->service->countActiveRooms());
     }
+
+    // ----------------------------------------------------------------
+    // 現在の所属（#819）
+    // ----------------------------------------------------------------
+
+    /** 異動で抜けた所属（active_flag=1）のユーザーは部屋のメンバーに含めない */
+    public function testGetUsersForRoom_excludesWithdrawnMembers(): void
+    {
+        TableRegistry::getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 2, 'i_id_room' => 1]);
+        $roomInfo = TableRegistry::getTableLocator()->get('MRoomInfo')->get(1, contain: ['MUserGroup']);
+
+        $ids = array_map(static fn ($u) => (int)$u->i_id_user, $this->service->getUsersForRoom($roomInfo));
+
+        $this->assertNotContains(2, $ids);
+        $this->assertContains(1, $ids);
+    }
+
 }

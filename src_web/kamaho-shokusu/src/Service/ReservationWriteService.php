@@ -1141,9 +1141,6 @@ class ReservationWriteService
             return;
         }
         ReservationReportService::invalidateMealCountsCache($date);
-        foreach (array_unique(array_filter($roomIds)) as $rid) {
-            Cache::delete(sprintf('users_by_room_edit:%d:%s', (int)$rid, $date), 'default');
-        }
         $today = Date::today('Asia/Tokyo')->format('Y-m-d');
         if ($date === $today) {
             foreach (array_unique(array_filter($userIds)) as $uid) {

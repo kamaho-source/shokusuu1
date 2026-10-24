@@ -136,4 +136,30 @@ class MRoomInfoControllerTest extends TestCase
             ],
         ]);
     }
+
+    /** 削除済みの部屋の詳細は開かず、一覧へ戻す（#819） */
+    public function testViewDeletedRoomRedirects(): void
+    {
+        $this->getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => 1], ['i_id_room' => 1]);
+        $this->setAuthenticatedSession();
+        $this->enableRetainFlashMessages();
+
+        $this->get('/MRoomInfo/view/1');
+
+        $this->assertRedirectContains('/MRoomInfo');
+        $this->assertFlashMessage('この部屋は削除されています。');
+    }
+
+    /** 削除フラグが NULL の部屋は一覧（i_del_flg = 0）に出ないので、詳細も開かない（#819） */
+    public function testViewNullDeleteFlagRoomRedirects(): void
+    {
+        $this->getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => null], ['i_id_room' => 1]);
+        $this->setAuthenticatedSession();
+        $this->enableRetainFlashMessages();
+
+        $this->get('/MRoomInfo/view/1');
+
+        $this->assertRedirectContains('/MRoomInfo');
+        $this->assertFlashMessage('この部屋は削除されています。');
+    }
 }
