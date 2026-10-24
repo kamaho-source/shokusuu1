@@ -25,6 +25,7 @@ class ReservationWriteServiceTest extends TestCase
         'app.TIndividualReservationInfo',
         'app.MRoomInfo',
         'app.MUserInfo',
+        'app.MUserGroup',
     ];
 
     private ReservationWriteService $service;
@@ -47,6 +48,12 @@ class ReservationWriteServiceTest extends TestCase
             $roomTable,
             '/webroot/'
         );
+
+        // グループ予約の操作者（管理者 user 99）は部屋1に有効所属している。管理者も所属外の部屋は扱えない（#821）
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => 99, 'i_id_room' => 1, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
     }
 
     // -------------------------------------------------------------------------

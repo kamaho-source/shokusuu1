@@ -204,8 +204,8 @@ class ReservationWriteService
             if ($targetUserId !== $loginUserId && !$canEditOther) {
                 throw new UnauthorizedException('他ユーザーの予約を更新する権限がありません。');
             }
-            if (!$isAdmin && $roomId !== null) {
-                // 他人の予約を扱うには、操作者本人も部屋に有効所属していること
+            if ($roomId !== null) {
+                // 他人の予約を扱うには、操作者本人も部屋に有効所属していること（管理者も同じ。#821）
                 if ($targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
                     throw new UnauthorizedException('この部屋を操作する権限がありません。');
                 }
@@ -408,8 +408,8 @@ class ReservationWriteService
             throw new UnauthorizedException('選択された部屋は利用できません。');
         }
 
-        // 他人の予約を扱うには、非管理者は操作者本人も部屋に有効所属していること
-        if (!$isAdmin && $targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
+        // 他人の予約を扱うには、操作者本人も部屋に有効所属していること（管理者も同じ。#821）
+        if ($targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
             throw new UnauthorizedException('この部屋を操作する権限がありません。');
         }
 

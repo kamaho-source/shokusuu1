@@ -247,6 +247,7 @@ class MUserInfoControllerTest extends TestCase
             'c_login_passwd' => 'password123',
             'c_user_name' => '追加テストユーザー',
             'role' => 0,
+            'staff_id' => '900002',
             'age' => 10,
             'age_group' => 1,
             'i_user_gender' => 1,

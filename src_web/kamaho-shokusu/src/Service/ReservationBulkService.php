@@ -409,15 +409,13 @@ class ReservationBulkService
                     'message' => (string)$roomValidation,
                 ];
             }
-            // 管理者以外は、自分が有効に所属している部屋にしか登録できない
-            if (!$isAdmin) {
-                foreach ($selectedRoomIds as $selectedRoomId) {
-                    if (!$this->isActiveMemberCached($userId, (int)$selectedRoomId)) {
-                        return [
-                            'ok' => false,
-                            'message' => '所属していない部屋には登録できません。',
-                        ];
-                    }
+            // 自分が有効に所属している部屋にしか登録できない（管理者も同じ。#821）
+            foreach ($selectedRoomIds as $selectedRoomId) {
+                if (!$this->isActiveMemberCached($userId, (int)$selectedRoomId)) {
+                    return [
+                        'ok' => false,
+                        'message' => '所属していない部屋には登録できません。',
+                    ];
                 }
             }
             $dateValidation = $this->validateNormalReservationDates($selectedDates, true);
@@ -541,6 +539,14 @@ class ReservationBulkService
                 return [
                     'ok' => false,
                     'message' => (string)$roomValidation,
+                ];
+            }
+            // 操作者自身が有効に所属している部屋でなければ、何も書かずに拒否する（管理者も同じ。#821）。
+            // 先に弾かないと、既存予約のスキップ通知で所属外の部屋の利用者名を返してしまう。
+            if (!$this->isActiveMemberCached($userId, (int)$roomId)) {
+                return [
+                    'ok' => false,
+                    'message' => '所属していない部屋には登録できません。',
                 ];
             }
             $candidateDates = !empty($dayUsers) ? array_keys($dayUsers) : array_keys(array_filter($dates));
@@ -981,14 +987,10 @@ class ReservationBulkService
         ?int $roomId = null,
         bool $isCancel = false
     ): bool {
-        if ($isAdmin) {
-            // 管理者は所属外の部屋でも扱える（削除済みの部屋は呼び出し側の部屋検証で弾く）
-            return true;
-        }
-
         if ($targetUserId === $loginUserId) {
             // 自分自身でも、有効に所属していない部屋への登録は操作させない。
-            // 取消は、退出後に残った自分の予約を消せるよう所属を要求しない。
+            // 取消はここでは所属を要求しないが、グループ一括登録の入口と Policy（canAccessRoom）で
+            // 操作者が有効所属していない部屋は先に拒否されるため、退出済みの部屋の自分の予約は取り消せない（#821 で確認済みの仕様）。
             return $isCancel || $roomId === null || $this->isActiveMemberCached($loginUserId, $roomId);
         }
 
@@ -1003,7 +1005,8 @@ class ReservationBulkService
             }
         }
 
-        return ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
+        // 管理者は所属部屋内なら対象の区分を問わず扱える（所属外の部屋は上の所属判定で弾く。#821）
+        return $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
     }
 
     /** @var array<string, bool> 同一リクエスト内の所属判定キャッシュ（行ごとの再問い合わせを避ける） */
