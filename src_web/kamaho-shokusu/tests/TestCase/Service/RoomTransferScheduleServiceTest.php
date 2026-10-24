@@ -257,4 +257,23 @@ class RoomTransferScheduleServiceTest extends TestCase
         }
         $this->assertSame([1 => 0, 2 => 1], $counts);
     }
+
+    /** 異動で i_change_flag の NULL を 0 にしない（当初予定のある予約を取消扱いにしない） */
+    public function testApplyPending_keepsNullChangeFlag(): void
+    {
+        $today = Date::today('Asia/Tokyo')->format('Y-m-d');
+        $near  = Date::today('Asia/Tokyo')->addDays(5)->format('Y-m-d');
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 1, 'd_reservation_date' => $near, 'i_reservation_type' => 1, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => null, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+        $this->scheduleTransfer($today);
+
+        $this->service->applyPending($today);
+
+        $row = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => 1, 'i_id_room' => 2, 'd_reservation_date' => $near, 'i_reservation_type' => 1])->firstOrFail();
+        $this->assertNull($row->i_change_flag);
+    }
 }

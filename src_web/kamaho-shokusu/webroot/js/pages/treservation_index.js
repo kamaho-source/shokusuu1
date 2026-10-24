@@ -381,6 +381,7 @@ function openModalById(id){
             }
 
             function conflictPair(mealIdx){ if (mealIdx === 2) return 4; if (mealIdx === 4) return 2; return null; }
+            var MEAL_KEY_NAMES = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
 
             function applyDetailsAndRefresh(date, payload, btn, mealKey){
                 if (payload && payload.details && typeof payload.details === 'object') {
@@ -414,7 +415,9 @@ function openModalById(id){
             async function resolveConflictSequence(date, targetIdx, targetOn, btn, mealKey){
                 var opponentIdx = conflictPair(targetIdx);
                 if (!opponentIdx) throw new Error('競合先が特定できませんでした。');
-                await callToggle(date, opponentIdx, false, false);
+                // 相手の取消の応答も反映する（相手が別の部屋にあると、2回目の応答だけでは相手が消えないため）
+                var cancelled = await callToggle(date, opponentIdx, false, false);
+                applyDetailsAndRefresh(date, cancelled, null, MEAL_KEY_NAMES[opponentIdx]);
                 var result = await callToggle(date, targetIdx, targetOn, false);
                 applyDetailsAndRefresh(date, result, btn, mealKey);
             }

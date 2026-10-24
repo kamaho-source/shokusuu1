@@ -395,4 +395,38 @@ class TIndividualReservationInfoTableTest extends TestCase
         $this->assertNotNull(TIndividualReservationInfoTable::lunchBentoViolation(new \Cake\ORM\Exception\PersistenceFailedException($e, 'x')));
         $this->assertNull(TIndividualReservationInfoTable::lunchBentoViolation(new \Cake\ORM\Exception\PersistenceFailedException($other, 'x')));
     }
+
+    /** 過ぎた日の昼食・弁当の判定も、i_change_flag で数える（直前に取り消した弁当があっても昼食を保存できる） */
+    public function testSave_pastDateLunchIsNotBlockedByCancelledBento(): void
+    {
+        $past = Date::today()->subDays(3)->format('Y-m-d');
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 9901, 'd_reservation_date' => $past, 'i_reservation_type' => 4, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 0, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+        $lunch = $this->newMealEntity(1, $past);
+        $lunch->i_reservation_type = 2;
+
+        $this->assertNotFalse($this->TIndividualReservationInfo->save($lunch));
+    }
+
+    /** 実際に昼食と弁当を同時に保存して失敗させ、その理由を lunchBentoViolation で取り出せる */
+    public function testLunchBentoViolation_fromARealSave(): void
+    {
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 9901, 'd_reservation_date' => $this->farDate(), 'i_reservation_type' => 4, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+        $lunch = $this->newMealEntity(1, $this->farDate());
+        $lunch->i_reservation_type = 2;
+
+        try {
+            $this->TIndividualReservationInfo->saveOrFail($lunch, ['checkDuplicateRoom' => false]);
+            $this->fail('PersistenceFailedException が出るはず');
+        } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
+            $this->assertNotNull(TIndividualReservationInfoTable::lunchBentoViolation($e));
+        }
+    }
 }

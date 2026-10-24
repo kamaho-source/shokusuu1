@@ -62,11 +62,25 @@ class ReservationBulkService
             ];
         }
 
+        // 過ぎた日（実績）は、管理者以外は書き換えさせない（直前編集の個人モードと同じ。数える値が i_change_flag のため）
+        $datePolicy = new ReservationDatePolicy();
+        if (!$isAdmin) {
+            foreach (array_keys($dayUsers) as $d) {
+                if ($datePolicy->isPastDate((string)$d)) {
+                    return [
+                        'ok'      => false,
+                        'message' => '過去日の予約は変更できません。',
+                    ];
+                }
+            }
+        }
+
         $connection = $reservationTable->getConnection();
         $connection->begin();
         try {
             $updated = 0;
             $created = 0;
+            $skipped = [];
 
             $conflict = $this->checkReservationSnapshots($reservationTable, $roomId, $dayUsers, $snapshots);
             if ($conflict !== null) {
@@ -160,9 +174,17 @@ class ReservationBulkService
                                         'message' => "利用者ID {$userId} は職員のため、直前期間はお昼とお弁当を入れ替えられません（予約の取消になるため）。",
                                     ];
                                 }
+                                // 画面は変わっていない行も送るので、実際に取り消そうとした（今は食べる）ときだけ理由を返す
+                                if ($datePolicy->countedValue((string)$date, $existing->eat_flag, $existing->i_change_flag) === 1) {
+                                    $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
+                                }
                                 continue;
                             }
-                            if ((int)$existing->i_change_flag !== $changeFlag) {
+                            // 15日以降は eat_flag で数えるので、eat_flag もそろえる（直前期間・過去日は i_change_flag だけを変える）
+                            $isFar = !$datePolicy->shouldUseChangeFlag(new Date((string)$date));
+                            if ($datePolicy->countedValue((string)$date, $existing->eat_flag, $existing->i_change_flag) !== $changeFlag
+                                || (int)$existing->i_change_flag !== $changeFlag
+                            ) {
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
                                 // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
@@ -177,7 +199,7 @@ class ReservationBulkService
                                     'i_change_flag' => $changeFlag,
                                     'c_update_user' => $loginName,
                                     'dt_update' => DateTime::now('Asia/Tokyo'),
-                                ]);
+                                ] + ($isFar ? ['eat_flag' => $changeFlag] : []));
                                 if (!$ok) {
                                     throw new \RuntimeException('optimistic_conflict');
                                 }
@@ -199,7 +221,8 @@ class ReservationBulkService
                                 'd_reservation_date' => $date,
                                 'i_reservation_type' => $mealType,
                                 'i_id_room'          => $roomId,
-                                'eat_flag'           => 0,
+                                // 15日以降は eat_flag で数えるので 1 にする（直前期間・過去日は当初予定なしの 0）
+                                'eat_flag'           => $datePolicy->shouldUseChangeFlag(new Date((string)$date)) ? 0 : 1,
                                 'i_change_flag'      => 1,
                                 'i_version'          => 1,
                                 'c_create_user'      => $loginName,
@@ -224,6 +247,7 @@ class ReservationBulkService
                 'ok' => true,
                 'updated' => $updated,
                 'created' => $created,
+                'skipped' => $skipped,
             ];
         } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
             $connection->rollback();

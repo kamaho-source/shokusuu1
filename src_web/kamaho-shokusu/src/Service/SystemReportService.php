@@ -113,7 +113,8 @@ final class SystemReportService
                 continue;
             }
 
-            $reservDate    = new \DateTimeImmutable((string)$row->d_reservation_date);
+            // Date を文字列にするとロケール依存の形（例 10/29/26）になるため、Y-m-d で取り出す
+            $reservDate    = new \DateTimeImmutable($this->ymd($row->d_reservation_date));
             $effectiveFlag = (new ReservationDatePolicy())->countedValue($reservDate->format('Y-m-d'), $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
@@ -194,13 +195,13 @@ final class SystemReportService
                 continue;
             }
 
-            $dateStr = (string)$row->d_reservation_date;
+            // Date を文字列にするとロケール依存の形（例 10/29/26）になり、$daily のキーと一致しない
+            $dateStr = $this->ymd($row->d_reservation_date);
             if (!isset($daily[$dateStr])) {
                 continue;
             }
 
-            $reservDate    = new \DateTimeImmutable($dateStr);
-            $effectiveFlag = (new ReservationDatePolicy())->countedValue($reservDate->format('Y-m-d'), $row->eat_flag, $row->i_change_flag);
+            $effectiveFlag = (new ReservationDatePolicy())->countedValue($dateStr, $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
                 continue;
@@ -343,5 +344,10 @@ final class SystemReportService
         });
 
         return $result;
+    }
+
+    private function ymd(\Cake\I18n\Date|\DateTimeInterface|string|null $date): string
+    {
+        return is_object($date) ? $date->format('Y-m-d') : (string)$date;
     }
 }

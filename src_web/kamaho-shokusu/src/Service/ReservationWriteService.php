@@ -777,9 +777,10 @@ class ReservationWriteService
         string $userName,
         array  $rooms = []
     ): array {
-        $toSave     = [];
-        $duplicates = [];
-        $performed  = false;
+        $toSave       = [];
+        $duplicates   = [];
+        $performed    = false;
+        $outsideRooms = []; // 画面に出ていないため取り消さなかった予約の部屋
 
         // 取消（部屋が null）を先に行う。昼食⇔弁当の入れ替えで、取り消す前の相手と「同時に有効」と判定されないようにする
         uasort($selectedRoomPerMeal, static fn($a, $b): int => ($a !== null) <=> ($b !== null));
@@ -796,7 +797,8 @@ class ReservationWriteService
                         continue;
                     }
                     // 取消は、この画面で扱う部屋の予約だけ（画面に出ていない部屋の予約を巻き込まない）
-                    if ($rooms !== [] && !array_key_exists((int)$row->i_id_room, $rooms)) {
+                    if (!array_key_exists((int)$row->i_id_room, $rooms)) {
+                        $outsideRooms[(int)$row->i_id_room] = true;
                         continue;
                     }
                     if ($staffLastMinute) {
@@ -849,6 +851,17 @@ class ReservationWriteService
                 'c_create_user'      => $userName,
                 'dt_create'          => DateTime::now(),
             ]);
+        }
+
+        // 画面に出ていない部屋の予約だけを取り消そうとして、何も変えていないなら、システムエラーにせず理由を返す
+        if (!$performed && $toSave === [] && $duplicates === [] && $outsideRooms !== []) {
+            $names = $this->roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+                ->where(['i_id_room IN' => array_keys($outsideRooms)])
+                ->toArray();
+            throw new ConflictException(sprintf(
+                '「%s」の予約は、この画面では取り消せません。その部屋の予約として取り消してください。',
+                implode('」「', $names !== [] ? $names : array_keys($outsideRooms))
+            ));
         }
 
         return ['toSave' => $toSave, 'duplicates' => $duplicates, 'performed' => $performed];

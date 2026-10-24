@@ -921,6 +921,18 @@ class TReservationInfoController extends ReservationBaseController
                             ], JSON_UNESCAPED_UNICODE));
                     }
                     $this->Flash->error(__($e->getMessage()));
+                } catch (\App\Domain\Exception\DomainException $e) {
+                    // 入力・権限の拒否（過去日など）。理由をそのまま返す
+                    if ($wantsJson) {
+                        return $this->response->withStatus($e->getStatusCode())->withType('application/json')
+                            ->withStringBody(json_encode([
+                                'ok'      => false,
+                                'status'  => 'error',
+                                'message' => $e->getMessage(),
+                                'data'    => [],
+                            ], JSON_UNESCAPED_UNICODE));
+                    }
+                    $this->Flash->error(__($e->getMessage()));
                 } catch (PersistenceFailedException $e) {
                     // 新しい行の検証ルール（昼食と弁当の同時予約など）。昼食と弁当なら理由を返し、それ以外は下と同じ扱い
                     $reason = TIndividualReservationInfoTable::lunchBentoViolation($e);

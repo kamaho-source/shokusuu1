@@ -261,7 +261,8 @@ class RoomTransferScheduleService
                 $indvResTable->updateAll(
                     [
                         'eat_flag'          => $eatFlag,
-                        'i_change_flag'     => (int)$old->i_change_flag,
+                        // NULL（直前の変更なし）を 0 にすると、当初予定のある予約が取消扱いになるため、そのまま写す
+                        'i_change_flag'     => $old->i_change_flag === null ? null : (int)$old->i_change_flag,
                         'i_approval_status' => (int)($old->i_approval_status ?? 0),
                         'i_version'         => max((int)$destRow->i_version, (int)$old->i_version) + 1,
                         'c_update_user'     => 'batch',
@@ -295,7 +296,8 @@ class RoomTransferScheduleService
                     'd_reservation_date' => $dateStr,
                     'i_reservation_type' => $mealType,
                     'eat_flag'           => $eatFlag,
-                    'i_change_flag'      => (int)$old->i_change_flag,
+                    // NULL（直前の変更なし）を 0 にすると、当初予定のある予約が取消扱いになるため、そのまま写す
+                    'i_change_flag'      => $old->i_change_flag === null ? null : (int)$old->i_change_flag,
                     'i_version'          => (int)$old->i_version,
                     'c_create_user'      => (string)$old->c_create_user,
                     'dt_create'          => $old->dt_create,

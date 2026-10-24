@@ -613,6 +613,18 @@ class ReservationCopyService
     }
 
     /**
+     * コピー元の行が食数として数えられる（食べる）か。取消済みの行は写さない。
+     *
+     * @param array{d_reservation_date: \Cake\I18n\Date|string, eat_flag?: int|string|null, i_change_flag?: int|string|null} $r
+     */
+    private function isSourceEffective(array $r): bool
+    {
+        $this->datePolicy ??= new ReservationDatePolicy();
+
+        return $this->datePolicy->countedValue(new Date($r['d_reservation_date']), $r['eat_flag'] ?? null, $r['i_change_flag'] ?? null) === 1;
+    }
+
+    /**
      * コピー先の既存レコードがスキップ対象かどうかを返す（プレビューと実行で共通の判定）。
      *
      * スキップするのは以下のいずれか:
@@ -622,18 +634,6 @@ class ReservationCopyService
      *   - 承認済み（i_approval_status が 1/2）で変更できない
      * 上記以外（eat_flag = 0 の無効行）は上書きコピーの対象となる。
      */
-    /**
-     * コピー元の行が食数として数えられる（食べる）か。取消済みの行は写さない。
-     *
-     * @param array{d_reservation_date: mixed, eat_flag?: mixed, i_change_flag?: mixed} $r
-     */
-    private function isSourceEffective(array $r): bool
-    {
-        $this->datePolicy ??= new ReservationDatePolicy();
-
-        return $this->datePolicy->countedValue(new Date($r['d_reservation_date']), $r['eat_flag'] ?? null, $r['i_change_flag'] ?? null) === 1;
-    }
-
     private function willSkipExisting(int $userId, int $roomId, string $date, int $mealType): bool
     {
         // 本処理と同じく、別の部屋で同じ食事を予約済みならスキップに数える

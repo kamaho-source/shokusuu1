@@ -511,4 +511,19 @@ class ReservationWriteServiceTest extends TestCase
         $this->assertSame(0, (int)$this->fetchReservation(3, $date, 1, 1)->eat_flag, '画面の部屋の予約は取り消す');
         $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag, '画面に無い部屋の予約は残す');
     }
+
+    /** 画面に出ていない部屋の予約だけを取り消そうとすると、システムエラーではなく理由を返す */
+    public function testIndividualCancelOnlyOutsideRoomsReturnsReason(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+            $this->fail('ConflictException が出るはず');
+        } catch (\App\Domain\Exception\ConflictException $e) {
+            $this->assertStringContainsString('この画面では取り消せません', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag);
+    }
 }

@@ -248,10 +248,6 @@ class MealCountGridService
         array $roomUsers,
         array $dates
     ): array {
-        $today      = Date::today('Asia/Tokyo');
-        // 直前編集ウィンドウ最終日: 当日〜+14日は i_change_flag を有効値として使う。
-        $borderDate = $today->addDays(14);
-
         $allUserIds = [];
         foreach ($roomUsers as $users) {
             foreach ($users as $u) {
@@ -288,6 +284,7 @@ class MealCountGridService
         $map = [];
         // (userId, date, mealType) → 予約が有効な最初の roomId（他部屋ロック判定用）
         $activeMealRooms = [];
+        $datePolicy = new ReservationDatePolicy();
         foreach ($rows as $row) {
             $uid    = (int)$row['i_id_user'];
             $rid    = (int)$row['i_id_room'];
@@ -298,7 +295,7 @@ class MealCountGridService
 
             // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、
             // それより先は eat_flag。i_change_flag が NULL なら eat_flag）
-            $effective = (new ReservationDatePolicy())->countedValue($date, $eat, $change);
+            $effective = $datePolicy->countedValue($date, $eat, $change);
 
             $map[$uid][$rid][$date][$type] = $effective === 1;
 

@@ -120,20 +120,6 @@ class TIndividualReservationInfoTable extends Table
             if (self::effectiveValue($dateStr, $entity->eat_flag, $entity->i_change_flag ?? $entity->eat_flag) !== 1) {
                 return true;
             }
-            $date = $entity->d_reservation_date instanceof Date
-                ? Date::parseDate($entity->d_reservation_date->format('Y-m-d'), 'yyyy-MM-dd')
-                : new Date((string)$entity->d_reservation_date);
-
-            $today = Date::today();
-            $isLastMinute = ($date >= $today && $date <= $today->addDays(14));
-
-            $effective = static function ($row) use ($isLastMinute): int {
-                if ($isLastMinute && $row->i_change_flag !== null) {
-                    return (int)$row->i_change_flag;
-                }
-                return (int)($row->eat_flag ?? 0);
-            };
-
             // 相手タイプ
             $opponentType = $type === 2 ? 4 : 2;
 
@@ -150,18 +136,15 @@ class TIndividualReservationInfoTable extends Table
 
             $hasLunch = false; $hasBento = false;
             foreach ($rows as $r) {
-                $eff = $effective($r);
+                // 有効値は effectiveValue（ReservationDatePolicy::countedValue と同じ基準。過去日も i_change_flag）
+                $eff = self::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
                 if ((int)$r->i_reservation_type === 2) $hasLunch = $hasLunch || ($eff === 1);
                 if ((int)$r->i_reservation_type === 4) $hasBento = $hasBento || ($eff === 1);
             }
 
-            // 今回エンティティの有効化も反映
-            $thisEff = $isLastMinute
-                ? (int)($entity->i_change_flag ?? $entity->eat_flag ?? 0)
-                : (int)($entity->eat_flag ?? 0);
-
-            if ($type === 2 && $thisEff === 1) $hasLunch = true;
-            if ($type === 4 && $thisEff === 1) $hasBento = true;
+            // 今回の行も有効として加える（有効なことは上で確かめてある）
+            if ($type === 2) $hasLunch = true;
+            if ($type === 4) $hasBento = true;
 
             return !($hasLunch && $hasBento);
         }, 'uniqueLunchBentoEffective', [
@@ -646,7 +629,7 @@ class TIndividualReservationInfoTable extends Table
             }
 
             // “有効値”詳細
-            $details = $this->getDayDetailsEffective($userId, $roomId, $date, $isLastMinute);
+            $details = $this->getDayDetailsEffective($userId, $roomId, $date);
 
             $map = [1 => 'breakfast', 2 => 'lunch', 3 => 'dinner', 4 => 'bento'];
             $mealKey = $map[$meal];
@@ -664,13 +647,8 @@ class TIndividualReservationInfoTable extends Table
      * @param bool|null $isLastMinute null の場合は日付から自動判定
      * @return array{breakfast:bool,lunch:bool,dinner:bool,bento:bool}
      */
-    public function getDayDetailsEffective(int $userId, int $roomId, string $date, ?bool $isLastMinute = null): array
+    public function getDayDetailsEffective(int $userId, int $roomId, string $date): array
     {
-        if ($isLastMinute === null) {
-            $today = Date::today();
-            $d     = new Date($date);
-            $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
-        }
 
         $rows = $this->find()
             ->enableAutoFields(false)
@@ -685,13 +663,8 @@ class TIndividualReservationInfoTable extends Table
 
         $details = ['breakfast'=>false,'lunch'=>false,'dinner'=>false,'bento'=>false];
 
-        $effective = static function ($eatFlag, $chgFlag) use ($isLastMinute): int {
-            if ($isLastMinute && $chgFlag !== null) return (int)$chgFlag;
-            return (int)($eatFlag ?? 0);
-        };
-
         foreach ($rows as $r) {
-            $val = $effective($r->eat_flag, $r->i_change_flag) === 1;
+            $val = self::effectiveValue($date, $r->eat_flag, $r->i_change_flag) === 1;
             switch ((int)$r->i_reservation_type) {
                 case 1: $details['breakfast'] = $val; break;
                 case 2: $details['lunch']     = $val; break;

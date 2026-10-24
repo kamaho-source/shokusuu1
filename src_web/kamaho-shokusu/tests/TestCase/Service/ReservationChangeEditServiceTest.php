@@ -179,9 +179,10 @@ class ReservationChangeEditServiceTest extends TestCase
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $userTable        = TableRegistry::getTableLocator()->get('MUserInfo');
 
+        $date = Date::today()->addDays(20)->format('Y-m-d');
         ConnectionManager::get('test')->insert('t_individual_reservation_info', [
             'i_id_user'          => 3,
-            'd_reservation_date' => '2026-06-10',
+            'd_reservation_date' => $date,
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -198,7 +199,7 @@ class ReservationChangeEditServiceTest extends TestCase
             $this->service->processUpdate(
                 [3 => [1 => ['i_change_flag' => 0]]],
                 [3],
-                '2026-06-10',
+                $date,
                 1,
                 null,
                 $reservationTable,
@@ -209,7 +210,7 @@ class ReservationChangeEditServiceTest extends TestCase
             $row = $reservationTable->find()
                 ->where([
                     'i_id_user' => 3,
-                    'd_reservation_date' => '2026-06-10',
+                    'd_reservation_date' => $date,
                     'i_reservation_type' => 1,
                     'i_id_room' => 1,
                 ])
@@ -374,5 +375,21 @@ class ReservationChangeEditServiceTest extends TestCase
 
         $this->assertSame([1], $reservationTable->findEffectiveRoomIds(3, $date, 2));
         $this->assertSame([], $reservationTable->findEffectiveRoomIds(3, $date, 4));
+    }
+
+    /** 管理者以外は、過ぎた日の予約を直前編集で変更できない */
+    public function testProcessUpdate_rejectsPastDateForNonAdmin(): void
+    {
+        $date = Date::today()->subDays(3)->format('Y-m-d');
+        $this->insertMeal(1, 1, 1, $date);
+
+        $this->expectException(\App\Domain\Exception\InvalidInputException::class);
+        $this->expectExceptionMessage('過去日の予約は変更できません。');
+        $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 0]]], [3], $date, 1, null,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
     }
 }

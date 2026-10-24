@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\Exception\InvalidInputException;
 use App\Model\Table\TIndividualReservationInfoTable;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
@@ -196,6 +197,11 @@ class ReservationChangeEditService
             $isAdmin      = $loginUser && UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
             $isLoginStaff = $loginUser && UserRole::isStaffLevel((int)($loginUser->get('i_user_level') ?? -1));
             $canEditAll   = $isRoomManager || $isAdmin;
+
+            // 過ぎた日（実績）は、管理者以外は書き換えさせない（数える値が i_change_flag のため、食数・控除表が変わる）
+            if (!$isAdmin && (new ReservationDatePolicy())->isPastDate($date)) {
+                throw new InvalidInputException('過去日の予約は変更できません。');
+            }
 
             $allowedMap = array_fill_keys(array_map('intval', $userIdList), true);
             $targetUserIds = [];
