@@ -35,7 +35,7 @@
                     <span><i class="cybozu-dot" style="background:#dc3545"></i>祝日</span>
                     <span>✓ 選択中</span>
                     <span>🔒 選んだ食事が登録済み</span>
-                    <span class="text-body-tertiary">灰色＝過去日</span>
+                    <span class="text-body-tertiary">灰色＝選べない日（過去日など）</span>
                 </div>
                 <div id="cybozuSummary" class="my-2"></div>
                 <div id="cybozuChips"></div>

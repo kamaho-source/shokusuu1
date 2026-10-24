@@ -310,7 +310,7 @@ describe('treservation_cybozu.js 画面', () => {
         delete window.__reservationCalendar;
     });
 
-    test('開き直すと、スキップの🔒を外し、前回の結果欄を隠すのは次の登録の開始時', async () => {
+    test('開き直すと、スキップの🔒と前回の結果欄を外し、次の登録の開始時にも結果欄を隠す', async () => {
         setup();
         mockFetch(() => ({ status: 200, json: { ok: true, data: { registered: [], skipped: [1] } } }));
         click(cell('2026-10-20'));
@@ -320,6 +320,7 @@ describe('treservation_cybozu.js 画面', () => {
 
         document.getElementById('cybozuModal').dispatchEvent(new Event('shown.bs.modal'));
         expect(cell('2026-10-20').classList.contains('lock')).toBe(false);
+        expect(document.getElementById('cybozuResult').hidden).toBe(true);
         click(cell('2026-10-20'));
         const pending = window.CybozuMode.submit();
         expect(document.getElementById('cybozuResult').hidden).toBe(true);

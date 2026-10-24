@@ -439,6 +439,7 @@
         // スキップの🔒（別の部屋で登録済みなど）も、背景で取り消されたかもしれないので開き直したら外す
         modalEl.addEventListener('shown.bs.modal', function () {
             state.skipLock = { 1: {}, 2: {}, 3: {} };
+            $('cybozuResult').hidden = true; // 前回の結果は、開き直したら出さない
             render();
         });
 
