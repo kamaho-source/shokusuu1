@@ -103,4 +103,21 @@ describe('treservation_index.js / 子どもUIのトグル(callToggle)', () => {
             userId: 4,
         });
     });
+
+    test('取消は、選択中の部屋ではなく予約している部屋へ送る（所属外の部屋に残った予約も取り消せる）', async () => {
+        document.querySelector('.kid-meal-btn').setAttribute('data-is-mine', '1');
+        window.__TRESP.currentRoom = '';
+        window.__TRESP.myDetails = { [DATE]: { breakfast: 1, breakfastRoom: 914 } };
+        loadAndInit();
+
+        const btn = document.querySelector(`.kid-meal-btn[data-date="${DATE}"][data-meal="1"]`);
+        btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+        await flush();
+        await flush();
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        const [url, options] = fetchMock.mock.calls[0];
+        expect(url).toBe('/TReservationInfo/toggle/914');
+        expect(JSON.parse(options.body)).toMatchObject({ meal: 1, value: 0, userId: 4 });
+    });
 });

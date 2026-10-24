@@ -295,6 +295,19 @@ class ReservationWriteService
         return $this->activeMemberCache[$userId . ':' . $roomId] ??= $this->roomAccessService->isActiveMember($userId, $roomId);
     }
 
+    /**
+     * 予約行を ON/OFF するときに書くフラグ。直前期間は i_change_flag だけを変え、当初予定（eat_flag）は残す
+     * （toggle・直前編集と同じ扱い）。それ以外は eat_flag と i_change_flag をそろえる。
+     *
+     * @return array{i_change_flag: int, eat_flag?: int}
+     */
+    private static function mealFlags(string $date, bool $on): array
+    {
+        $flag = $on ? 1 : 0;
+
+        return ['i_change_flag' => $flag] + (TIndividualReservationInfoTable::isLastMinute($date) ? [] : ['eat_flag' => $flag]);
+    }
+
     /** YYYY-MM-DD の形式で、暦に実在する日付か */
     private static function isValidYmd(string $date): bool
     {
@@ -409,6 +422,12 @@ class ReservationWriteService
 
         if (!$isAdmin && $isLastMinute && UserRole::isStaffLevel($targetUserLevel) && $value === 0 && $exists) {
             throw new UnauthorizedException('職員は直前編集でのキャンセルはできません。');
+        }
+        // 昼食⇔弁当を ON にすると、同じ部屋の相手は取り消される（toggleMeal）。職員の直前取消の禁止を、入れ替えですり抜けさせない
+        if (!$isAdmin && $isLastMinute && UserRole::isStaffLevel($targetUserLevel) && $value === 1 && in_array($meal, [2, 4], true)
+            && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal === 2 ? 4 : 2), true)
+        ) {
+            throw new UnauthorizedException('職員は直前編集でのキャンセルはできないため、お昼とお弁当を入れ替えられません。');
         }
 
         $changeFlag = $value;
@@ -763,8 +782,11 @@ class ReservationWriteService
 
         // 取消（部屋が null）を先に行う。昼食⇔弁当の入れ替えで、取り消す前の相手と「同時に有効」と判定されないようにする
         uasort($selectedRoomPerMeal, static fn($a, $b): int => ($a !== null) <=> ($b !== null));
+        // 職員は直前期間に取消・部屋変更ができない（processToggle・change-room と同じ。管理者は例外）
+        $self = $this->userTable->find()->select(['i_user_level', 'i_admin'])->where(['i_id_user' => $userId])->first();
         $staffLastMinute = TIndividualReservationInfoTable::isLastMinute($reservationDate)
-            && UserRole::isStaffLevel((int)($this->userTable->find()->select(['i_user_level'])->where(['i_id_user' => $userId])->first()?->i_user_level ?? -1));
+            && UserRole::isStaffLevel((int)($self?->i_user_level ?? -1))
+            && !UserRole::isAdmin((int)($self?->i_admin ?? 0));
 
         foreach ($selectedRoomPerMeal as $mealType => $roomId) {
             if ($roomId === null) {
@@ -772,7 +794,10 @@ class ReservationWriteService
                     if (!TIndividualReservationInfoTable::isEffectiveRow($row)) {
                         continue;
                     }
-                    if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                    if ($staffLastMinute) {
+                        throw new UnauthorizedException('職員は直前編集でのキャンセルはできません。');
+                    }
+                    if (!$this->updateReservationRowWithVersion($row, self::mealFlags($reservationDate, false) + ['c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
                         throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                     }
                     $performed = true;
@@ -788,7 +813,7 @@ class ReservationWriteService
                 if ($staffLastMinute) {
                     throw new UnauthorizedException('直前期間（14日以内）は職員の部屋変更はできません。');
                 }
-                if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                if (!$this->updateReservationRowWithVersion($row, self::mealFlags($reservationDate, false) + ['c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
                     throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                 }
                 $performed = true;
@@ -798,7 +823,7 @@ class ReservationWriteService
 
             if ($existing) {
                 if (!TIndividualReservationInfoTable::isEffectiveRow($existing)) {
-                    if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
+                    if (!$this->updateReservationRowWithVersion($existing, self::mealFlags($reservationDate, true) + ['c_update_user' => $userName, 'dt_update' => DateTime::now()])) {
                         throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                     }
                     $performed = true;
@@ -813,7 +838,7 @@ class ReservationWriteService
                 'd_reservation_date' => $reservationDate,
                 'i_id_room'          => $roomId,
                 'i_reservation_type' => $mealType,
-                'eat_flag'           => 1,
+                'eat_flag'           => TIndividualReservationInfoTable::isLastMinute($reservationDate) ? 0 : 1,
                 'i_change_flag'      => 1,
                 'i_version'          => 1,
                 'c_create_user'      => $userName,
@@ -938,6 +963,9 @@ class ReservationWriteService
         $duplicates    = [];
 
         foreach ($users as $targetUserId => $meals) {
+            if (!is_array($meals)) {
+                continue;
+            }
             // 取消を先に行う（昼食⇔弁当の入れ替えで、取り消す前の相手と「同時に有効」と判定されないようにする）
             uasort($meals, static fn($a, $b): int => ((int)$a === 1) <=> ((int)$b === 1));
             foreach ($meals as $mealType => $selected) {
@@ -950,7 +978,7 @@ class ReservationWriteService
                 if ($valueInt !== 1) {
                     $existing = $existingMap[(int)$targetUserId][(int)$mealType][(int)$roomId] ?? null;
                     if ($existing && TIndividualReservationInfoTable::isEffectiveRow($existing)) {
-                        if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                        if (!$this->updateReservationRowWithVersion($existing, self::mealFlags($reservationDate, false) + ['c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
                             throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                         }
                     }
@@ -964,14 +992,14 @@ class ReservationWriteService
                     if ((int)$existingRoomId === (int)$roomId || !TIndividualReservationInfoTable::isEffectiveRow($row)) {
                         continue;
                     }
-                    if (!$this->updateReservationRowWithVersion($row, ['eat_flag' => 0, 'i_change_flag' => 0, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                    if (!$this->updateReservationRowWithVersion($row, self::mealFlags($reservationDate, false) + ['c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
                         throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                     }
                 }
 
                 if ($existing) {
                     if (!TIndividualReservationInfoTable::isEffectiveRow($existing)) {
-                        if (!$this->updateReservationRowWithVersion($existing, ['eat_flag' => 1, 'i_change_flag' => 1, 'c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
+                        if (!$this->updateReservationRowWithVersion($existing, self::mealFlags($reservationDate, true) + ['c_update_user' => $creatorName, 'dt_update' => DateTime::now()])) {
                             throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                         }
                         continue;
@@ -989,7 +1017,7 @@ class ReservationWriteService
                     'd_reservation_date' => $reservationDate,
                     'i_id_room'          => $roomId,
                     'i_reservation_type' => $mealType,
-                    'eat_flag'           => 1,
+                    'eat_flag'           => TIndividualReservationInfoTable::isLastMinute($reservationDate) ? 0 : 1,
                     'i_change_flag'      => 1,
                     'i_version'          => 1,
                     'c_create_user'      => $creatorName,

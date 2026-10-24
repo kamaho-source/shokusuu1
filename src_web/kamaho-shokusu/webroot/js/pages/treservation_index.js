@@ -61,9 +61,10 @@ function openModalById(id){
             const roomSelect = document.getElementById('kid-room-select');
             let currentRoomId = window.__TRESP.currentRoom || '';
             const toggleBase = window.__TRESP.toggleBase || '';
-            function getToggleUrl(){
-                if (!currentRoomId) return '';
-                return toggleBase.replace('__ROOM__', encodeURIComponent(String(currentRoomId)));
+            function getToggleUrl(roomId){
+                var rid = roomId || currentRoomId;
+                if (!rid) return '';
+                return toggleBase.replace('__ROOM__', encodeURIComponent(String(rid)));
             }
             if (roomSelect) {
                 roomSelect.addEventListener('change', () => { currentRoomId = roomSelect.value || ''; });
@@ -306,7 +307,11 @@ function openModalById(id){
             }
 
             async function callToggle(dateStr, mealNumber, wantValue, override){
-                const url = getToggleUrl();
+                // 取消は、予約している部屋へ送る（退出済み・削除済みの部屋に残った予約も、部屋を選ばずに取り消せる）
+                const reservedRoom = !wantValue
+                    ? ((MY_DETAILS[dateStr] || {})[({ 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' })[Number(mealNumber)] + 'Room'] || null)
+                    : null;
+                const url = getToggleUrl(reservedRoom);
                 if (!url) {
                     const msg = '先に「利用する部屋」を選択してください。';
                     notifyUser(msg, 'warning');
@@ -889,6 +894,8 @@ function openModalById(id){
                 // 所属部屋が1つなら部屋は確定しているので、部屋のプルダウンは出さない
                 var memberRooms = (roomChoice && roomChoice.roomNames) || {};
                 var useRoomSelect = Object.keys(memberRooms).length > 1;
+                // 所属部屋が0なら新しい予約はできない（部屋を選べない）。残った予約の取消だけを受け付ける
+                var cancelOnly = Object.keys(memberRooms).length === 0 && roomId == null;
                 // 選択肢の並び（オブジェクトのキーは部屋IDの昇順に並び替わるため、順番は別に持つ）
                 var roomOrder = ((roomChoice && roomChoice.roomOrder) || Object.keys(memberRooms)).slice();
                 var roomOptions = {};
@@ -1047,6 +1054,13 @@ function openModalById(id){
                     conflictMsgEl.textContent = '';
                 }
 
+                if (cancelOnly) {
+                    var cancelOnlyNote = document.createElement('div');
+                    cancelOnlyNote.textContent = '所属している部屋がないため、新しい予約はできません。予約済みの食事は、チェックを外して保存すると取り消せます。';
+                    cancelOnlyNote.style.cssText = 'font-size:12px;color:#4b5563;background:#f1f5fb;border-radius:6px;padding:6px 10px;margin-bottom:8px';
+                    picker.appendChild(cancelOnlyNote);
+                }
+
                 // 初期状態で静的ブロックがあればメッセージを表示
                 var initialBlockMsg = '';
                 (editMode ? [] : availableMeals).forEach(function(m) {
@@ -1060,7 +1074,7 @@ function openModalById(id){
                     // 所属外（退出済み・削除済み）の部屋に残った予約は、部屋を変えられない。取消（チェックを外す）だけできる
                     var lockedRoom = editMode && detail[m.key] && outsideRooms[String(detail[m.key + 'Room'])]
                         ? String(detail[m.key + 'Room']) : null;
-                    var blocked = isBlockedByConflict(m.idx);
+                    var blocked = isBlockedByConflict(m.idx) || (cancelOnly && !detail[m.key]);
 
                     var row = document.createElement('div');
                     // 狭い画面では「予約する」を次の行へ回し、部屋名が読める幅を残す
@@ -1173,10 +1187,11 @@ function openModalById(id){
                         notify('お弁当を選択しているとお昼は予約できません。');
                     } else {
                         [lunchEntry, bentoEntry].forEach(function(e) {
-                            e.cb.disabled = false;
-                            e.cb.style.cursor  = 'pointer';
-                            e.span.style.color = '';
-                            e.row.style.cursor = 'pointer';
+                            // もともと選べない行（既存予約との競合・所属部屋がない）は、選べないまま残す
+                            e.cb.disabled = e.blocked;
+                            e.cb.style.cursor  = e.blocked ? 'not-allowed' : 'pointer';
+                            e.span.style.color = e.blocked ? '#adb5bd' : '';
+                            e.row.style.cursor = e.blocked ? 'not-allowed' : 'pointer';
                             if (e.roomSel) e.roomSel.disabled = e.blocked || e.locked;
                         });
                         if (!initialBlockMsg) hideConflictMsg();

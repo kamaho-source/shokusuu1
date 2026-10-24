@@ -12,6 +12,7 @@ use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Cache\Cache;
 use Cake\Log\Log;
+use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
 
@@ -147,6 +148,15 @@ class ReservationBulkService
 
                         if ($existing) {
                             if ($targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0) {
+                                // 職員の直前取消は認めない。昼食⇔弁当の入れ替えは取消を伴うので、理由を返して止める
+                                $opponent = [2 => 4, 4 => 2][$mealType] ?? null;
+                                if ($opponent !== null && (int)($meals[$opponent] ?? 0) === 1 && TIndividualReservationInfoTable::isEffectiveRow($existing)) {
+                                    $connection->rollback();
+                                    return [
+                                        'ok'      => false,
+                                        'message' => "利用者ID {$userId} は職員のため、直前期間はお昼とお弁当を入れ替えられません（予約の取消になるため）。",
+                                    ];
+                                }
                                 continue;
                             }
                             if ((int)$existing->i_change_flag !== $changeFlag) {
@@ -217,6 +227,14 @@ class ReservationBulkService
             return [
                 'ok' => false,
                 'message' => $e->getMessage(),
+            ];
+        } catch (PersistenceFailedException $e) {
+            // 新しい行の検証ルール（昼食と弁当の同時予約など）に当たった。理由を返す
+            $connection->rollback();
+            Log::error('bulkChangeEditSubmit validation error: ' . json_encode($e->getEntity()->getErrors(), JSON_UNESCAPED_UNICODE));
+            return [
+                'ok' => false,
+                'message' => '昼食と弁当は同時に予約できません。どちらか一方にしてください。',
             ];
         } catch (\RuntimeException $e) {
             $connection->rollback();
@@ -377,7 +395,11 @@ class ReservationBulkService
                     ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
                     ->where([
                         'd_reservation_date IN' => $selectedDates,
-                        'i_reservation_type IN' => $selectedMealTypes,
+                        // 昼食と弁当を入れ替えるときに相手の行も要るので、どちらかを選んだら両方を読む
+                        'i_reservation_type IN' => array_values(array_unique(array_merge(
+                            $selectedMealTypes,
+                            array_intersect($selectedMealTypes, [2, 4]) !== [] ? [2, 4] : []
+                        ))),
                         'i_id_user' => $userId,
                     ])
                     ->all();
@@ -428,6 +450,18 @@ class ReservationBulkService
                                 $userName
                             );
                             continue;
+                        }
+                        // 昼食⇔弁当: 相手のチェックを明示的に外して送られたときは、相手の予約を取り消して入れ替える
+                        // （取消は有効化・新規保存より先に実行される）。外していなければ、保存時に理由付きで拒否される
+                        $opponent = [2 => 4, 4 => 2][$mealTypeInt] ?? null;
+                        if ($opponent !== null && isset($meals[$opponent]) && is_array($meals[$opponent])
+                            && array_filter($meals[$opponent]) === []
+                        ) {
+                            foreach ($existingRoomMap[$date][$opponent] ?? [] as $oppRoomId => $oppRow) {
+                                if (TIndividualReservationInfoTable::isEffectiveRow($oppRow)) {
+                                    $rowsToDeactivate[implode(':', [$date, $userId, $opponent, (int)$oppRoomId])] = $oppRow;
+                                }
+                            }
                         }
                         if ($roomRow !== null) {
                             $activateKey = implode(':', [$date, $userId, $mealTypeInt, $roomIdInt]);
@@ -795,6 +829,14 @@ class ReservationBulkService
                 return [
                     'ok' => false,
                     'message' => $e->getMessage(),
+                ];
+            } catch (PersistenceFailedException $e) {
+                // 新しい行の検証ルール（昼食と弁当の同時予約など）に当たった。理由を返す
+                $connection->rollback();
+                Log::error('bulkAdd validation error: ' . json_encode($e->getEntity()->getErrors(), JSON_UNESCAPED_UNICODE));
+                return [
+                    'ok' => false,
+                    'message' => '昼食と弁当は同時に予約できません。どちらか一方にしてください。',
                 ];
             } catch (\RuntimeException $e) {
                 $connection->rollback();

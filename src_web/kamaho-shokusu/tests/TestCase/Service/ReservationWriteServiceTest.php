@@ -449,4 +449,43 @@ class ReservationWriteServiceTest extends TestCase
         $this->assertSame(1, (int)$this->fetchReservation(2, $date, 3, 9)->i_change_flag, '元の部屋の予約が残る');
         $this->assertNull($this->fetchReservation(2, $date, 3, 1), '移動先に行を作らない');
     }
+
+    /** 個人予約で、同じ保存の中で弁当を外して昼食を入れると、取消を先に行うので入れ替えられる */
+    public function testIndividualSwapsBentoToLunchInOneSave(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4]);
+
+        $result = $this->service->processIndividualReservation($date, json_encode(['meals' => ['2' => ['1' => 1], '4' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame([1], $this->reservationTable->findEffectiveRoomIds(3, $date, 2));
+        $this->assertSame([], $this->reservationTable->findEffectiveRoomIds(3, $date, 4));
+    }
+
+    /** 直前編集の個人モードで、職員は直前期間の予約を取り消せない（toggle と同じ） */
+    public function testIndividualStaffLastMinuteCannotCancel(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'eat_flag' => 0]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 0]]]), $this->rooms(), 2, '職員', $this->alwaysValid());
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (\App\Domain\Exception\UnauthorizedException $e) {
+            $this->assertSame('職員は直前編集でのキャンセルはできません。', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(2, $date, 3, 1)->i_change_flag);
+    }
+
+    /** 直前期間の個人予約は i_change_flag だけを立て、当初予定（eat_flag）は 0 のまま作る（toggle と同じ） */
+    public function testIndividualLastMinuteNewRowKeepsOriginalPlanEmpty(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+
+        $this->service->processIndividualReservation($date, json_encode(['meals' => ['1' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $row = $this->fetchReservation(3, $date, 1, 1);
+        $this->assertSame([0, 1], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+    }
 }

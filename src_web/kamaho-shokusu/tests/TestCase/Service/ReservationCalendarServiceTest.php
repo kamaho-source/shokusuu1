@@ -303,4 +303,23 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertSame(1, $details[$date]['dinner']);
         $this->assertSame(1, $counts[$date][3]);
     }
+
+    /** 境界日（今日+14日）までは i_change_flag、その翌日からは eat_flag で数える（食数の報告と同じ） */
+    public function testBuildMealCountsByDate_boundaryDay(): void
+    {
+        $d14 = Date::today()->addDays(14)->format('Y-m-d');
+        $d15 = Date::today()->addDays(15)->format('Y-m-d');
+        foreach ([$d14, $d15] as $date) {
+            ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+                'i_id_user' => 9906, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 6,
+                'eat_flag' => 1, 'i_change_flag' => 0, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+            ]);
+        }
+
+        $counts = $this->service->buildMealCountsByDate(TableRegistry::getTableLocator()->get('TIndividualReservationInfo'), [6]);
+
+        $this->assertArrayNotHasKey($d14, $counts, '境界日は i_change_flag=0 で数えない');
+        $this->assertSame(1, $counts[$d15][1], '境界日の翌日は eat_flag=1 で数える');
+    }
 }

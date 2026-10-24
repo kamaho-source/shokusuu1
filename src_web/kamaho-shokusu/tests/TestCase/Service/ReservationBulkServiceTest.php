@@ -823,4 +823,33 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 59)->eat_flag, '認可した部屋の予約が取消された');
         $this->assertSame(1, (int)$this->fetchReservation(3, '2026-06-12', 1, 60)->eat_flag, '他部屋の予約は残る');
     }
+
+    /** 個人の一括登録で、弁当のチェックを外して昼食を入れると、弁当を取り消して入れ替える */
+    public function testPersonalBulkAdd_swapsBentoToLunchWhenBentoIsUnchecked(): void
+    {
+        $date = date('Y-m-d', strtotime('+30 days'));
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 4]);
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'personal', 'dates' => [$date => '1'], 'meals' => [2 => ['1' => '1'], 4 => ['1' => '0']]],
+            2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame([1], $this->reservationTable->findEffectiveRoomIds(2, $date, 2));
+        $this->assertSame([], $this->reservationTable->findEffectiveRoomIds(2, $date, 4));
+    }
+
+    /** 直前一括編集で、職員の昼食→弁当の入れ替えは、取消になるため理由を付けて止める */
+    public function testBulkChangeEdit_staffCannotSwapLunchToBento(): void
+    {
+        $date = date('Y-m-d', strtotime('+5 days'));
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'eat_flag' => 0, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEdit([$date => [2 => [2 => 0, 4 => 1]]]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('お昼とお弁当を入れ替えられません', $result['message']);
+        $this->assertSame([1], $this->reservationTable->findEffectiveRoomIds(2, $date, 2));
+    }
 }

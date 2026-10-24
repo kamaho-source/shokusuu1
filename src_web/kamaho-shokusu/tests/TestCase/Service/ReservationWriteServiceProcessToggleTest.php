@@ -592,4 +592,23 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
             $this->assertSame([48 => 0, 49 => 1], $this->eatFlagsByRoom(1, $date, 3));
         }
     }
+
+    /** 職員は直前期間に、toggle の昼食⇔弁当の入れ替えで予約を取り消せない */
+    public function testProcessToggle_staffCannotSwapLunchBentoLastMinute(): void
+    {
+        $date = date('Y-m-d', strtotime('+5 days'));
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'i_id_room' => 1,
+            'eat_flag' => 0, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+
+        try {
+            $this->service->processToggle(1, ['date' => $date, 'meal' => 4, 'value' => 1, 'userId' => 2], 2, '職員');
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (UnauthorizedException $e) {
+            $this->assertStringContainsString('お昼とお弁当を入れ替えられません', $e->getMessage());
+        }
+        $this->assertSame([1], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(2, $date, 2));
+    }
 }

@@ -296,8 +296,8 @@ class ReservationChangeEditService
                             continue;
                         }
 
-                        // 職員の部屋変更は、直前期間は食数が部屋ごとに変わるため取消と同じく認めない（change-room API と同じ扱い）
-                        if ($isLastMinute && $changeFlag === 1 && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel)
+                        // 職員の部屋変更は、直前期間は食数が部屋ごとに変わるため取消と同じく認めない（change-room API と同じく管理者は例外）
+                        if (!$isAdmin && $isLastMinute && $changeFlag === 1 && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel)
                             && $this->hasEffectiveRowInOtherRoom($existingByRoom[$userId][$mealType] ?? [], $roomId)
                         ) {
                             $skipped[] = "利用者ID {$userId} は職員のため、直前期間（14日以内）は部屋の変更はできません。";

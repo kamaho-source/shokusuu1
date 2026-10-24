@@ -115,6 +115,11 @@ class TIndividualReservationInfoTable extends Table
             if (!in_array($type, [2, 4], true)) {
                 return true;
             }
+            // 保存する行が「食べない」なら判定しない（以前の二重データが残っていても、取消や無効行の保存を止めない）
+            $dateStr = $this->toDateString($entity->d_reservation_date);
+            if (self::effectiveValue($dateStr, $entity->eat_flag, $entity->i_change_flag ?? $entity->eat_flag) !== 1) {
+                return true;
+            }
             $date = $entity->d_reservation_date instanceof Date
                 ? Date::parseDate($entity->d_reservation_date->format('Y-m-d'), 'yyyy-MM-dd')
                 : new Date((string)$entity->d_reservation_date);
@@ -403,13 +408,16 @@ class TIndividualReservationInfoTable extends Table
                 $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
                 $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
             );
-            $this->assertNoLunchBentoConflict(
-                $userId,
-                $date,
-                $mealType,
-                $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
-                $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
-            );
+            // 昼食⇔弁当は、無効→有効になる更新だけを見る（部屋を移すだけの更新は、以前の二重データがあっても止めない）
+            if (!$wasEffective) {
+                $this->assertNoLunchBentoConflict(
+                    $userId,
+                    $date,
+                    $mealType,
+                    $updateFields['eat_flag'] ?? $row->eat_flag ?? null,
+                    $updateFields['i_change_flag'] ?? $row->i_change_flag ?? null,
+                );
+            }
         }
 
         $expectedVersion = (int)($row->i_version ?? 1);

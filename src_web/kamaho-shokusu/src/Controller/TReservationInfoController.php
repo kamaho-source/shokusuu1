@@ -773,7 +773,8 @@ class TReservationInfoController extends ReservationBaseController
                             $allowedRooms,
                             (int)$loginUid,
                             (string)($loginUser->get('c_user_name') ?? ''),
-                            fn($d) => true
+                            // 直前編集は14日以内を扱う。過ぎた日（実績）は書き換えさせない
+                            fn($d) => $this->datePolicy->isPastDate((string)$d) ? '過去日の予約は変更できません。' : true
                         );
                         $payload = [
                             'ok'      => true,

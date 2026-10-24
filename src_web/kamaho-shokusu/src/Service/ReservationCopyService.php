@@ -15,6 +15,7 @@ class ReservationCopyService
     private Table $TIndividualReservationInfo;
     /** @var \App\Model\Table\MUserInfoTable */
     private Table $MUserInfo;
+    private ?ReservationDatePolicy $datePolicy = null;
 
     public function __construct()
     {
@@ -186,15 +187,18 @@ class ReservationCopyService
                     continue;
                 }
 
-                // コピー先の日に同じ食事を別の部屋で予約済みなら、二重予約になるためスキップする
-                $otherRooms = array_diff(
-                    $this->TIndividualReservationInfo->findEffectiveRoomIds((int)$r['i_id_user'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type']),
-                    [(int)$r['i_id_room']]
-                );
-                if ($otherRooms !== []) {
+                // コピー元で食べない行（取消済み）は写さない。コピー先で二重予約・昼食と弁当の同時予約になる行もスキップする
+                // （プレビューと同じ判定。1件の衝突でコピー全体を止めない）
+                $dstStr = $dstDate->format('Y-m-d');
+                if (!$this->isSourceEffective($r)
+                    || $this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstStr, (int)$r['i_reservation_type'])
+                ) {
                     $skipped++;
                     continue;
                 }
+                // フラグはコピー元をそのまま写さず、コピー先の日付に合わせて「食べる」で作る
+                // （直前期間は当初予定 eat_flag を 0、それ以外は eat_flag と i_change_flag をそろえる）
+                $flags = ['eat_flag' => TIndividualReservationInfoTable::isLastMinute($dstStr) ? 0 : 1, 'i_change_flag' => 1];
 
                 $existing = $this->TIndividualReservationInfo->find()
                     ->enableAutoFields(false)
@@ -211,20 +215,13 @@ class ReservationCopyService
                     ->where([
                         'i_id_user'          => (int)$r['i_id_user'],
                         'i_id_room'          => (int)$r['i_id_room'],
-                        'd_reservation_date' => $dstDate->format('Y-m-d'),
+                        'd_reservation_date' => $dstStr,
                         'i_reservation_type' => (int)$r['i_reservation_type'],
                     ])
                     ->first();
                 if ($existing) {
-                    // プレビュー（willSkipExisting）と同一のスキップ判定にそろえる
-                    if (TIndividualReservationInfoTable::isEffectiveRow($existing)
-                        || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true)) {
-                        $skipped++;
-                        continue;
-                    }
-                    $ok = $this->updateReservationRowWithVersion($existing, [
-                        'eat_flag'      => (int)($r['eat_flag'] ?? 1),
-                        'i_change_flag' => (int)($r['i_change_flag'] ?? 1),
+                    // willSkipExisting を通っているので、無効で未承認の行。食べるにする
+                    $ok = $this->updateReservationRowWithVersion($existing, $flags + [
                         'c_update_user' => $actorName,
                         'dt_update'     => new \Cake\I18n\DateTime(),
                     ]);
@@ -238,14 +235,11 @@ class ReservationCopyService
                 $data = [
                     'i_id_user'           => (int)$r['i_id_user'],
                     'i_id_room'           => (int)$r['i_id_room'],
-                    'd_reservation_date'  => $dstDate->format('Y-m-d'),
+                    'd_reservation_date'  => $dstStr,
                     'i_reservation_type'  => (int)$r['i_reservation_type'],
-                    // フラグは元データを踏襲（将来要件に応じて調整可）
-                    'eat_flag'            => (int)($r['eat_flag'] ?? 1),
-                    'i_change_flag'       => (int)($r['i_change_flag'] ?? 1),
                     'i_version'           => 1,
                     'dt_create'           => new \Cake\I18n\DateTime(),
-                ];
+                ] + $flags;
                 $data['c_create_user'] = $actorName;
                 $entity = $this->TIndividualReservationInfo->newEntity($data);
                 $this->TIndividualReservationInfo->saveOrFail($entity);
@@ -346,15 +340,18 @@ class ReservationCopyService
                     continue;
                 }
 
-                // コピー先の日に同じ食事を別の部屋で予約済みなら、二重予約になるためスキップする
-                $otherRooms = array_diff(
-                    $this->TIndividualReservationInfo->findEffectiveRoomIds((int)$r['i_id_user'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type']),
-                    [(int)$r['i_id_room']]
-                );
-                if ($otherRooms !== []) {
+                // コピー元で食べない行（取消済み）は写さない。コピー先で二重予約・昼食と弁当の同時予約になる行もスキップする
+                // （プレビューと同じ判定。1件の衝突でコピー全体を止めない）
+                $dstStr = $dstDate->format('Y-m-d');
+                if (!$this->isSourceEffective($r)
+                    || $this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstStr, (int)$r['i_reservation_type'])
+                ) {
                     $skipped++;
                     continue;
                 }
+                // フラグはコピー元をそのまま写さず、コピー先の日付に合わせて「食べる」で作る
+                // （直前期間は当初予定 eat_flag を 0、それ以外は eat_flag と i_change_flag をそろえる）
+                $flags = ['eat_flag' => TIndividualReservationInfoTable::isLastMinute($dstStr) ? 0 : 1, 'i_change_flag' => 1];
 
                 $existing = $this->TIndividualReservationInfo->find()
                     ->enableAutoFields(false)
@@ -371,20 +368,13 @@ class ReservationCopyService
                     ->where([
                         'i_id_user'          => (int)$r['i_id_user'],
                         'i_id_room'          => (int)$r['i_id_room'],
-                        'd_reservation_date' => $dstDate->format('Y-m-d'),
+                        'd_reservation_date' => $dstStr,
                         'i_reservation_type' => (int)$r['i_reservation_type'],
                     ])
                     ->first();
                 if ($existing) {
-                    // プレビュー（willSkipExisting）と同一のスキップ判定にそろえる
-                    if (TIndividualReservationInfoTable::isEffectiveRow($existing)
-                        || in_array((int)($existing->i_approval_status ?? 0), TIndividualReservationInfoTable::APPROVED_STATUSES, true)) {
-                        $skipped++;
-                        continue;
-                    }
-                    $ok = $this->updateReservationRowWithVersion($existing, [
-                        'eat_flag'      => (int)($r['eat_flag'] ?? 1),
-                        'i_change_flag' => (int)($r['i_change_flag'] ?? 1),
+                    // willSkipExisting を通っているので、無効で未承認の行。食べるにする
+                    $ok = $this->updateReservationRowWithVersion($existing, $flags + [
                         'c_update_user' => $actorName,
                         'dt_update'     => new \Cake\I18n\DateTime(),
                     ]);
@@ -398,13 +388,11 @@ class ReservationCopyService
                 $data = [
                     'i_id_user'           => (int)$r['i_id_user'],
                     'i_id_room'           => (int)$r['i_id_room'],
-                    'd_reservation_date'  => $dstDate->format('Y-m-d'),
+                    'd_reservation_date'  => $dstStr,
                     'i_reservation_type'  => (int)$r['i_reservation_type'],
-                    'eat_flag'            => (int)($r['eat_flag'] ?? 1),
-                    'i_change_flag'       => (int)($r['i_change_flag'] ?? 1),
                     'i_version'           => 1,
                     'dt_create'           => new \Cake\I18n\DateTime(),
-                ];
+                ] + $flags;
                 $data['c_create_user'] = $actorName;
                 $entity = $this->TIndividualReservationInfo->newEntity($data);
                 $this->TIndividualReservationInfo->saveOrFail($entity);
@@ -509,7 +497,7 @@ class ReservationCopyService
         }
 
         $rows = $this->TIndividualReservationInfo->find()
-            ->select(['i_id_user', 'i_id_room', 'i_reservation_type', 'd_reservation_date'])
+            ->select(['i_id_user', 'i_id_room', 'i_reservation_type', 'd_reservation_date', 'eat_flag', 'i_change_flag'])
             ->where($conditions)
             ->enableHydration(false)
             ->toArray();
@@ -527,7 +515,9 @@ class ReservationCopyService
                 continue;
             }
 
-            if ($this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type'])) {
+            if (!$this->isSourceEffective($r)
+                || $this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type'])
+            ) {
                 $willSkip++;
                 continue;
             }
@@ -572,7 +562,7 @@ class ReservationCopyService
         }
 
         $rows = $this->TIndividualReservationInfo->find()
-            ->select(['i_id_user', 'i_id_room', 'i_reservation_type', 'd_reservation_date'])
+            ->select(['i_id_user', 'i_id_room', 'i_reservation_type', 'd_reservation_date', 'eat_flag', 'i_change_flag'])
             ->where($conditions)
             ->enableHydration(false)
             ->toArray();
@@ -603,7 +593,9 @@ class ReservationCopyService
                 continue;
             }
 
-            if ($this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type'])) {
+            if (!$this->isSourceEffective($r)
+                || $this->willSkipExisting((int)$r['i_id_user'], (int)$r['i_id_room'], $dstDate->format('Y-m-d'), (int)$r['i_reservation_type'])
+            ) {
                 $willSkip++;
                 continue;
             }
@@ -622,14 +614,34 @@ class ReservationCopyService
      * コピー先の既存レコードがスキップ対象かどうかを返す（プレビューと実行で共通の判定）。
      *
      * スキップするのは以下のいずれか:
-     *   - 既に有効な予約（eat_flag = 1）が存在する
+     *   - 別の部屋で同じ食事が有効（二重予約になる）
+     *   - 昼食と弁当の相手がコピー先で有効（同時に予約できない）
+     *   - 既に有効な予約が存在する
      *   - 承認済み（i_approval_status が 1/2）で変更できない
      * 上記以外（eat_flag = 0 の無効行）は上書きコピーの対象となる。
      */
+    /**
+     * コピー元の行が食数として数えられる（食べる）か。取消済みの行は写さない。
+     *
+     * @param array{d_reservation_date: mixed, eat_flag?: mixed, i_change_flag?: mixed} $r
+     */
+    private function isSourceEffective(array $r): bool
+    {
+        $this->datePolicy ??= new ReservationDatePolicy();
+
+        return $this->datePolicy->countedValue(new Date($r['d_reservation_date']), $r['eat_flag'] ?? null, $r['i_change_flag'] ?? null) === 1;
+    }
+
     private function willSkipExisting(int $userId, int $roomId, string $date, int $mealType): bool
     {
         // 本処理と同じく、別の部屋で同じ食事を予約済みならスキップに数える
         if (array_diff($this->TIndividualReservationInfo->findEffectiveRoomIds($userId, $date, $mealType), [$roomId]) !== []) {
+            return true;
+        }
+        // 昼食と弁当は同時に予約できない。コピー先で相手が（どの部屋でも）有効ならスキップに数える
+        if (in_array($mealType, [2, 4], true)
+            && $this->TIndividualReservationInfo->findEffectiveRoomIds($userId, $date, $mealType === 2 ? 4 : 2) !== []
+        ) {
             return true;
         }
 

@@ -373,4 +373,37 @@ class ReservationCopyServiceTest extends TestCase
         $this->assertSame($preview['will_skip'], $copy['skipped']);
         $this->assertNull($this->fetchRow('2030-01-15'), '部屋1にもコピーされて二重予約になっている');
     }
+
+    /** コピー先で昼食と弁当がぶつかる行はスキップし、ほかの行はコピーする（1件の衝突でコピー全体を止めない） */
+    public function testLunchBentoConflictIsSkippedAndOtherRowsAreCopied(): void
+    {
+        $this->insertRow('2030-01-08', ['i_reservation_type' => 2]);                     // コピー元: 昼食
+        $this->insertRow('2030-01-09');                                                  // コピー元: 朝食（関係ない日）
+        $this->insertRow('2030-01-15', ['i_reservation_type' => 4, 'i_id_room' => 2]);   // コピー先: 弁当が有効
+
+        $preview = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false);
+        $copy    = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $preview['will_skip']);
+        $this->assertSame(1, $preview['will_copy']);
+        $this->assertSame(1, $copy['copied']);
+        $this->assertSame(1, $copy['skipped']);
+        $this->assertSame([], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(1, '2030-01-15', 2));
+        $this->assertNotNull($this->fetchRow('2030-01-16'), '関係ない日の朝食がコピーされていない');
+    }
+
+    /** コピー元で取消済みの行は写さない（フラグをそのまま写すと、直前期間に入ってから有効に変わるため） */
+    public function testCancelledSourceRowIsNotCopied(): void
+    {
+        $this->insertRow('2030-01-08', ['eat_flag' => 1, 'i_change_flag' => 0]); // 遠い日の行は eat_flag で判定 → 有効
+        $this->insertRow('2030-01-09', ['eat_flag' => 0, 'i_change_flag' => 0]); // 取消済み
+
+        $copy = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $copy['copied']);
+        $this->assertSame(1, $copy['skipped']);
+        $copied = $this->fetchRow('2030-01-15');
+        $this->assertSame([1, 1], [(int)$copied->eat_flag, (int)$copied->i_change_flag], 'コピー先は「食べる」でそろえる');
+        $this->assertNull($this->fetchRow('2030-01-16'));
+    }
 }
