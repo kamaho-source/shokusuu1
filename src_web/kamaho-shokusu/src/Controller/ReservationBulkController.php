@@ -126,7 +126,7 @@ class ReservationBulkController extends ReservationBaseController
         $baseWeekParam  = $this->request->getQuery('base_week');
         $formData       = $this->bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
         $canGroup       = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
-            || (int)$this->request->getAttribute('identity')->get('i_user_level') === 0);
+            || UserRole::isStaffLevel((int)$this->request->getAttribute('identity')->get('i_user_level')));
         $isAdmin        = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
         $isBlockLeader  = UserRole::isBlockLeader((int)$this->request->getAttribute('identity')->get('i_admin'));
         $loginRoomIds   = array_keys($rooms);

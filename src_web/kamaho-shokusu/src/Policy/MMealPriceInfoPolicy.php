@@ -10,14 +10,17 @@ use Authorization\IdentityInterface;
 
 class MMealPriceInfoPolicy
 {
+    /**
+     * 単価マスタ・食事控除表の閲覧。管理者のみ（ブロック長・職員・児童には見せない）。
+     */
     public function canIndex(?IdentityInterface $user, MMealPriceInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->isAdmin($user);
     }
 
     public function canView(?IdentityInterface $user, MMealPriceInfo $resource): bool
     {
-        return $this->isAuthenticated($user);
+        return $this->isAdmin($user);
     }
 
     /**
@@ -63,11 +66,6 @@ class MMealPriceInfoPolicy
         }
 
         return false;
-    }
-
-    private function isAuthenticated(?IdentityInterface $user): bool
-    {
-        return $this->getOriginalIdentity($user) !== null;
     }
 
     private function getOriginalIdentity(?IdentityInterface $user): object|array|null

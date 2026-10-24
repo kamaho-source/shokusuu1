@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
 use Cake\Core\Configure;
 use Cake\I18n\Date;
@@ -97,7 +98,7 @@ class ReservationBulkService
                 }
             }
 
-            $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+            $isLoginStaff = UserRole::isStaffLevel($loginUserLevel);
             $blockLeaderInRoom = false;
             if ($isBlockLeader) {
                 $blockLeaderInRoom = $this->isActiveMemberCached($loginUserId, (int)$roomId);
@@ -141,7 +142,7 @@ class ReservationBulkService
                         $existing = $existingMap[$date][$userId][$mealType] ?? null;
 
                         if ($existing) {
-                            if ($targetUserLevel === 0 && $changeFlag === 0) {
+                            if ($targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0) {
                                 continue;
                             }
                             if ((int)$existing->i_change_flag !== $changeFlag) {
@@ -525,7 +526,7 @@ class ReservationBulkService
                     }
                 }
 
-                $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+                $isLoginStaff = UserRole::isStaffLevel($loginUserLevel);
                 $blockLeaderInRoom = false;
                 if ($isBlockLeader && $roomId !== null) {
                     $blockLeaderInRoom = $this->isActiveMemberCached($userId, (int)$roomId);
@@ -681,7 +682,7 @@ class ReservationBulkService
                     }
                 }
 
-                $isLoginStaff = in_array($loginUserLevel, [0, 7], true);
+                $isLoginStaff = UserRole::isStaffLevel($loginUserLevel);
                 $blockLeaderInRoom = false;
                 if ($isBlockLeader && $roomId !== null) {
                     $blockLeaderInRoom = $this->isActiveMemberCached($userId, (int)$roomId);

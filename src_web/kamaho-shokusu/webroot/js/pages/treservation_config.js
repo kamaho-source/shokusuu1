@@ -1,7 +1,7 @@
 /**
  * 設定初期化モジュール
  * window.__TRESP からページ全体で共有するグローバル変数を設定する。
- * treservation_index.inline.js に存在した3つの重複ブロックをここに集約。
+ * （削除済みの旧 inline 版に存在した）3つの重複ブロックをここに集約。
  */
 (function () {
     var cfg = window.__TRESP || {};

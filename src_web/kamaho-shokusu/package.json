@@ -5,8 +5,8 @@
     "test": "jest"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2"
   },
   "overrides": {
     "js-yaml": "^3.15.0",
@@ -14,7 +14,9 @@
   },
   "jest": {
     "testEnvironment": "jsdom",
-    "testMatch": ["**/tests/js/**/*.test.js"],
+    "testMatch": [
+      "**/tests/js/**/*.test.js"
+    ],
     "testEnvironmentOptions": {
       "url": "http://localhost/"
     }

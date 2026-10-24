@@ -57,6 +57,92 @@ class MUserInfoControllerTest extends TestCase
     }
 
     /**
+     * 一覧の所属表示でも、退出済みの部屋は所属として表示しない（詳細画面と揃える）。
+     */
+    public function testIndexHidesLeftRooms(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $base = $rooms->get(1)->toArray();
+        $rooms->updateAll(['c_room_name' => '現在のルーム'], ['i_id_room' => 1]);
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '退出したルーム'] + $base);
+
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groupBase = $groups->find()->where(['i_id_user' => 1])->firstOrFail()->toArray();
+        unset($groupBase['i_id_group'], $groupBase['id']);
+        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 2, 'active_flag' => 1] + $groupBase);
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo');
+        $this->assertResponseOk();
+        $this->assertResponseContains('現在のルーム');
+        $this->assertResponseNotContains('退出したルーム');
+        // 退出済みを数えると全部屋所属と誤判定されるため、その表示にならないこと
+        $this->assertResponseNotContains('全部屋所属');
+    }
+
+    /**
+     * 現在の所属が無く、退出済みの部屋だけがあるユーザーは「未所属」になる。
+     */
+    public function testIndexShowsUnaffiliatedWhenAllRoomsLeft(): void
+    {
+        $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 1]);
+        $this->getTableLocator()->get('MRoomInfo')->updateAll(['c_room_name' => '退出したルーム'], ['i_id_room' => 1]);
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => 1], ['i_id_user' => 1]);
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo?limit=200');
+        $this->assertResponseOk();
+        $this->assertResponseContains('未所属');
+    }
+
+    /**
+     * 削除済みユーザーの所属を作る。部屋1(現役)、部屋2(別の現役)、部屋3(削除済み)。
+     * ユーザー6は部屋1・部屋3に所属していたが、削除時に全て退出済みになっている。
+     */
+    private function prepareDeletedUserRooms(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $base = $rooms->get(1)->toArray();
+        $rooms->updateAll(['c_room_name' => '削除前のルーム'], ['i_id_room' => 1]);
+        // 部屋が1つだけだと「全部屋所属」の表示になるため、有効な部屋をもう1つ作る
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '別のルーム'] + $base);
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 3, 'c_room_name' => '削除済みのルーム', 'i_del_flg' => 1] + $base);
+
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groupBase = $groups->find()->where(['i_id_user' => 6])->firstOrFail()->toArray();
+        unset($groupBase['i_id_group'], $groupBase['id']);
+        $groups->updateAll(['active_flag' => 1], ['i_id_user' => 6]);
+        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 3, 'active_flag' => 1] + $groupBase);
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_del_flag' => 1], ['i_id_user' => 6]);
+    }
+
+    /**
+     * 削除済みユーザーの詳細では、削除前の所属部屋を表示する。削除済みの部屋は表示しない。
+     */
+    public function testDeletedUserViewShowsRoomsBeforeDeletion(): void
+    {
+        $this->prepareDeletedUserRooms();
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view/6');
+        $this->assertResponseOk();
+        $this->assertResponseContains('削除前のルーム');
+        $this->assertResponseNotContains('削除済みのルーム');
+    }
+
+    /**
+     * 削除済みユーザーの一覧でも、削除前の所属部屋を表示する。削除済みの部屋は表示しない。
+     */
+    public function testDeletedUserIndexShowsRoomsBeforeDeletion(): void
+    {
+        $this->prepareDeletedUserRooms();
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo?show_deleted=1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('削除前のルーム');
+        $this->assertResponseNotContains('削除済みのルーム');
+    }
+
+    /**
      * Test view method
      *
      * @return void
@@ -67,6 +153,82 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->get('/MUserInfo/view/1');
         $this->assertResponseOk();
+    }
+
+    /**
+     * 詳細画面に所属部屋が表示される。退出済みの部屋は表示しない。
+     */
+    public function testViewShowsActiveRoomsOnly(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $rooms->updateAll(['c_room_name' => '現在の部屋'], ['i_id_room' => 1]);
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groups->updateAll(['active_flag' => 1], ['i_id_user' => 2, 'i_id_room' => 1]);
+        $groups->updateAll(['active_flag' => 0], ['i_id_user' => 1, 'i_id_room' => 1]);
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('所属部屋');
+        $this->assertResponseContains('現在の部屋');
+
+        $this->get('/MUserInfo/view/2');
+        $this->assertResponseOk();
+        $this->assertResponseContains('所属なし');
+        $this->assertResponseNotContains('現在の部屋');
+    }
+
+    /**
+     * 所属中・退出済み・削除済みの部屋が混在するとき、所属中の部屋だけが表示される。
+     */
+    public function testViewHidesLeftAndDeletedRooms(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $base = $rooms->get(1)->toArray();
+        $addRoom = function (int $id, string $name, int $delFlg) use ($rooms, $base): void {
+            $row = ['i_id_room' => $id, 'c_room_name' => $name, 'i_del_flg' => $delFlg] + $base;
+            $rooms->getConnection()->insert('m_room_info', $row);
+        };
+        $rooms->updateAll(['c_room_name' => '現在の部屋'], ['i_id_room' => 1]);
+        $addRoom(2, '退出した部屋', 0);
+        $addRoom(3, '削除された部屋', 1);
+
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $groupBase = $groups->find()->where(['i_id_user' => 1])->firstOrFail()->toArray();
+        unset($groupBase['i_id_group'], $groupBase['id']);
+        foreach ([[2, 1], [3, 0]] as [$roomId, $activeFlag]) {
+            $groups->getConnection()->insert('m_user_group', ['i_id_room' => $roomId, 'active_flag' => $activeFlag] + $groupBase);
+        }
+
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('現在の部屋');
+        $this->assertResponseNotContains('退出した部屋');
+        $this->assertResponseNotContains('削除された部屋');
+    }
+
+    /**
+     * 編集画面の操作メニューに、ユーザー詳細へのリンクがある。
+     */
+    public function testEditHasLinkToView(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/edit/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('ユーザー詳細を表示する');
+        $this->assertResponseContains('href="/MUserInfo/view/1"');
+    }
+
+    /**
+     * 一般ユーザーも、自分の編集画面から自分の詳細へ移動できる。
+     */
+    public function testEditHasLinkToViewForOwner(): void
+    {
+        $this->setAuthenticatedSession(false);
+        $this->get('/MUserInfo/edit/2');
+        $this->assertResponseOk();
+        $this->assertResponseContains('href="/MUserInfo/view/2"');
     }
 
     /**
@@ -122,6 +284,25 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('パスワード変更');
         $this->assertResponseContains('admin_change_password?user_id=2');
+        // リンクではなくボタンの見た目で表示する
+        $this->assertResponseRegExp('/<a [^>]*class="btn btn-outline-primary btn-sm"[^>]*>🔑 パスワード変更<\/a>/u');
+    }
+
+    /**
+     * 削除済みユーザーは変更画面の対象に入らない（押しても未選択になる）ため、
+     * 編集画面にパスワード変更ボタンを出さない。
+     *
+     * @return void
+     * @uses \App\Controller\MUserInfoController::edit()
+     */
+    public function testPasswordChangeButtonHiddenForDeletedUser(): void
+    {
+        $this->setAuthenticatedSession(true);
+
+        $this->get('/MUserInfo/edit/6');
+        $this->assertResponseContains('deleted_user');
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('admin_change_password?user_id=6');
     }
 
     /**
@@ -535,6 +716,55 @@ class MUserInfoControllerTest extends TestCase
         $this->assertContains((int)($created->i_admin ?? 0), [0]);
         $this->assertSame(0, (int)$created->i_enable);
         $this->assertSame(0, (int)$created->i_del_flag);
+    }
+
+    /**
+     * ナビの「ユーザ一覧」は、ユーザー登録ができる人（管理者・ブロック長・職員0）だけに出る。
+     *
+     * @return array<string, array{int, int|null, bool}>
+     */
+    public static function userListMenuProvider(): array
+    {
+        return [
+            '管理者'         => [1, 0, true],
+            'システム管理者' => [3, 0, true],
+            'ブロック長'     => [2, 0, true],
+            '職員(0)'        => [0, 0, true],
+            '職員(7)'        => [0, 7, true],
+            '児童'           => [0, 1, false],
+            'その他'         => [0, 3, false],
+            '役職未設定'     => [0, null, false],
+        ];
+    }
+
+    /**
+     * @dataProvider userListMenuProvider
+     */
+    public function testUserListMenuVisibility(int $iAdmin, ?int $userLevel, bool $visible): void
+    {
+        // 権限はセッション値ではなく DB の値で判定されるため、DB 側を更新する
+        $this->getTableLocator()->get('MUserInfo')->updateAll(
+            ['i_admin' => $iAdmin, 'i_user_level' => $userLevel],
+            ['i_id_user' => 2]
+        );
+        $this->session([
+            'Auth' => [
+                'i_id_user'       => 2,
+                'c_login_account' => 'staff_user',
+                'c_user_name'     => 'テストユーザー',
+                'i_admin'         => $iAdmin,
+                'i_user_level'    => $userLevel,
+                'i_id_room'       => 1,
+            ],
+        ]);
+        $this->get('/MUserInfo');
+        $this->assertResponseOk();
+        $marker = '<i class="bi bi-people"></i>ユーザ一覧';
+        $visible ? $this->assertResponseContains($marker) : $this->assertResponseNotContains($marker);
+
+        // 入口が見える人は、登録画面にも実際に進める
+        $this->get('/MUserInfo/add');
+        $visible ? $this->assertResponseOk() : $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']);
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true): void
