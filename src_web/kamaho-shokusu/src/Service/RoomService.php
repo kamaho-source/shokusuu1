@@ -16,12 +16,17 @@ class RoomService
     /**
      * 部屋に紐づくユーザー一覧を返す。
      *
+     * 異動で抜けた所属（active_flag ≠ 0）のユーザーは含めない。
+     *
      * @param \App\Model\Entity\MRoomInfo $roomInfo MUserGroup を contain 済みのエンティティ
      * @return array
      */
     public function getUsersForRoom(\App\Model\Entity\MRoomInfo $roomInfo): array
     {
-        $userGroups = $roomInfo->m_user_group ?: [];
+        $userGroups = array_filter(
+            $roomInfo->m_user_group ?: [],
+            fn($group) => (int)$group->active_flag === 0
+        );
 
         $userIds = array_map(
             fn($group) => $group->i_id_user,
