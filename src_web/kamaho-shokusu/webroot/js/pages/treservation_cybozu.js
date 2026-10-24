@@ -94,7 +94,7 @@
             year: t.getFullYear(),
             month: t.getMonth(),
             busy: false,
-            registeredAny: false
+            progress: ''
         };
         var minKey = state.year * 12 + state.month;
         var maxKey = minKey + MONTHS_AHEAD;
@@ -215,7 +215,7 @@
             $('cybozuLastMinute').hidden = !!cfg.isAdmin || !dates.some(function (d) { return isWithin14(d, today); });
             var btn = $('cybozuSubmit');
             btn.disabled = state.busy || !meal || dates.length === 0 || rooms.length === 0;
-            btn.textContent = state.busy ? '登録中…' : '✅ 登録する（' + dates.length + '件）';
+            btn.textContent = state.busy ? '登録中…' + (state.progress || '') : '✅ 登録する（' + dates.length + '件）';
         }
 
         function render() { renderRooms(); renderMeals(); renderCalendar(); renderSummary(); }
@@ -277,6 +277,8 @@
             dates.forEach(function (date) {
                 chain = chain.then(function () {
                     var roomId = state.selected[date];
+                    state.progress = '（' + (done.length + skipped.length + failed.length + 1) + '/' + dates.length + '）';
+                    renderSummary();
                     return post(date, roomId).then(function (r) {
                         var data = r.body && r.body.data;
                         if (r.status === 200 && r.body.ok === true && data) {
@@ -288,42 +290,33 @@
                 });
             });
             return chain.then(function () {
-                var parts = [];
-                if (done.length) parts.push('登録 ' + done.length + '件');
-                if (skipped.length) parts.push('スキップ ' + skipped.length + '件');
-                if (failed.length) parts.push('失敗 ' + failed.length + '件');
-                var summary = meal.label + '：' + (parts.join('・') || '登録 0件');
-                if (done.length) state.registeredAny = true;
-                if (!failed.length) {
-                    toast(summary + (skipped.length ? '（スキップは登録済み、または昼食とお弁当が重なる日です）' : ''), skipped.length ? 'warning' : 'success');
-                    state.busy = false;
-                    hideModal();
-                    if (state.registeredAny) reloadSoon();
-                    return;
-                }
-                // 失敗した日だけを選択に残し、もう一度「登録する」でやり直せるようにする
-                // 登録できた日は🔒にする。スキップの日は選択から外すだけ（理由が昼食と弁当の重なりのこともあるため）
+                // 登録できた日は🔒にして、背景のカレンダーにもすぐ反映する（再読込すると選んだ月や食事が消えるため、しない）
                 done.forEach(function (x) {
                     var d = details[x.date] = details[x.date] || {};
                     d[meal.key] = 1;
                     d[meal.key + 'Room'] = x.roomId;
+                    if (typeof window.__applyReservationToCalendar === 'function') {
+                        window.__applyReservationToCalendar(x.date, meal.id, x.roomId);
+                    }
                 });
+                // 失敗した日だけを選択に残し、もう一度「登録する」でやり直せるようにする
+                // スキップの日は選択から外すだけ（理由が昼食と弁当の重なりのこともあるため）
                 done.concat(skipped).forEach(function (x) { delete state.selected[x.date]; });
-                toast(summary + '。' + failed.map(function (f) { return shortDate(f.date) + ' ' + f.message; }).join(' / '), 'danger');
+                var list = function (xs) { return xs.map(function (x) { return shortDate(x.date); }).join('・'); };
+                var parts = [];
+                if (done.length) parts.push('登録 ' + done.length + '件（' + list(done) + '）');
+                if (skipped.length) parts.push('スキップ ' + skipped.length + '件（' + list(skipped) + '：登録済み、または昼食とお弁当が重なる日）');
+                if (failed.length) parts.push('失敗 ' + failed.length + '件（' + failed.map(function (f) { return shortDate(f.date) + ' ' + f.message; }).join(' / ') + '）');
+                var type = failed.length ? 'danger' : (skipped.length ? 'warning' : 'success');
+                toast(meal.label + '：' + (parts.join('。') || '登録 0件'), type);
                 state.busy = false;
+                state.progress = '';
                 render();
             });
         }
 
         function showModal() {
             if (window.bootstrap && window.bootstrap.Modal) window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
-        }
-        function hideModal() {
-            if (window.bootstrap && window.bootstrap.Modal) window.bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-        }
-        function reloadSoon() {
-            // トーストを読めるよう少し待ってから再読込してカレンダーに反映する
-            setTimeout(function () { window.location.reload(); }, 1500);
         }
 
         modalEl.addEventListener('click', function (e) {
@@ -356,7 +349,6 @@
             renderCalendar();
         });
         $('cybozuSubmit').addEventListener('click', submit);
-        modalEl.addEventListener('hidden.bs.modal', function () { if (state.registeredAny) reloadSoon(); });
 
         var entry = document.getElementById('cybozuModeButton');
         if (entry) {

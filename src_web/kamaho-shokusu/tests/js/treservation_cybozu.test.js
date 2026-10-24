@@ -168,26 +168,37 @@ describe('treservation_cybozu.js 画面', () => {
         expect(document.getElementById('cybozuNext').disabled).toBe(true);
     });
 
-    test('登録: 日付ごとに、その日の部屋で順番に送る。失敗が無ければ件数をトーストで出して再読込する', async () => {
-        jest.useFakeTimers();
+    test('登録: 日付ごとに、その日の部屋で順番に送る。再読込せず、モーダルを開いたまま🔒と背景のカレンダーに反映する', async () => {
         setup();
         const reload = jest.fn();
         Object.defineProperty(window, 'location', { value: { reload }, configurable: true });
+        window.__applyReservationToCalendar = jest.fn();
         mockFetch((b) => ({ status: 200, json: { ok: true, data: { registered: b.date === '2026-10-21' ? [] : [1], skipped: b.date === '2026-10-21' ? [1] : [] } } }));
         meal(1);
         click(cell('2026-10-20'));
         room(2);
         click(cell('2026-10-21'));
 
-        await window.CybozuMode.submit();
+        const pending = window.CybozuMode.submit();
+        await Promise.resolve();
+        expect(submitBtn().textContent).toContain('登録中…（1/2）');
+        await pending;
 
         expect(global.fetch.mock.calls.map((c) => JSON.parse(c[1].body))).toEqual([
             { date: '2026-10-20', roomId: 1, meals: [1], userId: 9 },
             { date: '2026-10-21', roomId: 2, meals: [1], userId: 9 },
         ]);
-        expect(window.pageToast).toHaveBeenLastCalledWith(expect.stringContaining('朝食：登録 1件・スキップ 1件'), 'warning');
-        jest.advanceTimersByTime(1500);
-        expect(reload).toHaveBeenCalled();
+        expect(window.pageToast).toHaveBeenLastCalledWith('朝食：登録 1件（10/20（火））。スキップ 1件（10/21（水）：登録済み、または昼食とお弁当が重なる日）', 'warning');
+        expect(window.__applyReservationToCalendar).toHaveBeenCalledWith('2026-10-20', 1, 1);
+        expect(window.__applyReservationToCalendar).toHaveBeenCalledTimes(1);
+        expect(cell('2026-10-20').classList.contains('lock')).toBe(true);
+        expect(window.CybozuMode.state.selected).toEqual({});
+        expect(submitBtn().textContent).toContain('0件');
+        // 食事を変えれば、同じ画面のまま続けて登録できる
+        meal(3);
+        expect(cell('2026-10-20').classList.contains('lock')).toBe(false);
+        expect(reload).not.toHaveBeenCalled();
+        delete window.__applyReservationToCalendar;
     });
 
     test('登録: 失敗した日だけを選択に残し、登録できた日は🔒にする', async () => {

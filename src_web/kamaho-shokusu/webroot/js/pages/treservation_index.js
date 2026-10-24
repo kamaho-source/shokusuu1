@@ -529,6 +529,9 @@ function openModalById(id){
             var MEAL_KEY_MAP     = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
 
             /** トグル成功後にメモリ上の状態とカレンダーを即時更新する */
+            window.__applyReservationToCalendar = function (date, mealType, roomId) {
+                applyToggleToLocalState(date, MEAL_KEY_MAP[mealType], mealType, true, roomId);
+            };
             function applyToggleToLocalState(date, mealKey, mealType, newVal, roomId) {
                 var d = MY_DETAILS[date] || {
                     breakfast: false, breakfastRoom: null,
