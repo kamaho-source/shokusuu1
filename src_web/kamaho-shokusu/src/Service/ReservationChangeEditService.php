@@ -148,7 +148,7 @@ class ReservationChangeEditService
     public function buildUsersForJson(array $users, $loginUser, bool $isRoomManager = false, bool $isBlockLeaderInRoom = false): array
     {
         $isAdmin       = $loginUser && UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
-        $isLoginStaff  = $loginUser && in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
+        $isLoginStaff  = $loginUser && UserRole::isStaffLevel((int)($loginUser->get('i_user_level') ?? -1));
         $loginUid      = $loginUser?->get('i_id_user');
         // 管理者・部屋管理者・その部屋所属のブロック長はすべてのユーザーを編集できる（職員は子供のみ）
         $canEditAll    = $isRoomManager || $isAdmin || $isBlockLeaderInRoom;
@@ -164,7 +164,7 @@ class ReservationChangeEditService
                 'name'         => $u['name'],
                 'i_user_level' => $u['i_user_level'],
                 'userLevel'    => $u['i_user_level'],
-                'isStaff'      => ($u['i_user_level'] === 0),
+                'isStaff'      => $u['i_user_level'] !== null && UserRole::isStaffLevel((int)$u['i_user_level']),
                 'allowEdit'    => $allowEdit,
             ];
         }
@@ -193,7 +193,7 @@ class ReservationChangeEditService
             // ログインユーザーの編集権限を確定する（buildUsersForJson と同一ロジック）
             $loginUid     = $loginUser ? (int)$loginUser->get('i_id_user') : 0;
             $isAdmin      = $loginUser && UserRole::isAdmin((int)($loginUser->get('i_admin') ?? 0));
-            $isLoginStaff = $loginUser && in_array((int)($loginUser->get('i_user_level') ?? -1), [0, 7], true);
+            $isLoginStaff = $loginUser && UserRole::isStaffLevel((int)($loginUser->get('i_user_level') ?? -1));
             $canEditAll   = $isRoomManager || $isAdmin;
 
             $allowedMap = array_fill_keys(array_map('intval', $userIdList), true);
@@ -285,7 +285,7 @@ class ReservationChangeEditService
                     $existingForMeal = $existingAny[$userId][$mealType] ?? null;
 
                     if ($existingInRoom !== null || $existingForMeal !== null) {
-                        if ($targetUserLevel === 0 && $changeFlag === 0) {
+                        if ($targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0) {
                             $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
                             continue;
                         }

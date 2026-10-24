@@ -41,7 +41,7 @@ $loginUser = $this->request->getAttribute('identity');
                         <td><?= h($rowUser->m_user_info->c_user_name) ?></td>
                         <?php
                         // 管理者または一般管理者の場合は全員編集可能
-                        $isAdmin = (in_array((int)$loginUser->get('i_admin'), [1, 3]) || $loginUser->get('i_user_level') == 0);
+                        $isAdmin = (in_array((int)$loginUser->get('i_admin'), [1, 3]) || \App\Domain\ValueObject\UserRole::isStaffLevel((int)$loginUser->get('i_user_level')));
                         // それ以外の場合は自分自身だけ編集可能
                         $isSelf = ($loginUser->get('i_id_user') == $rowUser->m_user_info->i_id_user);
                         $allowEdit = ($isAdmin || $isSelf);

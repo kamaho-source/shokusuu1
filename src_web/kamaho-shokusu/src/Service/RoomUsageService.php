@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -68,7 +69,7 @@ class RoomUsageService
             $masterUsers[$roomId][$userId] = true;
             $roomNames[$roomId]            = $row->m_room_info?->c_room_name ?? '';
 
-            if ($userLevel === 0) {
+            if (UserRole::isStaffLevel($userLevel)) {
                 $staffMaster[$roomId][$userId] = true;
                 $staffNames[$userId]           = $row->m_user_info?->c_user_name ?? '';
             }

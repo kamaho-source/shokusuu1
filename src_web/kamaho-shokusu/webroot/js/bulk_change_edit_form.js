@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const disabledByDate = isActiveDisabled();
 
         // 直前編集・大人: 弁当ロック済みなら昼を予約不可
-        const isStaff = userLevels[uid] === 0;
+        const isStaff = [0, 7].includes(userLevels[uid]);
         const bentoBlocksNoon = isStaff && (type === 2) && !!(locked[activeDate]?.[uid]?.[4]);
 
         // 直前編集・大人: 朝/昼/夜のいずれかがロック済みなら弁当を無効化
@@ -582,7 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
             locked[activeDate][uid] = locked[activeDate][uid] || {};
             serverReserved[activeDate][uid] = serverReserved[activeDate][uid] || {};
             Object.keys(resMap[uid]).forEach((type) => {
-                const isStaff = userLevels[uid] === 0;
+                const isStaff = [0, 7].includes(userLevels[uid]);
                 if (isStaff) {
                     locked[activeDate][uid][Number(type)] = true;
                 }
