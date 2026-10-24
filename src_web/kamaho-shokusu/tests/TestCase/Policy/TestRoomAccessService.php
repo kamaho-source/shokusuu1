@@ -28,6 +28,11 @@ class TestRoomAccessService extends RoomAccessService
         return $this->officeUsers[$userId] ?? false;
     }
 
+    public function isActiveMember(int $userId, int $roomId): bool
+    {
+        return in_array($roomId, $this->getUserRoomIds($userId), true);
+    }
+
     public function userCanAccessRoom(int $userId, int $roomId): bool
     {
         return in_array($roomId, $this->getUserRoomIds($userId), true);

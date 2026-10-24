@@ -15,6 +15,8 @@ use Cake\Http\ServerRequest;
  */
 class RoomUsageController extends AppController
 {
+    use JsonResponseTrait;
+
     public function __construct(
         private RoomUsageService $roomUsageService,
         ServerRequest $request
@@ -121,16 +123,4 @@ class RoomUsageController extends AppController
         ]);
     }
 
-    private function jsonResponse(array $data, int $status = 200): Response
-    {
-        return $this->response
-            ->withStatus($status)
-            ->withType('application/json')
-            ->withStringBody((string)json_encode($data, JSON_UNESCAPED_UNICODE));
-    }
-
-    private function jsonError(string $message, int $status = 400): Response
-    {
-        return $this->jsonResponse(['success' => false, 'error' => $message], $status);
-    }
 }

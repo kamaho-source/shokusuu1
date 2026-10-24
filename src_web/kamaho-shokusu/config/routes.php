@@ -37,6 +37,12 @@ return function (RouteBuilder $routes): void {
             '/TReservationInfo/bulkAddSubmit',
             ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit']
         )->setMethods(['POST']);
+        // 一括登録画面（bulk_add_form.js）はケバブケースの URL へ送る。ルートが無いと TReservationInfoController に
+        // フォールバックして保存できないため、同じアクションにつなぐ
+        $builder->connect(
+            '/TReservationInfo/bulk-add-submit',
+            ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit']
+        )->setMethods(['POST']);
 
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditForm']);
@@ -170,6 +176,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-user-level', ['controller' => 'MUserInfo', 'action' => 'updateUserLevel'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-report-access', ['controller' => 'MUserInfo', 'action' => 'updateReportAccess'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
@@ -215,6 +222,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect(
             '/TReservationInfo/direct-register',
             ['controller' => 'ReservationDirectRegister', 'action' => 'register']
+        )->setMethods(['POST']);
+        $builder->connect(
+            '/TReservationInfo/change-room',
+            ['controller' => 'ReservationDirectRegister', 'action' => 'changeRoom']
         )->setMethods(['POST']);
 
         // ── 予約トグル（ReservationToggleController） ──
@@ -394,6 +405,14 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/Contacts/admin/{id}', ['controller' => 'Contacts', 'action' => 'adminDetail'])
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+']);
+
+        // ── システムレポート（システム管理者専用） ──
+        $builder->connect('/SystemReport', ['controller' => 'SystemReport', 'action' => 'index'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/data', ['controller' => 'SystemReport', 'action' => 'data'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/dailyChildren', ['controller' => 'SystemReport', 'action' => 'dailyChildren'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/dailyChildrenData', ['controller' => 'SystemReport', 'action' => 'dailyChildrenData'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/loginReport', ['controller' => 'SystemReport', 'action' => 'loginReport'])->setMethods(['GET']);
+        $builder->connect('/SystemReport/loginReportData', ['controller' => 'SystemReport', 'action' => 'loginReportData'])->setMethods(['GET']);
 
         // ── Webhooks（外部サービス専用・認証なし。署名検証で保護） ──
         $builder->connect(

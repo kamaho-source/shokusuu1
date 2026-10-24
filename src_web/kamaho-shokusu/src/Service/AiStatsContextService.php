@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\AI\UserTokenizer;
 use Cake\ORM\TableRegistry;
 
@@ -89,7 +90,7 @@ final class AiStatsContextService
             ->where([
                 'd_reservation_date >=' => $dateFrom,
                 'd_reservation_date <=' => $dateTo,
-                'eat_flag'              => 1,
+                $this->countedSql() . ' = 1',
             ])
             ->group(['i_reservation_type'])
             ->disableHydration()
@@ -126,7 +127,7 @@ final class AiStatsContextService
             ->where([
                 'd_reservation_date >=' => $dateFrom,
                 'd_reservation_date <=' => $dateTo,
-                'eat_flag'              => 1,
+                $this->countedSql() . ' = 1',
             ])
             ->group(['MRoomInfo.i_id_room'])
             ->orderDesc('total')
@@ -161,7 +162,7 @@ final class AiStatsContextService
             ->where([
                 'd_reservation_date >=' => $dateFrom,
                 'd_reservation_date <=' => $dateTo,
-                'eat_flag'              => 1,
+                $this->countedSql() . ' = 1',
             ])
             ->group(['week_start'])
             ->orderAsc('week_start')
@@ -186,25 +187,20 @@ final class AiStatsContextService
     {
         $table = $this->individualTable();
 
+        $c = $this->countedSql();
         $eatCounts = $table->find()
-            ->select(['eat_flag', 'total' => 'COUNT(*)'])
+            ->select([
+                'eat'    => "SUM(CASE WHEN {$c} = 1 THEN 1 ELSE 0 END)",
+                'no_eat' => "SUM(CASE WHEN {$c} = 1 THEN 0 ELSE 1 END)",
+            ])
             ->where([
                 'd_reservation_date >=' => $dateFrom,
                 'd_reservation_date <=' => $dateTo,
             ])
-            ->group(['eat_flag'])
             ->disableHydration()
-            ->toArray();
-
-        $eat   = 0;
-        $noEat = 0;
-        foreach ($eatCounts as $row) {
-            if ((int)($row['eat_flag'] ?? 0) === 1) {
-                $eat = (int)$row['total'];
-                continue;
-            }
-            $noEat += (int)$row['total'];
-        }
+            ->first();
+        $eat   = (int)($eatCounts['eat'] ?? 0);
+        $noEat = (int)($eatCounts['no_eat'] ?? 0);
 
         $changed = $table->find()
             ->where([
@@ -297,7 +293,7 @@ final class AiStatsContextService
     /**
      * 職員（大人）別の入力状況を構築する。未入力（0件）の職員も含める。
      *
-     * 「最も入力していない職員」を判定できるよう、在籍職員（i_user_level=0）全員を
+     * 「最も入力していない職員」を判定できるよう、在籍職員（i_user_level=0 と 7）全員を
      * 分母とし、期間内の申告レコード件数を入力の少ない順に並べる。
      * 職員は [U:<ハッシュ>] トークンで仮名化し、氏名・内部IDは外部AIへ渡さない。
      */
@@ -307,7 +303,7 @@ final class AiStatsContextService
         $staff = $userTable->find()
             ->select(['i_id_user'])
             ->where([
-                'i_user_level' => self::LEVEL_STAFF,
+                'i_user_level IN' => UserRole::STAFF_LEVELS,
                 'i_del_flag'   => 0,
             ])
             ->disableHydration()
@@ -369,8 +365,8 @@ final class AiStatsContextService
         $rows = $this->individualTable()->find()
             ->select([
                 'user_id'  => 'i_id_user',
-                'eat'      => 'SUM(CASE WHEN eat_flag = 1 THEN 1 ELSE 0 END)',
-                'no_eat'   => 'SUM(CASE WHEN eat_flag = 1 THEN 0 ELSE 1 END)',
+                'eat'      => 'SUM(CASE WHEN ' . $this->countedSql() . ' = 1 THEN 1 ELSE 0 END)',
+                'no_eat'   => 'SUM(CASE WHEN ' . $this->countedSql() . ' = 1 THEN 0 ELSE 1 END)',
                 'changed'  => 'SUM(CASE WHEN i_change_flag = 1 THEN 1 ELSE 0 END)',
             ])
             ->where([
@@ -429,6 +425,20 @@ final class AiStatsContextService
         }
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * 食数として数える値（1=食べる）の SQL。ReservationDatePolicy::countedValue と同じ基準で、
+     * 境界日（今日+14日）以前は i_change_flag（NULL なら eat_flag）、それより先は eat_flag。
+     * 境界日はサーバーで作った Y-m-d なので、文字列に埋め込んでも安全。
+     */
+    private function countedSql(): string
+    {
+        $boundary = (new ReservationDatePolicy())->changeBoundaryDate()->format('Y-m-d');
+
+        return "(CASE WHEN TIndividualReservationInfo.d_reservation_date <= '{$boundary}'"
+            . ' THEN COALESCE(TIndividualReservationInfo.i_change_flag, TIndividualReservationInfo.eat_flag)'
+            . ' ELSE TIndividualReservationInfo.eat_flag END)';
     }
 
     private function individualTable(): \Cake\ORM\Table

@@ -88,7 +88,7 @@ class ActualMealSaveRoomsTest extends TestCase
         $this->assertSame(0, $this->savedRows(3, 61));
     }
 
-    public function testAdminCannotSaveDeletedOrMissingRoom_butCanSaveNotMemberRoom(): void
+    public function testAdminCannotSaveDeletedMissingOrNotMemberRoom(): void
     {
         ConnectionManager::get('test')->update('m_user_info', ['i_admin' => 1], ['i_id_user' => 1]);
 
@@ -96,8 +96,17 @@ class ActualMealSaveRoomsTest extends TestCase
         $this->assertResponseCode(403);
         $this->save(1, 1, 9999);
         $this->assertResponseCode(403);
-        $this->save(1, 1, 60); // 管理者は所属外の有効な部屋には書ける
+        $this->save(1, 1, 60); // 管理者も所属外の部屋には書けない（#821）
+        $this->assertResponseCode(403);
+        $this->assertSame(0, $this->savedRows(1, 60));
+    }
+
+    public function testAdminCanProxySaveInOwnRoom(): void
+    {
+        ConnectionManager::get('test')->update('m_user_info', ['i_admin' => 1], ['i_id_user' => 1]);
+
+        $this->save(3, 1, 1); // 管理者(user 1)が、同じ部屋1に所属する児童(user 3)の実食を代理入力
         $this->assertResponseOk();
-        $this->assertSame(1, $this->savedRows(1, 60));
+        $this->assertSame(1, $this->savedRows(3, 1));
     }
 }

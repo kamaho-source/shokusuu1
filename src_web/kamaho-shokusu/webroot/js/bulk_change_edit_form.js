@@ -135,7 +135,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!raw) return;
             const data = JSON.parse(raw);
             if (data && typeof data === 'object') {
-                Object.assign(selections, data.selections || {});
+                // 過ぎた日の選択は画面で直せないので読み込まない（残っていると、保存のたびに過去日として送ってしまう）
+                const d = new Date();
+                const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                Object.entries(data.selections || {}).forEach(([date, users]) => {
+                    if (date >= today) selections[date] = users;
+                });
             }
         } catch (e) {
             console.warn('failed to load state', e);
@@ -327,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const disabledByDate = isActiveDisabled();
 
         // 直前編集・大人: 弁当ロック済みなら昼を予約不可
-        const isStaff = userLevels[uid] === 0;
+        const isStaff = [0, 7].includes(userLevels[uid]);
         const bentoBlocksNoon = isStaff && (type === 2) && !!(locked[activeDate]?.[uid]?.[4]);
 
         // 直前編集・大人: 朝/昼/夜のいずれかがロック済みなら弁当を無効化
@@ -582,7 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
             locked[activeDate][uid] = locked[activeDate][uid] || {};
             serverReserved[activeDate][uid] = serverReserved[activeDate][uid] || {};
             Object.keys(resMap[uid]).forEach((type) => {
-                const isStaff = userLevels[uid] === 0;
+                const isStaff = [0, 7].includes(userLevels[uid]);
                 if (isStaff) {
                     locked[activeDate][uid][Number(type)] = true;
                 }
@@ -825,12 +830,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 .then((data) => {
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(data) : data;
                     if (payload.status === 'success' || payload.ok === true) {
-                        showNotice('保存が完了しました。', 'success');
+                        const skipped = Array.isArray(payload.skipped) ? payload.skipped : [];
+                        // 変更できなかった分（職員の直前取消・過去日など）は、保存できた扱いにせず理由を見せる
+                        showNotice(skipped.length ? `保存しましたが、次の変更はできませんでした。${skipped.join(' ')}` : '保存が完了しました。', skipped.length ? 'warning' : 'success');
                         clearDirty();
                         clearStateStorage();
                         const redirectUrl = payload.redirect_url || payload.redirect;
                         if (redirectUrl) {
-                            window.location.href = redirectUrl;
+                            // 理由を読めるよう、少し待ってから移動する
+                            setTimeout(() => { window.location.href = redirectUrl; }, skipped.length ? 4000 : 0);
                             return;
                         }
                         setSubmitting(false);
