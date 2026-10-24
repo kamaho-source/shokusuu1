@@ -486,3 +486,7 @@
 .cybozu-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .3rem 0; font-size: .8rem; }
 .cybozu-chip { border: 1px solid; border-radius: .9rem; padding: .1rem .3rem .1rem .6rem; background: #fff; }
 .cybozu-chip-x { border: 0; background: none; color: inherit; padding: 0 .25rem; font-weight: 700; }
+.cybozu-meal-n { display: inline-block; background: #28a745; color: #fff; border-radius: .6rem; padding: 0 .35rem; font-size: .7rem; margin-left: .15rem; }
+.cybozu-picks { display: flex; justify-content: center; gap: 1px; margin-top: 1px; }
+.cybozu-picks span { color: #fff; border-radius: 2px; font-size: .55rem; font-weight: 700; padding: 0 2px; opacity: .55; }
+.cybozu-picks span.cur { opacity: 1; outline: 1px solid #fff; }

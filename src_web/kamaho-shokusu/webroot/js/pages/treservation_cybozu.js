@@ -1,6 +1,7 @@
 /**
  * サイボウズモード（複数日まとめて予約）
- * 部屋・食事を選び、日付を複数クリックして「登録する」で、日付ごとに direct-register を順番に呼ぶ。
+ * 食事ごとに部屋・日付を複数クリックで選ぶ。食事を切り替えても、他の食事で選んだ日は残る。
+ * 「登録する」で、日付と部屋ごとに direct-register を順番に呼び、全部の食事をまとめて登録する。
  * treservation_toast.js の後にロードすること（pageToast を使う）。
  */
 (function () {
@@ -89,8 +90,8 @@
         var t = parse(today);
         var state = {
             roomId: initialRoom ? initialRoom.id : null,
-            meal: null,
-            selected: {}, // date => roomId
+            meal: MEALS[0].id, // 今、日付を選んでいる食事
+            selected: { 1: {}, 2: {}, 3: {} }, // mealId => { date => roomId }
             year: t.getFullYear(),
             month: t.getMonth(),
             busy: false,
@@ -101,7 +102,15 @@
 
         var $ = function (id) { return document.getElementById(id); };
         var toast = function (msg, type) { if (window.pageToast) window.pageToast(msg, type); };
-        var selectedDates = function () { return Object.keys(state.selected).sort(); };
+        var selectedDates = function (mealId) { return Object.keys(state.selected[mealId || state.meal]).sort(); };
+        /** 選択中の全件。[{date, meal, roomId}]（日付順・食事順） */
+        function allPicks() {
+            var picks = [];
+            MEALS.forEach(function (m) {
+                selectedDates(m.id).forEach(function (d) { picks.push({ date: d, meal: m.id, roomId: state.selected[m.id][d] }); });
+            });
+            return picks.sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : a.meal - b.meal); });
+        }
 
         function bandHtml(date) {
             var d = details[date];
@@ -135,13 +144,15 @@
         function renderMeals() {
             $('cybozuMeals').innerHTML = MEALS.map(function (m) {
                 var on = m.id === state.meal;
+                var n = selectedDates(m.id).length;
                 return '<button type="button" class="cybozu-meal' + (on ? ' on' : '') + '" data-meal="' + m.id +
-                    '" aria-pressed="' + on + '">' + m.icon + ' ' + m.label + '</button>';
+                    '" aria-pressed="' + on + '">' + m.icon + ' ' + m.label +
+                    (n ? ' <span class="cybozu-meal-n">' + n + '日</span>' : '') + '</button>';
             }).join('');
             $('cybozuHint').textContent = rooms.length === 0
                 ? ''
-                : (multiRoom ? '① 部屋を選ぶ → ② 食事を選ぶ → ③ 日付をクリック → 登録する。' : '① 食事を選ぶ → ② 日付をクリック → 登録する。') +
-                  '🔒＝選んだ食事が登録済みの日（選べません）';
+                : (multiRoom ? '① 部屋と食事を選ぶ → ② 日付をクリック。' : '① 食事を選ぶ → ② 日付をクリック。') +
+                  '食事を切り替えても、選んだ日は残ります。最後に「登録する」でまとめて登録します。🔒＝その食事が登録済みの日';
         }
 
         function renderCalendar() {
@@ -158,8 +169,10 @@
                 week.forEach(function (c) {
                     var past = !c.inMonth || c.date < today;
                     var hol = holidayName(c.date);
-                    var lock = !past && state.meal ? lockReason(details[c.date], state.meal) : null;
-                    var selRoom = state.selected[c.date] ? roomOf(state.selected[c.date]) : null;
+                    var lock = !past ? lockReason(details[c.date], state.meal) : null;
+                    var selRoom = state.selected[state.meal][c.date] ? roomOf(state.selected[state.meal][c.date]) : null;
+                    // 他の食事で選んだ日も分かるよう、選択中の食事をセルに並べる（例：朝 夜）
+                    var picks = c.inMonth ? MEALS.filter(function (m) { return state.selected[m.id][c.date]; }) : [];
                     var cls = ['cybozu-day'];
                     if (c.dow === 0 || hol) cls.push('sun');
                     if (c.dow === 6) cls.push('sat');
@@ -177,7 +190,11 @@
                         '<div class="cybozu-num">' + parse(c.date).getDate() +
                         (selRoom ? '<span class="cybozu-ck">✓</span>' : '') +
                         (lock ? '<span class="cybozu-lk">🔒</span>' : '') + '</div>' +
-                        (c.inMonth ? bandHtml(c.date) : '') + '</td>';
+                        (c.inMonth ? bandHtml(c.date) : '') +
+                        (picks.length ? '<div class="cybozu-picks">' + picks.map(function (m) {
+                            var r = roomOf(state.selected[m.id][c.date]);
+                            return '<span class="' + (m.id === state.meal ? 'cur' : '') + '" style="background:' + (r ? r.color : '#28a745') + '">' + m.short + '</span>';
+                        }).join('') + '</div>' : '') + '</td>';
                 });
                 html += '</tr>';
             });
@@ -185,37 +202,37 @@
         }
 
         function renderSummary() {
-            var dates = selectedDates();
-            var meal = mealById(state.meal);
-            var counts = rooms.map(function (r) {
-                var n = dates.filter(function (d) { return state.selected[d] === r.id; }).length;
-                return n ? esc(r.name) + ' ' + n + '日' : '';
-            }).filter(Boolean);
+            var picks = allPicks();
             var html = '';
             if (rooms.length === 0) {
                 html = '<span class="text-danger fw-bold">所属している部屋がありません。部屋を選択してください。</span>';
             } else {
-                html = '✅ <b>' + dates.length + '日</b> 選択中　' +
-                    (meal ? '<span class="cybozu-tag">' + meal.icon + ' ' + meal.label + '</span>'
-                          : '<span class="text-danger fw-bold">食事を選んでください</span>') +
-                    (multiRoom && counts.length ? '（' + counts.join('・') + '）' : '') +
-                    (dates.length >= MAX_DATES ? ' <span class="text-danger small">最大' + MAX_DATES + '件まで選べます</span>' : '');
+                var perMeal = MEALS.map(function (m) {
+                    var n = selectedDates(m.id).length;
+                    return n ? m.icon + ' ' + m.label + ' ' + n + '日' : '';
+                }).filter(Boolean);
+                html = '✅ <b>' + picks.length + '件</b> 選択中' + (perMeal.length ? '（' + perMeal.join('・') + '）' : '') +
+                    (selectedDates().length >= MAX_DATES ? ' <span class="text-danger small">1つの食事につき最大' + MAX_DATES + '日まで選べます</span>' : '');
             }
             $('cybozuSummary').innerHTML = html;
-            $('cybozuChips').innerHTML = rooms.map(function (r) {
-                var mine = dates.filter(function (d) { return state.selected[d] === r.id; });
-                if (!mine.length) return '';
-                return '<div class="cybozu-chips">' +
-                    (multiRoom ? '<b style="color:' + r.color + '">' + esc(r.name) + '</b>' : '') +
-                    mine.map(function (d) {
-                        return '<span class="cybozu-chip" style="border-color:' + r.color + ';color:' + r.color + '">' + shortDate(d) +
-                            ' <button type="button" class="cybozu-chip-x" data-remove="' + d + '" aria-label="' + shortDate(d) + 'を外す">×</button></span>';
-                    }).join('') + '</div>';
+            // 食事ごと・部屋ごとに、選んだ日を並べる
+            $('cybozuChips').innerHTML = MEALS.map(function (m) {
+                return rooms.map(function (r) {
+                    var mine = selectedDates(m.id).filter(function (d) { return state.selected[m.id][d] === r.id; });
+                    if (!mine.length) return '';
+                    return '<div class="cybozu-chips"><b>' + m.icon + ' ' + m.label + '</b>' +
+                        (multiRoom ? '<b style="color:' + r.color + '">' + esc(r.name) + '</b>' : '') +
+                        mine.map(function (d) {
+                            return '<span class="cybozu-chip" style="border-color:' + r.color + ';color:' + r.color + '">' + shortDate(d) +
+                                ' <button type="button" class="cybozu-chip-x" data-remove="' + d + '" data-remove-meal="' + m.id + '" aria-label="' +
+                                m.label + ' ' + shortDate(d) + 'を外す">×</button></span>';
+                        }).join('') + '</div>';
+                }).join('');
             }).join('');
-            $('cybozuLastMinute').hidden = !!cfg.isAdmin || !dates.some(function (d) { return isWithin14(d, today); });
+            $('cybozuLastMinute').hidden = !!cfg.isAdmin || !picks.some(function (p) { return isWithin14(p.date, today); });
             var btn = $('cybozuSubmit');
-            btn.disabled = state.busy || !meal || dates.length === 0 || rooms.length === 0;
-            btn.textContent = state.busy ? '登録中…' + (state.progress || '') : '✅ 登録する（' + dates.length + '件）';
+            btn.disabled = state.busy || picks.length === 0 || rooms.length === 0;
+            btn.textContent = state.busy ? '登録中…' + (state.progress || '') : '✅ 登録する（' + picks.length + '件）';
         }
 
         function render() { renderRooms(); renderMeals(); renderCalendar(); renderSummary(); }
@@ -223,39 +240,36 @@
         function clickDate(date) {
             if (state.busy || !state.roomId) return;
             if (date < today) return;
-            if (state.meal && lockReason(details[date], state.meal)) return;
-            var cur = state.selected[date];
+            if (lockReason(details[date], state.meal)) return;
+            var sel = state.selected[state.meal];
+            var cur = sel[date];
             if (cur === state.roomId) {
-                delete state.selected[date];
+                delete sel[date];
             } else if (cur) {
-                state.selected[date] = state.roomId; // 別の部屋で選択中の日は、今の部屋に付け替える
+                sel[date] = state.roomId; // 別の部屋で選択中の日は、今の部屋に付け替える
             } else {
                 if (selectedDates().length >= MAX_DATES) {
-                    toast('選べる日付は最大' + MAX_DATES + '件です。', 'warning');
+                    toast('選べる日付は、1つの食事につき最大' + MAX_DATES + '日です。', 'warning');
                     return;
                 }
-                state.selected[date] = state.roomId;
+                sel[date] = state.roomId;
             }
-            renderCalendar(); renderSummary();
+            renderMeals(); renderCalendar(); renderSummary();
         }
 
         function chooseMeal(id) {
+            // 他の食事で選んだ日はそのまま残す
             state.meal = id;
-            var dropped = selectedDates().filter(function (d) { return lockReason(details[d], id); });
-            dropped.forEach(function (d) { delete state.selected[d]; });
-            if (dropped.length) {
-                toast(dropped.map(shortDate).join('・') + 'は' + mealById(id).label + 'が登録済みのため、選択から外しました。', 'warning');
-            }
             render();
         }
 
-        function post(date, roomId) {
+        function post(date, roomId, meals) {
             var csrf = window.__csrfToken || cfg.csrfToken || '';
             return fetch(cfg.directRegisterUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json; charset=utf-8', 'Accept': 'application/json', 'X-CSRF-Token': csrf },
-                body: JSON.stringify({ date: date, roomId: roomId, meals: [state.meal], userId: cfg.userId })
+                body: JSON.stringify({ date: date, roomId: roomId, meals: meals, userId: cfg.userId })
             }).then(function (res) {
                 return res.text().then(function (text) {
                     var body = {};
@@ -266,49 +280,66 @@
         }
 
         function submit() {
-            var dates = selectedDates();
-            var meal = mealById(state.meal);
-            if (state.busy || !meal || !dates.length) return Promise.resolve();
+            var picks = allPicks();
+            if (state.busy || !picks.length) return Promise.resolve();
+            // 同じ日・同じ部屋の食事は1回でまとめて送る
+            var groups = [];
+            picks.forEach(function (p) {
+                var g = groups.filter(function (x) { return x.date === p.date && x.roomId === p.roomId; })[0];
+                if (!g) groups.push(g = { date: p.date, roomId: p.roomId, meals: [] });
+                g.meals.push(p.meal);
+            });
             state.busy = true;
-            renderSummary();
             var done = [], skipped = [], failed = [];
             var chain = Promise.resolve();
-            // サーバーの負荷と競合を避けるため、1日ずつ順番に登録する
-            dates.forEach(function (date) {
+            // サーバーの負荷と競合を避けるため、1回ずつ順番に登録する
+            groups.forEach(function (g, i) {
                 chain = chain.then(function () {
-                    var roomId = state.selected[date];
-                    state.progress = '（' + (done.length + skipped.length + failed.length + 1) + '/' + dates.length + '）';
+                    state.progress = '（' + (i + 1) + '/' + groups.length + '）';
                     renderSummary();
-                    return post(date, roomId).then(function (r) {
+                    return post(g.date, g.roomId, g.meals).then(function (r) {
                         var data = r.body && r.body.data;
-                        if (r.status === 200 && r.body.ok === true && data) {
-                            ((data.registered || []).indexOf(meal.id) !== -1 ? done : skipped).push({ date: date, roomId: roomId });
-                            return;
-                        }
-                        failed.push({ date: date, message: r.status === 0 ? NETWORK_ERROR : (r.body.message || ('登録できませんでした（' + r.status + '）')) });
+                        var ok = r.status === 200 && r.body.ok === true && data;
+                        var message = r.status === 0 ? NETWORK_ERROR : ((r.body && r.body.message) || ('登録できませんでした（' + r.status + '）'));
+                        g.meals.forEach(function (mealId) {
+                            var x = { date: g.date, meal: mealId, roomId: g.roomId };
+                            if (!ok) { x.message = message; failed.push(x); return; }
+                            ((data.registered || []).indexOf(mealId) !== -1 ? done : skipped).push(x);
+                        });
                     });
                 });
             });
             return chain.then(function () {
-                // 登録できた日は🔒にして、背景のカレンダーにもすぐ反映する（再読込すると選んだ月や食事が消えるため、しない）
+                // 登録できた日は🔒にして、背景のカレンダーにもすぐ反映する（再読込すると選んだ内容が消えるため、しない）
                 done.forEach(function (x) {
+                    var key = mealById(x.meal).key;
                     var d = details[x.date] = details[x.date] || {};
-                    d[meal.key] = 1;
-                    d[meal.key + 'Room'] = x.roomId;
+                    d[key] = 1;
+                    d[key + 'Room'] = x.roomId;
                     if (typeof window.__applyReservationToCalendar === 'function') {
-                        window.__applyReservationToCalendar(x.date, meal.id, x.roomId);
+                        window.__applyReservationToCalendar(x.date, x.meal, x.roomId);
                     }
                 });
-                // 失敗した日だけを選択に残し、もう一度「登録する」でやり直せるようにする
-                // スキップの日は選択から外すだけ（理由が昼食と弁当の重なりのこともあるため）
-                done.concat(skipped).forEach(function (x) { delete state.selected[x.date]; });
-                var list = function (xs) { return xs.map(function (x) { return shortDate(x.date); }).join('・'); };
+                // 失敗した分だけを選択に残し、もう一度「登録する」でやり直せるようにする
+                // スキップは選択から外すだけ（理由が昼食と弁当の重なりのこともあるため）
+                done.concat(skipped).forEach(function (x) { delete state.selected[x.meal][x.date]; });
+                // 「朝食 10/20（火）・10/21（水）／夕食 10/20（火）」の形で並べる
+                var list = function (xs) {
+                    return MEALS.map(function (m) {
+                        var mine = xs.filter(function (x) { return x.meal === m.id; });
+                        return mine.length ? m.label + ' ' + mine.map(function (x) { return shortDate(x.date); }).join('・') : '';
+                    }).filter(Boolean).join('／');
+                };
                 var parts = [];
                 if (done.length) parts.push('登録 ' + done.length + '件（' + list(done) + '）');
                 if (skipped.length) parts.push('スキップ ' + skipped.length + '件（' + list(skipped) + '：登録済み、または昼食とお弁当が重なる日）');
-                if (failed.length) parts.push('失敗 ' + failed.length + '件（' + failed.map(function (f) { return shortDate(f.date) + ' ' + f.message; }).join(' / ') + '）');
+                if (failed.length) {
+                    var msgs = failed.map(function (f) { return shortDate(f.date) + ' ' + f.message; })
+                        .filter(function (v, i, a) { return a.indexOf(v) === i; });
+                    parts.push('失敗 ' + failed.length + '件（' + list(failed) + '：' + msgs.join(' / ') + '）');
+                }
                 var type = failed.length ? 'danger' : (skipped.length ? 'warning' : 'success');
-                toast(meal.label + '：' + (parts.join('。') || '登録 0件'), type);
+                toast(parts.join('。') || '登録 0件', type);
                 state.busy = false;
                 state.progress = '';
                 render();
@@ -323,8 +354,8 @@
             var el = e.target.closest('[data-room],[data-meal],[data-date],[data-remove]');
             if (!el || state.busy) return;
             if (el.hasAttribute('data-remove')) {
-                delete state.selected[el.getAttribute('data-remove')];
-                renderCalendar(); renderSummary();
+                delete state.selected[Number(el.getAttribute('data-remove-meal'))][el.getAttribute('data-remove')];
+                render();
             } else if (el.hasAttribute('data-room')) {
                 state.roomId = Number(el.getAttribute('data-room'));
                 renderRooms();
