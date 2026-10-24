@@ -87,6 +87,10 @@ class ReservationWriteService
                 } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
                     $connection->rollback();
                     Log::error('個人予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
+                    $lunchBento = TIndividualReservationInfoTable::lunchBentoViolation($e);
+                    if ($lunchBento !== null) {
+                        throw new ConflictException($lunchBento);
+                    }
                     $detail = Configure::read('debug') ? ' 詳細: ' . implode('、', array_merge(...array_values(array_map('array_values', $e->getEntity()?->getErrors() ?? [[]])))) : '';
                     throw new PersistenceException('予約の登録中にエラーが発生しました。' . $detail);
                 }
@@ -306,6 +310,20 @@ class ReservationWriteService
         $flag = $on ? 1 : 0;
 
         return ['i_change_flag' => $flag] + (TIndividualReservationInfoTable::isLastMinute($date) ? [] : ['eat_flag' => $flag]);
+    }
+
+    /**
+     * 部屋IDの一覧を「部屋名」の並びにする（メッセージ用）。見つからない部屋は ID のまま出す。
+     *
+     * @param list<int> $roomIds
+     */
+    private function roomNamesText(array $roomIds): string
+    {
+        $names = $this->roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+            ->where(['i_id_room IN' => $roomIds])
+            ->toArray();
+
+        return '「' . implode('」「', array_map(static fn(int $id): string => (string)($names[$id] ?? $id), $roomIds)) . '」';
     }
 
     /** YYYY-MM-DD の形式で、暦に実在する日付か */
@@ -818,7 +836,7 @@ class ReservationWriteService
                 }
                 // 画面に出ていない部屋（退出済み・削除済みなど）に残った予約は、取消だけ許す。ここで移すと黙って取り消してしまう
                 if (!array_key_exists((int)$row->i_id_room, $rooms)) {
-                    throw new ConflictException('別の部屋（この画面に出ていない部屋）に同じ食事の予約があります。先にその予約を取り消してください。');
+                    throw new ConflictException($this->roomNamesText([(int)$row->i_id_room]) . 'に同じ食事の予約があります。この画面では変更できないため、先にその予約を取り消してください。');
                 }
                 // 別の部屋の予約を取り消してこの部屋へ移すのは部屋変更。職員は直前期間にはできない（change-room と同じ扱い）
                 if ($staffLastMinute) {
@@ -828,6 +846,21 @@ class ReservationWriteService
                     throw new \RuntimeException('他の操作と競合しました。画面を再読み込みして再実行してください。');
                 }
                 $performed = true;
+            }
+
+            // 昼食⇔弁当: 相手が画面に出ていない部屋で有効なら、入れ替え（相手の取消）はこの画面ではできない
+            $opponent = [2 => 4, 4 => 2][(int)$mealType] ?? null;
+            if ($opponent !== null) {
+                foreach ($existingByMeal[$opponent] ?? [] as $oppRow) {
+                    if (TIndividualReservationInfoTable::isEffectiveRow($oppRow) && !array_key_exists((int)$oppRow->i_id_room, $rooms)) {
+                        throw new ConflictException(sprintf(
+                            '%sに%sの予約があるため、%sは予約できません（昼食と弁当は同時に予約できません）。先にその予約を取り消してください。',
+                            $this->roomNamesText([(int)$oppRow->i_id_room]),
+                            $opponent === 2 ? '昼食' : '弁当',
+                            $opponent === 2 ? '弁当' : '昼食'
+                        ));
+                    }
+                }
             }
 
             $existing = $existingMap[(int)$mealType][(int)$roomId] ?? null;
@@ -859,13 +892,7 @@ class ReservationWriteService
 
         // 画面に出ていない部屋の予約だけを取り消そうとして、何も変えていないなら、システムエラーにせず理由を返す
         if (!$performed && $toSave === [] && $duplicates === [] && $outsideRooms !== []) {
-            $names = $this->roomTable->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
-                ->where(['i_id_room IN' => array_keys($outsideRooms)])
-                ->toArray();
-            throw new ConflictException(sprintf(
-                '「%s」の予約は、この画面では取り消せません。その部屋の予約として取り消してください。',
-                implode('」「', $names !== [] ? $names : array_keys($outsideRooms))
-            ));
+            throw new ConflictException($this->roomNamesText(array_keys($outsideRooms)) . 'の予約は、この画面では取り消せません。その部屋の予約として取り消してください。');
         }
 
         return ['toSave' => $toSave, 'duplicates' => $duplicates, 'performed' => $performed];

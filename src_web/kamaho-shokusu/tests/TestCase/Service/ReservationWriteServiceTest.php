@@ -542,4 +542,19 @@ class ReservationWriteServiceTest extends TestCase
         $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag);
         $this->assertNull($this->fetchReservation(3, $date, 3, 1));
     }
+
+    /** 画面に出ていない部屋の弁当があると、画面の部屋の昼食は理由付きで止める（理由のない 500 にしない） */
+    public function testIndividualLunchBlockedByBentoInRoomOutsideTheForm(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 9]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['2' => ['1' => 1], '4' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+            $this->fail('ConflictException が出るはず');
+        } catch (\App\Domain\Exception\ConflictException $e) {
+            $this->assertStringContainsString('弁当の予約があるため、昼食は予約できません', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 4, 9)->eat_flag);
+    }
 }

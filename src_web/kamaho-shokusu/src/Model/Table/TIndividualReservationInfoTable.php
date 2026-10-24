@@ -642,9 +642,8 @@ class TIndividualReservationInfoTable extends Table
     }
 
     /**
-     * ある日の4食の“有効値”を返す（直前は i_change_flag 優先、通常は eat_flag）
+     * ある日の4食の“有効値”を返す（effectiveValue と同じ基準。境界日以前は i_change_flag、それより先は eat_flag）
      *
-     * @param bool|null $isLastMinute null の場合は日付から自動判定
      * @return array{breakfast:bool,lunch:bool,dinner:bool,bento:bool}
      */
     public function getDayDetailsEffective(int $userId, int $roomId, string $date): array

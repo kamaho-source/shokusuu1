@@ -51,6 +51,8 @@
         [1, 2, 3, 4].forEach(function (mt) {
             html += '<label class="meal-cal-check-label">'
                 + '<input type="checkbox" class="form-check-input meal-cal-check" data-meal="' + mt + '"'
+                // 保存前の状態。取消が通らなかったときに、チェックを元に戻すために使う
+                + ' data-was-checked="' + (meals[mt] ? '1' : '0') + '"'
                 + (meals[mt] ? ' checked' : '') + '>'
                 + '<span class="meal-cal-check-text" style="color:' + MEAL_COLORS[mt] + '">' + escHtml(MEAL_LABELS[mt]) + '</span>'
                 + '</label>';
@@ -122,10 +124,16 @@
                     .then(function (data) {
                         saveBtn.disabled = false;
                         var ok = data.ok === true || data.status === 'success';
+                        var skipped = (data.data && Array.isArray(data.data.skipped)) ? data.data.skipped : [];
+                        if (ok && skipped.length) {
+                            // 職員の直前取消などで取り消せなかった。外したチェックを元に戻し、理由を出す（取り消した表示にしない）
+                            checks.forEach(function (c) { if (!c.checked && c.dataset.wasChecked === '1') c.checked = true; });
+                        }
                         if (statusEl) {
-                            statusEl.textContent = ok ? '✓ 保存しました' : ('✗ ' + (data.message || '保存失敗'));
-                            statusEl.className = 'meal-cal-save-status ' + (ok ? 'text-success' : 'text-danger');
-                            setTimeout(function () { statusEl.textContent = ''; }, 2500);
+                            statusEl.textContent = !ok ? ('✗ ' + (data.message || '保存失敗'))
+                                : skipped.length ? ('⚠ ' + skipped.join(' ')) : '✓ 保存しました';
+                            statusEl.className = 'meal-cal-save-status ' + (!ok ? 'text-danger' : skipped.length ? 'text-warning' : 'text-success');
+                            setTimeout(function () { statusEl.textContent = ''; }, skipped.length ? 6000 : 2500);
                         }
                         // 保存成功時にヘッダーバッジを更新
                         if (ok && item) {
@@ -133,6 +141,7 @@
                             checks.forEach(function (c, i) {
                                 var mt = parseInt(c.dataset.meal, 10);
                                 var active = c.checked;
+                                c.dataset.wasChecked = active ? '1' : '0';
                                 if (badges[i]) {
                                     badges[i].style.background = active ? MEAL_COLORS[mt] : '#adb5bd';
                                     badges[i].className = 'meal-cal-badge' + (active ? ' active' : '');

@@ -38,13 +38,21 @@ class ReservationBulkServiceTest extends TestCase
     /** @var \Cake\ORM\Table */
     private $roomTable;
 
-    // 日付バリデーションを常に通過させるポリシーモック
     /** 今日から $day 日後（直前期間）。固定の日付だと、日が経つと過去日になってテストの前提が崩れるため */
     private static function d(int $day): string
     {
         return date('Y-m-d', strtotime("+{$day} days"));
     }
 
+    /** 過去日の判定を本物にした直前一括編集（setUp のモックは isPastDate を常に false にするため） */
+    private function callBulkChangeEditWithRealDates(array $dayUsers, bool $isAdmin, int $loginUserId): array
+    {
+        return (new ReservationBulkService())->processBulkChangeEdit(
+            $dayUsers, 1, 'tester', $this->reservationTable, $this->userTable, [], $loginUserId, $isAdmin, 0, false
+        );
+    }
+
+    // 日付バリデーションを常に通過させるポリシーモック
     private function makeDatePolicyMock(): ReservationDatePolicy
     {
         $mock = $this->getMockBuilder(ReservationDatePolicy::class)
@@ -873,17 +881,19 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertSame([1], $this->reservationTable->findEffectiveRoomIds(2, $date, 2));
     }
 
-    /** 直前一括編集: 管理者以外は、過ぎた日の予約を変更できない（数える値が i_change_flag のため食数・控除表が変わる） */
-    public function testBulkChangeEditRejectsPastDateForNonAdmin(): void
+    /** 直前一括編集: 管理者以外は、過ぎた日の予約を変更できない。送信全体は止めず、その行だけ理由付きで飛ばす */
+    public function testBulkChangeEditSkipsPastDateChangeForNonAdmin(): void
     {
-        $date = date('Y-m-d', strtotime('-3 days'));
-        $this->insertReservation(['i_id_user' => 1, 'd_reservation_date' => $date, 'eat_flag' => 1, 'i_change_flag' => 1]);
+        $past = date('Y-m-d', strtotime('-3 days'));
+        $near = self::d(5);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $past, 'eat_flag' => 1, 'i_change_flag' => 1]);
 
-        $result = $this->callBulkChangeEdit([$date => ['1' => ['1' => '0']]], false, 1);
+        $result = $this->callBulkChangeEditWithRealDates([$past => ['3' => ['1' => '0']], $near => ['3' => ['1' => '1']]], false, 1);
 
-        $this->assertFalse($result['ok']);
-        $this->assertSame('過去日の予約は変更できません。', $result['message']);
-        $this->assertSame(1, (int)$this->fetchReservation(1, $date, 1, 1)->i_change_flag);
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertStringContainsString("{$past} は過去日のため", implode('', $result['skipped']));
+        $this->assertSame(1, (int)$this->fetchReservation(3, $past, 1, 1)->i_change_flag, '過去日の予約が変わっている');
+        $this->assertSame(1, (int)$this->fetchReservation(3, $near, 1, 1)->i_change_flag, '今日以降の変更が保存されていない');
     }
 
     /** 直前一括編集: 職員の直前取消は、黙って捨てずに理由を返す */
@@ -933,9 +943,10 @@ class ReservationBulkServiceTest extends TestCase
         $near = self::d(5);
         $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $past, 'eat_flag' => 1, 'i_change_flag' => 1]);
 
-        $result = $this->callBulkChangeEdit([$past => ['3' => ['1' => '1']], $near => ['3' => ['1' => '1']]], false, 1);
+        $result = $this->callBulkChangeEditWithRealDates([$past => ['3' => ['1' => '1']], $near => ['3' => ['1' => '1']]], false, 1);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame([], $result['skipped'], '変わっていない過去日の行に理由を出している');
         $this->assertSame(1, (int)$this->fetchReservation(3, $near, 1, 1)->i_change_flag);
     }
 }

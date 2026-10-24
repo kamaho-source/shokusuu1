@@ -63,9 +63,9 @@ class ReservationBulkService
         }
 
         // 過ぎた日（実績）は、管理者以外は書き換えさせない（数える値が i_change_flag のため、食数・控除表が変わる）。
-        // 画面は変わっていない行も送り、保存しなかった過去日の選択が残ることもあるので、実際に変わる行だけを拒否する
-        $datePolicy = new ReservationDatePolicy();
-        $pastDateRejected = static fn(): array => ['ok' => false, 'message' => '過去日の予約は変更できません。'];
+        // 画面は変わっていない行も送り、保存しなかった過去日の選択が残ることもある。過去日は画面で直せないので、
+        // 送信全体は止めず、実際に変わる行だけを理由付きで飛ばす
+        $datePolicy = $this->datePolicy;
 
         $connection = $reservationTable->getConnection();
         $connection->begin();
@@ -168,7 +168,7 @@ class ReservationBulkService
                                 }
                                 // 画面は変わっていない行も送るので、実際に取り消そうとした（今は食べる）ときだけ理由を返す
                                 if ($datePolicy->countedValue((string)$date, $existing->eat_flag, $existing->i_change_flag) === 1) {
-                                    $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
+                                    $skipped[] = "{$date} の利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
                                 }
                                 continue;
                             }
@@ -177,8 +177,8 @@ class ReservationBulkService
                             // 数える値が変わる行だけを書く（i_change_flag が NULL の古い行を、変わっていないのに書き換えない）
                             if ($datePolicy->countedValue((string)$date, $existing->eat_flag, $existing->i_change_flag) !== $changeFlag) {
                                 if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
-                                    $connection->rollback();
-                                    return $pastDateRejected();
+                                    $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
+                                    continue;
                                 }
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
@@ -205,8 +205,8 @@ class ReservationBulkService
                                 continue;
                             }
                             if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
-                                $connection->rollback();
-                                return $pastDateRejected();
+                                $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
+                                continue;
                             }
                             if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
                                 $connection->rollback();
@@ -246,7 +246,7 @@ class ReservationBulkService
                 'ok' => true,
                 'updated' => $updated,
                 'created' => $created,
-                'skipped' => $skipped,
+                'skipped' => array_values(array_unique($skipped)),
             ];
         } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
             $connection->rollback();

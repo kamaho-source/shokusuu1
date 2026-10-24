@@ -230,7 +230,9 @@ class ReservationQueryService
 
         $map = [];
         foreach ($rows as $row) {
-            $dateKey = (string)$row->d_reservation_date;
+            // Date を文字列にするとロケール依存の形（例 10/27/26）になり、画面の Y-m-d のキーで引けず競合チェックが効かない。
+            // サーバー側の比較（ReservationBulkService::checkReservationSnapshots）と同じく Y-m-d で取り出す
+            $dateKey = is_object($row->d_reservation_date) ? $row->d_reservation_date->format('Y-m-d') : (string)$row->d_reservation_date;
             $map[$dateKey] = $row->max_dt ? (string)$row->max_dt : null;
         }
         return $map;
