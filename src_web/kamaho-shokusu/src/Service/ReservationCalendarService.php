@@ -15,6 +15,12 @@ class ReservationCalendarService
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
     }
 
+    /**
+     * 利用者が有効に所属している部屋の ID（退出済みの所属と、削除済みの部屋は含めない）。
+     *
+     * @return list<int>
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
+     */
     public function getUserRoomIds(Table $userGroupTable, int $userId): array
     {
         // 削除済みの部屋は所属に数えない（代表部屋が削除済みになると、カレンダーで予約を開けなくなるため）

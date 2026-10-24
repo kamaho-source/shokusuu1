@@ -144,6 +144,14 @@ class ReservationWriteService
         throw new PersistenceException('システムエラーが発生しました。');
     }
 
+    /**
+     * グループ予約（1部屋 × 1日 × 複数利用者）を保存する。
+     *
+     * @throws \App\Domain\Exception\InvalidInputException 入力・日付が不正な場合
+     * @throws \App\Domain\Exception\UnauthorizedException 権限のない部屋を指定した場合
+     * @throws \App\Domain\Exception\ConflictException 競合・昼食と弁当の同時予約になる場合
+     * @throws \App\Domain\Exception\PersistenceException 保存に失敗した場合
+     */
     public function processGroupReservation(
         string $reservationDate,
         array|string $jsonData,
@@ -1049,8 +1057,10 @@ class ReservationWriteService
                 $existing     = $userMealRows[(int)$roomId] ?? null;
 
                 // 退出済み・削除済みの部屋に残った予約は、取消だけ許す。ここで移すと黙って部屋が変わるので、スキップして伝える
+                // （この部屋ですでに有効な食事は変更なしなので見ない）
+                $effectiveHere = isset($userMealRows[(int)$roomId]) && TIndividualReservationInfoTable::isEffectiveRow($userMealRows[(int)$roomId]);
                 foreach ($userMealRows as $existingRoomId => $row) {
-                    if ((int)$existingRoomId !== (int)$roomId && TIndividualReservationInfoTable::isEffectiveRow($row)
+                    if (!$effectiveHere && (int)$existingRoomId !== (int)$roomId && TIndividualReservationInfoTable::isEffectiveRow($row)
                         && (!$this->isRoomAvailable((int)$existingRoomId) || !$this->isActiveMember((int)$targetUserId, (int)$existingRoomId))
                     ) {
                         $duplicates[] = [

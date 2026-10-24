@@ -51,8 +51,6 @@
         [1, 2, 3, 4].forEach(function (mt) {
             html += '<label class="meal-cal-check-label">'
                 + '<input type="checkbox" class="form-check-input meal-cal-check" data-meal="' + mt + '"'
-                // 保存前の状態。取消が通らなかったときに、チェックを元に戻すために使う
-                + ' data-was-checked="' + (meals[mt] ? '1' : '0') + '"'
                 + (meals[mt] ? ' checked' : '') + '>'
                 + '<span class="meal-cal-check-text" style="color:' + MEAL_COLORS[mt] + '">' + escHtml(MEAL_LABELS[mt]) + '</span>'
                 + '</label>';
@@ -125,23 +123,20 @@
                         saveBtn.disabled = false;
                         var ok = data.ok === true || data.status === 'success';
                         var skipped = (data.data && Array.isArray(data.data.skipped)) ? data.data.skipped : [];
-                        if (ok && skipped.length) {
-                            // 職員の直前取消・過去日などで変えられなかった。どの食事かは応答に無いので、全チェックを保存前に戻して理由を出す
-                            checks.forEach(function (c) { c.checked = c.dataset.wasChecked === '1'; });
-                        }
+                        // 職員の直前取消・過去日などで、一部の変更ができなかった。どの食事かは応答に無いので、
+                        // 画面の状態は推測で直さず（保存できた分まで戻さないため）、理由と再読み込みの案内を出す
                         if (statusEl) {
                             statusEl.textContent = !ok ? ('✗ ' + (data.message || '保存失敗'))
-                                : skipped.length ? ('⚠ ' + skipped.join(' ')) : '✓ 保存しました';
+                                : skipped.length ? ('⚠ ' + skipped.join(' ') + ' 画面を再読み込みして確認してください。') : '✓ 保存しました';
                             statusEl.className = 'meal-cal-save-status ' + (!ok ? 'text-danger' : skipped.length ? 'text-warning' : 'text-success');
                             setTimeout(function () { statusEl.textContent = ''; }, skipped.length ? 6000 : 2500);
                         }
                         // 保存成功時にヘッダーバッジを更新
-                        if (ok && item) {
+                        if (ok && item && !skipped.length) {
                             var badges = Array.from(item.querySelectorAll('.meal-cal-badge'));
                             checks.forEach(function (c, i) {
                                 var mt = parseInt(c.dataset.meal, 10);
                                 var active = c.checked;
-                                c.dataset.wasChecked = active ? '1' : '0';
                                 if (badges[i]) {
                                     badges[i].style.background = active ? MEAL_COLORS[mt] : '#adb5bd';
                                     badges[i].className = 'meal-cal-badge' + (active ? ' active' : '');

@@ -174,6 +174,15 @@ class ReservationChangeEditService
         return $usersForJson;
     }
 
+    /**
+     * 直前編集（1部屋 × 1日）を保存する。変更できない利用者・食事は skipped に理由を積んで飛ばす。
+     *
+     * @return array{updated: list<string>, created: list<string>, skipped: list<string>}
+     * @throws \App\Domain\Exception\InvalidInputException 管理者以外が過去日を変更しようとした場合
+     * @throws \App\Exception\ApprovedReservationException 承認済みの予約を変更しようとした場合
+     * @throws \App\Exception\DuplicateMealReservationException 二重予約・昼食と弁当の同時予約になる場合
+     * @throws \App\Exception\OptimisticLockConflictException 他の操作と競合した場合
+     */
     public function processUpdate(
         array $usersData,
         array $userIdList,
@@ -314,7 +323,8 @@ class ReservationChangeEditService
                         }
 
                         // 退出済み・削除済みの部屋に残った予約は、取消だけ許す（ここで移すと、黙って部屋が変わる）
-                        if ($changeFlag === 1) {
+                        // この部屋ですでに有効な食事（変更なし）は見ない。以前の二重データで、関係のない保存のたびに警告を出さないため
+                        if ($changeFlag === 1 && !($existingInRoom !== null && TIndividualReservationInfoTable::isEffectiveRow($existingInRoom))) {
                             $outside = $this->outsideRoomIdsWithEffectiveRow($existingByRoom[$userId][$mealType] ?? [], $roomId, $userId);
                             if ($outside !== []) {
                                 $skipped[] = "利用者ID {$userId} は、所属外の部屋（ID " . implode('・', $outside) . "）に同じ食事の予約があるため、この部屋では登録できません。先にその予約を取り消してください。";
