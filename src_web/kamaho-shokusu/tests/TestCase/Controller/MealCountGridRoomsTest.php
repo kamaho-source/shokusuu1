@@ -82,10 +82,10 @@ class MealCountGridRoomsTest extends TestCase
     }
 
     /**
-     * エクセル食数予約は特例として、管理者にだけ削除済みの部屋も選択肢に出す（#819）。
-     * 事務所ユーザーには出さない。
+     * 削除済みの部屋は、管理者にも事務所ユーザーにも選択肢に出さない（#819）。
+     * 管理者は所属部屋のみ（#821）なので、所属していない削除済みの部屋は出ない。
      */
-    public function testDeletedRoomIsShownOnlyToAdmin(): void
+    public function testDeletedRoomIsNotShown(): void
     {
         $db = ConnectionManager::get('test');
         $db->insert('m_room_info', ['i_id_room' => 4, 'c_room_name' => '削除済みの部屋', 'i_disp_no' => 4, 'i_enable' => 1, 'i_del_flg' => 1]);
@@ -93,7 +93,7 @@ class MealCountGridRoomsTest extends TestCase
         $this->loginAs(1);
         $this->get('/TReservationInfo/meal-count-grid?mode=all');
         $this->assertResponseOk();
-        $this->assertArrayHasKey(4, $this->viewVariable('allRooms'));
+        $this->assertArrayNotHasKey(4, $this->viewVariable('allRooms'));
 
         // 事務所ユーザー（一般職員で、事務所の部屋に所属）には、削除済みの部屋に所属していても出さない
         $db->insert('m_room_info', ['i_id_room' => 5, 'c_room_name' => '事務所', 'i_disp_no' => 5, 'i_enable' => 1, 'i_del_flg' => 0]);

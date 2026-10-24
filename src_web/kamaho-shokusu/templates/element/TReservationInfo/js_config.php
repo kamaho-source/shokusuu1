@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var mixed $JS_AVAILABLE_ROOM_NAMES
+ * @var string $JS_PICKER_ROOMS
  * @var string $JS_CURRENT_ROOM
  * @var string $JS_EXISTING_EVENTS
  * @var string $JS_MY_DETAILS
@@ -59,9 +60,12 @@ $pastDateUnavailableMessage = (string)Configure::read(
         myDetails: <?= $JS_MY_DETAILS ?>,
         roomNames: <?= $JS_ROOM_NAMES ?? '{}' ?>,
         availableRoomNames: <?= $JS_AVAILABLE_ROOM_NAMES ?? '{}' ?>,
+        pickerRooms: <?= $JS_PICKER_ROOMS ?? '[]' ?>,
         currentRoom: <?= $JS_CURRENT_ROOM ?>,
         toggleBase: <?= $JS_TOGGLE_BASE ?>,
         directRegisterUrl: <?= json_encode($this->Url->build('/TReservationInfo/direct-register'), JSON_UNESCAPED_SLASHES) ?>,
+        mealIconBase: <?= json_encode($this->Url->build('/img/meal-picker/'), JSON_UNESCAPED_SLASHES) ?>,
+        changeRoomUrl: <?= json_encode($this->Url->build('/TReservationInfo/change-room'), JSON_UNESCAPED_SLASHES) ?>,
         addUrl: '<?= preg_replace("#^https?:#", "", $this->Url->build(["controller"=>"TReservationInfo","action"=>"add"], ["fullBase"=>true])) ?>',
         changeEditUrl: '<?= preg_replace("#^https?:#", "", $this->Url->build(["controller"=>"TReservationInfo","action"=>"changeEdit"], ["fullBase"=>true])) ?>',
         csrfToken: <?= json_encode($csrfToken) ?>,

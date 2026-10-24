@@ -38,6 +38,20 @@ class ReservationBulkServiceTest extends TestCase
     /** @var \Cake\ORM\Table */
     private $roomTable;
 
+    /** 今日から $day 日後（直前期間）。固定の日付だと、日が経つと過去日になってテストの前提が崩れるため */
+    private static function d(int $day): string
+    {
+        return date('Y-m-d', strtotime("+{$day} days"));
+    }
+
+    /** 過去日の判定を本物にした直前一括編集（setUp のモックは isPastDate を常に false にするため） */
+    private function callBulkChangeEditWithRealDates(array $dayUsers, bool $isAdmin, int $loginUserId): array
+    {
+        return (new ReservationBulkService())->processBulkChangeEdit(
+            $dayUsers, 1, 'tester', $this->reservationTable, $this->userTable, [], $loginUserId, $isAdmin, 0, false
+        );
+    }
+
     // 日付バリデーションを常に通過させるポリシーモック
     private function makeDatePolicyMock(): ReservationDatePolicy
     {
@@ -67,6 +81,12 @@ class ReservationBulkServiceTest extends TestCase
             'MRoomInfo',
             ['table' => 'm_room_info']
         );
+
+        // callBulkAdd の管理者（user 99）は部屋1に有効所属している。管理者も所属外の部屋は扱えない（#821）
+        $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => 99, 'i_id_room' => 1, 'active_flag' => 0, 'dt_create' => $now, 'dt_update' => $now,
+        ]);
     }
 
     // ---------------------------------------------------------------------------
@@ -79,7 +99,7 @@ class ReservationBulkServiceTest extends TestCase
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
         $default = [
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-01',
+            'd_reservation_date' => self::d(1),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -142,12 +162,12 @@ class ReservationBulkServiceTest extends TestCase
     public function testCheckOnCreatesReservationWithEatFlagOne(): void
     {
         $result = $this->callBulkAdd([
-            '2026-06-01' => ['1' => ['1' => '1']],
+            self::d(1) => ['1' => ['1' => '1']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
-        $row = $this->fetchReservation(1, '2026-06-01', 1, 1);
+        $row = $this->fetchReservation(1, self::d(1), 1, 1);
         $this->assertNotNull($row, 'レコードが作成されていない');
         $this->assertSame(1, (int)$row->eat_flag, 'eat_flag が 1 でない');
         $this->assertSame(1, (int)$row->i_change_flag, 'i_change_flag が 1 でない');
@@ -162,7 +182,7 @@ class ReservationBulkServiceTest extends TestCase
         // テスト用に別途 2026-06-01 のレコードを挿入
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-01',
+            'd_reservation_date' => self::d(1),
             'i_reservation_type' => 2,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -170,12 +190,12 @@ class ReservationBulkServiceTest extends TestCase
         ]);
 
         $result = $this->callBulkAdd([
-            '2026-06-01' => ['1' => ['2' => '0']],
+            self::d(1) => ['1' => ['2' => '0']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
-        $row = $this->fetchReservation(1, '2026-06-01', 2, 1);
+        $row = $this->fetchReservation(1, self::d(1), 2, 1);
         $this->assertNotNull($row, 'レコードが見つからない');
         $this->assertSame(0, (int)$row->eat_flag, 'eat_flag が 0 になっていない');
         $this->assertSame(0, (int)$row->i_change_flag, 'i_change_flag が 0 になっていない');
@@ -187,12 +207,12 @@ class ReservationBulkServiceTest extends TestCase
     public function testCheckOffWithNoExistingReservationIsNoOp(): void
     {
         $result = $this->callBulkAdd([
-            '2026-06-02' => ['1' => ['3' => '0']],
+            self::d(2) => ['1' => ['3' => '0']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
-        $row = $this->fetchReservation(1, '2026-06-02', 3, 1);
+        $row = $this->fetchReservation(1, self::d(2), 3, 1);
         $this->assertNull($row, '存在しないはずのレコードが作成されている');
     }
 
@@ -204,7 +224,7 @@ class ReservationBulkServiceTest extends TestCase
         // 朝(1) は既存予約あり → OFF でキャンセル
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-03',
+            'd_reservation_date' => self::d(3),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -213,19 +233,19 @@ class ReservationBulkServiceTest extends TestCase
 
         // 昼(2) は未予約 → ON で新規作成
         $result = $this->callBulkAdd([
-            '2026-06-03' => ['1' => ['1' => '0', '2' => '1']],
+            self::d(3) => ['1' => ['1' => '0', '2' => '1']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
         // 朝 → 非活性化
-        $morning = $this->fetchReservation(1, '2026-06-03', 1, 1);
+        $morning = $this->fetchReservation(1, self::d(3), 1, 1);
         $this->assertNotNull($morning);
         $this->assertSame(0, (int)$morning->eat_flag, '朝の eat_flag が 0 になっていない');
         $this->assertSame(0, (int)$morning->i_change_flag, '朝の i_change_flag が 0 になっていない');
 
         // 昼 → 新規作成
-        $noon = $this->fetchReservation(1, '2026-06-03', 2, 1);
+        $noon = $this->fetchReservation(1, self::d(3), 2, 1);
         $this->assertNotNull($noon, '昼のレコードが作成されていない');
         $this->assertSame(1, (int)$noon->eat_flag, '昼の eat_flag が 1 でない');
         $this->assertSame(1, (int)$noon->i_change_flag, '昼の i_change_flag が 1 でない');
@@ -238,7 +258,7 @@ class ReservationBulkServiceTest extends TestCase
     {
         // user 1 は i_user_level=0（職員）のため、非管理者職員 loginUserId=99 は操作不可
         $result = $this->callBulkAdd(
-            ['2026-06-01' => ['1' => ['1' => '1']]],
+            [self::d(1) => ['1' => ['1' => '1']]],
             1,
             false  // isAdmin = false
         );
@@ -253,7 +273,7 @@ class ReservationBulkServiceTest extends TestCase
     public function testAdminCanEditOtherStaffReservation(): void
     {
         $result = $this->callBulkAdd(
-            ['2026-06-01' => ['1' => ['1' => '1']]],
+            [self::d(1) => ['1' => ['1' => '1']]],
             1,
             true  // isAdmin = true
         );
@@ -285,7 +305,7 @@ class ReservationBulkServiceTest extends TestCase
     {
         // user 2 は部屋1のみに所属（MUserGroup フィクスチャ）。部屋99は所属外。
         $result = $this->service->processBulkChangeEdit(
-            ['2026-06-10' => ['2' => ['1' => '1']]],
+            [self::d(10) => ['2' => ['1' => '1']]],
             99,
             'tester',
             $this->reservationTable,
@@ -300,7 +320,7 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertFalse($result['ok']);
         $this->assertStringContainsString('権限がありません', $result['message']);
         $this->assertNull(
-            $this->fetchReservation(2, '2026-06-10', 1, 99),
+            $this->fetchReservation(2, self::d(10), 1, 99),
             '所属外の部屋に予約が書き込まれている'
         );
     }
@@ -310,10 +330,10 @@ class ReservationBulkServiceTest extends TestCase
      */
     public function testBulkChangeEditAllowsSelfEditInAffiliatedRoom(): void
     {
-        $result = $this->callBulkChangeEdit(['2026-06-10' => ['2' => ['1' => '1']]]);
+        $result = $this->callBulkChangeEdit([self::d(10) => ['2' => ['1' => '1']]]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $this->assertNotNull($this->fetchReservation(2, '2026-06-10', 1, 1));
+        $this->assertNotNull($this->fetchReservation(2, self::d(10), 1, 1));
     }
 
     /**
@@ -324,7 +344,7 @@ class ReservationBulkServiceTest extends TestCase
         // user 3（子供・部屋1所属）の承認済み予約を、職員である user 2 が解除しようとする
         $this->insertReservation([
             'i_id_user'          => 3,
-            'd_reservation_date' => '2026-06-10',
+            'd_reservation_date' => self::d(10),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -332,11 +352,11 @@ class ReservationBulkServiceTest extends TestCase
             'i_approval_status'  => 2,
         ]);
 
-        $result = $this->callBulkChangeEdit(['2026-06-10' => ['3' => ['1' => '0']]]);
+        $result = $this->callBulkChangeEdit([self::d(10) => ['3' => ['1' => '0']]]);
 
         $this->assertFalse($result['ok']);
         $this->assertStringContainsString('承認済み', $result['message']);
-        $row = $this->fetchReservation(3, '2026-06-10', 1, 1);
+        $row = $this->fetchReservation(3, self::d(10), 1, 1);
         $this->assertSame(1, (int)$row->i_change_flag, '承認済みの予約が変更されている');
     }
 
@@ -349,7 +369,7 @@ class ReservationBulkServiceTest extends TestCase
         // user 1（別の職員）の既存予約（i_change_flag=1）
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-10',
+            'd_reservation_date' => self::d(10),
             'i_reservation_type' => 3,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -358,7 +378,7 @@ class ReservationBulkServiceTest extends TestCase
 
         // user 1 の行は値の変わらない no-op、user 2（自分）の行のみ実変更
         $result = $this->callBulkChangeEdit([
-            '2026-06-10' => [
+            self::d(10) => [
                 '1' => ['3' => '1'],
                 '2' => ['1' => '1'],
             ],
@@ -369,7 +389,7 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertSame(0, $result['updated']);
 
         // user 1 の既存予約は更新されていない
-        $other = $this->fetchReservation(1, '2026-06-10', 3, 1);
+        $other = $this->fetchReservation(1, self::d(10), 3, 1);
         $this->assertNotNull($other);
         $this->assertSame(1, (int)$other->i_version, '他ユーザーの予約が更新されている');
     }
@@ -380,12 +400,12 @@ class ReservationBulkServiceTest extends TestCase
     public function testBulkChangeEditRejectsActualChangeToOtherStaff(): void
     {
         $result = $this->callBulkChangeEdit([
-            '2026-06-10' => ['1' => ['1' => '1']],
+            self::d(10) => ['1' => ['1' => '1']],
         ]);
 
         $this->assertFalse($result['ok']);
         $this->assertStringContainsString('権限がありません', $result['message']);
-        $this->assertNull($this->fetchReservation(1, '2026-06-10', 1, 1), '権限のない予約が作成されている');
+        $this->assertNull($this->fetchReservation(1, self::d(10), 1, 1), '権限のない予約が作成されている');
     }
 
     /**
@@ -394,7 +414,7 @@ class ReservationBulkServiceTest extends TestCase
     public function testBulkChangeEditStaffCanEditChildReservation(): void
     {
         $result = $this->callBulkChangeEdit([
-            '2026-06-10' => ['3' => ['1' => '1']],
+            self::d(10) => ['3' => ['1' => '1']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
@@ -402,28 +422,41 @@ class ReservationBulkServiceTest extends TestCase
     }
 
     /**
-     * 直前一括編集: 職員の既存予約は、取消（チェックOFF）の指定があっても取消されない。
+     * 直前一括編集: 職員は、直前期間の自分の予約を取消（チェックOFF）できない。
      * 職員レベル 0 と 7 のどちらも同じ。
      *
      * @dataProvider staffLevelProvider
      */
     public function testBulkChangeEditDoesNotCancelStaffReservation(int $staffLevel): void
     {
+        $date = date('Y-m-d', strtotime('+5 days'));
         $this->userTable->updateAll(['i_user_level' => $staffLevel], ['i_id_user' => 1]);
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-10',
+            'd_reservation_date' => $date,
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
             'i_change_flag'      => 1,
         ]);
 
-        $this->callBulkChangeEdit(['2026-06-10' => ['1' => ['1' => '0']]], true, 99);
+        $this->callBulkChangeEdit([$date => ['1' => ['1' => '0']]], false, 1);
 
-        $row = $this->fetchReservation(1, '2026-06-10', 1, 1);
+        $row = $this->fetchReservation(1, $date, 1, 1);
         $this->assertNotNull($row);
         $this->assertSame(1, (int)$row->i_change_flag, "職員(level {$staffLevel})の予約が取消されている");
+    }
+
+    /** 直前一括編集: 管理者は、職員の直前期間の予約を取り消せる（toggle・change-room と同じ） */
+    public function testBulkChangeEditAdminCanCancelStaffReservation(): void
+    {
+        $date = date('Y-m-d', strtotime('+5 days'));
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEdit([$date => ['2' => ['1' => '0']]], true, 99);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(0, (int)$this->fetchReservation(2, $date, 1, 1)->i_change_flag);
     }
 
     /** @return array<string, array{int}> */
@@ -441,7 +474,7 @@ class ReservationBulkServiceTest extends TestCase
         // user 1（別の職員）の既存有効予約
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-11',
+            'd_reservation_date' => self::d(11),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -450,14 +483,14 @@ class ReservationBulkServiceTest extends TestCase
 
         // user 1 の行は既存予約ありでスキップ対象、user 3（子供）の行のみ実変更
         $result = $this->callBulkAdd(
-            ['2026-06-11' => ['1' => ['1' => '1'], '3' => ['2' => '1']]],
+            [self::d(11) => ['1' => ['1' => '1'], '3' => ['2' => '1']]],
             1,
             false  // isAdmin = false
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
         $this->assertStringContainsString('スキップ', $result['message']);
-        $this->assertNotNull($this->fetchReservation(3, '2026-06-11', 2, 1), '子供の予約が作成されていない');
+        $this->assertNotNull($this->fetchReservation(3, self::d(11), 2, 1), '子供の予約が作成されていない');
     }
 
     /**
@@ -467,7 +500,7 @@ class ReservationBulkServiceTest extends TestCase
     {
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-12',
+            'd_reservation_date' => self::d(12),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -475,7 +508,7 @@ class ReservationBulkServiceTest extends TestCase
         ]);
 
         $result = $this->callBulkAdd(
-            ['2026-06-12' => ['1' => ['1' => '0']]],
+            [self::d(12) => ['1' => ['1' => '0']]],
             1,
             false  // isAdmin = false
         );
@@ -483,7 +516,7 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertFalse($result['ok']);
         $this->assertStringContainsString('権限がありません', $result['message']);
 
-        $row = $this->fetchReservation(1, '2026-06-12', 1, 1);
+        $row = $this->fetchReservation(1, self::d(12), 1, 1);
         $this->assertNotNull($row);
         $this->assertSame(1, (int)$row->eat_flag, '権限がないのに予約が取り消されている');
     }
@@ -496,7 +529,7 @@ class ReservationBulkServiceTest extends TestCase
         // user 3（子供・編集可）と user 1（他の職員・編集不可）の両方に有効予約
         $this->insertReservation([
             'i_id_user'          => 3,
-            'd_reservation_date' => '2026-06-13',
+            'd_reservation_date' => self::d(13),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -504,7 +537,7 @@ class ReservationBulkServiceTest extends TestCase
         ]);
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => '2026-06-13',
+            'd_reservation_date' => self::d(13),
             'i_reservation_type' => 2,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -513,7 +546,7 @@ class ReservationBulkServiceTest extends TestCase
 
         // 子供の取り消し（許可）→ 職員の取り消し（拒否）の順で処理される
         $result = $this->callBulkAdd(
-            ['2026-06-13' => ['3' => ['1' => '0'], '1' => ['2' => '0']]],
+            [self::d(13) => ['3' => ['1' => '0'], '1' => ['2' => '0']]],
             1,
             false  // isAdmin = false
         );
@@ -522,7 +555,7 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertStringContainsString('権限がありません', $result['message']);
 
         // 拒否時は先行して処理された子供の予約も取り消されていないこと
-        $child = $this->fetchReservation(3, '2026-06-13', 1, 1);
+        $child = $this->fetchReservation(3, self::d(13), 1, 1);
         $this->assertNotNull($child);
         $this->assertSame(1, (int)$child->eat_flag, '権限拒否時に先行行だけが非活性化されている');
     }
@@ -534,7 +567,7 @@ class ReservationBulkServiceTest extends TestCase
     {
         $this->insertReservation([
             'i_id_user'          => 3,
-            'd_reservation_date' => '2026-06-14',
+            'd_reservation_date' => self::d(14),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -542,14 +575,14 @@ class ReservationBulkServiceTest extends TestCase
         ]);
 
         $result = $this->callBulkAdd(
-            ['2026-06-14' => ['3' => ['1' => '0']]],
+            [self::d(14) => ['3' => ['1' => '0']]],
             1,
             false  // isAdmin = false（職員→子供は許可）
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
-        $row = $this->fetchReservation(3, '2026-06-14', 1, 1);
+        $row = $this->fetchReservation(3, self::d(14), 1, 1);
         $this->assertNotNull($row);
         $this->assertSame(0, (int)$row->eat_flag, '取り消しが保存されていない');
         $this->assertSame(0, (int)$row->i_change_flag);
@@ -635,12 +668,14 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertStringContainsString('部屋情報が不正', $result['message']);
     }
 
-    public function testPersonalBulkAdd_adminCanUseNotMemberRoom_butNotDeletedRoom(): void
+    public function testPersonalBulkAdd_adminCannotUseNotMemberOrDeletedRoom(): void
     {
         $this->addRoomWithMembers(43, 0, []);   // 未所属の有効な部屋
         $this->addRoomWithMembers(44, 1, []);   // 削除済みの部屋
 
-        $this->assertTrue($this->callPersonalBulkAdd(43, true)['ok'], '管理者は所属外の部屋でも可（従来どおり）');
+        $notMember = $this->callPersonalBulkAdd(43, true);
+        $this->assertFalse($notMember['ok'], '管理者も所属外の部屋は不可（#821）');
+        $this->assertSame('所属していない部屋には登録できません。', $notMember['message']);
         $this->assertFalse($this->callPersonalBulkAdd(44, true)['ok'], '管理者でも削除済みの部屋は不可');
     }
 
@@ -650,27 +685,27 @@ class ReservationBulkServiceTest extends TestCase
         $this->addRoomWithMembers(45, 0, [2 => 0]); // 職員(user 2)は所属、児童(user 3)は未所属
 
         $result = $this->service->processBulkChangeEdit(
-            ['2026-06-10' => ['3' => ['1' => '1']]],
+            [self::d(10) => ['3' => ['1' => '1']]],
             45, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
         );
 
         $this->assertFalse($result['ok']);
         $this->assertStringContainsString('権限がありません', $result['message']);
-        $this->assertNull($this->fetchReservation(3, '2026-06-10', 1, 45));
+        $this->assertNull($this->fetchReservation(3, self::d(10), 1, 45));
     }
 
     public function testBulkChangeEdit_childLeftRoom_isRejected_andMemberIsAllowed(): void
     {
         $this->addRoomWithMembers(46, 0, [2 => 0, 3 => 1]); // 児童は退出済み
         $rejected = $this->service->processBulkChangeEdit(
-            ['2026-06-10' => ['3' => ['1' => '1']]],
+            [self::d(10) => ['3' => ['1' => '1']]],
             46, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
         );
         $this->assertFalse($rejected['ok']);
 
         $this->addRoomWithMembers(47, 0, [2 => 0, 3 => 0]); // 正例: 児童も有効所属
         $allowed = $this->service->processBulkChangeEdit(
-            ['2026-06-10' => ['3' => ['1' => '1']]],
+            [self::d(10) => ['3' => ['1' => '1']]],
             47, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
         );
         $this->assertTrue($allowed['ok'], $allowed['message'] ?? '');
@@ -681,12 +716,12 @@ class ReservationBulkServiceTest extends TestCase
         $this->addRoomWithMembers(48, 1, [1 => 0]);
 
         $result = $this->service->processBulkChangeEdit(
-            ['2026-06-10' => ['1' => ['1' => '1']]],
+            [self::d(10) => ['1' => ['1' => '1']]],
             48, 'tester', $this->reservationTable, $this->userTable, [], 1, true, 0, false
         );
 
         $this->assertFalse($result['ok']);
-        $this->assertNull($this->fetchReservation(1, '2026-06-10', 1, 48));
+        $this->assertNull($this->fetchReservation(1, self::d(10), 1, 48));
     }
 
     /** グループ登録でも、児童が部屋に有効所属していないと職員は書き込めない */
@@ -695,12 +730,12 @@ class ReservationBulkServiceTest extends TestCase
         $this->addRoomWithMembers(49, 0, [2 => 0]); // 児童(user 3)は未所属
 
         $result = $this->service->processBulkAdd(
-            ['reservation_type' => 'group', 'i_id_room' => '49', 'day_users' => ['2026-06-10' => ['3' => ['1' => '1']]]],
+            ['reservation_type' => 'group', 'i_id_room' => '49', 'day_users' => [self::d(10) => ['3' => ['1' => '1']]]],
             2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
         );
 
         $this->assertFalse($result['ok']);
-        $this->assertNull($this->fetchReservation(3, '2026-06-10', 1, 49));
+        $this->assertNull($this->fetchReservation(3, self::d(10), 1, 49));
     }
 
     // ---------------------------------------------------------------------------
@@ -713,65 +748,97 @@ class ReservationBulkServiceTest extends TestCase
         $this->addRoomWithMembers(50, 0, [3 => 0]); // 児童(user 3)は有効所属、職員(user 2)は未所属
 
         $result = $this->service->processBulkAdd(
-            ['reservation_type' => 'group', 'i_id_room' => '50', 'day_users' => ['2026-06-10' => ['3' => ['1' => '1']]]],
+            ['reservation_type' => 'group', 'i_id_room' => '50', 'day_users' => [self::d(10) => ['3' => ['1' => '1']]]],
             2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
         );
 
         $this->assertFalse($result['ok']);
-        $this->assertNull($this->fetchReservation(3, '2026-06-10', 1, 50));
+        $this->assertNull($this->fetchReservation(3, self::d(10), 1, 50));
     }
 
     /** グループ: 退出済みの児童の既存予約は、職員（部屋の有効所属）が取消せる。登録は拒否される */
     public function testGroupBulkAdd_staffCanCancelButNotRegisterForLeftChild(): void
     {
         $this->addRoomWithMembers(51, 0, [2 => 0, 3 => 1]); // 児童は退出済み
-        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 51, 'eat_flag' => 1, 'i_change_flag' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => self::d(12), 'i_reservation_type' => 1, 'i_id_room' => 51, 'eat_flag' => 1, 'i_change_flag' => 1]);
 
         $register = $this->service->processBulkAdd(
-            ['reservation_type' => 'group', 'i_id_room' => '51', 'day_users' => ['2026-06-13' => ['3' => ['1' => '1']]]],
+            ['reservation_type' => 'group', 'i_id_room' => '51', 'day_users' => [self::d(13) => ['3' => ['1' => '1']]]],
             2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
         );
         $this->assertFalse($register['ok'], '退出済みの児童への登録は拒否');
 
         $cancel = $this->service->processBulkAdd(
-            ['reservation_type' => 'group', 'i_id_room' => '51', 'day_users' => ['2026-06-12' => ['3' => ['1' => '0']]]],
+            ['reservation_type' => 'group', 'i_id_room' => '51', 'day_users' => [self::d(12) => ['3' => ['1' => '0']]]],
             2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
         );
         $this->assertTrue($cancel['ok'], $cancel['message'] ?? '');
-        $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 51)->eat_flag);
+        $this->assertSame(0, (int)$this->fetchReservation(3, self::d(12), 1, 51)->eat_flag);
     }
 
     /** 一括変更: 退出済みの児童の予約を取消（0）できるが、新規登録（1）はできない */
     public function testBulkChangeEdit_cancelForLeftChildAllowed_registerRejected(): void
     {
         $this->addRoomWithMembers(52, 0, [2 => 0, 3 => 1]);
-        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 52, 'eat_flag' => 1, 'i_change_flag' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => self::d(12), 'i_reservation_type' => 1, 'i_id_room' => 52, 'eat_flag' => 1, 'i_change_flag' => 1]);
 
         $cancel = $this->service->processBulkChangeEdit(
-            ['2026-06-12' => ['3' => ['1' => '0']]],
+            [self::d(12) => ['3' => ['1' => '0']]],
             52, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
         );
         $this->assertTrue($cancel['ok'], $cancel['message'] ?? '');
 
         $register = $this->service->processBulkChangeEdit(
-            ['2026-06-13' => ['3' => ['1' => '1']]],
+            [self::d(13) => ['3' => ['1' => '1']]],
             52, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
         );
         $this->assertFalse($register['ok']);
     }
 
-    /** 管理者は、所属外の部屋の予約も取消できる（本番にある代理入力の取消） */
-    public function testBulkChangeEdit_adminCanCancelInNotMemberRoom(): void
+    /** 管理者でも、所属外の部屋の予約は取消できない（#821） */
+    public function testBulkChangeEdit_adminCannotCancelInNotMemberRoom(): void
     {
         $this->addRoomWithMembers(53, 0, [3 => 1]); // 管理者(user 1)は未所属
-        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 53, 'eat_flag' => 1, 'i_change_flag' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => self::d(12), 'i_reservation_type' => 1, 'i_id_room' => 53, 'eat_flag' => 1, 'i_change_flag' => 1]);
 
         $result = $this->service->processBulkChangeEdit(
-            ['2026-06-12' => ['3' => ['1' => '0']]],
+            [self::d(12) => ['3' => ['1' => '0']]],
             53, 'tester', $this->reservationTable, $this->userTable, [], 1, true, 0, false
         );
 
+        $this->assertFalse($result['ok']);
+        $this->assertSame(1, (int)$this->fetchReservation(3, self::d(12), 1, 53)->eat_flag, '予約は変更されない');
+    }
+
+    /** 管理者は、所属部屋なら退出済みの対象の予約も取消できる */
+    public function testBulkChangeEdit_adminCanCancelLeftTargetInOwnRoom(): void
+    {
+        $this->addRoomWithMembers(58, 0, [1 => 0, 3 => 1]); // 管理者(user 1)は有効所属、児童は退出済み
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 58, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkChangeEdit(
+            ['2026-06-12' => ['3' => ['1' => '0']]],
+            58, 'tester', $this->reservationTable, $this->userTable, [], 1, true, 0, false
+        );
+
         $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 58)->i_change_flag, '直前変更として取消されている');
+    }
+
+    /** グループ: 所属外の部屋は、既存予約があっても何も返さずに拒否する（利用者名を漏らさない。#821） */
+    public function testGroupBulkAdd_adminNotMemberRoom_isRejectedWithoutLeakingNames(): void
+    {
+        $this->addRoomWithMembers(60, 0, [3 => 0]); // 管理者(user 99)は未所属
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 60, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'group', 'i_id_room' => '60', 'day_users' => ['2026-06-12' => ['3' => ['1' => '1']]]],
+            99, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, true, 0, false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('所属していない部屋には登録できません。', $result['message']);
+        $this->assertArrayNotHasKey('skipped', $result);
     }
 
     /** グループの取消は認可した部屋の行だけを対象にし、同じ利用者の他部屋の予約を巻き込まない */
@@ -779,29 +846,29 @@ class ReservationBulkServiceTest extends TestCase
     {
         $this->addRoomWithMembers(56, 0, [2 => 0, 3 => 0]);   // 職員と児童が所属する部屋
         $this->addRoomWithMembers(57, 0, [3 => 0]);           // 職員は所属しない別部屋
-        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 57, 'eat_flag' => 1, 'i_change_flag' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => self::d(12), 'i_reservation_type' => 1, 'i_id_room' => 57, 'eat_flag' => 1, 'i_change_flag' => 1]);
 
         $result = $this->service->processBulkAdd(
-            ['reservation_type' => 'group', 'i_id_room' => '56', 'day_users' => ['2026-06-12' => ['3' => ['1' => '0']]]],
+            ['reservation_type' => 'group', 'i_id_room' => '56', 'day_users' => [self::d(12) => ['3' => ['1' => '0']]]],
             2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $this->assertSame(1, (int)$this->fetchReservation(3, '2026-06-12', 1, 57)->eat_flag, '他部屋(57)の予約は取消されない');
+        $this->assertSame(1, (int)$this->fetchReservation(3, self::d(12), 1, 57)->eat_flag, '他部屋(57)の予約は取消されない');
     }
 
     public function testBulkChangeEdit_cancelForLeftChildActuallyDeactivatesRow(): void
     {
         $this->addRoomWithMembers(58, 0, [2 => 0, 3 => 1]);
-        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => 58, 'eat_flag' => 1, 'i_change_flag' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => self::d(12), 'i_reservation_type' => 1, 'i_id_room' => 58, 'eat_flag' => 1, 'i_change_flag' => 1]);
 
         $result = $this->service->processBulkChangeEdit(
-            ['2026-06-12' => ['3' => ['1' => '0']]],
+            [self::d(12) => ['3' => ['1' => '0']]],
             58, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, false
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $row = $this->fetchReservation(3, '2026-06-12', 1, 58);
+        $row = $this->fetchReservation(3, self::d(12), 1, 58);
         $this->assertSame(0, (int)$row->i_change_flag, '取消された');
     }
 
@@ -811,16 +878,145 @@ class ReservationBulkServiceTest extends TestCase
         $this->addRoomWithMembers(59, 0, [2 => 0, 3 => 0]);
         $this->addRoomWithMembers(60, 0, [3 => 0]);
         foreach ([59, 60] as $room) {
-            $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => '2026-06-12', 'i_reservation_type' => 1, 'i_id_room' => $room, 'eat_flag' => 1, 'i_change_flag' => 1]);
+            $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => self::d(12), 'i_reservation_type' => 1, 'i_id_room' => $room, 'eat_flag' => 1, 'i_change_flag' => 1]);
         }
 
         $result = $this->service->processBulkAdd(
-            ['reservation_type' => 'group', 'i_id_room' => '59', 'day_users' => ['2026-06-12' => ['3' => ['1' => '0']]]],
+            ['reservation_type' => 'group', 'i_id_room' => '59', 'day_users' => [self::d(12) => ['3' => ['1' => '0']]]],
             2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $this->assertSame(0, (int)$this->fetchReservation(3, '2026-06-12', 1, 59)->eat_flag, '認可した部屋の予約が取消された');
-        $this->assertSame(1, (int)$this->fetchReservation(3, '2026-06-12', 1, 60)->eat_flag, '他部屋の予約は残る');
+        $this->assertSame(0, (int)$this->fetchReservation(3, self::d(12), 1, 59)->eat_flag, '認可した部屋の予約が取消された');
+        $this->assertSame(1, (int)$this->fetchReservation(3, self::d(12), 1, 60)->eat_flag, '他部屋の予約は残る');
+    }
+
+    /** 個人の一括登録で、弁当のチェックを外して昼食を入れると、弁当を取り消して入れ替える */
+    public function testPersonalBulkAdd_swapsBentoToLunchWhenBentoIsUnchecked(): void
+    {
+        $date = date('Y-m-d', strtotime('+30 days'));
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 4]);
+
+        $result = $this->service->processBulkAdd(
+            ['reservation_type' => 'personal', 'dates' => [$date => '1'], 'meals' => [2 => ['1' => '1'], 4 => ['1' => '0']]],
+            2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
+        );
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame([1], $this->reservationTable->findEffectiveRoomIds(2, $date, 2));
+        $this->assertSame([], $this->reservationTable->findEffectiveRoomIds(2, $date, 4));
+        $this->assertStringContainsString('弁当を取り消して昼食にしました', $result['message'], '取り消したことを応答で伝える');
+    }
+
+    /** 直前一括編集で、職員の昼食→弁当の入れ替えは、取消になるため理由を付けて止める */
+    public function testBulkChangeEdit_staffCannotSwapLunchToBento(): void
+    {
+        $date = date('Y-m-d', strtotime('+5 days'));
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'eat_flag' => 0, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEdit([$date => [2 => [2 => 0, 4 => 1]]]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertStringContainsString('お昼とお弁当を入れ替えられません', $result['message']);
+        $this->assertSame([1], $this->reservationTable->findEffectiveRoomIds(2, $date, 2));
+    }
+
+    /** 直前一括編集: 管理者以外は、過ぎた日の予約を変更できない。送信全体は止めず、その行だけ理由付きで飛ばす */
+    public function testBulkChangeEditSkipsPastDateChangeForNonAdmin(): void
+    {
+        $past = date('Y-m-d', strtotime('-3 days'));
+        $near = self::d(5);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $past, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEditWithRealDates([$past => ['3' => ['1' => '0']], $near => ['3' => ['1' => '1']]], false, 1);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertStringContainsString("{$past} は過去日のため", implode('', $result['skipped']));
+        $this->assertSame(1, (int)$this->fetchReservation(3, $past, 1, 1)->i_change_flag, '過去日の予約が変わっている');
+        $this->assertSame(1, (int)$this->fetchReservation(3, $near, 1, 1)->i_change_flag, '今日以降の変更が保存されていない');
+    }
+
+    /** 直前一括編集: 職員の直前取消は、黙って捨てずに理由を返す */
+    public function testBulkChangeEditReportsSkippedStaffCancel(): void
+    {
+        $date = date('Y-m-d', strtotime('+5 days'));
+        $this->insertReservation(['i_id_user' => 1, 'd_reservation_date' => $date, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEdit([$date => ['1' => ['1' => '0']]], false, 1);
+
+        $this->assertTrue($result['ok']);
+        $this->assertStringContainsString('直前編集でのキャンセルはできません', implode('', $result['skipped']));
+    }
+
+    /** 直前一括編集: 15日以降の日付は eat_flag で数えるので、eat_flag もそろえて書く */
+    public function testBulkChangeEditFarDateWritesEatFlag(): void
+    {
+        $date = date('Y-m-d', strtotime('+20 days'));
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEdit([$date => ['3' => ['1' => '0', '3' => '1']]], true, 99);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $cancelled = $this->fetchReservation(3, $date, 1, 1);
+        $this->assertSame([0, 0], [(int)$cancelled->eat_flag, (int)$cancelled->i_change_flag]);
+        $added = $this->fetchReservation(3, $date, 3, 1);
+        $this->assertSame([1, 1], [(int)$added->eat_flag, (int)$added->i_change_flag]);
+    }
+
+    /** 直前一括編集: i_change_flag が NULL の古い行は、変わっていなければ書き換えない（承認済みでも保存全体を止めない） */
+    public function testBulkChangeEditDoesNotRewriteUnchangedLegacyRow(): void
+    {
+        $date = self::d(20);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'eat_flag' => 1, 'i_change_flag' => null, 'i_approval_status' => 2]);
+
+        $result = $this->callBulkChangeEdit([$date => ['3' => ['1' => '1']]], true, 99);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(0, $result['updated']);
+        $this->assertNull($this->fetchReservation(3, $date, 1, 1)->i_change_flag);
+    }
+
+    /** 直前一括編集: 過去日の、変わっていない行が一緒に送られても、管理者以外の保存を止めない */
+    public function testBulkChangeEditIgnoresUnchangedPastRowsForNonAdmin(): void
+    {
+        $past = date('Y-m-d', strtotime('-3 days'));
+        $near = self::d(5);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $past, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEditWithRealDates([$past => ['3' => ['1' => '1']], $near => ['3' => ['1' => '1']]], false, 1);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame([], $result['skipped'], '変わっていない過去日の行に理由を出している');
+        $this->assertSame(1, (int)$this->fetchReservation(3, $near, 1, 1)->i_change_flag);
+    }
+
+    /** 直前一括編集: 開いたあとに他の人が同じ日を更新していたら、古いスナップショットの保存は競合として止める */
+    public function testBulkChangeEditDetectsStaleSnapshotInTheSameYear(): void
+    {
+        $date = self::d(5);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'dt_update' => date('Y-01-01 00:00:00')]);
+        $snapshot = (new \App\Service\ReservationQueryService())->getReservationSnapshots($this->reservationTable, 1, [$date])[$date];
+        $this->reservationTable->updateAll(['dt_update' => date('Y-01-02 00:00:00')], ['i_id_user' => 3, 'd_reservation_date' => $date]);
+
+        $result = $this->service->processBulkChangeEdit(
+            [$date => ['3' => ['1' => '0']]], 1, 'tester', $this->reservationTable, $this->userTable,
+            [$date => $snapshot], 99, true, 0, false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame($date, $result['conflict_date'] ?? null);
+    }
+
+    /** 直前一括編集: 管理者は過去日を直せる（当初予定の eat_flag は残す） */
+    public function testBulkChangeEditAdminCanFixPastDate(): void
+    {
+        $past = date('Y-m-d', strtotime('-3 days'));
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $past, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEditWithRealDates([$past => ['3' => ['1' => '0']]], true, 99);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $row = $this->fetchReservation(3, $past, 1, 1);
+        $this->assertSame([1, 0], [(int)$row->eat_flag, (int)$row->i_change_flag]);
     }
 }

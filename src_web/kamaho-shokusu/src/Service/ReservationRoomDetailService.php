@@ -24,7 +24,6 @@ class ReservationRoomDetailService
         }
 
         $useChangeFlag = $targetDate <= $changeBorder;
-        $flagField     = $useChangeFlag ? 'i_change_flag' : 'eat_flag';
 
         $room = $roomTable->find()
             ->select(['c_room_name'])
@@ -43,21 +42,29 @@ class ReservationRoomDetailService
             'MUserGroup.active_flag'                        => 0,
         ];
 
-        $eaters = $reservationTable->find()
+        // 食べる・食べないは ReservationDatePolicy::countedValue で分ける（境界日以前は i_change_flag、
+        // NULL なら eat_flag。列だけで絞ると、i_change_flag が NULL の行が「未登録」に落ちるため）
+        $datePolicy = new ReservationDatePolicy();
+        $eaters = [];
+        $nonEaters = [];
+        $rows = $reservationTable->find()
             ->select([
                 'TIndividualReservationInfo.i_id_user',
                 'TIndividualReservationInfo.i_id_room',
+                'TIndividualReservationInfo.eat_flag',
+                'TIndividualReservationInfo.i_change_flag',
                 'MUserInfo.c_user_name',
             ])
             ->contain(['MUserInfo', 'MUserGroup'])
-            ->where($baseConditions + ["TIndividualReservationInfo.$flagField" => 1])
+            ->where($baseConditions)
             ->all();
-
-        $nonEaters = $reservationTable->find()
-            ->select(['TIndividualReservationInfo.i_id_user', 'MUserInfo.c_user_name'])
-            ->contain(['MUserInfo', 'MUserGroup'])
-            ->where($baseConditions + ["TIndividualReservationInfo.$flagField" => 0])
-            ->all();
+        foreach ($rows as $row) {
+            if ($datePolicy->countedValue($date, $row->eat_flag, $row->i_change_flag) === 1) {
+                $eaters[] = $row;
+                continue;
+            }
+            $nonEaters[] = $row;
+        }
 
         $allUsers = $userGroupTable->find()
             ->select(['MUserInfo.i_id_user', 'MUserInfo.c_user_name', 'MUserInfo.dt_create'])

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Application\UseCase\DirectRegisterMeals;
 
 use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\DomainException;
 use App\Service\ReservationWriteService;
 
@@ -65,6 +66,10 @@ final class DirectRegisterMealsUseCase
      */
     private function isSkippable(DomainException $e): bool
     {
+        // 別の部屋で同じ食事を予約済み（画面を開いた後に変わった場合など）は、この食事だけ飛ばす
+        if ($e instanceof DuplicateMealConflictException) {
+            return true;
+        }
         if (!$e instanceof ConflictException) {
             return false;
         }

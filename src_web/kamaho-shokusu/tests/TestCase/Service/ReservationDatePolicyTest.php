@@ -91,4 +91,20 @@ class ReservationDatePolicyTest extends TestCase
         $this->assertSame('i_change_flag', $this->policy->judgeColumn($today->addDays(14), $today));
         $this->assertSame('eat_flag', $this->policy->judgeColumn($today->addDays(15), $today));
     }
+
+    /** 食数として数える値: 境界日以前（過去日を含む）は i_change_flag、NULL なら eat_flag、それより先は eat_flag */
+    public function testCountedValue(): void
+    {
+        $policy = new ReservationDatePolicy();
+        $past = \Cake\I18n\Date::today()->subDays(3);
+        $d14  = \Cake\I18n\Date::today()->addDays(14);
+        $d15  = \Cake\I18n\Date::today()->addDays(15);
+
+        $this->assertSame(1, $policy->countedValue($past, 0, 1), '過去日の直前追加を数える');
+        $this->assertSame(0, $policy->countedValue($past, 1, 0), '過去日の直前取消を数えない');
+        $this->assertSame(1, $policy->countedValue($d14, 1, null), '境界日以前で i_change_flag が NULL なら eat_flag');
+        $this->assertSame(0, $policy->countedValue($d14, 1, 0));
+        $this->assertSame(1, $policy->countedValue($d15, 1, 0), '境界日の翌日からは eat_flag');
+        $this->assertSame(0, $policy->countedValue($d15->format('Y-m-d'), 0, 1));
+    }
 }

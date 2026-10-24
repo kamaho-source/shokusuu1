@@ -51,4 +51,65 @@ class MUserInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canDelete($admin, $resource));
         $this->assertFalse($policy->canDelete($staff, $resource));
     }
+
+    public function testCanChangeRoleOnlyForAdminOnOthers(): void
+    {
+        $policy = new MUserInfoPolicy(new TestRoomAccessService([]));
+        $target = new MUserInfo();
+        $target->set('i_id_user', 10, ['guard' => false]);
+
+        $this->assertTrue($policy->canChangeRole(new PolicyTestIdentity(['i_id_user' => 1, 'i_admin' => 1]), $target));
+        $this->assertTrue($policy->canChangeRole(new PolicyTestIdentity(['i_id_user' => 1, 'i_admin' => 3]), $target));
+        // 自分自身の役職は、管理者でも変更できない
+        $this->assertFalse($policy->canChangeRole(new PolicyTestIdentity(['i_id_user' => 10, 'i_admin' => 1]), $target));
+        $this->assertFalse($policy->canChangeRole(new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 2, 'i_user_level' => 0]), $target));
+        $this->assertFalse($policy->canChangeRole(new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 0]), $target));
+    }
+
+    /**
+     * 職員・ブロック長は、同じ部屋に所属する児童だけ閲覧・編集できる。
+     */
+    public function testStaffAndBlockLeaderCanManageChildInSharedRoom(): void
+    {
+        $policy = new MUserInfoPolicy(new TestRoomAccessService([2 => [1], 3 => [1], 4 => [2], 20 => [1]]));
+        $child = new MUserInfo();
+        $child->set(['i_id_user' => 20, 'i_user_level' => 1], ['guard' => false]);
+        $staffTarget = new MUserInfo();
+        $staffTarget->set(['i_id_user' => 30, 'i_user_level' => 0], ['guard' => false]);
+
+        $staff   = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 0]);
+        $leader  = new PolicyTestIdentity(['i_id_user' => 3, 'i_admin' => 2, 'i_user_level' => 0]);
+        $farStaff = new PolicyTestIdentity(['i_id_user' => 4, 'i_admin' => 0, 'i_user_level' => 0]);
+        $otherRole = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 3]);
+        $childActor = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 1]);
+
+        foreach (['canEdit', 'canView'] as $method) {
+            $this->assertTrue($policy->$method($staff, $child), "$method staff");
+            $this->assertTrue($policy->$method($leader, $child), "$method block leader");
+            $this->assertFalse($policy->$method($farStaff, $child), "$method no shared room");
+            $this->assertFalse($policy->$method($otherRole, $child), "$method other role");
+            $this->assertFalse($policy->$method($childActor, $child), "$method child actor");
+            $this->assertFalse($policy->$method($staff, $staffTarget), "$method non-child target");
+        }
+    }
+
+    /**
+     * 児童編集の対象は、権限の付いていない一般の児童だけ。職員は i_user_level 0 と 7。
+     */
+    public function testManageChildRequiresPlainChildAndStaffLevels(): void
+    {
+        $policy = new MUserInfoPolicy(new TestRoomAccessService([2 => [1], 20 => [1]]));
+        $make = static function (array $values): MUserInfo {
+            $e = new MUserInfo();
+            $e->set($values + ['i_id_user' => 20, 'i_user_level' => 1, 'i_admin' => 0, 'i_del_flag' => 0], ['guard' => false]);
+            return $e;
+        };
+        $level7 = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 7]);
+        $level0 = new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 0]);
+
+        $this->assertTrue($policy->canEdit($level7, $make([])));
+        $this->assertFalse($policy->canEdit($level0, $make(['i_admin' => 1])), '権限付きの児童は対象外');
+        $this->assertFalse($policy->canEdit($level0, $make(['i_admin' => 2])), 'ブロック長の児童は対象外');
+        $this->assertFalse($policy->canEdit($level0, $make(['i_del_flag' => 1])), '削除済みは対象外');
+    }
 }

@@ -129,6 +129,25 @@ class ReservationDatePolicy
     }
 
     /**
+     * 食数として数える値（1=食べる）。食数の報告・カレンダー・承認の集計で共通の基準。
+     * 境界日（今日+14日）以前は過去日も含めて i_change_flag（null なら eat_flag）、それより先は eat_flag。
+     *
+     * @param Date|string     $targetDate 予約日
+     * @param int|string|null $eatFlag
+     * @param int|string|null $changeFlag
+     * @return int 1=食べる / 0=食べない
+     */
+    public function countedValue(Date|string $targetDate, int|string|null $eatFlag, int|string|null $changeFlag): int
+    {
+        $date = $targetDate instanceof Date ? $targetDate : new Date($targetDate);
+        if ($changeFlag !== null && $this->shouldUseChangeFlag($date)) {
+            return (int)$changeFlag;
+        }
+
+        return (int)($eatFlag ?? 0);
+    }
+
+    /**
      * 指定した予約日が「直前編集ウィンドウ内」かどうかを判定する。
      *
      * 直前編集ウィンドウとは「今日以降〜今日+14日以内」の期間を指す。

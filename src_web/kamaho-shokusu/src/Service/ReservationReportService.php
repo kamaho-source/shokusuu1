@@ -46,7 +46,7 @@ class ReservationReportService
         $counts = [];
         foreach ($rows as $row) {
             $effectiveFlag = $useChangeFlag
-                ? (int)($row['i_change_flag'] ?? 0)
+                ? (int)($row['i_change_flag'] ?? $row['eat_flag'] ?? 0)
                 : (int)($row['eat_flag'] ?? 0);
             if ($effectiveFlag !== 1) {
                 continue;
@@ -190,7 +190,7 @@ class ReservationReportService
             }
             $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
             $effectiveFlag = $useChangeFlagCache[$date]
-                ? (int)($reservation['i_change_flag'] ?? 0)
+                ? (int)($reservation['i_change_flag'] ?? $reservation['eat_flag'] ?? 0)
                 : (int)($reservation['eat_flag'] ?? 0);
             if ($effectiveFlag !== 1) {
                 continue;
@@ -291,7 +291,7 @@ class ReservationReportService
             }
             $useChangeFlagCache[$dateKey] ??= $datePolicy->shouldUseChangeFlag(new Date($dateKey));
             $effectiveFlag = $useChangeFlagCache[$dateKey]
-                ? (int)($reservation['i_change_flag'] ?? 0)
+                ? (int)($reservation['i_change_flag'] ?? $reservation['eat_flag'] ?? 0)
                 : (int)($reservation['eat_flag'] ?? 0);
             if ($effectiveFlag !== 1) {
                 continue;
@@ -459,10 +459,11 @@ class ReservationReportService
         ?int $changeFlag,
         array &$useChangeFlagCache
     ): bool {
+        // 境界日以前は i_change_flag（空なら当初予定の eat_flag）。ReservationDatePolicy::countedValue と同じ基準
         $datePolicy = new ReservationDatePolicy();
         $useChangeFlagCache[$date] ??= $datePolicy->shouldUseChangeFlag(new Date($date));
         $effectiveFlag = $useChangeFlagCache[$date]
-            ? (int)($changeFlag ?? 0)
+            ? (int)($changeFlag ?? $eatFlag)
             : $eatFlag;
 
         return $effectiveFlag === 1;

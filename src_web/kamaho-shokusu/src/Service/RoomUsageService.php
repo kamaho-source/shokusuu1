@@ -103,9 +103,8 @@ class RoomUsageService
                 continue;
             }
 
-            $effectiveEat = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、それより先は eat_flag）
+            $effectiveEat = (new ReservationDatePolicy())->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveEat === 1) {
                 $eatCounts[$roomId] = ($eatCounts[$roomId] ?? 0) + 1;

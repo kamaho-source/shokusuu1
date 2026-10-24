@@ -20,7 +20,8 @@ class TReservationInfoPolicy
 
     public function canAdd(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        // 役職「その他」は、自分の予約のみ登録できる（他人分はサービス側で拒否される）。
+        return $this->isStaffOrAdmin($user) || $this->isOtherRole($user);
     }
 
     public function canCopy(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -53,7 +54,10 @@ class TReservationInfoPolicy
             return false;
         }
 
-        if (!$this->canAccessRoom($user, $resource)) {
+        // 退出済み・削除済みの部屋に残った自分の予約は、取消だけ許す（取り消す行があるかは processToggle が確かめる）
+        $isSelfCancel = $resource->get('cancel_only') === true
+            && (int)($resource->get('i_id_user') ?? 0) === $this->getUserId($user);
+        if (!$isSelfCancel && !$this->canAccessRoom($user, $resource)) {
             return false;
         }
 
@@ -214,13 +218,8 @@ class TReservationInfoPolicy
         $requestedUserId = (int)($resource->get('i_id_user') ?? 0);
         $loginUserId = $this->getUserId($user);
 
-        // 管理者は常に許可
-        if ($this->isAdmin($user)) {
-            return true;
-        }
-
-        // ブロック長は担当部屋のユーザーであれば許可
-        if ($this->isBlockLeader($user)) {
+        // 管理者・ブロック長は、自分が所属する部屋のユーザーであれば許可（管理者も所属外の部屋は不可。#821）
+        if ($this->isAdmin($user) || $this->isBlockLeader($user)) {
             return $this->canAccessRoom($user, $resource);
         }
 
@@ -328,6 +327,25 @@ class TReservationInfoPolicy
         return false;
     }
 
+    /** 役職「その他」(i_user_level=3) か。 */
+    private function isOtherRole(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return (int)$identity->get('i_user_level') === 3;
+        }
+
+        if (is_array($identity) || $identity instanceof \ArrayAccess) {
+            return (int)($identity['i_user_level'] ?? -1) === 3;
+        }
+
+        return false;
+    }
+
     private function isStaffOrAdmin(?IdentityInterface $user): bool
     {
         return $this->isAdmin($user) || $this->isStaff($user);
@@ -361,12 +379,7 @@ class TReservationInfoPolicy
             return true;
         }
 
-        // 管理者は部屋を問わず許可する（削除済み・存在しない部屋への書き込みは、各サービス側で拒否する）。
-        // この判定は読み取り系（過去の履歴の閲覧など）でも共有されるため、ここでは削除状態を見ない。
-        if ($this->isAdmin($user)) {
-            return true;
-        }
-
+        // 管理者・システム管理者も、有効に所属している部屋のみ（#821）
         $userId = $this->getUserId($user);
         if ($userId <= 0) {
             return false;

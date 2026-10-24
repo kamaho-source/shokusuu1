@@ -20,9 +20,11 @@
             toastEl.role = 'alert';
             toastEl.ariaLive = 'assertive';
             toastEl.ariaAtomic = 'true';
-            toastEl.innerHTML = '<div class="d-flex"><div class="toast-body">' + String(message) + '</div>' +
+            // 部屋名やサーバーのエラー文言をそのまま表示するため、HTML として解釈させない
+            toastEl.innerHTML = '<div class="d-flex"><div class="toast-body"></div>' +
                 '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>' +
                 '</div>';
+            toastEl.querySelector('.toast-body').textContent = String(message);
             wrap.appendChild(toastEl);
             var instance = window.bootstrap && window.bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 3500 });
             if (instance) instance.show();

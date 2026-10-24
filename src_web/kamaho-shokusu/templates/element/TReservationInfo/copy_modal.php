@@ -7,7 +7,7 @@
  * @var mixed $rooms
  */
 ?>
-<?php $rooms ??= []; $isAdmin ??= false; $canViewAllRooms ??= $isAdmin; $calRoomId ??= null; ?>
+<?php $rooms ??= []; $isAdmin ??= false; $canViewAllRooms ??= false; $calRoomId ??= null; ?>
 <!-- === 予約コピー（週／月）: 大人向けのみ表示 === -->
 <div class="card border-0 shadow-sm mb-3">
     <div class="card-body d-flex flex-wrap align-items-center gap-2">
