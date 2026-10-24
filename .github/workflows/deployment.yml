@@ -69,6 +69,7 @@ jobs:
             set -euo pipefail
 
             DEPLOY_PATH="/home/ubuntu/shokusuu1"
+            WEB_CONTAINER="kamakura-shokusu_web"
             BRANCH="${BRANCH:-main}"
 
             # デプロイ先へ移動（初回は空ディレクトリ想定）
@@ -119,6 +120,30 @@ jobs:
               fi
               sleep 1
             done
+
+            # ── Composer install (composer.lock が変わった時のみ実行) ─────────
+            # 本番の vendor/ は git 管理外のため、これが無いと composer.lock を更新しても
+            # 本番に反映されない（CakePHP 5.0.10 のまま放置された実績あり）。
+            LOCK_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/composer.lock"
+            HASH_CACHE="/tmp/shokusuu1_composer_lock_hash"
+            CURR_HASH="$(sha256sum "$LOCK_FILE" | awk '{print $1}')"
+            PREV_HASH="$(cat "$HASH_CACHE" 2>/dev/null || echo '')"
+            if [ "$CURR_HASH" != "$PREV_HASH" ]; then
+              echo "[Composer] composer.lock changed — running install"
+              composer_install() {
+                docker exec -e COMPOSER_CACHE_DIR=/tmp/composer-cache "${WEB_CONTAINER}" composer install \
+                  --no-dev --no-interaction --optimize-autoloader \
+                  --working-dir=/var/www/html/kamaho-shokusu
+              }
+              if ! composer_install; then
+                echo "[Composer] install failed — retrying once"
+                sleep 5
+                composer_install
+              fi
+              printf '%s' "$CURR_HASH" > "$HASH_CACHE"
+            else
+              echo "[Composer] composer.lock unchanged — skipping install"
+            fi
 
             # ── SQL更新適用（sql/updates/*.sql を1回ずつ実行） ────────────────
             echo "── Applying SQL migrations ──────────────────────────────────────"
