@@ -816,6 +816,10 @@ class ReservationWriteService
                 if ((int)$row->i_id_room === (int)$roomId || !TIndividualReservationInfoTable::isEffectiveRow($row)) {
                     continue;
                 }
+                // 画面に出ていない部屋（退出済み・削除済みなど）に残った予約は、取消だけ許す。ここで移すと黙って取り消してしまう
+                if (!array_key_exists((int)$row->i_id_room, $rooms)) {
+                    throw new ConflictException('別の部屋（この画面に出ていない部屋）に同じ食事の予約があります。先にその予約を取り消してください。');
+                }
                 // 別の部屋の予約を取り消してこの部屋へ移すのは部屋変更。職員は直前期間にはできない（change-room と同じ扱い）
                 if ($staffLastMinute) {
                     throw new UnauthorizedException('直前期間（14日以内）は職員の部屋変更はできません。');

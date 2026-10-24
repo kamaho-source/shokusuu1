@@ -912,4 +912,30 @@ class ReservationBulkServiceTest extends TestCase
         $added = $this->fetchReservation(3, $date, 3, 1);
         $this->assertSame([1, 1], [(int)$added->eat_flag, (int)$added->i_change_flag]);
     }
+
+    /** 直前一括編集: i_change_flag が NULL の古い行は、変わっていなければ書き換えない（承認済みでも保存全体を止めない） */
+    public function testBulkChangeEditDoesNotRewriteUnchangedLegacyRow(): void
+    {
+        $date = self::d(20);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'eat_flag' => 1, 'i_change_flag' => null, 'i_approval_status' => 2]);
+
+        $result = $this->callBulkChangeEdit([$date => ['3' => ['1' => '1']]], true, 99);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(0, $result['updated']);
+        $this->assertNull($this->fetchReservation(3, $date, 1, 1)->i_change_flag);
+    }
+
+    /** 直前一括編集: 過去日の、変わっていない行が一緒に送られても、管理者以外の保存を止めない */
+    public function testBulkChangeEditIgnoresUnchangedPastRowsForNonAdmin(): void
+    {
+        $past = date('Y-m-d', strtotime('-3 days'));
+        $near = self::d(5);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $past, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEdit([$past => ['3' => ['1' => '1']], $near => ['3' => ['1' => '1']]], false, 1);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(1, (int)$this->fetchReservation(3, $near, 1, 1)->i_change_flag);
+    }
 }

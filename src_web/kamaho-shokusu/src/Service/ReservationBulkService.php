@@ -62,18 +62,10 @@ class ReservationBulkService
             ];
         }
 
-        // 過ぎた日（実績）は、管理者以外は書き換えさせない（直前編集の個人モードと同じ。数える値が i_change_flag のため）
+        // 過ぎた日（実績）は、管理者以外は書き換えさせない（数える値が i_change_flag のため、食数・控除表が変わる）。
+        // 画面は変わっていない行も送り、保存しなかった過去日の選択が残ることもあるので、実際に変わる行だけを拒否する
         $datePolicy = new ReservationDatePolicy();
-        if (!$isAdmin) {
-            foreach (array_keys($dayUsers) as $d) {
-                if ($datePolicy->isPastDate((string)$d)) {
-                    return [
-                        'ok'      => false,
-                        'message' => '過去日の予約は変更できません。',
-                    ];
-                }
-            }
-        }
+        $pastDateRejected = static fn(): array => ['ok' => false, 'message' => '過去日の予約は変更できません。'];
 
         $connection = $reservationTable->getConnection();
         $connection->begin();
@@ -182,9 +174,12 @@ class ReservationBulkService
                             }
                             // 15日以降は eat_flag で数えるので、eat_flag もそろえる（直前期間・過去日は i_change_flag だけを変える）
                             $isFar = !$datePolicy->shouldUseChangeFlag(new Date((string)$date));
-                            if ($datePolicy->countedValue((string)$date, $existing->eat_flag, $existing->i_change_flag) !== $changeFlag
-                                || (int)$existing->i_change_flag !== $changeFlag
-                            ) {
+                            // 数える値が変わる行だけを書く（i_change_flag が NULL の古い行を、変わっていないのに書き換えない）
+                            if ($datePolicy->countedValue((string)$date, $existing->eat_flag, $existing->i_change_flag) !== $changeFlag) {
+                                if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
+                                    $connection->rollback();
+                                    return $pastDateRejected();
+                                }
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
                                 // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
@@ -208,6 +203,10 @@ class ReservationBulkService
                         } else {
                             if ($changeFlag === 0) {
                                 continue;
+                            }
+                            if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
+                                $connection->rollback();
+                                return $pastDateRejected();
                             }
                             if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
                                 $connection->rollback();

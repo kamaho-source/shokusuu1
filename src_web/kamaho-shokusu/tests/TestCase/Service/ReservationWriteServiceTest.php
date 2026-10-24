@@ -441,7 +441,7 @@ class ReservationWriteServiceTest extends TestCase
         $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9, 'eat_flag' => 0]);
 
         try {
-            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 1]]]), $this->rooms(), 2, '職員', $this->alwaysValid());
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 1]]]), $this->rooms() + [9 => ['i_id_room' => 9, 'c_room_name' => '部屋9']], 2, '職員', $this->alwaysValid());
             $this->fail('UnauthorizedException が出るはず');
         } catch (\App\Domain\Exception\UnauthorizedException $e) {
             $this->assertSame('直前期間（14日以内）は職員の部屋変更はできません。', $e->getMessage());
@@ -525,5 +525,21 @@ class ReservationWriteServiceTest extends TestCase
             $this->assertStringContainsString('この画面では取り消せません', $e->getMessage());
         }
         $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag);
+    }
+
+    /** 画面に出ていない部屋に残った予約は、別の部屋へ移さない（取消だけ許す）。黙って取り消さず理由を返す */
+    public function testIndividualDoesNotMoveFromRoomOutsideTheForm(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+            $this->fail('ConflictException が出るはず');
+        } catch (\App\Domain\Exception\ConflictException $e) {
+            $this->assertStringContainsString('先にその予約を取り消してください', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag);
+        $this->assertNull($this->fetchReservation(3, $date, 3, 1));
     }
 }

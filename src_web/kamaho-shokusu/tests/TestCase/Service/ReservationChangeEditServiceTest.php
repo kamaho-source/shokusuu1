@@ -392,4 +392,26 @@ class ReservationChangeEditServiceTest extends TestCase
             true
         );
     }
+
+    /** 管理者が過ぎた日を直すときも、当初予定（eat_flag）は残し、i_change_flag だけを変える */
+    public function testProcessUpdate_adminPastDateKeepsOriginalPlan(): void
+    {
+        $date = Date::today()->subDays(3)->format('Y-m-d');
+        $this->insertMeal(1, 1, 1, $date);
+        $admin = new class {
+            public function get(string $key): int|string|null
+            {
+                return ['i_id_user' => 1, 'i_admin' => 1, 'i_user_level' => 0, 'c_user_name' => '管理者'][$key] ?? null;
+            }
+        };
+
+        $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 0]]], [3], $date, 1, $admin,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $this->assertSame([1 => [1, 0]], $this->flagsByRoom($date));
+    }
 }
