@@ -470,7 +470,7 @@ class ReservationActualMealController extends ReservationBaseController
             $viewMode = 'individual';
         }
 
-        // 有効な所属部屋（退出済み・削除済みを除く）。編集可否（loginRoomIds）もこれで判定する
+        // 有効な所属部屋（退出済み・削除済みを除く）。管理者以外の編集可否（loginRoomIds）はこれで判定する
         $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
             $this->MRoomInfo,
             $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUserId),
