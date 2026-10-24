@@ -37,12 +37,16 @@ return function (RouteBuilder $routes): void {
             '/TReservationInfo/bulkAddSubmit',
             ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit']
         )->setMethods(['POST']);
+        // 一括登録画面（bulk_add_form.js）はケバブケースの URL へ送る。ルートが無いと TReservationInfoController に
+        // フォールバックして保存できないため、同じアクションにつなぐ
+        $builder->connect(
+            '/TReservationInfo/bulk-add-submit',
+            ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit']
+        )->setMethods(['POST']);
 
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
-        // 一括登録フォーム（bulk_add_form.js）の送信先
-        $builder->connect('/TReservationInfo/bulk-add-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit'])->setMethods(['POST']);
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForBulk/{roomId}',
@@ -218,6 +222,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect(
             '/TReservationInfo/direct-register',
             ['controller' => 'ReservationDirectRegister', 'action' => 'register']
+        )->setMethods(['POST']);
+        $builder->connect(
+            '/TReservationInfo/change-room',
+            ['controller' => 'ReservationDirectRegister', 'action' => 'changeRoom']
         )->setMethods(['POST']);
 
         // ── 予約トグル（ReservationToggleController） ──

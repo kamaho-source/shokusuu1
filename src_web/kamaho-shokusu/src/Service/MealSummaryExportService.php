@@ -168,7 +168,7 @@ class MealSummaryExportService
 
         $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $rows  = $table->find()
-            ->select(['i_id_user', 'i_reservation_type', 'eat_flag', 'i_change_flag', 'i_approval_status'])
+            ->select(['i_id_user', 'i_reservation_type', 'd_reservation_date', 'eat_flag', 'i_change_flag', 'i_approval_status'])
             ->where([
                 'i_id_user IN'         => $userIds,
                 'd_reservation_date >=' => $start,
@@ -193,9 +193,8 @@ class MealSummaryExportService
         $counts = ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0];
 
         foreach ($rows as $row) {
-            $effectiveFlag = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、それより先は eat_flag）
+            $effectiveFlag = (new ReservationDatePolicy())->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
                 continue;
@@ -227,9 +226,8 @@ class MealSummaryExportService
         ];
 
         foreach ($rows as $row) {
-            $effectiveFlag = $row->i_change_flag !== null
-                ? (int)$row->i_change_flag
-                : (int)($row->eat_flag ?? 0);
+            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、それより先は eat_flag）
+            $effectiveFlag = (new ReservationDatePolicy())->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag);
 
             if ($effectiveFlag !== 1) {
                 continue;

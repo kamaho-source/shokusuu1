@@ -440,4 +440,188 @@ class ReservationWriteServiceTest extends TestCase
             $this->alwaysValid()
         );
     }
+
+    /** 直前編集の個人モードでも、職員（user 2）は直前期間に別の部屋へ予約を移せない（change-room と同じ扱い） */
+    public function testIndividualStaffLastMinuteCannotMoveRoom(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9, 'eat_flag' => 0]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 1]]]), $this->rooms() + [9 => ['i_id_room' => 9, 'c_room_name' => '部屋9']], 2, '職員', $this->alwaysValid());
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (\App\Domain\Exception\UnauthorizedException $e) {
+            $this->assertSame('直前期間（14日以内）は職員の部屋変更はできません。', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(2, $date, 3, 9)->i_change_flag, '元の部屋の予約が残る');
+        $this->assertNull($this->fetchReservation(2, $date, 3, 1), '移動先に行を作らない');
+    }
+
+    /** 個人予約で、同じ保存の中で弁当を外して昼食を入れると、取消を先に行うので入れ替えられる */
+    public function testIndividualSwapsBentoToLunchInOneSave(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4]);
+
+        $result = $this->service->processIndividualReservation($date, json_encode(['meals' => ['2' => ['1' => 1], '4' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame([1], $this->reservationTable->findEffectiveRoomIds(3, $date, 2));
+        $this->assertSame([], $this->reservationTable->findEffectiveRoomIds(3, $date, 4));
+    }
+
+    /** 直前編集の個人モードで、職員は直前期間の予約を取り消せない（toggle と同じ） */
+    public function testIndividualStaffLastMinuteCannotCancel(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'eat_flag' => 0]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 0]]]), $this->rooms(), 2, '職員', $this->alwaysValid());
+            $this->fail('UnauthorizedException が出るはず');
+        } catch (\App\Domain\Exception\UnauthorizedException $e) {
+            $this->assertSame('職員は直前編集でのキャンセルはできません。', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(2, $date, 3, 1)->i_change_flag);
+    }
+
+    /** 直前期間の個人予約は i_change_flag だけを立て、当初予定（eat_flag）は 0 のまま作る（toggle と同じ） */
+    public function testIndividualLastMinuteNewRowKeepsOriginalPlanEmpty(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+
+        $this->service->processIndividualReservation($date, json_encode(['meals' => ['1' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $row = $this->fetchReservation(3, $date, 1, 1);
+        $this->assertSame([0, 1], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+    }
+
+    /** 個人予約の応答 details は、直前期間でも実際の予約（i_change_flag）を返す */
+    public function testIndividualLastMinuteResponseDetailsReflectTheReservation(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+
+        $result = $this->service->processIndividualReservation($date, json_encode(['meals' => ['1' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $this->assertTrue($result['data']['details']['breakfast']);
+    }
+
+    /** 個人予約の取消は、この画面で扱う部屋の予約だけ（画面に無い部屋の予約は取り消さない） */
+    public function testIndividualCancelDoesNotTouchRoomsOutsideTheForm(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9]);
+
+        $this->service->processIndividualReservation($date, json_encode(['meals' => ['1' => ['1' => 0], '3' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $this->assertSame(0, (int)$this->fetchReservation(3, $date, 1, 1)->eat_flag, '画面の部屋の予約は取り消す');
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag, '画面に無い部屋の予約は残す');
+    }
+
+    /** 画面に出ていない部屋の予約だけを取り消そうとすると、システムエラーではなく理由を返す */
+    public function testIndividualCancelOnlyOutsideRoomsReturnsReason(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+            $this->fail('ConflictException が出るはず');
+        } catch (\App\Domain\Exception\ConflictException $e) {
+            $this->assertStringContainsString('この画面では取り消せません', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag);
+    }
+
+    /** 画面に出ていない部屋に残った予約は、別の部屋へ移さない（取消だけ許す）。黙って取り消さず理由を返す */
+    public function testIndividualDoesNotMoveFromRoomOutsideTheForm(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['3' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+            $this->fail('ConflictException が出るはず');
+        } catch (\App\Domain\Exception\ConflictException $e) {
+            $this->assertStringContainsString('先にその予約を取り消してください', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 3, 9)->eat_flag);
+        $this->assertNull($this->fetchReservation(3, $date, 3, 1));
+    }
+
+    /** 画面に出ていない部屋の弁当があると、画面の部屋の昼食は理由付きで止める（理由のない 500 にしない） */
+    public function testIndividualLunchBlockedByBentoInRoomOutsideTheForm(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 9]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['2' => ['1' => 1], '4' => ['1' => 0]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+            $this->fail('ConflictException が出るはず');
+        } catch (\App\Domain\Exception\ConflictException $e) {
+            $this->assertStringContainsString('弁当の予約があるため、昼食は予約できません', $e->getMessage());
+        }
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 4, 9)->eat_flag);
+    }
+
+    /** グループ予約で昼食と弁当がぶつかると、理由のない 500 にせず 409 で理由を返す */
+    public function testGroupLunchWhileBentoReturnsConflictWithReason(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 1]);
+
+        $this->expectException(\App\Domain\Exception\ConflictException::class);
+        $this->expectExceptionMessage('昼食と弁当は同時に予約できません');
+        $this->service->processGroupReservation(
+            $date, json_encode(['users' => ['1' => ['2' => 1]], 'i_id_room' => 1]), $this->rooms(),
+            'システム管理者', $this->alwaysValid(), loginUserId: 99, isAdmin: true
+        );
+    }
+
+    /** グループ予約で、退出済みの部屋に残った予約を黙って別の部屋へ移さない（取消だけ許す） */
+    public function testGroupDoesNotMoveFromExitedRoom(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $conn = \Cake\Datasource\ConnectionManager::get('test');
+        $conn->insert('m_room_info', ['i_id_room' => 9, 'c_room_name' => 'さくら', 'i_disp_no' => 9, 'i_enable' => 1, 'i_del_flg' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $this->insertReservation(['i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 9]);
+
+        $result = $this->service->processGroupReservation(
+            $date, json_encode(['users' => ['1' => ['3' => 1]], 'i_id_room' => 1]), $this->rooms(),
+            'システム管理者', $this->alwaysValid(), loginUserId: 99, isAdmin: true
+        );
+
+        $this->assertNotEmpty($result['data']['skipped'] ?? [], '移さなかったことを伝えていない');
+        $this->assertSame(1, (int)$this->fetchReservation(1, $date, 3, 9)->eat_flag, '退出済みの部屋の予約が取り消されている');
+        $this->assertNull($this->fetchReservation(1, $date, 3, 1), '別の部屋へ移されている');
+    }
+
+    /** 画面外の部屋のメッセージには、部屋名を出す */
+    public function testOutsideRoomMessageShowsRoomName(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        \Cake\Datasource\ConnectionManager::get('test')->insert('m_room_info', ['i_id_room' => 9, 'c_room_name' => 'さくら', 'i_disp_no' => 9, 'i_enable' => 1, 'i_del_flg' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 9]);
+
+        try {
+            $this->service->processIndividualReservation($date, json_encode(['meals' => ['2' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+            $this->fail('ConflictException が出るはず');
+        } catch (\App\Domain\Exception\ConflictException $e) {
+            $this->assertStringContainsString('「さくら」', $e->getMessage());
+        }
+    }
+
+    /** 変わっていない食事には、昼食と弁当の相手の確認をしない（以前の二重データで、関係のない保存まで止めない） */
+    public function testIndividualUnchangedMealSkipsOpponentCheck(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'i_id_room' => 1]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 9]);
+
+        $result = $this->service->processIndividualReservation($date, json_encode(['meals' => ['1' => ['1' => 1], '2' => ['1' => 1]]]), $this->rooms(), 3, '児童', $this->alwaysValid());
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 1, 1)->eat_flag);
+    }
 }

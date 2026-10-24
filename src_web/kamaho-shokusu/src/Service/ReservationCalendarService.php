@@ -15,11 +15,19 @@ class ReservationCalendarService
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
     }
 
+    /**
+     * 利用者が有効に所属している部屋の ID（退出済みの所属と、削除済みの部屋は含めない）。
+     *
+     * @return list<int>
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
+     */
     public function getUserRoomIds(Table $userGroupTable, int $userId): array
     {
+        // 削除済みの部屋は所属に数えない（代表部屋が削除済みになると、カレンダーで予約を開けなくなるため）
         $userGroups = $userGroupTable->find()
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
+            ->select(['MUserGroup.i_id_room'])
+            ->innerJoin(['MRoomInfo' => 'm_room_info'], ['MRoomInfo.i_id_room = MUserGroup.i_id_room'])
+            ->where(['MUserGroup.i_id_user' => $userId, 'MUserGroup.active_flag' => 0, 'MRoomInfo.i_del_flg' => 0])
             ->toArray();
 
         $roomIds = [];
@@ -140,9 +148,7 @@ class ReservationCalendarService
             $dateStr = $r->d_reservation_date->format('Y-m-d');
             $type    = (int)$r->i_reservation_type;
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            $effective = $this->datePolicy->countedValue($dateStr, $r->eat_flag, $r->i_change_flag);
 
             if ($effective !== 1) {
                 continue;
@@ -207,9 +213,12 @@ class ReservationCalendarService
                 ];
             }
 
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            $effective = $this->datePolicy->countedValue($dateStr, $r->eat_flag, $r->i_change_flag);
+
+            // 部屋変更の後は、元の部屋に取消済みの行が残る。行の並び順で有効な予約を上書きしない
+            if ($effective === 0 && $details[$dateStr][$key] === 1) {
+                continue;
+            }
 
             $details[$dateStr][$key]          = $effective;
             $details[$dateStr][$key . 'Room'] = ($effective === 1) ? (int)$r->i_id_room : null;
@@ -331,9 +340,7 @@ class ReservationCalendarService
         $dateCounts = [];
         foreach ($rows as $r) {
             $dateStr = $r->d_reservation_date->format('Y-m-d');
-            $effective = $r->i_change_flag !== null
-                ? (int)$r->i_change_flag
-                : (int)($r->eat_flag ?? 0);
+            $effective = $this->datePolicy->countedValue($dateStr, $r->eat_flag, $r->i_change_flag);
             if ($effective === 1) {
                 $dateCounts[$dateStr] = ($dateCounts[$dateStr] ?? 0) + 1;
             }

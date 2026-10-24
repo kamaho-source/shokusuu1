@@ -6,6 +6,7 @@ namespace App\Test\TestCase\Service;
 use App\Exception\ApprovedReservationException;
 use App\Service\ReservationChangeEditService;
 use Cake\Datasource\ConnectionManager;
+use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -178,9 +179,10 @@ class ReservationChangeEditServiceTest extends TestCase
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $userTable        = TableRegistry::getTableLocator()->get('MUserInfo');
 
+        $date = Date::today()->addDays(20)->format('Y-m-d');
         ConnectionManager::get('test')->insert('t_individual_reservation_info', [
             'i_id_user'          => 3,
-            'd_reservation_date' => '2026-06-10',
+            'd_reservation_date' => $date,
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -197,7 +199,7 @@ class ReservationChangeEditServiceTest extends TestCase
             $this->service->processUpdate(
                 [3 => [1 => ['i_change_flag' => 0]]],
                 [3],
-                '2026-06-10',
+                $date,
                 1,
                 null,
                 $reservationTable,
@@ -208,12 +210,232 @@ class ReservationChangeEditServiceTest extends TestCase
             $row = $reservationTable->find()
                 ->where([
                     'i_id_user' => 3,
-                    'd_reservation_date' => '2026-06-10',
+                    'd_reservation_date' => $date,
                     'i_reservation_type' => 1,
                     'i_id_room' => 1,
                 ])
                 ->first();
             $this->assertSame(1, (int)$row->i_change_flag, '承認済みの予約が変更されている');
         }
+    }
+
+    // ----------------------------------------------------------------
+    // processUpdate — 同じ食事を複数の部屋で同時に有効にしない（部屋の移動として扱う）
+    // ----------------------------------------------------------------
+
+    /** 直前期間（当日〜14日先）の日付 */
+    private function nearDate(): string
+    {
+        return Date::today()->addDays(3)->format('Y-m-d');
+    }
+
+    private function insertMeal(int $roomId, int $eat, int $chg, ?string $date = null): void
+    {
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user'          => 3,
+            'd_reservation_date' => $date ?? $this->nearDate(),
+            'i_reservation_type' => 1,
+            'i_id_room'          => $roomId,
+            'eat_flag'           => $eat,
+            'i_change_flag'      => $chg,
+            'i_approval_status'  => 0,
+            'i_version'          => 1,
+            'dt_create'          => '2026-01-01 00:00:00',
+            'c_create_user'      => 'test',
+        ]);
+    }
+
+    private function eatInRoom(int $roomId, ?string $date = null): void
+    {
+        $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 1]]],
+            [3],
+            $date ?? $this->nearDate(),
+            $roomId,
+            null,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+    }
+
+    /** @return array<int, array{int, int}> [roomId => [eat_flag, i_change_flag]] */
+    private function flagsByRoom(?string $date = null): array
+    {
+        $rows = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => 3, 'd_reservation_date' => $date ?? $this->nearDate(), 'i_reservation_type' => 1])
+            ->orderByAsc('i_id_room')
+            ->all();
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(int)$r->i_id_room] = [(int)$r->eat_flag, (int)$r->i_change_flag];
+        }
+
+        return $map;
+    }
+
+    /** 部屋Aが有効（eat0/chg1）のまま部屋Bの行（当初予定あり・直前取消 1/0）を「食べる」にすると、Aが取り消される */
+    public function testProcessUpdate_eatInOtherRoom_cancelsEffectiveRoom(): void
+    {
+        $this->insertMeal(1, 0, 1);
+        $this->insertMeal(2, 1, 0);
+
+        $this->eatInRoom(2);
+
+        $this->assertSame([1 => [0, 0], 2 => [1, 1]], $this->flagsByRoom());
+    }
+
+    /** 部屋Bに取消済み行（0/0）があっても「食べる」にでき、部屋Aが取り消される */
+    public function testProcessUpdate_eatInRoomWithCancelledRow_cancelsEffectiveRoom(): void
+    {
+        $this->insertMeal(1, 0, 1);
+        $this->insertMeal(2, 0, 0);
+
+        $this->eatInRoom(2);
+
+        $this->assertSame([1 => [0, 0], 2 => [0, 1]], $this->flagsByRoom());
+    }
+
+    /** 行を書き換えて移すときは、取消済み行（部屋1）ではなく有効な行（部屋2）を移す */
+    public function testProcessUpdate_movesEffectiveRowRatherThanCancelledRow(): void
+    {
+        // 移せるのは、利用者が所属している部屋の予約だけ（退出済み・削除済みの部屋の予約は取消だけ許す）
+        $conn = ConnectionManager::get('test');
+        $conn->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '部屋2', 'i_disp_no' => 2, 'i_enable' => 1, 'i_del_flg' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $conn->insert('m_user_group', ['i_id_user' => 3, 'i_id_room' => 2, 'active_flag' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $this->insertMeal(1, 0, 0);
+        $this->insertMeal(2, 0, 1);
+
+        $this->eatInRoom(4);
+
+        $this->assertSame([1 => [0, 0], 4 => [0, 1]], $this->flagsByRoom());
+    }
+
+    /** 直前期間外は eat_flag が有効値。部屋を移しても、どの部屋でも食べない状態にしない */
+    public function testProcessUpdate_farDate_movingKeepsTheReservation(): void
+    {
+        $far = \Cake\I18n\Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertMeal(1, 1, 1, $far);
+        $this->insertMeal(2, 0, 0, $far);
+
+        $this->eatInRoom(2, $far);
+
+        $this->assertSame([1 => [0, 0], 2 => [1, 1]], $this->flagsByRoom($far));
+    }
+
+    /** 職員（user 2）は直前期間に部屋を移せない（change-room API と同じ扱い）。部屋1の予約が残り、部屋2には作らない */
+    public function testProcessUpdate_staffLastMinute_cannotMoveRoom(): void
+    {
+        $date = $this->nearDate();
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 1,
+            'eat_flag' => 0, 'i_change_flag' => 1, 'i_approval_status' => 0, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        $this->service->processUpdate(
+            [2 => [1 => ['i_change_flag' => 1]]],
+            [2],
+            $date,
+            2,
+            null,
+            $reservationTable,
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $rows = $reservationTable->find()
+            ->where(['i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 1])
+            ->all()
+            ->combine('i_id_room', fn($r) => [(int)$r->eat_flag, (int)$r->i_change_flag])
+            ->toArray();
+        $this->assertSame([1 => [0, 1]], $rows);
+    }
+
+    /** 同じ保存で「弁当を外して昼食を入れる」と、取消を先に行うので拒否されない（児童 user 3） */
+    public function testProcessUpdate_swapBentoToLunchInOneSave(): void
+    {
+        $date = $this->nearDate();
+        foreach ([[4, 1], [2, 0]] as [$meal, $flag]) {
+            ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+                'i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => $meal, 'i_id_room' => 1,
+                'eat_flag' => 0, 'i_change_flag' => $flag, 'i_approval_status' => 0, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+            ]);
+        }
+        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        $this->service->processUpdate(
+            [3 => [2 => ['i_change_flag' => 1], 4 => ['i_change_flag' => 0]]],
+            [3],
+            $date,
+            1,
+            null,
+            $reservationTable,
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $this->assertSame([1], $reservationTable->findEffectiveRoomIds(3, $date, 2));
+        $this->assertSame([], $reservationTable->findEffectiveRoomIds(3, $date, 4));
+    }
+
+    /** 管理者以外は、過ぎた日の予約を直前編集で変更できない */
+    public function testProcessUpdate_rejectsPastDateForNonAdmin(): void
+    {
+        $date = Date::today()->subDays(3)->format('Y-m-d');
+        $this->insertMeal(1, 1, 1, $date);
+
+        $this->expectException(\App\Domain\Exception\InvalidInputException::class);
+        $this->expectExceptionMessage('過去日の予約は変更できません。');
+        $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 0]]], [3], $date, 1, null,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+    }
+
+    /** 管理者が過ぎた日を直すときも、当初予定（eat_flag）は残し、i_change_flag だけを変える */
+    public function testProcessUpdate_adminPastDateKeepsOriginalPlan(): void
+    {
+        $date = Date::today()->subDays(3)->format('Y-m-d');
+        $this->insertMeal(1, 1, 1, $date);
+        $admin = new class {
+            public function get(string $key): int|string|null
+            {
+                return ['i_id_user' => 1, 'i_admin' => 1, 'i_user_level' => 0, 'c_user_name' => '管理者'][$key] ?? null;
+            }
+        };
+
+        $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 0]]], [3], $date, 1, $admin,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $this->assertSame([1 => [1, 0]], $this->flagsByRoom($date));
+    }
+
+    /** 直前編集で、退出済みの部屋に残った予約を黙ってこの部屋へ移さない（取消だけ許す） */
+    public function testProcessUpdate_doesNotMoveFromExitedRoom(): void
+    {
+        $date = $this->nearDate();
+        $conn = ConnectionManager::get('test');
+        $conn->insert('m_room_info', ['i_id_room' => 8, 'c_room_name' => '退出', 'i_disp_no' => 8, 'i_enable' => 1, 'i_del_flg' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $conn->insert('m_user_group', ['i_id_user' => 3, 'i_id_room' => 8, 'active_flag' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $this->insertMeal(8, 0, 1);
+
+        $result = $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 1]]], [3], $date, 1, null,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $this->assertSame([8 => [0, 1]], $this->flagsByRoom());
+        $this->assertStringContainsString('所属外の部屋', implode('', $result['skipped'] ?? []));
     }
 }

@@ -355,4 +355,72 @@ class ReservationCopyServiceTest extends TestCase
         $this->assertSame(1, $copy['skipped']);
         $this->assertSame(0, (int)$this->fetchRow('2030-01-15')->eat_flag, '承認済みの行が上書きされている');
     }
+
+    /**
+     * コピー先の日に別の部屋で同じ食事が有効なら、プレビューもスキップに数え、実行結果と一致する。
+     */
+    public function testPreviewSkipsWhenSameMealEffectiveInAnotherRoom(): void
+    {
+        $this->insertRow('2030-01-08');                          // コピー元（部屋1）
+        $this->insertRow('2030-01-15', ['i_id_room' => 2]);      // コピー先の日、別の部屋で有効
+
+        $preview = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false);
+        $copy    = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $preview['will_skip'], '別の部屋で有効な食事がプレビューでスキップに数えられていない');
+        $this->assertSame(0, $preview['will_copy']);
+        $this->assertSame($preview['will_copy'], $copy['copied']);
+        $this->assertSame($preview['will_skip'], $copy['skipped']);
+        $this->assertNull($this->fetchRow('2030-01-15'), '部屋1にもコピーされて二重予約になっている');
+    }
+
+    /** コピー先で昼食と弁当がぶつかる行はスキップし、ほかの行はコピーする（1件の衝突でコピー全体を止めない） */
+    public function testLunchBentoConflictIsSkippedAndOtherRowsAreCopied(): void
+    {
+        $this->insertRow('2030-01-08', ['i_reservation_type' => 2]);                     // コピー元: 昼食
+        $this->insertRow('2030-01-09');                                                  // コピー元: 朝食（関係ない日）
+        $this->insertRow('2030-01-15', ['i_reservation_type' => 4, 'i_id_room' => 2]);   // コピー先: 弁当が有効
+
+        $preview = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false);
+        $copy    = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $preview['will_skip']);
+        $this->assertSame(1, $preview['will_copy']);
+        $this->assertSame(1, $copy['copied']);
+        $this->assertSame(1, $copy['skipped']);
+        $this->assertSame([], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(1, '2030-01-15', 2));
+        $this->assertNotNull($this->fetchRow('2030-01-16'), '関係ない日の朝食がコピーされていない');
+    }
+
+    /** コピー元で取消済みの行は写さない（フラグをそのまま写すと、直前期間に入ってから有効に変わるため） */
+    public function testCancelledSourceRowIsNotCopied(): void
+    {
+        $this->insertRow('2030-01-08', ['eat_flag' => 1, 'i_change_flag' => 0]); // 遠い日の行は eat_flag で判定 → 有効
+        $this->insertRow('2030-01-09', ['eat_flag' => 0, 'i_change_flag' => 0]); // 取消済み
+
+        $copy = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $copy['copied']);
+        $this->assertSame(1, $copy['skipped']);
+        $copied = $this->fetchRow('2030-01-15');
+        $this->assertSame([1, 1], [(int)$copied->eat_flag, (int)$copied->i_change_flag], 'コピー先は「食べる」でそろえる');
+        $this->assertNull($this->fetchRow('2030-01-16'));
+    }
+
+    /** コピー先が直前期間なら、取消済みの既存行を上書きするときに当初予定（eat_flag）を残す */
+    public function testCopyIntoLastMinuteKeepsOriginalPlanOfExistingRow(): void
+    {
+        $dst = Date::today()->addDays(2);
+        $src = $dst->subWeeks(1);
+        $dstMonday = $dst->startOfWeek();
+        $srcMonday = $dstMonday->subWeeks(1);
+        $this->insertRow($src->format('Y-m-d'), ['eat_flag' => 0, 'i_change_flag' => 1]);
+        $this->insertRow($dst->format('Y-m-d'), ['eat_flag' => 1, 'i_change_flag' => 0]);
+
+        $copy = $this->service->copyWeek($srcMonday, $dstMonday, null, false, null, false);
+
+        $this->assertSame(1, $copy['copied']);
+        $row = $this->fetchRow($dst->format('Y-m-d'));
+        $this->assertSame([1, 1], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+    }
 }

@@ -228,7 +228,10 @@ class ReservationViewService
                 ->where([
                     'd_reservation_date' => $targetDate->format('Y-m-d'),
                     'i_reservation_type' => $mealType,
-                    "TIndividualReservationInfo.{$judgeColumn}" => 1,
+                    // 数える基準は ReservationDatePolicy::countedValue と同じ（i_change_flag が NULL なら eat_flag）
+                    $judgeColumn === 'i_change_flag'
+                        ? 'COALESCE(TIndividualReservationInfo.i_change_flag, TIndividualReservationInfo.eat_flag) = 1'
+                        : 'TIndividualReservationInfo.eat_flag = 1',
                 ])
                 ->group(['TIndividualReservationInfo.i_id_room'])
                 ->all();

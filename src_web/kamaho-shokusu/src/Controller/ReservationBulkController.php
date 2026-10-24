@@ -231,9 +231,11 @@ class ReservationBulkController extends ReservationBaseController
             [
                 'updated'  => $result['updated'] ?? 0,
                 'created'  => $result['created'] ?? 0,
+                'skipped'  => $result['skipped'] ?? [],
                 'redirect' => './',
             ],
-            '直前編集を保存しました。'
+            // 変更できなかった分は、黙って捨てずに理由を伝える
+            '直前編集を保存しました。' . (($result['skipped'] ?? []) !== [] ? "\n" . implode("\n", $result['skipped']) : '')
         );
     }
 
