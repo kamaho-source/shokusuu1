@@ -800,7 +800,8 @@ function openModalById(id){
                         // 先の食事は登録済みのまま、途中の食事だけ失敗したとき
                         window.pageToast(failed.map(function(f) { return (mealNameMap[f.meal] || f.meal) + '：' + f.message; }).join(' / '), 'danger');
                     }
-                    return true;
+                    // 一部でも失敗したら false を返し、呼び出し側（step）が残りの部屋を送らないようにする
+                    return failed.length === 0;
                 });
             }
 

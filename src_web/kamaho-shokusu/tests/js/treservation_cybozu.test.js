@@ -281,17 +281,49 @@ describe('treservation_cybozu.js 画面', () => {
         delete window.__fetchWithoutConflictModal;
     });
 
-    test('登録の途中で例外が出ても「登録中…」のまま固まらない', async () => {
+    test('背景への反映で例外が出ても、登録できた日の🔒と選択の解除は続ける（二重に送らない）', async () => {
         setup();
         mockFetch((b) => ({ status: 200, json: { ok: true, data: { registered: b.meals, skipped: [] } } }));
         window.__applyReservationToCalendar = () => { throw new Error('boom'); };
+        click(cell('2026-10-20'));
+        click(cell('2026-10-21'));
+
+        await window.CybozuMode.submit();
+
+        expect(window.CybozuMode.state.selected[1]).toEqual({});
+        expect(cell('2026-10-21').classList.contains('lock')).toBe(true);
+        expect(window.pageToast).toHaveBeenLastCalledWith(expect.stringContaining('登録 2件'), 'success');
+        delete window.__applyReservationToCalendar;
+    });
+
+    test('登録の途中で想定外の例外が出ても「登録中…」のまま固まらない', async () => {
+        setup();
+        mockFetch((b) => ({ status: 200, json: { ok: true, data: { registered: b.meals, skipped: [] } } }));
+        window.__reservationCalendar = { refetchEvents: () => { throw new Error('boom'); } };
         click(cell('2026-10-20'));
 
         await window.CybozuMode.submit();
 
         expect(window.CybozuMode.state.busy).toBe(false);
+        expect(window.CybozuMode.state.selected[1]).toEqual({});
         expect(window.pageToast).toHaveBeenLastCalledWith(expect.stringContaining('エラーが発生しました'), 'danger');
-        delete window.__applyReservationToCalendar;
+        delete window.__reservationCalendar;
+    });
+
+    test('開き直すと、スキップの🔒を外し、前回の結果欄を隠すのは次の登録の開始時', async () => {
+        setup();
+        mockFetch(() => ({ status: 200, json: { ok: true, data: { registered: [], skipped: [1] } } }));
+        click(cell('2026-10-20'));
+        await window.CybozuMode.submit();
+        expect(cell('2026-10-20').classList.contains('lock')).toBe(true);
+        expect(document.getElementById('cybozuResult').hidden).toBe(false);
+
+        document.getElementById('cybozuModal').dispatchEvent(new Event('shown.bs.modal'));
+        expect(cell('2026-10-20').classList.contains('lock')).toBe(false);
+        click(cell('2026-10-20'));
+        const pending = window.CybozuMode.submit();
+        expect(document.getElementById('cybozuResult').hidden).toBe(true);
+        await pending;
     });
 
     test('月の外の日（灰色）は選べない', () => {
@@ -318,5 +350,22 @@ describe('treservation_cybozu.js 画面', () => {
         expect(window.CybozuMode.state.selected[1]).toEqual({ '2026-10-20': 1 });
         expect(document.activeElement).toBe(cell('2026-10-20'));
         expect(cell('2026-10-20').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    test('児童は子どもUIと同じく、今日から1か月後の前日までしか選べない', () => {
+        setup({ isChild: true });
+        click(document.getElementById('cybozuNext'));
+        click(cell('2026-11-09'));
+        click(cell('2026-11-10')); // 10/10 の1か月後の前日＝11/9 まで
+        expect(window.CybozuMode.state.selected[1]).toEqual({ '2026-11-09': 1 });
+        expect(cell('2026-11-10').classList.contains('past')).toBe(true);
+        expect(document.getElementById('cybozuNext').disabled).toBe(true); // 11月より先には進めない
+    });
+
+    test('読み上げ用の名前に、予約状況と他の食事の選択を入れる', () => {
+        setup();
+        click(cell('2026-10-20'));
+        meal(3);
+        expect(cell('2026-10-20').getAttribute('aria-label')).toBe('10月20日 夕食。予約 朝× 昼× 夜× 弁×。選択中の食事 朝食');
     });
 });

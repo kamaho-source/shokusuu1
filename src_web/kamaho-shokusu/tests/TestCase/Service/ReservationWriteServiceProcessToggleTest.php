@@ -667,4 +667,38 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertSame([], $table->findEffectiveRoomIds(2, $date, 4));
         $this->assertSame([1], $table->findEffectiveRoomIds(2, $date, 2));
     }
+
+    /** 逆向き（昼食が登録済みの日にお弁当）も、入れ替えない指定なら止める */
+    public function testProcessToggle_noSwapKeepsLunchAndRejectsBento(): void
+    {
+        $date = date('Y-m-d', strtotime('+20 days'));
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+
+        $this->expectException(ConflictException::class);
+        $this->expectExceptionMessage('昼食を登録済みのため');
+        try {
+            $this->service->processToggle(1, ['date' => $date, 'meal' => 4, 'value' => 1, 'userId' => 2, 'noSwap' => true], 2, '職員');
+        } finally {
+            $this->assertSame([1], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(2, $date, 2));
+        }
+    }
+
+    /** 職員の直前期間でも、入れ替えない指定なら「権限なし」ではなくスキップできる文言で止める */
+    public function testProcessToggle_noSwapIsCheckedBeforeStaffLastMinuteSwapBlock(): void
+    {
+        $date = date('Y-m-d', strtotime('+5 days'));
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 1,
+            'eat_flag' => 0, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+
+        $this->expectException(ConflictException::class);
+        $this->expectExceptionMessage('昼食と弁当は同時に予約できません');
+        $this->service->processToggle(1, ['date' => $date, 'meal' => 2, 'value' => 1, 'userId' => 2, 'noSwap' => true], 2, '職員');
+    }
 }

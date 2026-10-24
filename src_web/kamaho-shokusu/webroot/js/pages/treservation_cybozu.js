@@ -99,7 +99,13 @@
             progress: ''
         };
         var minKey = state.year * 12 + state.month;
-        var maxKey = minKey + MONTHS_AHEAD;
+        // 児童は子どもUIと同じく、今日から1か月後の前日までしか予約できない（kid_section.php と同じ基準）
+        var lastDate = cfg.isChild ? (function () {
+            var e = new Date(t.getFullYear(), t.getMonth() + 1, t.getDate() - 1);
+            return ymd(e.getFullYear(), e.getMonth(), e.getDate());
+        })() : null;
+        var maxKey = lastDate ? Math.min(minKey + MONTHS_AHEAD, parse(lastDate).getFullYear() * 12 + parse(lastDate).getMonth()) : minKey + MONTHS_AHEAD;
+        var beyond = function (date) { return !!lastDate && date > lastDate; };
 
         var $ = function (id) { return document.getElementById(id); };
         var toast = function (msg, type) { if (window.pageToast) window.pageToast(msg, type); };
@@ -171,7 +177,7 @@
             monthCells(state.year, state.month).forEach(function (week) {
                 html += '<tr>';
                 week.forEach(function (c) {
-                    var past = !c.inMonth || c.date < today;
+                    var past = !c.inMonth || c.date < today || beyond(c.date);
                     var hol = holidayName(c.date);
                     var lock = !past ? lockOf(c.date, state.meal) : null;
                     var selRoom = state.selected[state.meal][c.date] ? roomOf(state.selected[state.meal][c.date]) : null;
@@ -185,11 +191,15 @@
                     if (lock) cls.push('lock');
                     if (selRoom) cls.push('sel');
                     var title = lock === 'bento' ? 'お弁当を登録済みのため、昼食は選べません'
-                        : (lock === 'skipped' ? '登録済みのため、登録しませんでした（別の部屋など）'
+                        : (lock === 'skipped' ? '登録済み、または昼食とお弁当が重なるため、登録しませんでした'
                         : (lock ? 'この食事は登録済みです' : ''));
                     var d0 = parse(c.date);
+                    // aria-label は中身の読み上げを置き換えるので、予約状況と他の食事の選択も入れる
+                    var dd = details[c.date] || {};
                     var label = (d0.getMonth() + 1) + '月' + d0.getDate() + '日 ' + mealById(state.meal).label +
-                        (selRoom ? ' 選択中' : '') + (title ? ' ' + title : '');
+                        (selRoom ? ' 選択中' : '') + (title ? ' ' + title : '') +
+                        '。予約 朝' + (dd.breakfast ? '○' : '×') + ' 昼' + (dd.lunch ? '○' : '×') + ' 夜' + (dd.dinner ? '○' : '×') + ' 弁' + (dd.bento ? '○' : '×') +
+                        (picks.length ? '。選択中の食事 ' + picks.map(function (m) { return m.label; }).join('・') : '');
                     // 月の外の日は選べない（data-date を付けない。表示中の月より先は myDetails の範囲外のこともあるため）
                     html += '<td class="' + cls.join(' ') + '"' + (c.inMonth ? ' data-date="' + c.date + '"' : '') +
                         (past || lock ? ' aria-disabled="true"'
@@ -253,14 +263,14 @@
             fn();
             if (!attr) return;
             var el = modalEl.querySelector('[' + attr + '="' + val + '"]');
-            if (el && el.focus) el.focus();
+            if (el && el.focus) el.focus({ preventScroll: true });
         }
 
         function render() { keepFocus(function () { renderRooms(); renderMeals(); renderCalendar(); renderSummary(); }); }
 
         function clickDate(date) {
             if (state.busy || !state.roomId) return;
-            if (date < today) return;
+            if (date < today || beyond(date)) return;
             if (lockOf(date, state.meal)) return;
             var sel = state.selected[state.meal];
             var cur = sel[date];
@@ -313,6 +323,7 @@
                 g.meals.push(p.meal);
             });
             state.busy = true;
+            $('cybozuResult').hidden = true;
             var done = [], skipped = [], failed = [];
             var chain = Promise.resolve();
             // サーバーの負荷と競合を避けるため、1回ずつ順番に登録する
@@ -342,17 +353,21 @@
                     var d = details[x.date] = details[x.date] || {};
                     d[key] = 1;
                     d[key + 'Room'] = x.roomId;
-                    if (typeof window.__applyReservationToCalendar === 'function') {
-                        window.__applyReservationToCalendar(x.date, x.meal, x.roomId, true);
-                    }
+                    // 背景への反映で例外が出ても、残りの日の🔒・選択の解除は続ける（選択が残ると二重に送るため）
+                    try {
+                        if (typeof window.__applyReservationToCalendar === 'function') {
+                            window.__applyReservationToCalendar(x.date, x.meal, x.roomId, true);
+                        }
+                    } catch (e) { /* 背景の表示だけの問題。再読込で直る */ }
                 });
-                if (done.length && window.__reservationCalendar && typeof window.__reservationCalendar.refetchEvents === 'function') {
-                    window.__reservationCalendar.refetchEvents();
-                }
                 // スキップした日も、もう一度選んで同じスキップにならないよう🔒にする
                 skipped.forEach(function (x) { state.skipLock[x.meal][x.date] = true; });
                 // 失敗した分だけを選択に残し、もう一度「登録する」でやり直せるようにする
                 done.concat(skipped).forEach(function (x) { delete state.selected[x.meal][x.date]; });
+                // 選択を外した後に、背景のカレンダーをまとめて1回だけ取り直す
+                if (done.length && window.__reservationCalendar && typeof window.__reservationCalendar.refetchEvents === 'function') {
+                    window.__reservationCalendar.refetchEvents();
+                }
                 // 「朝食 10/20（火）・10/21（水）／夕食 10/20（火）」の形で並べる
                 var list = function (xs) {
                     return MEALS.map(function (m) {
@@ -421,7 +436,11 @@
         });
         $('cybozuSubmit').addEventListener('click', submit);
         // 閉じている間に背景の画面で登録・取消されても、開いたときの🔒が最新になるよう描き直す
-        modalEl.addEventListener('shown.bs.modal', render);
+        // スキップの🔒（別の部屋で登録済みなど）も、背景で取り消されたかもしれないので開き直したら外す
+        modalEl.addEventListener('shown.bs.modal', function () {
+            state.skipLock = { 1: {}, 2: {}, 3: {} };
+            render();
+        });
 
         var entry = document.getElementById('cybozuModeButton');
         if (entry) {
