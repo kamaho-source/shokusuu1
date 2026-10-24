@@ -837,7 +837,7 @@ function openModalById(id){
                 return (picked && picked.name)
                     || (t.availableRoomNames && t.availableRoomNames[roomId])
                     || (t.roomNames && t.roomNames[roomId])
-                    || String(roomId);
+                    || ('部屋' + roomId);
             }
 
             /**
@@ -1414,15 +1414,15 @@ function openModalById(id){
                             badge.textContent = '✓';
                             var titleEl = info.el.querySelector('.fc-event-title');
                             if (titleEl) titleEl.appendChild(badge);
-                            // 予約部屋名をイベント下部に表示
+                            // 予約部屋名をイベント下部に表示（画面を開いた後に予約・変更した部屋も名前を引けるよう roomNameOf を使う）
                             var roomId = detail[mealKey + 'Room'];
-                            var roomNames = (window.__TRESP && window.__TRESP.roomNames) || {};
-                            if (roomId && roomNames[roomId]) {
-                                label += ' 予約部屋: ' + roomNames[roomId];
+                            if (roomId) {
+                                var reservedRoomName = roomNameOf(roomId);
+                                label += ' 予約部屋: ' + reservedRoomName;
                                 var roomLabel = document.createElement('div');
                                 roomLabel.className = 'meal-room-label';
                                 roomLabel.setAttribute('aria-hidden', 'true');
-                                roomLabel.textContent = '📍 ' + roomNames[roomId];
+                                roomLabel.textContent = '📍 ' + reservedRoomName;
                                 var mainEl = info.el.querySelector('.fc-event-main') || info.el;
                                 mainEl.appendChild(roomLabel);
                             }
