@@ -10,6 +10,7 @@ use Cake\TestSuite\TestCase;
 
 /**
  * 管理者・システム管理者も、所属部屋以外は部屋の選択肢に出ず、直接指定しても扱えない（#821）。
+ * ただしエクセル食数予約（画面と bulk-toggle）だけは、管理者・システム管理者が全部屋を扱える（#878）。
  *
  * 部屋 1: 管理者(user 1)が所属（fixture）
  * 部屋 70: 管理者(user 1)・システム管理者(user 4)が所属
@@ -66,6 +67,12 @@ class AdminRoomScopeTest extends TestCase
         return ['管理者' => [1, [1, 70]], 'システム管理者' => [4, [70]]];
     }
 
+    /** @return array<string, array{0: int}> */
+    public static function adminIdProvider(): array
+    {
+        return ['管理者' => [1], 'システム管理者' => [4]];
+    }
+
     /**
      * @dataProvider adminProvider
      * @param array<int> $expectedRoomIds
@@ -104,25 +111,185 @@ class AdminRoomScopeTest extends TestCase
         $this->assertSame($expectedRoomIds[0], $this->viewVariable('selectedRoomId'));
     }
 
-    /** @dataProvider adminProvider */
-    public function testMealCountGridRoomsAndUsersAreAffiliatedOnly(int $userId, array $expectedRoomIds): void
+    /**
+     * エクセル食数予約だけは、管理者・システム管理者に全部屋（削除済みを除く）と全利用者を出す
+     *
+     * @dataProvider adminIdProvider
+     */
+    public function testMealCountGridShowsAllRoomsAndUsersToAdmins(int $userId): void
     {
         $this->loginAs($userId);
         $this->get('/TReservationInfo/meal-count-grid?mode=individual&user_id=5');
 
         $this->assertResponseOk();
-        $this->assertSame($expectedRoomIds, array_keys($this->viewVariable('allRooms')));
-        $this->assertArrayNotHasKey(5, $this->viewVariable('nameList'), '所属外の部屋の利用者は選択肢に出ない');
-        $this->assertSame($userId, $this->viewVariable('selectedUserId'), '所属外の利用者を指定しても本人に戻る');
+        $this->assertSame([1, 70, 71], array_keys($this->viewVariable('allRooms')));
+        $this->assertArrayHasKey(5, $this->viewVariable('nameList'), '所属外の部屋の利用者も選べる');
+        $this->assertSame(5, $this->viewVariable('selectedUserId'));
+
+        $this->get('/TReservationInfo/meal-count-grid?mode=room&room_id=71');
+        $this->assertResponseOk();
+        $this->assertSame(71, $this->viewVariable('selectedRoomId'), '所属外の部屋も選べる');
+
+        $this->get('/TReservationInfo/meal-count-grid?mode=all');
+        $this->assertResponseOk();
+        $this->assertResponseContains('<tr data-user-id="5" data-room-id="71"', '全部モードに所属外の部屋の行が出る');
     }
 
-    public function testMealCountGridRoomModeFallsBackToOwnRoom(): void
+    /** 部屋71に児童(user 3)を所属させる */
+    private function childInRoom71(): void
     {
-        $this->loginAs(1);
-        $this->get('/TReservationInfo/meal-count-grid?mode=room&room_id=71');
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => 3, 'i_id_room' => 71, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+    }
 
+    private function bulkToggleRoom71(int $roomId = 71): array
+    {
+        $this->enableCsrfToken();
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->post('/TReservationInfo/bulk-toggle', ['items' => [[
+            'roomId' => $roomId, 'userId' => 3, 'date' => date('Y-m-d', strtotime('+40 days')), 'meal' => 3, 'value' => 1,
+        ]]]);
         $this->assertResponseOk();
-        $this->assertSame(1, $this->viewVariable('selectedRoomId'));
+
+        $body = json_decode((string)$this->_response->getBody(), true);
+
+        return $body['data'] ?? $body;
+    }
+
+    private function reservationCount(int $roomId): int
+    {
+        return (int)ConnectionManager::get('test')->execute(
+            'SELECT COUNT(*) FROM t_individual_reservation_info WHERE i_id_user = 3 AND i_id_room = ?',
+            [$roomId]
+        )->fetchColumn(0);
+    }
+
+    /**
+     * 管理者でも bulk-toggle で、対象者が所属していない部屋・削除済みの部屋には登録できない
+     *
+     * @dataProvider adminIdProvider
+     */
+    public function testMealCountGridBulkToggleStillRejectsNotAffiliatedTargetAndDeletedRoom(int $userId): void
+    {
+        $this->loginAs($userId);
+
+        $data = $this->bulkToggleRoom71();
+        $this->assertSame(0, $data['ok'] ?? null);
+        $this->assertSame('対象ユーザーは指定された部屋に所属していません。', $data['results'][0]['message'] ?? null);
+
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 75, 'c_room_name' => '部屋75', 'i_disp_no' => 75, 'i_enable' => 1, 'i_del_flg' => 1]);
+        $db->insert('m_user_group', [
+            'i_id_user' => 3, 'i_id_room' => 75, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+        $data = $this->bulkToggleRoom71(75);
+        $this->assertSame(0, $data['ok'] ?? null);
+        $this->assertSame('選択された部屋は利用できません。', $data['results'][0]['message'] ?? null);
+        $this->assertSame(0, $this->reservationCount(71) + $this->reservationCount(75), '予約行は作られない');
+    }
+
+    /**
+     * 管理者は bulk-toggle で、所属外の部屋に残った退出済みの人の予約を取り消せる。予約が無ければ取消も拒否する
+     *
+     * @dataProvider adminIdProvider
+     */
+    public function testMealCountGridBulkToggleCancelsLeftoverOfExitedTargetInNotMemberRoom(int $userId): void
+    {
+        $db = ConnectionManager::get('test');
+        $date = date('Y-m-d', strtotime('+40 days'));
+        $db->insert('m_user_group', [
+            'i_id_user' => 3, 'i_id_room' => 71, 'active_flag' => 1, // 退出済み
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+        $db->insert('t_individual_reservation_info', [
+            'd_reservation_date' => $date, 'i_id_user' => 3, 'i_reservation_type' => 3, 'i_id_room' => 71,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+        $this->loginAs($userId);
+        $this->enableCsrfToken();
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->post('/TReservationInfo/bulk-toggle', ['items' => [
+            ['roomId' => 71, 'userId' => 3, 'date' => $date, 'meal' => 3, 'value' => 0], // 既存の予約あり
+            ['roomId' => 71, 'userId' => 3, 'date' => $date, 'meal' => 1, 'value' => 0], // 既存の予約なし
+        ]]);
+        $this->assertResponseOk();
+        $body = json_decode((string)$this->_response->getBody(), true);
+        $results = ($body['data'] ?? $body)['results'];
+
+        $this->assertTrue($results[0]['ok'], json_encode($results, JSON_UNESCAPED_UNICODE));
+        $this->assertFalse($results[1]['ok']);
+        $this->assertSame('対象ユーザーは指定された部屋に所属していません。', $results[1]['message'] ?? null);
+        $this->assertSame(1, $this->reservationCount(71), '取消は行を消さずに無効化し、予約の無い食事に行は作らない');
+        $eat = $db->execute(
+            'SELECT eat_flag FROM t_individual_reservation_info WHERE i_id_user = 3 AND i_id_room = 71 AND i_reservation_type = 3'
+        )->fetchColumn(0);
+        $this->assertSame(0, (int)$eat, '既存の予約は取り消される');
+    }
+
+    /** ブロック長は bulk-toggle でも所属外の部屋の他人の予約を登録できない（管理者だけの例外） */
+    public function testMealCountGridBulkToggleRejectsBlockLeaderInNotMemberRoom(): void
+    {
+        ConnectionManager::get('test')->update('m_user_info', ['i_admin' => 2], ['i_id_user' => 1]);
+        $this->childInRoom71();
+        $this->loginAs(1);
+
+        $data = $this->bulkToggleRoom71();
+        $this->assertSame(0, $data['ok'] ?? null);
+        $this->assertSame('この部屋を操作する権限がありません。', $data['results'][0]['message'] ?? null);
+        $this->assertSame(0, $this->reservationCount(71));
+    }
+
+    /**
+     * エクセル食数予約の保存（bulk-toggle）では、管理者・システム管理者は所属外の部屋も登録できる
+     *
+     * @dataProvider adminIdProvider
+     */
+    public function testMealCountGridBulkToggleAllowsAdminsInNotMemberRoom(int $userId): void
+    {
+        $this->childInRoom71();
+        $this->loginAs($userId);
+
+        $data = $this->bulkToggleRoom71();
+        $this->assertSame(1, $data['ok'] ?? null, json_encode($data, JSON_UNESCAPED_UNICODE));
+        $this->assertSame(1, $this->reservationCount(71), '所属外の部屋に予約行ができる');
+    }
+
+    /**
+     * ほかの予約画面（単件 toggle）は、管理者・システム管理者でも所属外の部屋を操作できないまま（#821）
+     *
+     * @dataProvider adminIdProvider
+     */
+    public function testSingleToggleStillRejectsAdminInNotMemberRoom(int $userId): void
+    {
+        $this->childInRoom71();
+        $this->loginAs($userId);
+        $this->enableCsrfToken();
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->post('/TReservationInfo/toggle/71', ['date' => date('Y-m-d', strtotime('+40 days')), 'meal' => 3, 'value' => 1, 'userId' => 3]);
+
+        $this->assertResponseCode(403);
+    }
+
+    /** 事務所ユーザー（管理者でない）は、エクセル食数予約でも所属外の部屋の他人の予約を登録できない */
+    public function testMealCountGridBulkToggleRejectsOfficeUserInNotMemberRoom(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 74, 'c_room_name' => '事務所', 'i_disp_no' => 74, 'i_enable' => 1, 'i_del_flg' => 0]);
+        $db->insert('m_user_group', [
+            'i_id_user' => 1, 'i_id_room' => 74, 'active_flag' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-01-01 00:00:00', 'c_update_user' => 't',
+        ]);
+        $db->update('m_user_info', ['i_admin' => 0], ['i_id_user' => 1]);
+        $this->childInRoom71();
+        $this->loginAs(1);
+
+        $data = $this->bulkToggleRoom71();
+        $this->assertSame(0, $data['ok'] ?? null, json_encode($data, JSON_UNESCAPED_UNICODE));
+        $this->assertSame('この部屋を操作する権限がありません。', $data['results'][0]['message'] ?? null, '所属外の部屋として拒否される');
+        $this->assertSame(0, $this->reservationCount(71));
     }
 
     public function testCopyPreviewRejectsNotMemberRoom(): void
@@ -215,8 +382,8 @@ class AdminRoomScopeTest extends TestCase
         $this->assertSame([], $this->viewVariable('mealDataArray'), '所属部屋が無くても全部屋の集計にならない');
     }
 
-    /** 事務所ユーザーを兼ねる管理者は、事務所ユーザーと同じ扱い（食数一括管理の部屋・全部屋モードは所属部屋のみ） */
-    public function testOfficeAdminMealCountGridRoomAndAllModesAreAffiliatedOnly(): void
+    /** 事務所ユーザーを兼ねる管理者も、エクセル食数予約の部屋・全部屋モードは全部屋 */
+    public function testOfficeAdminMealCountGridRoomAndAllModesShowAllRooms(): void
     {
         $db = ConnectionManager::get('test');
         $db->insert('m_room_info', ['i_id_room' => 74, 'c_room_name' => '事務所', 'i_disp_no' => 74, 'i_enable' => 1, 'i_del_flg' => 0]);
@@ -228,15 +395,26 @@ class AdminRoomScopeTest extends TestCase
 
         $this->get('/TReservationInfo/meal-count-grid?mode=all');
         $this->assertResponseOk();
-        $this->assertSame([1, 70, 74], array_keys($this->viewVariable('allRooms')));
+        $this->assertSame([1, 70, 71, 74], array_keys($this->viewVariable('allRooms')));
 
         $this->get('/TReservationInfo/meal-count-grid?mode=room&room_id=71');
-        $this->assertNotSame(71, $this->viewVariable('selectedRoomId'));
+        $this->assertSame(71, $this->viewVariable('selectedRoomId'));
     }
 
-    /** 事務所兼管理者の食数一括管理（個人）: 所属外の部屋の児童の行は編集できない表示にする */
-    public function testOfficeAdminIndividualGridRowsOfNotMemberRoomAreNotEditable(): void
+    /** @return array<string, array{0: int}> */
+    public static function officeRoleProvider(): array
     {
+        return ['事務所兼管理者' => [1], '事務所ユーザー（管理者でない）' => [0]];
+    }
+
+    /**
+     * エクセル食数予約（個人）: 所属外の部屋の児童の行は、管理者なら編集でき、事務所ユーザーは閲覧のみ
+     *
+     * @dataProvider officeRoleProvider
+     */
+    public function testOfficeIndividualGridRowsOfNotMemberRoom(int $iAdmin): void
+    {
+        ConnectionManager::get('test')->update('m_user_info', ['i_admin' => $iAdmin], ['i_id_user' => 1]);
         $db = ConnectionManager::get('test');
         $db->insert('m_room_info', ['i_id_room' => 74, 'c_room_name' => '事務所', 'i_disp_no' => 74, 'i_enable' => 1, 'i_del_flg' => 0]);
         foreach ([[1, 74], [3, 71]] as [$userId, $roomId]) { // 管理者は事務所にも所属、児童(user 3)は部屋1と所属外の71に所属
@@ -257,6 +435,11 @@ class AdminRoomScopeTest extends TestCase
             return substr($body, $start, strpos($body, '</tr>', $start) - $start);
         };
         $this->assertStringContainsString('mcg-toggleable', $row(1), '所属部屋の児童は編集できる');
+        if ($iAdmin === 1) {
+            $this->assertStringContainsString('mcg-toggleable', $row(71), '管理者は所属外の部屋の児童も編集できる');
+
+            return;
+        }
         $this->assertStringNotContainsString('mcg-toggleable', $row(71), '所属外の部屋の児童は編集できない');
         $this->assertStringContainsString('所属していない部屋の予約は操作できません。', $row(71), '閲覧のみの理由を出す');
     }

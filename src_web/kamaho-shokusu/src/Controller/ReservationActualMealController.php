@@ -470,23 +470,25 @@ class ReservationActualMealController extends ReservationBaseController
             $viewMode = 'individual';
         }
 
-        // 有効な所属部屋（退出済み・削除済みを除く）。編集可否（loginRoomIds）もこれで判定する
+        // 有効な所属部屋（退出済み・削除済みを除く）。管理者以外の編集可否（loginRoomIds）はこれで判定する
         $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
             $this->MRoomInfo,
             $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUserId),
             false
         ));
-        // 全部屋を選べるのは事務所ユーザーだけ。管理者・システム管理者は所属部屋のみ（#821）
+        // 全部屋（削除済みを除く）を扱えるのは管理者・システム管理者と事務所ユーザー。
+        // 他の予約画面と違い、エクセル食数予約だけは管理者が全部屋を閲覧・編集できる。
+        // 事務所ユーザーの所属外の部屋の行は閲覧のみ（#821）
         $allRooms    = $this->calendarService->getRoomsForUser(
             $this->MRoomInfo,
             $userRoomIds,
-            $isOfficeUser,
+            $canViewAll,
             $isOfficeUser,
             $isBlockLeader
         );
 
-        // 部屋・全部屋モードは所属部屋のみ。事務所ユーザーを兼ねる管理者も同じ（#821）
-        if ($viewMode === 'room' || $viewMode === 'all') {
+        // 事務所ユーザーの部屋・全部屋モードは所属部屋のみ（#821）。管理者は全部屋
+        if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
             $allRooms = array_intersect_key($allRooms, array_flip($userRoomIds));
         }
 
@@ -516,7 +518,7 @@ class ReservationActualMealController extends ReservationBaseController
             $selectedUserId = $loginUserId;
         }
 
-        // 選べる利用者。管理者・システム管理者は所属部屋の利用者のみ（#821）。事務所ユーザーは全員。
+        // 選べる利用者。管理者・システム管理者と事務所ユーザーは全員
         $selectableUsers = [];
         if ($canViewAll) {
             $userQuery = $this->MUserInfo->find()
@@ -524,15 +526,6 @@ class ReservationActualMealController extends ReservationBaseController
                 ->where(['MUserInfo.i_del_flag' => 0])
                 ->orderByAsc('MUserInfo.c_user_name')
                 ->enableHydration(false);
-            if (!$isOfficeUser) {
-                $userQuery->innerJoin(
-                    ['MUserGroup' => 'm_user_group'],
-                    ['MUserGroup.i_id_user = MUserInfo.i_id_user']
-                )->where([
-                    'MUserGroup.i_id_room IN' => array_keys($allRooms) ?: [0],
-                    'MUserGroup.active_flag'  => 0,
-                ])->distinct(['MUserInfo.i_id_user', 'MUserInfo.c_user_name']);
-            }
             foreach ($userQuery->all() as $u) {
                 $selectableUsers[(int)$u['i_id_user']] = (string)$u['c_user_name'];
             }
@@ -612,7 +605,8 @@ class ReservationActualMealController extends ReservationBaseController
             'hasStaffId'      => $hasStaffId,
             'loginUserId'     => $loginUserId,
             'loginName'       => $loginName,
-            'loginRoomIds'    => $userRoomIds,
+            // 編集できる部屋。管理者は全部屋（エクセル食数予約のみ）
+            'loginRoomIds'    => $isAdmin ? array_keys($allRooms) : $userRoomIds,
         ]);
 
         $this->viewBuilder()->setLayout('default');

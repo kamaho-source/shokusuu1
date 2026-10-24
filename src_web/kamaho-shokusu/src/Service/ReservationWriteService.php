@@ -347,12 +347,30 @@ class ReservationWriteService
         return $d !== false && $d->format('Y-m-d') === $date;
     }
 
+    /**
+     * 1件の食事予約を登録・取消する（トグル）。
+     *
+     * 他人の予約を扱うには、操作者本人も部屋に有効所属していること（管理者も同じ。#821）。
+     * $adminAnyRoom が true のとき（エクセル食数予約の一括保存）だけ、管理者・システム管理者は
+     * 所属外の部屋も操作できる。対象者の所属・削除済み部屋・過去日・直前・二重予約の判定は変わらない。
+     *
+     * @param int    $roomId          部屋 ID
+     * @param array  $payload         date, meal, value, userId（省略時はログインユーザー）
+     * @param int    $loginUserId     操作者のユーザー ID
+     * @param string $loginUserName   操作者名
+     * @param bool   $invalidateCache 処理後にキャッシュを無効化するか
+     * @param bool   $adminAnyRoom    管理者が所属外の部屋を操作できるか（エクセル食数予約のみ true）
+     * @return array 処理結果（value, details, affected）
+     * @throws DomainException 入力不正・権限不足・所属外・競合など
+     * @throws PersistenceException 予期しない保存エラー
+     */
     public function processToggle(
         int $roomId,
         array $payload,
         int $loginUserId,
         string $loginUserName,
-        bool $invalidateCache = true
+        bool $invalidateCache = true,
+        bool $adminAnyRoom = false
     ): array {
         if (empty($payload)) {
             throw new InvalidInputException('Empty request body.', 400);
@@ -408,8 +426,9 @@ class ReservationWriteService
             throw new UnauthorizedException('選択された部屋は利用できません。');
         }
 
-        // 他人の予約を扱うには、操作者本人も部屋に有効所属していること（管理者も同じ。#821）
-        if ($targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
+        // 他人の予約を扱うには、操作者本人も部屋に有効所属していること（管理者も同じ。#821）。
+        // ただしエクセル食数予約（$adminAnyRoom）では、管理者・システム管理者は所属外の部屋も操作できる
+        if ($targetUserId !== $loginUserId && !($adminAnyRoom && $isAdmin) && !$this->isActiveMember($loginUserId, $roomId)) {
             throw new UnauthorizedException('この部屋を操作する権限がありません。');
         }
 
@@ -522,6 +541,7 @@ class ReservationWriteService
      * 1件の失敗（競合・権限など）が他の件に影響しないよう、item ごとに例外を捕捉する
      * （従来の「セルごとに個別リクエスト」と同じ“一部成功・一部失敗”の挙動を維持する）。
      * キャッシュ無効化は件数分ではなく、影響した日付ごとに最後へまとめて1回だけ実行する。
+     * エクセル食数予約専用のため、管理者・システム管理者は所属外の部屋も操作できる（processToggle の $adminAnyRoom）。
      *
      * @param array<int, array{roomId?:int,i_id_room?:int,userId?:int,date?:string,meal?:int,value?:int}> $items
      * @param int    $loginUserId
@@ -560,7 +580,8 @@ class ReservationWriteService
 
             try {
                 // キャッシュ無効化は後でまとめて行うため false を渡す。
-                $r = $this->processToggle($roomId, $payload, $loginUserId, $loginUserName, false);
+                // 一括 toggle はエクセル食数予約専用のため、管理者は所属外の部屋も操作できる
+                $r = $this->processToggle($roomId, $payload, $loginUserId, $loginUserName, false, true);
                 $results[$i] = ['ok' => true, 'value' => $r['value'], 'details' => $r['details']];
 
                 $aff  = $r['affected'];
