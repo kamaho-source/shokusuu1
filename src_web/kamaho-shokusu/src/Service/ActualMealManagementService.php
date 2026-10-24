@@ -54,9 +54,8 @@ class ActualMealManagementService
             ])
             ->andWhere(['MUserInfo.i_id_staff IS NOT' => null])
             ->andWhere(['MUserInfo.i_id_staff !=' => ''])
-            ->enableHydration(false)
-            ->orderByAsc('MUserInfo.c_user_name')
-            ->all();
+            ->enableHydration(false);
+        $rows = RoomMemberOrderService::orderMembers($rows)->all();
 
         $result = [];
         foreach ($rows as $row) {

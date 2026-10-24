@@ -186,7 +186,7 @@ class MealCountGridService
             return $result;
         }
 
-        $rows = $userGroupTable->find()
+        $rows = RoomMemberOrderService::orderMembers($userGroupTable->find())
             ->enableAutoFields(false)
             ->select([
                 'i_id_room'    => 'MUserGroup.i_id_room',
@@ -204,11 +204,9 @@ class MealCountGridService
                 'MUserInfo.i_del_flag'    => 0,
             ])
             ->enableHydration(false)
-            ->orderAsc('MUserInfo.i_user_level')
-            ->orderAsc('MUserInfo.c_user_name')
             ->all();
 
-        // 並び順 (i_user_level, c_user_name) は取得順のまま部屋ごとに振り分ける
+        // 並び順（RoomMemberOrderService::orderMembers）は取得順のまま部屋ごとに振り分ける
         foreach ($rows as $row) {
             $result[(int)$row['i_id_room']][] = [
                 'id'           => (int)$row['i_id_user'],

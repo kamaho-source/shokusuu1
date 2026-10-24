@@ -24,6 +24,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MRoomInfo/add', ['controller' => 'MRoomInfo', 'action' => 'add']);
         $builder->connect('/MRoomInfo/edit/*', ['controller' => 'MRoomInfo', 'action' => 'edit']);
         $builder->connect('/MRoomInfo/delete/*', ['controller' => 'MRoomInfo', 'action' => 'delete']);
+        $builder->connect('/MRoomInfo/reorderMembers/*', ['controller' => 'MRoomInfo', 'action' => 'reorderMembers']);
 
         // TReservationInfo（一覧など）
         $builder->connect('/TReservationInfo', ['controller' => 'TReservationInfo', 'action' => 'index']);
