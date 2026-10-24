@@ -17,9 +17,11 @@ class ReservationCalendarService
 
     public function getUserRoomIds(Table $userGroupTable, int $userId): array
     {
+        // 削除済みの部屋は所属に数えない（代表部屋が削除済みになると、カレンダーで予約を開けなくなるため）
         $userGroups = $userGroupTable->find()
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
+            ->select(['MUserGroup.i_id_room'])
+            ->innerJoin(['MRoomInfo' => 'm_room_info'], ['MRoomInfo.i_id_room = MUserGroup.i_id_room'])
+            ->where(['MUserGroup.i_id_user' => $userId, 'MUserGroup.active_flag' => 0, 'MRoomInfo.i_del_flg' => 0])
             ->toArray();
 
         $roomIds = [];

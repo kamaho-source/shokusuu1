@@ -299,6 +299,10 @@ class ReservationChangeEditServiceTest extends TestCase
     /** 行を書き換えて移すときは、取消済み行（部屋1）ではなく有効な行（部屋2）を移す */
     public function testProcessUpdate_movesEffectiveRowRatherThanCancelledRow(): void
     {
+        // 移せるのは、利用者が所属している部屋の予約だけ（退出済み・削除済みの部屋の予約は取消だけ許す）
+        $conn = ConnectionManager::get('test');
+        $conn->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '部屋2', 'i_disp_no' => 2, 'i_enable' => 1, 'i_del_flg' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $conn->insert('m_user_group', ['i_id_user' => 3, 'i_id_room' => 2, 'active_flag' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
         $this->insertMeal(1, 0, 0);
         $this->insertMeal(2, 0, 1);
 
@@ -413,5 +417,25 @@ class ReservationChangeEditServiceTest extends TestCase
         );
 
         $this->assertSame([1 => [1, 0]], $this->flagsByRoom($date));
+    }
+
+    /** 直前編集で、退出済みの部屋に残った予約を黙ってこの部屋へ移さない（取消だけ許す） */
+    public function testProcessUpdate_doesNotMoveFromExitedRoom(): void
+    {
+        $date = $this->nearDate();
+        $conn = ConnectionManager::get('test');
+        $conn->insert('m_room_info', ['i_id_room' => 8, 'c_room_name' => '退出', 'i_disp_no' => 8, 'i_enable' => 1, 'i_del_flg' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $conn->insert('m_user_group', ['i_id_user' => 3, 'i_id_room' => 8, 'active_flag' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $this->insertMeal(8, 0, 1);
+
+        $result = $this->service->processUpdate(
+            [3 => [1 => ['i_change_flag' => 1]]], [3], $date, 1, null,
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            true
+        );
+
+        $this->assertSame([8 => [0, 1]], $this->flagsByRoom());
+        $this->assertStringContainsString('所属外の部屋', implode('', $result['skipped'] ?? []));
     }
 }

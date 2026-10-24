@@ -949,4 +949,34 @@ class ReservationBulkServiceTest extends TestCase
         $this->assertSame([], $result['skipped'], '変わっていない過去日の行に理由を出している');
         $this->assertSame(1, (int)$this->fetchReservation(3, $near, 1, 1)->i_change_flag);
     }
+
+    /** 直前一括編集: 開いたあとに他の人が同じ日を更新していたら、古いスナップショットの保存は競合として止める */
+    public function testBulkChangeEditDetectsStaleSnapshotInTheSameYear(): void
+    {
+        $date = self::d(5);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'dt_update' => date('Y-01-01 00:00:00')]);
+        $snapshot = (new \App\Service\ReservationQueryService())->getReservationSnapshots($this->reservationTable, 1, [$date])[$date];
+        $this->reservationTable->updateAll(['dt_update' => date('Y-01-02 00:00:00')], ['i_id_user' => 3, 'd_reservation_date' => $date]);
+
+        $result = $this->service->processBulkChangeEdit(
+            [$date => ['3' => ['1' => '0']]], 1, 'tester', $this->reservationTable, $this->userTable,
+            [$date => $snapshot], 99, true, 0, false
+        );
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame($date, $result['conflict_date'] ?? null);
+    }
+
+    /** 直前一括編集: 管理者は過去日を直せる（当初予定の eat_flag は残す） */
+    public function testBulkChangeEditAdminCanFixPastDate(): void
+    {
+        $past = date('Y-m-d', strtotime('-3 days'));
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $past, 'eat_flag' => 1, 'i_change_flag' => 1]);
+
+        $result = $this->callBulkChangeEditWithRealDates([$past => ['3' => ['1' => '0']]], true, 99);
+
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+        $row = $this->fetchReservation(3, $past, 1, 1);
+        $this->assertSame([1, 0], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+    }
 }

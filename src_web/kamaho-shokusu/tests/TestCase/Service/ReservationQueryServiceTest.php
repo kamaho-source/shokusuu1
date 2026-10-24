@@ -214,4 +214,21 @@ class ReservationQueryServiceTest extends TestCase
 
         $this->assertArrayHasKey($date, $map);
     }
+
+    /** スナップショットの値は日時（年だけにならない）。年だけだと同じ年の更新を競合として検出できない */
+    public function testGetReservationSnapshots_valueIsDateTime(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+        \Cake\Datasource\ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-03-04 05:06:07',
+        ]);
+
+        $map = (new \App\Service\ReservationQueryService())->getReservationSnapshots(
+            \Cake\ORM\TableRegistry::getTableLocator()->get('TIndividualReservationInfo'), 1, [$date]
+        );
+
+        $this->assertSame('2026-03-04 05:06:07', $map[$date]);
+    }
 }

@@ -322,4 +322,17 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertArrayNotHasKey($d14, $counts, '境界日は i_change_flag=0 で数えない');
         $this->assertSame(1, $counts[$d15][1], '境界日の翌日は eat_flag=1 で数える');
     }
+
+    /** 削除済みの部屋は所属に数えない（代表部屋が削除済みになり、カレンダーで予約を開けなくなっていた） */
+    public function testGetUserRoomIds_excludesDeletedRooms(): void
+    {
+        $conn = ConnectionManager::get('test');
+        $conn->insert('m_room_info', ['i_id_room' => 7, 'c_room_name' => '削除済み', 'i_disp_no' => 7, 'i_enable' => 1, 'i_del_flg' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $conn->insert('m_user_group', ['i_id_user' => 3, 'i_id_room' => 7, 'active_flag' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+
+        $ids = $this->service->getUserRoomIds(TableRegistry::getTableLocator()->get('MUserGroup'), 3);
+
+        $this->assertNotContains(7, $ids);
+        $this->assertContains(1, $ids);
+    }
 }

@@ -156,7 +156,9 @@ class ReservationQueryService
                 ->enableAutoFields(false)
                 ->select([
                     'max_dt' => $snapshotQuery->func()->max(
-                        $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)')
+                        $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)'),
+                        // 型を渡さないと float 扱いになり '2026-10-24 15:04:05' が 2026 になる（年が同じだと競合を検出できない）
+                        ['string']
                     )
                 ])
                 ->where([
@@ -218,7 +220,9 @@ class ReservationQueryService
             ->select([
                 'd_reservation_date',
                 'max_dt' => $snapshotQuery->func()->max(
-                    $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)')
+                    $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)'),
+                    // 型を渡さないと float 扱いになり '2026-10-24 15:04:05' が 2026 になる（年が同じだと競合を検出できない）
+                    ['string']
                 )
             ])
             ->where([

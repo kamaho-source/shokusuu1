@@ -27,6 +27,18 @@ class ReservationBulkService
         $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
     }
 
+    /**
+     * 直前一括編集（部屋 × 日付 × 利用者 × 食事）を保存する。
+     *
+     * 画面は変わっていない行も送るので、数える値が変わる行だけを書く。
+     * 次の行は送信全体を止めず、skipped に理由を積んで飛ばす（ok=true のまま返す）。
+     *   - 管理者以外が、過去日の行を変えようとした
+     *   - 管理者以外が、職員の直前期間の予約を取り消そうとした
+     * 職員の直前期間の昼食⇔弁当の入れ替え、権限のない変更、競合、承認済み、昼食と弁当の同時予約は ok=false で返す。
+     *
+     * @return array{ok: bool, message?: string, updated?: int, created?: int, skipped?: list<string>, conflict_date?: string}
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
+     */
     public function processBulkChangeEdit(
         array $dayUsers,
         int $roomId,
@@ -157,7 +169,7 @@ class ReservationBulkService
                             if (!$isAdmin && TIndividualReservationInfoTable::isLastMinute((string)$date)
                                 && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0
                             ) {
-                                // 職員の直前取消は認めない。昼食⇔弁当の入れ替えは取消を伴うので、理由を返して止める
+                                // 昼食⇔弁当の入れ替えは取消を伴うので、理由を返して止める
                                 $opponent = [2 => 4, 4 => 2][$mealType] ?? null;
                                 if ($opponent !== null && (int)($meals[$opponent] ?? 0) === 1 && TIndividualReservationInfoTable::isEffectiveRow($existing)) {
                                     $connection->rollback();
@@ -176,10 +188,6 @@ class ReservationBulkService
                             $isFar = !$datePolicy->shouldUseChangeFlag(new Date((string)$date));
                             // 数える値が変わる行だけを書く（i_change_flag が NULL の古い行を、変わっていないのに書き換えない）
                             if ($datePolicy->countedValue((string)$date, $existing->eat_flag, $existing->i_change_flag) !== $changeFlag) {
-                                if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
-                                    $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
-                                    continue;
-                                }
                                 // 画面は部屋内全ユーザーの既存予約を送信するため、
                                 // 権限チェックは値が実際に変わる行に限定する
                                 // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
@@ -189,6 +197,11 @@ class ReservationBulkService
                                         'ok'      => false,
                                         'message' => '他ユーザーの予約を更新する権限がありません。',
                                     ];
+                                }
+                                // 権限の判定のあとで見る（権限のない操作を「過去日」として ok にしない）
+                                if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
+                                    $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
+                                    continue;
                                 }
                                 $ok = $this->updateReservationRowWithVersion($reservationTable, $existing, [
                                     'i_change_flag' => $changeFlag,
@@ -204,16 +217,17 @@ class ReservationBulkService
                             if ($changeFlag === 0) {
                                 continue;
                             }
-                            if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
-                                $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
-                                continue;
-                            }
                             if (!$this->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
                                 $connection->rollback();
                                 return [
                                     'ok'      => false,
                                     'message' => '他ユーザーの予約を更新する権限がありません。',
                                 ];
+                            }
+                            // 権限の判定のあとで見る（権限のない操作を「過去日」として ok にしない）
+                            if (!$isAdmin && $datePolicy->isPastDate((string)$date)) {
+                                $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
+                                continue;
                             }
                             $newRows[] = [
                                 'i_id_user'          => $userId,
@@ -1094,7 +1108,9 @@ class ReservationBulkService
             ->select([
                 'd_reservation_date',
                 'max_dt' => $snapshotQuery->func()->max(
-                    $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)')
+                    $snapshotQuery->newExpr('COALESCE(dt_update, dt_create)'),
+                    // 型を渡さないと float 扱いになり '2026-10-24 15:04:05' が 2026 になる（年が同じだと競合を検出できない）
+                    ['string']
                 )
             ])
             ->where([

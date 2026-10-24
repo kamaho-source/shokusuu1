@@ -244,6 +244,11 @@ class ReservationWriteService
                 } catch (\Cake\ORM\Exception\PersistenceFailedException $e) {
                     $connection->rollback();
                     Log::error('グループ予約 saveManyOrFail エラー: ' . json_encode($e->getEntity()?->getErrors() ?? [], JSON_UNESCAPED_UNICODE));
+                    // 昼食と弁当の同時予約は、理由のない 500 にせず 409 で理由を返す（個人予約と同じ）
+                    $lunchBento = TIndividualReservationInfoTable::lunchBentoViolation($e);
+                    if ($lunchBento !== null) {
+                        throw new ConflictException($lunchBento);
+                    }
                     $detail = Configure::read('debug') ? ' 詳細: ' . implode('、', array_merge(...array_values(array_map('array_values', $e->getEntity()?->getErrors() ?? [[]])))) : '';
                     throw new PersistenceException('予約の登録中にエラーが発生しました。' . $detail);
                 }
@@ -785,6 +790,8 @@ class ReservationWriteService
      *
      * @return array{toSave: array, duplicates: array, performed: bool}
      * @throws \RuntimeException 楽観的ロック競合時（→ 409）
+     * @throws \App\Domain\Exception\ConflictException 画面外の部屋の予約を移す・取り消す必要があるとき（理由付き）
+     * @throws \App\Domain\Exception\UnauthorizedException 職員が直前期間に取消・部屋変更をしようとしたとき
      */
     private function applyIndividualMealChanges(
         array  $selectedRoomPerMeal,
@@ -849,8 +856,11 @@ class ReservationWriteService
             }
 
             // 昼食⇔弁当: 相手が画面に出ていない部屋で有効なら、入れ替え（相手の取消）はこの画面ではできない
+            // すでにこの部屋で有効なまま（変更なし）の食事は見ない。以前の二重データで、関係のない保存まで止めないため
             $opponent = [2 => 4, 4 => 2][(int)$mealType] ?? null;
-            if ($opponent !== null) {
+            $alreadyEffectiveHere = isset($existingMap[(int)$mealType][(int)$roomId])
+                && TIndividualReservationInfoTable::isEffectiveRow($existingMap[(int)$mealType][(int)$roomId]);
+            if ($opponent !== null && !$alreadyEffectiveHere) {
                 foreach ($existingByMeal[$opponent] ?? [] as $oppRow) {
                     if (TIndividualReservationInfoTable::isEffectiveRow($oppRow) && !array_key_exists((int)$oppRow->i_id_room, $rooms)) {
                         throw new ConflictException(sprintf(
@@ -1038,6 +1048,19 @@ class ReservationWriteService
                 $userMealRows = $existingMap[(int)$targetUserId][(int)$mealType] ?? [];
                 $existing     = $userMealRows[(int)$roomId] ?? null;
 
+                // 退出済み・削除済みの部屋に残った予約は、取消だけ許す。ここで移すと黙って部屋が変わるので、スキップして伝える
+                foreach ($userMealRows as $existingRoomId => $row) {
+                    if ((int)$existingRoomId !== (int)$roomId && TIndividualReservationInfoTable::isEffectiveRow($row)
+                        && (!$this->isRoomAvailable((int)$existingRoomId) || !$this->isActiveMember((int)$targetUserId, (int)$existingRoomId))
+                    ) {
+                        $duplicates[] = [
+                            'user_name' => $userNameMap[(int)$targetUserId] ?? '不明なユーザー名',
+                            'meal_type' => $mealTypeNames[$mealType] ?? $mealType,
+                            'room_name' => $roomNameMap[(int)$existingRoomId] ?? ('部屋' . (int)$existingRoomId),
+                        ];
+                        continue 2;
+                    }
+                }
                 foreach ($userMealRows as $existingRoomId => $row) {
                     if ((int)$existingRoomId === (int)$roomId || !TIndividualReservationInfoTable::isEffectiveRow($row)) {
                         continue;

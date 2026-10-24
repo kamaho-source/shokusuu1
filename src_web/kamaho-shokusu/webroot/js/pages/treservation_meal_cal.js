@@ -126,8 +126,8 @@
                         var ok = data.ok === true || data.status === 'success';
                         var skipped = (data.data && Array.isArray(data.data.skipped)) ? data.data.skipped : [];
                         if (ok && skipped.length) {
-                            // 職員の直前取消などで取り消せなかった。外したチェックを元に戻し、理由を出す（取り消した表示にしない）
-                            checks.forEach(function (c) { if (!c.checked && c.dataset.wasChecked === '1') c.checked = true; });
+                            // 職員の直前取消・過去日などで変えられなかった。どの食事かは応答に無いので、全チェックを保存前に戻して理由を出す
+                            checks.forEach(function (c) { c.checked = c.dataset.wasChecked === '1'; });
                         }
                         if (statusEl) {
                             statusEl.textContent = !ok ? ('✗ ' + (data.message || '保存失敗'))

@@ -313,6 +313,15 @@ class ReservationChangeEditService
                             continue;
                         }
 
+                        // 退出済み・削除済みの部屋に残った予約は、取消だけ許す（ここで移すと、黙って部屋が変わる）
+                        if ($changeFlag === 1) {
+                            $outside = $this->outsideRoomIdsWithEffectiveRow($existingByRoom[$userId][$mealType] ?? [], $roomId, $userId);
+                            if ($outside !== []) {
+                                $skipped[] = "利用者ID {$userId} は、所属外の部屋（ID " . implode('・', $outside) . "）に同じ食事の予約があるため、この部屋では登録できません。先にその予約を取り消してください。";
+                                continue;
+                            }
+                        }
+
                         $targetRow = $existingInRoom ?? $existingForMeal;
                         // この部屋で食べるなら、他の部屋で有効な同じ食事は取り消す（部屋の移動として扱う）
                         if ($changeFlag === 1) {
@@ -409,6 +418,28 @@ class ReservationChangeEditService
     private function updateReservationRowWithVersion(Table $reservationTable, object $row, array $updateFields): bool
     {
         return $reservationTable->updateRowWithVersion($row, $updateFields);
+    }
+
+    /**
+     * 指定の部屋以外で有効な予約がある部屋のうち、利用者が有効に所属していない（退出済み）か削除済みの部屋の ID。
+     *
+     * @param array<int, object> $rowsByRoom 部屋ID => 予約行
+     * @return list<int>
+     */
+    private function outsideRoomIdsWithEffectiveRow(array $rowsByRoom, int $roomId, int $userId): array
+    {
+        $outside = [];
+        foreach ($rowsByRoom as $rid => $row) {
+            $rid = (int)$rid;
+            if ($rid === $roomId || !TIndividualReservationInfoTable::isEffectiveRow($row)) {
+                continue;
+            }
+            if (!$this->roomAccessService->isRoomAvailable($rid) || !$this->roomAccessService->isActiveMember($userId, $rid)) {
+                $outside[] = $rid;
+            }
+        }
+
+        return $outside;
     }
 
     /**
