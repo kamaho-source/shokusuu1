@@ -449,3 +449,40 @@
         .meal-cal-ro-meal { color: #adb5bd; }
         .meal-cal-ro-meal.active { color: #198754; font-weight: 600; }
 
+
+/* ===== サイボウズモード（複数日まとめて予約） ===== */
+.cybozu-new-badge { position: absolute; top: -.55rem; right: -.4rem; font-size: .6rem; }
+.cybozu-dialog { max-width: 640px; }
+.cybozu-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.cybozu-label { font-weight: 700; font-size: .85rem; width: 2.5rem; flex-shrink: 0; }
+.cybozu-pill { border: 2px solid; border-radius: 1.25rem; padding: .25rem .8rem; font-weight: 700; font-size: .8rem; background: #fff; }
+.cybozu-meal { border: 2px solid #d1d5db; border-radius: .5rem; padding: .25rem 1rem; font-weight: 700; font-size: .85rem; background: #fff; color: #374151; }
+.cybozu-meal.on { border-color: #28a745; background: #e9f7ee; color: #15803d; }
+.cybozu-cal { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .7rem; }
+.cybozu-cal th { border: 1px solid #e5e7eb; background: #f9fafb; text-align: center; font-weight: 500; padding: .15rem; }
+.cybozu-cal th.sun { color: #dc2626; }
+.cybozu-cal th.sat { color: #2563eb; }
+.cybozu-day { border: 1px solid #e5e7eb; vertical-align: top; text-align: center; height: 4.6rem; padding: .1rem; cursor: pointer; }
+.cybozu-day.sun { background: #ffdada; }
+.cybozu-day.sat { background: #e3ecff; }
+.cybozu-day.past { background: #f1f1f1; color: #aaa; cursor: default; }
+.cybozu-day.past .cybozu-band, .cybozu-day.past .cybozu-room { opacity: .45; }
+.cybozu-day.today { outline: 2px solid #2563eb; outline-offset: -2px; }
+.cybozu-day.lock { cursor: not-allowed; background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, .06) 0 4px, transparent 4px 8px); }
+.cybozu-day:focus-visible { outline: 3px solid #f59e0b; outline-offset: -3px; }
+.cybozu-day.sel, .cybozu-day.sel .cybozu-num { color: #fff; }
+.cybozu-day.sel .cybozu-band { background: #fff; color: #15803d; }
+.cybozu-day.sel .cybozu-band.none { color: #d97706; }
+.cybozu-num { font-weight: 700; font-size: .85rem; position: relative; }
+.cybozu-ck, .cybozu-lk { position: absolute; right: 1px; top: 0; font-size: .6rem; }
+.cybozu-band { border-radius: 2px; color: #fff; font-size: .6rem; font-weight: 700; line-height: 1.15; padding: 1px; margin: 2px 0; }
+.cybozu-band.res { background: #28a745; }
+.cybozu-band.none { background: #fd7e14; }
+.cybozu-room { font-size: .55rem; border: 1px solid #86efac; border-radius: 2px; background: #fff; color: #15803d; margin: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cybozu-hol { background: #dc3545; color: #fff; font-size: .5rem; border-radius: .4rem; padding: 0 .2rem; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cybozu-legend { display: flex; flex-wrap: wrap; gap: .75rem; }
+.cybozu-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .2rem; }
+.cybozu-tag { display: inline-block; border: 1px solid #28a745; color: #15803d; border-radius: .25rem; padding: 0 .4rem; font-weight: 700; }
+.cybozu-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .3rem 0; font-size: .8rem; }
+.cybozu-chip { border: 1px solid; border-radius: .9rem; padding: .1rem .3rem .1rem .6rem; background: #fff; }
+.cybozu-chip-x { border: 0; background: none; color: inherit; padding: 0 .25rem; font-weight: 700; }

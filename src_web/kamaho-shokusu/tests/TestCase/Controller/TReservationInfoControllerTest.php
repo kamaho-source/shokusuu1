@@ -114,6 +114,49 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertResponseContains('data-is-last-minute="1"');
     }
 
+    /** サイボウズモード: 業務UIのカレンダーの上にモーダルを開き、専用の JS を読み込む */
+    public function testIndex_cybozuMode_rendersModalOnBizCalendar(): void
+    {
+        $this->setAuthenticatedSession(false, 0);
+        $this->get('/TReservationInfo/index?uimode=cybozu');
+        $this->assertResponseOk();
+
+        $this->assertResponseContains('id="cybozuModal"');
+        $this->assertResponseContains('pages/treservation_cybozu.js');
+        $this->assertResponseContains('isCybozu: true');
+        $this->assertResponseContains('isKidUI: false');
+        $this->assertResponseContains('食数予約（サイボウズモード）');
+        $this->assertResponseContains('uimode=biz');
+    }
+
+    /** 業務UIではサイボウズモードのモーダルを出さない（表示モードの切替だけ出す） */
+    public function testIndex_bizMode_doesNotRenderCybozuModal(): void
+    {
+        $this->setAuthenticatedSession(false, 0);
+        $this->get('/TReservationInfo/index?uimode=biz');
+        $this->assertResponseOk();
+
+        $this->assertResponseNotContains('id="cybozuModal"');
+        $this->assertResponseNotContains('pages/treservation_cybozu.js');
+        $this->assertResponseContains('uimode=cybozu');
+    }
+
+    /** 子ども本人は「子どもUI／サイボウズモード」の2択。サイボウズモードを選べば業務UIのカレンダーで開く */
+    public function testIndex_childUser_canSwitchToCybozuModeButNotBiz(): void
+    {
+        $this->setAuthenticatedSession(false, 1);
+        $this->get('/TReservationInfo/index');
+        $this->assertResponseOk();
+        $this->assertResponseContains('uimode=cybozu');
+        $this->assertResponseNotContains('uimode=biz');
+
+        $this->get('/TReservationInfo/index?uimode=cybozu');
+        $this->assertResponseOk();
+        $this->assertResponseContains('id="cybozuModal"');
+        $this->assertResponseContains('isKidUI: false');
+        $this->assertResponseNotContains('uimode=biz');
+    }
+
     /**
      * viewアクションのテスト（正常系）
      */

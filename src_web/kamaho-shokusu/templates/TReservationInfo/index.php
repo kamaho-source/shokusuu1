@@ -27,8 +27,12 @@ $date = $this->request->getQuery('date', $today);
 $uimodeQuery = strtolower((string)$this->request->getQuery('uimode', ''));
 $forceKid = in_array($uimodeQuery, ['kid', 'child'], true);
 $forceBiz = in_array($uimodeQuery, ['biz', 'adult'], true);
+// サイボウズモード（複数日まとめて予約）。業務UIのカレンダーの上にモーダルを開く。子ども本人も選べる
+$useCybozu = $uimodeQuery === 'cybozu';
 
-if ($isChild) {
+if ($useCybozu) {
+    $useKidUI = false;
+} elseif ($isChild) {
     $useKidUI = true;
 } elseif ($forceKid) {
     $useKidUI = true;
@@ -183,6 +187,7 @@ $jsConfigVars = compact(
     'userRoomId',
     'userRoomIds',
     'useKidUI',
+    'useCybozu',
     'JS_TODAY',
     'lunchReserved',
     'bentoReserved',
@@ -199,7 +204,7 @@ $jsConfigVars = compact(
     'JS_RESERVED_DATES',
     'JS_EXISTING_EVENTS'
 );
-$toolbarVars = compact('useKidUI', 'isStaff', 'mkUrl');
+$toolbarVars = compact('useKidUI', 'useCybozu', 'isChild', 'mkUrl');
 $modalVars = compact('lunchChangeUrl', 'bentoChangeUrl');
 $kidSectionVars = compact(
     'authorizedRooms',
@@ -252,6 +257,9 @@ $bizSectionVars = [
 </div>
 
 <?= $this->element('TReservationInfo/modals', $modalVars) ?>
+<?php if ($useCybozu): ?>
+    <?= $this->element('TReservationInfo/cybozu_modal') ?>
+<?php endif; ?>
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"
         integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="
         crossorigin="anonymous"></script>
@@ -264,5 +272,8 @@ $bizSectionVars = [
 <?= $this->Html->script('pages/treservation_export.js') ?>
 <?= $this->Html->script('pages/treservation_index.js') ?>
 <?= $this->Html->script('pages/treservation_meal_cal.js') ?>
+<?php if ($useCybozu): ?>
+    <?= $this->Html->script('pages/treservation_cybozu.js') ?>
+<?php endif; ?>
 </body>
 </html>

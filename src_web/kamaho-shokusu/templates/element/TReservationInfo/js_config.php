@@ -25,6 +25,7 @@
  * @var mixed $serverToday
  * @var mixed $today
  * @var mixed $useKidUI
+ * @var bool $useCybozu
  * @var object $user
  * @var mixed $userRoomId
  * @var mixed $userRoomIds
@@ -52,6 +53,7 @@ $pastDateUnavailableMessage = (string)Configure::read(
         roomCount: <?= count($userRoomIds ?? []) ?>,
         primaryRoomId: <?= (int)$userRoomId ?>,
         isKidUI: <?= $useKidUI ? 'true' : 'false' ?>,
+        isCybozu: <?= !empty($useCybozu) ? 'true' : 'false' ?>,
         todayJs: <?= $JS_TODAY ?>,
         todayState: {
             lunch: <?= $lunchReserved ? 'true' : 'false' ?>,
