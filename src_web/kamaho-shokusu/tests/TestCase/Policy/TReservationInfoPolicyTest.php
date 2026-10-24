@@ -22,6 +22,44 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canAdd($identity, $resource));
     }
 
+    public function testCanAddAsLevel7StaffAllowed(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new TestIdentity(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 7]);
+
+        $this->assertTrue($policy->canAdd($identity, new TReservationInfo()));
+    }
+
+    /**
+     * 認証の identity は MUserInfo エンティティ（object）で渡る。i_user_level が NULL の人は
+     * 職員として扱わない（Controller / Service の判定と揃える）。
+     */
+    public function testCanAddWithNullUserLevelEntityDenied(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new class (['i_id_user' => 1]) extends TestIdentity {
+            public function getOriginalData(): \ArrayAccess|array
+            {
+                return new \App\Model\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => null]);
+            }
+        };
+
+        $this->assertFalse($policy->canAdd($identity, new TReservationInfo()));
+    }
+
+    public function testCanAddWithLevel7EntityAllowed(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new class (['i_id_user' => 1]) extends TestIdentity {
+            public function getOriginalData(): \ArrayAccess|array
+            {
+                return new \App\Model\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 7]);
+            }
+        };
+
+        $this->assertTrue($policy->canAdd($identity, new TReservationInfo()));
+    }
+
     public function testCanAddAsChildDenied(): void
     {
         $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));

@@ -42,6 +42,11 @@ $isSysAdmin = ($iAdmin === 3);
 $hasReportAccess = $user && ($isAdmin || (int)($user->i_report_access ?? 0) === 1);
 $isStaff    = $user && ($isAdmin || in_array((int)$user->i_user_level, [0, 7]));
 $isChild    = $user && (int)$user->i_user_level === 1;
+// ユーザー登録ができる人（MUserInfoPolicy と同じ UserRole::canRegisterUsers）だけに一覧への入口を出す
+$canOpenUserList = $user && \App\Domain\ValueObject\UserRole::canRegisterUsers(
+    $iAdmin,
+    $user->i_user_level === null ? null : (int)$user->i_user_level
+);
 $notificationUnreadCount = $notificationUnreadCount ?? 0;
 $recentNotifications     = $recentNotifications ?? [];
 ?>
@@ -77,7 +82,7 @@ $recentNotifications     = $recentNotifications ?? [];
                                 <i class="bi bi-door-open"></i>部屋情報
                             </a>
                         </li>
-                        <?php if ($isAdmin): ?>
+                        <?php if ($canOpenUserList): ?>
                             <li class="nav-item">
                                 <a class="nav-link" href="<?= $this->Url->build('/MUserInfo/') ?>">
                                     <i class="bi bi-people"></i>ユーザ一覧
@@ -86,7 +91,8 @@ $recentNotifications     = $recentNotifications ?? [];
                         <?php endif; ?>
                     <?php endif; ?>
 
-                    <?php if ($user && $user->i_admin): ?>
+                    <?php /* 単価一覧・食事控除表・部屋異動予約はいずれも管理者専用 */ ?>
+                    <?php if ($user && $isAdmin): ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" id="adminDropdown" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-journal-text"></i>予約管理

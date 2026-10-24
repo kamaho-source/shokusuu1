@@ -1,0 +1,105 @@
+name: メンテナンス切替
+
+# Actions → 「メンテナンス切替」→ Run workflow で、メンテナンス画面(503)を ON / OFF する。
+# 仕組み: アプリ直下の MAINTENANCE ファイルの有無を .htaccess が見ている（再起動不要・即時反映）。
+# 手動 ON は中身 "manual" で作るため、デプロイ終了時に自動解除されない（解除はこのワークフローの off）。
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'on=メンテナンス画面を出す / off=解除 / status=状態確認のみ'
+        type: choice
+        options: ['status', 'on', 'off']
+        default: 'status'
+      target:
+        description: '対象環境'
+        type: choice
+        options: [production, staging]
+        default: production
+      start_time:
+        description: '開始時間（on のとき画面に表示。例: 10/22 14:00。空欄=実行した時刻）'
+        required: false
+        default: ''
+      end_time:
+        description: '終了予定時間（on のとき画面に表示。例: 10/22 15:00頃 / 本日中。空欄=未定）'
+        required: false
+        default: ''
+      reason:
+        description: '内容（on のとき画面に表示。例: セキュリティ更新のため。空欄=表示しない）'
+        required: false
+        default: ''
+
+# デプロイ(deploy-to-vps)とは別グループ。同じにするとデプロイを cancel してしまうため
+concurrency:
+  group: maintenance-${{ inputs.target }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  MODE: ${{ inputs.mode }}
+  START_TIME: ${{ inputs.start_time }}
+  END_TIME: ${{ inputs.end_time }}
+  REASON: ${{ inputs.reason }}
+  # ON/OFF・状態確認を行うスクリプト（本番・ステージング共通）
+  SCRIPT: |
+    set -euo pipefail
+    FLAG="/home/ubuntu/shokusuu1/src_web/kamaho-shokusu/MAINTENANCE"
+    INFO_FILE="/home/ubuntu/shokusuu1/src_web/kamaho-shokusu/webroot/maintenance.json"
+    case "$MODE" in
+      on)  printf '%s' "$INFO" | base64 -d > "$INFO_FILE"; echo manual > "$FLAG" ;;
+      off) rm -f "$FLAG" "$INFO_FILE" ;;
+    esac
+    STATE=$([ -f "$FLAG" ] && echo ON || echo OFF)
+    CODE=$(curl -s -o /dev/null -m 10 -w '%{http_code}' http://localhost:8091/kamaho-shokusu/MUserInfo/login || echo 000)
+    echo "メンテナンス: ${STATE} / ログイン画面の応答: HTTP ${CODE}"
+    # 実際の応答が状態と食い違う場合は失敗にする（例: .htaccess 未反映の環境で on）
+    if [ "$STATE" = ON ] && [ "$CODE" != 503 ]; then echo "::error::ON なのに 503 になっていません（HTTP ${CODE}）"; exit 1; fi
+    if [ "$STATE" = OFF ] && [ "$CODE" = 503 ]; then echo "::error::OFF なのに 503 のままです"; exit 1; fi
+
+jobs:
+  toggle:
+    name: ${{ inputs.target }} を ${{ inputs.mode }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # 画面に出す情報(JSON)。入力値は jq でエスケープし、画面側も textContent で表示する
+      # SSH 先のシェルで $ や ` が展開されないよう base64 で渡す
+      - name: 表示内容の作成
+        run: |
+          START="${START_TIME:-$(TZ=Asia/Tokyo date '+%-m/%-d %H:%M')}"
+          INFO=$(jq -cn --arg start "${START:0:40}" --arg end "${END_TIME:0:40}" --arg reason "${REASON:0:100}" \
+            '{start: $start, end: $end, reason: $reason}')
+          echo "INFO=$(printf '%s' "$INFO" | base64 -w0)" >> "$GITHUB_ENV"
+          echo "表示内容: $INFO"
+
+      - name: 本番
+        if: inputs.target == 'production'
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.PROD_USER }}
+          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          port: 22
+          timeout: 60s
+          command_timeout: 2m
+          envs: MODE,INFO
+          script: ${{ env.SCRIPT }}
+
+      - name: ステージング
+        if: inputs.target == 'staging'
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.STG_HOST }}
+          username: ubuntu
+          key: ${{ secrets.STG_SSH_PRIVATE_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 2m
+          envs: MODE,INFO
+          script: ${{ env.SCRIPT }}
+
+      - name: 結果
+        if: always()
+        run: echo "### ${{ inputs.target }} — ${{ inputs.mode }} → ${{ job.status }}" >> "$GITHUB_STEP_SUMMARY"

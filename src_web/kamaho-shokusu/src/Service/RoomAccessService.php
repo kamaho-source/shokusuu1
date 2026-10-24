@@ -37,7 +37,7 @@ class RoomAccessService
 
             return array_values(array_unique($roomIds));
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getUserRoomIds failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getUserRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return [];
         }
     }
@@ -64,7 +64,7 @@ class RoomAccessService
                 ])
                 ->count() > 0;
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#isOfficeUser failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#isOfficeUser failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return false;
         }
     }
@@ -193,7 +193,7 @@ class RoomAccessService
 
             return array_values(array_unique($roomIds));
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getOfficeRoomIds failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getOfficeRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return [];
         }
     }
@@ -217,7 +217,7 @@ class RoomAccessService
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getRoomsByIds failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getRoomsByIds failed: %s: %s (roomIds=%s)', get_class($e), $e->getMessage(), implode(',', $roomIds)));
             return [];
         }
     }
@@ -236,7 +236,7 @@ class RoomAccessService
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
         } catch (\Throwable $e) {
-            Log::error('RoomAccessService#getAllActiveRooms failed: ' . $e->getMessage());
+            Log::error(sprintf('RoomAccessService#getAllActiveRooms failed: %s: %s', get_class($e), $e->getMessage()));
             return [];
         }
     }

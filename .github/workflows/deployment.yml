@@ -3,6 +3,8 @@ name: Deploy to Sakura VPS
 on:
   push:
     branches: [ main ]
+  # 公式イメージ(php:8.3-apache)のセキュリティ更新を、コード変更なしで本番に取り込むための手動実行
+  workflow_dispatch:
 
 concurrency:
   group: deploy-to-vps
@@ -25,7 +27,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '8.3'
           extensions: mbstring, intl, pdo_sqlite
           coverage: none
           tools: composer:2
@@ -88,10 +90,25 @@ jobs:
               git reset --hard "origin/$BRANCH"
             fi
 
+            # ── メンテナンス画面 ON（成功・失敗・中断のいずれでも終了時に必ず OFF） ──
+            # 手動で ON にしていた場合（デプロイ前からファイルがある）は、デプロイ後も ON のまま残す
+            MAINT_FLAG="$DEPLOY_PATH/src_web/kamaho-shokusu/MAINTENANCE"
+            if [ -f "$MAINT_FLAG" ]; then
+              echo "[MAINTENANCE] 手動で ON 済み — デプロイ後も ON のまま（解除: rm ${MAINT_FLAG}）"
+            else
+              # 中身が空 = デプロイが作ったもの。途中で手動 ON（中身 "manual"）にされた場合は消さない
+              trap '[ -s "$MAINT_FLAG" ] || rm -f "$MAINT_FLAG"; echo "[MAINTENANCE] 終了時: $([ -f "$MAINT_FLAG" ] && echo ON || echo OFF)"' EXIT
+              trap 'exit 1' HUP INT TERM
+              : > "$MAINT_FLAG"
+              echo "[MAINTENANCE] ON"
+            fi
+
             # ── コンテナ起動 ────────────────────────────────────────────────────
             echo "── Starting Docker containers ───────────────────────────────────"
             # 停止中のリバースプロキシを先に起動して名前競合を回避
             docker start docker-network-reverse-1 2>/dev/null || true
+            # ベースイメージの最新パッチを取り込んで再ビルド（変化があれば次の up でコンテナを再作成）
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" build --pull kamakura-shokusu_web
             # アプリサービスのみ起動・再作成（--no-depsで他サービスを処理しない）
             docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" up -d --no-deps kamakura-shokusu_web kamakura-shokusu_db
             # DBコンテナが受付可能になるまで待機（最大30秒）
