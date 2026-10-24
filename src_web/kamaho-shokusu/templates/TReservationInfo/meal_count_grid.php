@@ -260,8 +260,8 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                             $uLevel              = (int)($u['i_user_level'] ?? 0);
                             // ブロック長がその部屋に所属しているか
                             $blockLeaderHere     = $isBlockLeader && in_array($roomId, $loginRoomIds ?? [], true);
-                            // 編集可否: 部屋所属の管理者・ブロック長は全員、部屋所属で部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
-                            // 他人の行は、ログインユーザーがその部屋に所属しているときだけ（事務所ユーザー・事務所兼管理者の個人モード。#821）
+                            // 編集可否: 管理者は全員、部屋所属のブロック長は全員、部屋所属で部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
+                            // 他人の行は、$loginRoomIds の部屋だけ（管理者は全部屋、それ以外は所属部屋。事務所ユーザーの所属外は閲覧のみ。#821）
                             $inLoginRoom         = in_array($roomId, $loginRoomIds ?? [], true);
                             $canEditRow          = ($uid === $loginUserId)
                                 || ($inLoginRoom && ($isAdmin || $blockLeaderHere || ($canViewRoom && $uLevel === 1)));

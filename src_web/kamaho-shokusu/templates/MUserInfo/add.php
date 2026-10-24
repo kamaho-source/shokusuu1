@@ -13,7 +13,6 @@ use App\Domain\ValueObject\UserProfileOptions;
 ========================================================= -->
 <?php
 $this->assign('title', 'ユーザー情報の追加');
-$this->Html->css('bootstrap-icons.css', ['block' => true]);
 $this->Html->script('bootstrap.bundle.min.js', ['block' => true]);
 $this->Html->script('realtime-validation.js', ['block' => true]);
 $this->Html->script('birth-date-age.js', ['block' => true]);
