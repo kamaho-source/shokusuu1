@@ -22,7 +22,7 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">
-                <h4><?= __('Mユーザー情報の編集') ?></h4>
+                <h4><?= __('ユーザー情報の編集') ?></h4>
             </div>
             <div class="card-body">
                 <?= $this->Form->create($mUserInfo) ?>
