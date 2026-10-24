@@ -40,6 +40,35 @@ class ReservationCalendarService
         return array_values(array_unique($roomIds));
     }
 
+    /**
+     * カレンダーの食数を絞る部屋。全部屋を見られる人は null（絞らない）。
+     * それ以外は所属部屋。所属部屋が無い人（退出済み・削除済みだけ）は、期間内に自分の予約がある部屋だけにする
+     * （ほかの部屋の食数は見せず、残った自分の予約の人数は見えるように）。該当が無ければ [0]（何も出さない）。
+     *
+     * @param list<int> $userRoomIds
+     * @return list<int>|null
+     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
+     */
+    public function calendarRoomFilter(Table $reservationTable, int $userId, array $userRoomIds, bool $canViewAllRooms, string $startDate, string $endDate): ?array
+    {
+        if ($canViewAllRooms) {
+            return null;
+        }
+        if ($userRoomIds !== []) {
+            return $userRoomIds;
+        }
+        $ownRooms = $reservationTable->find()
+            ->select(['i_id_room'])
+            ->distinct(['i_id_room'])
+            ->where(['i_id_user' => $userId, 'd_reservation_date >=' => $startDate, 'd_reservation_date <' => $endDate])
+            ->all()
+            ->extract('i_id_room')
+            ->map(static fn($id): int => (int)$id)
+            ->toList();
+
+        return $ownRooms !== [] ? $ownRooms : [0];
+    }
+
     public function getPrimaryRoomId(array $roomIds): ?int
     {
         return !empty($roomIds) ? (int)$roomIds[0] : null;

@@ -791,4 +791,23 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertSame([], $this->viewVariable('mealDataArray'));
     }
+
+    /** 所属部屋が無くても、自分の予約が残っている部屋の人数は出す（ほかの部屋の食数は出さない） */
+    public function testIndexShowsOwnLeftoverRoomCountsToStaffWithoutRooms(): void
+    {
+        $conn = ConnectionManager::get('test');
+        $conn->delete('m_user_group', ['i_id_user' => 2]);
+        $conn->insert('m_room_info', ['i_id_room' => 7, 'c_room_name' => '削除済み', 'i_disp_no' => 7, 'i_enable' => 1, 'i_del_flg' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
+        $date = Date::today()->addDays(5)->format('Y-m-d');
+        $this->insertReservation(2, 7, $date, 1, 1, 1);
+        $this->insertReservation(3, 1, $date, 3, 1, 1);
+
+        $this->setAuthenticatedSession(false, 0);
+        $this->get('/TReservationInfo');
+
+        $this->assertResponseOk();
+        $counts = $this->viewVariable('mealDataArray');
+        $this->assertSame(1, $counts[$date][1] ?? null, '自分の残った予約の人数が出ていない');
+        $this->assertSame(0, $counts[$date][3] ?? 0, 'ほかの部屋の食数が出ている');
+    }
 }
