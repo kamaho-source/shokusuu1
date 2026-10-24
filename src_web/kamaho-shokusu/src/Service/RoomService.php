@@ -38,9 +38,9 @@ class RoomService
         }
 
         $table = TableRegistry::getTableLocator()->get('MUserInfo');
-        return $table->find('all', [
-            'conditions' => ['MUserInfo.i_id_user IN' => $userIds],
-        ])->toArray();
+        return RoomMemberOrderService::orderMembers($table->find())
+            ->where(['MUserInfo.i_id_user IN' => $userIds, 'MUserInfo.i_del_flag' => 0])
+            ->toArray();
     }
 
     /**

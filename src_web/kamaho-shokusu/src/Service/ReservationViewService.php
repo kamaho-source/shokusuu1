@@ -115,9 +115,8 @@ class ReservationViewService
                     'MUserGroup.active_flag' => 0,
                     'MUserInfo.i_del_flag' => 0,
                 ])
-                ->orderBy(['MUserGroup.i_id_user' => 'ASC'])
-                ->enableHydration(false)
-                ->all();
+                ->enableHydration(false);
+            $users = RoomMemberOrderService::orderMembers($users)->all();
 
             $activeUserIds = [];
             foreach ($users as $u) {

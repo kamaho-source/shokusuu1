@@ -25,6 +25,7 @@ class MRoomInfoControllerTest extends TestCase
     protected array $fixtures = [
         'app.MRoomInfo',
         'app.MUserInfo',
+        'app.MUserGroup',
     ];
 
     public function setUp(): void
@@ -161,5 +162,112 @@ class MRoomInfoControllerTest extends TestCase
 
         $this->assertRedirectContains('/MRoomInfo');
         $this->assertFlashMessage('この部屋は削除されています。');
+    }
+
+    /* ---------- 所属メンバーの並び替え（#871） ---------- */
+
+    /** DB の値で権限を判定するため、ロールは DB 側に設定してからそのユーザーでログインする */
+    private function loginAs(int $userId, int $iAdmin, int $userLevel): void
+    {
+        $users = $this->getTableLocator()->get('MUserInfo');
+        $users->updateAll(['i_admin' => $iAdmin, 'i_user_level' => $userLevel], ['i_id_user' => $userId]);
+        $this->session(['Auth' => $users->get($userId)->toArray()]);
+    }
+
+    private function postReorder(array $login, array $userIds, int $roomId = 1): void
+    {
+        $this->loginAs(...$login);
+        $this->enableCsrfToken();
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+        $this->post('/MRoomInfo/reorderMembers/' . $roomId, ['user_ids' => $userIds]);
+    }
+
+    private function dispNo(int $userId): ?int
+    {
+        return $this->getTableLocator()->get('MUserInfo')->get($userId)->i_disp_no;
+    }
+
+    public function testReorderMembersByAdminSaves(): void
+    {
+        $this->postReorder([1, 1, 0], [2, 1, 3]);
+
+        $this->assertResponseOk();
+        $this->assertSame(2, json_decode((string)$this->_response->getBody(), true)['changed']);
+        $this->assertSame([2, 1], [$this->dispNo(1), $this->dispNo(2)]);
+    }
+
+    public function testReorderMembersByStaffOfRoomSaves(): void
+    {
+        $this->postReorder([2, 0, 0], [2, 1, 3]);
+
+        $this->assertResponseOk();
+        $this->assertSame(1, $this->dispNo(2));
+    }
+
+    public function testReorderMembersByStaffOutsideRoomIsForbidden(): void
+    {
+        $this->postReorder([5, 0, 0], [2, 1, 3]);
+
+        $this->assertResponseCode(403);
+        $this->assertSame(1, $this->dispNo(1));
+    }
+
+    public function testReorderMembersByChildIsForbidden(): void
+    {
+        $this->postReorder([3, 0, 1], [2, 1, 3]);
+
+        $this->assertResponseCode(403);
+        $this->assertSame(1, $this->dispNo(1));
+    }
+
+    public function testReorderMembersRejectsNonMember(): void
+    {
+        $this->postReorder([1, 1, 0], [2, 1, 3, 4]);
+
+        $this->assertResponseCode(422);
+        $this->assertSame(1, $this->dispNo(1));
+    }
+
+    public function testReorderMembersOnDeletedRoomIsNotFound(): void
+    {
+        $this->getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => 1], ['i_id_room' => 1]);
+        $this->postReorder([1, 1, 0], [2, 1, 3]);
+
+        $this->assertResponseCode(404);
+    }
+
+    public function testReorderMembersRejectsGet(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MRoomInfo/reorderMembers/1');
+
+        $this->assertResponseCode(405);
+    }
+
+    public function testViewShowsReorderControlsOnlyWhenAllowed(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MRoomInfo/view/1');
+        $this->assertResponseContains('id="member-order-save"');
+
+        $this->loginAs(3, 0, 1);
+        $this->get('/MRoomInfo/view/1');
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('id="member-order-save"');
+    }
+
+    /** 画面の JS と同じく JSON ボディ + X-CSRF-Token ヘッダーで送っても保存できる */
+    public function testReorderMembersAcceptsJsonBody(): void
+    {
+        $this->loginAs(1, 1, 0);
+        $token = (new \Cake\Http\Middleware\CsrfProtectionMiddleware())->createToken();
+        $this->cookie('csrfToken', $token);
+        $this->configRequest(['headers' => [
+            'Accept' => 'application/json', 'Content-Type' => 'application/json', 'X-CSRF-Token' => $token,
+        ]]);
+        $this->post('/MRoomInfo/reorderMembers/1', (string)json_encode(['user_ids' => [2, 1, 3]]));
+
+        $this->assertResponseOk();
+        $this->assertSame([2, 1], [$this->dispNo(1), $this->dispNo(2)]);
     }
 }

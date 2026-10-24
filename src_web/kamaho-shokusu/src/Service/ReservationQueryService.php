@@ -37,8 +37,8 @@ class ReservationQueryService
             )
             ->where(['MUserGroup.i_id_room' => $roomId, 'MUserGroup.active_flag' => 0])
             ->andWhere(['MUserInfo.i_del_flag' => 0])
-            ->enableHydration(false)
-            ->toArray();
+            ->enableHydration(false);
+        $users = RoomMemberOrderService::orderMembers($users)->toArray();
 
         $existingReservations = [];
         $useChangeFlag = false;
@@ -123,8 +123,9 @@ class ReservationQueryService
             ->andWhere(['MUserInfo.i_del_flag' => 0])
             ->limit($limit)
             ->page($page)
-            ->enableHydration(false)
-            ->all();
+            ->enableHydration(false);
+        // ページ送りで重複・抜けが出ないよう、並びを一意に決める
+        $users = RoomMemberOrderService::orderMembers($users)->all();
 
         $userData = [];
         foreach ($users as $user) {
