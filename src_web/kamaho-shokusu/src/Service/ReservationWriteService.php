@@ -352,7 +352,8 @@ class ReservationWriteService
         array $payload,
         int $loginUserId,
         string $loginUserName,
-        bool $invalidateCache = true
+        bool $invalidateCache = true,
+        bool $adminAnyRoom = false
     ): array {
         if (empty($payload)) {
             throw new InvalidInputException('Empty request body.', 400);
@@ -408,8 +409,9 @@ class ReservationWriteService
             throw new UnauthorizedException('選択された部屋は利用できません。');
         }
 
-        // 他人の予約を扱うには、操作者本人も部屋に有効所属していること（管理者も同じ。#821）
-        if ($targetUserId !== $loginUserId && !$this->isActiveMember($loginUserId, $roomId)) {
+        // 他人の予約を扱うには、操作者本人も部屋に有効所属していること（管理者も同じ。#821）。
+        // ただしエクセル食数予約（$adminAnyRoom）では、管理者・システム管理者は所属外の部屋も操作できる
+        if ($targetUserId !== $loginUserId && !($adminAnyRoom && $isAdmin) && !$this->isActiveMember($loginUserId, $roomId)) {
             throw new UnauthorizedException('この部屋を操作する権限がありません。');
         }
 
@@ -560,7 +562,8 @@ class ReservationWriteService
 
             try {
                 // キャッシュ無効化は後でまとめて行うため false を渡す。
-                $r = $this->processToggle($roomId, $payload, $loginUserId, $loginUserName, false);
+                // 一括 toggle はエクセル食数予約専用のため、管理者は所属外の部屋も操作できる
+                $r = $this->processToggle($roomId, $payload, $loginUserId, $loginUserName, false, true);
                 $results[$i] = ['ok' => true, 'value' => $r['value'], 'details' => $r['details']];
 
                 $aff  = $r['affected'];
