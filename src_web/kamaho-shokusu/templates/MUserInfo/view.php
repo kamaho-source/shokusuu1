@@ -14,7 +14,7 @@ $currentUserId = $user->get('i_id_user');
     <aside class="col-md-3">
         <div class="list-group">
             <h4 class="list-group-item list-group-item-action active"><?= __('Actions') ?></h4>
-            <?php if ($mUserInfo->i_id_user === $currentUserId || in_array((int)$user->get('i_admin'), [1, 3])): ?>
+            <?php if ($canEdit ?? ($mUserInfo->i_id_user === $currentUserId || in_array((int)$user->get('i_admin'), [1, 3]))): ?>
             <?= $this->Html->link(__('ユーザ情報を編集する'), ['action' => 'edit', $mUserInfo->i_id_user], ['class' => 'list-group-item list-group-item-action']) ?>
             <?php endif; ?>
             <?php if (in_array((int)$user->get('i_admin'), [1, 3])): ?>

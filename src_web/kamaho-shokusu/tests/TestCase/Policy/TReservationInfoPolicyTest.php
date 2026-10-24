@@ -22,12 +22,36 @@ class TReservationInfoPolicyTest extends TestCase
         $this->assertTrue($policy->canAdd($identity, $resource));
     }
 
+    public function testCanAddAsOtherRoleAllowed(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new TestIdentity(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 3]);
+
+        $this->assertTrue($policy->canAdd($identity, new TReservationInfo()));
+    }
+
     public function testCanAddAsLevel7StaffAllowed(): void
     {
         $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
         $identity = new TestIdentity(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 7]);
 
         $this->assertTrue($policy->canAdd($identity, new TReservationInfo()));
+    }
+
+    /**
+     * 役職「その他」に許可するのは自分の予約の登録だけ。他人分・一括・コピーの操作は許可しない。
+     */
+    public function testOtherRoleIsLimitedToOwnReservations(): void
+    {
+        $policy = new TReservationInfoPolicy(new TestRoomAccessService([1 => [1]]));
+        $identity = new TestIdentity(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 3]);
+        $resource = new TReservationInfo();
+
+        $this->assertFalse($policy->canCopy($identity, $resource));
+        $this->assertFalse($policy->canBulkAddSubmit($identity, $resource));
+        $this->assertFalse($policy->canBulkAddForm($identity, $resource));
+        $this->assertFalse($policy->canGetUsersByRoomForBulk($identity, $resource));
+        $this->assertFalse($policy->canGetMealCounts($identity, $resource));
     }
 
     /**

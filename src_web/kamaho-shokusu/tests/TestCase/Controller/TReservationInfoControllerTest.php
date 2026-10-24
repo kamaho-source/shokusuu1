@@ -469,6 +469,38 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertSame(false, $responseJson['ok'] ?? null);
     }
 
+    /**
+     * 役職「その他」(i_user_level=3) の一般ユーザーは、詳細フォーム(add)を開ける。職員向けの一括登録・コピーは開けない。
+     */
+    public function testOtherRoleUserCanOpenAddButNotStaffOnlyScreens(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 3], ['i_id_user' => 3]);
+        $this->setAuthenticatedSession(false, 3);
+
+        $this->get('/TReservationInfo/add?date=' . (new Date('+30 days'))->format('Y-m-d'));
+        $this->assertResponseOk();
+
+        $this->get('/TReservationInfo/bulk-add-form');
+        $this->assertResponseCode(403);
+    }
+
+    /**
+     * 予約のナビゲーションは、職員でない一般ユーザー（その他・児童）にも表示される。
+     */
+    public function testReservationNavIsShownToNonStaffUsers(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 3], ['i_id_user' => 3]);
+        $this->setAuthenticatedSession(false, 3);
+        $this->get('/TReservationInfo');
+        $this->assertResponseOk();
+        $this->assertResponseRegExp('#<a class="nav-link" href="[^"]*/TReservationInfo"[^>]*>\s*<i class="bi bi-calendar3"></i>予約#u');
+
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 1], ['i_id_user' => 3]);
+        $this->get('/TReservationInfo');
+        $this->assertResponseOk();
+        $this->assertResponseRegExp('#<a class="nav-link" href="[^"]*/TReservationInfo"[^>]*>\s*<i class="bi bi-calendar3"></i>予約#u');
+    }
+
     public function testCopyAsNonAdminDenied(): void
     {
         $this->setAuthenticatedSession(false, 1);
@@ -798,6 +830,23 @@ class TReservationInfoControllerTest extends TestCase
         }
 
         return false;
+    }
+
+    /** 日付が無い・不正なときは SQL エラー(500)ではなく 400 を返す（#819） */
+    public function testGetUsersByRoomForEditRequiresValidDate(): void
+    {
+        $this->setAuthenticatedSession();
+
+        $this->get('/TReservationInfo/getUsersByRoomForEdit/1');
+        $this->assertResponseCode(400);
+
+        foreach (['', 'abc', '2026-02-30', '2026-1-5', '2026-11-11x'] as $bad) {
+            $this->get('/TReservationInfo/getUsersByRoomForEdit/1?date=' . urlencode($bad));
+            $this->assertResponseCode(400, "date={$bad}");
+        }
+
+        $this->get('/TReservationInfo/getUsersByRoomForEdit/1?date=' . Date::today()->addDays(22)->format('Y-m-d'));
+        $this->assertResponseOk();
     }
 
     /** 一括登録画面が送るケバブケースの URL でも、一括登録の保存につながる */
