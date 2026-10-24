@@ -328,15 +328,34 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
+        $canChangeRole = $this->Authorization->can($mUserInfo, 'changeRole');
+        // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、所属部屋を変更できない
+        $canEditRooms = $this->Authorization->can($mUserInfo, 'changeRole')
+            || (int)$this->request->getAttribute('identity')?->get('i_id_user') === (int)$mUserInfo->i_id_user;
+
         if ($this->request->is(['patch', 'post', 'put'])) {
-            $data = $this->request->getData();
-            $user                  = $this->request->getAttribute('identity');
-            $data['c_update_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
-            $data['dt_update']     = date('Y-m-d H:i:s');
+            $posted = $this->request->getData();
+            $user   = $this->request->getAttribute('identity');
+            // 権限・状態系の項目を POST から受け取らないよう、編集できる項目だけを取り出す
+            // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、氏名のみ変更できる（ログインIDは認証情報のため）
+            $data = [
+                'c_login_account' => $canEditRooms
+                    ? ($posted['c_login_account'] ?? $mUserInfo->c_login_account)
+                    : $mUserInfo->c_login_account,
+                'c_user_name'     => $posted['c_user_name'] ?? $mUserInfo->c_user_name,
+                'c_update_user'   => $user ? $user->get('c_user_name') : '不明なユーザー',
+                'dt_update'       => date('Y-m-d H:i:s'),
+            ];
 
             $roomIds = [];
-            if (!empty($data['rooms'])) {
-                foreach ($data['rooms'] as $roomId => $activeFlag) {
+            if (!$canEditRooms) {
+                foreach ($mUserInfo->m_user_group ?? [] as $group) {
+                    if ((int)$group->active_flag === 0) {
+                        $roomIds[] = (int)$group->i_id_room;
+                    }
+                }
+            } elseif (!empty($posted['rooms'])) {
+                foreach ($posted['rooms'] as $roomId => $activeFlag) {
                     if ($activeFlag === '1') {
                         $roomIds[] = (int)$roomId;
                     }
@@ -347,19 +366,26 @@ class MUserInfoController extends AppController
             $actorId   = $user ? (int)$user->get('i_id_user') : 0;
             $loginId   = (string)($user?->get('c_login_account') ?? '');
 
-            // 年齢・権限・状態は誰も編集画面からは変えられない。年代・役職は管理者だけ。
+            // 年齢・権限・状態は誰も編集画面からは変えられない。
+            // 役職・職員IDは、管理者が他のユーザーを編集するときだけ（$canChangeRole）。年代は管理者だけ。
             // 役職(i_user_level)は権限判定に、年代は食数の区分に使うため、本人は変えられない。
-            // 管理者以外（=本人）は性別と、職員なら自分の職員IDを変えられる。
-            $fields = ['c_login_account', 'c_user_name', 'c_update_user', 'dt_update', 'i_user_gender'];
+            // 性別は管理者・本人。職員は自分の職員IDを変えられる。職員・ブロック長が児童を編集するときは氏名のみ。
+            $fields = ['c_login_account', 'c_user_name', 'c_update_user', 'dt_update'];
             $isAdminActor = UserRole::isAdmin((int)($user?->get('i_admin') ?? 0));
-            if ($isAdminActor) {
-                $fields = array_merge($fields, ['i_user_rank', 'i_user_level', 'i_id_staff']);
+            if ($canEditRooms) {
+                $fields[] = 'i_user_gender';
+                $data += array_intersect_key($posted, ['i_user_gender' => 1, 'i_id_staff' => 1]);
             }
-            if (!$isAdminActor) {
-                unset($data['i_user_rank'], $data['i_user_level']);
+            if ($isAdminActor && $canEditRooms) {
+                $fields[] = 'i_user_rank';
+                $data += array_intersect_key($posted, ['i_user_rank' => 1]);
+            }
+            if ($canChangeRole) {
+                $fields = array_merge($fields, ['i_user_level', 'i_id_staff']);
+                $data += array_intersect_key($posted, ['i_user_level' => 1]);
             }
             [$data, $profileError] = $this->normalizeProfileForEdit($data, $mUserInfo->i_user_level);
-            if (!$isAdminActor && $profileError === null && (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL) {
+            if (!$canChangeRole && $canEditRooms && $profileError === null && (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL) {
                 $fields[] = 'i_id_staff';
                 [$data, $profileError] = $this->normalizeOwnStaffId($data);
             }
@@ -390,7 +416,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms'));
+        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms'));
     }
 
     /**
@@ -679,8 +705,9 @@ class MUserInfoController extends AppController
         }
 
         $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
+        $canEdit   = $this->Authorization->can($mUserInfo, 'edit');
 
-        $this->set(compact('mUserInfo', 'userRooms'));
+        $this->set(compact('mUserInfo', 'userRooms', 'canEdit'));
     }
 
     /**

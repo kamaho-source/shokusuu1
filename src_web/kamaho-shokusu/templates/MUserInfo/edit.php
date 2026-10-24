@@ -5,6 +5,8 @@
  * @var array $rooms
  * @var array $selectedRooms
  * @var \App\Model\Entity\User $user
+ * @var bool $canChangeRole 役職を変更できるか（管理者が他のユーザーを編集するとき）
+ * @var bool $canEditRooms 所属部屋を変更できるか
  */
 use App\Domain\ValueObject\UserProfileOptions;
 $this->assign('title', 'ユーザー情報の編集');
@@ -40,7 +42,9 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                     <div class="mb-3">
                         <?= $this->Form->control('c_login_account', [
                             'label' => 'ログインID',
-                            'class' => 'form-control'
+                            'class' => 'form-control',
+                            // 職員・ブロック長が児童を編集するときは変更できない（認証情報のため）
+                            'readonly' => !$canEditRooms,
                         ]) ?>
                     </div>
                     <div class="mb-3">
@@ -63,13 +67,15 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                         return '<div class="mb-3"><span class="form-label d-block">' . h($label) . '</span>'
                             . '<span class="form-control-plaintext">' . h($value) . '</span></div>';
                     }; ?>
+                    <?php if ($canEditRooms): ?>
                     <div class="mb-3">
                         <?= $this->Form->control('i_user_gender', [
                             'type' => 'select', 'options' => UserProfileOptions::GENDERS, 'empty' => $keepOption(UserProfileOptions::GENDERS, $mUserInfo->i_user_gender),
                             'label' => '性別', 'class' => 'form-select', 'required' => false,
                         ]) ?>
                     </div>
-                    <?php if ($isAdmin): ?>
+                    <?php endif; ?>
+                    <?php if ($isAdmin && $canEditRooms): ?>
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_rank', [
                                 'type' => 'select', 'options' => UserProfileOptions::AGE_GROUPS, 'empty' => $keepOption(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank),
@@ -80,7 +86,7 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                         <?= $readonlyRow(__('年代'), UserProfileOptions::label(UserProfileOptions::AGE_GROUPS, $mUserInfo->i_user_rank)) ?>
                     <?php endif; ?>
                     <?= $readonlyRow(__('年齢'), $mUserInfo->i_user_age ? $mUserInfo->i_user_age . '歳' : __('未設定')) ?>
-                    <?php if ($isAdmin): ?>
+                    <?php if ($canChangeRole): ?>
                         <div class="mb-3">
                             <?= $this->Form->control('i_user_level', [
                                 'type' => 'select', 'options' => UserProfileOptions::USER_LEVELS,
@@ -92,13 +98,14 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                     <?php else: ?>
                         <?= $readonlyRow(__('役職'), UserProfileOptions::label(UserProfileOptions::USER_LEVELS, $mUserInfo->i_user_level)) ?>
                     <?php endif; ?>
-                    <?php if ($isAdmin || (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL): ?>
+                    <?php if ($canChangeRole || ($canEditRooms && (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL)): ?>
                         <div class="mb-3" id="staffIdField">
                             <?= $this->Form->control('i_id_staff', [
                                 'type' => 'text', 'label' => '職員ID', 'class' => 'form-control', 'required' => false,
                             ]) ?>
                         </div>
                     <?php endif; ?>
+                    <?php if ($canEditRooms): ?>
                     <div class="mb-3">
                         <label>所属部屋</label>
                         <?php foreach ($rooms as $id => $name): ?>
@@ -114,6 +121,7 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                             </div>
                         <?php endforeach; ?>
                     </div>
+                    <?php endif; ?>
                 </fieldset>
                 <?= $this->Form->button(__('送信'), ['class' => 'btn btn-primary']) ?>
                 <?= $this->Form->end() ?>
@@ -121,7 +129,7 @@ $keepOption = static function (array $options, int|string|null $value): string|f
         </div>
     </div>
 </div>
-<?php if ($isAdmin): ?>
+<?php if ($canChangeRole): ?>
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const level = document.getElementById('userLevelSelect');

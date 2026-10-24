@@ -71,12 +71,12 @@ $recentNotifications     = $recentNotifications ?? [];
                                     <i class="bi bi-speedometer2"></i>ダッシュボード
                                 </a>
                             </li>
-                            <li class="nav-item">
-                                <a class="nav-link" href="<?= $this->Url->build('/TReservationInfo') ?>">
-                                    <i class="bi bi-calendar3"></i>予約
-                                </a>
-                            </li>
                         <?php endif; ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="<?= $this->Url->build('/TReservationInfo') ?>">
+                                <i class="bi bi-calendar3"></i>予約
+                            </a>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">
                                 <i class="bi bi-door-open"></i>部屋情報

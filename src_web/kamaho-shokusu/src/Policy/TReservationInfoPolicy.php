@@ -20,7 +20,8 @@ class TReservationInfoPolicy
 
     public function canAdd(?IdentityInterface $user, TReservationInfo $resource): bool
     {
-        return $this->isStaffOrAdmin($user);
+        // 役職「その他」は、自分の予約のみ登録できる（他人分はサービス側で拒否される）。
+        return $this->isStaffOrAdmin($user) || $this->isOtherRole($user);
     }
 
     public function canCopy(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -321,6 +322,25 @@ class TReservationInfoPolicy
 
         if ($identity instanceof \ArrayAccess) {
             return UserRole::isBlockLeader((int)($identity['i_admin'] ?? 0));
+        }
+
+        return false;
+    }
+
+    /** 役職「その他」(i_user_level=3) か。 */
+    private function isOtherRole(?IdentityInterface $user): bool
+    {
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+
+        if (is_object($identity) && method_exists($identity, 'get')) {
+            return (int)$identity->get('i_user_level') === 3;
+        }
+
+        if (is_array($identity) || $identity instanceof \ArrayAccess) {
+            return (int)($identity['i_user_level'] ?? -1) === 3;
         }
 
         return false;
