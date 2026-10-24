@@ -185,9 +185,8 @@ describe('treservation_cybozu.js 画面', () => {
 
     test('登録: 日付と部屋ごとに、複数の食事をまとめて順番に送る。再読込せず、🔒と背景のカレンダーに反映する', async () => {
         setup();
-        const reload = jest.fn();
-        Object.defineProperty(window, 'location', { value: { reload }, configurable: true });
         window.__applyReservationToCalendar = jest.fn();
+        window.__reservationCalendar = { refetchEvents: jest.fn() };
         mockFetch((b) => ({ status: 200, json: { ok: true, data: { registered: b.date === '2026-10-21' ? [] : b.meals, skipped: b.date === '2026-10-21' ? b.meals : [] } } }));
         click(cell('2026-10-20'));      // 朝食・ナザレ
         meal(3);
@@ -199,18 +198,25 @@ describe('treservation_cybozu.js 画面', () => {
         await Promise.resolve();
         expect(submitBtn().textContent).toContain('登録中…（1/2）');
         await pending;
+        // 背景カレンダーの再取得は最後の1回だけ
+        expect(window.__reservationCalendar.refetchEvents).toHaveBeenCalledTimes(1);
 
         expect(global.fetch.mock.calls.map((c) => JSON.parse(c[1].body))).toEqual([
-            { date: '2026-10-20', roomId: 1, meals: [1, 3], userId: 9 },
-            { date: '2026-10-21', roomId: 2, meals: [3], userId: 9 },
+            { date: '2026-10-20', roomId: 1, meals: [1, 3], userId: 9, noSwap: true },
+            { date: '2026-10-21', roomId: 2, meals: [3], userId: 9, noSwap: true },
         ]);
         expect(window.pageToast).toHaveBeenLastCalledWith('登録 2件（朝食 10/20（火）／夕食 10/20（火））。スキップ 1件（夕食 10/21（水）：登録済み、または昼食とお弁当が重なる日）', 'warning');
-        expect(window.__applyReservationToCalendar.mock.calls).toEqual([['2026-10-20', 1, 1], ['2026-10-20', 3, 1]]);
+        expect(window.__applyReservationToCalendar.mock.calls).toEqual([['2026-10-20', 1, 1, true], ['2026-10-20', 3, 1, true]]);
         expect(cell('2026-10-20').classList.contains('lock')).toBe(true);
         expect(window.CybozuMode.state.selected).toEqual({ 1: {}, 2: {}, 3: {} });
         expect(submitBtn().textContent).toContain('0件');
-        expect(reload).not.toHaveBeenCalled();
+        // スキップした日は、もう一度選べないよう🔒にする
+        expect(cell('2026-10-21').classList.contains('lock')).toBe(true);
+        // 結果はトーストが消えても読めるよう、モーダル内にも残す
+        expect(document.getElementById('cybozuResult').hidden).toBe(false);
+        expect(document.getElementById('cybozuResult').textContent).toContain('登録 2件');
         delete window.__applyReservationToCalendar;
+        delete window.__reservationCalendar;
     });
 
     test('登録: 失敗した分だけを選択に残し、登録できた分は🔒にする', async () => {
@@ -228,7 +234,7 @@ describe('treservation_cybozu.js 画面', () => {
         expect(window.CybozuMode.state.selected).toEqual({ 1: { '2026-10-21': 1 }, 2: {}, 3: { '2026-10-21': 1 } });
         meal(1);
         expect(cell('2026-10-20').classList.contains('lock')).toBe(true);
-        expect(window.pageToast).toHaveBeenLastCalledWith(expect.stringContaining('失敗 2件（朝食 10/21（水）／夕食 10/21（水）：10/21（水） 他の操作と競合しました。）'), 'danger');
+        expect(window.pageToast).toHaveBeenLastCalledWith(expect.stringContaining('失敗 2件（朝食 10/21（水）／夕食 10/21（水））：他の操作と競合しました。'), 'danger');
         expect(submitBtn().textContent).toContain('2件');
     });
 
@@ -245,5 +251,72 @@ describe('treservation_cybozu.js 画面', () => {
     test('部屋名に HTML を含んでも、タグとして解釈しない', () => {
         setup({ pickerRooms: [{ id: 1, name: '<img src=x onerror=alert(1)>' }, { id: 2, name: 'B' }] });
         expect(document.querySelector('#cybozuRooms img')).toBeNull();
+    });
+
+    test('登録: 途中の食事だけ失敗したとき（data.failed）、先に登録できた食事は登録済みとして扱う', async () => {
+        setup();
+        mockFetch(() => ({ status: 200, json: { ok: true, data: { registered: [1], skipped: [], failed: [{ meal: 3, message: '承認済みの予約は変更できません。' }] } } }));
+        click(cell('2026-10-20'));
+        meal(3);
+        click(cell('2026-10-20'));
+
+        await window.CybozuMode.submit();
+
+        expect(window.CybozuMode.state.selected).toEqual({ 1: {}, 2: {}, 3: { '2026-10-20': 1 } });
+        expect(window.pageToast).toHaveBeenLastCalledWith('登録 1件（朝食 10/20（火））。失敗 1件（夕食 10/20（火））：承認済みの予約は変更できません。', 'danger');
+        meal(1);
+        expect(cell('2026-10-20').classList.contains('lock')).toBe(true);
+    });
+
+    test('409 でも競合モーダルを出す fetch を通さず、理由をそのまま出す', async () => {
+        setup();
+        global.fetch = jest.fn(() => Promise.reject(new Error('conflict modal wrapper')));
+        window.__fetchWithoutConflictModal = jest.fn(() => Promise.resolve({ status: 409, text: () => Promise.resolve(JSON.stringify({ ok: false, message: '他の操作と競合しました。' })) }));
+        click(cell('2026-10-20'));
+
+        await window.CybozuMode.submit();
+
+        expect(global.fetch).not.toHaveBeenCalled();
+        expect(window.pageToast).toHaveBeenLastCalledWith(expect.stringContaining('他の操作と競合しました。'), 'danger');
+        delete window.__fetchWithoutConflictModal;
+    });
+
+    test('登録の途中で例外が出ても「登録中…」のまま固まらない', async () => {
+        setup();
+        mockFetch((b) => ({ status: 200, json: { ok: true, data: { registered: b.meals, skipped: [] } } }));
+        window.__applyReservationToCalendar = () => { throw new Error('boom'); };
+        click(cell('2026-10-20'));
+
+        await window.CybozuMode.submit();
+
+        expect(window.CybozuMode.state.busy).toBe(false);
+        expect(window.pageToast).toHaveBeenLastCalledWith(expect.stringContaining('エラーが発生しました'), 'danger');
+        delete window.__applyReservationToCalendar;
+    });
+
+    test('月の外の日（灰色）は選べない', () => {
+        setup();
+        click(document.getElementById('cybozuNext')); // 2026年11月。末尾に 12/1〜12/5 が灰色で並ぶ
+        const outside = Array.from(document.querySelectorAll('#cybozuCalendar tbody td')).filter((td) => !td.dataset.date);
+        expect(outside.map((td) => td.querySelector('.cybozu-num').textContent)).toEqual(['1', '2', '3', '4', '5']);
+        click(outside[4]);
+        expect(window.CybozuMode.state.selected[1]).toEqual({});
+    });
+
+    test('開き直したときに描き直し、閉じている間に背景で登録された日も🔒にする', () => {
+        setup();
+        expect(cell('2026-10-22').classList.contains('lock')).toBe(false);
+        window.__TRESP.myDetails['2026-10-22'] = { breakfast: 1, breakfastRoom: 1 };
+        document.getElementById('cybozuModal').dispatchEvent(new Event('shown.bs.modal'));
+        expect(cell('2026-10-22').classList.contains('lock')).toBe(true);
+    });
+
+    test('キーボードで日付を選んでも、フォーカスが同じ日付に残る', () => {
+        setup();
+        cell('2026-10-20').focus();
+        cell('2026-10-20').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(window.CybozuMode.state.selected[1]).toEqual({ '2026-10-20': 1 });
+        expect(document.activeElement).toBe(cell('2026-10-20'));
+        expect(cell('2026-10-20').getAttribute('aria-pressed')).toBe('true');
     });
 });

@@ -642,4 +642,29 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         }
         $this->assertSame([1], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(2, $date, 2));
     }
+
+    /** 入れ替えない指定（サイボウズモード）なら、同じ部屋のお弁当を取り消さずに昼食を止める。指定がなければ従来どおり入れ替える */
+    public function testProcessToggle_noSwapKeepsBentoAndRejectsLunch(): void
+    {
+        $date = date('Y-m-d', strtotime('+20 days'));
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+        $table = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        try {
+            $this->service->processToggle(1, ['date' => $date, 'meal' => 2, 'value' => 1, 'userId' => 2, 'noSwap' => true], 2, '職員');
+            $this->fail('ConflictException が出るはず');
+        } catch (ConflictException $e) {
+            $this->assertStringContainsString('昼食と弁当', $e->getMessage());
+        }
+        $this->assertSame([1], $table->findEffectiveRoomIds(2, $date, 4));
+        $this->assertSame([], $table->findEffectiveRoomIds(2, $date, 2));
+
+        $this->service->processToggle(1, ['date' => $date, 'meal' => 2, 'value' => 1, 'userId' => 2], 2, '職員');
+        $this->assertSame([], $table->findEffectiveRoomIds(2, $date, 4));
+        $this->assertSame([1], $table->findEffectiveRoomIds(2, $date, 2));
+    }
 }

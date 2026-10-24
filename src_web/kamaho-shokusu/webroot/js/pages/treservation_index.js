@@ -190,6 +190,8 @@ function openModalById(id){
                     TODAY_STATE.bento = !!detail.bento;
                 }
             }
+            // サイボウズモード（児童は子どもUIの上に開く）で登録した予約を、食事ボタンに反映する（MY_DETAILS は登録側で更新済み）
+            window.__applyReservationToCalendar = function (date) { refreshDayUI(date); };
 
             function showConflict(html, onResolve, actionLabel){
                 var body = document.getElementById('conflictBody');
@@ -528,11 +530,14 @@ function openModalById(id){
             var MEAL_SHORT_NAMES = { 1: '朝', 2: '昼', 3: '夜', 4: '弁' };
             var MEAL_KEY_MAP     = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
 
-            /** トグル成功後にメモリ上の状態とカレンダーを即時更新する */
-            window.__applyReservationToCalendar = function (date, mealType, roomId) {
-                applyToggleToLocalState(date, MEAL_KEY_MAP[mealType], mealType, true, roomId);
+            // サイボウズモード（treservation_cybozu.js）で登録した予約を、背景のカレンダーに反映する。
+            // まとめて登録したときは skipRefetch を付けて呼び、最後に1回だけ refetchEvents する
+            window.__applyReservationToCalendar = function (date, mealType, roomId, skipRefetch) {
+                applyToggleToLocalState(date, MEAL_KEY_MAP[mealType], mealType, true, roomId, skipRefetch);
             };
-            function applyToggleToLocalState(date, mealKey, mealType, newVal, roomId) {
+
+            /** トグル成功後にメモリ上の状態とカレンダーを即時更新する */
+            function applyToggleToLocalState(date, mealKey, mealType, newVal, roomId, skipRefetch) {
                 var d = MY_DETAILS[date] || {
                     breakfast: false, breakfastRoom: null,
                     lunch: false,     lunchRoom: null,
@@ -608,7 +613,7 @@ function openModalById(id){
                     });
                 }
 
-                if (window.__reservationCalendar) window.__reservationCalendar.refetchEvents();
+                if (!skipRefetch && window.__reservationCalendar) window.__reservationCalendar.refetchEvents();
             }
 
             var calendarEl    = document.getElementById('calendar');
@@ -777,6 +782,7 @@ function openModalById(id){
                     var mealNameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
                     var registered = data.data && data.data.registered ? data.data.registered : [];
                     var skipped    = data.data && data.data.skipped ? data.data.skipped : [];
+                    var failed     = data.data && data.data.failed ? data.data.failed : [];
                     registered.forEach(function(idx) {
                         var mt = allMeals.find(function(m) { return m.idx === idx; });
                         if (mt) applyToggleToLocalState(dateStr, mt.key, mt.idx, true, roomId);
@@ -789,6 +795,10 @@ function openModalById(id){
                     if (skippedLabels && window.pageToast) {
                         // サーバーは「登録済み」「別の部屋で予約済み」「昼食・弁当の同時予約」を区別せずスキップする
                         window.pageToast(skippedLabels + 'は登録できませんでした。すでに登録済みか、別の部屋で予約済みか、昼食とお弁当は同時に予約できないためです。', 'warning');
+                    }
+                    if (failed.length && window.pageToast) {
+                        // 先の食事は登録済みのまま、途中の食事だけ失敗したとき
+                        window.pageToast(failed.map(function(f) { return (mealNameMap[f.meal] || f.meal) + '：' + f.message; }).join(' / '), 'danger');
                     }
                     return true;
                 });
@@ -3268,6 +3278,8 @@ function isWithin14(dateStr){
     (function(){
         if (!window.fetch) return;
         const originalFetch = window.fetch.bind(window);
+        // 409 を自前で扱う画面（サイボウズモード）は、競合モーダルを出さない元の fetch を使う
+        window.__fetchWithoutConflictModal = originalFetch;
 
         window.fetch = async function(input, init){
             const res = await originalFetch(input, init);

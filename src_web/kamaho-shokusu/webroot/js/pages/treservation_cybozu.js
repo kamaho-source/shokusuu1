@@ -92,6 +92,7 @@
             roomId: initialRoom ? initialRoom.id : null,
             meal: MEALS[0].id, // 今、日付を選んでいる食事
             selected: { 1: {}, 2: {}, 3: {} }, // mealId => { date => roomId }
+            skipLock: { 1: {}, 2: {}, 3: {} }, // スキップされた日（別の部屋で登録済みなど。部屋が分からないので myDetails には書かない）
             year: t.getFullYear(),
             month: t.getMonth(),
             busy: false,
@@ -102,6 +103,9 @@
 
         var $ = function (id) { return document.getElementById(id); };
         var toast = function (msg, type) { if (window.pageToast) window.pageToast(msg, type); };
+        function lockOf(date, mealId) {
+            return lockReason(details[date], mealId) || (state.skipLock[mealId][date] ? 'skipped' : null);
+        }
         var selectedDates = function (mealId) { return Object.keys(state.selected[mealId || state.meal]).sort(); };
         /** 選択中の全件。[{date, meal, roomId}]（日付順・食事順） */
         function allPicks() {
@@ -169,7 +173,7 @@
                 week.forEach(function (c) {
                     var past = !c.inMonth || c.date < today;
                     var hol = holidayName(c.date);
-                    var lock = !past ? lockReason(details[c.date], state.meal) : null;
+                    var lock = !past ? lockOf(c.date, state.meal) : null;
                     var selRoom = state.selected[state.meal][c.date] ? roomOf(state.selected[state.meal][c.date]) : null;
                     // 他の食事で選んだ日も分かるよう、選択中の食事をセルに並べる（例：朝 夜）
                     var picks = c.inMonth ? MEALS.filter(function (m) { return state.selected[m.id][c.date]; }) : [];
@@ -181,9 +185,15 @@
                     if (lock) cls.push('lock');
                     if (selRoom) cls.push('sel');
                     var title = lock === 'bento' ? 'お弁当を登録済みのため、昼食は選べません'
-                        : (lock ? 'この食事は登録済みです' : '');
-                    html += '<td class="' + cls.join(' ') + '" data-date="' + c.date + '"' +
-                        (past || lock ? ' aria-disabled="true"' : ' role="button" tabindex="0"') +
+                        : (lock === 'skipped' ? '登録済みのため、登録しませんでした（別の部屋など）'
+                        : (lock ? 'この食事は登録済みです' : ''));
+                    var d0 = parse(c.date);
+                    var label = (d0.getMonth() + 1) + '月' + d0.getDate() + '日 ' + mealById(state.meal).label +
+                        (selRoom ? ' 選択中' : '') + (title ? ' ' + title : '');
+                    // 月の外の日は選べない（data-date を付けない。表示中の月より先は myDetails の範囲外のこともあるため）
+                    html += '<td class="' + cls.join(' ') + '"' + (c.inMonth ? ' data-date="' + c.date + '"' : '') +
+                        (past || lock ? ' aria-disabled="true"'
+                            : ' role="button" tabindex="0" aria-pressed="' + !!selRoom + '" aria-label="' + esc(label) + '"') +
                         (selRoom ? ' style="background:' + selRoom.color + '"' : '') +
                         (title ? ' title="' + esc(title) + '"' : '') + '>' +
                         (hol && c.inMonth ? '<div class="cybozu-hol">' + esc(hol) + '</div>' : '') +
@@ -235,12 +245,23 @@
             btn.textContent = state.busy ? '登録中…' + (state.progress || '') : '✅ 登録する（' + picks.length + '件）';
         }
 
-        function render() { renderRooms(); renderMeals(); renderCalendar(); renderSummary(); }
+        /** 描き直してもキーボードのフォーカスを同じ日付・食事・部屋に戻す */
+        function keepFocus(fn) {
+            var a = document.activeElement;
+            var attr = a && a.closest && modalEl.contains(a) && ['data-date', 'data-meal', 'data-room'].filter(function (n) { return a.hasAttribute(n); })[0];
+            var val = attr ? a.getAttribute(attr) : null;
+            fn();
+            if (!attr) return;
+            var el = modalEl.querySelector('[' + attr + '="' + val + '"]');
+            if (el && el.focus) el.focus();
+        }
+
+        function render() { keepFocus(function () { renderRooms(); renderMeals(); renderCalendar(); renderSummary(); }); }
 
         function clickDate(date) {
             if (state.busy || !state.roomId) return;
             if (date < today) return;
-            if (lockReason(details[date], state.meal)) return;
+            if (lockOf(date, state.meal)) return;
             var sel = state.selected[state.meal];
             var cur = sel[date];
             if (cur === state.roomId) {
@@ -254,7 +275,7 @@
                 }
                 sel[date] = state.roomId;
             }
-            renderMeals(); renderCalendar(); renderSummary();
+            render();
         }
 
         function chooseMeal(id) {
@@ -265,11 +286,13 @@
 
         function post(date, roomId, meals) {
             var csrf = window.__csrfToken || cfg.csrfToken || '';
-            return fetch(cfg.directRegisterUrl, {
+            // treservation_index.js の fetch は 409 で例外を投げて競合モーダルを出すので、元の fetch を使う
+            var send = window.__fetchWithoutConflictModal || window.fetch;
+            return send(cfg.directRegisterUrl, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json; charset=utf-8', 'Accept': 'application/json', 'X-CSRF-Token': csrf },
-                body: JSON.stringify({ date: date, roomId: roomId, meals: meals, userId: cfg.userId })
+                body: JSON.stringify({ date: date, roomId: roomId, meals: meals, userId: cfg.userId, noSwap: true })
             }).then(function (res) {
                 return res.text().then(function (text) {
                     var body = {};
@@ -301,9 +324,12 @@
                         var data = r.body && r.body.data;
                         var ok = r.status === 200 && r.body.ok === true && data;
                         var message = r.status === 0 ? NETWORK_ERROR : ((r.body && r.body.message) || ('登録できませんでした（' + r.status + '）'));
+                        // 途中の食事だけ失敗しても、先の食事は登録済みで返る（data.failed）
+                        var failedMeals = ok ? (data.failed || []) : [];
                         g.meals.forEach(function (mealId) {
                             var x = { date: g.date, meal: mealId, roomId: g.roomId };
-                            if (!ok) { x.message = message; failed.push(x); return; }
+                            var f = failedMeals.filter(function (v) { return Number(v.meal) === mealId; })[0];
+                            if (!ok || f) { x.message = f ? String(f.message || '') : message; failed.push(x); return; }
                             ((data.registered || []).indexOf(mealId) !== -1 ? done : skipped).push(x);
                         });
                     });
@@ -317,11 +343,15 @@
                     d[key] = 1;
                     d[key + 'Room'] = x.roomId;
                     if (typeof window.__applyReservationToCalendar === 'function') {
-                        window.__applyReservationToCalendar(x.date, x.meal, x.roomId);
+                        window.__applyReservationToCalendar(x.date, x.meal, x.roomId, true);
                     }
                 });
+                if (done.length && window.__reservationCalendar && typeof window.__reservationCalendar.refetchEvents === 'function') {
+                    window.__reservationCalendar.refetchEvents();
+                }
+                // スキップした日も、もう一度選んで同じスキップにならないよう🔒にする
+                skipped.forEach(function (x) { state.skipLock[x.meal][x.date] = true; });
                 // 失敗した分だけを選択に残し、もう一度「登録する」でやり直せるようにする
-                // スキップは選択から外すだけ（理由が昼食と弁当の重なりのこともあるため）
                 done.concat(skipped).forEach(function (x) { delete state.selected[x.meal][x.date]; });
                 // 「朝食 10/20（火）・10/21（水）／夕食 10/20（火）」の形で並べる
                 var list = function (xs) {
@@ -334,16 +364,26 @@
                 if (done.length) parts.push('登録 ' + done.length + '件（' + list(done) + '）');
                 if (skipped.length) parts.push('スキップ ' + skipped.length + '件（' + list(skipped) + '：登録済み、または昼食とお弁当が重なる日）');
                 if (failed.length) {
-                    var msgs = failed.map(function (f) { return shortDate(f.date) + ' ' + f.message; })
-                        .filter(function (v, i, a) { return a.indexOf(v) === i; });
-                    parts.push('失敗 ' + failed.length + '件（' + list(failed) + '：' + msgs.join(' / ') + '）');
+                    var msgs = failed.map(function (f) { return f.message; }).filter(function (v, i, a) { return a.indexOf(v) === i; });
+                    parts.push('失敗 ' + failed.length + '件（' + list(failed) + '）：' + msgs.join(' / '));
                 }
-                var type = failed.length ? 'danger' : (skipped.length ? 'warning' : 'success');
-                toast(parts.join('。') || '登録 0件', type);
-                state.busy = false;
-                state.progress = '';
-                render();
+                finish(parts.join('。') || '登録 0件', failed.length ? 'danger' : (skipped.length ? 'warning' : 'success'));
+            }).catch(function () {
+                // 想定外の例外でも「登録中…」のまま固まらないようにする
+                finish('登録の途中でエラーが発生しました。画面を再読み込みして、登録できたかを確かめてください。', 'danger');
             });
+        }
+
+        /** 結果をトーストと、モーダル内（トーストが消えても読めるように）に出して、操作できる状態に戻す */
+        function finish(message, type) {
+            toast(message, type);
+            var box = $('cybozuResult');
+            box.hidden = false;
+            box.className = 'small mt-2 mb-0 alert py-2 alert-' + type;
+            box.textContent = message;
+            state.busy = false;
+            state.progress = '';
+            render();
         }
 
         function showModal() {
@@ -358,7 +398,7 @@
                 render();
             } else if (el.hasAttribute('data-room')) {
                 state.roomId = Number(el.getAttribute('data-room'));
-                renderRooms();
+                render();
             } else if (el.hasAttribute('data-meal')) {
                 chooseMeal(Number(el.getAttribute('data-meal')));
             } else {
@@ -380,6 +420,8 @@
             renderCalendar();
         });
         $('cybozuSubmit').addEventListener('click', submit);
+        // 閉じている間に背景の画面で登録・取消されても、開いたときの🔒が最新になるよう描き直す
+        modalEl.addEventListener('shown.bs.modal', render);
 
         var entry = document.getElementById('cybozuModeButton');
         if (entry) {

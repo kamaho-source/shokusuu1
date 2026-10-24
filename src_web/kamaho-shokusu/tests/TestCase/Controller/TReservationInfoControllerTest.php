@@ -153,7 +153,9 @@ class TReservationInfoControllerTest extends TestCase
         $this->get('/TReservationInfo/index?uimode=cybozu');
         $this->assertResponseOk();
         $this->assertResponseContains('id="cybozuModal"');
-        $this->assertResponseContains('isKidUI: false');
+        // 背景は子どもUIのまま（業務UIのカレンダー・部屋の人数を児童に見せない）
+        $this->assertResponseContains('isKidUI: true');
+        $this->assertResponseNotContains('id="calendar"');
         $this->assertResponseNotContains('uimode=biz');
     }
 

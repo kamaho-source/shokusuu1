@@ -27,11 +27,12 @@ $date = $this->request->getQuery('date', $today);
 $uimodeQuery = strtolower((string)$this->request->getQuery('uimode', ''));
 $forceKid = in_array($uimodeQuery, ['kid', 'child'], true);
 $forceBiz = in_array($uimodeQuery, ['biz', 'adult'], true);
-// サイボウズモード（複数日まとめて予約）。業務UIのカレンダーの上にモーダルを開く。子ども本人も選べる
+// サイボウズモード（複数日まとめて予約）。業務UIのカレンダーの上にモーダルを開く。
+// 子ども本人も選べるが、部屋の人数などを見せないよう、背景は子どもUIのままにする
 $useCybozu = $uimodeQuery === 'cybozu';
 
 if ($useCybozu) {
-    $useKidUI = false;
+    $useKidUI = $isChild;
 } elseif ($isChild) {
     $useKidUI = true;
 } elseif ($forceKid) {
@@ -258,7 +259,7 @@ $bizSectionVars = [
 
 <?= $this->element('TReservationInfo/modals', $modalVars) ?>
 <?php if ($useCybozu): ?>
-    <?= $this->element('TReservationInfo/cybozu_modal') ?>
+    <?= $this->element('TReservationInfo/cybozu_modal', ['isChild' => $isChild]) ?>
 <?php endif; ?>
 <script src="https://code.jquery.com/jquery-3.5.1.min.js"
         integrity="sha256-9/aliU8dGd2tb6OSsuzixeV4y/faTqgFtohetphbbj0="

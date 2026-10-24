@@ -382,6 +382,7 @@ class ReservationWriteService
         $dateStr = (string)($payload['date'] ?? '');
         $meal    = isset($payload['meal'])  ? (int)$payload['meal']  : null;
         $value   = isset($payload['value']) ? (int)$payload['value'] : null;
+        $noSwap  = !empty($payload['noSwap']);
         // 暦にない日付は、権限・所属の判定より先に入力エラーで返す（理由が分かるように）
         if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr) === 1 && !self::isValidYmd($dateStr)) {
             throw new InvalidInputException('日付が正しくありません。');
@@ -473,7 +474,16 @@ class ReservationWriteService
         if (!$isAdmin && $isLastMinute && UserRole::isStaffLevel($targetUserLevel) && $value === 0 && $exists) {
             throw new UnauthorizedException('職員は直前編集でのキャンセルはできません。');
         }
-        // 昼食⇔弁当を ON にすると、同じ部屋の相手は取り消される（toggleMeal）。職員の直前取消の禁止を、入れ替えですり抜けさせない
+        // 昼食⇔弁当を ON にすると、同じ部屋の相手は取り消される（toggleMeal）。
+        // 入れ替えない指定（サイボウズモードのまとめて登録）なら、相手を黙って取り消さずに止める（直接登録ではスキップ扱いになる文言）
+        if ($noSwap && $value === 1 && in_array($meal, [2, 4], true)
+            && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal === 2 ? 4 : 2), true)
+        ) {
+            throw new ConflictException($meal === 2
+                ? 'お弁当を登録済みのため、昼食は登録しませんでした（昼食と弁当は同時に予約できません）。'
+                : '昼食を登録済みのため、お弁当は登録しませんでした（昼食と弁当は同時に予約できません）。');
+        }
+        // 職員の直前取消の禁止を、入れ替えですり抜けさせない
         if (!$isAdmin && $isLastMinute && UserRole::isStaffLevel($targetUserLevel) && $value === 1 && in_array($meal, [2, 4], true)
             && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal === 2 ? 4 : 2), true)
         ) {

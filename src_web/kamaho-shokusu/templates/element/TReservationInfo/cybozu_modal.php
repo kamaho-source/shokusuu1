@@ -3,6 +3,7 @@
  * サイボウズモード（複数日まとめて予約）のモーダル。中身は treservation_cybozu.js が描画する。
  *
  * @var \App\View\AppView $this
+ * @var bool $isChild
  */
 ?>
 <div class="modal fade" id="cybozuModal" tabindex="-1" aria-labelledby="cybozuModalTitle" aria-hidden="true">
@@ -39,8 +40,13 @@
                 <div id="cybozuSummary" class="my-2"></div>
                 <div id="cybozuChips"></div>
                 <div class="alert alert-warning py-2 small mt-2 mb-0" id="cybozuLastMinute" hidden>
-                    ⚠️ 直前期間（今日〜14日後）の日が含まれます。登録後、職員は取消できません。
+                    <?php if (!empty($isChild)): ?>
+                        ⚠️ 直前期間（今日〜14日後）の日が含まれます。お店に注文済みのため、登録した後に変えることは基本できません。
+                    <?php else: ?>
+                        ⚠️ 直前期間（今日〜14日後）の日が含まれます。登録後、職員は取消できません。
+                    <?php endif; ?>
                 </div>
+                <div class="small mt-2 mb-0" id="cybozuResult" role="status" aria-live="polite" hidden></div>
             </div>
             <div class="modal-footer justify-content-between">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">キャンセル</button>

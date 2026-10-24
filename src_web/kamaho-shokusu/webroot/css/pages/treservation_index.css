@@ -474,12 +474,12 @@
 .cybozu-day.sel .cybozu-band { background: #fff; color: #15803d; }
 .cybozu-day.sel .cybozu-band.none { color: #d97706; }
 .cybozu-num { font-weight: 700; font-size: .85rem; position: relative; }
-.cybozu-ck, .cybozu-lk { position: absolute; right: 1px; top: 0; font-size: .6rem; }
-.cybozu-band { border-radius: 2px; color: #fff; font-size: .6rem; font-weight: 700; line-height: 1.15; padding: 1px; margin: 2px 0; }
+.cybozu-ck, .cybozu-lk { position: absolute; right: 1px; top: 0; font-size: .65rem; }
+.cybozu-band { border-radius: 2px; color: #fff; font-size: .65rem; font-weight: 700; line-height: 1.15; padding: 1px; margin: 2px 0; }
 .cybozu-band.res { background: #28a745; }
 .cybozu-band.none { background: #fd7e14; }
-.cybozu-room { font-size: .55rem; border: 1px solid #86efac; border-radius: 2px; background: #fff; color: #15803d; margin: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cybozu-hol { background: #dc3545; color: #fff; font-size: .5rem; border-radius: .4rem; padding: 0 .2rem; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cybozu-room { font-size: .65rem; border: 1px solid #86efac; border-radius: 2px; background: #fff; color: #15803d; margin: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cybozu-hol { background: #dc3545; color: #fff; font-size: .65rem; border-radius: .4rem; padding: 0 .2rem; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cybozu-legend { display: flex; flex-wrap: wrap; gap: .75rem; }
 .cybozu-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .2rem; }
 .cybozu-tag { display: inline-block; border: 1px solid #28a745; color: #15803d; border-radius: .25rem; padding: 0 .4rem; font-weight: 700; }
@@ -488,5 +488,6 @@
 .cybozu-chip-x { border: 0; background: none; color: inherit; padding: 0 .25rem; font-weight: 700; }
 .cybozu-meal-n { display: inline-block; background: #28a745; color: #fff; border-radius: .6rem; padding: 0 .35rem; font-size: .7rem; margin-left: .15rem; }
 .cybozu-picks { display: flex; justify-content: center; gap: 1px; margin-top: 1px; }
-.cybozu-picks span { color: #fff; border-radius: 2px; font-size: .55rem; font-weight: 700; padding: 0 2px; opacity: .55; }
+.cybozu-picks span { color: #fff; border-radius: 2px; font-size: .65rem; font-weight: 700; padding: 0 2px; opacity: .6; }
+.cybozu-day.sel .cybozu-picks span { opacity: 1; outline: 1px solid #fff; }
 .cybozu-picks span.cur { opacity: 1; outline: 1px solid #fff; }
