@@ -1,43 +1,46 @@
-// 部屋情報の所属メンバーの並び替え（#871）。並べ替えは区分(tbody)の中だけ。保存で一括送信する
+// 部屋情報の所属メンバーの並び替え（#871）。並べ替えは区分(tbody)の中だけ。
+// 行の hidden user_ids[] が画面の並び順のまま、部屋情報のフォームの［保存］で送られる
 (() => {
     const table = document.getElementById('member-order-table');
-    const saveBtn = document.getElementById('member-order-save');
-    if (!table || !saveBtn) return;
+    const form = table?.closest('form');
+    if (!table || !form) return;
 
     const undoBtn = document.getElementById('member-order-undo');
     const dirtyBadge = document.getElementById('member-order-dirty');
     const dragToggle = document.getElementById('member-order-drag');
-    const message = document.getElementById('member-order-message');
-    const csrfToken = document.querySelector('meta[name="csrfToken"]')?.content ?? '';
     const groups = [...table.tBodies];
     const rowsOf = (tbody) => [...tbody.querySelectorAll('tr[data-user-id]')];
     const ids = () => groups.flatMap((g) => rowsOf(g).map((r) => Number(r.dataset.userId)));
 
-    let saved = ids();
-    let saving = false;
+    const saved = ids();
+    let submitting = false;
+    let lastMoved = null; // 最後に動かした行（順番欄を黄色にする）
 
-    const showMessage = (text, ok) => {
-        message.textContent = text;
-        message.className = `alert ${ok ? 'alert-success' : 'alert-danger'}`;
-    };
-
-    // 番号を振り直し、保存済みの並びと違う人数を出す
+    // 順番・行番号を振り直し、保存済みの並びから動いた行に「変更」を付ける
     const refresh = () => {
+        const pos = new Map(saved.map((id, i) => [id, i]));
+        let row = 0;
+        let dirty = 0;
         groups.forEach((g) => rowsOf(g).forEach((r, i) => {
             const input = r.querySelector('.member-order-input');
             input.value = input.defaultValue = String(i + 1);
+            input.classList.toggle('chg', r === lastMoved);
+            r.querySelector('.rh').textContent = String(row + 1);
+            const changed = pos.get(Number(r.dataset.userId)) !== row;
+            r.querySelector('.chgmark').textContent = changed ? '変更' : '';
+            dirty += changed ? 1 : 0;
+            row++;
         }));
-        const now = ids();
-        const dirty = now.filter((id, i) => id !== saved[i]).length;
-        dirtyBadge.hidden = dirty === 0;
-        dirtyBadge.textContent = `未保存 ${dirty}人`;
-        undoBtn.disabled = saveBtn.disabled = dirty === 0 || saving;
+        dirtyBadge.textContent = dirty ? `● 未保存 ${dirty}人` : '保存済み';
+        dirtyBadge.classList.toggle('dirty', dirty > 0);
+        if (undoBtn) undoBtn.disabled = dirty === 0;
     };
 
     const isDirty = () => ids().some((id, i) => id !== saved[i]);
 
     // 行を区分内の pos 番目（1始まり）へ移す
     const moveTo = (row, pos) => {
+        lastMoved = row;
         const list = rowsOf(row.parentElement).filter((r) => r !== row);
         const index = Math.min(Math.max(pos, 1), list.length + 1) - 1;
         const ref = list[index];
@@ -82,74 +85,89 @@
                 return (a.age - b.age) * dir || a.i - b.i;
             })
             .forEach(({ r }) => tbody.appendChild(r));
+        lastMoved = null;
         refresh();
     });
 
-    // ドラッグ（オプション）。区分をまたぐ移動はしない
+    // ドラッグ（オプション）。区分をまたぐ移動はしない。
+    // ドラッグ中は行を動かさず、入る位置に線を出す。離したときに初めて移す
     let dragging = null;
+    let drop = null; // { row, after }
+    const clearDrop = () => {
+        table.querySelectorAll('.drop-before, .drop-after').forEach((r) => r.classList.remove('drop-before', 'drop-after'));
+        drop = null;
+    };
     dragToggle?.addEventListener('change', () => {
-        groups.forEach((g) => rowsOf(g).forEach((r) => {
-            r.draggable = dragToggle.checked;
-            r.querySelector('.member-order-grip').hidden = !dragToggle.checked;
-            r.style.cursor = dragToggle.checked ? 'grab' : '';
-        }));
+        table.classList.toggle('drag-on', dragToggle.checked);
+        groups.forEach((g) => rowsOf(g).forEach((r) => { r.draggable = dragToggle.checked; }));
     });
     table.addEventListener('dragstart', (e) => {
         // ドラッグ OFF のときや、入力欄の文字・名前の選択をドラッグしたときは行を動かさない
         if (!dragToggle?.checked || !(e.target instanceof HTMLTableRowElement)) return;
         dragging = e.target;
+        dragging.classList.add('dragging');
+        dragging.parentElement.classList.add('drop-zone');
+        table.classList.add('drag-active');
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', dragging.dataset.userId); // Firefox は setData が無いとドラッグが始まらない
     });
     table.addEventListener('dragover', (e) => {
-        const over = e.target.closest?.('tr[data-user-id]');
-        if (!dragging || !over || over === dragging || over.parentElement !== dragging.parentElement) return;
+        if (!dragging) return;
+        const tr = e.target.closest?.('tr');
+        if (!tr || tr.parentElement !== dragging.parentElement) {
+            clearDrop();
+            return;
+        }
         e.preventDefault();
-        const { top, height } = over.getBoundingClientRect();
-        over.parentElement.insertBefore(dragging, e.clientY > top + height / 2 ? over.nextSibling : over);
+        const rows = rowsOf(tr.parentElement);
+        // 区分の見出し行の上は「先頭へ」
+        const target = tr.matches('[data-user-id]') ? { row: tr, after: (() => {
+            const { top, height } = tr.getBoundingClientRect();
+            return e.clientY > top + height / 2;
+        })() } : { row: rows[0], after: false };
+        // 今の位置と変わらないところには線を出さない
+        const list = rows.filter((r) => r !== dragging);
+        const at = target.row === dragging ? rows.indexOf(dragging) : list.indexOf(target.row) + (target.after ? 1 : 0);
+        clearDrop();
+        if (at === rows.indexOf(dragging)) return;
+        drop = target;
+        target.row.classList.add(target.after ? 'drop-after' : 'drop-before');
+    });
+    table.addEventListener('drop', (e) => {
+        if (!dragging) return;
+        e.preventDefault();
+        if (drop) {
+            drop.row.parentElement.insertBefore(dragging, drop.after ? drop.row.nextSibling : drop.row);
+            lastMoved = dragging;
+        }
     });
     table.addEventListener('dragend', () => {
         if (!dragging) return;
+        clearDrop();
+        dragging.classList.remove('dragging');
+        dragging.parentElement.classList.remove('drop-zone');
+        table.classList.remove('drag-active');
         dragging = null;
         refresh();
     });
 
-    undoBtn.addEventListener('click', () => {
+    undoBtn?.addEventListener('click', () => {
         const pos = new Map(saved.map((id, i) => [id, i]));
         groups.forEach((g) => rowsOf(g)
             .sort((a, b) => pos.get(Number(a.dataset.userId)) - pos.get(Number(b.dataset.userId)))
             .forEach((r) => g.appendChild(r)));
+        lastMoved = null;
         refresh();
     });
 
-    saveBtn.addEventListener('click', async () => {
-        // 通信中に並びを変えても、送った並びだけを保存済みにする（後から動かした分は未保存のまま）
-        const sent = ids();
-        saving = true;
-        refresh();
-        try {
-            const res = await fetch(saveBtn.dataset.url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken, 'X-Requested-With': 'XMLHttpRequest' },
-                body: JSON.stringify({ user_ids: sent }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data.success) {
-                showMessage(data.error || `保存できませんでした（HTTP ${res.status}）。`, false);
-                return;
-            }
-            saved = sent;
-            showMessage('並び順を保存しました。食数予約の各画面にも反映されます。', true);
-        } catch (err) {
-            showMessage('通信エラーのため保存できませんでした。', false);
-        } finally {
-            saving = false;
-            refresh();
-        }
+    // ［保存］を押すまで送信しない（部屋名などの入力欄で Enter を押しても送らない）
+    form.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.target instanceof HTMLInputElement) e.preventDefault();
     });
+    form.addEventListener('submit', () => { submitting = true; });
 
     window.addEventListener('beforeunload', (e) => {
-        if (!isDirty()) return;
+        if (submitting || !isDirty()) return;
         e.preventDefault();
         e.returnValue = '';
     });
