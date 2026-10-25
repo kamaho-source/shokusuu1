@@ -12,7 +12,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
         <?= $this->element('side_actions', [
             'items' => [
                 ['tone' => 'back', 'label' => '食事単価一覧へ戻る', 'url' => ['action' => 'index']],
-                ['tone' => 'delete', 'label' => '削除する', 'url' => ['action' => 'delete', $mMealPriceInfo->i_id], 'confirmTarget' => $mMealPriceInfo->i_fiscal_year . '年の食事単価'],
+                ['tone' => 'delete', 'label' => '削除する', 'url' => ['action' => 'delete', $mMealPriceInfo->i_id], 'confirmTarget' => $mMealPriceInfo->i_fiscal_year === null ? '' : $mMealPriceInfo->i_fiscal_year . '年の食事単価'],
             ],
         ]) ?>
 

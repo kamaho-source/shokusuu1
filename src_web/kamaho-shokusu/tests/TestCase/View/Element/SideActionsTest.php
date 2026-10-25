@@ -143,4 +143,44 @@ class SideActionsTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->render(['items' => [['tone' => 'view', 'url' => '/x']]]);
     }
+
+    public function testConfirmTargetIsEscapedInAttribute(): void
+    {
+        $html = $this->render(['items' => [['tone' => 'delete', 'label' => '削除する', 'url' => '/d/1', 'confirmTarget' => 'A"<b>']]]);
+
+        $this->assertStringNotContainsString('A"<b>', $html);
+        $this->assertStringContainsString('A&quot;&lt;b&gt;', $html);
+    }
+
+    public function testDeleteOnlyShowsWideMoreButtonAndSheetAndTwoForms(): void
+    {
+        $html = $this->render(['items' => [['tone' => 'delete', 'label' => '削除する', 'url' => '/d/1']]]);
+
+        $this->assertStringContainsString('sa-bar-more sa-bar-more--wide', $html);
+        $this->assertStringContainsString('id="sa-sheet"', $html);
+        // PC のパネルとシートに1つずつ
+        $this->assertSame(2, substr_count($html, 'class="sa-delete-form"'));
+    }
+
+    public function testPrimaryOnlyShowsPrimaryAndNoMoreButton(): void
+    {
+        $html = $this->render(['items' => [['tone' => 'edit', 'label' => '編集する', 'url' => '/e/1', 'primary' => true]]]);
+        $bar = explode('</nav>', explode('<nav class="sa-bar', $html)[1])[0];
+
+        $this->assertStringContainsString('sa-bar-wide--primary', $bar);
+        $this->assertStringNotContainsString('sa-bar-more', $bar);
+        $this->assertStringNotContainsString('id="sa-sheet"', $html);
+    }
+
+    public function testDeleteCannotBePrimary(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->render(['items' => [['tone' => 'delete', 'label' => '削除する', 'url' => '/d/1', 'primary' => true]]]);
+    }
+
+    public function testNonStringToneThrowsInvalidArgument(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->render(['items' => [['tone' => ['x'], 'label' => 'x', 'url' => '/x']]]);
+    }
 }

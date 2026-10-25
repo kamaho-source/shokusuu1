@@ -55,7 +55,7 @@
 /* ---- PC のパネル ---- */
 .sa-aside .sa-card {
     position: sticky;
-    top: 10px;
+    top: calc(var(--nav-height, 64px) + 12px); /* 固定ナビ(fixed-top)の下で止める */
     background: #fff;
     border: 1px solid var(--sa-bd);
     border-radius: 16px;
@@ -121,7 +121,7 @@
 .sa-bar-wide--back .sa-label { flex: none; }
 
 /* ---- 「その他」シート ---- */
-.sa-sheet { border-radius: 22px 22px 0 0; max-height: 80vh; }
+.offcanvas.sa-sheet { height: auto; max-height: 80vh; border-radius: 22px 22px 0 0; }
 .sa-sheet .offcanvas-body { padding: 0 14px calc(18px + env(safe-area-inset-bottom)); }
 .sa-sheet .sa-item { min-height: 48px; font-size: 15px; }
 .sa-sheet-title { font-size: 13px; font-weight: 700; color: var(--sa-mu); letter-spacing: .08em; }

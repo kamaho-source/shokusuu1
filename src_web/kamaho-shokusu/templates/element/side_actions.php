@@ -36,10 +36,16 @@ foreach ($items as $item) {
             throw new \InvalidArgumentException("side_actions: items に {$key} がありません。");
         }
     }
-    if (!isset($tones[$item['tone']])) {
-        throw new \InvalidArgumentException("side_actions: 未定義の tone です: {$item['tone']}");
+    if (!is_string($item['tone']) || !isset($tones[$item['tone']])) {
+        throw new \InvalidArgumentException('side_actions: 未定義の tone です。');
+    }
+    if (!is_string($item['label'])) {
+        throw new \InvalidArgumentException('side_actions: label は文字列で指定してください。');
     }
     if (!empty($item['primary'])) {
+        if ($item['tone'] === 'delete') {
+            throw new \InvalidArgumentException('side_actions: delete を primary にはできません（確認なしの GET リンクになるため）。');
+        }
         if ($primary !== null) {
             throw new \InvalidArgumentException('side_actions: primary は1画面に1つまでです。');
         }
@@ -88,6 +94,19 @@ foreach ($items as $item) {
     }
 }
 
+// スマートフォンの操作バーの中央（主な操作。無ければ、ラベル付きの「戻る」）
+$barMain = '';
+if ($primary !== null) {
+    $barMain = $this->Html->link(
+        '<i class="bi ' . $tones[$primary['tone']] . '" aria-hidden="true"></i><span>' . h($primary['label']) . '</span>',
+        $primary['url'],
+        ['class' => 'sa-bar-wide sa-bar-wide--primary', 'escape' => false]
+    );
+}
+if ($primary === null && $back !== null) {
+    $barMain = $link($back, 'sa-bar-wide sa-bar-wide--back');
+}
+
 // スマートフォンの「その他」シートに入るもの（バーに出す primary と back 以外）。
 $sheetHasItems = $others !== [] || $deletes !== [];
 ?>
@@ -107,6 +126,7 @@ $sheetHasItems = $others !== [] || $deletes !== [];
 </aside>
 
 <nav class="sa-bar d-md-none" aria-label="操作">
+    <script>document.body.classList.add('has-sa-bar');</script>
     <?php if ($back !== null && $primary !== null) : ?>
         <?= $this->Html->link(
             '<i class="bi bi-arrow-left" aria-hidden="true"></i>',
@@ -114,15 +134,7 @@ $sheetHasItems = $others !== [] || $deletes !== [];
             ['class' => 'sa-bar-back', 'escape' => false, 'aria-label' => $back['label'], 'title' => $back['label']]
         ) ?>
     <?php endif; ?>
-    <?php if ($primary !== null) : ?>
-        <?= $this->Html->link(
-            '<i class="bi ' . $tones[$primary['tone']] . '" aria-hidden="true"></i><span>' . h($primary['label']) . '</span>',
-            $primary['url'],
-            ['class' => 'sa-bar-wide sa-bar-wide--primary', 'escape' => false]
-        ) ?>
-    <?php elseif ($back !== null) : ?>
-        <?= $link($back, 'sa-bar-wide sa-bar-wide--back') ?>
-    <?php endif; ?>
+    <?= $barMain ?>
     <?php if ($sheetHasItems) : ?>
         <?php $moreAlone = $back === null && $primary === null; ?>
         <button type="button" class="sa-bar-more<?= $moreAlone ? ' sa-bar-more--wide' : '' ?>" data-bs-toggle="offcanvas" data-bs-target="#sa-sheet"

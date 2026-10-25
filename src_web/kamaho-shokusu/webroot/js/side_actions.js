@@ -50,9 +50,15 @@
         }
         document.body.classList.add('has-sa-bar');
 
+        // バーを隠している間は、本文の下余白と AI ボタンのかさ上げも外す（キーボードの上に空白を作らない）
+        var setHidden = function (hidden) {
+            bar.classList.toggle('sa-bar--hidden', hidden);
+            document.body.classList.toggle('has-sa-bar', !hidden);
+        };
+
         document.addEventListener('focusin', function (event) {
             if (event.target.matches && event.target.matches(FIELDS)) {
-                bar.classList.add('sa-bar--hidden');
+                setHidden(true);
             }
         });
         document.addEventListener('focusout', function () {
@@ -60,7 +66,7 @@
             setTimeout(function () {
                 var active = document.activeElement;
                 if (!(active && active.matches && active.matches(FIELDS))) {
-                    bar.classList.remove('sa-bar--hidden');
+                    setHidden(false);
                 }
             }, 0);
         });

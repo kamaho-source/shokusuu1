@@ -11,7 +11,7 @@ $this->assign('title', __('食事単価情報表示'));
             ['tone' => 'edit', 'label' => '食事単価を編集する', 'url' => ['action' => 'edit', $mMealPriceInfo->i_id], 'primary' => true],
             ['tone' => 'back', 'label' => '食事単価一覧へ戻る', 'url' => ['action' => 'index']],
             ['tone' => 'add', 'label' => '新しい食事単価を追加', 'url' => ['action' => 'add']],
-            ['tone' => 'delete', 'label' => '削除する', 'url' => ['action' => 'delete', $mMealPriceInfo->i_id], 'confirmTarget' => $mMealPriceInfo->i_fiscal_year . '年の食事単価'],
+            ['tone' => 'delete', 'label' => '削除する', 'url' => ['action' => 'delete', $mMealPriceInfo->i_id], 'confirmTarget' => $mMealPriceInfo->i_fiscal_year === null ? '' : $mMealPriceInfo->i_fiscal_year . '年の食事単価'],
         ],
     ]) ?>
     <div class="col-md-9">
