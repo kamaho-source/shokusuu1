@@ -1,0 +1,135 @@
+/* 操作パネル（templates/element/side_actions.php）
+   PC: 追従カード / スマートフォン(768px未満): 画面下の操作バー＋「その他」シート */
+:root {
+    --sa-ac: #4f46e5;
+    --sa-grad: linear-gradient(135deg, #4f46e5, #7c3aed);
+    --sa-bd: #e6eaf0;
+    --sa-tx: #1f2937;
+    --sa-mu: #6b7280;
+    --sa-dg: #dc2626;
+}
+
+/* ---- アイコンタイル（種類ごとの色） ---- */
+.sa-tile {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+    flex: none;
+}
+.sa-t-view { background: #e0f2fe; color: #0369a1; }
+.sa-t-edit { background: #fef3c7; color: #b45309; }
+.sa-t-add { background: #dcfce7; color: #15803d; }
+.sa-t-back { background: #f1f5f9; color: #475569; }
+.sa-t-delete { background: #fee2e2; color: var(--sa-dg); }
+
+/* ---- リンク行（PC のパネルとシート共通） ---- */
+.sa-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
+    color: var(--sa-tx);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+.sa-item:hover { background: #f5f3ff; color: var(--sa-tx); }
+.sa-item:active { background: #ede9fe; }
+.sa-item--primary { background: #eef2ff; color: var(--sa-ac); }
+.sa-item--primary:hover { background: #e0e7ff; color: var(--sa-ac); }
+.sa-item--delete { color: var(--sa-dg); }
+.sa-item--delete:hover { background: #fef2f2; color: var(--sa-dg); }
+.sa-item--delete:active { background: #fee2e2; }
+.sa-sep { border-top: 1px solid #f0f2f5; margin: 6px 4px; }
+.sa-delete-form { margin: 0; }
+
+/* ---- PC のパネル ---- */
+.sa-aside .sa-card {
+    position: sticky;
+    top: 10px;
+    background: #fff;
+    border: 1px solid var(--sa-bd);
+    border-radius: 16px;
+    padding: 8px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+}
+.sa-title {
+    padding: 8px 10px 6px;
+    font-size: 12px;
+    letter-spacing: .12em;
+    color: var(--sa-mu);
+    font-weight: 700;
+}
+
+/* ---- スマートフォンの操作バー ---- */
+.sa-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1030;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+    background: #fff;
+    border-top: 1px solid var(--sa-bd);
+    box-shadow: 0 -6px 18px rgba(16, 24, 40, .08);
+}
+.sa-bar--hidden { display: none; }
+.sa-bar-back,
+.sa-bar-more {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--sa-bd);
+    border-radius: 14px;
+    background: #fff;
+    color: var(--sa-tx);
+    font-size: 18px;
+    text-decoration: none;
+}
+.sa-bar-back:active,
+.sa-bar-more:active { background: #f1f5f9; }
+.sa-bar-more--wide { flex: 1; width: auto; gap: 8px; font-size: 15px; font-weight: 800; }
+.sa-bar-wide {
+    flex: 1;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 800;
+    text-decoration: none;
+}
+.sa-bar-wide--primary { background: var(--sa-grad); color: #fff; }
+.sa-bar-wide--primary:active { filter: brightness(.92); }
+.sa-bar-wide--back { border: 1px solid var(--sa-bd); background: #fff; color: var(--sa-tx); }
+.sa-bar-wide--back .sa-label { flex: none; }
+
+/* ---- 「その他」シート ---- */
+.sa-sheet { border-radius: 22px 22px 0 0; max-height: 80vh; }
+.sa-sheet .offcanvas-body { padding: 0 14px calc(18px + env(safe-area-inset-bottom)); }
+.sa-sheet .sa-item { min-height: 48px; font-size: 15px; }
+.sa-sheet-title { font-size: 13px; font-weight: 700; color: var(--sa-mu); letter-spacing: .08em; }
+
+/* ---- バーがある画面：本文がバーに隠れない／既存の固定要素を上に上げる ---- */
+@media (max-width: 767.98px) {
+    body.has-sa-bar { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+    body.has-sa-bar #ai-assistant-fab { bottom: calc(92px + env(safe-area-inset-bottom)); }
+    body.has-sa-bar #ai-assistant-panel { bottom: calc(168px + env(safe-area-inset-bottom)); }
+    body.has-sa-bar #cp-result { bottom: calc(92px + env(safe-area-inset-bottom)); }
+}

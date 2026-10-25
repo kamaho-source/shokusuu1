@@ -127,7 +127,8 @@
 
         document.getElementById('cp-overlay').classList.add('show');
         popup.classList.add('show');
-        document.getElementById('cp-ok').focus();
+        // 危険な確認では、誤って Enter を押しても実行されないよう、最初のフォーカスを「キャンセル」にする
+        document.getElementById(okColor === 'danger' ? 'cp-cancel' : 'cp-ok').focus();
 
         return new Promise(function (res) {
             currentResolve = res;
