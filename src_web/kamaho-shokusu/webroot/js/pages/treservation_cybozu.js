@@ -14,7 +14,7 @@
     ];
     // 部屋の色は所属順に割り当てる（1つ目＝緑、2つ目＝紫）
     var ROOM_COLORS = ['#28a745', '#7c3aed', '#0d6efd', '#d63384', '#0891b2', '#6b7280'];
-    var MAX_DATES = 20;
+    var MAX_DATES = 31;
     var MONTHS_AHEAD = 2; // 予約データ（myDetails）は今月から2か月先まで
     var NETWORK_ERROR = '通信に失敗しました。時間をおいてやり直してください。';
 

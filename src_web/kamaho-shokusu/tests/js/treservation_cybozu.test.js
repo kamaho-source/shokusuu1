@@ -164,14 +164,18 @@ describe('treservation_cybozu.js 画面', () => {
         expect(document.getElementById('cybozuLastMinute').hidden).toBe(true);
     });
 
-    test('最大20件まで', () => {
+    test('最大31件まで', () => {
         setup();
         meal(3);
-        const next = document.getElementById('cybozuNext');
-        click(next);
-        for (let d = 1; d <= 21; d++) click(cell('2026-11-' + String(d).padStart(2, '0')));
-        expect(Object.keys(window.CybozuMode.state.selected[3]).length).toBe(20);
-        expect(window.pageToast).toHaveBeenCalledWith('選べる日付は、1つの食事につき最大20日です。', 'warning');
+        click(document.getElementById('cybozuNext'));
+        for (let d = 1; d <= 30; d++) click(cell('2026-11-' + String(d).padStart(2, '0')));
+        click(document.getElementById('cybozuNext'));
+        click(cell('2026-12-01'));
+        expect(Object.keys(window.CybozuMode.state.selected[3]).length).toBe(31);
+        expect(window.pageToast).not.toHaveBeenCalled();
+        click(cell('2026-12-02'));
+        expect(Object.keys(window.CybozuMode.state.selected[3]).length).toBe(31);
+        expect(window.pageToast).toHaveBeenCalledWith('選べる日付は、1つの食事につき最大31日です。', 'warning');
     });
 
     test('月は今月から2か月先まで。前の月には戻れない', () => {
