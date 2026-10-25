@@ -430,6 +430,9 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/AiAssistant/suggestions', ['controller' => 'AiAssistant', 'action' => 'suggestions'])->setMethods(['GET']);
         $builder->connect('/AiAssistant/feedback', ['controller' => 'AiAssistant', 'action' => 'feedback'])->setMethods(['POST']);
 
+        // ── 外部システム向け予約食数API（トークン認証） ──
+        $builder->connect('/api/meal-counts', ['controller' => 'MealCountsApi', 'action' => 'index'])->setMethods(['GET']);
+
         // フォールバック
         $builder->fallbacks(DashedRoute::class);
     });
