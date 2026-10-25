@@ -126,10 +126,10 @@
 .sa-sheet .sa-item { min-height: 48px; font-size: 15px; }
 .sa-sheet-title { font-size: 13px; font-weight: 700; color: var(--sa-mu); letter-spacing: .08em; }
 
-/* ---- バーがある画面：本文がバーに隠れない／既存の固定要素を上に上げる ---- */
+/* ---- バーがある画面：本文がバーに隠れない／既存の固定ボタン・通知を上に上げる
+       （AI パネル #ai-assistant-panel は元からバーより上(bottom:100px)なので動かさない） ---- */
 @media (max-width: 767.98px) {
     body.has-sa-bar { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
     body.has-sa-bar #ai-assistant-fab { bottom: calc(92px + env(safe-area-inset-bottom)); }
-    body.has-sa-bar #ai-assistant-panel { bottom: calc(168px + env(safe-area-inset-bottom)); }
     body.has-sa-bar #cp-result { bottom: calc(92px + env(safe-area-inset-bottom)); }
 }
