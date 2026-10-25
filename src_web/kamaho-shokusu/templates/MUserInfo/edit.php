@@ -24,13 +24,12 @@ $keepOption = static function (array $options, int|string|null $value): string|f
 };
 ?>
 <div class="row">
-    <aside class="col-md-3">
-        <div class="list-group">
-            <h4 class="list-group-item list-group-item-action active"><?= __('操作') ?></h4>
-            <?= $this->Html->link(__('ユーザー詳細を表示する'), ['action' => 'view', $mUserInfo->i_id_user], ['class' => 'list-group-item list-group-item-action']) ?>
-            <?= $this->Html->link(__('ユーザー情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-        </div>
-    </aside>
+    <?= $this->element('side_actions', [
+        'items' => [
+            ['tone' => 'view', 'label' => 'ユーザー詳細を表示する', 'url' => ['action' => 'view', $mUserInfo->i_id_user]],
+            ['tone' => 'back', 'label' => 'ユーザー一覧へ戻る', 'url' => ['action' => 'index']],
+        ],
+    ]) ?>
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">

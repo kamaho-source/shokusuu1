@@ -11,16 +11,11 @@ echo $this->Html->css('user-import', ['block' => true]);
 ?>
 <div class="row">
     <!-- 左側メニュー -->
-    <aside class="col-md-3" aria-label="<?= __('サイドメニュー') ?>">
-        <div class="list-group">
-            <h2 class="list-group-item list-group-item-action active h5 mb-0"><?= __('操作') ?></h2>
-            <?= $this->Html->link(
-                    __('ユーザー情報一覧'),
-                    ['action' => 'index'],
-                    ['class' => 'list-group-item list-group-item-action']
-            ) ?>
-        </div>
-    </aside>
+    <?= $this->element('side_actions', [
+        'items' => [
+            ['tone' => 'back', 'label' => 'ユーザー一覧へ戻る', 'url' => ['action' => 'index']],
+        ],
+    ]) ?>
 
     <!-- 右側メイン -->
     <div class="col-md-9">

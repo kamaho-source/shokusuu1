@@ -11,17 +11,16 @@ $this->assign('title', 'ユーザー情報の表示');
 $currentUserId = $user->get('i_id_user');
 ?>
 <div class="row">
-    <aside class="col-md-3">
-        <div class="list-group">
-            <h4 class="list-group-item list-group-item-action active"><?= __('Actions') ?></h4>
-            <?php if ($canEdit ?? ($mUserInfo->i_id_user === $currentUserId || in_array((int)$user->get('i_admin'), [1, 3]))): ?>
-            <?= $this->Html->link(__('ユーザ情報を編集する'), ['action' => 'edit', $mUserInfo->i_id_user], ['class' => 'list-group-item list-group-item-action']) ?>
-            <?php endif; ?>
-            <?php if (in_array((int)$user->get('i_admin'), [1, 3])): ?>
-            <?= $this->Html->link(__('ユーザ一覧を表示する'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-            <?php endif; ?>
-        </div>
-    </aside>
+    <?php
+    $sideItems = [];
+    if ($canEdit ?? ($mUserInfo->i_id_user === $currentUserId || in_array((int)$user->get('i_admin'), [1, 3]))) {
+        $sideItems[] = ['tone' => 'edit', 'label' => 'ユーザー情報を編集する', 'url' => ['action' => 'edit', $mUserInfo->i_id_user], 'primary' => true];
+    }
+    if (in_array((int)$user->get('i_admin'), [1, 3])) {
+        $sideItems[] = ['tone' => 'back', 'label' => 'ユーザー一覧へ戻る', 'url' => ['action' => 'index']];
+    }
+    ?>
+    <?= $this->element('side_actions', ['items' => $sideItems]) ?>
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">
