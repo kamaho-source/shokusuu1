@@ -258,7 +258,7 @@ final class SystemReportService
         $table = TableRegistry::getTableLocator()->get('TAuditLog');
 
         $rows = $table->find()
-            ->select(['c_actor_user_name', 'c_actor_login_id', 'i_result', 'c_ip_address', 'dt_create'])
+            ->select(['c_action', 'i_actor_user_id', 'c_actor_user_name', 'c_actor_login_id', 'i_result', 'c_ip_address', 'dt_create'])
             ->where([
                 'c_action IN'  => ['user_login', 'user_login_failed'],
                 'dt_create >=' => $dateFrom . ' 00:00:00',
@@ -276,6 +276,7 @@ final class SystemReportService
             $current = $current->modify('+1 day');
         }
 
+        $failedLoginNames = AuditLogService::failedLoginActorNames($rows);
         $logs = [];
         foreach ($rows as $row) {
             $dt      = $row->dt_create instanceof \DateTimeInterface
@@ -295,7 +296,7 @@ final class SystemReportService
 
             $logs[] = [
                 'dt'        => $dt->format('Y-m-d H:i:s'),
-                'user_name' => (string)($row->c_actor_user_name ?? ''),
+                'user_name' => AuditLogService::actorDisplayName($row, $failedLoginNames),
                 'login_id'  => (string)($row->c_actor_login_id ?? ''),
                 'result'    => $result,
                 'ip'        => (string)($row->c_ip_address ?? ''),
