@@ -42,9 +42,11 @@ class AuditLogController extends AppController
 
         $logs = $this->paginate($query, ['limit' => 100, 'maxLimit' => 500]);
 
-        $categories = ['user', 'reservation', 'actual_meal', 'approval', 'master', 'system'];
+        $categories      = AuditLogService::CATEGORY_LABELS;
+        $actions         = AuditLogService::ACTION_LABELS;
+        $failedLoginNames = AuditLogService::failedLoginActorNames($logs);
 
-        $this->set(compact('logs', 'categories'));
+        $this->set(compact('logs', 'categories', 'actions', 'failedLoginNames'));
         return null;
     }
 
@@ -87,7 +89,8 @@ class AuditLogController extends AppController
         $output = fopen('php://temp', 'w+');
         // BOM付きUTF-8（Excelで文字化けしない）
         fwrite($output, "\xEF\xBB\xBF");
-        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '対象テーブル', '対象ID', '操作者ID', 'ログインID', '操作者名', 'IPアドレス', '結果', '失敗理由', '詳細', '操作日時']);
+        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '操作種別コード', '対象テーブル', '対象ID', '操作者ID', 'ログインID', '操作者名', 'IPアドレス', '結果', '失敗理由', '詳細', '操作日時']);
+        $failedLoginNames = AuditLogService::failedLoginActorNames($logs);
 
         foreach ($logs as $log) {
             // 失敗理由は c_detail(JSON) の reason キーから抽出（失敗ログのみ）
@@ -101,13 +104,14 @@ class AuditLogController extends AppController
 
             fputcsv($output, [
                 $log->i_id_audit,
-                $log->c_category,
+                AuditLogService::categoryLabel((string)$log->c_category),
+                AuditLogService::actionLabel((string)$log->c_action),
                 $log->c_action,
                 $log->c_target_table,
                 $log->c_target_id,
                 $log->i_actor_user_id,
                 $log->c_actor_login_id,
-                $log->c_actor_user_name,
+                AuditLogService::actorDisplayName($log, $failedLoginNames),
                 $log->c_ip_address,
                 $log->i_result === 1 ? '成功' : '失敗',
                 $reason,
@@ -141,8 +145,12 @@ class AuditLogController extends AppController
         if (!empty($q['category'])) {
             $conditions['c_category'] = $q['category'];
         }
-        if (!empty($q['action'])) {
-            $conditions['c_action LIKE'] = '%' . $q['action'] . '%';
+        $action = is_string($q['action'] ?? null) ? $q['action'] : '';
+        if ($action !== '') {
+            // 選択肢（既知の種別）は完全一致。user_login が user_login_failed まで拾わないようにする
+            $conditions[] = isset(AuditLogService::ACTION_LABELS[$action])
+                ? ['c_action' => $action]
+                : ['c_action LIKE' => '%' . $action . '%'];
         }
         if (!empty($q['actor'])) {
             $conditions['OR'] = [
