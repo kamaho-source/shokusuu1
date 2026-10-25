@@ -166,8 +166,82 @@ class AuditLogControllerTest extends TestCase
     }
 
     // ----------------------------------------------------------------
+    // 操作種別・カテゴリの日本語表示、ログイン失敗の操作者名
+    // ----------------------------------------------------------------
+
+    public function testIndex_showsJapaneseLabelsAndAccountNameForOldFailedLogin(): void
+    {
+        // 以前のログイン失敗: 操作者名にログインIDがそのまま入り、操作者IDは無い
+        $this->addLog('user_login_failed', 'admin_user', 'admin_user', null, 0);
+        $this->addLog('user_login_failed', 'no_such_account', 'no_such_account', null, 0);
+        $this->setSession(3);
+        $this->get('/AuditLog?action=user_login_failed');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('ログイン失敗');
+        $this->assertResponseContains('ユーザー管理');
+        $this->assertResponseContains('管理者ユーザー', 'ログインIDのアカウント名を出す');
+        $this->assertResponseContains('（該当アカウントなし）');
+    }
+
+    public function testIndex_actionFilterIsExactForKnownAction(): void
+    {
+        $this->addLog('user_login', '管理者ユーザー', 'admin_user', 1, 1);
+        $this->addLog('user_login_failed', '管理者ユーザー', 'admin_user', 1, 0);
+        $this->setSession(3);
+        $this->get('/AuditLog?action=user_login');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('<td title="user_login">ログイン</td>');
+        $this->assertResponseNotContains('<td title="user_login_failed">', 'user_login で user_login_failed を拾わない');
+    }
+
+    public function testExport_csvHasJapaneseLabelsAndAccountName(): void
+    {
+        $this->addLog('user_login_failed', 'admin_user', 'admin_user', null, 0);
+        $this->setSession(3);
+        $this->get('/AuditLog/export?action=user_login_failed');
+
+        $body = (string)$this->_response->getBody();
+        $this->assertStringContainsString('操作種別コード', $body);
+        $this->assertStringContainsString('ユーザー管理,ログイン失敗,user_login_failed', $body);
+        $this->assertStringContainsString(',admin_user,管理者ユーザー,', $body);
+    }
+
+    /** ログインに失敗すると、操作者は入力されたログインIDのアカウント（無ければ「該当アカウントなし」）で記録される */
+    public function testLoginFailure_recordsAccountAsActor(): void
+    {
+        $table = TableRegistry::getTableLocator()->get('TAuditLog');
+        foreach ([['admin_user', '管理者ユーザー', 1], ['no_such_account', '（該当アカウントなし）', null]] as [$account, $name, $id]) {
+            $this->enableCsrfToken();
+            $this->enableSecurityToken();
+            $this->post('/MUserInfo/login', ['c_login_account' => $account, 'c_login_passwd' => 'wrong-password']);
+
+            $log = $table->find()->where(['c_action' => 'user_login_failed'])->orderBy(['i_id_audit' => 'DESC'])->first();
+            $this->assertNotNull($log);
+            $this->assertSame($account, $log->c_actor_login_id);
+            $this->assertSame($name, $log->c_actor_user_name);
+            $this->assertSame($id, $log->i_actor_user_id);
+        }
+    }
+
+    // ----------------------------------------------------------------
     // ヘルパー
     // ----------------------------------------------------------------
+
+    private function addLog(string $action, string $actorName, string $loginId, ?int $actorId, int $result): void
+    {
+        $table = TableRegistry::getTableLocator()->get('TAuditLog');
+        $table->saveOrFail($table->newEntity([
+            'c_category'        => 'user',
+            'c_action'          => $action,
+            'c_actor_user_name' => $actorName,
+            'c_actor_login_id'  => $loginId,
+            'i_actor_user_id'   => $actorId,
+            'i_result'          => $result,
+            'dt_create'         => '2026-10-01 10:00:00',
+        ], ['accessibleFields' => ['*' => true]]));
+    }
 
     private function setSession(int $adminLevel): void
     {

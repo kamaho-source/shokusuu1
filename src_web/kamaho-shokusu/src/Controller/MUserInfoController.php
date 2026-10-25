@@ -855,11 +855,16 @@ class MUserInfoController extends AppController
             $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
             $loginAccount = (string)($this->request->getData('c_login_account') ?? '');
+            // 操作者は、入力されたログインIDのアカウント（無ければ「該当アカウントなし」）
+            $account = $loginAccount === '' ? null : $this->MUserInfo->find()
+                ->select(['i_id_user', 'c_user_name'])
+                ->where(['c_login_account' => $loginAccount])
+                ->first();
             \App\Service\AuditLogService::record(
                 'user',
                 'user_login_failed',
-                $loginAccount ?: '不明',
-                0,
+                $account ? (string)$account->c_user_name : \App\Service\AuditLogService::UNKNOWN_ACCOUNT_NAME,
+                $account ? (int)$account->i_id_user : 0,
                 'm_user_info',
                 null,
                 ['login_account' => $loginAccount],
