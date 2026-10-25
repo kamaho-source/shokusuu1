@@ -9,18 +9,11 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
 <div class="container">
     <div class="row my-4">
         <!-- サイドナビ（戻るボタン） -->
-        <aside class="col-md-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title"><?= __('Actions') ?></h5>
-                    <?= $this->Html->link(
-                        '食事単価一覧に戻る',
-                        ['action' => 'index'],
-                        ['class' => 'btn btn-secondary w-100']
-                    ) ?>
-                </div>
-            </div>
-        </aside>
+        <?= $this->element('side_actions', [
+            'items' => [
+                ['tone' => 'back', 'label' => '食事単価一覧へ戻る', 'url' => ['action' => 'index']],
+            ],
+        ]) ?>
 
         <div class="col-md-9">
             <!-- フォームコンテナ -->

@@ -9,26 +9,12 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
 <div class="container">
     <div class="row my-4">
         <!-- サイドナビ（アクションメニュー） -->
-        <aside class="col-md-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title"><?= __('Actions') ?></h5>
-                    <?= $this->Form->postLink(
-                        '削除',
-                        ['action' => 'delete', $mMealPriceInfo->i_id],
-                        [
-                            'confirm' => __('本当に削除してもよろしいですか？ # {0}', $mMealPriceInfo->i_id),
-                            'class' => 'btn btn-danger w-100 mb-2'
-                        ]
-                    ) ?>
-                    <?= $this->Html->link(
-                        '一覧に戻る',
-                        ['action' => 'index'],
-                        ['class' => 'btn btn-secondary w-100']
-                    ) ?>
-                </div>
-            </div>
-        </aside>
+        <?= $this->element('side_actions', [
+            'items' => [
+                ['tone' => 'back', 'label' => '食事単価一覧へ戻る', 'url' => ['action' => 'index']],
+                ['tone' => 'delete', 'label' => '削除する', 'url' => ['action' => 'delete', $mMealPriceInfo->i_id], 'confirmTarget' => $mMealPriceInfo->i_fiscal_year . '年の食事単価'],
+            ],
+        ]) ?>
 
         <!-- 編集フォーム -->
         <div class="col-md-9">

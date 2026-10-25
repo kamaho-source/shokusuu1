@@ -6,16 +6,14 @@
 $this->assign('title', __('食事単価情報表示'));
 ?>
 <div class="row">
-    <aside class="col-md-3">
-        <!-- サイドバー -->
-        <div class="list-group">
-            <h4 class="mb-3"><?= __('操作') ?></h4>
-            <?= $this->Html->link(__('編集'), ['action' => 'edit', $mMealPriceInfo->i_id], ['class' => 'list-group-item list-group-item-action']) ?>
-            <?= $this->Form->postLink(__('削除'), ['action' => 'delete', $mMealPriceInfo->i_id], ['confirm' => __('本当に # {0} を削除しますか？', $mMealPriceInfo->i_id), 'class' => 'list-group-item list-group-item-action text-danger']) ?>
-            <?= $this->Html->link(__('一覧へ戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-            <?= $this->Html->link(__('新しい食事単価情報を追加'), ['action' => 'add'], ['class' => 'list-group-item list-group-item-action']) ?>
-        </div>
-    </aside>
+    <?= $this->element('side_actions', [
+        'items' => [
+            ['tone' => 'edit', 'label' => '食事単価を編集する', 'url' => ['action' => 'edit', $mMealPriceInfo->i_id], 'primary' => true],
+            ['tone' => 'back', 'label' => '食事単価一覧へ戻る', 'url' => ['action' => 'index']],
+            ['tone' => 'add', 'label' => '新しい食事単価を追加', 'url' => ['action' => 'add']],
+            ['tone' => 'delete', 'label' => '削除する', 'url' => ['action' => 'delete', $mMealPriceInfo->i_id], 'confirmTarget' => $mMealPriceInfo->i_fiscal_year . '年の食事単価'],
+        ],
+    ]) ?>
     <div class="col-md-9">
         <!-- メインコンテンツ -->
         <div class="card">
