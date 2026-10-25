@@ -47,17 +47,16 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
             <div class="col-sm-6 col-md-3 col-lg-2">
                 <label class="form-label small fw-semibold text-muted mb-1">カテゴリ</label>
                 <?= $this->Form->select('category',
-                    array_merge(['' => 'すべて'], array_combine($categories, $categories)),
+                    ['' => 'すべて'] + $categories,
                     ['class' => 'form-select form-select-sm', 'value' => $q['category'] ?? '']
                 ) ?>
             </div>
             <div class="col-sm-6 col-md-3 col-lg-2">
                 <label class="form-label small fw-semibold text-muted mb-1">操作種別</label>
-                <?= $this->Form->text('action', [
-                    'class'       => 'form-control form-control-sm',
-                    'placeholder' => 'user_login など',
-                    'value'       => $q['action'] ?? '',
-                ]) ?>
+                <?= $this->Form->select('action',
+                    ['' => 'すべて'] + $actions,
+                    ['class' => 'form-select form-select-sm', 'value' => $q['action'] ?? '']
+                ) ?>
             </div>
             <div class="col-sm-6 col-md-3 col-lg-2">
                 <label class="form-label small fw-semibold text-muted mb-1">操作者</label>
@@ -142,21 +141,22 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
                 <td class="text-center text-muted"><?= h($log->i_id_audit) ?></td>
                 <td>
                     <?php
-                    [$badge, $label] = match($log->c_category) {
-                        'user'        => ['bg-primary',              'user'],
-                        'reservation' => ['bg-success',              'reservation'],
-                        'actual_meal' => ['bg-warning text-dark',    'actual_meal'],
-                        'approval'    => ['bg-info text-dark',       'approval'],
-                        'master'      => ['bg-secondary',            'master'],
-                        'system'      => ['bg-danger',               'system'],
-                        default       => ['bg-dark',                 $log->c_category],
+                    $badge = match($log->c_category) {
+                        'user'        => 'bg-primary',
+                        'reservation' => 'bg-success',
+                        'actual_meal' => 'bg-warning text-dark',
+                        'approval'    => 'bg-info text-dark',
+                        'master'      => 'bg-secondary',
+                        'system'      => 'bg-danger',
+                        default       => 'bg-dark',
                     };
+                    $label = \App\Service\AuditLogService::categoryLabel((string)$log->c_category);
                     ?>
                     <span class="badge <?= $badge ?> text-truncate d-inline-block" style="max-width:88px;" title="<?= h($log->c_category) ?>">
                         <?= h($label) ?>
                     </span>
                 </td>
-                <td class="font-monospace"><?= h($log->c_action) ?></td>
+                <td title="<?= h($log->c_action) ?>"><?= h(\App\Service\AuditLogService::actionLabel((string)$log->c_action)) ?></td>
                 <td class="text-muted font-monospace small"><?= h($log->c_target_table ?? '—') ?></td>
                 <td class="font-monospace small"><?= h($log->c_target_id ?? '—') ?></td>
                 <td class="font-monospace small"><?= h($log->c_actor_login_id ?? '—') ?></td>
@@ -164,7 +164,7 @@ $hasFilter = !empty($q['category']) || !empty($q['action']) || !empty($q['actor'
                     <?php if ($log->i_actor_user_id): ?>
                         <span class="text-muted small">#<?= h($log->i_actor_user_id) ?>&nbsp;</span>
                     <?php endif; ?>
-                    <?= h($log->c_actor_user_name) ?>
+                    <?= h(\App\Service\AuditLogService::actorDisplayName($log, $failedLoginNames ?? [])) ?>
                 </td>
                 <td class="text-muted small font-monospace"><?= h($log->c_ip_address ?? '—') ?></td>
                 <td class="text-center">

@@ -46,6 +46,137 @@ class AuditLogService
      */
     public const REASON_FALLBACK = '原因不明（詳細はサーバーログを参照）';
 
+    /** ログイン失敗で、入力されたログインIDに該当するアカウントが無いときの操作者名 */
+    public const UNKNOWN_ACCOUNT_NAME = '（該当アカウントなし）';
+
+    /** @var array<string, string> カテゴリ → 表示名 */
+    public const CATEGORY_LABELS = [
+        'reservation' => '予約',
+        'user'        => 'ユーザー管理',
+        'actual_meal' => '実食管理',
+        'approval'    => '承認フロー',
+        'master'      => 'マスタ管理',
+        'notice'      => 'お知らせ',
+        'system'      => 'システム',
+    ];
+
+    /** @var array<string, string> 操作種別 → 表示名 */
+    public const ACTION_LABELS = [
+        'user_login'                   => 'ログイン',
+        'user_login_failed'            => 'ログイン失敗',
+        'user_logout'                  => 'ログアウト',
+        'user_create'                  => 'ユーザー登録',
+        'user_update'                  => 'ユーザー編集',
+        'user_delete'                  => 'ユーザー削除',
+        'user_restore'                 => 'ユーザー復元',
+        'user_permission_change'       => '権限の変更',
+        'user_report_access_change'    => 'レポート閲覧権限の変更',
+        'user_password_change_admin'   => 'パスワード変更（管理者による）',
+        'user_password_change_self'    => 'パスワード変更（本人）',
+        'user_bulk_import'             => 'ユーザー一括取込',
+        'reservation_toggle'           => '予約の登録・取消（1件）',
+        'reservation_bulk_toggle'      => 'エクセル食数予約の保存',
+        'reservation_individual_save'  => '予約登録（個人）',
+        'reservation_group_save'       => '予約登録（集団）',
+        'reservation_copy'             => '予約コピー',
+        'reservation_bulk_add'         => '予約一括登録',
+        'reservation_change_edit'      => '予約の直前変更',
+        'direct_register_meals'        => 'カレンダーからの予約登録',
+        'change_meal_room'             => '予約の部屋変更',
+        'actual_meal_save'             => '実食入力',
+        'actual_meal_approval_request' => '実食の承認申請',
+        'approval_block_leader'        => '承認（ブロック長）',
+        'approval_admin'               => '承認（管理者）',
+        'approval_rejected'            => '承認の差し戻し',
+        'room_create'                  => '部屋の登録',
+        'room_update'                  => '部屋の編集',
+        'room_delete'                  => '部屋の削除',
+        'meal_price_create'            => '食事単価の登録',
+        'meal_price_update'            => '食事単価の編集',
+        'meal_price_delete'            => '食事単価の削除',
+        'meal_price_excel_export'      => '食数集計のExcel出力',
+        'notice_add'                   => 'お知らせの登録',
+        'notice_edit'                  => 'お知らせの編集',
+        'notice_delete'                => 'お知らせの削除',
+        'audit_export'                 => '監査ログのCSV出力',
+        'ai_assistant_ask'             => 'AIへの問い合わせ',
+        'ai_assistant_feedback'        => 'AI回答へのフィードバック',
+        'stats_ai_ask'                 => '統計AIへの問い合わせ',
+    ];
+
+    /**
+     * 操作種別の表示名を返す。未登録の種別はコードのまま返す。
+     *
+     * @param string $action 操作種別
+     * @return string 表示名
+     */
+    public static function actionLabel(string $action): string
+    {
+        return self::ACTION_LABELS[$action] ?? $action;
+    }
+
+    /**
+     * カテゴリの表示名を返す。未登録のカテゴリはコードのまま返す。
+     *
+     * @param string $category カテゴリ
+     * @return string 表示名
+     */
+    public static function categoryLabel(string $category): string
+    {
+        return self::CATEGORY_LABELS[$category] ?? $category;
+    }
+
+    /**
+     * 画面・CSV に出す操作者名。以前のログイン失敗（操作者IDなし）は、ログインIDのアカウント名に置き換える。
+     *
+     * @param object               $log              t_audit_log の行
+     * @param array<string,string> $failedLoginNames failedLoginActorNames() の結果
+     * @return string 操作者名
+     */
+    public static function actorDisplayName(object $log, array $failedLoginNames): string
+    {
+        if ($log->c_action === 'user_login_failed' && empty($log->i_actor_user_id)) {
+            return $failedLoginNames[(string)$log->c_actor_login_id] ?? (string)$log->c_actor_user_name;
+        }
+
+        return (string)$log->c_actor_user_name;
+    }
+
+    /**
+     * ログイン失敗の操作者名を、入力されたログインIDのアカウント名に置き換えるための対応表を返す。
+     *
+     * 以前のログイン失敗は操作者名にログインIDをそのまま記録していたため、表示時に引き直す。
+     * 該当アカウントが無いログインIDは UNKNOWN_ACCOUNT_NAME にする。
+     *
+     * @param iterable<object> $logs t_audit_log の行（c_action, i_actor_user_id, c_actor_login_id を持つ）
+     * @return array<string, string> ログインID → 操作者名
+     * @throws \Cake\Database\Exception\DatabaseException 照会に失敗した場合
+     */
+    public static function failedLoginActorNames(iterable $logs): array
+    {
+        $loginIds = [];
+        foreach ($logs as $log) {
+            if ($log->c_action === 'user_login_failed' && empty($log->i_actor_user_id) && (string)$log->c_actor_login_id !== '') {
+                $loginIds[(string)$log->c_actor_login_id] = true;
+            }
+        }
+        if ($loginIds === []) {
+            return [];
+        }
+
+        $names = array_fill_keys(array_keys($loginIds), self::UNKNOWN_ACCOUNT_NAME);
+        $users = TableRegistry::getTableLocator()->get('MUserInfo')->find()
+            ->select(['c_login_account', 'c_user_name'])
+            ->where(['c_login_account IN' => array_keys($loginIds)])
+            ->enableHydration(false)
+            ->all();
+        foreach ($users as $u) {
+            $names[(string)$u['c_login_account']] = (string)$u['c_user_name'];
+        }
+
+        return $names;
+    }
+
     /**
      * 監査ログを記録する。
      *
