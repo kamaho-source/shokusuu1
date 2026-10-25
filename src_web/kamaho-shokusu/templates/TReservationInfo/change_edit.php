@@ -73,12 +73,12 @@ $indivJson = json_encode(
     </div>
 
     <div class="row">
-        <aside class="col-md-3" <?= $isModal ? 'style="display:none;"' : '' ?>>
-            <div class="list-group">
-                <h4 class="list-group-item list-group-item-action active"><?= __('Actions') ?></h4>
-                <?= $this->Html->link(__('食数予約一覧に戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-            </div>
-        </aside>
+        <?= $this->element('side_actions', [
+            'hidden' => $isModal,
+            'items' => [
+                ['tone' => 'back', 'label' => '食数予約一覧へ戻る', 'url' => ['action' => 'index']],
+            ],
+        ]) ?>
 
         <div class="col-md-9">
             <div class="card">

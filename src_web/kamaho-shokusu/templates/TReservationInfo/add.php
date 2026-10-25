@@ -47,16 +47,15 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
     <?= $isModal ? 'data-modal="1"' : '' ?>>
 
     <div class="row">
-        <aside class="col-md-3" <?= $isModal ? 'style="display:none;"' : '' ?>>
-            <div class="list-group">
-                <h4 class="list-group-item list-group-item-action active"><?= __('Actions') ?></h4>
-                <?= $this->Html->link(__('食数予約一覧に戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-
-                <?php if (date('N', strtotime($date)) == 1): ?>
-                    <?= $this->Html->link(__('週の一括予約'), ['action' => 'bulkAddForm', '?' => ['date' => $date]], ['class' => 'list-group-item list-group-item-action']) ?>
-                <?php endif; ?>
-            </div>
-        </aside>
+        <?= $this->element('side_actions', [
+            'hidden' => $isModal,
+            'items' => array_values(array_filter([
+                ['tone' => 'back', 'label' => '食数予約一覧へ戻る', 'url' => ['action' => 'index']],
+                date('N', strtotime($date)) == 1
+                    ? ['tone' => 'add', 'label' => '週の一括予約', 'url' => ['action' => 'bulkAddForm', '?' => ['date' => $date]]]
+                    : null,
+            ])),
+        ]) ?>
 
         <div class="col-md-9">
             <div class="card">
