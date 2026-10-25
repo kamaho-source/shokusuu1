@@ -8,18 +8,15 @@
 $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
 ?>
 <div class="row">
-    <aside class="col-md-3">
-        <div class="card">
-            <div class="card-header"><?= __('アクション') ?></div>
-            <div class="list-group list-group-flush">
-                <?php if (in_array((int)$user->get('i_admin'), [1, 3])): ?>
-                <?= $this->Html->link(__('部屋情報を編集'), ['action' => 'edit', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>
-                <?= $this->Html->link(__('新しい部屋情報'), ['action' => 'add'], ['class' => 'list-group-item list-group-item-action']) ?>
-                <?php endif; ?>
-                <?= $this->Html->link(__('部屋情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-            </div>
-        </div>
-    </aside>
+    <?php
+    $sideItems = [];
+    if (in_array((int)$user->get('i_admin'), [1, 3])) {
+        $sideItems[] = ['tone' => 'edit', 'label' => '部屋情報を編集する', 'url' => ['action' => 'edit', $mRoomInfo->i_id_room], 'primary' => true];
+        $sideItems[] = ['tone' => 'add', 'label' => '新しい部屋を追加', 'url' => ['action' => 'add']];
+    }
+    $sideItems[] = ['tone' => 'back', 'label' => '部屋一覧へ戻る', 'url' => ['action' => 'index']];
+    ?>
+    <?= $this->element('side_actions', ['items' => $sideItems]) ?>
     <div class="col-md-9">
         <div class="card">
             <h5 class="card-header"><?= __('部屋情報') . ' ' . h($mRoomInfo->c_room_name) ?></h5>

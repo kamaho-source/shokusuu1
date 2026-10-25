@@ -7,11 +7,11 @@ $this->assign('title', __('部屋情報編集'));
 $this->Html->script('realtime-validation.js', ['block' => true]);
 ?>
 <div class="row">
-    <aside class="col-md-3">
-        <div class="list-group">
-            <?= $this->Html->link(__('部屋一覧に戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
-        </div>
-    </aside>
+    <?= $this->element('side_actions', [
+        'items' => [
+            ['tone' => 'back', 'label' => '部屋一覧へ戻る', 'url' => ['action' => 'index']],
+        ],
+    ]) ?>
     <div class="col-md-9">
         <div class="card">
             <div class="card-header">
