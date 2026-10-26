@@ -509,11 +509,13 @@ class MUserInfoController extends AppController
         $isAdmin = $data['i_admin'] ?? null;
 
         if (is_null($userId) || is_null($isAdmin)) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたは管理者権限が指定されていません。', 400);
         }
 
         $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
         if (!$user) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
@@ -553,11 +555,13 @@ class MUserInfoController extends AppController
         $isSystemAdmin = $data['i_system_admin'] ?? null;
 
         if (is_null($userId) || is_null($isSystemAdmin)) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたはシステム管理者権限が指定されていません。', 400);
         }
 
         $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
         if (!$user) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
@@ -605,11 +609,13 @@ class MUserInfoController extends AppController
         $reportAccess   = $data['i_report_access'] ?? null;
 
         if (is_null($userId) || is_null($reportAccess)) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
         }
 
         $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
         if (!$user) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
@@ -658,11 +664,13 @@ class MUserInfoController extends AppController
         $level  = $data['i_admin'] ?? null;
 
         if (is_null($userId) || is_null($level)) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたは権限レベルが指定されていません。', 400);
         }
 
         $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
         if (!$user) {
+            $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
@@ -761,50 +769,6 @@ class MUserInfoController extends AppController
         }
 
         return $this->redirect(['action' => 'index']);
-    }
-
-    public function addRoomToUser($userId)
-    {
-        $this->request->allowMethod(['post']);
-        $targetUser = $this->MUserInfo->get($userId);
-        try {
-            $this->Authorization->authorize($targetUser, 'addRoomToUser');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('あなたは部屋追加権限がありません。'));
-            return $this->redirect(['action' => 'index']);
-        }
-
-        $user       = $this->request->getAttribute('identity');
-        $createUser = $user ? $user->get('c_user_name') : '不明なユーザー';
-
-        if ($this->request->is('post')) {
-            $roomId = $this->request->getData('i_id_room');
-            if ($this->MUserInfo->saveUserRoom($userId, $roomId, $createUser)) {
-                $this->Flash->success(__('ユーザーに部屋が追加されました。'));
-                return $this->redirect(['action' => 'view', $userId]);
-            }
-            $this->Flash->error(__('部屋の追加に失敗しました。'));
-        }
-    }
-
-    public function removeRoomFromUser($userId, $roomId)
-    {
-        $this->request->allowMethod(['post', 'delete']);
-        $targetUser = $this->MUserInfo->get($userId);
-        try {
-            $this->Authorization->authorize($targetUser, 'removeRoomFromUser');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('あなたは部屋削除権限がありません。'));
-            return $this->redirect(['action' => 'index']);
-        }
-
-        if ($this->MUserInfo->deleteUserRoom($userId, $roomId)) {
-            $this->Flash->success(__('部屋の関連が削除されました。'));
-        } else {
-            $this->Flash->error(__('部屋の関連を削除できませんでした。'));
-        }
-
-        return $this->redirect(['action' => 'view', $userId]);
     }
 
     public function login()
@@ -1049,6 +1013,7 @@ class MUserInfoController extends AppController
         $roomNames = $this->request->getData('room_names');
 
         if (!is_numeric($userId) || empty($roomNames) || !is_array($roomNames)) {
+            $this->Authorization->skipAuthorization();
             $this->set(['ok' => false, 'message' => 'i_id_userとroom_names[]が必要です', '_serialize' => ['ok', 'message']]);
             return;
         }
@@ -1057,6 +1022,7 @@ class MUserInfoController extends AppController
         $user   = $this->MUserInfo->find()->where(['i_id_user' => $userId, 'i_del_flag' => 0])->first();
 
         if (!$user) {
+            $this->Authorization->skipAuthorization();
             $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok', 'message']]);
             return;
         }
