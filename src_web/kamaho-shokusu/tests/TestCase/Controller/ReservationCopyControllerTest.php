@@ -319,4 +319,44 @@ class ReservationCopyControllerTest extends TestCase
 
         $this->assertResponseCode(422);
     }
+
+    /** 予約テーブルを一時的に使えなくして、DB 障害時の動作を確かめる */
+    private function withBrokenReservationTable(callable $run): void
+    {
+        $conn = ConnectionManager::get('test');
+        $conn->execute('ALTER TABLE t_individual_reservation_info RENAME TO t_individual_reservation_info_off');
+        try {
+            $run();
+        } finally {
+            $conn->execute('ALTER TABLE t_individual_reservation_info_off RENAME TO t_individual_reservation_info');
+        }
+    }
+
+    public function testCopy_databaseFailureReturns500WithoutLeakingDetails(): void
+    {
+        $src = $this->srcMonday();
+        $this->login();
+
+        $this->withBrokenReservationTable(function () use ($src): void {
+            $this->post('/TReservationInfo/copy', ['mode' => 'week', 'source' => $src->format('Y-m-d'), 'target' => $src->addDays(7)->format('Y-m-d')]);
+        });
+
+        $this->assertResponseCode(500);
+        $this->assertResponseContains('コピー処理中にエラーが発生しました。');
+        $this->assertStringNotContainsString('t_individual_reservation_info', (string)$this->_response->getBody());
+    }
+
+    public function testCopyPreview_databaseFailureReturns500WithoutLeakingDetails(): void
+    {
+        $src = $this->srcMonday();
+        $this->login();
+
+        $this->withBrokenReservationTable(function () use ($src): void {
+            $this->post('/TReservationInfo/copyPreview', ['mode' => 'week', 'source' => $src->format('Y-m-d'), 'target' => $src->addDays(7)->format('Y-m-d')]);
+        });
+
+        $this->assertResponseCode(500);
+        $this->assertResponseContains('プレビュー取得中にエラーが発生しました。');
+        $this->assertStringNotContainsString('t_individual_reservation_info', (string)$this->_response->getBody());
+    }
 }
