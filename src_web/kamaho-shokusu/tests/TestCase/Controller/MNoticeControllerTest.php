@@ -296,6 +296,11 @@ class MNoticeControllerTest extends TestCase
         $this->assertRedirect(['action' => 'index']);
         $this->assertFlashMessage('お知らせを削除しました。', 'flash');
         $this->assertSame(0, $this->noticeCount());
+
+        $log = $this->getTableLocator()->get('TAuditLog')->find()
+            ->where(['c_target_table' => 'm_notice', 'c_action' => 'notice_delete'])
+            ->firstOrFail();
+        $this->assertSame((string)$id, $log->c_target_id, '監査ログの対象IDに削除したお知らせのIDが入る');
     }
 
     public function testDelete_staff_isRejected(): void

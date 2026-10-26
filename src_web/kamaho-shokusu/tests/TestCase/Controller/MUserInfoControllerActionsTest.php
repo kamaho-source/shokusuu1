@@ -367,20 +367,15 @@ class MUserInfoControllerActionsTest extends TestCase
 
     // ----------------------------------------- 廃止した部屋の追加/削除（個別ルート）
 
-    public function testRemovedRoomRoutesAreNotExposed(): void
+    public function testRemovedRoomActionsAreNotExposed(): void
     {
         $this->login(1);
-        $this->disableErrorHandlerMiddleware();
 
-        foreach (['/m-user-info/add-room-to-user/3', '/m-user-info/remove-room-from-user/3/1'] as $url) {
-            try {
-                $this->post($url, ['i_id_room' => 1]);
-            } catch (\Throwable) {
-                continue;
-            }
-            $this->assertResponseCode(404, $url . ' は存在しない');
-        }
-        $this->addToAssertionCount(1);
+        $this->post('/m-user-info/add-room-to-user/3', ['i_id_room' => 1]);
+        $this->assertResponseCode(404);
+
+        $this->post('/m-user-info/remove-room-from-user/3/1');
+        $this->assertResponseCode(404);
     }
 
     // ------------------------------------------------------ ログイン/ログアウト

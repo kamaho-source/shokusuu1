@@ -80,6 +80,7 @@ class ContactsController extends AppController
         try {
             $contact = $this->contactService->getDetailForUser($id, $userId);
         } catch (\Cake\Datasource\Exception\RecordNotFoundException) {
+            $this->Authorization->skipAuthorization();
             $this->Flash->error('指定されたお問い合わせが見つかりません。');
             return $this->redirect(['action' => 'index']);
         }
