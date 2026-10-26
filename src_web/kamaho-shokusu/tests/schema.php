@@ -79,6 +79,7 @@ return [
             'i_disp_no' => ['type' => 'integer', 'null' => true],
             'i_enable' => ['type' => 'integer', 'null' => true],
             'i_del_flag' => ['type' => 'integer', 'null' => true],
+            'i_report_access' => ['type' => 'integer', 'null' => false, 'default' => 0],
             'dt_create' => ['type' => 'datetime', 'null' => true],
             'c_create_user' => ['type' => 'string', 'length' => 50, 'null' => true],
             'dt_update' => ['type' => 'datetime', 'null' => true],
