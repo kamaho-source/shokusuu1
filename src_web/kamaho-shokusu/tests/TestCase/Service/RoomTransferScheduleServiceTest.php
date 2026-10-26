@@ -37,6 +37,14 @@ class RoomTransferScheduleServiceTest extends TestCase
     // applyPending — 保留スケジュールなし
     // ----------------------------------------------------------------
 
+    public function testCreate_invalidInput_throwsValidationRuntimeException(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/^バリデーションエラー: /');
+
+        (new RoomTransferScheduleService())->create(1, null, 1, '', 'tester');
+    }
+
     public function testApplyPending_noPendingSchedules_returnsZeroApplied(): void
     {
         $result = $this->service->applyPending(date('Y-m-d'));

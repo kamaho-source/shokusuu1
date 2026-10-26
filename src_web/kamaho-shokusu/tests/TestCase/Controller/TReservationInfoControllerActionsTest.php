@@ -405,6 +405,17 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertCount(1, $this->viewVariable('individualReservations'));
     }
 
+    public function testChangeEdit_childWithoutRoomMembership_isForbiddenNotServerError(): void
+    {
+        $this->getTableLocator()->get('MUserGroup')->deleteAll(['i_id_user' => 3]);
+        $this->loginChild();
+
+        $this->get('/TReservationInfo/changeEdit?date=' . $this->day(3));
+
+        $this->assertResponseCode(403);
+        $this->assertSame('forbidden', $this->json()['status']);
+    }
+
     public function testChangeEdit_modalShellResolvesDefaultRoom(): void
     {
         $date = $this->day(3);
