@@ -231,4 +231,114 @@ class RoomAccessServiceTest extends TestCase
         // 存在しない部屋は利用可能ではない
         $this->assertFalse($this->service->isRoomAvailable(9999));
     }
+
+    public function testGetUserRoomIds_returnsActiveRoomsOnly(): void
+    {
+        $this->addMembership(10, 31, 1); // 退出済みは含めない
+
+        $ids = $this->service->getUserRoomIds(10);
+
+        sort($ids);
+        $this->assertSame([2, 3], $ids);
+        $this->assertSame([], $this->service->getUserRoomIds(0));
+        $this->assertSame([], $this->service->getUserRoomIds(9999));
+    }
+
+    public function testHasAnyAffiliation(): void
+    {
+        $this->assertTrue($this->service->hasAnyAffiliation(10));
+        $this->assertFalse($this->service->hasAnyAffiliation(9999));
+    }
+
+    public function testIsOfficeUser(): void
+    {
+        $this->assertTrue($this->service->isOfficeUser(10));
+        $this->assertFalse($this->service->isOfficeUser(0));
+        $this->assertFalse($this->service->isOfficeUser(9999));
+    }
+
+    public function testIsOfficeUser_deletedOfficeRoomIsNotOffice(): void
+    {
+        $connection = ConnectionManager::get('test');
+        $connection->update('m_room_info', ['i_del_flg' => 1], ['i_id_room' => 2]);
+
+        $this->assertFalse($this->service->isOfficeUser(10));
+    }
+
+    public function testGetOfficeRoomIds(): void
+    {
+        $this->assertSame([2], $this->service->getOfficeRoomIds(10));
+        $this->assertSame([], $this->service->getOfficeRoomIds(0));
+        $this->assertSame([], $this->service->getOfficeRoomIds(9999));
+    }
+
+    public function testUserCanAccessRoom_invalidIds(): void
+    {
+        $this->assertFalse($this->service->userCanAccessRoom(0, 2));
+        $this->assertFalse($this->service->userCanAccessRoom(10, 0));
+    }
+
+    public function testIsRoomAvailable_zeroId(): void
+    {
+        $this->assertFalse($this->service->isRoomAvailable(0));
+    }
+
+    public function testGetAccessibleRooms_ordersByDispNo(): void
+    {
+        $this->addMembership(10, 40, 0);
+        $connection = ConnectionManager::get('test');
+        $connection->update('m_room_info', ['i_disp_no' => 0], ['i_id_room' => 40]);
+
+        $rooms = $this->service->getAccessibleRooms(TableRegistry::getTableLocator()->get('MRoomInfo'), 10);
+
+        $this->assertSame([40, 2, 3], array_keys($rooms));
+    }
+
+    public function testGetOfficeRooms_privateReturnsOfficeRoomsOnly(): void
+    {
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+        $m = new \ReflectionMethod($this->service, 'getOfficeRooms');
+        $m->setAccessible(true);
+
+        $this->assertSame([2 => '事務所'], $m->invoke($this->service, $roomTable, 10));
+        $this->assertSame([], $m->invoke($this->service, $roomTable, 9999));
+    }
+
+    public function testBuildRoomOrder_prefersDispNoColumn(): void
+    {
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+        $m = new \ReflectionMethod($this->service, 'buildRoomOrder');
+        $m->setAccessible(true);
+
+        $order = $m->invoke($this->service, $roomTable);
+
+        $this->assertSame('i_id_room', array_key_last($order));
+        $this->assertCount(2, $order);
+    }
+
+    public function testBuildRoomOrder_fallsBackWhenSchemaFails(): void
+    {
+        $table = $this->createStub(\Cake\ORM\Table::class);
+        $table->method('getSchema')->willThrowException(new \RuntimeException('boom'));
+        $m = new \ReflectionMethod($this->service, 'buildRoomOrder');
+        $m->setAccessible(true);
+
+        $this->assertSame(['i_id_room' => 'ASC'], $m->invoke($this->service, $table));
+    }
+
+    public function testDbFailureFallsBackToSafeDefaults(): void
+    {
+        // 取得時に例外を投げるテーブルに差し替え、例外が握られて安全側の値になることを確認する
+        foreach (['MUserGroup', 'MRoomInfo'] as $alias) {
+            $table = $this->createStub(\Cake\ORM\Table::class);
+            $table->method('find')->willThrowException(new \RuntimeException('boom'));
+            TableRegistry::getTableLocator()->set($alias, $table);
+        }
+
+        $this->assertSame([], $this->service->getUserRoomIds(10));
+        $this->assertFalse($this->service->isOfficeUser(10));
+        $this->assertSame([], $this->service->getOfficeRoomIds(10));
+        $this->assertSame([], $this->service->getRoomsByIds([2]));
+        $this->assertSame([], $this->service->getAllActiveRooms());
+    }
 }

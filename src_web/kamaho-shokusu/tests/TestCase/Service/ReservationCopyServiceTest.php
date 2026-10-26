@@ -19,6 +19,8 @@ class ReservationCopyServiceTest extends TestCase
     protected array $fixtures = [
         'app.TIndividualReservationInfo',
         'app.MUserInfo',
+        'app.MRoomInfo',
+        'app.MUserGroup',
     ];
 
     private ReservationCopyService $service;
@@ -422,5 +424,217 @@ class ReservationCopyServiceTest extends TestCase
         $this->assertSame(1, $copy['copied']);
         $row = $this->fetchRow($dst->format('Y-m-d'));
         $this->assertSame([1, 1], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+    }
+
+    // ----------------------------------------------------------------
+    // 追加: resolveTargetRoomIds / 月コピー / 子供のみ / 競合
+    // ----------------------------------------------------------------
+
+    private function rowAt(int $userId, string $date, int $room = 1, int $type = 1): ?object
+    {
+        return TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
+            ->where(['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_reservation_type' => $type, 'i_id_room' => $room])
+            ->first();
+    }
+
+    public function testResolveTargetRoomIds_withoutRequestReturnsAllAffiliatedRooms(): void
+    {
+        $this->assertSame([1], $this->service->resolveTargetRoomIds(null, 1));
+    }
+
+    public function testResolveTargetRoomIds_requestedAffiliatedRoom(): void
+    {
+        $this->assertSame([1], $this->service->resolveTargetRoomIds(1, 2));
+    }
+
+    public function testResolveTargetRoomIds_requestedRoomOutsideAffiliation_returnsNull(): void
+    {
+        $this->assertNull($this->service->resolveTargetRoomIds(99, 1));
+    }
+
+    public function testResolveTargetRoomIds_noAffiliation_returnsNull(): void
+    {
+        $this->assertNull($this->service->resolveTargetRoomIds(null, 999));
+    }
+
+    public function testNormalizeRoomIdBlankStringIsNull(): void
+    {
+        $result = $this->service->normalizeCopyParams(['mode' => 'week', 'source' => '2026-06-02', 'target' => '2026-06-09', 'room_id' => '']);
+
+        $this->assertNull($result['roomId']);
+    }
+
+    public function testCopyMonth_copiesSameDayAndSkipsDaysMissingInTargetMonth(): void
+    {
+        $this->insertRow('2030-01-10');
+        $this->insertRow('2030-01-31'); // 2月に31日は無い
+
+        $preview = $this->service->previewMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false);
+        $copy = $this->service->copyMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false, null, false);
+
+        $this->assertSame(['total' => 2, 'will_copy' => 1, 'will_skip' => 0, 'invalid_date' => 1], $preview);
+        $this->assertSame(2, $copy['total']);
+        $this->assertSame(1, $copy['copied']);
+        $this->assertSame(1, $copy['invalid_date']);
+        $row = $this->fetchRow('2030-02-10');
+        $this->assertNotNull($row);
+        $this->assertSame([1, 1], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+        $this->assertSame('system', $row->c_create_user);
+    }
+
+    public function testCopyMonth_recordsActorName(): void
+    {
+        $this->insertRow('2030-01-10');
+        $actor = new class {
+            public function get(string $key): ?string
+            {
+                return $key === 'c_user_name' ? '操作者A' : null;
+            }
+        };
+
+        $this->service->copyMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false, $actor, false);
+
+        $this->assertSame('操作者A', $this->fetchRow('2030-02-10')->c_create_user);
+    }
+
+    public function testCopyMonth_toPastMonth_isInvalidDate(): void
+    {
+        $preview = $this->service->previewMonth(new Date('2024-09-01'), new Date('2024-10-01'), null, false);
+        $copy = $this->service->copyMonth(new Date('2024-09-01'), new Date('2024-10-01'), null, false, null, false);
+
+        $this->assertSame(1, $preview['invalid_date']);
+        $this->assertSame(0, $copy['copied']);
+        $this->assertSame(1, $copy['invalid_date']);
+    }
+
+    public function testCopyMonth_noSourceRows_returnsZeros(): void
+    {
+        $copy = $this->service->copyMonth(new Date('2031-05-01'), new Date('2031-06-01'), null, false, null, false);
+
+        $this->assertSame(['total' => 0, 'copied' => 0, 'skipped' => 0, 'invalid_date' => 0], $copy);
+    }
+
+    public function testCopyMonth_existingRowsAreSkippedOrRevived(): void
+    {
+        $this->insertRow('2030-01-10');
+        $this->insertRow('2030-01-11');
+        $this->insertRow('2030-02-10', ['eat_flag' => 1, 'i_change_flag' => 1]); // 既に有効 → スキップ
+        $this->insertRow('2030-02-11', ['eat_flag' => 0, 'i_change_flag' => 0]); // 無効 → 復活
+
+        $preview = $this->service->previewMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false);
+        $copy = $this->service->copyMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false, null, false);
+
+        $this->assertSame(1, $preview['will_copy']);
+        $this->assertSame(1, $preview['will_skip']);
+        $this->assertSame(1, $copy['copied']);
+        $this->assertSame(1, $copy['skipped']);
+        $this->assertSame(1, (int)$this->fetchRow('2030-02-11')->i_change_flag);
+    }
+
+    public function testCopyWeekAndMonth_onlyChildrenCopiesChildRowsOnly(): void
+    {
+        $this->insertRow('2030-01-08', ['i_id_user' => 1]); // 職員/管理者
+        $this->insertRow('2030-01-08', ['i_id_user' => 3]); // 児童(i_user_level=1)
+
+        $previewW = $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, true);
+        $copyW = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, true);
+
+        $this->assertSame(1, $previewW['total']);
+        $this->assertSame(1, $previewW['will_copy']);
+        $this->assertSame(1, $copyW['copied']);
+        $this->assertNotNull($this->rowAt(3, '2030-01-15'));
+        $this->assertNull($this->rowAt(1, '2030-01-15'));
+
+        $this->insertRow('2030-01-10', ['i_id_user' => 3]);
+        $this->insertRow('2030-01-10', ['i_id_user' => 1]);
+        $previewM = $this->service->previewMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, true);
+        $copyM = $this->service->copyMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false, null, true);
+
+        $this->assertSame(3, $previewM['total']); // 1/8・1/10・先に週コピーされた1/15 の児童分
+        $this->assertSame(3, $copyM['copied']);
+        $this->assertNull($this->rowAt(1, '2030-02-10'));
+    }
+
+    public function testOnlyChildren_withNoChildren_returnsZeros(): void
+    {
+        ConnectionManager::get('test')->update('m_user_info', ['i_user_level' => 0], ['i_user_level' => 1]);
+        $this->insertRow('2030-01-08');
+
+        $this->assertSame(['total' => 0, 'copied' => 0, 'skipped' => 0], $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, true));
+        $this->assertSame(['total' => 0, 'will_copy' => 0, 'will_skip' => 0], $this->service->previewWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, true));
+        $this->assertSame(['total' => 0, 'copied' => 0, 'skipped' => 0, 'invalid_date' => 0], $this->service->copyMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false, null, true));
+        $this->assertSame(['total' => 0, 'will_copy' => 0, 'will_skip' => 0, 'invalid_date' => 0], $this->service->previewMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, true));
+    }
+
+    public function testCopyWeek_roomFilterLimitsSourceRows(): void
+    {
+        $this->insertRow('2030-01-08', ['i_id_room' => 1]);
+        $this->insertRow('2030-01-09', ['i_id_room' => 2]);
+
+        $copy = $this->service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), [1], false, null, false);
+        $preview = $this->service->previewMonth(new Date('2030-01-01'), new Date('2030-02-01'), 2, false);
+
+        $this->assertSame(1, $copy['total']);
+        $this->assertNotNull($this->fetchRow('2030-01-15'));
+        $this->assertNull($this->fetchRow('2030-01-16'));
+        $this->assertSame(1, $preview['total']);
+    }
+
+    public function testCopyWeek_toEarlierWeek(): void
+    {
+        $this->insertRow('2030-01-15');
+
+        $copy = $this->service->copyWeek(new Date(self::DST_MONDAY), new Date(self::SRC_MONDAY), null, false, null, false);
+
+        $this->assertSame(1, $copy['copied']);
+        $this->assertNotNull($this->fetchRow('2030-01-08'));
+    }
+
+    public function testCopyWeek_versionConflict_throwsAndRollsBack(): void
+    {
+        $this->insertRow('2030-01-08');
+        $this->insertRow('2030-01-15', ['eat_flag' => 0, 'i_change_flag' => 0]);
+        $mock = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+            ->onlyMethods(['updateRowWithVersion'])
+            ->setConstructorArgs([['connection' => ConnectionManager::get('test'), 'alias' => 'TIndividualReservationInfo', 'table' => 't_individual_reservation_info']])
+            ->getMock();
+        $mock->method('updateRowWithVersion')->willReturn(false);
+        TableRegistry::getTableLocator()->set('TIndividualReservationInfo', $mock);
+        $service = new ReservationCopyService();
+
+        try {
+            $service->copyWeek(new Date(self::SRC_MONDAY), new Date(self::DST_MONDAY), null, false, null, false);
+            $this->fail('例外が投げられるはず');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('optimistic_conflict', $e->getMessage());
+        }
+        $this->assertSame(0, (int)$this->fetchRow('2030-01-15')->eat_flag);
+
+    }
+
+    public function testCopyMonth_versionConflict_throws(): void
+    {
+        $this->insertRow('2030-01-10');
+        $this->insertRow('2030-02-10', ['eat_flag' => 0, 'i_change_flag' => 0]);
+        $mock = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+            ->onlyMethods(['updateRowWithVersion'])
+            ->setConstructorArgs([['connection' => ConnectionManager::get('test'), 'alias' => 'TIndividualReservationInfo', 'table' => 't_individual_reservation_info']])
+            ->getMock();
+        $mock->method('updateRowWithVersion')->willReturn(false);
+        TableRegistry::getTableLocator()->set('TIndividualReservationInfo', $mock);
+
+        $this->expectExceptionMessage('optimistic_conflict');
+
+        (new ReservationCopyService())->copyMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false, null, false);
+    }
+
+    public function testPreviewMonth_skipsCancelledSourceAndInvalidDates(): void
+    {
+        $this->insertRow('2030-01-10', ['eat_flag' => 0, 'i_change_flag' => 0]);
+
+        $preview = $this->service->previewMonth(new Date('2030-01-01'), new Date('2030-02-01'), null, false);
+
+        $this->assertSame(1, $preview['will_skip']);
+        $this->assertSame(0, $preview['will_copy']);
     }
 }
