@@ -1,5 +1,5 @@
 /**
- * サイボウズモード（複数日まとめて予約）
+ * 複数日予約
  * 食事ごとに部屋・日付を複数クリックで選ぶ。食事を切り替えても、他の食事で選んだ日は残る。
  * 「登録する」で、日付と部屋ごとに direct-register を順番に呼び、全部の食事をまとめて登録する。
  * treservation_toast.js の後にロードすること（pageToast を使う）。
@@ -72,8 +72,8 @@
 
     function init() {
         var cfg = window.__TRESP || {};
-        var modalEl = document.getElementById('cybozuModal');
-        if (!cfg.isCybozu || !modalEl) return;
+        var modalEl = document.getElementById('multiDateModal');
+        if (!modalEl) return;
 
         var today = String(cfg.serverToday || '');
         var details = cfg.myDetails || {};
@@ -125,9 +125,9 @@
         function bandHtml(date) {
             var d = details[date];
             var any = d && (d.breakfast || d.lunch || d.dinner || d.bento);
-            if (!any) return '<div class="cybozu-band none">未予約</div>';
+            if (!any) return '<div class="multi-date-band none">未予約</div>';
             var mark = function (k) { return d[k] ? '○' : '×'; };
-            var html = '<div class="cybozu-band res">朝' + mark('breakfast') + ' 昼' + mark('lunch') +
+            var html = '<div class="multi-date-band res">朝' + mark('breakfast') + ' 昼' + mark('lunch') +
                 '<br>夜' + mark('dinner') + ' 弁' + mark('bento') + '</div>';
             if (!multiRoom) return html;
             // 予約の部屋名。食事ごとに部屋が違う日は「朝:ナザレ 夜:ガリラヤ」
@@ -138,39 +138,39 @@
             if (ids.length === 0) return html;
             var label = ids.length === 1 ? roomName(ids[0])
                 : used.map(function (u) { return u.s + ':' + roomName(u.id); }).join(' ');
-            return html + '<div class="cybozu-room">' + esc(label) + '</div>';
+            return html + '<div class="multi-date-room">' + esc(label) + '</div>';
         }
 
         function renderRooms() {
-            $('cybozuRoomRow').hidden = !multiRoom;
-            $('cybozuRooms').innerHTML = rooms.map(function (r) {
+            $('multiDateRoomRow').hidden = !multiRoom;
+            $('multiDateRooms').innerHTML = rooms.map(function (r) {
                 var on = r.id === state.roomId;
-                return '<button type="button" class="cybozu-pill" data-room="' + r.id + '" aria-pressed="' + on + '" style="' +
+                return '<button type="button" class="multi-date-pill" data-room="' + r.id + '" aria-pressed="' + on + '" style="' +
                     (on ? 'background:' + r.color + ';color:#fff;border-color:' + r.color : 'color:' + r.color + ';border-color:' + r.color) +
                     '">● ' + esc(r.name) + '</button>';
             }).join('');
         }
 
         function renderMeals() {
-            $('cybozuMeals').innerHTML = MEALS.map(function (m) {
+            $('multiDateMeals').innerHTML = MEALS.map(function (m) {
                 var on = m.id === state.meal;
                 var n = selectedDates(m.id).length;
-                return '<button type="button" class="cybozu-meal' + (on ? ' on' : '') + '" data-meal="' + m.id +
+                return '<button type="button" class="multi-date-meal' + (on ? ' on' : '') + '" data-meal="' + m.id +
                     '" aria-pressed="' + on + '">' + m.icon + ' ' + m.label +
-                    (n ? ' <span class="cybozu-meal-n">' + n + '日</span>' : '') + '</button>';
+                    (n ? ' <span class="multi-date-meal-n">' + n + '日</span>' : '') + '</button>';
             }).join('');
-            $('cybozuHint').textContent = rooms.length === 0
+            $('multiDateHint').textContent = rooms.length === 0
                 ? ''
                 : (multiRoom ? '① 部屋と食事を選ぶ → ② 日付をクリック。' : '① 食事を選ぶ → ② 日付をクリック。') +
                   '食事を切り替えても、選んだ日は残ります。最後に「登録する」でまとめて登録します。🔒＝その食事が登録済みの日';
         }
 
         function renderCalendar() {
-            $('cybozuMonth').textContent = state.year + '年' + (state.month + 1) + '月';
+            $('multiDateMonth').textContent = state.year + '年' + (state.month + 1) + '月';
             var key = state.year * 12 + state.month;
-            $('cybozuPrev').disabled = key <= minKey;
-            $('cybozuNext').disabled = key >= maxKey;
-            var html = '<table class="cybozu-cal"><thead><tr>' +
+            $('multiDatePrev').disabled = key <= minKey;
+            $('multiDateNext').disabled = key >= maxKey;
+            var html = '<table class="multi-date-cal"><thead><tr>' +
                 ['日', '月', '火', '水', '木', '金', '土'].map(function (w, i) {
                     return '<th class="' + (i === 0 ? 'sun' : (i === 6 ? 'sat' : '')) + '">' + w + '</th>';
                 }).join('') + '</tr></thead><tbody>';
@@ -183,7 +183,7 @@
                     var selRoom = state.selected[state.meal][c.date] ? roomOf(state.selected[state.meal][c.date]) : null;
                     // 他の食事で選んだ日も分かるよう、選択中の食事をセルに並べる（例：朝 夜）
                     var picks = c.inMonth ? MEALS.filter(function (m) { return state.selected[m.id][c.date]; }) : [];
-                    var cls = ['cybozu-day'];
+                    var cls = ['multi-date-day'];
                     if (c.dow === 0 || hol) cls.push('sun');
                     if (c.dow === 6) cls.push('sat');
                     if (past) cls.push('past');
@@ -206,19 +206,19 @@
                             : ' role="button" tabindex="0" aria-pressed="' + !!selRoom + '" aria-label="' + esc(label) + '"') +
                         (selRoom ? ' style="background:' + selRoom.color + '"' : '') +
                         (title ? ' title="' + esc(title) + '"' : '') + '>' +
-                        (hol && c.inMonth ? '<div class="cybozu-hol">' + esc(hol) + '</div>' : '') +
-                        '<div class="cybozu-num">' + parse(c.date).getDate() +
-                        (selRoom ? '<span class="cybozu-ck">✓</span>' : '') +
-                        (lock ? '<span class="cybozu-lk">🔒</span>' : '') + '</div>' +
+                        (hol && c.inMonth ? '<div class="multi-date-hol">' + esc(hol) + '</div>' : '') +
+                        '<div class="multi-date-num">' + parse(c.date).getDate() +
+                        (selRoom ? '<span class="multi-date-ck">✓</span>' : '') +
+                        (lock ? '<span class="multi-date-lk">🔒</span>' : '') + '</div>' +
                         (c.inMonth ? bandHtml(c.date) : '') +
-                        (picks.length ? '<div class="cybozu-picks">' + picks.map(function (m) {
+                        (picks.length ? '<div class="multi-date-picks">' + picks.map(function (m) {
                             var r = roomOf(state.selected[m.id][c.date]);
                             return '<span class="' + (m.id === state.meal ? 'cur' : '') + '" style="background:' + (r ? r.color : '#28a745') + '">' + m.short + '</span>';
                         }).join('') + '</div>' : '') + '</td>';
                 });
                 html += '</tr>';
             });
-            $('cybozuCalendar').innerHTML = html + '</tbody></table>';
+            $('multiDateCalendar').innerHTML = html + '</tbody></table>';
         }
 
         function renderSummary() {
@@ -234,23 +234,23 @@
                 html = '✅ <b>' + picks.length + '件</b> 選択中' + (perMeal.length ? '（' + perMeal.join('・') + '）' : '') +
                     (selectedDates().length >= MAX_DATES ? ' <span class="text-danger small">1つの食事につき最大' + MAX_DATES + '日まで選べます</span>' : '');
             }
-            $('cybozuSummary').innerHTML = html;
+            $('multiDateSummary').innerHTML = html;
             // 食事ごと・部屋ごとに、選んだ日を並べる
-            $('cybozuChips').innerHTML = MEALS.map(function (m) {
+            $('multiDateChips').innerHTML = MEALS.map(function (m) {
                 return rooms.map(function (r) {
                     var mine = selectedDates(m.id).filter(function (d) { return state.selected[m.id][d] === r.id; });
                     if (!mine.length) return '';
-                    return '<div class="cybozu-chips"><b>' + m.icon + ' ' + m.label + '</b>' +
+                    return '<div class="multi-date-chips"><b>' + m.icon + ' ' + m.label + '</b>' +
                         (multiRoom ? '<b style="color:' + r.color + '">' + esc(r.name) + '</b>' : '') +
                         mine.map(function (d) {
-                            return '<span class="cybozu-chip" style="border-color:' + r.color + ';color:' + r.color + '">' + shortDate(d) +
-                                ' <button type="button" class="cybozu-chip-x" data-remove="' + d + '" data-remove-meal="' + m.id + '" aria-label="' +
+                            return '<span class="multi-date-chip" style="border-color:' + r.color + ';color:' + r.color + '">' + shortDate(d) +
+                                ' <button type="button" class="multi-date-chip-x" data-remove="' + d + '" data-remove-meal="' + m.id + '" aria-label="' +
                                 m.label + ' ' + shortDate(d) + 'を外す">×</button></span>';
                         }).join('') + '</div>';
                 }).join('');
             }).join('');
-            $('cybozuLastMinute').hidden = !!cfg.isAdmin || !picks.some(function (p) { return isWithin14(p.date, today); });
-            var btn = $('cybozuSubmit');
+            $('multiDateLastMinute').hidden = !!cfg.isAdmin || !picks.some(function (p) { return isWithin14(p.date, today); });
+            var btn = $('multiDateSubmit');
             btn.disabled = state.busy || picks.length === 0 || rooms.length === 0;
             btn.textContent = state.busy ? '登録中…' + (state.progress || '') : '✅ 登録する（' + picks.length + '件）';
         }
@@ -323,7 +323,7 @@
                 g.meals.push(p.meal);
             });
             state.busy = true;
-            $('cybozuResult').hidden = true;
+            $('multiDateResult').hidden = true;
             var done = [], skipped = [], failed = [];
             var chain = Promise.resolve();
             // サーバーの負荷と競合を避けるため、1回ずつ順番に登録する
@@ -392,17 +392,13 @@
         /** 結果をトーストと、モーダル内（トーストが消えても読めるように）に出して、操作できる状態に戻す */
         function finish(message, type) {
             toast(message, type);
-            var box = $('cybozuResult');
+            var box = $('multiDateResult');
             box.hidden = false;
             box.className = 'small mt-2 mb-0 alert py-2 alert-' + type;
             box.textContent = message;
             state.busy = false;
             state.progress = '';
             render();
-        }
-
-        function showModal() {
-            if (window.bootstrap && window.bootstrap.Modal) window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
         }
 
         modalEl.addEventListener('click', function (e) {
@@ -424,38 +420,31 @@
             var td = e.target.closest && e.target.closest('td[data-date]');
             if (td && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); clickDate(td.getAttribute('data-date')); }
         });
-        $('cybozuPrev').addEventListener('click', function () {
+        $('multiDatePrev').addEventListener('click', function () {
             if (state.year * 12 + state.month <= minKey) return;
             state.month -= 1; if (state.month < 0) { state.month = 11; state.year -= 1; }
             renderCalendar();
         });
-        $('cybozuNext').addEventListener('click', function () {
+        $('multiDateNext').addEventListener('click', function () {
             if (state.year * 12 + state.month >= maxKey) return;
             state.month += 1; if (state.month > 11) { state.month = 0; state.year += 1; }
             renderCalendar();
         });
-        $('cybozuSubmit').addEventListener('click', submit);
+        $('multiDateSubmit').addEventListener('click', submit);
         // 閉じている間に背景の画面で登録・取消されても、開いたときの🔒が最新になるよう描き直す
         // スキップの🔒（別の部屋で登録済みなど）も、背景で取り消されたかもしれないので開き直したら外す
         modalEl.addEventListener('shown.bs.modal', function () {
             state.skipLock = { 1: {}, 2: {}, 3: {} };
-            $('cybozuResult').hidden = true; // 前回の結果は、開き直したら出さない
+            $('multiDateResult').hidden = true; // 前回の結果は、開き直したら出さない
             render();
+            if (rooms.length === 0) toast('所属している部屋がありません。部屋を選択してください。', 'warning');
         });
 
-        var entry = document.getElementById('cybozuModeButton');
-        if (entry) {
-            entry.addEventListener('click', function (e) { e.preventDefault(); showModal(); });
-        }
-
         render();
-        if (rooms.length === 0) toast('所属している部屋がありません。部屋を選択してください。', 'warning');
-        showModal();
-
-        window.CybozuMode.state = state;
-        window.CybozuMode.submit = submit;
+        window.MultiDateReserve.state = state;
+        window.MultiDateReserve.submit = submit;
     }
 
-    window.CybozuMode = { lockReason: lockReason, monthCells: monthCells, isWithin14: isWithin14, init: init };
+    window.MultiDateReserve = { lockReason: lockReason, monthCells: monthCells, isWithin14: isWithin14, init: init };
     document.addEventListener('DOMContentLoaded', init);
 })();

@@ -643,7 +643,7 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         $this->assertSame([1], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(2, $date, 2));
     }
 
-    /** 入れ替えない指定（サイボウズモード）なら、同じ部屋のお弁当を取り消さずに昼食を止める。指定がなければ従来どおり入れ替える */
+    /** 入れ替えない指定（複数日予約）なら、同じ部屋のお弁当を取り消さずに昼食を止める。指定がなければ従来どおり入れ替える */
     public function testProcessToggle_noSwapKeepsBentoAndRejectsLunch(): void
     {
         $date = date('Y-m-d', strtotime('+20 days'));

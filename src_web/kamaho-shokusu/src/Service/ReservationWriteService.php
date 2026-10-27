@@ -475,7 +475,7 @@ class ReservationWriteService
             throw new UnauthorizedException('職員は直前編集でのキャンセルはできません。');
         }
         // 昼食⇔弁当を ON にすると、同じ部屋の相手は取り消される（toggleMeal）。
-        // 入れ替えない指定（サイボウズモードのまとめて登録）なら、相手を黙って取り消さずに止める（直接登録ではスキップ扱いになる文言）
+        // 入れ替えない指定（複数日予約のまとめて登録）なら、相手を黙って取り消さずに止める（直接登録ではスキップ扱いになる文言）
         if ($noSwap && $value === 1 && in_array($meal, [2, 4], true)
             && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal === 2 ? 4 : 2), true)
         ) {

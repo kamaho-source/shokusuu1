@@ -190,7 +190,7 @@ function openModalById(id){
                     TODAY_STATE.bento = !!detail.bento;
                 }
             }
-            // サイボウズモード（児童は子どもUIの上に開く）で登録した予約を、食事ボタンに反映する（MY_DETAILS は登録側で更新済み）
+            // 複数日予約（児童は子どもUIの上に開く）で登録した予約を、食事ボタンに反映する（MY_DETAILS は登録側で更新済み）
             window.__applyReservationToCalendar = function (date) { refreshDayUI(date); };
 
             function showConflict(html, onResolve, actionLabel){
@@ -530,7 +530,7 @@ function openModalById(id){
             var MEAL_SHORT_NAMES = { 1: '朝', 2: '昼', 3: '夜', 4: '弁' };
             var MEAL_KEY_MAP     = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
 
-            // サイボウズモード（treservation_cybozu.js）で登録した予約を、背景のカレンダーに反映する。
+            // 複数日予約（treservation_multi_date.js）で登録した予約を、背景のカレンダーに反映する。
             // まとめて登録したときは skipRefetch を付けて呼び、最後に1回だけ refetchEvents する
             window.__applyReservationToCalendar = function (date, mealType, roomId, skipRefetch) {
                 applyToggleToLocalState(date, MEAL_KEY_MAP[mealType], mealType, true, roomId, skipRefetch);
@@ -3279,7 +3279,7 @@ function isWithin14(dateStr){
     (function(){
         if (!window.fetch) return;
         const originalFetch = window.fetch.bind(window);
-        // 409 を自前で扱う画面（サイボウズモード）は、競合モーダルを出さない元の fetch を使う
+        // 409 を自前で扱う画面（複数日予約）は、競合モーダルを出さない元の fetch を使う
         window.__fetchWithoutConflictModal = originalFetch;
 
         window.fetch = async function(input, init){
