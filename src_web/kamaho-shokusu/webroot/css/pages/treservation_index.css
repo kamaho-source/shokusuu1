@@ -451,7 +451,6 @@
 
 
 /* ===== 複数日予約 ===== */
-.multi-date-new-badge { position: absolute; top: -.55rem; right: -.4rem; font-size: .6rem; }
 .multi-date-dialog { max-width: 640px; }
 .multi-date-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
 .multi-date-label { font-weight: 700; font-size: .85rem; width: 2.5rem; flex-shrink: 0; }
