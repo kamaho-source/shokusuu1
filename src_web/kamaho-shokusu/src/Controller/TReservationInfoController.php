@@ -709,6 +709,7 @@ class TReservationInfoController extends ReservationBaseController
                 $loginUidEarly = (int)($loginUser->get('i_id_user') ?? 0);
                 $hasAffiliation = $loginUidEarly > 0 && $this->changeEditService->userHasRoomAccess($loginUidEarly);
                 if (!$hasAffiliation) {
+                    $this->Authorization->skipAuthorization();
                     $reason = '直前編集は職員・管理者・所属グループがある方のみ使用できます。予約変更は通常の予約画面からご利用ください。';
                     if ($wantsJson) {
                         return $this->response->withStatus(403)->withType('application/json')

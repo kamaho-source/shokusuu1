@@ -53,7 +53,7 @@ class RoomTransferScheduleService
                 fn(array $errs) => implode(', ', $errs),
                 array_map('array_values', $entity->getErrors())
             );
-            throw new \RuntimeException('バリデーションエラー: ' . implode(' / ', array_merge(...array_values($messages))));
+            throw new \RuntimeException('バリデーションエラー: ' . implode(' / ', $messages));
         }
 
         $table->saveOrFail($entity);

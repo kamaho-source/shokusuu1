@@ -365,19 +365,17 @@ class MUserInfoControllerActionsTest extends TestCase
         $this->assertResponseCode(405);
     }
 
-    // ----------------------------------------- 部屋の追加/削除（個別ルート）
+    // ----------------------------------------- 廃止した部屋の追加/削除（個別ルート）
 
-    public function testAddAndRemoveRoom_nonAdminIsRejected(): void
+    public function testRemovedRoomActionsAreNotExposed(): void
     {
-        $this->login(2, 0);
+        $this->login(1);
 
         $this->post('/m-user-info/add-room-to-user/3', ['i_id_room' => 1]);
-        $this->assertRedirect(['action' => 'index']);
-        $this->assertFlashMessage('あなたは部屋追加権限がありません。', 'flash');
+        $this->assertResponseCode(404);
 
         $this->post('/m-user-info/remove-room-from-user/3/1');
-        $this->assertRedirect(['action' => 'index']);
-        $this->assertFlashMessage('あなたは部屋削除権限がありません。', 'flash');
+        $this->assertResponseCode(404);
     }
 
     // ------------------------------------------------------ ログイン/ログアウト
@@ -587,5 +585,34 @@ class MUserInfoControllerActionsTest extends TestCase
         $this->assertTrue($json['ok']);
         $this->assertSame(1, $json['created']);
         $this->assertNotEmpty($json['errors'], '存在しない部屋名はエラーとして返る');
+    }
+
+    /**
+     * @return array<string, array{string, array<string, mixed>, int}>
+     */
+    public static function invalidPermissionInputs(): array
+    {
+        return [
+            '管理者権限: 必須項目なし' => ['/MUserInfo/updateAdminStatus', [], 400],
+            '管理者権限: 対象なし' => ['/MUserInfo/updateAdminStatus', ['i_id_user' => 9999, 'i_admin' => 1], 404],
+            'システム管理者: 必須項目なし' => ['/MUserInfo/updateSystemAdminStatus', [], 400],
+            '帳票権限: 必須項目なし' => ['/MUserInfo/updateReportAccess', [], 400],
+            '職員区分: 必須項目なし' => ['/MUserInfo/updateUserLevel', [], 400],
+            '所属部屋: 必須項目なし(JSON APIはok=falseを200で返す)' => ['/MUserInfo/addUserRooms', [], 200],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidPermissionInputs
+     * @param array<string, mixed> $data
+     */
+    public function testInvalidInputReturns4xxNotServerError(string $url, array $data, int $status): void
+    {
+        $this->login(4);
+        $this->configRequest(['headers' => ['Accept' => 'application/json']]);
+
+        $this->post($url, $data);
+
+        $this->assertResponseCode($status);
     }
 }

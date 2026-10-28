@@ -314,6 +314,16 @@ class ReservationActualMealControllerTest extends TestCase
         $this->post('/TReservationInfo/actual-meal-save', $data);
     }
 
+    public function testSave_missingParameters_returns400NotServerError(): void
+    {
+        $this->login(1, 1);
+
+        $this->save(['room_id' => 1]);
+
+        $this->assertResponseCode(400);
+        $this->assertSame('必要なパラメータが不足しています。', $this->json()['message']);
+    }
+
     public function testSave_invalidDateFormat_returns400(): void
     {
         $this->login(1, 1);

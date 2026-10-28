@@ -133,6 +133,11 @@ class MNoticeControllerTest extends TestCase
         $this->assertSame(1, (int)$saved->i_importance);
         $this->assertSame(0, (int)$saved->i_type, '管理者はリリースノート種別を指定できない');
         $this->assertSame(1, (int)$saved->i_id_user_created);
+
+        $log = $this->getTableLocator()->get('TAuditLog')->find()
+            ->where(['c_target_table' => 'm_notice'])
+            ->firstOrFail();
+        $this->assertSame((string)$saved->i_id, $log->c_target_id, '監査ログの対象IDにお知らせのIDが入る');
     }
 
     public function testAdd_systemAdmin_canSaveReleaseNote(): void
@@ -291,6 +296,11 @@ class MNoticeControllerTest extends TestCase
         $this->assertRedirect(['action' => 'index']);
         $this->assertFlashMessage('お知らせを削除しました。', 'flash');
         $this->assertSame(0, $this->noticeCount());
+
+        $log = $this->getTableLocator()->get('TAuditLog')->find()
+            ->where(['c_target_table' => 'm_notice', 'c_action' => 'notice_delete'])
+            ->firstOrFail();
+        $this->assertSame((string)$id, $log->c_target_id, '監査ログの対象IDに削除したお知らせのIDが入る');
     }
 
     public function testDelete_staff_isRejected(): void
