@@ -123,7 +123,7 @@ class MNoticeController extends AppController
                     $loginUser?->get('c_user_name') ?? 'system',
                     (int)($loginUser?->get('i_id_user') ?? 0),
                     'm_notice',
-                    (string)$notice->i_id_notice,
+                    (string)$notice->i_id,
                     ['title' => $notice->c_title],
                     $this->getClientIp(),
                     1,
@@ -210,7 +210,7 @@ class MNoticeController extends AppController
                     $loginUser?->get('c_user_name') ?? 'system',
                     (int)($loginUser?->get('i_id_user') ?? 0),
                     'm_notice',
-                    (string)$notice->i_id_notice,
+                    (string)$notice->i_id,
                     ['title' => $notice->c_title],
                     $this->getClientIp(),
                     1,
@@ -248,7 +248,7 @@ class MNoticeController extends AppController
 
         $notice     = $table->get($id);
         $loginUser  = $this->request->getAttribute('identity');
-        $noticeId    = $notice->i_id_notice;
+        $noticeId    = $notice->i_id;
         $noticeTitle = $notice->c_title;
 
         if ($table->delete($notice)) {

@@ -642,4 +642,91 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
         }
         $this->assertSame([1], TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->findEffectiveRoomIds(2, $date, 2));
     }
+
+    // ----------------------------------------------------------------
+    // toggleMeal が投げる例外の変換
+    // ----------------------------------------------------------------
+
+    private function serviceWhereToggleThrows(\Throwable $e, bool $returns = false): ReservationWriteService
+    {
+        $table = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+            ->onlyMethods(['toggleMeal'])
+            ->setConstructorArgs([[
+                'connection' => ConnectionManager::get('test'),
+                'alias' => 'TIndividualReservationInfo',
+                'table' => 't_individual_reservation_info',
+            ]])
+            ->getMock();
+        $table->method('toggleMeal')->willThrowException($e);
+
+        return new ReservationWriteService(
+            $table,
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            TableRegistry::getTableLocator()->get('MRoomInfo'),
+            '/webroot/'
+        );
+    }
+
+    private function toggleWith(\Throwable $e): void
+    {
+        $this->serviceWhereToggleThrows($e)->processToggle(1, $this->futurePayload(), 1, '管理者ユーザー');
+    }
+
+    private function failedWithError(string $message): \Cake\ORM\Exception\PersistenceFailedException
+    {
+        $entity = new \Cake\ORM\Entity();
+        $entity->setError('i_reservation_type', [$message]);
+
+        return new \Cake\ORM\Exception\PersistenceFailedException($entity, 'failed');
+    }
+
+    public function testProcessToggle_lunchBentoValidationFailure_isConflict(): void
+    {
+        $this->expectException(ConflictException::class);
+        $this->expectExceptionMessage('昼食と弁当は同時に予約できません。');
+
+        $this->toggleWith($this->failedWithError('昼食と弁当は同時に'));
+    }
+
+    public function testProcessToggle_optimisticValidationFailure_isConflict(): void
+    {
+        $this->expectException(ConflictException::class);
+        $this->expectExceptionMessage('他の操作と競合しました');
+
+        $this->toggleWith($this->failedWithError('optimistic lock'));
+    }
+
+    public function testProcessToggle_otherValidationFailure_isInvalidInput(): void
+    {
+        $this->expectException(InvalidInputException::class);
+        $this->expectExceptionMessage('Validation failed.');
+
+        $this->toggleWith($this->failedWithError('required'));
+    }
+
+    public function testProcessToggle_approvedReservation_isConflict(): void
+    {
+        $this->expectException(ConflictException::class);
+
+        $this->toggleWith(new \App\Exception\ApprovedReservationException());
+    }
+
+    public function testProcessToggle_invalidArgument_isInvalidInput(): void
+    {
+        $this->expectException(InvalidInputException::class);
+        $this->expectExceptionMessage('bad arg');
+
+        $this->toggleWith(new \InvalidArgumentException('bad arg'));
+    }
+
+    public function testProcessToggle_unexpectedError_hidesRawMessage(): void
+    {
+        try {
+            $this->toggleWith(new \RuntimeException('SELECT secret FROM t'));
+            $this->fail('例外が投げられるはず');
+        } catch (\App\Domain\Exception\PersistenceException $e) {
+            $this->assertStringContainsString('予約の更新に失敗しました', $e->getMessage());
+            $this->assertStringNotContainsString('SELECT secret', $e->getMessage());
+        }
+    }
 }

@@ -48,16 +48,6 @@ class MUserInfoPolicy
         return $this->canRegisterUsers($user);
     }
 
-    public function canAddRoomToUser(?IdentityInterface $user, MUserInfo $resource): bool
-    {
-        return $this->isAdmin($user);
-    }
-
-    public function canRemoveRoomFromUser(?IdentityInterface $user, MUserInfo $resource): bool
-    {
-        return $this->isAdmin($user);
-    }
-
     public function canAdminChangePassword(?IdentityInterface $user, MUserInfo $resource): bool
     {
         return $this->isAdmin($user);

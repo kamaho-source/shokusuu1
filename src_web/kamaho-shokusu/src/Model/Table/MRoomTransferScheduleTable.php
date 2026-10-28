@@ -38,23 +38,23 @@ class MRoomTransferScheduleTable extends Table
     public function validationDefault(Validator $validator): Validator
     {
         $validator
-            ->integer('i_id_user')
-            ->requirePresence('i_id_user', 'create')
-            ->notEmptyString('i_id_user');
+            ->integer('i_id_user', 'ユーザーの指定が正しくありません。')
+            ->requirePresence('i_id_user', 'create', 'ユーザーを指定してください。')
+            ->notEmptyString('i_id_user', 'ユーザーを指定してください。');
 
         $validator
-            ->integer('i_id_room_to')
-            ->requirePresence('i_id_room_to', 'create')
-            ->notEmptyString('i_id_room_to');
+            ->integer('i_id_room_to', '異動先部屋の指定が正しくありません。')
+            ->requirePresence('i_id_room_to', 'create', '異動先部屋を指定してください。')
+            ->notEmptyString('i_id_room_to', '異動先部屋を指定してください。');
 
         $validator
-            ->date('d_effective_date')
-            ->requirePresence('d_effective_date', 'create')
-            ->notEmptyDate('d_effective_date');
+            ->date('d_effective_date', ['ymd'], '有効開始日は YYYY-MM-DD の正しい日付で入力してください。')
+            ->requirePresence('d_effective_date', 'create', '有効開始日を入力してください。')
+            ->notEmptyDate('d_effective_date', '有効開始日を入力してください。');
 
         $validator
-            ->integer('i_status')
-            ->inList('i_status', [self::STATUS_PENDING, self::STATUS_APPLIED, self::STATUS_CANCELLED]);
+            ->integer('i_status', '状態の指定が正しくありません。')
+            ->inList('i_status', [self::STATUS_PENDING, self::STATUS_APPLIED, self::STATUS_CANCELLED], '状態の指定が正しくありません。');
 
         return $validator;
     }
