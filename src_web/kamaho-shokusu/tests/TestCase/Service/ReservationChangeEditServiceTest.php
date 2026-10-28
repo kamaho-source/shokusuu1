@@ -438,4 +438,292 @@ class ReservationChangeEditServiceTest extends TestCase
         $this->assertSame([8 => [0, 1]], $this->flagsByRoom());
         $this->assertStringContainsString('所属外の部屋', implode('', $result['skipped'] ?? []));
     }
+
+    // ----------------------------------------------------------------
+    // 追加: 部屋の解決・コンテキスト構築・processUpdate の分岐
+    // ----------------------------------------------------------------
+
+    private function loginAs(int $id, int $admin, int $level, string $name = 'login'): object
+    {
+        return new class ($id, $admin, $level, $name) {
+            public function __construct(private int $id, private int $admin, private int $level, private string $name)
+            {
+            }
+
+            public function get(string $key): int|string|null
+            {
+                return match ($key) {
+                    'i_id_user' => $this->id,
+                    'i_admin' => $this->admin,
+                    'i_user_level' => $this->level,
+                    'c_user_name' => $this->name,
+                    default => null,
+                };
+            }
+        };
+    }
+
+    private function resTable(): \App\Model\Table\TIndividualReservationInfoTable
+    {
+        /** @var \App\Model\Table\TIndividualReservationInfoTable $t */
+        $t = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+
+        return $t;
+    }
+
+    private function runUpdate(array $data, array $ids, string $date, int $room, ?object $login, bool $manager = false): array
+    {
+        return $this->service->processUpdate(
+            $data,
+            $ids,
+            $date,
+            $room,
+            $login,
+            $this->resTable(),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            $manager
+        );
+    }
+
+    private function insertRoom(int $id, string $name = '部屋'): void
+    {
+        ConnectionManager::get('test')->insert('m_room_info', [
+            'i_id_room' => $id, 'c_room_name' => $name . $id, 'i_disp_no' => $id, 'i_enable' => 1, 'i_del_flg' => 0,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+    }
+
+    public function testUserHasRoomAccess(): void
+    {
+        $this->assertTrue($this->service->userHasRoomAccess(1));
+        $this->assertFalse($this->service->userHasRoomAccess(999));
+    }
+
+    public function testGetAllowedRooms_returnsAssignedRoomsOnly(): void
+    {
+        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
+        $groupTable = TableRegistry::getTableLocator()->get('MUserGroup');
+
+        $rooms = $this->service->getAllowedRooms($this->loginAs(1, 1, 0), 1, $groupTable, $roomTable);
+        $this->assertSame([1], array_keys($rooms));
+
+        $this->assertSame([], $this->service->getAllowedRooms($this->loginAs(999, 0, 0), 1, $groupTable, $roomTable));
+        $this->assertSame([], $this->service->getAllowedRooms(null, null, $groupTable, $roomTable));
+    }
+
+    public function testResolveDefaultRoomId_prefersRoomWithReservationOnDate(): void
+    {
+        $this->insertRoom(2);
+        $this->insertMeal(2, 1, 1, '2030-05-05');
+
+        $id = $this->service->resolveDefaultRoomId([1 => 'a', 2 => 'b'], '2030-05-05', $this->resTable());
+
+        $this->assertSame(2, $id);
+    }
+
+    public function testBuildContext_returnsRoomUsersAndReservations(): void
+    {
+        $this->insertMeal(1, 1, 1, '2030-05-05');
+
+        $ctx = $this->service->buildContext(
+            1,
+            '2030-05-05',
+            TableRegistry::getTableLocator()->get('MRoomInfo'),
+            TableRegistry::getTableLocator()->get('MUserGroup'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            $this->resTable()
+        );
+
+        $this->assertSame(1, (int)$ctx['room']->i_id_room);
+        // 削除済みユーザー(6)は含まれず、名前順で並ぶ
+        $this->assertEqualsCanonicalizing([1, 2, 3], $ctx['userIdList']);
+        $names = array_column($ctx['users'], 'name');
+        $sorted = $names;
+        usort($sorted, 'strcmp');
+        $this->assertSame($sorted, $names);
+        $this->assertSame(1, $ctx['userReservations'][3][1]['room_id']);
+        $this->assertSame(1, $ctx['userReservations'][3][1]['eat_flag']);
+        $this->assertSame(1, $ctx['userReservations'][3][1]['i_change_flag']);
+    }
+
+    public function testBuildContext_unknownRoom_throwsNotFound(): void
+    {
+        $this->expectException(\Cake\Http\Exception\NotFoundException::class);
+
+        $this->service->buildContext(
+            999,
+            '2030-05-05',
+            TableRegistry::getTableLocator()->get('MRoomInfo'),
+            TableRegistry::getTableLocator()->get('MUserGroup'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            $this->resTable()
+        );
+    }
+
+    public function testBuildContext_roomWithoutMembers_returnsNoUsers(): void
+    {
+        $this->insertRoom(5);
+
+        $ctx = $this->service->buildContext(
+            5,
+            '2030-05-05',
+            TableRegistry::getTableLocator()->get('MRoomInfo'),
+            TableRegistry::getTableLocator()->get('MUserGroup'),
+            TableRegistry::getTableLocator()->get('MUserInfo'),
+            $this->resTable()
+        );
+
+        $this->assertSame([], $ctx['users']);
+        $this->assertSame([], $ctx['userReservations']);
+    }
+
+    public function testBuildUsersForJson_staffEditsChildOnly(): void
+    {
+        $users = [
+            ['id' => 2, 'name' => 'staff', 'i_user_level' => 0],
+            ['id' => 3, 'name' => 'child', 'i_user_level' => 1],
+            ['id' => 4, 'name' => 'self', 'i_user_level' => 0],
+        ];
+
+        $result = $this->service->buildUsersForJson($users, $this->loginAs(4, 0, 0));
+
+        $this->assertSame([false, true, true], array_column($result, 'allowEdit'));
+    }
+
+    public function testBuildUsersForJson_blockLeaderInRoom_canEditAll(): void
+    {
+        $users = [['id' => 2, 'name' => 'staff', 'i_user_level' => 0]];
+
+        $result = $this->service->buildUsersForJson($users, $this->loginAs(9, 0, 1), false, true);
+
+        $this->assertTrue($result[0]['allowEdit']);
+    }
+
+    public function testProcessUpdate_userNotInRoom_isSkipped(): void
+    {
+        $result = $this->runUpdate([3 => [1 => ['i_change_flag' => 1]]], [2], '2030-05-05', 1, null, true);
+
+        $this->assertSame([], $result['created']);
+        $this->assertSame([], $result['updated']);
+        $this->assertStringContainsString('所属ではない', $result['skipped'][0]);
+        $this->assertSame([], $this->flagsByRoom('2030-05-05'));
+    }
+
+    public function testProcessUpdate_nonManagerCannotEditOtherStaff(): void
+    {
+        // 児童(3)が職員(2)の予約を変更しようとする
+        $result = $this->runUpdate([2 => [1 => ['i_change_flag' => 1]]], [2, 3], '2030-05-05', 1, $this->loginAs(3, 0, 1));
+
+        $this->assertStringContainsString('権限がありません', $result['skipped'][0]);
+        $this->assertSame([], $result['created']);
+    }
+
+    public function testProcessUpdate_staffCanEditChildAndSelf(): void
+    {
+        $date = '2030-05-05';
+        $result = $this->runUpdate(
+            [3 => [1 => ['i_change_flag' => 1]], 2 => [2 => ['i_change_flag' => 1]]],
+            [2, 3],
+            $date,
+            1,
+            $this->loginAs(2, 0, 0, '職員')
+        );
+
+        $this->assertEqualsCanonicalizing(['3:1', '2:2'], $result['created']);
+        $this->assertSame([], $result['skipped']);
+    }
+
+    public function testProcessUpdate_invalidFlagAndInvalidMealAreIgnored(): void
+    {
+        $result = $this->runUpdate(
+            [3 => [1 => ['i_change_flag' => 5], 9 => ['i_change_flag' => 1], 2 => ['x' => 1]]],
+            [3],
+            '2030-05-05',
+            1,
+            null,
+            true
+        );
+
+        $this->assertCount(1, $result['skipped']);
+        $this->assertStringContainsString('不正', $result['skipped'][0]);
+        $this->assertSame([], $result['created']);
+    }
+
+    public function testProcessUpdate_createNewRow_farDateSetsEatFlag_nearDateKeepsOriginalPlan(): void
+    {
+        $far = Date::today()->addDays(40)->format('Y-m-d');
+        $near = $this->nearDate();
+
+        $this->runUpdate([3 => [1 => ['i_change_flag' => 1]]], [3], $far, 1, null, true);
+        $this->runUpdate([3 => [1 => ['i_change_flag' => 1]]], [3], $near, 1, null, true);
+
+        $this->assertSame([1 => [1, 1]], $this->flagsByRoom($far));
+        $this->assertSame([1 => [0, 1]], $this->flagsByRoom($near));
+    }
+
+    public function testProcessUpdate_flag2MeansCancel_andNoRowMeansNothingCreated(): void
+    {
+        $date = $this->nearDate();
+        $this->insertMeal(1, 1, 1);
+
+        $result = $this->runUpdate([3 => [1 => ['i_change_flag' => 2], 2 => ['i_change_flag' => 0]]], [3], $date, 1, null, true);
+
+        $this->assertSame(['3:1'], $result['updated']);
+        $this->assertSame([], $result['created']);
+        $this->assertSame([1 => [1, 0]], $this->flagsByRoom());
+    }
+
+    public function testProcessUpdate_sameValue_isNotUpdated(): void
+    {
+        $this->insertMeal(1, 1, 1);
+
+        $result = $this->runUpdate([3 => [1 => ['i_change_flag' => 1]]], [3], $this->nearDate(), 1, null, true);
+
+        $this->assertSame([], $result['updated']);
+        $this->assertSame([1 => [1, 1]], $this->flagsByRoom());
+    }
+
+    public function testProcessUpdate_staffCannotCancelInLastMinute_butAdminCan(): void
+    {
+        $date = $this->nearDate();
+        ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 2, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_approval_status' => 0, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+
+        $denied = $this->runUpdate([2 => [1 => ['i_change_flag' => 0]]], [2], $date, 1, $this->loginAs(2, 0, 0));
+        $this->assertStringContainsString('キャンセルはできません', $denied['skipped'][0]);
+        $this->assertSame([], $denied['updated']);
+
+        $allowed = $this->runUpdate([2 => [1 => ['i_change_flag' => 0]]], [2], $date, 1, $this->loginAs(1, 1, 0));
+        $this->assertSame(['2:1'], $allowed['updated']);
+    }
+
+    public function testProcessUpdate_versionConflict_throwsAndRollsBack(): void
+    {
+        $this->insertMeal(1, 1, 1);
+        $table = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+            ->onlyMethods(['updateRowWithVersion'])
+            ->setConstructorArgs([['connection' => ConnectionManager::get('test')]])
+            ->getMock();
+        $table->method('updateRowWithVersion')->willReturn(false);
+
+        $this->expectException(\App\Exception\OptimisticLockConflictException::class);
+
+        try {
+            $this->service->processUpdate(
+                [3 => [1 => ['i_change_flag' => 0]]],
+                [3],
+                $this->nearDate(),
+                1,
+                null,
+                $table,
+                TableRegistry::getTableLocator()->get('MUserInfo'),
+                true
+            );
+        } finally {
+            $this->assertSame([1 => [1, 1]], $this->flagsByRoom());
+        }
+    }
 }
