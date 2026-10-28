@@ -50,7 +50,8 @@ class SystemPromptProviderTodayInfoTest extends TestCase
     {
         $prompt = (new SystemPromptProvider())->get(AiUserRole::CHILD, new Date('2026-10-28'));
 
-        $this->assertStringContainsString('職員（予約の対象が職員）の予約は、直前予約の期間には、管理者以外はキャンセルできません', $prompt);
+        $this->assertStringContainsString('職員の予約は、今日から14日以内（直前予約の期間）には、キャンセルできません', $prompt);
+        $this->assertStringContainsString('管理者は除きます（管理者は職員の予約も変更できます）', $prompt);
         $this->assertStringContainsString('過去の日付は、管理者以外は変更できません', $prompt);
         $this->assertStringContainsString('所属グループのない方は使えない', $prompt);
         $this->assertStringContainsString('一括登録・一括変更の画面はありません', $prompt);
