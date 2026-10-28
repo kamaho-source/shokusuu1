@@ -19,6 +19,8 @@ final class SystemPromptProvider implements SystemPromptProviderInterface
 {
     private const BASE_FILE       = __DIR__ . '/Prompts/ai_assistant.md';
     private const URLS_DIR        = __DIR__ . '/Prompts/urls/';
+    private const ROLES_DIR       = __DIR__ . '/Prompts/roles/';
+    private const ROLE_PLACEHOLDER = '{{ROLE_INFO}}';
     private const URL_PLACEHOLDER = '{{URL_LIST}}';
     private const TODAY_PLACEHOLDER = '{{TODAY_INFO}}';
     private const WEEKDAYS        = ['日', '月', '火', '水', '木', '金', '土'];
@@ -43,10 +45,11 @@ final class SystemPromptProvider implements SystemPromptProviderInterface
 
         $base    = $this->readFile(self::BASE_FILE);
         $urlList = $this->readFile(self::URLS_DIR . $role . '.md');
+        $roleInfo = $this->readFile(self::ROLES_DIR . $role . '.md');
 
         return str_replace(
-            [self::URL_PLACEHOLDER, self::TODAY_PLACEHOLDER],
-            [$urlList, $this->todayInfo($today ?? Date::now('Asia/Tokyo'))],
+            [self::URL_PLACEHOLDER, self::TODAY_PLACEHOLDER, self::ROLE_PLACEHOLDER],
+            [$urlList, $this->todayInfo($today ?? Date::now('Asia/Tokyo')), $roleInfo],
             $base
         );
     }
