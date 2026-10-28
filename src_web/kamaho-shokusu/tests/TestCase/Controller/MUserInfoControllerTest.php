@@ -584,7 +584,8 @@ class MUserInfoControllerTest extends TestCase
             'i_admin' => 3,
         ]);
 
-        $this->assertResponseFailure();
+        // 昇格の拒否はサーバーエラー(500)ではなく 403 で返す
+        $this->assertResponseCode(403);
 
         $user = $this->getTableLocator()->get('MUserInfo')->get(2);
         $this->assertNotSame(3, (int)$user->i_admin);
@@ -607,7 +608,8 @@ class MUserInfoControllerTest extends TestCase
             'i_admin' => 3,
         ]);
 
-        $this->assertResponseFailure();
+        // 昇格の拒否はサーバーエラー(500)ではなく 403 で返す
+        $this->assertResponseCode(403);
 
         $user = $this->getTableLocator()->get('MUserInfo')->get(2);
         $this->assertNotSame(3, (int)$user->i_admin);

@@ -530,7 +530,9 @@ class MUserInfoController extends AppController
         $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
         $loginId   = (string)($identity?->get('c_login_account') ?? '');
 
-        if (in_array((int)$isAdmin, [0, 1, 2], true)) {
+        // システム管理者(3)や範囲外の値は updatePermission() が拒否する（監査ログにも残る）
+        $isAllowedValue = in_array((int)$isAdmin, [0, 1, 2], true);
+        if ($isAllowedValue) {
             $conflict = $this->userPermissionService->findRoleConflict(
                 (int)$user->i_admin, (int)$isAdmin, 1, $this->isOverwriteConfirmed($data)
             );
@@ -541,6 +543,9 @@ class MUserInfoController extends AppController
 
         if ($this->userPermissionService->updatePermission($user, (int)$isAdmin, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
             return $apiResponse->success($this->response, [], '管理者権限が正常に更新されました。');
+        }
+        if (!$isAllowedValue) {
+            return $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403);
         }
         return $apiResponse->error($this->response, '管理者権限の更新に失敗しました。', 500);
     }
@@ -685,7 +690,9 @@ class MUserInfoController extends AppController
         $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
         $loginId   = (string)($identity?->get('c_login_account') ?? '');
 
-        if (in_array((int)$level, [0, 1, 2], true)) {
+        // システム管理者(3)や範囲外の値は updatePermission() が拒否する（監査ログにも残る）
+        $isAllowedValue = in_array((int)$level, [0, 1, 2], true);
+        if ($isAllowedValue) {
             $conflict = $this->userPermissionService->findRoleConflict(
                 (int)$user->i_admin, (int)$level, 2, $this->isOverwriteConfirmed($data)
             );
@@ -696,6 +703,9 @@ class MUserInfoController extends AppController
 
         if ($this->userPermissionService->updatePermission($user, (int)$level, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
             return $apiResponse->success($this->response, [], 'ブロック長権限が正常に更新されました。');
+        }
+        if (!$isAllowedValue) {
+            return $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403);
         }
         return $apiResponse->error($this->response, 'ブロック長権限の更新に失敗しました。', 500);
     }
