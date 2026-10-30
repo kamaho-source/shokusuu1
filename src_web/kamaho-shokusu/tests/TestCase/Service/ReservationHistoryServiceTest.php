@@ -91,6 +91,20 @@ class ReservationHistoryServiceTest extends TestCase
         $this->assertNotContains(1, $ids, '管理者は選べない');
     }
 
+    public function testCanView_blockLeaderOnlySameRoomChildren(): void
+    {
+        $g = TableRegistry::getTableLocator()->get('MUserGroup');
+        $g->deleteAll([]);
+        foreach ([[20, 1], [3, 1], [21, 2]] as [$user, $room]) {
+            $g->save($g->newEntity(['i_id_user' => $user, 'i_id_room' => $room, 'active_flag' => 0], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+        }
+        $leader = ['id' => 20, 'admin' => 2, 'level' => 1];
+        $this->assertTrue($this->svc->canView($leader, ['id' => 3, 'admin' => 0, 'level' => 1]), '同じ部屋の子ども');
+        $this->assertFalse($this->svc->canView($leader, ['id' => 21, 'admin' => 0, 'level' => 1]), '別の部屋の子ども');
+        $this->assertFalse($this->svc->canView($leader, ['id' => 2, 'admin' => 0, 'level' => 0]), '職員は見られない');
+        $this->assertFalse($this->svc->canView(['id' => 30, 'admin' => 0, 'level' => 1], ['id' => 3, 'admin' => 0, 'level' => 1]), 'ブロック長でない子どもは不可');
+    }
+
     // ---- mealRows ----
 
     public function testMealRows_ateAndReservedOnly(): void

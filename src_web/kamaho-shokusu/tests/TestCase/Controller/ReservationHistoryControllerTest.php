@@ -125,6 +125,33 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseContains('変更の経緯');
     }
 
+    /** 案C: ブロック長は同じ部屋の子どもだけ見られる */
+    public function testIndex_blockLeader_sameRoomChildOnly(): void
+    {
+        $users = TableRegistry::getTableLocator()->get('MUserInfo');
+        $users->save($users->newEntity([
+            'i_id_user' => 20, 'c_login_account' => 'leader_user', 'c_login_passwd' => 'x', 'c_user_name' => 'ブロック長',
+            'i_admin' => 2, 'i_user_level' => 1, 'i_disp_no' => 20, 'i_enable' => 0, 'i_del_flag' => 0,
+        ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+        $users->save($users->newEntity([
+            'i_id_user' => 21, 'c_login_account' => 'other_child', 'c_login_passwd' => 'x', 'c_user_name' => '別部屋の子',
+            'i_admin' => 0, 'i_user_level' => 1, 'i_disp_no' => 21, 'i_enable' => 0, 'i_del_flag' => 0,
+        ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+        $g = TableRegistry::getTableLocator()->get('MUserGroup');
+        $g->deleteAll([]);
+        foreach ([[20, 1], [3, 1], [21, 2]] as [$user, $room]) {
+            $g->save($g->newEntity(['i_id_user' => $user, 'i_id_room' => $room, 'active_flag' => 0], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+        }
+
+        $this->login(20);
+        $this->get('/ReservationHistory?' . self::PERIOD . '&user=3');
+        $this->assertResponseOk();
+        $this->assertResponseContains('2024-09-05');
+
+        $this->get('/ReservationHistory?' . self::PERIOD . '&user=21');
+        $this->assertResponseCode(403);
+    }
+
     public function testDashboard_cardShownToStaffOnly(): void
     {
         $this->login(2);

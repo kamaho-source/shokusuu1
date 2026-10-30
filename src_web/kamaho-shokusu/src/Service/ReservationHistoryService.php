@@ -67,7 +67,7 @@ class ReservationHistoryService
 
     /**
      * 操作する人が、対象者の履歴を見てよいか。
-     * 本人・管理者は可。職員は子ども（i_user_level=1）のみ。#835 の代理判定と同じ。
+     * 本人・管理者は可。職員は子ども（i_user_level=1）のみ。ブロック長は同じ部屋の子どものみ。#835 の代理判定と同じ。
      *
      * @param array{id:int, admin:int, level:?int} $actor  見る人
      * @param array{id:int, admin:int, level:?int} $target 見られる人
@@ -82,9 +82,16 @@ class ReservationHistoryService
             return true;
         }
 
-        return $actor['level'] !== null
-            && UserRole::isStaffLevel($actor['level'])
-            && $target['level'] === 1;
+        if ($target['level'] !== 1) {
+            return false;
+        }
+        if ($actor['level'] !== null && UserRole::isStaffLevel($actor['level'])) {
+            return true;
+        }
+
+        // ブロック長は、同じ部屋（退出済みを除く）に所属する子どもだけ。ponytail: 判定ごとに所属を引く（対象者の選択肢の組み立てでユーザー数ぶん）。重ければ所属を一括取得にする
+        return UserRole::isBlockLeader($actor['admin'])
+            && array_intersect($this->roomAccess->getUserRoomIds($actor['id']), $this->roomAccess->getUserRoomIds($target['id'])) !== [];
     }
 
     /**

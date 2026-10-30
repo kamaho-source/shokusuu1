@@ -9,7 +9,7 @@ use Authorization\IdentityInterface;
 /**
  * 予約履歴画面用認可ポリシー
  *
- * 管理者・システム管理者・職員（i_user_level 0/7）だけが開ける。
+ * 管理者・システム管理者・ブロック長・職員（i_user_level 0/7）だけが開ける。
  * 誰の履歴を見られるかは ReservationHistoryService::canView() が決める。
  */
 class ReservationHistoryPolicy

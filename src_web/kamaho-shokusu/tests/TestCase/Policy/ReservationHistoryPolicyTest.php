@@ -10,7 +10,7 @@ use Cake\TestSuite\TestCase;
 /**
  * ReservationHistoryPolicy テスト
  *
- * 管理者・システム管理者・職員（i_user_level 0/7）だけが開ける。子ども・一般・未ログインは開けない。
+ * 管理者・システム管理者・ブロック長・職員（i_user_level 0/7）だけが開ける。子ども・一般・未ログインは開けない。
  */
 class ReservationHistoryPolicyTest extends TestCase
 {
@@ -36,7 +36,7 @@ class ReservationHistoryPolicyTest extends TestCase
             '職員(level0)' => [0, 0, true],
             '職員(level7)' => [0, 7, true],
             '子ども' => [0, 1, false],
-            'ブロック長（職員でない）' => [2, 1, false],
+            'ブロック長' => [2, 1, true],
             'level未設定' => [0, null, false],
         ];
     }
