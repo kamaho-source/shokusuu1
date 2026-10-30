@@ -19,7 +19,7 @@ use Cake\Http\Response;
 class ReservationHistoryController extends AppController
 {
     /** 変更の経緯に操作者の名前も出すか。false なら区分（本人／代理／管理者）のみ */
-    private const SHOW_ACTOR_NAME = false;
+    private const SHOW_ACTOR_NAME = true;
 
     private const TABS = ['meals', 'log', 'summary'];
 

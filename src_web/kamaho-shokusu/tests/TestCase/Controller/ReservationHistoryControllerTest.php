@@ -125,6 +125,23 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseContains('変更の経緯');
     }
 
+    /** 案B: 変更の経緯に操作者の名前も出す */
+    public function testIndex_logTab_showsActorName(): void
+    {
+        $t = TableRegistry::getTableLocator()->get('TAuditLog');
+        $t->save($t->newEntity([
+            'c_category' => 'reservation', 'c_action' => 'reservation_toggle', 'c_target_table' => 't_reservation_info',
+            'c_target_id' => 'room:1', 'i_actor_user_id' => 2, 'c_actor_user_name' => '山田代理',
+            'i_result' => 1, 'c_detail' => json_encode(['date' => '2024-09-05', 'meal' => 1, 'value' => 1, 'user_id' => 3]),
+            'dt_create' => '2024-08-20 09:00:00',
+        ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+
+        $this->login(2);
+        $this->get('/ReservationHistory?' . self::PERIOD . '&user=3&tab=log');
+        $this->assertResponseOk();
+        $this->assertResponseContains('代理（山田代理）');
+    }
+
     public function testDashboard_cardShownToStaffOnly(): void
     {
         $this->login(2);
