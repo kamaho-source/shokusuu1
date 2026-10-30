@@ -190,6 +190,9 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
         $builder->connect('/AuditLog/export', ['controller' => 'AuditLog', 'action' => 'export'])->setMethods(['GET']);
 
+        // 予約履歴（いつ食べたか。職員・管理者）
+        $builder->connect('/ReservationHistory', ['controller' => 'ReservationHistory', 'action' => 'index'])->setMethods(['GET']);
+
         // 機能使用頻度ダッシュボード（システム管理者専用）
         $builder->connect('/FeatureUsageSummary', ['controller' => 'FeatureUsageSummary', 'action' => 'index'])->setMethods(['GET']);
 
