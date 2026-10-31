@@ -71,7 +71,8 @@ class ReservationToggleController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $auditContext = ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null];
+        // user_id（対象者）は予約履歴画面が変更の経緯を引くのに使う。末尾に置く（検索が "user_id":N, と "user_id":N} を見る）
+        $auditContext = ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null, 'user_id' => $targetUserId > 0 ? $targetUserId : $loginUserId];
         try {
             $result = $this->writeService->processToggle(
                 roomId: $roomId,

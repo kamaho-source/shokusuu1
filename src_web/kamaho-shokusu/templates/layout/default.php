@@ -77,6 +77,14 @@ $recentNotifications     = $recentNotifications ?? [];
                                 <i class="bi bi-calendar3"></i>予約
                             </a>
                         </li>
+                        <?php if ($isChild): ?>
+                            <?php /* 子どもはダッシュボードが無いので、予約履歴（自分の分だけ）はナビから開く。職員以上はダッシュボードのカードから */ ?>
+                            <li class="nav-item">
+                                <a class="nav-link" href="<?= $this->Url->build('/ReservationHistory') ?>">
+                                    <i class="bi bi-clock-history"></i>予約履歴
+                                </a>
+                            </li>
+                        <?php endif; ?>
                         <li class="nav-item">
                             <a class="nav-link" href="<?= $this->Url->build('/MRoomInfo/') ?>">
                                 <i class="bi bi-door-open"></i>部屋情報

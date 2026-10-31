@@ -56,8 +56,8 @@ class ReservationRoomDetailService
                 'MUserInfo.c_user_name',
             ])
             ->contain(['MUserInfo', 'MUserGroup'])
-            ->where($baseConditions)
-            ->all();
+            ->where($baseConditions);
+        $rows = RoomMemberOrderService::orderMembers($rows)->all();
         foreach ($rows as $row) {
             if ($datePolicy->countedValue($date, $row->eat_flag, $row->i_change_flag) === 1) {
                 $eaters[] = $row;
@@ -73,8 +73,8 @@ class ReservationRoomDetailService
                 'MUserGroup.i_id_room'   => $roomId,
                 'MUserInfo.i_del_flag'   => 0,
                 'MUserGroup.active_flag' => 0,
-            ])
-            ->all();
+            ]);
+        $allUsers = RoomMemberOrderService::orderMembers($allUsers)->all();
 
         $allUserIds   = [];
         $allUserNames = [];

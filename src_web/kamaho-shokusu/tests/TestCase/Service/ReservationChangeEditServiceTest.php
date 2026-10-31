@@ -535,12 +535,8 @@ class ReservationChangeEditServiceTest extends TestCase
         );
 
         $this->assertSame(1, (int)$ctx['room']->i_id_room);
-        // 削除済みユーザー(6)は含まれず、名前順で並ぶ
-        $this->assertEqualsCanonicalizing([1, 2, 3], $ctx['userIdList']);
-        $names = array_column($ctx['users'], 'name');
-        $sorted = $names;
-        usort($sorted, 'strcmp');
-        $this->assertSame($sorted, $names);
+        // 削除済みユーザー(6)は含まれず、表示順（i_disp_no）で並ぶ（#871。名前順なら 3 が先頭になる）
+        $this->assertSame([1, 2, 3], $ctx['userIdList']);
         $this->assertSame(1, $ctx['userReservations'][3][1]['room_id']);
         $this->assertSame(1, $ctx['userReservations'][3][1]['eat_flag']);
         $this->assertSame(1, $ctx['userReservations'][3][1]['i_change_flag']);
