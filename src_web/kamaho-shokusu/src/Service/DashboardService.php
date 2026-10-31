@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\Service\ReservationDateRule;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -64,8 +65,7 @@ class DashboardService
         $nextNextWeekMonday = $thisWeekMonday->modify('+14 days');
 
         // 通常予約の最小受付日: 「今日から15日後」以降でなければ登録不可
-        // (ReservationDatePolicy::NORMAL_ORDER_MIN_DAYS = 15 に対応)
-        $minNormalDate = $today->modify('+15 days');
+        $minNormalDate = $today->modify('+' . ReservationDateRule::NORMAL_ORDER_MIN_DAYS . ' days');
 
         // $minNormalDate が月曜日ならそのまま使い、それ以外なら「次の月曜日」に繰り上げる。
         // modify('monday this week') を使うと、$minNormalDate が日曜〜土曜の場合に
