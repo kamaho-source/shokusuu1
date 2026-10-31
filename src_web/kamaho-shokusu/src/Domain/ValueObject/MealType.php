@@ -1,0 +1,89 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Domain\ValueObject;
+
+/**
+ * 食事区分（i_reservation_type）と、食事どうしの組み合わせルール。
+ *
+ * 1〜4 以外の値はこの型にならない（from() は ValueError、tryFrom() は null）。
+ * 昼食と弁当は同じ日に同時に予約できない（どちらか一方だけ）。
+ */
+enum MealType: int
+{
+    case Breakfast = 1;
+    case Lunch     = 2;
+    case Dinner    = 3;
+    case Bento     = 4;
+
+    /** 同じ日に同時に予約できない組（昼食・弁当）の区分値。 */
+    public const EXCLUSIVE_VALUES = [self::Lunch->value, self::Bento->value];
+
+    /**
+     * すべての区分値（1〜4）。
+     *
+     * @return list<int>
+     */
+    public static function values(): array
+    {
+        return array_map(static fn(self $t): int => $t->value, self::cases());
+    }
+
+    /** 同時に予約できない相手（昼食なら弁当、弁当なら昼食）。相手がいなければ null。 */
+    public function exclusiveCounterpart(): ?self
+    {
+        return match ($this) {
+            self::Lunch => self::Bento,
+            self::Bento => self::Lunch,
+            default     => null,
+        };
+    }
+
+    /** 区分名（朝食・昼食・夕食・弁当）。 */
+    public function label(): string
+    {
+        return match ($this) {
+            self::Breakfast => '朝食',
+            self::Lunch     => '昼食',
+            self::Dinner    => '夕食',
+            self::Bento     => '弁当',
+        };
+    }
+
+    /**
+     * DB の区分値から、同時に予約できない相手の区分値を返す。相手がいない・不正な値なら null。
+     */
+    public static function counterpartValue(int $value): ?int
+    {
+        return self::tryFrom($value)?->exclusiveCounterpart()?->value;
+    }
+
+    /** DB の区分値が昼食・弁当のどちらかか。 */
+    public static function isExclusiveValue(int $value): bool
+    {
+        return self::counterpartValue($value) !== null;
+    }
+
+    /**
+     * その日に有効（食べる）な食事区分の中に、同時に予約できない組（昼食と弁当）が両方そろっているか。
+     *
+     * @param iterable<int> $effectiveValues その日に有効な食事区分の値（重複してよい）
+     */
+    public static function hasExclusiveConflict(iterable $effectiveValues): bool
+    {
+        $found = [];
+        foreach ($effectiveValues as $value) {
+            if (in_array($value, self::EXCLUSIVE_VALUES, true)) {
+                $found[$value] = true;
+            }
+        }
+
+        return count($found) === count(self::EXCLUSIVE_VALUES);
+    }
+
+    /** DB の区分値の名前。不正な値なら空文字。 */
+    public static function labelOf(int $value): string
+    {
+        return self::tryFrom($value)?->label() ?? '';
+    }
+}

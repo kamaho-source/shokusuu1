@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use Cake\Log\Log;
 use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
@@ -84,13 +85,8 @@ class RoomAccessService
      */
     public function isRoomAvailable(int $roomId): bool
     {
-        if ($roomId <= 0) {
-            return false;
-        }
-
-        return TableRegistry::getTableLocator()->get('MRoomInfo')->find()
-            ->where(['i_id_room' => $roomId, 'i_del_flg' => 0])
-            ->count() > 0;
+        // 判定の結果を覚えない新しいインスタンスで問い合わせる（異動の反映直後などに古い結果を返さない）
+        return (new CakeRoomMembershipRepository())->isRoomAvailable($roomId);
     }
 
     /**
@@ -100,22 +96,7 @@ class RoomAccessService
      */
     public function isActiveMember(int $userId, int $roomId): bool
     {
-        if ($userId <= 0 || $roomId <= 0) {
-            return false;
-        }
-
-        return TableRegistry::getTableLocator()->get('MUserGroup')->find()
-            ->innerJoin(
-                ['MRoomInfo' => 'm_room_info'],
-                ['MRoomInfo.i_id_room = MUserGroup.i_id_room']
-            )
-            ->where([
-                'MUserGroup.i_id_user'   => $userId,
-                'MUserGroup.i_id_room'   => $roomId,
-                'MUserGroup.active_flag' => 0,
-                'MRoomInfo.i_del_flg'    => 0,
-            ])
-            ->count() > 0;
+        return (new CakeRoomMembershipRepository())->isActiveMember($userId, $roomId);
     }
 
     public function hasAnyAffiliation(int $userId): bool
