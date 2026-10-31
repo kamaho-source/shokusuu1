@@ -11,7 +11,7 @@ use Cake\Http\Response;
 /**
  * 予約履歴コントローラー（読み取り専用）
  *
- * 職員・管理者が過去の予約を確認する画面。タブは左から
+ * 予約（過去日・未来日）を確認する画面。タブは左から
  *   meals   … 予約状況（実食機能はオフのため「予約済み」かどうか）
  *   summary … 部屋集計
  *   log     … 変更の経緯
@@ -56,10 +56,10 @@ class ReservationHistoryController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $today = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')));
-        $yesterday = $today->modify('-1 day');
-        $from = (string)($this->request->getQuery('from') ?: $yesterday->format('Y-m-01'));
-        $to = (string)($this->request->getQuery('to') ?: $yesterday->format('Y-m-d'));
+        // 初期の期間は今月1日〜今月末日（過去日も未来日も見られる）
+        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $from = (string)($this->request->getQuery('from') ?: $today->format('Y-m-01'));
+        $to = (string)($this->request->getQuery('to') ?: $today->format('Y-m-t'));
         $tab = (string)$this->request->getQuery('tab');
         $tab = in_array($tab, self::TABS, true) ? $tab : 'meals';
 
@@ -67,7 +67,7 @@ class ReservationHistoryController extends AppController
         // 既定の対象者はログインしている本人
         $targetId = (int)$this->request->getQuery('user') ?: $actorId;
 
-        $error = $svc->validatePeriod($from, $to, $today->format('Y-m-d'));
+        $error = $svc->validatePeriod($from, $to);
         $forbidden = null;
         $target = null;
         $meals = $logs = $summary = [];

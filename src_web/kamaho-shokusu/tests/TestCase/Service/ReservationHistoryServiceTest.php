@@ -41,13 +41,12 @@ class ReservationHistoryServiceTest extends TestCase
     public static function periodProvider(): array
     {
         return [
-            '正常（昨日まで）' => ['2026-10-01', '2026-10-29', null],
+            '過去日' => ['2026-10-01', '2026-10-29', null],
             '1日だけ' => ['2026-10-29', '2026-10-29', null],
-            '93日ちょうど' => ['2026-07-29', '2026-10-29', null],
-            '94日は超過' => ['2026-07-28', '2026-10-29', '期間は最大93日までです。'],
+            '1年を超える期間' => ['2025-01-01', '2026-10-29', null],
             '開始が終了より後' => ['2026-10-20', '2026-10-10', '開始日が終了日より後になっています。'],
-            '終了日が今日' => ['2026-10-01', '2026-10-30', '終了日は昨日以前にしてください（当日以降は予約画面で確認します）。'],
-            '終了日が未来' => ['2026-10-01', '2026-11-05', '終了日は昨日以前にしてください（当日以降は予約画面で確認します）。'],
+            '今日を含む' => ['2026-10-01', '2026-10-30', null],
+            '未来日' => ['2030-11-01', '2030-12-31', null],
             '日付でない' => ['abc', '2026-10-29', '日付の形式が正しくありません。'],
             '存在しない日付' => ['2026-02-30', '2026-10-29', '日付の形式が正しくありません。'],
         ];
@@ -58,7 +57,7 @@ class ReservationHistoryServiceTest extends TestCase
      */
     public function testValidatePeriod(string $from, string $to, ?string $expected): void
     {
-        $this->assertSame($expected, $this->svc->validatePeriod($from, $to, '2026-10-30'));
+        $this->assertSame($expected, $this->svc->validatePeriod($from, $to));
     }
 
     // ---- selectableTargets（見られる範囲） ----

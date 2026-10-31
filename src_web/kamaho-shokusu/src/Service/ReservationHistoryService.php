@@ -9,7 +9,7 @@ use Cake\ORM\TableRegistry;
 /**
  * 予約履歴サービス（読み取り専用）
  *
- * 過去の予約の確認画面に必要な次のものを返す。何も書き込まない。
+ * 予約の確認画面（過去日・未来日）に必要な次のものを返す。何も書き込まない。
  *   - mealRows()   : 日×食事（朝昼夜弁当）の予約済み
  *   - roomSummary(): 部屋別・日別の予約済み人数
  *   - logRows()    : 変更の経緯（監査ログから）
@@ -19,9 +19,6 @@ use Cake\ORM\TableRegistry;
  */
 class ReservationHistoryService
 {
-    /** 期間の最大日数 */
-    public const MAX_DAYS = 93;
-
     /** i_reservation_type と表示名 */
     public const MEAL_LABELS = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
 
@@ -41,25 +38,19 @@ class ReservationHistoryService
     /**
      * 期間の入力を検証する。
      *
-     * @param string $from  開始日（Y-m-d）
-     * @param string $to    終了日（Y-m-d）
-     * @param string $today 今日（Y-m-d）。履歴は昨日以前だけ
+     * 過去日も未来日も、期間の長さも制限しない（日付の形式と前後だけ確かめる）。
+     *
+     * @param string $from 開始日（Y-m-d）
+     * @param string $to   終了日（Y-m-d）
      * @return string|null 問題があればその理由、なければ null
      */
-    public function validatePeriod(string $from, string $to, string $today): ?string
+    public function validatePeriod(string $from, string $to): ?string
     {
         if (!$this->isDate($from) || !$this->isDate($to)) {
             return '日付の形式が正しくありません。';
         }
         if ($from > $to) {
             return '開始日が終了日より後になっています。';
-        }
-        if ($to >= $today) {
-            return '終了日は昨日以前にしてください（当日以降は予約画面で確認します）。';
-        }
-        $days = (int)((strtotime($to) - strtotime($from)) / 86400) + 1;
-        if ($days > self::MAX_DAYS) {
-            return sprintf('期間は最大%d日までです。', self::MAX_DAYS);
         }
 
         return null;

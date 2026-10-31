@@ -78,7 +78,7 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
                 <button class="btn btn-primary w-100" type="submit">表示</button>
             </div>
         </div>
-        <div class="form-text mt-2">終了日は昨日以前、期間は最大93日です。当日以降の予約は予約画面で確認します。</div>
+        <div class="form-text mt-2">過去日も未来日も選べます。</div>
     </form>
 
     <ul class="nav nav-tabs mb-3">
