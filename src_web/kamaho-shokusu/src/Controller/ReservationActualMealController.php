@@ -319,6 +319,7 @@ class ReservationActualMealController extends ReservationBaseController
         $version   = (int)($data['version']  ?? 1);
 
         if (!$roomId || !$date || !$mealType || !$targetUid) {
+            $this->Authorization->skipAuthorization();
             return $this->apiResponseService->error($this->response, '必要なパラメータが不足しています。', 400);
         }
 

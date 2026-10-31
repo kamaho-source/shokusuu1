@@ -1019,4 +1019,363 @@ class ReservationBulkServiceTest extends TestCase
         $row = $this->fetchReservation(3, $past, 1, 1);
         $this->assertSame([1, 0], [(int)$row->eat_flag, (int)$row->i_change_flag]);
     }
+
+    // ---------------------------------------------------------------------------
+    // 追加: 入力ガード・競合・例外の変換・旧形式(users/dates)・キャッシュ破棄
+    // ---------------------------------------------------------------------------
+
+    /** updateRowWithVersion だけ差し替えた予約テーブル（他は実DBのまま） */
+    private function tableWithUpdate(callable $behavior): \App\Model\Table\TIndividualReservationInfoTable
+    {
+        $mock = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+            ->onlyMethods(['updateRowWithVersion'])
+            ->setConstructorArgs([[
+                'connection' => ConnectionManager::get('test'),
+                'alias' => 'TIndividualReservationInfo',
+                'table' => 't_individual_reservation_info',
+            ]])
+            ->getMock();
+        $mock->method('updateRowWithVersion')->willReturnCallback($behavior);
+
+        return $mock;
+    }
+
+    private function bulkAdd(array $data, int $userId = 99, bool $isAdmin = true, ?object $table = null, ?ReservationBulkService $service = null, int $level = 0, bool $leader = false): array
+    {
+        return ($service ?? $this->service)->processBulkAdd(
+            $data, $userId, 'tester', $table ?? $this->reservationTable, $this->userTable, $this->roomTable, $isAdmin, $level, $leader
+        );
+    }
+
+    public function testBulkChangeEdit_emptyInputOrNoRoom_isRejected(): void
+    {
+        $this->assertFalse($this->callBulkChangeEdit([])['ok']);
+        $r = $this->service->processBulkChangeEdit([self::d(5) => ['3' => ['1' => '1']]], 0, 'tester', $this->reservationTable, $this->userTable, [], 99, true);
+        $this->assertStringContainsString('部屋または予約内容', $r['message']);
+    }
+
+    public function testBulkChangeEdit_unknownLoginUser_isRejected(): void
+    {
+        $r = $this->callBulkChangeEdit([self::d(5) => ['3' => ['1' => '1']]], true, 0);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('ログインユーザーを特定できない', $r['message']);
+    }
+
+    public function testBulkChangeEdit_adminCannotWriteToUnavailableRoom(): void
+    {
+        $r = $this->service->processBulkChangeEdit([self::d(5) => ['3' => ['1' => '1']]], 999, 'tester', $this->reservationTable, $this->userTable, [], 99, true);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('部屋情報が不正', $r['message']);
+        $this->assertNull($this->fetchReservation(3, self::d(5), 1, 999));
+    }
+
+    public function testBulkChangeEdit_malformedEntriesAndUnknownMealsAreIgnored(): void
+    {
+        $date = self::d(5);
+
+        $r = $this->callBulkChangeEdit([$date => ['3' => ['9' => '1']], self::d(6) => 'junk', self::d(7) => ['3' => 'junk']], true, 99);
+
+        $this->assertTrue($r['ok']);
+        $this->assertSame([0, 0], [$r['updated'], $r['created']]);
+    }
+
+    public function testBulkChangeEdit_blockLeaderInRoomCanRegisterForStaff(): void
+    {
+        $date = self::d(5);
+
+        $r = $this->service->processBulkChangeEdit([$date => ['1' => ['3' => '1']]], 1, 'tester', $this->reservationTable, $this->userTable, [], 2, false, 0, true);
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertSame(1, $r['created']);
+        $this->assertNotNull($this->fetchReservation(1, $date, 3, 1));
+    }
+
+    public function testBulkChangeEdit_nonStaffNonLeaderCannotCreateForOthers(): void
+    {
+        $r = $this->service->processBulkChangeEdit([self::d(5) => ['1' => ['3' => '1']]], 1, 'tester', $this->reservationTable, $this->userTable, [], 3, false, 1, false);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('権限がありません', $r['message']);
+    }
+
+    public function testBulkChangeEdit_staffCannotSwapLunchToBentoInLastMinute(): void
+    {
+        $date = self::d(5);
+        $this->insertReservation(['i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => 2]);
+
+        $r = $this->callBulkChangeEdit([$date => ['1' => ['2' => '0', '4' => '1']]], false, 1);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('入れ替えられません', $r['message']);
+    }
+
+    public function testBulkChangeEdit_newLunchWhileBentoActive_returnsLunchBentoMessage(): void
+    {
+        $date = self::d(5);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4]);
+
+        $r = $this->callBulkChangeEdit([$date => ['3' => ['2' => '1', '4' => '1']]], true, 99);
+
+        $this->assertFalse($r['ok']);
+        $this->assertNull($this->fetchReservation(3, $date, 2, 1));
+    }
+
+    public function testBulkChangeEdit_versionConflictAndUnexpectedErrorsAreConverted(): void
+    {
+        $date = self::d(20);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date]);
+        $args = [[$date => ['3' => ['1' => '0']]], 1, 'tester'];
+
+        $conflict = $this->service->processBulkChangeEdit(...[...$args, $this->tableWithUpdate(static fn() => false), $this->userTable, [], 99, true]);
+        $this->assertFalse($conflict['ok']);
+        $this->assertStringContainsString('競合', $conflict['message']);
+
+        $runtime = $this->service->processBulkChangeEdit(...[...$args, $this->tableWithUpdate(static function (): bool {
+            throw new \RuntimeException('boom');
+        }), $this->userTable, [], 99, true]);
+        $this->assertSame('直前編集の保存中にエラーが発生しました。', $runtime['message']);
+
+        $other = $this->service->processBulkChangeEdit(...[...$args, $this->tableWithUpdate(static function (): bool {
+            throw new \LogicException('boom');
+        }), $this->userTable, [], 99, true]);
+        $this->assertSame('直前編集の保存中にエラーが発生しました。', $other['message']);
+
+        $duplicate = $this->service->processBulkChangeEdit(...[...$args, $this->tableWithUpdate(static function (): bool {
+            throw new \App\Exception\ApprovedReservationException();
+        }), $this->userTable, [], 99, true]);
+        $this->assertFalse($duplicate['ok']);
+        // 変更は取り消されている
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 1, 1)->i_change_flag);
+    }
+
+    public function testBulkAdd_requiresTypeAndLoginUser(): void
+    {
+        $this->assertStringContainsString('予約タイプ', $this->bulkAdd([])['message']);
+        $this->assertStringContainsString('ログインユーザーを特定できない', $this->bulkAdd(['reservation_type' => 'group'], 0)['message']);
+        $this->assertStringContainsString('無効な予約タイプ', $this->bulkAdd(['reservation_type' => 'weird'])['message']);
+    }
+
+    public function testPersonalBulkAdd_requiresDateAndMeal(): void
+    {
+        $this->assertSame('日付が選択されていません。', $this->bulkAdd(['reservation_type' => 'personal', 'dates' => [self::d(30) => '0'], 'meals' => [1 => ['1' => '1']]])['message']);
+        $this->assertSame('食事が選択されていません。', $this->bulkAdd(['reservation_type' => 'personal', 'dates' => [self::d(30) => '1'], 'meals' => [1 => ['1' => '0']]])['message']);
+    }
+
+    public function testPersonalBulkAdd_unknownRoom_isRejected(): void
+    {
+        $r = $this->bulkAdd(['reservation_type' => 'personal', 'dates' => [self::d(30) => '1'], 'meals' => [1 => ['999' => '1']]]);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('部屋情報が不正', $r['message']);
+    }
+
+    public function testPersonalBulkAdd_dateRules(): void
+    {
+        $real = new ReservationBulkService();
+        $meals = [1 => ['1' => '1']];
+
+        $bad = $this->bulkAdd(['reservation_type' => 'personal', 'dates' => ['2030/01/01' => '1'], 'meals' => $meals], 99, true, null, $real);
+        $this->assertSame('無効な日付が含まれています。', $bad['message']);
+
+        $past = $this->bulkAdd(['reservation_type' => 'personal', 'dates' => [date('Y-m-d', strtotime('-3 days')) => '1'], 'meals' => $meals], 99, true, null, $real);
+        $this->assertFalse($past['ok']);
+        $this->assertStringContainsString('過去日', $past['message']);
+
+        $tooSoon = $this->bulkAdd(['reservation_type' => 'personal', 'dates' => [self::d(3) => '1'], 'meals' => $meals], 99, true, null, $real);
+        $this->assertFalse($tooSoon['ok']);
+        $this->assertStringContainsString('15日目以降', $tooSoon['message']);
+    }
+
+    public function testPersonalBulkAdd_existingActiveReservationIsSkippedWithNotice(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 99, 'd_reservation_date' => $date, 'i_reservation_type' => 1]);
+
+        $r = $this->bulkAdd(['reservation_type' => 'personal', 'dates' => [$date => '1'], 'meals' => [1 => ['1' => '1'], 3 => ['1' => '1']]]);
+
+        $this->assertTrue($r['ok']);
+        $this->assertStringContainsString('既に存在していたためスキップ', $r['message']);
+        $this->assertNotNull($this->fetchReservation(99, $date, 3, 1));
+    }
+
+    public function testPersonalBulkAdd_reactivatesCancelledRowAndSwapsOpponent(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 99, 'd_reservation_date' => $date, 'i_reservation_type' => 2, 'eat_flag' => 0, 'i_change_flag' => 0]);
+        $this->insertReservation(['i_id_user' => 99, 'd_reservation_date' => $date, 'i_reservation_type' => 4]);
+
+        $r = $this->bulkAdd(['reservation_type' => 'personal', 'dates' => [$date => '1'], 'meals' => [2 => ['1' => '1'], 4 => ['1' => '0']]]);
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertStringContainsString('弁当を取り消して昼食にしました', $r['message']);
+        $this->assertSame([1, 1], [(int)$this->fetchReservation(99, $date, 2, 1)->eat_flag, (int)$this->fetchReservation(99, $date, 2, 1)->i_change_flag]);
+        $this->assertSame(0, (int)$this->fetchReservation(99, $date, 4, 1)->i_change_flag);
+    }
+
+    public function testGroupBulkAdd_unknownRoomAndNoDates(): void
+    {
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '999', 'day_users' => [self::d(30) => ['3' => ['1' => '1']]]]);
+        $this->assertStringContainsString('部屋情報が不正', $r['message']);
+
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1']);
+        $this->assertSame('日付が選択されていません。', $r['message']);
+
+        $r = $this->bulkAdd(['reservation_type' => 'group']);
+        $this->assertSame('部屋が選択されていません。', $r['message']);
+    }
+
+    public function testGroupBulkAdd_staleSnapshotIsConflict(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'dt_update' => date('Y-m-d 12:00:00')]);
+
+        $r = $this->bulkAdd([
+            'reservation_type' => 'group', 'i_id_room' => '1',
+            'day_users' => [$date => ['3' => ['2' => '1']]],
+            'reservation_snapshot' => [$date => '2000-01-01 00:00:00'],
+        ]);
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame($date, $r['conflict_date']);
+        $this->assertNull($this->fetchReservation(3, $date, 2, 1));
+    }
+
+    public function testGroupBulkAdd_reactivatesCancelledRowAndIgnoresMalformedInput(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'eat_flag' => 0, 'i_change_flag' => 0]);
+
+        $r = $this->bulkAdd([
+            'reservation_type' => 'group', 'i_id_room' => '1',
+            'day_users' => [$date => ['3' => ['1' => '1', '9' => '1'], '2' => 'junk'], self::d(31) => 'junk'],
+        ]);
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertSame([1, 1], [(int)$this->fetchReservation(3, $date, 1, 1)->eat_flag, (int)$this->fetchReservation(3, $date, 1, 1)->i_change_flag]);
+    }
+
+    public function testGroupBulkAdd_existingActiveRowIsSkippedWithUserName(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 1]);
+
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1', 'day_users' => [$date => ['3' => ['1' => '1']]]]);
+
+        $this->assertTrue($r['ok']);
+        $this->assertStringContainsString('一般ユーザー', $r['message']);
+    }
+
+    public function testGroupBulkAdd_cancelWithoutPermissionIsRejected(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => 1]);
+
+        // 職員(user 2)は職員(user 1)の予約を取り消せない
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1', 'day_users' => [$date => ['1' => ['1' => '0']]]], 2, false);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('権限がありません', $r['message']);
+        $this->assertSame(1, (int)$this->fetchReservation(1, $date, 1, 1)->i_change_flag);
+    }
+
+    public function testGroupBulkAdd_legacyUsersAndDatesFormat(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 3]);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => self::d(31), 'i_reservation_type' => 1, 'eat_flag' => 0, 'i_change_flag' => 0]);
+
+        $r = $this->bulkAdd([
+            'reservation_type' => 'group', 'i_id_room' => '1',
+            'dates' => [$date => '1', self::d(31) => '1', self::d(32) => '0'],
+            'users' => [3 => ['morning' => '1', 'night' => '1', 'noon' => '0']],
+        ]);
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertStringContainsString('一般ユーザー', $r['message']); // 夜は既存でスキップ
+        $this->assertNotNull($this->fetchReservation(3, $date, 1, 1));       // 新規
+        $this->assertSame(1, (int)$this->fetchReservation(3, self::d(31), 1, 1)->i_change_flag); // 復活
+        $this->assertNull($this->fetchReservation(3, self::d(32), 1, 1));
+    }
+
+    public function testGroupBulkAdd_legacyFormatRejectsOthersWithoutPermission(): void
+    {
+        $r = $this->bulkAdd([
+            'reservation_type' => 'group', 'i_id_room' => '1',
+            'dates' => [self::d(30) => '1'],
+            'users' => [1 => ['morning' => '1']],
+        ], 2, false);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('権限がありません', $r['message']);
+        $this->assertNull($this->fetchReservation(1, self::d(30), 1, 1));
+    }
+
+    public function testBulkAdd_blockLeaderCanRegisterForOthersInRoom(): void
+    {
+        $date = self::d(30);
+
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1', 'day_users' => [$date => ['1' => ['1' => '1']]]], 2, false, null, null, 1, true);
+        $r2 = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1', 'dates' => [self::d(31) => '1'], 'users' => [1 => ['morning' => '1']]], 2, false, null, null, 1, true);
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertTrue($r2['ok'], $r2['message'] ?? '');
+        $this->assertNotNull($this->fetchReservation(1, $date, 1, 1));
+        $this->assertNotNull($this->fetchReservation(1, self::d(31), 1, 1));
+    }
+
+    public function testBulkAdd_todayDateDropsTodayReportCache(): void
+    {
+        $today = date('Y-m-d');
+        $key = sprintf('today_report:%d:%s', 3, $today);
+        \Cake\Cache\Cache::write($key, 'cached', 'default');
+
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1', 'day_users' => [$today => ['3' => ['2' => '1']]]]);
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertNull(\Cake\Cache\Cache::read($key, 'default'));
+
+        \Cake\Cache\Cache::write($key, 'cached', 'default');
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1', 'dates' => [$today => '1'], 'users' => [3 => ['night' => '1']]]);
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertNull(\Cake\Cache\Cache::read($key, 'default'));
+    }
+
+    public function testBulkAdd_versionConflictAndSaveErrorsAreConverted(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 1]);
+        $data = ['reservation_type' => 'group', 'i_id_room' => '1', 'day_users' => [$date => ['3' => ['1' => '0']]]];
+
+        $conflict = $this->bulkAdd($data, 99, true, $this->tableWithUpdate(static fn() => false));
+        $this->assertStringContainsString('競合', $conflict['message']);
+
+        $runtime = $this->bulkAdd($data, 99, true, $this->tableWithUpdate(static function (): bool {
+            throw new \RuntimeException('boom');
+        }));
+        $this->assertSame('予約の保存中にエラーが発生しました。', $runtime['message']);
+
+        $other = $this->bulkAdd($data, 99, true, $this->tableWithUpdate(static function (): bool {
+            throw new \LogicException('boom');
+        }));
+        $this->assertSame('予約の保存中にエラーが発生しました。', $other['message']);
+
+        $approved = $this->bulkAdd($data, 99, true, $this->tableWithUpdate(static function (): bool {
+            throw new \App\Exception\ApprovedReservationException();
+        }));
+        $this->assertFalse($approved['ok']);
+        $this->assertSame(1, (int)$this->fetchReservation(3, $date, 1, 1)->i_change_flag);
+    }
+
+    public function testBulkAdd_newLunchWhileBentoActive_isRejectedWithReason(): void
+    {
+        $date = self::d(30);
+        $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 4, 'i_id_room' => 1]);
+
+        $r = $this->bulkAdd(['reservation_type' => 'group', 'i_id_room' => '1', 'day_users' => [$date => ['3' => ['2' => '1', '4' => '1']]]]);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('昼食と弁当は同時に予約できません', $r['message']);
+        $this->assertNull($this->fetchReservation(3, $date, 2, 1));
+    }
 }
