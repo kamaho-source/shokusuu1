@@ -278,6 +278,18 @@ class MRoomInfoControllerTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/<tr data-user-id="2"[^>]*data-child/', $body);
     }
 
+    /** 区分が未設定の人は、詳細画面でも編集画面でも「未設定」と出る（区分名は UserRole::levelLabel で共通） */
+    public function testUnsetLevelIsLabeledSameOnViewAndEdit(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => null], ['i_id_user' => 2]);
+        $this->loginAs(1, 1, 0);
+        foreach (['/MRoomInfo/view/1', '/MRoomInfo/edit/1'] as $url) {
+            $this->get($url);
+            $this->assertResponseOk();
+            $this->assertResponseContains('未設定', $url);
+        }
+    }
+
     /** 所属部屋の職員は編集画面を開け、部屋名は表示だけ */
     public function testStaffOfRoomCanOpenEditForReorderOnly(): void
     {

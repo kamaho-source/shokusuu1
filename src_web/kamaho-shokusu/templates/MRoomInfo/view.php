@@ -68,7 +68,7 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
                                     <td><?= h($member->c_user_name) ?></td>
                                     <td><?= $member->i_disp_no === null ? '' : $this->Number->format($member->i_disp_no) ?></td>
                                     <td>
-                                        <?= h(($member->i_user_level !== null && \App\Domain\ValueObject\UserRole::isStaffLevel((int)$member->i_user_level)) ? '職員' : ($member->i_user_level === 1 ? '児童' : 'その他')) ?>
+                                        <?= h(\App\Domain\ValueObject\UserRole::levelLabel($member->i_user_level === null ? null : (int)$member->i_user_level)) ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

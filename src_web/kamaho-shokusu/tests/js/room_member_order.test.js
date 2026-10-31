@@ -12,6 +12,7 @@ const setup = () => {
     document.body.innerHTML = `
         <form id="f">
             <div class="xl-wrap">
+                <input type="checkbox" id="member-order-drag">
                 <span id="member-order-dirty"></span>
                 <button type="button" data-age-sort="asc">年下から</button>
                 <button type="button" data-age-sort="asc" data-age-scope="child">子どもだけ年下から</button>
@@ -64,5 +65,16 @@ describe('room-member-order.js', () => {
         document.getElementById('member-order-undo').click();
         expect(order()).toEqual([1, 2, 3, 4, 5]);
         expect(document.getElementById('member-order-dirty').textContent).toBe('保存済み');
+    });
+
+    test('書き換えた数字が無いときのドラッグ開始では、行を入れ直さない（Chrome がドラッグを中断しないように）', () => {
+        const toggle = document.getElementById('member-order-drag');
+        toggle.checked = true;
+        toggle.dispatchEvent(new Event('change'));
+        const spy = jest.spyOn(document.querySelector('#member-order-table tbody'), 'appendChild');
+        const ev = new Event('dragstart', { bubbles: true });
+        ev.dataTransfer = { setData() {}, effectAllowed: '' };
+        document.querySelector('tr[data-user-id="2"]').dispatchEvent(ev);
+        expect(spy).not.toHaveBeenCalled();
     });
 });

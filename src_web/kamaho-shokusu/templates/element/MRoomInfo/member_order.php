@@ -13,12 +13,6 @@
 <?php if (!empty($users)): ?>
     <?php
     // 並びは RoomMemberOrderService::orderMembers（表示順 → 名前）。区分（職員・児童・その他）をまたいで並べ替えられる
-    $levelLabel = static fn(?int $level): string => match (true) {
-        $level === null => '未設定',
-        \App\Domain\ValueObject\UserRole::isStaffLevel($level) => '職員',
-        $level === 1 => '児童',
-        default => 'その他',
-    };
     ?>
     <?php $this->Html->css('room-member-order.css', ['block' => true]); ?>
     <h5 class="mt-3"><?= __('所属メンバー') ?>（<?= count($users) ?>人）</h5>
@@ -66,7 +60,7 @@
                                 <?= $i + 1 ?>
                             <?php endif; ?>
                         </td>
-                        <td><?= h($levelLabel($member->i_user_level === null ? null : (int)$member->i_user_level)) ?></td>
+                        <td><?= h(\App\Domain\ValueObject\UserRole::levelLabel($member->i_user_level === null ? null : (int)$member->i_user_level)) ?></td>
                         <td><?= h($member->c_user_name) ?></td>
                         <td class="age"><?= $member->i_user_age === null ? '' : (int)$member->i_user_age . '歳' ?></td>
                         <td class="num"><?= (int)$member->i_id_user ?></td>

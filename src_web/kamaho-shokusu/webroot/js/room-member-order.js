@@ -40,8 +40,10 @@
         if (undoBtn) undoBtn.disabled = dirty === 0;
     };
 
-    // 入っている数字の順に並べる。同じ数字なら書き換えた行が先、それ以外は今の並びのまま。数字が空・不正なら今の位置
+    // 入っている数字の順に並べる。同じ数字なら書き換えた行が先、それ以外は今の並びのまま。数字が空・不正なら今の位置。
+    // 書き換えた行が無ければ何もしない（dragstart 中に行を入れ直すと Chrome がドラッグを中断するため）
     const applyNumbers = () => {
+        if (!rows().some(isEdited)) return;
         rows()
             .map((r, i) => {
                 const n = parseInt(inputOf(r).value, 10);
