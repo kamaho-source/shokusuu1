@@ -9,13 +9,13 @@ use Cake\ORM\TableRegistry;
 /**
  * 予約履歴サービス（読み取り専用）
  *
- * 「いつ食べたか」の確認画面に必要な次の3つを返す。何も書き込まない。
- *   - mealRows()   : 日×食事（朝昼夜弁当）の予約と実食
+ * 過去の予約の確認画面に必要な次のものを返す。何も書き込まない。
+ *   - mealRows()   : 日×食事（朝昼夜弁当）の予約済み
+ *   - roomSummary(): 部屋別・日別の予約済み人数
  *   - logRows()    : 変更の経緯（監査ログから）
- *   - roomSummary(): 部屋別・日別の食べた人数
  *
- * 「食べた」の判定は ReservationDatePolicy::countedValue() に一本化する
- * （食数の報告・カレンダー・承認の集計と同じ基準）。
+ * 実食機能はオフのため「食べた」ではなく「予約済み」かどうかを出す。判定は ReservationDatePolicy::countedValue()
+ * （食数の報告・カレンダーと同じ基準）。過去日は直前編集の i_change_flag（NULL なら eat_flag）で決まる。
  */
 class ReservationHistoryService
 {
@@ -126,9 +126,9 @@ class ReservationHistoryService
     }
 
     /**
-     * 日×食事の予約と実食。
+     * 日×食事の予約済み。予約済みの食事だけを返し、予約済みが1つも無い日は含めない。
      *
-     * @return array<string, array<int, array{reserved:bool, ate:bool}>> 日付 => 食事種別 => 状態（日付順）
+     * @return array<string, array<int, true>> 日付 => 食事種別 => true（日付順）
      */
     public function mealRows(int $userId, string $from, string $to): array
     {
@@ -139,12 +139,10 @@ class ReservationHistoryService
         $out = [];
         foreach ($rows as $r) {
             $date = $r->d_reservation_date->format('Y-m-d');
-            $type = (int)$r->i_reservation_type;
-            $reserved = (int)$r->eat_flag === 1;
-            $ate = $this->datePolicy->countedValue($date, $r->eat_flag, $r->i_change_flag) === 1;
-            // 部屋をまたいで同じ食事の行がある場合は、どれかが真なら真
-            $prev = $out[$date][$type] ?? ['reserved' => false, 'ate' => false];
-            $out[$date][$type] = ['reserved' => $prev['reserved'] || $reserved, 'ate' => $prev['ate'] || $ate];
+            // 部屋をまたいで同じ食事の行がある場合は、どれかが予約済みなら予約済み
+            if ($this->datePolicy->countedValue($date, $r->eat_flag, $r->i_change_flag) === 1) {
+                $out[$date][(int)$r->i_reservation_type] = true;
+            }
         }
         ksort($out);
 
@@ -152,11 +150,11 @@ class ReservationHistoryService
     }
 
     /**
-     * 変更の経緯（新しい順）。監査ログのうち、対象者の予約・実食の操作だけを、表示に必要な項目に絞って返す。
+     * 変更の経緯（新しい順）。監査ログのうち、対象者の予約の操作だけを、表示に必要な項目に絞って返す。
+     * 実食機能はオフのため実食の操作（actual_meal_save）は含めない。
      * 操作者の名前は $withActorName が真のときだけ含める（IP・失敗理由は含めない）。
      *
      * 対象者の特定:
-     *   - actual_meal_save … c_target_id が「ユーザーID:日付:部屋:食事」
      *   - reservation_toggle … detail.user_id。無い古い記録は、操作者＝対象者の本人操作とみなす
      * 代理の予約登録（reservation_individual_save）などは対象者が記録されていないため含まれない。
      *
@@ -168,7 +166,6 @@ class ReservationHistoryService
             ->where([
                 'i_result' => 1,
                 'OR' => [
-                    ['c_action' => 'actual_meal_save', 'c_target_id LIKE' => $userId . ':%'],
                     ['c_action' => 'reservation_toggle', 'c_detail LIKE' => '%"user_id":' . $userId . ',%'],
                     ['c_action' => 'reservation_toggle', 'c_detail LIKE' => '%"user_id":' . $userId . '}%'],
                     ['c_action' => 'reservation_toggle', 'i_actor_user_id' => $userId, 'c_detail NOT LIKE' => '%"user_id":%'],
@@ -185,16 +182,9 @@ class ReservationHistoryService
             if (!is_array($detail)) {
                 continue;
             }
-            if ($log->c_action === 'actual_meal_save') {
-                $parts = explode(':', (string)$log->c_target_id);
-                $date = $parts[1] ?? '';
-                $meal = (int)($detail['meal_type'] ?? 0);
-                $kind = !empty($detail['checked']) ? 'ate' : 'not_ate';
-            } else {
-                $date = (string)($detail['date'] ?? '');
-                $meal = (int)($detail['meal'] ?? 0);
-                $kind = (int)($detail['value'] ?? 0) === 1 ? 'reserve' : 'cancel';
-            }
+            $date = (string)($detail['date'] ?? '');
+            $meal = (int)($detail['meal'] ?? 0);
+            $kind = (int)($detail['value'] ?? 0) === 1 ? 'reserve' : 'cancel';
             if ($date < $from || $date > $to || !isset(self::MEAL_LABELS[$meal])) {
                 continue;
             }
@@ -215,7 +205,7 @@ class ReservationHistoryService
     }
 
     /**
-     * 部屋別・日別の「食べた」人数。個人は出さない。
+     * 部屋別・日別の予約済み人数。個人は出さない。予約済みが1人もいない日は含めない。
      *
      * @return array<string, array<int, int>> 日付 => 食事種別 => 人数（日付順）
      */
@@ -228,13 +218,29 @@ class ReservationHistoryService
         $out = [];
         foreach ($rows as $r) {
             $date = $r->d_reservation_date->format('Y-m-d');
+            if ($this->datePolicy->countedValue($date, $r->eat_flag, $r->i_change_flag) !== 1) {
+                continue;
+            }
             $type = (int)$r->i_reservation_type;
-            $out[$date][$type] = ($out[$date][$type] ?? 0)
-                + $this->datePolicy->countedValue($date, $r->eat_flag, $r->i_change_flag);
+            $out[$date][$type] = ($out[$date][$type] ?? 0) + 1;
         }
         ksort($out);
 
         return $out;
+    }
+
+    /**
+     * 変更の経緯の記録が始まった日（監査ログで最も古い日）。記録が1件も無ければ null。
+     */
+    public function logStartDate(): ?string
+    {
+        $row = TableRegistry::getTableLocator()->get('TAuditLog')->find()
+            ->select(['first' => 'MIN(dt_create)'])
+            ->enableHydration(false)
+            ->first();
+        $first = $row['first'] ?? null;
+
+        return $first === null ? null : substr((string)$first, 0, 10);
     }
 
     /**

@@ -10,18 +10,18 @@ use Cake\Http\Response;
 /**
  * 予約履歴コントローラー（読み取り専用）
  *
- * 職員・管理者が「いつ食べたか」を確認する画面。タブは
- *   meals   … 食べた日（実食）
- *   log     … 変更の経緯
+ * 職員・管理者が過去の予約を確認する画面。タブは左から
+ *   meals   … 予約状況（実食機能はオフのため「予約済み」かどうか）
  *   summary … 部屋集計
+ *   log     … 変更の経緯
  * ビジネスロジックは ReservationHistoryService にある。
  */
 class ReservationHistoryController extends AppController
 {
     /** 変更の経緯に操作者の名前も出すか。false なら区分（本人／代理／管理者）のみ */
-    private const SHOW_ACTOR_NAME = false;
+    private const SHOW_ACTOR_NAME = true;
 
-    private const TABS = ['meals', 'log', 'summary'];
+    private const TABS = ['meals', 'summary', 'log'];
 
     private ReservationHistoryService $historyService;
 
@@ -73,6 +73,7 @@ class ReservationHistoryController extends AppController
         $forbidden = null;
         $target = null;
         $meals = $logs = $summary = [];
+        $logStart = null;
         $rooms = $svc->summaryRooms($actorId);
         $roomId = (int)$this->request->getQuery('room') ?: (int)(array_key_first($rooms) ?? 0);
 
@@ -89,6 +90,7 @@ class ReservationHistoryController extends AppController
                 $target = null;
             } elseif ($tab === 'log') {
                 $logs = $svc->logRows($targetId, $from, $to, self::SHOW_ACTOR_NAME);
+                $logStart = $svc->logStartDate();
             } else {
                 $meals = $svc->mealRows($targetId, $from, $to);
             }
@@ -102,7 +104,7 @@ class ReservationHistoryController extends AppController
         $mealLabels = ReservationHistoryService::MEAL_LABELS;
         $this->set(compact(
             'from', 'to', 'tab', 'targets', 'targetId', 'target', 'actorId', 'error', 'forbidden',
-            'meals', 'logs', 'summary', 'rooms', 'roomId', 'mealLabels'
+            'meals', 'logs', 'logStart', 'summary', 'rooms', 'roomId', 'mealLabels'
         ));
 
         return null;

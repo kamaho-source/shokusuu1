@@ -1,6 +1,6 @@
 <?php
 /**
- * 予約履歴（いつ食べたか）の確認画面
+ * 予約履歴の確認画面（予約状況・部屋集計・変更の経緯）
  *
  * @var \App\View\AppView $this
  * @var string $from
@@ -12,8 +12,9 @@
  * @var int $actorId
  * @var string|null $error
  * @var string|null $forbidden
- * @var array<string, array<int, array{reserved:bool, ate:bool}>> $meals
+ * @var array<string, array<int, true>> $meals
  * @var array<int, array{at:string, date:string, meal:int, kind:string, actor:string}> $logs
+ * @var string|null $logStart
  * @var array<string, array<int, int>> $summary
  * @var array<int, string> $rooms
  * @var int $roomId
@@ -21,9 +22,9 @@
  */
 $this->assign('title', '予約履歴');
 
-$tabs = ['meals' => '食べた日（実食）', 'log' => '変更の経緯', 'summary' => '部屋集計'];
-$kindLabels = ['reserve' => '予約', 'cancel' => '取消', 'ate' => '食べた（実食）', 'not_ate' => '食べていない（実食）'];
-$kindClass = ['reserve' => 'text-bg-success', 'cancel' => 'text-bg-danger', 'ate' => 'text-bg-primary', 'not_ate' => 'text-bg-secondary'];
+$tabs = ['meals' => '予約状況', 'summary' => '部屋集計', 'log' => '変更の経緯'];
+$kindLabels = ['reserve' => '予約', 'cancel' => '取消'];
+$kindClass = ['reserve' => 'text-bg-success', 'cancel' => 'text-bg-danger'];
 $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' => [
     'from' => $from, 'to' => $to, 'user' => $targetId, 'room' => $roomId, 'tab' => $t,
 ]]);
@@ -85,9 +86,9 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
         <div class="alert alert-danger" role="alert"><strong>権限がありません。</strong><br><?= h($forbidden) ?></div>
     <?php elseif ($tab === 'summary'): ?>
         <?php if (!$summary): ?>
-            <div class="alert alert-secondary">この期間に食べた記録はありません。</div>
+            <div class="alert alert-secondary">この期間の予約はありません。</div>
         <?php else: ?>
-            <p class="small text-muted"><?= h($rooms[$roomId] ?? '') ?>の実食（変更後）の人数です。個人名は出しません。</p>
+            <p class="small text-muted"><?= h($rooms[$roomId] ?? '') ?>の予約済みの人数です（直前の変更を反映した最終的な予約）。個人名は出しません。</p>
             <div class="table-responsive">
                 <table class="table table-bordered table-sm text-center align-middle">
                     <thead class="table-light"><tr><th>日付</th><?php foreach ($mealLabels as $l): ?><th><?= h($l) ?></th><?php endforeach; ?><th>合計</th></tr></thead>
@@ -109,6 +110,9 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
         <?php endif; ?>
     <?php elseif ($tab === 'log'): ?>
         <p class="small text-muted">対象：<?= h($target['name'] ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
+        <?php if ($logStart === null || $from < $logStart): ?>
+            <div class="alert alert-info small"><?= $logStart === null ? '変更の経緯はまだ記録されていません。' : h($logStart) . ' より前の変更の経緯は記録されていません。' ?></div>
+        <?php endif; ?>
         <?php if (!$logs): ?>
             <div class="alert alert-secondary">この期間の変更の経緯はありません。</div>
         <?php else: ?>
@@ -127,34 +131,27 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
     <?php else: ?>
         <p class="small text-muted">対象：<?= h($target['name'] ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
         <?php if (!$meals): ?>
-            <div class="alert alert-secondary">この期間に食べた記録はありません。</div>
+            <div class="alert alert-secondary">この期間の予約はありません。</div>
         <?php else: ?>
             <div class="table-responsive">
                 <table class="table table-bordered table-sm text-center align-middle">
-                    <thead class="table-light"><tr><th>日付</th><?php foreach ($mealLabels as $l): ?><th><?= h($l) ?></th><?php endforeach; ?><th>食べた食数</th></tr></thead>
+                    <thead class="table-light"><tr><th>日付</th><?php foreach ($mealLabels as $l): ?><th><?= h($l) ?></th><?php endforeach; ?><th>予約済み食数</th></tr></thead>
                     <tbody>
                     <?php $tot = array_fill_keys(array_keys($mealLabels), 0); ?>
                     <?php foreach ($meals as $date => $byType): ?>
                         <tr>
                             <td><?= h($date) ?></td>
-                            <?php $sum = 0; foreach ($mealLabels as $type => $l):
-                                $c = $byType[$type] ?? ['reserved' => false, 'ate' => false];
-                                $sum += $c['ate'] ? 1 : 0;
-                                $tot[$type] += $c['ate'] ? 1 : 0;
-                                $diff = $c['reserved'] !== $c['ate'];
-                                ?>
-                                <td class="<?= $diff ? 'table-warning' : '' ?>">
-                                    <?= $c['ate'] ? '● 食べた' : ($c['reserved'] ? '予約のみ' : '－') ?>
-                                </td>
+                            <?php foreach (array_keys($mealLabels) as $type): $booked = isset($byType[$type]); $tot[$type] += $booked ? 1 : 0; ?>
+                                <td><?= $booked ? '● 予約済み' : '－' ?></td>
                             <?php endforeach; ?>
-                            <td><?= $sum ?></td>
+                            <td><?= count($byType) ?></td>
                         </tr>
                     <?php endforeach; ?>
                     </tbody>
                     <tfoot class="table-light"><tr><th>期間合計</th><?php foreach ($tot as $n): ?><th><?= $n ?></th><?php endforeach; ?><th><?= array_sum($tot) ?></th></tr></tfoot>
                 </table>
             </div>
-            <p class="small text-muted">「● 食べた」は実食（変更後）。黄色は予約と実食が違う食事です（「予約のみ」＝予約したが食べなかった。黄色の「● 食べた」＝予約なしで食べた）。</p>
+            <p class="small text-muted">「● 予約済み」は直前の変更を反映した最終的な予約です。予約済みの食事が無い日は表示しません。</p>
         <?php endif; ?>
     <?php endif; ?>
 </div>

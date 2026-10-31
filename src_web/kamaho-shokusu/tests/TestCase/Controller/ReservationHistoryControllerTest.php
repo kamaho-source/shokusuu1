@@ -53,14 +53,28 @@ class ReservationHistoryControllerTest extends TestCase
         ]]);
     }
 
-    public function testIndex_staff_seesChildMeals(): void
+    public function testIndex_staff_seesChildReservations(): void
     {
         $this->login(2);
         $this->get('/ReservationHistory?' . self::PERIOD . '&user=3');
         $this->assertResponseOk();
         $this->assertResponseContains('2024-09-05');
-        $this->assertResponseContains('● 食べた');
+        $this->assertResponseContains('● 予約済み');
         $this->assertResponseContains('代理で閲覧');
+        // 実食機能はオフのため「食べた」「実食」は出さない
+        $this->assertResponseNotContains('食べた');
+        $this->assertResponseNotContains('実食');
+    }
+
+    /** タブは左から 予約状況 → 部屋集計 → 変更の経緯 */
+    public function testIndex_tabOrder(): void
+    {
+        $this->login(2);
+        $this->get('/ReservationHistory?' . self::PERIOD . '&user=3');
+        $body = (string)$this->_response->getBody();
+        $pos = array_map(fn($l) => strpos($body, '>' . $l . '</a>'), ['予約状況', '部屋集計', '変更の経緯']);
+        $this->assertNotContains(false, $pos);
+        $this->assertTrue($pos[0] < $pos[1] && $pos[1] < $pos[2]);
     }
 
     public function testIndex_admin_ok(): void
@@ -123,6 +137,28 @@ class ReservationHistoryControllerTest extends TestCase
         $this->get('/ReservationHistory?' . self::PERIOD . '&user=3&tab=log');
         $this->assertResponseOk();
         $this->assertResponseContains('変更の経緯');
+    }
+
+    /** 変更の経緯に操作者の名前も出す。記録開始日より前を含む期間は注記を出す */
+    public function testIndex_logTab_showsActorNameAndUnrecordedNote(): void
+    {
+        $t = TableRegistry::getTableLocator()->get('TAuditLog');
+        $t->deleteAll([]);
+        $t->save($t->newEntity([
+            'c_category' => 'reservation', 'c_action' => 'reservation_toggle', 'c_target_table' => 't_reservation_info',
+            'c_target_id' => 'room:1', 'i_actor_user_id' => 2, 'c_actor_user_name' => '山田代理',
+            'i_result' => 1, 'c_detail' => json_encode(['date' => '2024-09-05', 'meal' => 1, 'value' => 1, 'user_id' => 3]),
+            'dt_create' => '2024-09-03 09:00:00',
+        ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+
+        $this->login(2);
+        $this->get('/ReservationHistory?' . self::PERIOD . '&user=3&tab=log');
+        $this->assertResponseOk();
+        $this->assertResponseContains('代理（山田代理）');
+        $this->assertResponseContains('2024-09-03 より前の変更の経緯は記録されていません');
+
+        $this->get('/ReservationHistory?from=2024-09-04&to=2024-09-30&user=3&tab=log');
+        $this->assertResponseNotContains('記録されていません');
     }
 
     public function testDashboard_cardShownToStaffOnly(): void

@@ -93,33 +93,33 @@ class ReservationHistoryServiceTest extends TestCase
 
     // ---- mealRows ----
 
-    public function testMealRows_ateAndReservedOnly(): void
+    public function testMealRows_bookedByLastMinuteFlag(): void
     {
         $t = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $row = fn(string $d, int $type, ?int $eat, ?int $chg, int $room = 1) => $t->save($t->newEntity([
             'i_id_user' => 3, 'd_reservation_date' => $d, 'i_reservation_type' => $type, 'i_id_room' => $room,
             'eat_flag' => $eat, 'i_change_flag' => $chg, 'i_version' => 1,
         ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
-        $row('2024-09-02', 1, 1, 1);      // 予約して食べた
-        $row('2024-09-02', 3, 1, 0);      // 予約したが食べなかった（実食で外した）
-        $row('2024-09-03', 1, 0, 1);      // 予約なしで食べた
-        $row('2024-09-03', 2, 1, null);   // 実食未入力 → 予約（eat_flag）で数える
-        $row('2024-09-03', 2, 0, 0, 2);   // 同じ食事の別部屋の行（どれかが真なら真）
+        $row('2024-09-02', 1, 1, 1);      // 予約済み
+        $row('2024-09-02', 3, 1, 0);      // 直前編集で取消（eat_flag は元の予約のまま） → 予約済みではない
+        $row('2024-09-03', 1, 0, 1);      // 直前編集で追加 → 予約済み
+        $row('2024-09-03', 2, 1, null);   // 直前編集なし → eat_flag で判定
+        $row('2024-09-03', 2, 0, 0, 2);   // 同じ食事の別部屋の行（どれかが予約済みなら予約済み）
+        $row('2024-09-04', 1, 1, 0);      // 取消だけの日 → 行を出さない
         $row('2024-08-31', 1, 1, 1);      // 期間外
 
         $rows = $this->svc->mealRows(3, '2024-09-01', '2024-09-30');
 
-        $this->assertSame(['2024-09-02', '2024-09-03'], array_keys($rows));
-        $this->assertSame(['reserved' => true, 'ate' => true], $rows['2024-09-02'][1]);
-        $this->assertSame(['reserved' => true, 'ate' => false], $rows['2024-09-02'][3]);
-        $this->assertSame(['reserved' => false, 'ate' => true], $rows['2024-09-03'][1]);
-        $this->assertSame(['reserved' => true, 'ate' => true], $rows['2024-09-03'][2]);
+        $this->assertSame([
+            '2024-09-02' => [1 => true],
+            '2024-09-03' => [1 => true, 2 => true],
+        ], $rows);
         $this->assertSame([], $this->svc->mealRows(2, '2024-09-01', '2024-09-30'), '他の人の分は出ない');
     }
 
     // ---- roomSummary ----
 
-    public function testRoomSummary_countsAteOnlyPerRoom(): void
+    public function testRoomSummary_countsBookedOnlyPerRoom(): void
     {
         $t = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         foreach ([[3, 1, 1], [2, 1, 1], [3, 1, 2]] as [$user, $room, $chg]) {
@@ -131,7 +131,7 @@ class ReservationHistoryServiceTest extends TestCase
 
         $sum = $this->svc->roomSummary(1, '2024-09-01', '2024-09-30');
 
-        $this->assertSame(['2024-09-02' => [1 => 1]], $sum, '部屋1: ユーザー3は食べた(1)、ユーザー2は食べていない(0)');
+        $this->assertSame(['2024-09-02' => [1 => 1]], $sum, '部屋1: ユーザー3は予約済み、ユーザー2は直前編集で取消');
         $this->assertSame([], $this->svc->roomSummary(9, '2024-09-01', '2024-09-30'));
     }
 
@@ -145,7 +145,7 @@ class ReservationHistoryServiceTest extends TestCase
             'i_actor_user_id' => $actor, 'c_actor_user_name' => $actorName, 'i_result' => $result,
             'c_detail' => json_encode($detail), 'dt_create' => $at,
         ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
-        // 対象者3: 本人の予約(旧形式=user_idなし)、職員2による代理予約、管理者1による代理取消、実食保存、失敗、期間外、他人
+        // 対象者3: 本人の予約(旧形式=user_idなし)、職員2による代理予約、管理者1による代理取消、実食保存（出さない）、失敗、期間外、他人
         $log('reservation_toggle', 'room:1', 3, '子ども', ['date' => '2024-09-05', 'meal' => 1, 'value' => 1], '2024-08-20 09:00:00');
         $log('reservation_toggle', 'room:1', 2, '職員', ['date' => '2024-09-05', 'meal' => 3, 'value' => 1, 'user_id' => 3], '2024-08-21 09:00:00');
         $log('reservation_toggle', 'room:1', 1, '管理者', ['date' => '2024-09-05', 'meal' => 3, 'value' => 0, 'user_id' => 3], '2024-08-22 09:00:00');
@@ -157,19 +157,27 @@ class ReservationHistoryServiceTest extends TestCase
 
         $rows = $this->svc->logRows(3, '2024-09-01', '2024-09-30');
 
-        $this->assertCount(4, $rows);
-        // 新しい順
-        $this->assertSame('ate', $rows[0]['kind']);
-        $this->assertSame('代理', $rows[0]['actor']);
-        $this->assertSame('cancel', $rows[1]['kind']);
-        $this->assertSame('管理者', $rows[1]['actor']);
-        $this->assertSame('reserve', $rows[2]['kind']);
-        $this->assertSame('代理', $rows[2]['actor']);
-        $this->assertSame('本人', $rows[3]['actor']);
-        $this->assertSame('夜', ReservationHistoryService::MEAL_LABELS[$rows[1]['meal']]);
-        // 名前は既定では出ない（IP・失敗理由も含まない）
-        $this->assertStringNotContainsString('職員', $rows[0]['actor']);
+        // 新しい順。実食機能はオフのため実食保存は出さない
+        $this->assertSame(['cancel', 'reserve', 'reserve'], array_column($rows, 'kind'));
+        $this->assertSame(['管理者', '代理', '本人'], array_column($rows, 'actor'));
+        $this->assertSame('夜', ReservationHistoryService::MEAL_LABELS[$rows[0]['meal']]);
+        // 名前は指定したときだけ（IP・失敗理由は含まない）
         $withName = $this->svc->logRows(3, '2024-09-01', '2024-09-30', true);
-        $this->assertSame('代理（職員）', $withName[0]['actor']);
+        $this->assertSame('代理（職員）', $withName[1]['actor']);
+    }
+
+    public function testLogStartDate(): void
+    {
+        $t = TableRegistry::getTableLocator()->get('TAuditLog');
+        $t->deleteAll([]);
+        $this->assertNull($this->svc->logStartDate());
+
+        foreach (['2024-08-20 09:00:00', '2024-08-15 23:59:00'] as $at) {
+            $t->save($t->newEntity([
+                'c_category' => 'reservation', 'c_action' => 'reservation_toggle', 'c_target_table' => 'x',
+                'i_actor_user_id' => 1, 'c_actor_user_name' => 't', 'i_result' => 1, 'c_detail' => '{}', 'dt_create' => $at,
+            ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+        }
+        $this->assertSame('2024-08-15', $this->svc->logStartDate());
     }
 }
