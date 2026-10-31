@@ -183,14 +183,20 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseNotContains('記録されていません');
     }
 
-    public function testDashboard_cardShownToStaffAndChild(): void
+    /** 職員以上はダッシュボードのカード、子どもはナビゲーションバーから開く */
+    public function testEntryPoints_cardForStaffAndNavForChild(): void
     {
-        foreach ([2, 3] as $userId) {
-            $this->login($userId);
-            $this->get('/');
-            $this->assertResponseOk();
-            $this->assertResponseContains('予約履歴');
-            $this->assertResponseContains('/ReservationHistory');
-        }
+        $this->login(2);
+        $this->get('/');
+        $this->assertResponseOk();
+        $this->assertResponseContains('過去の予約と変更の経緯を確認する');
+        $this->assertResponseNotContains('bi-clock-history');
+
+        $this->login(3);
+        $this->get('/ReservationHistory?' . self::PERIOD);
+        $this->assertResponseOk();
+        $this->assertResponseContains('bi-clock-history"></i>予約履歴');
+        $this->assertResponseContains('予約へ戻る');
+        $this->assertResponseNotContains('ダッシュボードへ戻る');
     }
 }

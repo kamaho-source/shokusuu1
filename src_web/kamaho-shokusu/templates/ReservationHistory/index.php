@@ -36,7 +36,12 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
 <div class="container py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h4 mb-0">予約履歴</h1>
-        <a class="btn btn-outline-secondary btn-sm" href="<?= $this->Url->build(['controller' => 'Pages', 'action' => 'dashboard']) ?>">ダッシュボードへ戻る</a>
+        <?php if ($canViewSummary): ?>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= $this->Url->build(['controller' => 'Pages', 'action' => 'dashboard']) ?>">ダッシュボードへ戻る</a>
+        <?php else: ?>
+            <?php /* 子どもはダッシュボードが無いので予約画面へ戻す */ ?>
+            <a class="btn btn-outline-secondary btn-sm" href="<?= $this->Url->build('/TReservationInfo') ?>">予約へ戻る</a>
+        <?php endif; ?>
     </div>
 
     <form method="get" class="card card-body mb-3">
