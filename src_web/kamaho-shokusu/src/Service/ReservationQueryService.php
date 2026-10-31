@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -177,7 +178,7 @@ class ReservationQueryService
                 ->where([
                     'd_reservation_date' => $date,
                     'i_id_user IN' => $userIds,
-                    'i_reservation_type IN' => [1, 2, 3, 4],
+                    'i_reservation_type IN' => MealType::values(),
                 ])
                 ->all();
 

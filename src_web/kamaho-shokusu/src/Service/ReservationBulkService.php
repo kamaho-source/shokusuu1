@@ -132,7 +132,7 @@ class ReservationBulkService
                         'd_reservation_date IN' => $dates,
                         'i_id_user IN' => $userIds,
                         'i_id_room' => $roomId,
-                        'i_reservation_type IN' => [1, 2, 3, 4],
+                        'i_reservation_type IN' => MealType::values(),
                     ])
                     ->all();
                 foreach ($existingRows as $row) {
@@ -158,7 +158,7 @@ class ReservationBulkService
                     uasort($meals, static fn($a, $b): int => ((int)$a === 1) <=> ((int)$b === 1));
                     foreach ($meals as $mealTypeRaw => $checked) {
                         $mealType = (int)$mealTypeRaw;
-                        if (!in_array($mealType, [1, 2, 3, 4], true)) {
+                        if (MealType::tryFrom($mealType) === null) {
                             continue;
                         }
                         $changeFlag = (int)$checked;
@@ -591,7 +591,7 @@ class ReservationBulkService
                         ->where([
                             'd_reservation_date IN' => $dates,
                             'i_id_user IN' => $userIds,
-                            'i_reservation_type IN' => [1, 2, 3, 4],
+                            'i_reservation_type IN' => MealType::values(),
                         ])
                         ->all();
                     foreach ($rows as $row) {
@@ -658,7 +658,7 @@ class ReservationBulkService
                         );
                         foreach ($mealData as $mealType => $checked) {
                             $mealType = (int)$mealType;
-                            if (!in_array($mealType, [1, 2, 3, 4], true)) {
+                            if (MealType::tryFrom($mealType) === null) {
                                 continue;
                             }
 

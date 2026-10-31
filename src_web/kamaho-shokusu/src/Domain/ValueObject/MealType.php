@@ -19,6 +19,16 @@ enum MealType: int
     /** 同じ日に同時に予約できない組（昼食・弁当）の区分値。 */
     public const EXCLUSIVE_VALUES = [self::Lunch->value, self::Bento->value];
 
+    /**
+     * すべての区分値（1〜4）。
+     *
+     * @return list<int>
+     */
+    public static function values(): array
+    {
+        return array_map(static fn(self $t): int => $t->value, self::cases());
+    }
+
     /** 同時に予約できない相手（昼食なら弁当、弁当なら昼食）。相手がいなければ null。 */
     public function exclusiveCounterpart(): ?self
     {

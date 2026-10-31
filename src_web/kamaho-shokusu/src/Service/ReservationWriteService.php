@@ -417,7 +417,7 @@ class ReservationWriteService
 
         // 管理者でも、存在しない・削除済みの部屋には登録できない。削除前に残った予約の取消だけは許す
         // 入力の検証はこの後で行うため、ここでは形式が正しいときだけ行を探す（不正な日付で SQL を投げない）
-        $cancelsExisting = $value === 0 && in_array($meal, [1, 2, 3, 4], true) && self::isValidYmd($dateStr)
+        $cancelsExisting = $value === 0 && $meal !== null && MealType::tryFrom($meal) !== null && self::isValidYmd($dateStr)
             && $this->reservationTable->exists([
             'i_id_user'          => $targetUserId,
             'i_id_room'          => $roomId,
@@ -456,7 +456,7 @@ class ReservationWriteService
             throw new InvalidInputException('過去日の予約は変更できません。');
         }
 
-        if (!in_array($meal, [1, 2, 3, 4], true)) {
+        if ($meal === null || MealType::tryFrom($meal) === null) {
             throw new InvalidInputException('Invalid meal type (1..4).');
         }
         if (!in_array($value, [0, 1], true)) {
@@ -645,7 +645,7 @@ class ReservationWriteService
                 $targetUserId = isset($payload['userId']) ? (int)$payload['userId'] : $loginUserId;
                 $dateStr = (string)($payload['date'] ?? '');
                 $meal = (int)($payload['meal'] ?? 0);
-                $canCheck = self::isValidYmd($dateStr) && in_array($meal, [1, 2, 3, 4], true);
+                $canCheck = self::isValidYmd($dateStr) && MealType::tryFrom($meal) !== null;
                 if ($canCheck && !in_array($fromRoomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, $meal), true)) {
                     throw new ConflictException('変更前の部屋の予約が見つかりません。画面を再読み込みしてください。');
                 }
@@ -812,7 +812,7 @@ class ReservationWriteService
             ->where([
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $date,
-                'i_reservation_type IN' => [1, 2, 3, 4],
+                'i_reservation_type IN' => MealType::values(),
             ])
             ->all();
 
@@ -991,7 +991,7 @@ class ReservationWriteService
             ->where([
                 'd_reservation_date'    => $date,
                 'i_id_user IN'          => $userIds,
-                'i_reservation_type IN' => [1, 2, 3, 4],
+                'i_reservation_type IN' => MealType::values(),
             ])
             ->all();
 

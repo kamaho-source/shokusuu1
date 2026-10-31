@@ -473,7 +473,7 @@ class TIndividualReservationInfoTable extends Table
         ?int $eatFlag = null,
         ?int $changeFlag = null
     ): array {
-        if (!in_array($meal, [1, 2, 3, 4], true)) {
+        if (MealType::tryFrom($meal) === null) {
             throw new \InvalidArgumentException('meal は 1(朝)/2(昼)/3(夜)/4(弁) のみ');
         }
 
@@ -537,9 +537,7 @@ class TIndividualReservationInfoTable extends Table
                 // 相互排他で相手を強制OFFにするため、相手が承認済みなら変更を拒否する
                 if ($opponent && in_array((int)($opponent->i_approval_status ?? 0), self::APPROVED_STATUSES, true)) {
                     throw new ApprovedReservationException(
-                        $opponentMeal === 2
-                            ? '同じ日の昼食予約が承認済みのため変更できません。'
-                            : '同じ日の弁当予約が承認済みのため変更できません。'
+                        sprintf('同じ日の%s予約が承認済みのため変更できません。', MealType::labelOf($opponentMeal))
                     );
                 }
 
@@ -656,7 +654,7 @@ class TIndividualReservationInfoTable extends Table
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $date,
                 'i_id_room'             => $roomId,
-                'i_reservation_type IN' => [1,2,3,4],
+                'i_reservation_type IN' => MealType::values(),
             ])
             ->all();
 
