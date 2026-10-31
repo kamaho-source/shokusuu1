@@ -39,4 +39,47 @@ final class CakeUserRepository implements UserRepositoryInterface
             $row->i_user_level === null ? null : (int)$row->i_user_level,
         );
     }
+
+    public function findRoleInfos(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+        $rows = $this->users->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_user', 'i_admin', 'i_user_level'])
+            ->where(['i_id_user IN' => $userIds])
+            ->all();
+
+        $infos = [];
+        foreach ($rows as $row) {
+            $infos[(int)$row->i_id_user] = new UserRoleInfo(
+                (int)$row->i_admin,
+                $row->i_user_level === null ? null : (int)$row->i_user_level,
+            );
+        }
+
+        return $infos;
+    }
+
+    public function findNames(array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+        $rows = $this->users->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_user', 'c_user_name'])
+            ->where(['i_id_user IN' => $userIds])
+            ->all();
+
+        $names = [];
+        foreach ($rows as $row) {
+            if ($row->c_user_name !== null) {
+                $names[(int)$row->i_id_user] = (string)$row->c_user_name;
+            }
+        }
+
+        return $names;
+    }
 }

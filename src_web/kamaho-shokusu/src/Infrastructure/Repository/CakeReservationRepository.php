@@ -3,15 +3,19 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Repository;
 
+use App\Domain\Entity\MealReservation;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\DomainException;
 use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\InvalidInputException;
+use App\Domain\Exception\ReservationValidationException;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
 use App\Infrastructure\Persistence\SystemError;
 use App\Model\Table\TIndividualReservationInfoTable;
+use Cake\I18n\Date;
+use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;
 
 /**
@@ -114,6 +118,135 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
         } catch (\Throwable $e) {
             throw SystemError::reservationUpdateFailed($e, '予約のトランザクション');
         }
+    }
+
+    public function findByUsersAndDates(array $dates, array $userIds, array $mealTypes, ?int $roomId = null): array
+    {
+        if ($dates === [] || $userIds === [] || $mealTypes === []) {
+            return [];
+        }
+        $where = [
+            'd_reservation_date IN' => $dates,
+            'i_id_user IN'          => $userIds,
+            'i_reservation_type IN' => $mealTypes,
+        ];
+        if ($roomId !== null) {
+            $where['i_id_room'] = $roomId;
+        }
+        $rows = $this->reservations->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
+            ->where($where)
+            ->all();
+
+        $found = [];
+        foreach ($rows as $row) {
+            $found[] = new MealReservation(
+                userId: (int)$row->i_id_user,
+                date: self::dateString($row->d_reservation_date),
+                roomId: (int)$row->i_id_room,
+                mealType: (int)$row->i_reservation_type,
+                eatFlag: $row->eat_flag === null ? null : (int)$row->eat_flag,
+                changeFlag: $row->i_change_flag === null ? null : (int)$row->i_change_flag,
+                version: $row->i_version === null ? null : (int)$row->i_version,
+            );
+        }
+
+        return $found;
+    }
+
+    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor): bool
+    {
+        $fields = ['i_change_flag' => $changeFlag]
+            + ($eatFlag === null ? [] : ['eat_flag' => $eatFlag])
+            + ['c_update_user' => $actor, 'dt_update' => DateTime::now('Asia/Tokyo')];
+
+        try {
+            // テーブルは行の値（複合主キー・フラグ・版）だけを見る。読み取ったときの値をそのまま渡す
+            return $this->reservations->updateRowWithVersion((object)[
+                'i_id_user'          => $row->userId,
+                'd_reservation_date' => $row->date,
+                'i_id_room'          => $row->roomId,
+                'i_reservation_type' => $row->mealType,
+                'eat_flag'           => $row->eatFlag,
+                'i_change_flag'      => $row->changeFlag,
+                'i_version'          => $row->version,
+            ], $fields);
+        } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
+            throw new ConflictException($e->getMessage());
+        }
+    }
+
+    public function addMany(array $rows, string $actor, bool $validate = true): void
+    {
+        $entities = [];
+        foreach ($rows as $row) {
+            $data = [
+                'i_id_user'          => $row->userId,
+                'd_reservation_date' => $row->date,
+                'i_id_room'          => $row->roomId,
+                'i_reservation_type' => $row->mealType,
+                'eat_flag'           => $row->eatFlag,
+                'i_change_flag'      => $row->changeFlag,
+                'i_version'          => 1,
+                'c_create_user'      => $actor,
+                'dt_create'          => DateTime::now('Asia/Tokyo'),
+            ];
+            $entities[] = $validate
+                ? $this->reservations->newEntity($data)
+                : $this->reservations->newEmptyEntity()->set($data);
+        }
+
+        try {
+            foreach (array_chunk($entities, 500) as $chunk) {
+                $this->reservations->saveManyOrFail($chunk);
+            }
+        } catch (PersistenceFailedException $e) {
+            $errors = $e->getEntity()?->getErrors() ?? [];
+            throw new ReservationValidationException(
+                TIndividualReservationInfoTable::lunchBentoViolation($e),
+                array_merge(...array_values(array_map('array_values', $errors))),
+                (string)json_encode($errors, JSON_UNESCAPED_UNICODE),
+            );
+        } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
+            throw new ConflictException($e->getMessage());
+        }
+    }
+
+    public function latestUpdateByDate(int $roomId, array $dates): array
+    {
+        if ($dates === []) {
+            return [];
+        }
+        $query = $this->reservations->find();
+        $rows  = $query
+            ->enableAutoFields(false)
+            ->select([
+                'd_reservation_date',
+                'max_dt' => $query->func()->max(
+                    $query->newExpr('COALESCE(dt_update, dt_create)'),
+                    // 型を渡さないと float 扱いになり '2026-10-24 15:04:05' が 2026 になる（年が同じだと競合を検出できない）
+                    ['string']
+                ),
+            ])
+            ->where([
+                'i_id_room'             => $roomId,
+                'd_reservation_date IN' => $dates,
+            ])
+            ->group(['d_reservation_date'])
+            ->all();
+
+        $latest = [];
+        foreach ($rows as $row) {
+            $latest[self::dateString($row->d_reservation_date)] = $row->max_dt ? (string)$row->max_dt : null;
+        }
+
+        return $latest;
+    }
+
+    private static function dateString(Date|string|null $date): string
+    {
+        return $date instanceof Date ? $date->format('Y-m-d') : (string)$date;
     }
 
     /**

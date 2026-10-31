@@ -12,8 +12,11 @@ use App\Domain\ValueObject\UserRoleInfo;
  */
 final class FakeUserRepository implements UserRepositoryInterface
 {
-    /** @param array<int, UserRoleInfo> $users */
-    public function __construct(public array $users = [])
+    /**
+     * @param array<int, UserRoleInfo> $users
+     * @param array<int, string>       $names 利用者ID => 利用者名
+     */
+    public function __construct(public array $users = [], public array $names = [])
     {
     }
 
@@ -30,5 +33,15 @@ final class FakeUserRepository implements UserRepositoryInterface
     public function findRoleInfo(int $userId): ?UserRoleInfo
     {
         return $this->users[$userId] ?? null;
+    }
+
+    public function findRoleInfos(array $userIds): array
+    {
+        return array_intersect_key($this->users, array_flip($userIds));
+    }
+
+    public function findNames(array $userIds): array
+    {
+        return array_intersect_key($this->names, array_flip($userIds));
     }
 }

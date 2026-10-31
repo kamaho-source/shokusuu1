@@ -25,4 +25,13 @@ interface RoomMembershipRepositoryInterface
      * @throws PersistenceException 読み取りに失敗したとき
      */
     public function isRoomAvailable(int $roomId): bool;
+
+    /**
+     * 部屋名（削除済みの部屋も含む）。名前の無い・見つからない部屋は含まない。
+     *
+     * @param list<int> $roomIds
+     * @return array<int, string> 部屋ID => 部屋名
+     * @throws \RuntimeException 読み取りに失敗したとき
+     */
+    public function roomNames(array $roomIds): array;
 }

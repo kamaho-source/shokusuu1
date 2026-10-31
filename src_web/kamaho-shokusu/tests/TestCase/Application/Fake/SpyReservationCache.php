@@ -13,8 +13,19 @@ final class SpyReservationCache implements ReservationCacheInterface
     /** @var list<array{date: string, userIds: list<int>}> */
     public array $forgotten = [];
 
+    public int $versionBumps = 0;
+
     public function forgetDate(string $date, array $userIds): void
     {
         $this->forgotten[] = ['date' => $date, 'userIds' => $userIds];
+        $this->versionBumps++;
+    }
+
+    public function forgetDates(array $userIdsByDate, bool $bumpVersion = true): void
+    {
+        foreach ($userIdsByDate as $date => $userIds) {
+            $this->forgotten[] = ['date' => (string)$date, 'userIds' => $userIds];
+        }
+        $this->versionBumps += $bumpVersion ? 1 : 0;
     }
 }

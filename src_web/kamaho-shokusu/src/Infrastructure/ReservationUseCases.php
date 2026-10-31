@@ -6,12 +6,17 @@ namespace App\Infrastructure;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
+use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
+use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 use App\Infrastructure\Cache\ReservationCacheAdapter;
+use App\Infrastructure\Log\CakeLogger;
+use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Repository\CakeUserRepository;
 use App\Model\Table\TIndividualReservationInfoTable;
+use Cake\Core\Configure;
 use Cake\ORM\Table;
 
 /**
@@ -27,13 +32,22 @@ final class ReservationUseCases
 
     private readonly ReservationCacheAdapter $cache;
 
+    private readonly CakeUserRepository $userRepository;
+
+    private readonly CakeTransactionManager $transaction;
+
+    private readonly CakeLogger $logger;
+
     private ?ToggleMealUseCase $toggleMeal = null;
 
-    public function __construct(TIndividualReservationInfoTable $reservations, private readonly Table $users)
+    public function __construct(TIndividualReservationInfoTable $reservations, Table $users)
     {
-        $this->reservations = new CakeReservationRepository($reservations);
-        $this->rooms        = new CakeRoomMembershipRepository();
-        $this->cache        = new ReservationCacheAdapter();
+        $this->reservations   = new CakeReservationRepository($reservations);
+        $this->rooms          = new CakeRoomMembershipRepository();
+        $this->cache          = new ReservationCacheAdapter();
+        $this->userRepository = new CakeUserRepository($users);
+        $this->transaction    = new CakeTransactionManager($reservations->getConnection());
+        $this->logger         = new CakeLogger();
     }
 
     public function toggleMeal(): ToggleMealUseCase
@@ -41,7 +55,7 @@ final class ReservationUseCases
         return $this->toggleMeal ??= new ToggleMealUseCase(
             $this->reservations,
             $this->rooms,
-            new CakeUserRepository($this->users),
+            $this->userRepository,
             $this->cache,
         );
     }
@@ -59,6 +73,32 @@ final class ReservationUseCases
     public function directRegisterMeals(): DirectRegisterMealsUseCase
     {
         return new DirectRegisterMealsUseCase($this->toggleMeal());
+    }
+
+    public function registerIndividualReservation(): RegisterIndividualReservationUseCase
+    {
+        return new RegisterIndividualReservationUseCase(
+            $this->reservations,
+            $this->rooms,
+            $this->userRepository,
+            $this->transaction,
+            $this->cache,
+            $this->logger,
+            (bool)Configure::read('debug'),
+        );
+    }
+
+    public function registerGroupReservation(): RegisterGroupReservationUseCase
+    {
+        return new RegisterGroupReservationUseCase(
+            $this->reservations,
+            $this->rooms,
+            $this->userRepository,
+            $this->transaction,
+            $this->cache,
+            $this->logger,
+            (bool)Configure::read('debug'),
+        );
     }
 
     /** 部屋・所属の Repository（Service から所属の判定に使う）。 */

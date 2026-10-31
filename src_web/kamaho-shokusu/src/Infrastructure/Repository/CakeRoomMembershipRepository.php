@@ -55,6 +55,27 @@ final class CakeRoomMembershipRepository implements RoomMembershipRepositoryInte
         );
     }
 
+    public function roomNames(array $roomIds): array
+    {
+        if ($roomIds === []) {
+            return [];
+        }
+        $rows = TableRegistry::getTableLocator()->get('MRoomInfo')->find()
+            ->enableAutoFields(false)
+            ->select(['i_id_room', 'c_room_name'])
+            ->where(['i_id_room IN' => $roomIds])
+            ->all();
+
+        $names = [];
+        foreach ($rows as $row) {
+            if ($row->c_room_name !== null) {
+                $names[(int)$row->i_id_room] = (string)$row->c_room_name;
+            }
+        }
+
+        return $names;
+    }
+
     /**
      * @param callable(): bool $query
      */

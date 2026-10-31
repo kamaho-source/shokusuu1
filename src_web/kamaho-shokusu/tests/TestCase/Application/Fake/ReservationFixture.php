@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\Fake;
 
+use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
+use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
+use Psr\Log\NullLogger;
 
 /**
  * 予約の UseCase のテストで使う、Fake をそろえた組み立て。
@@ -31,5 +34,15 @@ final class ReservationFixture
     public function toggleMeal(): ToggleMealUseCase
     {
         return new ToggleMealUseCase($this->reservations, $this->rooms, $this->users, $this->cache);
+    }
+
+    public function registerIndividual(): RegisterIndividualReservationUseCase
+    {
+        return new RegisterIndividualReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger());
+    }
+
+    public function registerGroup(): RegisterGroupReservationUseCase
+    {
+        return new RegisterGroupReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger());
     }
 }
