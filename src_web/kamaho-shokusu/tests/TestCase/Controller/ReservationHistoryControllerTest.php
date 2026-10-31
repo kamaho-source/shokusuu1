@@ -146,21 +146,40 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseNotContains('2024-09-05');
     }
 
-    public function testIndex_endDateToday_badRequest400(): void
+    /** 未来日の予約も見られる。初期の期間は今月1日〜今月末日 */
+    public function testIndex_futureReservationsAreShown(): void
     {
+        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $future = $today->modify('+30 days')->format('Y-m-d');
+        $t = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        $t->save($t->newEntity([
+            'i_id_user' => 3, 'd_reservation_date' => $future, 'i_reservation_type' => 2, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => null, 'i_version' => 1,
+        ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+
         $this->login(2);
-        $today = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
-        $this->get('/ReservationHistory?from=2024-09-01&to=' . $today . '&user=3');
-        $this->assertResponseCode(400);
-        $this->assertResponseContains('昨日以前');
+        $this->get('/ReservationHistory?from=' . $today->format('Y-m-d') . '&to=' . $today->modify('+60 days')->format('Y-m-d') . '&user=3');
+        $this->assertResponseOk();
+        $this->assertResponseContains($future);
+        $this->assertResponseContains('● 予約済み');
+
+        $this->get('/ReservationHistory');
+        $this->assertResponseOk();
+        $this->assertResponseContains('value="' . $today->format('Y-m-01') . '"');
+        $this->assertResponseContains('value="' . $today->format('Y-m-t') . '"');
     }
 
-    public function testIndex_periodOver93Days_badRequest400(): void
+    /** 期間の長さは制限しない。開始日が終了日より後なら400 */
+    public function testIndex_longPeriodOkAndReversedPeriod400(): void
     {
         $this->login(2);
-        $this->get('/ReservationHistory?from=2024-01-01&to=2024-09-30&user=3');
+        $this->get('/ReservationHistory?from=2024-01-01&to=2024-12-31&user=3');
+        $this->assertResponseOk();
+        $this->assertResponseContains('2024-09-05');
+
+        $this->get('/ReservationHistory?from=2024-09-30&to=2024-09-01&user=3');
         $this->assertResponseCode(400);
-        $this->assertResponseContains('最大93日');
+        $this->assertResponseContains('開始日が終了日より後');
     }
 
     public function testIndex_summaryOfUnaffiliatedRoom_forbidden403(): void
@@ -207,7 +226,7 @@ class ReservationHistoryControllerTest extends TestCase
         $this->login(2);
         $this->get('/');
         $this->assertResponseOk();
-        $this->assertResponseContains('過去の予約と変更の経緯を確認する');
+        $this->assertResponseContains('予約と変更の経緯を確認する');
         $this->assertResponseNotContains('bi-clock-history');
 
         $this->login(3);
