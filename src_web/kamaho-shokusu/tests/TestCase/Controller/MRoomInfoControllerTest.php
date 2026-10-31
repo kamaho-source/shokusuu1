@@ -101,7 +101,7 @@ class MRoomInfoControllerTest extends TestCase
             'i_enable' => 1,
         ]);
         $this->assertResponseSuccess();
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['action' => 'edit', 1]); // 保存後も編集画面に残る
     }
 
     /**
@@ -192,7 +192,7 @@ class MRoomInfoControllerTest extends TestCase
     {
         $this->postReorder([1, 1, 0], [2, 1, 3], 1, ['c_room_name' => '新しい部屋名']);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['action' => 'edit', 1]); // 保存後も編集画面に残る
         $this->assertSame([2, 1], [$this->dispNo(1), $this->dispNo(2)]);
         $this->assertSame('新しい部屋名', $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name);
     }
@@ -203,7 +203,7 @@ class MRoomInfoControllerTest extends TestCase
         $before = $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name;
         $this->postReorder([2, 0, 0], [2, 1, 3], 1, ['c_room_name' => '変更されてはいけない']);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['action' => 'edit', 1]); // 保存後も編集画面に残る
         $this->assertSame(1, $this->dispNo(2));
         $this->assertSame($before, $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name);
     }

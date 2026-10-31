@@ -178,7 +178,8 @@ class MRoomInfoController extends AppController
                 \App\Service\AuditLogService::record('master', 'room_member_reorder', $userName ?: '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name, 'changed' => $changed], $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
             }
             $this->Flash->success(__('部屋情報が正常に更新されました。'));
-            return $this->redirect(['action' => 'index']);
+            // 並びを続けて直せるよう、保存後も編集画面に残る（一覧へは画面の「部屋一覧に戻る」から）
+            return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
         }
         $users = $this->roomService->getUsersForRoom($mRoomInfo);
         $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
