@@ -8,8 +8,8 @@ use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsInput;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Domain\Exception\DomainException;
+use App\Infrastructure\ReservationUseCases;
 use App\Service\AuditLogService;
-use App\Service\ReservationWriteService;
 use Cake\Http\Response;
 
 /**
@@ -27,14 +27,9 @@ class ReservationDirectRegisterController extends ReservationBaseController
     {
         parent::initialize();
 
-        $writeService  = new ReservationWriteService(
-            $this->TIndividualReservationInfo,
-            $this->MUserInfo,
-            $this->MRoomInfo,
-            (string)($this->request->getAttribute('webroot') ?? '')
-        );
-        $this->useCase = new DirectRegisterMealsUseCase($writeService);
-        $this->changeRoomUseCase = new ChangeMealRoomUseCase($writeService);
+        $useCases = new ReservationUseCases($this->TIndividualReservationInfo, $this->MUserInfo);
+        $this->useCase = $useCases->directRegisterMeals();
+        $this->changeRoomUseCase = $useCases->changeMealRoom();
 
         $this->FormProtection->setConfig('unlockedActions', ['register', 'changeRoom']);
     }

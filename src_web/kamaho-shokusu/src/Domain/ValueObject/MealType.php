@@ -64,6 +64,23 @@ enum MealType: int
         return self::counterpartValue($value) !== null;
     }
 
+    /**
+     * その日に有効（食べる）な食事区分の中に、同時に予約できない組（昼食と弁当）が両方そろっているか。
+     *
+     * @param iterable<int> $effectiveValues その日に有効な食事区分の値（重複してよい）
+     */
+    public static function hasExclusiveConflict(iterable $effectiveValues): bool
+    {
+        $found = [];
+        foreach ($effectiveValues as $value) {
+            if (in_array($value, self::EXCLUSIVE_VALUES, true)) {
+                $found[$value] = true;
+            }
+        }
+
+        return count($found) === count(self::EXCLUSIVE_VALUES);
+    }
+
     /** DB の区分値の名前。不正な値なら空文字。 */
     public static function labelOf(int $value): string
     {

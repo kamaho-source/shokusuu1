@@ -20,7 +20,7 @@ use Cake\ORM\Table;
  */
 class MealReportingService
 {
-    private const EAT_REPORT_MEAL_TYPES = [1, 2, 3];
+    private const EAT_REPORT_MEAL_TYPES = [MealType::Breakfast->value, MealType::Lunch->value, MealType::Dinner->value];
 
     /**
      * 「食べない」で報告する（全食種を eat_flag=0, i_change_flag=0 に設定）。
@@ -138,7 +138,8 @@ class MealReportingService
                 // 「食べる」は朝・昼・夕。弁当は昼食と同時に有効にできないため付けない。
                 // 弁当をすでに予約している日は、昼食も付けない（弁当のまま）
                 foreach (self::EAT_REPORT_MEAL_TYPES as $mealType) {
-                    if ($mealType === 2 && $this->hasEffectiveMeal($reservationTable, $userId, $today, 4)) {
+                    $counterpart = MealType::counterpartValue($mealType);
+                    if ($counterpart !== null && $this->hasEffectiveMeal($reservationTable, $userId, $today, $counterpart)) {
                         continue;
                     }
                     $rows = $reservationTable->find()

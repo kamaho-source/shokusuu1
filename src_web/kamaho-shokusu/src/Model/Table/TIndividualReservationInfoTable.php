@@ -111,7 +111,7 @@ class TIndividualReservationInfoTable extends Table
 
     public function buildRules(RulesChecker $rules): RulesChecker
     {
-        // 昼(2)⇔弁(4)の排他（その日の“有効値”で判定）
+        // 昼食⇔弁当の排他（その日の“有効値”で判定。ルールは MealType::hasExclusiveConflict）
         $rules->add(function (EntityInterface $entity): bool {
             $type = (int)$entity->i_reservation_type;
             if (!MealType::isExclusiveValue($type)) {
@@ -136,19 +136,16 @@ class TIndividualReservationInfoTable extends Table
                 ])
                 ->all();
 
-            $hasLunch = false; $hasBento = false;
+            // その日に有効な食事区分を集めて、Domain のルール（昼食と弁当は同時に有効にしない）で判定する。
+            // 今回の行も有効として加える（有効なことは上で確かめてある）
+            $effectiveTypes = [$type];
             foreach ($rows as $r) {
-                // 有効値は effectiveValue（ReservationDatePolicy::countedValue と同じ基準。過去日も i_change_flag）
-                $eff = self::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
-                if ((int)$r->i_reservation_type === 2) $hasLunch = $hasLunch || ($eff === 1);
-                if ((int)$r->i_reservation_type === 4) $hasBento = $hasBento || ($eff === 1);
+                if (self::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag) === 1) {
+                    $effectiveTypes[] = (int)$r->i_reservation_type;
+                }
             }
 
-            // 今回の行も有効として加える（有効なことは上で確かめてある）
-            if ($type === 2) $hasLunch = true;
-            if ($type === 4) $hasBento = true;
-
-            return !($hasLunch && $hasBento);
+            return !MealType::hasExclusiveConflict($effectiveTypes);
         }, 'uniqueLunchBentoEffective', [
             'errorField' => 'i_reservation_type',
             'message' => '同じ日付で「昼」と「弁当」を同時に有効にはできません。'
