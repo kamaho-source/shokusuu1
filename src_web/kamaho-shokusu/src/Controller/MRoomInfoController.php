@@ -45,8 +45,15 @@ class MRoomInfoController extends AppController
 
         $query = $this->MRoomInfo->find()->where(['i_del_flg' => 0]);
         $mRoomInfo = $this->paginate($query);
+        // 編集ボタンを出す部屋（管理者は全部屋。ブロック長は所属している部屋で、並び替えのため）
+        $editableRoomIds = [];
+        foreach ($mRoomInfo as $room) {
+            if ($this->Authorization->can($room, 'edit') || $this->Authorization->can($room, 'reorderMembers')) {
+                $editableRoomIds[] = (int)$room->i_id_room;
+            }
+        }
 
-        $this->set(compact('mRoomInfo'));
+        $this->set(compact('mRoomInfo', 'editableRoomIds'));
     }
 
     /**
@@ -127,7 +134,7 @@ class MRoomInfoController extends AppController
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
         $mRoomInfo = $this->MRoomInfo->get($id, contain: ['MUserGroup']);
-        // 部屋名の変更は管理者だけ。所属メンバーの並び替え（#871）は canReorderMembers の人も、この画面で行う
+        // 部屋名の変更は管理者だけ。所属メンバーの並び替え（#871）は所属部屋のブロック長も、この画面で行う
         $canEditRoom = $this->Authorization->can($mRoomInfo, 'edit');
         $canReorder = (int)($mRoomInfo->i_del_flg ?? 0) === 0 && $this->Authorization->can($mRoomInfo, 'reorderMembers');
         try {

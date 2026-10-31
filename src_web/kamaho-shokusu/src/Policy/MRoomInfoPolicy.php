@@ -45,7 +45,7 @@ class MRoomInfoPolicy
 
     /**
      * 所属メンバーを並び替えられるか（#871）。
-     * 管理者・システム管理者はすべての部屋。ブロック長・職員(i_user_level 0, 7)は自分が今所属している部屋だけ。
+     * 管理者・システム管理者はすべての部屋。ブロック長は自分が今所属している部屋だけ。一般の職員・児童・その他は不可。
      */
     public function canReorderMembers(?IdentityInterface $user, MRoomInfo $resource): bool
     {
@@ -60,8 +60,7 @@ class MRoomInfoPolicy
             $v = is_object($identity) && method_exists($identity, 'get') ? $identity->get($key) : ($identity[$key] ?? null);
             return $v === null ? null : (int)$v;
         };
-        $level = $get('i_user_level');
-        if (!UserRole::isBlockLeader((int)$get('i_admin')) && ($level === null || !UserRole::isStaffLevel($level))) {
+        if (!UserRole::isBlockLeader((int)$get('i_admin'))) {
             return false;
         }
 

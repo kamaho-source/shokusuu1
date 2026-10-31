@@ -198,14 +198,22 @@ class MRoomInfoControllerTest extends TestCase
     }
 
     /** 所属部屋の職員は並び順だけ保存できる（部屋名は送っても変わらない） */
-    public function testSaveByStaffOfRoomUpdatesOrderOnly(): void
+    public function testSaveByBlockLeaderOfRoomUpdatesOrderOnly(): void
     {
         $before = $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name;
-        $this->postReorder([2, 0, 0], [2, 1, 3], 1, ['c_room_name' => '変更されてはいけない']);
+        $this->postReorder([2, 2, 0], [2, 1, 3], 1, ['c_room_name' => '変更されてはいけない']);
 
         $this->assertRedirect(['action' => 'edit', 1]); // 保存後も編集画面に残る
         $this->assertSame(1, $this->dispNo(2));
         $this->assertSame($before, $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name);
+    }
+
+    /** 一般の職員は、所属している部屋でも並び替えを保存できない（並び替えはブロック長まで） */
+    public function testSaveByStaffOfRoomIsForbidden(): void
+    {
+        $this->postReorder([2, 0, 0], [2, 1, 3]);
+        $this->assertRedirectContains('/MRoomInfo');
+        $this->assertSame(1, $this->dispNo(1));
     }
 
     public function testSaveByStaffOutsideRoomIsForbidden(): void
@@ -291,9 +299,9 @@ class MRoomInfoControllerTest extends TestCase
     }
 
     /** 所属部屋の職員は編集画面を開け、部屋名は表示だけ */
-    public function testStaffOfRoomCanOpenEditForReorderOnly(): void
+    public function testBlockLeaderOfRoomCanOpenEditForReorderOnly(): void
     {
-        $this->loginAs(2, 0, 0);
+        $this->loginAs(2, 2, 0);
         $this->get('/MRoomInfo/view/1');
         $this->assertResponseContains('メンバーの並び替え');
 
@@ -301,6 +309,37 @@ class MRoomInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('name="user_ids[]"');
         $this->assertResponseNotContains('name="c_room_name"');
+    }
+
+    /** 部屋一覧の「編集」ボタン: 管理者は全部屋、ブロック長は所属部屋だけ、一般の職員には出さない。削除は管理者だけ */
+    public function testIndexEditButtonByRole(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $rooms->save($rooms->newEntity(
+            ['i_id_room' => 2, 'c_room_name' => '別の部屋', 'i_disp_no' => 2, 'i_enable' => 1, 'i_del_flg' => 0],
+            ['validate' => false, 'accessibleFields' => ['*' => true]]
+        ));
+        $editLink = fn(int $id): string => 'href="/MRoomInfo/edit/' . $id . '"';
+
+        $this->loginAs(1, 1, 0);
+        $this->get('/MRoomInfo');
+        $this->assertResponseContains($editLink(1));
+        $this->assertResponseContains($editLink(2));
+        $this->assertResponseContains('🗑 削除');
+
+        $this->loginAs(2, 2, 0); // ブロック長（部屋1に所属）
+        $this->get('/MRoomInfo');
+        $this->assertResponseContains($editLink(1));
+        $this->assertResponseNotContains($editLink(2));
+        $this->assertResponseNotContains('🗑 削除');
+
+        $this->loginAs(2, 0, 0); // 一般の職員（部屋1に所属）
+        $this->get('/MRoomInfo');
+        $this->assertResponseNotContains($editLink(1));
+        $this->get('/MRoomInfo/view/1');
+        $this->assertResponseNotContains('メンバーの並び替え');
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertRedirectContains('/MRoomInfo');
     }
 
     /** 児童・所属外の職員は編集画面を開けない */
