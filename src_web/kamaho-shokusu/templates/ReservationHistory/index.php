@@ -84,7 +84,7 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
     <ul class="nav nav-tabs mb-3">
         <?php foreach ($tabs as $key => $label): ?>
             <li class="nav-item">
-                <a class="nav-link<?= $tab === $key ? ' active' : '' ?>" href="<?= h($tabUrl($key)) ?>"><?= h($label) ?></a>
+                <a class="nav-link<?= $tab === $key ? ' active' : '' ?>" href="<?= $tabUrl($key) ?>"><?= h($label) ?></a>
             </li>
         <?php endforeach; ?>
     </ul>

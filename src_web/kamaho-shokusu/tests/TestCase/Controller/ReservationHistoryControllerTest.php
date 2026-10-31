@@ -77,6 +77,24 @@ class ReservationHistoryControllerTest extends TestCase
         }
     }
 
+    /** 画面のタブのリンクをたどると、そのタブに切り替わる（href の & が二重にエスケープされていない） */
+    public function testIndex_tabLinksSwitchTab(): void
+    {
+        $this->login(2);
+        $this->get('/ReservationHistory?' . self::PERIOD);
+        $body = (string)$this->_response->getBody();
+        $this->assertStringNotContainsString('&amp;amp;', $body);
+
+        $expected = ['summary' => 'の予約済みの人数です', 'log' => '対象：'];
+        foreach ($expected as $tab => $text) {
+            $this->assertSame(1, preg_match('/href="([^"]*tab=' . $tab . ')"/', $body, $m), $tab);
+            $this->get(html_entity_decode($m[1]));
+            $this->assertResponseOk();
+            $this->assertMatchesRegularExpression('/class="nav-link active" href="[^"]*tab=' . $tab . '"/', (string)$this->_response->getBody(), $tab);
+            $this->assertResponseContains($text);
+        }
+    }
+
     /** タブは左から 予約状況 → 部屋集計 → 変更の経緯 */
     public function testIndex_tabOrder(): void
     {
