@@ -14,10 +14,10 @@ use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
+use App\Infrastructure\Cache\ReservationCache;
 use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
-use Cake\Cache\Cache;
 use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\Table;
@@ -1172,20 +1172,7 @@ class ReservationWriteService
         if ($date === '') {
             return;
         }
-        ReservationReportService::invalidateMealCountsCache($date);
-        $today = Date::today('Asia/Tokyo')->format('Y-m-d');
-        if ($date === $today) {
-            foreach (array_unique(array_filter($userIds)) as $uid) {
-                Cache::delete(sprintf('today_report:%d:%s', (int)$uid, $date), 'default');
-            }
-        }
-        $this->bumpReportCacheVersion();
-    }
-
-    private function bumpReportCacheVersion(): void
-    {
-        $current = Cache::read('reservation_version', 'default');
-        $next = (is_int($current) && $current > 0) ? $current + 1 : 2;
-        Cache::write('reservation_version', $next, 'default');
+        ReservationCache::forgetDate($date, $userIds);
+        ReservationCache::bumpVersion();
     }
 }
