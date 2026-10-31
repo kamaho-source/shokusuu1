@@ -60,26 +60,15 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
                                 return $member->i_del_flag === 0;
                             });
 
-                            // ユーザーを分類
-                            $staff = array_filter($filteredUsers, function ($member) {
-                                return $member->i_user_level === 0;
-                            });
-                            $children = array_filter($filteredUsers, function ($member) {
-                                return $member->i_user_level === 1;
-                            });
-                            $others = array_filter($filteredUsers, function ($member) {
-                                return $member->i_user_level !== 0 && $member->i_user_level !== 1;
-                            });
-
-                            $groupedUsers = array_merge($staff, $children, $others);
+                            // 並びは取得順（RoomMemberOrderService::orderMembers）のまま。区分では分けない
                             ?>
-                            <?php foreach ($groupedUsers as $member): ?>
+                            <?php foreach ($filteredUsers as $member): ?>
                                 <tr>
                                     <td><?= $this->Number->format($member->i_id_user) ?></td>
                                     <td><?= h($member->c_user_name) ?></td>
                                     <td><?= $member->i_disp_no === null ? '' : $this->Number->format($member->i_disp_no) ?></td>
                                     <td>
-                                        <?= h($member->i_user_level === 0 ? '職員' : ($member->i_user_level === 1 ? '児童' : 'その他')) ?>
+                                        <?= h(\App\Domain\ValueObject\UserRole::levelLabel($member->i_user_level === null ? null : (int)$member->i_user_level)) ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

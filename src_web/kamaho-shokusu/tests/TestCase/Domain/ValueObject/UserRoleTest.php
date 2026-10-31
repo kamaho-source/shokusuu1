@@ -156,4 +156,13 @@ class UserRoleTest extends TestCase
             'SYSTEM_ADMIN(3) → true'  => [3, true],
         ];
     }
+
+    public function testLevelLabel(): void
+    {
+        $this->assertSame('未設定', UserRole::levelLabel(null));
+        $this->assertSame('職員', UserRole::levelLabel(0));
+        $this->assertSame('職員', UserRole::levelLabel(7));
+        $this->assertSame('児童', UserRole::levelLabel(1));
+        $this->assertSame('その他', UserRole::levelLabel(3));
+    }
 }

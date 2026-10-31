@@ -260,6 +260,36 @@ class MRoomInfoControllerTest extends TestCase
         $this->assertResponseContains('name="c_room_name"');
     }
 
+    /** 編集画面の並び替えは区分で分けず、職員・児童を1つの表で表示順に並べる */
+    public function testEditListsAllLevelsInOneTableByDisplayOrder(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_disp_no' => 10], ['i_id_user' => 1]);
+        $this->loginAs(1, 1, 0);
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertResponseOk();
+
+        $body = (string)$this->_response->getBody();
+        $this->assertStringNotContainsString('class="grp"', $body);
+        $this->assertSame(1, substr_count($body, '<tbody'));
+        preg_match_all('/<tr data-user-id="(\d+)"/', $body, $m);
+        $this->assertSame(['2', '3', '1'], $m[1], '児童3 が職員1 より前に出る');
+        // 「子どもだけ年齢順」用に、子どもの行だけ印を付ける
+        $this->assertMatchesRegularExpression('/<tr data-user-id="3"[^>]*data-child="1"/', $body);
+        $this->assertDoesNotMatchRegularExpression('/<tr data-user-id="2"[^>]*data-child/', $body);
+    }
+
+    /** 区分が未設定の人は、詳細画面でも編集画面でも「未設定」と出る（区分名は UserRole::levelLabel で共通） */
+    public function testUnsetLevelIsLabeledSameOnViewAndEdit(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => null], ['i_id_user' => 2]);
+        $this->loginAs(1, 1, 0);
+        foreach (['/MRoomInfo/view/1', '/MRoomInfo/edit/1'] as $url) {
+            $this->get($url);
+            $this->assertResponseOk();
+            $this->assertResponseContains('未設定', $url);
+        }
+    }
+
     /** 所属部屋の職員は編集画面を開け、部屋名は表示だけ */
     public function testStaffOfRoomCanOpenEditForReorderOnly(): void
     {

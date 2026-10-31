@@ -42,16 +42,16 @@ class RoomMemberOrderServiceTest extends TestCase
         return $this->getTableLocator()->get('MUserInfo')->find('list', keyField: 'i_id_user', valueField: 'i_disp_no')->toArray();
     }
 
-    public function testReorderSwapsNumbersWithinLevelOnly(): void
+    public function testReorderAcrossLevels(): void
     {
-        // 児童3 を先頭に送っても、区分をまたいだ並びは使わない（職員の中だけ 2→1 の順になる）
+        // 児童3 を職員より前に送れる（区分をまたいで並べられる）
         $changed = (new RoomMemberOrderService())->reorder(1, [3, 2, 1], 'tester');
 
         $this->assertSame(2, $changed);
         $d = $this->dispNos();
-        $this->assertSame([2, 1, 3], [$d[1], $d[2], $d[3]]);
+        $this->assertSame([3, 2, 1], [$d[1], $d[2], $d[3]]);
         $this->assertSame([4, 5, 6], [$d[4], $d[5], $d[6]], '部屋に所属しない人・削除済みの人の番号は変えない');
-        $this->assertSame('tester', $this->getTableLocator()->get('MUserInfo')->get(2)->c_update_user);
+        $this->assertSame('tester', $this->getTableLocator()->get('MUserInfo')->get(1)->c_update_user);
     }
 
     public function testSameOrderChangesNothing(): void
@@ -66,7 +66,7 @@ class RoomMemberOrderServiceTest extends TestCase
         (new RoomMemberOrderService())->reorder(1, [2, 1, 3], 'tester');
 
         $d = $this->dispNos();
-        $this->assertSame([7, 8], [$d[2], $d[1]], '全員の最大値(6)の後ろに振る');
+        $this->assertSame([3, 7, 8], [$d[2], $d[1], $d[3]], '今ある番号(3)を先頭から配り、足りない分は全員の最大値(6)の後ろに振る');
     }
 
     /** @return array<string, array{list<int>}> */
@@ -106,11 +106,11 @@ class RoomMemberOrderServiceTest extends TestCase
     {
         $users = $this->getTableLocator()->get('MUserInfo');
         $users->updateAll(['i_disp_no' => null], ['i_id_user' => 1]);
-        $users->updateAll(['c_user_name' => 'あ'], ['i_id_user' => 2]); // 名前順なら 2 が先だが、表示順のある 2 が先
+        $users->updateAll(['c_user_name' => 'あ'], ['i_id_user' => 2]); // 名前順なら 2 が先だが、表示順の小さい児童3 が先
         $users->updateAll(['i_disp_no' => 9], ['i_id_user' => 2]);
 
         $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $users, [1])[1];
-        $this->assertSame([2, 1, 3], array_column($grid, 'id'));
+        $this->assertSame([3, 2, 1], array_column($grid, 'id'), '区分で分けず表示順だけで並ぶ（NULL の 1 は後ろ）');
 
         (new RoomMemberOrderService())->reorder(1, [1, 2, 3], 'tester');
         $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $users, [1])[1];
@@ -120,37 +120,34 @@ class RoomMemberOrderServiceTest extends TestCase
         $this->assertSame([1, 2, 3], array_map(fn($u) => (int)$u->i_id_user, (new RoomService())->getUsersForRoom($room)), '削除済み 6 は出ない');
     }
 
-    /** 区分（0・1・7・NULL）が混ざる部屋で、複数の区分を一度に並べ替える */
-    public function testReorderSeveralLevelsAtOnce(): void
+    /** 区分（0・1・7・NULL）が混ざる部屋で、区分をまたいで混ぜた並びをそのまま保存する */
+    public function testReorderMixedLevels(): void
     {
         $this->addMember(31, 1, 31, '児童B');
         $this->addMember(71, 7, 71, '職員7A');
         $this->addMember(72, 7, null, '職員7B');
         $this->addMember(90, null, 90, '区分なし');
 
-        // 区分の並び（NULL → 0 → 1 → 7）とは関係なく混ぜて送っても、区分ごとの並びだけが効く
-        (new RoomMemberOrderService())->reorder(1, [72, 31, 2, 90, 3, 71, 1], 'tester');
+        $order = [72, 31, 2, 90, 3, 71, 1];
+        (new RoomMemberOrderService())->reorder(1, $order, 'tester');
 
+        // 今の番号（1・2・3・31・71・90）を並べた順に配り直し、足りない1つは最大値の後ろ（91）
         $d = $this->dispNos();
-        $this->assertSame([1, 2], [$d[2], $d[1]], '職員0: 2→1');
-        $this->assertSame([3, 31], [$d[31], $d[3]], '児童: 31→3');
-        $this->assertSame(71, $d[72], '区分7: 72→71（72 は NULL だったので後ろの番号を受け取る側）');
-        $this->assertGreaterThan(90, $d[71]);
-        $this->assertSame(90, $d[90]);
+        $this->assertSame([1, 2, 3, 31, 71, 90, 91], array_map(fn($id) => $d[$id], $order));
 
         $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $this->getTableLocator()->get('MUserInfo'), [1])[1];
-        $this->assertSame([90, 2, 1, 31, 3, 72, 71], array_column($grid, 'id'));
+        $this->assertSame($order, array_column($grid, 'id'));
     }
 
-    /** 食数予約の各画面のメンバー一覧が、同じ並び（区分 → 表示順 → 名前）になる */
+    /** 食数予約の各画面のメンバー一覧が、同じ並び（表示順 → 名前。区分では分けない）になる */
     public function testReservationScreensUseSameOrder(): void
     {
         $users = $this->getTableLocator()->get('MUserInfo');
         $groups = $this->getTableLocator()->get('MUserGroup');
         $reservations = $this->getTableLocator()->get('TIndividualReservationInfo');
-        $users->updateAll(['i_disp_no' => 10], ['i_id_user' => 1]); // 職員の中で 2 → 1 の順にする
+        $users->updateAll(['i_disp_no' => 10], ['i_id_user' => 1]); // 職員1 を児童3 より後ろにする
         $users->updateAll(['i_id_staff' => 1001], ['i_id_user IN' => [1, 2]]);
-        $expected = [2, 1, 3];
+        $expected = [2, 3, 1];
 
         $query = new \App\Service\ReservationQueryService();
         $this->assertSame($expected, array_column($query->getUsersByRoom($groups, $reservations, 1, null), 'id'), '予約モーダル');
