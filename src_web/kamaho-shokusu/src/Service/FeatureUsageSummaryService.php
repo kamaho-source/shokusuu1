@@ -157,7 +157,7 @@ class FeatureUsageSummaryService
     {
         $options = [];
         for ($i = 0; $i < 12; $i++) {
-            $ym            = date('Y-m', strtotime("-{$i} months"));
+            $ym            = date('Y-m', strtotime("first day of -{$i} months"));
             $options[$ym]  = date('Y年n月', (int)strtotime($ym . '-01'));
         }
         return $options;
