@@ -127,6 +127,13 @@ class ReservationHistoryServiceTest extends TestCase
         $this->assertSame([3], $this->targetsOf(3));
     }
 
+    public function testPeriodDates_allDaysInclusive(): void
+    {
+        $this->assertSame(['2024-02-27', '2024-02-28', '2024-02-29', '2024-03-01'], $this->svc->periodDates('2024-02-27', '2024-03-01'));
+        $this->assertSame(['2024-09-05'], $this->svc->periodDates('2024-09-05', '2024-09-05'));
+        $this->assertCount(31, $this->svc->periodDates('2026-10-01', '2026-10-31'));
+    }
+
     // ---- mealRows ----
 
     public function testMealRows_bookedByLastMinuteFlag(): void

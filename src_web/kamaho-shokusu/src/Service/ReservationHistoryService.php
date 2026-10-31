@@ -132,7 +132,23 @@ class ReservationHistoryService
     }
 
     /**
-     * 日×食事の予約済み。予約済みの食事だけを返し、予約済みが1つも無い日は含めない。
+     * 期間のすべての日付（Y-m-d、古い順）。予約状況・部屋集計の表は、予約の有無に関係なくこの日付で行を並べる。
+     *
+     * @return list<string>
+     */
+    public function periodDates(string $from, string $to): array
+    {
+        $out = [];
+        $end = new \DateTimeImmutable($to);
+        for ($d = new \DateTimeImmutable($from); $d <= $end; $d = $d->modify('+1 day')) {
+            $out[] = $d->format('Y-m-d');
+        }
+
+        return $out;
+    }
+
+    /**
+     * 日×食事の予約済み。予約済みの食事だけを返す（予約済みが1つも無い日は含めない。表の行は periodDates() で並べる）。
      *
      * @return array<string, array<int, true>> 日付 => 食事種別 => true（日付順）
      */

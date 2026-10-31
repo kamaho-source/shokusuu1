@@ -169,6 +169,24 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseContains('value="' . $today->format('Y-m-t') . '"');
     }
 
+    /** 予約状況・部屋集計は、予約の無い日も含めて期間の全日付を並べる（初期は今月の1か月分） */
+    public function testIndex_listsEveryDayOfPeriod(): void
+    {
+        $this->login(2);
+        foreach (['meals', 'summary'] as $tab) {
+            $this->get('/ReservationHistory?' . self::PERIOD . '&user=3&tab=' . $tab);
+            $this->assertResponseOk();
+            $body = (string)$this->_response->getBody();
+            $this->assertSame(30, preg_match_all('/<td class="text-nowrap">2024-09-\d\d（.）<\/td>/u', $body), $tab . ': 9月の30日分');
+            $this->assertStringContainsString('2024-09-01（日）', $body);
+            $this->assertStringContainsString('2024-09-30（月）', $body);
+        }
+
+        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $this->get('/ReservationHistory');
+        $this->assertSame((int)$today->format('t'), preg_match_all('/<td class="text-nowrap">' . $today->format('Y-m') . '-\d\d（.）<\/td>/u', (string)$this->_response->getBody()), '初期表示は今月の全日');
+    }
+
     /** 期間の長さは制限しない。開始日が終了日より後なら400 */
     public function testIndex_longPeriodOkAndReversedPeriod400(): void
     {

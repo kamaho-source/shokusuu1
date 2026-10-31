@@ -20,6 +20,7 @@
  * @var int $roomId
  * @var array<int, string> $mealLabels
  * @var bool $canViewSummary
+ * @var list<string> $dates 期間のすべての日付
  */
 $this->assign('title', '予約履歴');
 
@@ -29,6 +30,8 @@ if (!$canViewSummary) {
 }
 $kindLabels = ['reserve' => '予約', 'cancel' => '取消'];
 $kindClass = ['reserve' => 'text-bg-success', 'cancel' => 'text-bg-danger'];
+$weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+$dateLabel = fn(string $d): string => $d . '（' . $weekdays[(int)date('w', (int)strtotime($d))] . '）';
 $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' => [
     'from' => $from, 'to' => $to, 'user' => $targetId, 'room' => $roomId, 'tab' => $t,
 ]]);
@@ -96,16 +99,16 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
     <?php elseif ($tab === 'summary'): ?>
         <?php if (!$summary): ?>
             <div class="alert alert-secondary">この期間の予約はありません。</div>
-        <?php else: ?>
+        <?php endif; ?>
             <p class="small text-muted"><?= h($rooms[$roomId] ?? '') ?>の予約済みの人数です（直前の変更を反映した最終的な予約）。個人名は出しません。</p>
             <div class="table-responsive">
                 <table class="table table-bordered table-sm text-center align-middle">
                     <thead class="table-light"><tr><th>日付</th><?php foreach ($mealLabels as $l): ?><th><?= h($l) ?></th><?php endforeach; ?><th>合計</th></tr></thead>
                     <tbody>
                     <?php $tot = array_fill_keys(array_keys($mealLabels), 0); ?>
-                    <?php foreach ($summary as $date => $byType): ?>
+                    <?php foreach ($dates as $date): $byType = $summary[$date] ?? []; ?>
                         <tr>
-                            <td><?= h($date) ?></td>
+                            <td class="text-nowrap"><?= h($dateLabel($date)) ?></td>
                             <?php $sum = 0; foreach ($mealLabels as $type => $l): $n = (int)($byType[$type] ?? 0); $sum += $n; $tot[$type] += $n; ?>
                                 <td><?= $n ?></td>
                             <?php endforeach; ?>
@@ -116,7 +119,6 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
                     <tfoot class="table-light"><tr><th>期間合計</th><?php foreach ($tot as $n): ?><th><?= $n ?></th><?php endforeach; ?><th><?= array_sum($tot) ?></th></tr></tfoot>
                 </table>
             </div>
-        <?php endif; ?>
     <?php elseif ($tab === 'log'): ?>
         <p class="small text-muted">対象：<?= h($target['name'] ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
         <?php if ($logStart === null || $from < $logStart): ?>
@@ -141,15 +143,15 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
         <p class="small text-muted">対象：<?= h($target['name'] ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
         <?php if (!$meals): ?>
             <div class="alert alert-secondary">この期間の予約はありません。</div>
-        <?php else: ?>
+        <?php endif; ?>
             <div class="table-responsive">
                 <table class="table table-bordered table-sm text-center align-middle">
                     <thead class="table-light"><tr><th>日付</th><?php foreach ($mealLabels as $l): ?><th><?= h($l) ?></th><?php endforeach; ?><th>予約済み食数</th></tr></thead>
                     <tbody>
                     <?php $tot = array_fill_keys(array_keys($mealLabels), 0); ?>
-                    <?php foreach ($meals as $date => $byType): ?>
+                    <?php foreach ($dates as $date): $byType = $meals[$date] ?? []; ?>
                         <tr>
-                            <td><?= h($date) ?></td>
+                            <td class="text-nowrap"><?= h($dateLabel($date)) ?></td>
                             <?php foreach (array_keys($mealLabels) as $type): $booked = isset($byType[$type]); $tot[$type] += $booked ? 1 : 0; ?>
                                 <td><?= $booked ? '● 予約済み' : '－' ?></td>
                             <?php endforeach; ?>
@@ -160,7 +162,6 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
                     <tfoot class="table-light"><tr><th>期間合計</th><?php foreach ($tot as $n): ?><th><?= $n ?></th><?php endforeach; ?><th><?= array_sum($tot) ?></th></tr></tfoot>
                 </table>
             </div>
-            <p class="small text-muted">「● 予約済み」は直前の変更を反映した最終的な予約です。予約済みの食事が無い日は表示しません。</p>
-        <?php endif; ?>
+            <p class="small text-muted">「● 予約済み」は直前の変更を反映した最終的な予約です。</p>
     <?php endif; ?>
 </div>
