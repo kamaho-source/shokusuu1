@@ -104,9 +104,11 @@ class ReservationHistoryController extends AppController
         }
 
         $mealLabels = ReservationHistoryService::MEAL_LABELS;
+        // 予約状況・部屋集計は、予約の無い日も含めて期間の全日付を並べる（初期は今月1日〜今月末日の1か月分）
+        $dates = $error === null ? $svc->periodDates($from, $to) : [];
         $this->set(compact(
             'from', 'to', 'tab', 'targets', 'targetId', 'target', 'actorId', 'error', 'forbidden',
-            'meals', 'logs', 'logStart', 'summary', 'rooms', 'roomId', 'mealLabels', 'canViewSummary'
+            'meals', 'logs', 'logStart', 'summary', 'rooms', 'roomId', 'mealLabels', 'canViewSummary', 'dates'
         ));
 
         return null;
