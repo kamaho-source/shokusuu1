@@ -535,7 +535,7 @@ class ReservationChangeEditServiceTest extends TestCase
         );
 
         $this->assertSame(1, (int)$ctx['room']->i_id_room);
-        // 削除済みユーザー(6)は含まれず、役職 → 表示順（i_disp_no）で並ぶ（#871。名前順なら 3 が先頭になる）
+        // 削除済みユーザー(6)は含まれず、表示順（i_disp_no）で並ぶ（#871。名前順なら 3 が先頭になる）
         $this->assertSame([1, 2, 3], $ctx['userIdList']);
         $this->assertSame(1, $ctx['userReservations'][3][1]['room_id']);
         $this->assertSame(1, $ctx['userReservations'][3][1]['eat_flag']);

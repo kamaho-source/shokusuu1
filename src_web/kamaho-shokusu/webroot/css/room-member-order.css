@@ -12,7 +12,6 @@
 .xl-sheet thead th { background: var(--xl-head); color: #fff; font-weight: 600; white-space: nowrap; }
 .xl-sheet td.rh, .xl-sheet th.rh { width: 2.6em; text-align: center; }
 .xl-sheet td.rh { background: var(--xl-rh); color: #6b7280; font-size: .75rem; }
-.xl-sheet tr.grp td { background: #f3f4f6; font-weight: 600; }
 .xl-sheet td.num, .xl-sheet td.age { text-align: right; font-variant-numeric: tabular-nums; }
 .xl-sheet input.member-order-input {
     width: 4.5em; padding: 1px 4px; border: 1px solid var(--xl-grid); border-radius: 0;
@@ -24,8 +23,7 @@
 .xl-sheet .grip { width: 1.8em; text-align: center; color: #6b7280; letter-spacing: -2px; cursor: grab; }
 .xl-sheet:not(.drag-on) .grip { display: none; }
 .xl-sheet tr.dragging td { opacity: .45; background: #e8f3ec; }
-/* ドラッグ中: 動かせない区分を薄くし、入る位置に太い線を出す */
-.xl-sheet.drag-active tbody:not(.drop-zone) { opacity: .35; }
+/* ドラッグ中: 入る位置に太い線を出す */
 .xl-sheet tr.drop-before td { box-shadow: inset 0 3px 0 var(--xl-head); }
 .xl-sheet tr.drop-after td { box-shadow: inset 0 -3px 0 var(--xl-head); }
 .xl-sheet tr.drop-before td.rh::before, .xl-sheet tr.drop-after td.rh::after { content: '▶'; color: var(--xl-head); font-size: .7rem; }

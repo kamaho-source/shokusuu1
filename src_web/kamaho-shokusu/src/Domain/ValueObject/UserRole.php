@@ -25,6 +25,19 @@ final class UserRole
         return in_array($userLevel, self::STAFF_LEVELS, true);
     }
 
+    /**
+     * i_user_level の区分名（部屋のメンバー一覧で使う）。未設定(NULL)は「未設定」、職員(0・7)は「職員」、1 は「児童」、それ以外は「その他」。
+     */
+    public static function levelLabel(?int $userLevel): string
+    {
+        return match (true) {
+            $userLevel === null => '未設定',
+            self::isStaffLevel($userLevel) => '職員',
+            $userLevel === 1 => '児童',
+            default => 'その他',
+        };
+    }
+
     /** 管理者またはシステム管理者かどうかを返す。 */
     public static function isAdmin(int $value): bool
     {

@@ -15,14 +15,13 @@ use Cake\ORM\TableRegistry;
 class RoomMemberOrderService
 {
     /**
-     * 所属メンバーの並び（全画面共通）: i_user_level → i_disp_no（NULL は後ろ）→ 名前 → ID。
+     * 所属メンバーの並び（全画面共通）: i_disp_no（NULL は後ろ）→ 名前 → ID。区分（職員・児童・その他）では分けない。
      *
      * @param SelectQuery $query MUserInfo を $alias で結合（または主テーブルに）しているクエリ
      */
     public static function orderMembers(SelectQuery $query, string $alias = 'MUserInfo'): SelectQuery
     {
         return $query
-            ->orderBy(["{$alias}.i_user_level" => 'ASC'])
             ->orderBy($query->expr("{$alias}.i_disp_no IS NULL"))
             ->orderBy([
                 "{$alias}.i_disp_no"   => 'ASC',
@@ -32,7 +31,7 @@ class RoomMemberOrderService
     }
 
     /**
-     * 部屋の所属メンバー全員を、画面で並べた順に保存する。並びは同じ i_user_level の中で効く。
+     * 部屋の所属メンバー全員を、画面で並べた順に保存する（区分をまたいで並べてよい）。
      *
      * @param list<int> $userIds 並べた順のユーザーID（部屋の所属メンバー全員）
      * @return int 番号が変わった人数
@@ -48,7 +47,6 @@ class RoomMemberOrderService
                     ->enableAutoFields(false)
                     ->select([
                         'id'      => 'MUserInfo.i_id_user',
-                        'level'   => 'MUserInfo.i_user_level',
                         'disp_no' => 'MUserInfo.i_disp_no',
                     ])
                     ->innerJoin(['MUserInfo' => 'm_user_info'], ['MUserInfo.i_id_user = MUserGroup.i_id_user'])
@@ -64,20 +62,13 @@ class RoomMemberOrderService
                 throw new InvalidInputException('部屋の所属メンバーが変わっています。画面を読み込み直してください。');
             }
 
-            $groups = [];
+            $current = [];
             foreach ($members as $m) {
-                $groups[(int)($m['level'] ?? -1)][(int)$m['id']] = $m['disp_no'] === null ? null : (int)$m['disp_no'];
+                $current[(int)$m['id']] = $m['disp_no'] === null ? null : (int)$m['disp_no'];
             }
 
             $maxDispNo = (int)($userTable->find()->select(['m' => 'MAX(i_disp_no)'])->enableHydration(false)->first()['m'] ?? 0);
-            $changes = [];
-            foreach ($groups as $current) {
-                // 送られた順のうち、このグループの人だけを取り出す（グループをまたぐ並びは使わない）
-                $newOrder = array_values(array_intersect($userIds, array_keys($current)));
-                $assigned = MemberDisplayOrder::reassign($current, $newOrder, $maxDispNo);
-                $maxDispNo = max([$maxDispNo, ...array_values($assigned)]);
-                $changes += $assigned;
-            }
+            $changes = MemberDisplayOrder::reassign($current, $userIds, $maxDispNo);
 
             $now = DateTime::now('Asia/Tokyo');
             foreach ($changes as $userId => $dispNo) {
