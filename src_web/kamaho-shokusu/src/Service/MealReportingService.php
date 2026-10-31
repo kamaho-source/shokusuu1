@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Exception\DuplicateMealReservationException;
+use App\Infrastructure\Cache\ReservationCache;
 use App\Model\Table\TIndividualReservationInfoTable;
-use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;
@@ -19,9 +20,7 @@ use Cake\ORM\Table;
  */
 class MealReportingService
 {
-    private const MEAL_TYPES = [1, 2, 3, 4];
-
-    private const EAT_REPORT_MEAL_TYPES = [1, 2, 3];
+    private const EAT_REPORT_MEAL_TYPES = [MealType::Breakfast->value, MealType::Lunch->value, MealType::Dinner->value];
 
     /**
      * 「食べない」で報告する（全食種を eat_flag=0, i_change_flag=0 に設定）。
@@ -54,7 +53,7 @@ class MealReportingService
             [
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $today,
-                'i_reservation_type IN' => self::MEAL_TYPES,
+                'i_reservation_type IN' => MealType::values(),
                 // 承認済みの行は変えない（他の書き込み経路と同じく、承認後の内容を守る）
                 'OR' => [
                     'i_approval_status IS'     => null,
@@ -64,7 +63,7 @@ class MealReportingService
         );
 
         // 予約行が1つも無い食事は、従来どおり代表部屋に「食べない」の行を残す
-        foreach (self::MEAL_TYPES as $mealType) {
+        foreach (MealType::values() as $mealType) {
             $exists = $reservationTable->exists([
                 'i_id_user'          => $userId,
                 'd_reservation_date' => $today,
@@ -139,7 +138,8 @@ class MealReportingService
                 // 「食べる」は朝・昼・夕。弁当は昼食と同時に有効にできないため付けない。
                 // 弁当をすでに予約している日は、昼食も付けない（弁当のまま）
                 foreach (self::EAT_REPORT_MEAL_TYPES as $mealType) {
-                    if ($mealType === 2 && $this->hasEffectiveMeal($reservationTable, $userId, $today, 4)) {
+                    $counterpart = MealType::counterpartValue($mealType);
+                    if ($counterpart !== null && $this->hasEffectiveMeal($reservationTable, $userId, $today, $counterpart)) {
                         continue;
                     }
                     $rows = $reservationTable->find()
@@ -203,7 +203,7 @@ class MealReportingService
         }
 
         $this->invalidateCaches($userId, $roomId, $today);
-        Cache::write(sprintf('today_report:%d:%s', $userId, $today), 1, 'default');
+        ReservationCache::markTodayReported($userId, $today);
 
         // 承認済みのため変えられなかった食事があれば、「食べない」の報告と同じく黙って「報告しました」にしない
         if ($updatedMealTypes === []) {
@@ -284,7 +284,6 @@ class MealReportingService
 
     private function invalidateCaches(int $userId, int $roomId, string $today): void
     {
-        Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
-        ReservationReportService::invalidateMealCountsCache($today);
+        ReservationCache::forgetDate($today, [$userId]);
     }
 }

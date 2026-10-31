@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Model\Table;
 
+use App\Domain\Service\ReservationDateRule;
+use App\Domain\ValueObject\MealType;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
 use ArrayObject;
@@ -109,10 +111,10 @@ class TIndividualReservationInfoTable extends Table
 
     public function buildRules(RulesChecker $rules): RulesChecker
     {
-        // 昼(2)⇔弁(4)の排他（その日の“有効値”で判定）
+        // 昼食⇔弁当の排他（その日の“有効値”で判定。ルールは MealType::hasExclusiveConflict）
         $rules->add(function (EntityInterface $entity): bool {
             $type = (int)$entity->i_reservation_type;
-            if (!in_array($type, [2, 4], true)) {
+            if (!MealType::isExclusiveValue($type)) {
                 return true;
             }
             // 保存する行が「食べない」なら判定しない（以前の二重データが残っていても、取消や無効行の保存を止めない）
@@ -121,7 +123,7 @@ class TIndividualReservationInfoTable extends Table
                 return true;
             }
             // 相手タイプ
-            $opponentType = $type === 2 ? 4 : 2;
+            $opponentType = MealType::counterpartValue($type);
 
             // 必要カラムのみ取得
             $rows = $this->find()
@@ -134,19 +136,16 @@ class TIndividualReservationInfoTable extends Table
                 ])
                 ->all();
 
-            $hasLunch = false; $hasBento = false;
+            // その日に有効な食事区分を集めて、Domain のルール（昼食と弁当は同時に有効にしない）で判定する。
+            // 今回の行も有効として加える（有効なことは上で確かめてある）
+            $effectiveTypes = [$type];
             foreach ($rows as $r) {
-                // 有効値は effectiveValue（ReservationDatePolicy::countedValue と同じ基準。過去日も i_change_flag）
-                $eff = self::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag);
-                if ((int)$r->i_reservation_type === 2) $hasLunch = $hasLunch || ($eff === 1);
-                if ((int)$r->i_reservation_type === 4) $hasBento = $hasBento || ($eff === 1);
+                if (self::effectiveValue($dateStr, $r->eat_flag, $r->i_change_flag) === 1) {
+                    $effectiveTypes[] = (int)$r->i_reservation_type;
+                }
             }
 
-            // 今回の行も有効として加える（有効なことは上で確かめてある）
-            if ($type === 2) $hasLunch = true;
-            if ($type === 4) $hasBento = true;
-
-            return !($hasLunch && $hasBento);
+            return !MealType::hasExclusiveConflict($effectiveTypes);
         }, 'uniqueLunchBentoEffective', [
             'errorField' => 'i_reservation_type',
             'message' => '同じ日付で「昼」と「弁当」を同時に有効にはできません。'
@@ -258,7 +257,7 @@ class TIndividualReservationInfoTable extends Table
         int|string|null $eatFlag,
         int|string|null $changeFlag
     ): void {
-        if (!in_array($mealType, [2, 4], true)) {
+        if (!MealType::isExclusiveValue($mealType)) {
             return;
         }
         $eat = $eatFlag === null ? null : (int)$eatFlag;
@@ -266,7 +265,7 @@ class TIndividualReservationInfoTable extends Table
         if (self::effectiveValue($date, $eat, $chg) !== 1) {
             return;
         }
-        $opponent = $mealType === 2 ? 4 : 2;
+        $opponent = MealType::counterpartValue($mealType);
         if ($this->findEffectiveRoomIds($userId, $date, $opponent) === []) {
             return;
         }
@@ -298,7 +297,7 @@ class TIndividualReservationInfoTable extends Table
         $d = new Date($date);
         $today = Date::today();
 
-        return $d >= $today && $d <= $today->addDays(14);
+        return ReservationDateRule::isLastMinuteWindow($d, $today);
     }
 
     /**
@@ -314,15 +313,13 @@ class TIndividualReservationInfoTable extends Table
      */
     public static function effectiveValue(string $date, int|string|null $eatFlag, int|string|null $changeFlag): int
     {
-        $eatFlag = $eatFlag === null ? null : (int)$eatFlag;
-        $changeFlag = $changeFlag === null ? null : (int)$changeFlag;
-        // 食数の報告・カレンダー・承認（ReservationDatePolicy::countedValue）と同じく、境界日（今日+14日）以前は
-        // 過去日も含めて i_change_flag を見る（過ぎた日に直前の追加・取消を見落とさない）
-        if ($changeFlag !== null && new Date($date) <= Date::today()->addDays(14)) {
-            return $changeFlag;
-        }
-
-        return (int)($eatFlag ?? 0);
+        // 食数の報告・カレンダー・承認と同じ基準（境界日以前は過去日も含めて i_change_flag）
+        return ReservationDateRule::countedValue(
+            new Date($date),
+            $eatFlag === null ? null : (int)$eatFlag,
+            $changeFlag === null ? null : (int)$changeFlag,
+            Date::today()
+        );
     }
 
     private function toDateString(Date|string|null $date): string
@@ -473,13 +470,13 @@ class TIndividualReservationInfoTable extends Table
         ?int $eatFlag = null,
         ?int $changeFlag = null
     ): array {
-        if (!in_array($meal, [1, 2, 3, 4], true)) {
+        if (MealType::tryFrom($meal) === null) {
             throw new \InvalidArgumentException('meal は 1(朝)/2(昼)/3(夜)/4(弁) のみ');
         }
 
         $today = Date::today();
         $d     = new Date($date);
-        $isLastMinute = ($d >= $today && $d <= $today->addDays(14));
+        $isLastMinute = ReservationDateRule::isLastMinuteWindow($d, $today);
 
         // コントローラから明示があればそれを、無ければ規定ロジックで
         if ($eatFlag === null || $changeFlag === null) {
@@ -516,8 +513,8 @@ class TIndividualReservationInfoTable extends Table
             }
 
             // 昼/弁の相互排他：ON にするなら相手を先に OFF にする（相手が有効なまま ON にすると updateRowWithVersion が拒否するため）
-            if ($on && in_array($meal, [2, 4], true)) {
-                $opponentMeal = ($meal === 2) ? 4 : 2;
+            if ($on && MealType::isExclusiveValue($meal)) {
+                $opponentMeal = MealType::counterpartValue($meal);
 
                 $opponent = $this->find()
                     ->enableAutoFields(false)
@@ -537,9 +534,7 @@ class TIndividualReservationInfoTable extends Table
                 // 相互排他で相手を強制OFFにするため、相手が承認済みなら変更を拒否する
                 if ($opponent && in_array((int)($opponent->i_approval_status ?? 0), self::APPROVED_STATUSES, true)) {
                     throw new ApprovedReservationException(
-                        $opponentMeal === 2
-                            ? '同じ日の昼食予約が承認済みのため変更できません。'
-                            : '同じ日の弁当予約が承認済みのため変更できません。'
+                        sprintf('同じ日の%s予約が承認済みのため変更できません。', MealType::labelOf($opponentMeal))
                     );
                 }
 
@@ -656,7 +651,7 @@ class TIndividualReservationInfoTable extends Table
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $date,
                 'i_id_room'             => $roomId,
-                'i_reservation_type IN' => [1,2,3,4],
+                'i_reservation_type IN' => MealType::values(),
             ])
             ->all();
 
