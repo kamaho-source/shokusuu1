@@ -27,10 +27,10 @@ $user = $this->request->getAttribute('identity');
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 
 $dates    = $gridData['dates']    ?? [];
-$meals    = $gridData['meals']    ?? [1 => '朝', 2 => '昼', 3 => '夜'];
+$meals    = $gridData['meals']    ?? \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_SHORT_NIGHT, false);
 $grid     = $gridData['grid']     ?? [];
 $versions = $gridData['versions'] ?? [];
-$mealNames = [1 => '朝食', 2 => '昼食', 3 => '夕食'];
+$mealNames = \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_FULL, false);
 
 // 週の表示ラベル
 $dow = ['日', '月', '火', '水', '木', '金', '土'];

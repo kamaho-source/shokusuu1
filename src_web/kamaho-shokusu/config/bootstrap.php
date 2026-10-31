@@ -37,12 +37,14 @@ use Cake\Core\Configure\Engine\PhpConfig;
 use Cake\Database\Type\StringType;
 use Cake\Database\TypeFactory;
 use Cake\Datasource\ConnectionManager;
+use Cake\Datasource\FactoryLocator;
 use Cake\Error\ErrorTrap;
 use Cake\Error\ExceptionTrap;
 use Cake\Http\ServerRequest;
 use Cake\Log\Log;
 use Cake\Mailer\Mailer;
 use Cake\Mailer\TransportFactory;
+use Cake\ORM\Locator\TableLocator;
 use Cake\Routing\Router;
 use Cake\Utility\Security;
 
@@ -102,6 +104,12 @@ if (Configure::read('debug')) {
  * Check https://php.net/manual/en/timezones.php for list of valid timezone strings.
  */
 date_default_timezone_set('Asia/Tokyo');
+
+/*
+ * Table クラスは永続化層（src/Infrastructure/Persistence/Table）に置く（CLAUDE.md の層構成）。
+ * CakePHP 既定の探索先 Model/Table の代わりに、ここを探す。Entity は Table と同じ並びの Persistence/Entity から自動で見つかる。
+ */
+FactoryLocator::add('Table', new TableLocator([\App\Application::TABLE_LOCATION]));
 
 /*
  * Configure the mbstring extension to use the correct encoding.

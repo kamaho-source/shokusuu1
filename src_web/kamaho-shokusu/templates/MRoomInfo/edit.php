@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\MRoomInfo $mRoomInfo
+ * @var \App\Infrastructure\Persistence\Entity\MRoomInfo $mRoomInfo
  * @var array $users
  * @var bool $canEditRoom
  * @var bool $canReorder

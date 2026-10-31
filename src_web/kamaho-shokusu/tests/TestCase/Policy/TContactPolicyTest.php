@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
-use App\Model\Entity\TContact;
+use App\Infrastructure\Persistence\Entity\TContact;
 use App\Policy\TContactPolicy;
 use Cake\TestSuite\TestCase;
 

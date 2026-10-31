@@ -2,7 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var mixed $rooms
- * @var \App\Model\Entity\MUserInfo $mUserInfo
+ * @var \App\Infrastructure\Persistence\Entity\MUserInfo $mUserInfo
  */
 use App\Domain\ValueObject\UserProfileOptions;
 ?>

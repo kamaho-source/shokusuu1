@@ -14,7 +14,6 @@ use Authorization\AuthorizationServiceInterface;
 use Authorization\AuthorizationServiceProviderInterface;
 use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
-use Authorization\Policy\OrmResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Controller\AiAssistantController;
@@ -27,6 +26,7 @@ use App\Infrastructure\AI\UserTokenizer;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
 use App\Service\RoomUsageService;
+use App\Policy\PersistenceOrmResolver;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
 use Psr\Http\Message\ResponseInterface;
@@ -47,6 +47,9 @@ use Cake\Routing\Middleware\RoutingMiddleware;
 
 class Application extends BaseApplication implements AuthenticationServiceProviderInterface, AuthorizationServiceProviderInterface
 {
+    /** Table クラスの探索先（永続化層）。 */
+    public const TABLE_LOCATION = 'Infrastructure/Persistence/Table';
+
     public function bootstrap(): void
     {
         parent::bootstrap();
@@ -57,7 +60,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         if (PHP_SAPI === 'cli') {
             $this->bootstrapCli();
         } else {
-            FactoryLocator::add('Table', (new TableLocator())->allowFallbackClass(false));
+            FactoryLocator::add('Table', (new TableLocator([self::TABLE_LOCATION]))->allowFallbackClass(false));
         }
 
         if (Configure::read('debug')) {
@@ -208,8 +211,8 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\ReservationHistoryController::class => \App\Policy\ReservationHistoryPolicy::class,
         ]);
 
-        // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック
-        $resolver = new ResolverCollection([$mapResolver, new OrmResolver()]);
+        // MapResolver で解決できない場合は、永続化層のエンティティ・テーブル→ポリシーにフォールバック
+        $resolver = new ResolverCollection([$mapResolver, new PersistenceOrmResolver()]);
 
         return new AuthorizationService($resolver);
     }

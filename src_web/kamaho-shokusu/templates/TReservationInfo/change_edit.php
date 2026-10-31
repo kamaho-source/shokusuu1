@@ -29,7 +29,7 @@ $isModal  = (string)($this->request->getQuery('modal') ?? '') === '1';
 $weekMap = ['日','月','火','水','木','金','土'];
 $weekday = isset($date) ? ($weekMap[(int)date('w', strtotime($date))] ?? '') : '';
 
-$mealLabels = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'];
+$mealLabels = \App\Domain\ValueObject\MealType::labels();
 $mealBadgeClasses = [
     1 => 'bg-warning text-dark',
     2 => 'bg-success',

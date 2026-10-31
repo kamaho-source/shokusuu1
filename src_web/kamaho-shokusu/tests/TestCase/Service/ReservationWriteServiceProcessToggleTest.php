@@ -443,7 +443,7 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
     public function testProcessBulkToggle_systemErrorHidesSqlAndShowsErrorCode(): void
     {
         // 1件目: DB エラー（デッドロック）、2件目: DB 接続エラー、3件目: 通常のエラー（過去日）。
-        $table = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+        $table = $this->getMockBuilder(\App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable::class)
             ->onlyMethods(['toggleMeal'])
             ->setConstructorArgs([[
                 'connection' => ConnectionManager::get('test'),
@@ -713,7 +713,7 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
 
     private function serviceWhereToggleThrows(\Throwable $e, bool $returns = false): ReservationWriteService
     {
-        $table = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+        $table = $this->getMockBuilder(\App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable::class)
             ->onlyMethods(['toggleMeal'])
             ->setConstructorArgs([[
                 'connection' => ConnectionManager::get('test'),

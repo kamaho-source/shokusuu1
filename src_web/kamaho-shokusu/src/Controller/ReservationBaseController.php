@@ -18,15 +18,15 @@ use Cake\Http\Response;
  */
 abstract class ReservationBaseController extends AppController
 {
-    /** @var \App\Model\Table\TReservationInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\TReservationInfoTable */
     protected $TReservationInfo;
-    /** @var \App\Model\Table\MRoomInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\MRoomInfoTable */
     protected $MRoomInfo;
-    /** @var \App\Model\Table\MUserInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\MUserInfoTable */
     protected $MUserInfo;
-    /** @var \App\Model\Table\MUserGroupTable */
+    /** @var \App\Infrastructure\Persistence\Table\MUserGroupTable */
     protected $MUserGroup;
-    /** @var \App\Model\Table\TIndividualReservationInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable */
     protected $TIndividualReservationInfo;
 
     protected ReservationCalendarService $calendarService;

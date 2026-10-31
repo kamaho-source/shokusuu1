@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Model\Table\MRoomTransferScheduleTable;
+use App\Infrastructure\Persistence\Table\MRoomTransferScheduleTable;
 use App\Service\RoomTransferScheduleService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Exception\BadRequestException;

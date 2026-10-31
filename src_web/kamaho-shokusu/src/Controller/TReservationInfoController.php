@@ -16,7 +16,7 @@ use App\Service\ReservationViewService;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
 use App\Exception\OptimisticLockConflictException;
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\ORM\Exception\PersistenceFailedException;
 use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;

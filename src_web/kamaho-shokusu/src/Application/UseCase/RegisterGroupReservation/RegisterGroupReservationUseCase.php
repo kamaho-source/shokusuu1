@@ -33,7 +33,6 @@ final class RegisterGroupReservationUseCase
 {
     private const CONFLICT_MESSAGE = '他の操作と競合しました。画面を再読み込みして再実行してください。';
 
-    private const MEAL_TYPE_NAMES = ['1' => '朝食', '2' => '昼食', '3' => '夕食', '4' => '弁当'];
 
     public function __construct(
         private readonly ReservationRepositoryInterface $reservations,
@@ -313,7 +312,7 @@ final class RegisterGroupReservationUseCase
                 if ($leftRoomId !== null) {
                     $duplicates[] = [
                         'user_name' => $userNameMap[(int)$targetUserId] ?? '不明なユーザー名',
-                        'meal_type' => self::MEAL_TYPE_NAMES[$mealType] ?? $mealType,
+                        'meal_type' => MealType::labels()[(int)$mealType] ?? $mealType,
                         'room_name' => $roomNameMap[$leftRoomId] ?? ('部屋' . $leftRoomId),
                     ];
                     continue;
@@ -332,7 +331,7 @@ final class RegisterGroupReservationUseCase
                     }
                     $duplicates[] = [
                         'user_name' => $userNameMap[(int)$targetUserId] ?? '不明なユーザー名',
-                        'meal_type' => self::MEAL_TYPE_NAMES[$mealType] ?? $mealType,
+                        'meal_type' => MealType::labels()[(int)$mealType] ?? $mealType,
                         'room_name' => $roomNameMap[$existing->roomId] ?? '不明な部屋名',
                     ];
                     continue;

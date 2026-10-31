@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\Log\Log;
 use Cake\ORM\Table;
@@ -12,9 +12,9 @@ use Cake\ORM\TableRegistry;
 
 class ReservationCopyService
 {
-    /** @var \App\Model\Table\TIndividualReservationInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable */
     private Table $TIndividualReservationInfo;
-    /** @var \App\Model\Table\MUserInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\MUserInfoTable */
     private Table $MUserInfo;
     private ?ReservationDatePolicy $datePolicy = null;
 

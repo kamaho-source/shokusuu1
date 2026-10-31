@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
-use App\Model\Entity\TReservationInfo;
+use App\Infrastructure\Persistence\Entity\TReservationInfo;
 use App\Policy\TReservationInfoPolicy;
 use Cake\TestSuite\TestCase;
 
@@ -64,7 +64,7 @@ class TReservationInfoPolicyTest extends TestCase
         $identity = new class (['i_id_user' => 1]) extends TestIdentity {
             public function getOriginalData(): \ArrayAccess|array
             {
-                return new \App\Model\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => null]);
+                return new \App\Infrastructure\Persistence\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => null]);
             }
         };
 
@@ -77,7 +77,7 @@ class TReservationInfoPolicyTest extends TestCase
         $identity = new class (['i_id_user' => 1]) extends TestIdentity {
             public function getOriginalData(): \ArrayAccess|array
             {
-                return new \App\Model\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 7]);
+                return new \App\Infrastructure\Persistence\Entity\MUserInfo(['i_id_user' => 1, 'i_admin' => 0, 'i_user_level' => 7]);
             }
         };
 

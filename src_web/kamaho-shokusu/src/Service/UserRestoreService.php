@@ -16,14 +16,14 @@ use Cake\ORM\TableRegistry;
 class UserRestoreService
 {
     /**
-     * @param \App\Model\Entity\MUserInfo $user      MUserInfo エンティティ（i_del_flag === 1 であること）
+     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $user      MUserInfo エンティティ（i_del_flag === 1 であること）
      * @param string $updatedBy 操作者ユーザー名
      * @param int    $actorId   操作者ユーザーID
      * @param string $ipAddress 操作元IPアドレス
      * @return bool
      * @throws \Exception
      */
-    public function restore(\App\Model\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
+    public function restore(\App\Infrastructure\Persistence\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');

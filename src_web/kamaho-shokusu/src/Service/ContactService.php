@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Model\Entity\TContactReply;
-use App\Model\Table\TContactRepliesTable;
-use App\Model\Table\TContactsTable;
+use App\Infrastructure\Persistence\Entity\TContactReply;
+use App\Infrastructure\Persistence\Table\TContactRepliesTable;
+use App\Infrastructure\Persistence\Table\TContactsTable;
 use Cake\Database\Exception\QueryException;
 use Cake\Http\Client;
 use Cake\I18n\DateTime;
@@ -69,7 +69,7 @@ class ContactService
      *
      * @param array $data フォームデータ
      * @param int|null $userId ログインユーザーID
-     * @return array{success: bool, entity: \App\Model\Entity\TContact}
+     * @return array{success: bool, entity: \App\Infrastructure\Persistence\Entity\TContact}
      */
     public function submit(array $data, ?int $userId): array
     {
@@ -132,9 +132,9 @@ class ContactService
      *
      * @throws \Cake\Datasource\Exception\RecordNotFoundException
      */
-    public function getDetail(int $contactId): \App\Model\Entity\TContact
+    public function getDetail(int $contactId): \App\Infrastructure\Persistence\Entity\TContact
     {
-        /** @var \App\Model\Entity\TContact */
+        /** @var \App\Infrastructure\Persistence\Entity\TContact */
         return $this->contacts->find()
             ->contain(['TContactReplies' => fn($q) => $q->orderByAsc('created')])
             ->where(['TContacts.id' => $contactId])
@@ -147,9 +147,9 @@ class ContactService
      *
      * @throws \Cake\Datasource\Exception\RecordNotFoundException
      */
-    public function getDetailForUser(int $contactId, int $userId): \App\Model\Entity\TContact
+    public function getDetailForUser(int $contactId, int $userId): \App\Infrastructure\Persistence\Entity\TContact
     {
-        /** @var \App\Model\Entity\TContact */
+        /** @var \App\Infrastructure\Persistence\Entity\TContact */
         return $this->contacts->find()
             ->contain(['TContactReplies' => fn($q) => $q->orderByAsc('created')])
             ->where(['TContacts.id' => $contactId, 'TContacts.user_id' => $userId])
@@ -324,7 +324,7 @@ class ContactService
     /**
      * Slackへ問い合わせ内容を通知する。
      */
-    private function notifySlack(\App\Model\Entity\TContact $entity): void
+    private function notifySlack(\App\Infrastructure\Persistence\Entity\TContact $entity): void
     {
         $webhookUrl = env('SLACK_CONTACT_WEBHOOK', '');
         if ($webhookUrl === '') {
@@ -349,7 +349,7 @@ class ContactService
     /**
      * カテゴリに応じた自動返信メールを送信する。
      */
-    private function sendAutoReply(\App\Model\Entity\TContact $entity): void
+    private function sendAutoReply(\App\Infrastructure\Persistence\Entity\TContact $entity): void
     {
         if (empty($entity->email)) {
             return;
@@ -386,7 +386,7 @@ class ContactService
     /**
      * 管理者から問い合わせ者へ返信メールを送信する。
      */
-    private function sendReplyMail(\App\Model\Entity\TContact $contact, string $replyBody): void
+    private function sendReplyMail(\App\Infrastructure\Persistence\Entity\TContact $contact, string $replyBody): void
     {
         if (empty($contact->email)) {
             return;
@@ -424,7 +424,7 @@ class ContactService
      * メールに返信専用アドレスをReply-Toとして設定する。
      * reply_token が未発行（移行前の既存データ等）の場合は何もしない。
      */
-    private function applyReplyTo(Mailer $mailer, \App\Model\Entity\TContact $contact): void
+    private function applyReplyTo(Mailer $mailer, \App\Infrastructure\Persistence\Entity\TContact $contact): void
     {
         if (empty($contact->reply_token)) {
             return;
@@ -460,7 +460,7 @@ class ContactService
     /**
      * 管理者へ通知メールを送信する。
      */
-    private function sendAdminNotification(\App\Model\Entity\TContact $entity): void
+    private function sendAdminNotification(\App\Infrastructure\Persistence\Entity\TContact $entity): void
     {
         $adminEmail = (string)\Cake\Core\Configure::read('App.adminEmail', self::ADMIN_EMAIL_UNSET);
 
@@ -491,7 +491,7 @@ class ContactService
     /**
      * 問い合わせ者本人からの追加返信を管理者へ通知する。
      */
-    private function notifyAdminOfUserReply(\App\Model\Entity\TContact $contact, string $replyBody): void
+    private function notifyAdminOfUserReply(\App\Infrastructure\Persistence\Entity\TContact $contact, string $replyBody): void
     {
         $adminEmail = (string)\Cake\Core\Configure::read('App.adminEmail', self::ADMIN_EMAIL_UNSET);
 

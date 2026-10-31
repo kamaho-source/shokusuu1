@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Infrastructure\Cache\ReservationCache;
 use Cake\Cache\Cache;
 use Cake\I18n\Date;
@@ -177,7 +178,7 @@ class ReservationReportService
 
         $result      = ['overall' => [], 'rooms' => []];
         $overallTmp  = [];
-        $mealTypeMap = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
+        $mealTypeMap = MealType::labels(MealType::LABEL_SHORT_NIGHT);
 
         foreach ($reservations as $reservation) {
             $roomName    = $reservation['room_name'];
@@ -200,12 +201,12 @@ class ReservationReportService
             $totalEaters = (int)$reservation['total_eaters'];
 
             if (!isset($result['rooms'][$roomName][$date])) {
-                $result['rooms'][$roomName][$date] = ['朝' => 0, '昼' => 0, '夜' => 0, '弁当' => 0];
+                $result['rooms'][$roomName][$date] = array_fill_keys($mealTypeMap, 0);
             }
             $result['rooms'][$roomName][$date][$mealLabel] += $totalEaters;
 
             if (!isset($overallTmp[$roomName][$date])) {
-                $overallTmp[$roomName][$date] = ['朝' => 0, '昼' => 0, '夜' => 0, '弁当' => 0];
+                $overallTmp[$roomName][$date] = array_fill_keys($mealTypeMap, 0);
             }
             $overallTmp[$roomName][$date][$mealLabel] += $totalEaters;
         }

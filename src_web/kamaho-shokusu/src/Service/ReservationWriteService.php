@@ -99,7 +99,7 @@ class ReservationWriteService
     /** 予約の書き込みの UseCase（Repository を共有するので、所属の判定はリクエストの中で使い回される）。 */
     private function useCases(): ReservationUseCases
     {
-        /** @var \App\Model\Table\TIndividualReservationInfoTable $reservations */
+        /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable $reservations */
         $reservations = $this->reservationTable;
 
         return $this->useCases ??= new ReservationUseCases($reservations, $this->userTable);

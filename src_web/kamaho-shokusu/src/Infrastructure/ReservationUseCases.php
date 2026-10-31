@@ -19,7 +19,7 @@ use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Repository\CakeUserRepository;
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use App\Service\ReservationDatePolicy;
 use Cake\Core\Configure;
 use Cake\ORM\Table;

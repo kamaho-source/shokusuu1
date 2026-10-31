@@ -3,7 +3,7 @@
  * お知らせ編集
  *
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\MNotice $notice
+ * @var \App\Infrastructure\Persistence\Entity\MNotice $notice
  * @var bool $isSysAdmin
  */
 

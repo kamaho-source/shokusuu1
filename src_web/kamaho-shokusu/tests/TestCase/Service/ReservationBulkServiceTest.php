@@ -1025,9 +1025,9 @@ class ReservationBulkServiceTest extends TestCase
     // ---------------------------------------------------------------------------
 
     /** updateRowWithVersion だけ差し替えた予約テーブル（他は実DBのまま） */
-    private function tableWithUpdate(callable $behavior): \App\Model\Table\TIndividualReservationInfoTable
+    private function tableWithUpdate(callable $behavior): \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable
     {
-        $mock = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+        $mock = $this->getMockBuilder(\App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable::class)
             ->onlyMethods(['updateRowWithVersion'])
             ->setConstructorArgs([[
                 'connection' => ConnectionManager::get('test'),

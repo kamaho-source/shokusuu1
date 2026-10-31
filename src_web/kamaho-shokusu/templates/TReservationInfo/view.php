@@ -26,7 +26,7 @@ $targetDate = new FrozenDate($date);
 $dow = ['日', '月', '火', '水', '木', '金', '土'];
 $dateLabel = $targetDate->format('Y年n月j日') . '(' . $dow[(int)$targetDate->format('w')] . ')';
 
-$mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
+$mealTypes = \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_SHORT_NIGHT);
 
 // 選択部屋の集計（昼：$userMealMap から直接算出）
 $defaultMealType = 2;

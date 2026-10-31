@@ -13,7 +13,7 @@ use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
 use App\Infrastructure\Persistence\SystemError;
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;

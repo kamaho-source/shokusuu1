@@ -4,8 +4,8 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Infrastructure\Cache\ReservationCache;
-use App\Model\Table\TIndividualReservationInfoTable;
-use App\Model\Table\MRoomTransferScheduleTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\MRoomTransferScheduleTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
