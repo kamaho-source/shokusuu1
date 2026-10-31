@@ -661,8 +661,8 @@ class ReservationCopyService
             return true;
         }
         // 昼食と弁当は同時に予約できない。コピー先で相手が（どの部屋でも）有効ならスキップに数える
-        if (MealType::isExclusive($mealType)
-            && $this->TIndividualReservationInfo->findEffectiveRoomIds($userId, $date, MealType::exclusiveCounterpart($mealType)) !== []
+        if (MealType::isExclusiveValue($mealType)
+            && $this->TIndividualReservationInfo->findEffectiveRoomIds($userId, $date, MealType::counterpartValue($mealType)) !== []
         ) {
             return true;
         }

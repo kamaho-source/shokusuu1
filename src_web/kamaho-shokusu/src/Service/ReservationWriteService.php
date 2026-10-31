@@ -477,16 +477,16 @@ class ReservationWriteService
         }
         // 昼食⇔弁当を ON にすると、同じ部屋の相手は取り消される（toggleMeal）。
         // 入れ替えない指定（複数日予約のまとめて登録）なら、相手を黙って取り消さずに止める（直接登録ではスキップ扱いになる文言）
-        if ($noSwap && $value === 1 && $meal !== null && MealType::isExclusive($meal)
-            && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, MealType::exclusiveCounterpart($meal)), true)
+        if ($noSwap && $value === 1 && $meal !== null && MealType::isExclusiveValue($meal)
+            && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, MealType::counterpartValue($meal)), true)
         ) {
             throw new ConflictException($meal === 2
                 ? 'お弁当を登録済みのため、昼食は登録しませんでした（昼食と弁当は同時に予約できません）。'
                 : '昼食を登録済みのため、お弁当は登録しませんでした（昼食と弁当は同時に予約できません）。');
         }
         // 職員の直前取消の禁止を、入れ替えですり抜けさせない
-        if (!$isAdmin && $isLastMinute && UserRole::isStaffLevel($targetUserLevel) && $value === 1 && $meal !== null && MealType::isExclusive($meal)
-            && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, MealType::exclusiveCounterpart($meal)), true)
+        if (!$isAdmin && $isLastMinute && UserRole::isStaffLevel($targetUserLevel) && $value === 1 && $meal !== null && MealType::isExclusiveValue($meal)
+            && in_array($roomId, $this->reservationTable->findEffectiveRoomIds($targetUserId, $dateStr, MealType::counterpartValue($meal)), true)
         ) {
             throw new UnauthorizedException('職員は直前編集でのキャンセルはできないため、お昼とお弁当を入れ替えられません。');
         }
@@ -897,7 +897,7 @@ class ReservationWriteService
 
             // 昼食⇔弁当: 相手が画面に出ていない部屋で有効なら、入れ替え（相手の取消）はこの画面ではできない
             // すでにこの部屋で有効なまま（変更なし）の食事は見ない。以前の二重データで、関係のない保存まで止めないため
-            $opponent = MealType::exclusiveCounterpart((int)$mealType);
+            $opponent = MealType::counterpartValue((int)$mealType);
             $alreadyEffectiveHere = isset($existingMap[(int)$mealType][(int)$roomId])
                 && TIndividualReservationInfoTable::isEffectiveRow($existingMap[(int)$mealType][(int)$roomId]);
             if ($opponent !== null && !$alreadyEffectiveHere) {
@@ -906,8 +906,8 @@ class ReservationWriteService
                         throw new ConflictException(sprintf(
                             '%sに%sの予約があるため、%sは予約できません（昼食と弁当は同時に予約できません）。先にその予約を取り消してください。',
                             $this->roomNamesText([(int)$oppRow->i_id_room]),
-                            MealType::name($opponent),
-                            MealType::name((int)$mealType)
+                            MealType::labelOf($opponent),
+                            MealType::labelOf((int)$mealType)
                         ));
                     }
                 }

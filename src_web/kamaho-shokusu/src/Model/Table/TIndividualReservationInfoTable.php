@@ -114,7 +114,7 @@ class TIndividualReservationInfoTable extends Table
         // 昼(2)⇔弁(4)の排他（その日の“有効値”で判定）
         $rules->add(function (EntityInterface $entity): bool {
             $type = (int)$entity->i_reservation_type;
-            if (!MealType::isExclusive($type)) {
+            if (!MealType::isExclusiveValue($type)) {
                 return true;
             }
             // 保存する行が「食べない」なら判定しない（以前の二重データが残っていても、取消や無効行の保存を止めない）
@@ -123,7 +123,7 @@ class TIndividualReservationInfoTable extends Table
                 return true;
             }
             // 相手タイプ
-            $opponentType = MealType::exclusiveCounterpart($type);
+            $opponentType = MealType::counterpartValue($type);
 
             // 必要カラムのみ取得
             $rows = $this->find()
@@ -260,7 +260,7 @@ class TIndividualReservationInfoTable extends Table
         int|string|null $eatFlag,
         int|string|null $changeFlag
     ): void {
-        if (!MealType::isExclusive($mealType)) {
+        if (!MealType::isExclusiveValue($mealType)) {
             return;
         }
         $eat = $eatFlag === null ? null : (int)$eatFlag;
@@ -268,7 +268,7 @@ class TIndividualReservationInfoTable extends Table
         if (self::effectiveValue($date, $eat, $chg) !== 1) {
             return;
         }
-        $opponent = MealType::exclusiveCounterpart($mealType);
+        $opponent = MealType::counterpartValue($mealType);
         if ($this->findEffectiveRoomIds($userId, $date, $opponent) === []) {
             return;
         }
@@ -516,8 +516,8 @@ class TIndividualReservationInfoTable extends Table
             }
 
             // 昼/弁の相互排他：ON にするなら相手を先に OFF にする（相手が有効なまま ON にすると updateRowWithVersion が拒否するため）
-            if ($on && MealType::isExclusive($meal)) {
-                $opponentMeal = MealType::exclusiveCounterpart($meal);
+            if ($on && MealType::isExclusiveValue($meal)) {
+                $opponentMeal = MealType::counterpartValue($meal);
 
                 $opponent = $this->find()
                     ->enableAutoFields(false)
