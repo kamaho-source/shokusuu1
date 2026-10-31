@@ -8,6 +8,8 @@ use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Core\Configure;
 use Cake\Http\Exception\NotFoundException;
+use Cake\I18n\Date;
+use Cake\I18n\DateTime;
 
 /**
  * MMealPriceInfo Controller
@@ -84,7 +86,7 @@ class MMealPriceInfoController extends AppController
         $user = $this->request->getAttribute('identity');
         if ($this->request->is('post')) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
-            $mMealPriceInfo->dt_create = date('Y-m-d H:i:s');
+            $mMealPriceInfo->dt_create = DateTime::now()->format('Y-m-d H:i:s');
             $mMealPriceInfo->c_create_user = $user ? $user->get('c_user_name') : null;
 
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
@@ -118,7 +120,7 @@ class MMealPriceInfoController extends AppController
         $user = $this->request->getAttribute('identity');
         if ($this->request->is(['patch', 'post', 'put'])) {
             $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
-            $mMealPriceInfo->dt_update = date('Y-m-d H:i:s');
+            $mMealPriceInfo->dt_update = DateTime::now()->format('Y-m-d H:i:s');
             $mMealPriceInfo->c_update_user = $user ? $user->get('c_user_name') : null;
             if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
                 \App\Service\AuditLogService::record('master', 'meal_price_update', $mMealPriceInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
@@ -165,8 +167,8 @@ class MMealPriceInfoController extends AppController
         $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'index');
 
         // 年度と月をリクエストから取得 (デフォルト値は今年と現在の月)
-        $Year = $this->request->getQuery('year', date('Y'));
-        $month = $this->request->getQuery('month', date('n')); // 月は1月から12月で選択
+        $Year = $this->request->getQuery('year', Date::today()->format('Y'));
+        $month = $this->request->getQuery('month', Date::today()->format('n')); // 月は1月から12月で選択
 
         // 年度と月のリストをテンプレートに渡す
         $yearList = $this->MMealPriceInfo->find()
@@ -188,8 +190,8 @@ class MMealPriceInfoController extends AppController
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();
 
-        $year  = (int)$this->request->getQuery('year', date('Y'));
-        $month = (int)$this->request->getQuery('month', date('n'));
+        $year  = (int)$this->request->getQuery('year', Date::today()->format('Y'));
+        $month = (int)$this->request->getQuery('month', Date::today()->format('n'));
 
         $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
 
@@ -228,8 +230,8 @@ class MMealPriceInfoController extends AppController
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();
 
-        $year  = (int)$this->request->getQuery('year', date('Y'));
-        $month = (int)$this->request->getQuery('month', date('n'));
+        $year  = (int)$this->request->getQuery('year', Date::today()->format('Y'));
+        $month = (int)$this->request->getQuery('month', Date::today()->format('n'));
 
         $result = $this->mealSummaryExportService->aggregatePreview($year, $month);
 

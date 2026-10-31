@@ -25,6 +25,7 @@ use Cake\Http\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
 use Cake\View\Exception\MissingTemplateException;
+use Cake\I18n\Date;
 
 /**
  * PagesController
@@ -194,8 +195,8 @@ class PagesController extends AppController
         // 承認機能が有効なときだけ承認待ち件数を集計する（オフ運用では件数クエリ自体を省く）。
         $approvalEnabled = (bool)Configure::read('Features.approval');
         $approvalService = $approvalEnabled ? new ApprovalService() : null;
-        $dateFrom = date('Y-m-d', strtotime('monday this week'));
-        $dateTo = date('Y-m-d', strtotime('sunday this week'));
+        $dateFrom = Date::today()->startOfWeek()->format('Y-m-d');
+        $dateTo = Date::today()->endOfWeek()->format('Y-m-d');
 
         if ($user) {
             // ログイン済みの場合: ユーザーIDを取得してサービスを呼び出す

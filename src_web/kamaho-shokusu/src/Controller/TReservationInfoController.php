@@ -526,7 +526,7 @@ class TReservationInfoController extends ReservationBaseController
                 ->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
         }
 
-        $date = $this->request->getQuery('date') ?? date('Y-m-d');
+        $date = $this->request->getQuery('date') ?? Date::today()->format('Y-m-d');
 
         if (!$user) {
             $this->set('errorMessage', __('ログインが必要です。'));

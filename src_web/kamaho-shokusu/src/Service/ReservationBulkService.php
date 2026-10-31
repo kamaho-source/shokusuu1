@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
@@ -131,7 +132,7 @@ class ReservationBulkService
                         'd_reservation_date IN' => $dates,
                         'i_id_user IN' => $userIds,
                         'i_id_room' => $roomId,
-                        'i_reservation_type IN' => [1, 2, 3, 4],
+                        'i_reservation_type IN' => MealType::values(),
                     ])
                     ->all();
                 foreach ($existingRows as $row) {
@@ -157,7 +158,7 @@ class ReservationBulkService
                     uasort($meals, static fn($a, $b): int => ((int)$a === 1) <=> ((int)$b === 1));
                     foreach ($meals as $mealTypeRaw => $checked) {
                         $mealType = (int)$mealTypeRaw;
-                        if (!in_array($mealType, [1, 2, 3, 4], true)) {
+                        if (MealType::tryFrom($mealType) === null) {
                             continue;
                         }
                         $changeFlag = (int)$checked;
@@ -170,7 +171,7 @@ class ReservationBulkService
                                 && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0
                             ) {
                                 // 昼食⇔弁当の入れ替えは取消を伴うので、理由を返して止める
-                                $opponent = [2 => 4, 4 => 2][$mealType] ?? null;
+                                $opponent = MealType::counterpartValue((int)$mealType);
                                 if ($opponent !== null && (int)($meals[$opponent] ?? 0) === 1 && TIndividualReservationInfoTable::isEffectiveRow($existing)) {
                                     $connection->rollback();
                                     return [
@@ -437,7 +438,7 @@ class ReservationBulkService
                         // 昼食と弁当を入れ替えるときに相手の行も要るので、どちらかを選んだら両方を読む
                         'i_reservation_type IN' => array_values(array_unique(array_merge(
                             $selectedMealTypes,
-                            array_intersect($selectedMealTypes, [2, 4]) !== [] ? [2, 4] : []
+                            array_intersect($selectedMealTypes, MealType::EXCLUSIVE_VALUES) !== [] ? MealType::EXCLUSIVE_VALUES : []
                         ))),
                         'i_id_user' => $userId,
                     ])
@@ -492,7 +493,7 @@ class ReservationBulkService
                         }
                         // 昼食⇔弁当: 相手のチェックを明示的に外して送られたときは、相手の予約を取り消して入れ替える
                         // （取消は有効化・新規保存より先に実行される）。外していなければ、保存時に理由付きで拒否される
-                        $opponent = [2 => 4, 4 => 2][$mealTypeInt] ?? null;
+                        $opponent = MealType::counterpartValue($mealTypeInt);
                         if ($opponent !== null && isset($meals[$opponent]) && is_array($meals[$opponent])
                             && array_filter($meals[$opponent]) === []
                         ) {
@@ -502,8 +503,8 @@ class ReservationBulkService
                                     $swappedMessages[$date . ':' . $opponent] = sprintf(
                                         '日付 %s は%sを取り消して%sにしました。',
                                         $date,
-                                        $opponent === 2 ? '昼食' : '弁当',
-                                        $mealTypeInt === 2 ? '昼食' : '弁当'
+                                        MealType::labelOf($opponent),
+                                        MealType::labelOf($mealTypeInt)
                                     );
                                 }
                             }
@@ -522,7 +523,7 @@ class ReservationBulkService
                         $reservation->i_change_flag = 1;
                         $reservation->i_version = 1;
                         $reservation->c_create_user = $userName;
-                        $reservation->dt_create = date('Y-m-d H:i:s');
+                        $reservation->dt_create = DateTime::now()->format('Y-m-d H:i:s');
                         $reservations[] = $reservation;
                     }
                 }
@@ -590,7 +591,7 @@ class ReservationBulkService
                         ->where([
                             'd_reservation_date IN' => $dates,
                             'i_id_user IN' => $userIds,
-                            'i_reservation_type IN' => [1, 2, 3, 4],
+                            'i_reservation_type IN' => MealType::values(),
                         ])
                         ->all();
                     foreach ($rows as $row) {
@@ -657,7 +658,7 @@ class ReservationBulkService
                         );
                         foreach ($mealData as $mealType => $checked) {
                             $mealType = (int)$mealType;
-                            if (!in_array($mealType, [1, 2, 3, 4], true)) {
+                            if (MealType::tryFrom($mealType) === null) {
                                 continue;
                             }
 
@@ -722,7 +723,7 @@ class ReservationBulkService
                             $reservation->i_change_flag = 1;
                             $reservation->i_version = 1;
                             $reservation->c_create_user = $userName;
-                            $reservation->dt_create = date('Y-m-d H:i:s');
+                            $reservation->dt_create = DateTime::now()->format('Y-m-d H:i:s');
                             $reservations[] = $reservation;
                         }
                     }
@@ -829,7 +830,7 @@ class ReservationBulkService
                                 $reservation->i_change_flag = 1;
                                 $reservation->i_version = 1;
                                 $reservation->c_create_user = $userName;
-                                $reservation->dt_create = date('Y-m-d H:i:s');
+                                $reservation->dt_create = DateTime::now()->format('Y-m-d H:i:s');
                                 $reservations[] = $reservation;
                             }
                         }

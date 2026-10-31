@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\Service\ReservationDateRule;
 use Cake\I18n\Date;
 
 /**
@@ -15,24 +16,11 @@ use Cake\I18n\Date;
  *   - 直前編集: 今日から14日以内の日付は「変更フラグ(i_change_flag)」列を使って
  *               登録・更新する。14日を超える日付は「eat_flag」列を使う。
  *
- * このクラスに日付計算ロジックを集約することで、Controller や View から
- * 重複したマジックナンバーを排除し、ルール変更時の修正箇所を一か所にまとめる。
+ * ルール本体は Domain の ReservationDateRule にある。このクラスは「今日」（Asia/Tokyo）を補って
+ * それを呼ぶ入口で、既存の呼び出し側の互換のために残している（#920 で段階的に置き換える）。
  */
 class ReservationDatePolicy
 {
-    /**
-     * 直前編集ウィンドウの日数。
-     * 今日からこの日数以内の予約日は「直前編集」扱いとなり、
-     * i_change_flag 列を使って登録・更新する。
-     */
-    private const CHANGE_WINDOW_DAYS = 14;
-
-    /**
-     * 通常予約の最短リードタイム(日数)。
-     * 今日からこの日数未満の日付は通常予約として受け付けない。
-     */
-    private const NORMAL_ORDER_MIN_DAYS = 15;
-
     /**
      * 通常予約の予約日バリデーションを行う。
      *
@@ -62,16 +50,7 @@ class ReservationDatePolicy
         }
 
         // リードタイムチェック: 最小受付日より前の日付は通常予約不可
-        $minDate = $this->minimumOrderDate();
-
-        if ($reservationDateObj < $minDate) {
-            return sprintf(
-                '通常発注は「きょうから15日目以降」のみ登録できます（%s 以降）。',
-                $minDate->i18nFormat('yyyy-MM-dd')
-            );
-        }
-
-        return true;
+        return ReservationDateRule::normalOrderError($reservationDateObj, $this->today()) ?? true;
     }
 
     /**
@@ -88,9 +67,7 @@ class ReservationDatePolicy
      */
     public function changeBoundaryDate(?Date $today = null, ?string $timezone = null): Date
     {
-        $today = $today ?? $this->today($timezone);
-
-        return $today->addDays(self::CHANGE_WINDOW_DAYS);
+        return ReservationDateRule::changeBoundaryDate($today ?? $this->today($timezone));
     }
 
     /**
@@ -107,9 +84,7 @@ class ReservationDatePolicy
      */
     public function minimumOrderDate(?Date $today = null, ?string $timezone = null): Date
     {
-        $today = $today ?? $this->today($timezone);
-
-        return $today->addDays(self::NORMAL_ORDER_MIN_DAYS);
+        return ReservationDateRule::minimumOrderDate($today ?? $this->today($timezone));
     }
 
     /**
@@ -125,7 +100,7 @@ class ReservationDatePolicy
      */
     public function shouldUseChangeFlag(Date $targetDate, ?Date $today = null, ?string $timezone = null): bool
     {
-        return $targetDate <= $this->changeBoundaryDate($today, $timezone);
+        return ReservationDateRule::usesChangeFlag($targetDate, $today ?? $this->today($timezone));
     }
 
     /**
@@ -139,12 +114,12 @@ class ReservationDatePolicy
      */
     public function countedValue(Date|string $targetDate, int|string|null $eatFlag, int|string|null $changeFlag): int
     {
-        $date = $targetDate instanceof Date ? $targetDate : new Date($targetDate);
-        if ($changeFlag !== null && $this->shouldUseChangeFlag($date)) {
-            return (int)$changeFlag;
-        }
-
-        return (int)($eatFlag ?? 0);
+        return ReservationDateRule::countedValue(
+            $targetDate instanceof Date ? $targetDate : new Date($targetDate),
+            $eatFlag === null ? null : (int)$eatFlag,
+            $changeFlag === null ? null : (int)$changeFlag,
+            $this->today()
+        );
     }
 
     /**
@@ -162,11 +137,7 @@ class ReservationDatePolicy
      */
     public function isLastMinuteWindow(Date $targetDate, ?Date $today = null, ?string $timezone = null): bool
     {
-        $today    = $today ?? $this->today($timezone);
-        $boundary = $this->changeBoundaryDate($today, $timezone);
-
-        // 今日以降 かつ 境界日(今日+14日)以前であれば直前編集ウィンドウ内
-        return $targetDate >= $today && $targetDate <= $boundary;
+        return ReservationDateRule::isLastMinuteWindow($targetDate, $today ?? $this->today($timezone));
     }
 
     /**
@@ -183,7 +154,7 @@ class ReservationDatePolicy
             return false;
         }
 
-        return $target < $this->today();
+        return ReservationDateRule::isPast($target, $this->today());
     }
 
     /**
