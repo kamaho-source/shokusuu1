@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Domain\ValueObject\UserRole;
 use Cake\ORM\TableRegistry;
+use Cake\I18n\DateTime;
 
 /**
  * ユーザー権限更新サービス
@@ -113,7 +114,7 @@ class UserPermissionService
         $table = TableRegistry::getTableLocator()->get('MUserInfo');
 
         $user->i_admin       = $value;
-        $user->dt_update     = date('Y-m-d H:i:s');
+        $user->dt_update     = DateTime::now()->format('Y-m-d H:i:s');
         $user->c_update_user = $updatedBy;
 
         $result = (bool)$table->save($user);

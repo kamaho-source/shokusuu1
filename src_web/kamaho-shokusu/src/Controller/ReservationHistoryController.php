@@ -7,6 +7,7 @@ use App\Domain\ValueObject\UserRole;
 use App\Service\ReservationHistoryService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
+use Cake\I18n\DateTime;
 
 /**
  * 予約履歴コントローラー（読み取り専用）
@@ -57,7 +58,7 @@ class ReservationHistoryController extends AppController
         }
 
         // 初期の期間は今月1日〜今月末日（過去日も未来日も見られる）
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $today = DateTime::now('Asia/Tokyo');
         $from = (string)($this->request->getQuery('from') ?: $today->format('Y-m-01'));
         $to = (string)($this->request->getQuery('to') ?: $today->format('Y-m-t'));
         $tab = (string)$this->request->getQuery('tab');

@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Domain\ValueObject\UserRole;
 use Cake\ORM\TableRegistry;
+use Cake\I18n\Date;
 
 /**
  * 部屋使用率集計サービス
@@ -38,8 +39,8 @@ class RoomUsageService
         ?int    $mealType = null,
         ?int    $filterLevel = null
     ): array {
-        $resolvedFrom  = $dateFrom ?? date('Y-m-01');
-        $resolvedTo    = $dateTo   ?? date('Y-m-d');
+        $resolvedFrom  = $dateFrom ?? Date::today()->startOfMonth()->format('Y-m-d');
+        $resolvedTo    = $dateTo   ?? Date::today()->format('Y-m-d');
         $days          = (int)(new \DateTimeImmutable($resolvedFrom))->diff(new \DateTimeImmutable($resolvedTo))->days + 1;
         $mealTypeCount = $mealType !== null ? 1 : 4;
 
