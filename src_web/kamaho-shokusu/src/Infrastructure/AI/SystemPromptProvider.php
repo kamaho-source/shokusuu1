@@ -5,6 +5,7 @@ namespace App\Infrastructure\AI;
 
 use App\Application\AI\AiUserRole;
 use App\Application\AI\SystemPromptProviderInterface;
+use App\Domain\Service\ReservationDateRule;
 use Cake\Core\Exception\CakeException;
 use Cake\I18n\Date;
 
@@ -59,8 +60,8 @@ final class SystemPromptProvider implements SystemPromptProviderInterface
      */
     private function todayInfo(Date $today): string
     {
-        $lastMinuteEnd = $today->addDays(14);
-        $normalStart   = $today->addDays(15);
+        $lastMinuteEnd = ReservationDateRule::changeBoundaryDate($today);
+        $normalStart   = ReservationDateRule::minimumOrderDate($today);
 
         $calendar = [];
         for ($i = 0; $i <= 14; $i++) {

@@ -1,0 +1,57 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Infrastructure\Persistence\Entity;
+
+use Cake\ORM\Entity;
+
+/**
+ * MUserInfo Entity
+ *
+ * @property int $i_id_user
+ * @property string|null $c_login_account
+ * @property string|null $c_login_passwd
+ * @property string|null $c_user_name
+ * @property int|null $i_admin
+ * @property int $i_report_access
+ * @property int|null $i_disp_no
+ * @property int|null $i_enable
+ * @property int|null $i_del_flag
+ * @property \Cake\I18n\DateTime|null $dt_create
+ * @property string|null $c_create_user
+ * @property \Cake\I18n\DateTime|null $dt_update
+ * @property string|null $c_update_user
+ */
+class MUserInfo extends Entity
+{
+    /**
+     * Fields that can be mass assigned using newEntity() or patchEntity().
+     *
+     * Note that when '*' is set to true, this allows all unspecified fields to
+     * be mass assigned. For security purposes, it is advised to set '*' to false
+     * (or remove it), and explicitly make individual fields accessible as needed.
+     *
+     * @var array<string, bool>
+     */
+    protected array $_accessible = [
+        'i_id_staff' => true,
+        'i_id_user' => true,
+        'c_login_account' => true,
+        'c_login_passwd' => true,
+        'c_user_name' => true,
+        'i_user_gender' => true,
+        'i_user_age'=> true,
+        'i_user_level'=> true,
+        'i_user_rank'=> true,
+        'i_admin' => true,
+        'i_report_access' => false,
+        'i_disp_no' => true,
+        'i_enable' => true,
+        'i_del_flag' => true,
+        'dt_create' => true,
+        'c_create_user' => true,
+        'dt_update' => true,
+        'c_update_user' => true,
+    ];
+
+}

@@ -18,7 +18,7 @@ class UserEditService
     private const AUDITED_FIELDS = ['c_login_account', 'c_user_name', 'i_user_gender', 'i_user_rank', 'i_user_level', 'i_id_staff'];
 
     /**
-     * @param \App\Model\Entity\MUserInfo $entity    MUserInfo エンティティ（contain MUserGroup 済み）
+     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $entity    MUserInfo エンティティ（contain MUserGroup 済み）
      * @param array  $data      リクエストデータ
      * @param int[]  $roomIds   新しく所属させる部屋IDの配列
      * @param string $updatedBy 操作者ユーザー名
@@ -29,7 +29,7 @@ class UserEditService
      * @return bool
      * @throws \Exception
      */
-    public function updateWithRooms(\App\Model\Entity\MUserInfo $entity, array $data, array $roomIds, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = '', ?array $fields = null): bool
+    public function updateWithRooms(\App\Infrastructure\Persistence\Entity\MUserInfo $entity, array $data, array $roomIds, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = '', ?array $fields = null): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');

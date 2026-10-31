@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
-use App\Model\Entity\MMealPriceInfo;
+use App\Infrastructure\Persistence\Entity\MMealPriceInfo;
 use App\Policy\MMealPriceInfoPolicy;
 use Cake\TestSuite\TestCase;
 

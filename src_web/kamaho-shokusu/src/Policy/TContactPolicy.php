@@ -5,7 +5,7 @@ namespace App\Policy;
 
 use App\Domain\ValueObject\UserRole;
 
-use App\Model\Entity\TContact;
+use App\Infrastructure\Persistence\Entity\TContact;
 use Authorization\IdentityInterface;
 
 /**

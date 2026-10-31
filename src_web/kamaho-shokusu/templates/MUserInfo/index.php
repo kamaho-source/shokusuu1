@@ -1,10 +1,10 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var iterable<\App\Model\Entity\MUserInfo> $mUserInfo
+ * @var iterable<\App\Infrastructure\Persistence\Entity\MUserInfo> $mUserInfo
  * @var array $userRooms
  * @var array<int, string> $userRoomLabels
- * @var \App\Model\Entity\User $user
+ * @var \App\Infrastructure\Persistence\Entity\User $user
  * @var mixed $showDeleted
  */
 

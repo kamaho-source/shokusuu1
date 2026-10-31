@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\MMealPriceInfo $mMealPriceInfo
+ * @var \App\Infrastructure\Persistence\Entity\MMealPriceInfo $mMealPriceInfo
  */
 $this->assign('title', __('食事単価情報の編集'));
 $this->Html->script('realtime-validation.js', ['block' => true]);

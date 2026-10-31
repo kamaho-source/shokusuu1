@@ -18,10 +18,10 @@ class RoomService
      *
      * 異動で抜けた所属（active_flag ≠ 0）のユーザーは含めない。
      *
-     * @param \App\Model\Entity\MRoomInfo $roomInfo MUserGroup を contain 済みのエンティティ
+     * @param \App\Infrastructure\Persistence\Entity\MRoomInfo $roomInfo MUserGroup を contain 済みのエンティティ
      * @return array
      */
-    public function getUsersForRoom(\App\Model\Entity\MRoomInfo $roomInfo): array
+    public function getUsersForRoom(\App\Infrastructure\Persistence\Entity\MRoomInfo $roomInfo): array
     {
         $userGroups = array_filter(
             $roomInfo->m_user_group ?: [],
@@ -91,11 +91,11 @@ class RoomService
     /**
      * 部屋をソフトデリートする（i_del_flg = 1）。
      *
-     * @param \App\Model\Entity\MRoomInfo $roomInfo
+     * @param \App\Infrastructure\Persistence\Entity\MRoomInfo $roomInfo
      * @param string|null                 $updatedBy 更新者名
      * @return bool
      */
-    public function softDelete(\App\Model\Entity\MRoomInfo $roomInfo, ?string $updatedBy): bool
+    public function softDelete(\App\Infrastructure\Persistence\Entity\MRoomInfo $roomInfo, ?string $updatedBy): bool
     {
         $table = TableRegistry::getTableLocator()->get('MRoomInfo');
 

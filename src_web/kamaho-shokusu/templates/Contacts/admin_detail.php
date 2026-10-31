@@ -3,7 +3,7 @@
  * @var \App\View\AppView $this
  * @var object $contact
  */
-/** @var \App\Model\Entity\TContact $contact */
+/** @var \App\Infrastructure\Persistence\Entity\TContact $contact */
 $this->assign('title', 'お問い合わせ詳細');
 ?>
 

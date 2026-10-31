@@ -63,7 +63,7 @@ class UserPermissionService
     }
 
     /**
-     * @param \App\Model\Entity\MUserInfo $user             MUserInfo エンティティ（取得・認可済み）
+     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $user             MUserInfo エンティティ（取得・認可済み）
      * @param int    $value             新しい権限値
      * @param string $updatedBy         操作者ユーザー名
      * @param int    $actorId           操作者ユーザーID
@@ -74,7 +74,7 @@ class UserPermissionService
      * @throws \Cake\Database\Exception\DatabaseException 保存時にDB接続・クエリの実行に失敗した場合
      */
     public function updatePermission(
-        \App\Model\Entity\MUserInfo $user,
+        \App\Infrastructure\Persistence\Entity\MUserInfo $user,
         int $value,
         string $updatedBy,
         int $actorId = 0,

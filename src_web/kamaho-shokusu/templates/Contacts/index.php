@@ -5,7 +5,7 @@
  * @var mixed $defaultEmail
  * @var mixed $defaultName
  * @var object $entity
- * @var array<\App\Model\Entity\TContact> $myContacts
+ * @var array<\App\Infrastructure\Persistence\Entity\TContact> $myContacts
  */
 $this->assign('title', 'フィードバック・お問い合わせ');
 ?>

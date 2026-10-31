@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\AI\UserTokenizer;
 use Cake\ORM\TableRegistry;
@@ -24,7 +25,6 @@ final class AiStatsContextService
     private const USER_SUMMARY_LIMIT = 50;
 
     /** @var array<int, string> 食種コード → ラベル */
-    private const MEAL_LABELS = [1 => '朝食', 2 => '昼食', 3 => '夕食', 4 => '弁当'];
 
     /** i_user_level: 子供（施設利用児童） */
     private const LEVEL_CHILD = 1;
@@ -98,7 +98,7 @@ final class AiStatsContextService
 
         $lines = ["### 食種別の予約食数（食べる申告）"];
         foreach ($rows as $row) {
-            $label   = self::MEAL_LABELS[(int)$row['meal_type']] ?? ('食種' . $row['meal_type']);
+            $label   = MealType::labelOf((int)$row['meal_type']) ?: ('食種' . $row['meal_type']);
             $lines[] = sprintf('- %s: %d食', $label, (int)$row['total']);
         }
         if (count($lines) === 1) {

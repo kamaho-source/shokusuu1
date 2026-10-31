@@ -6,19 +6,20 @@ namespace App\Application\UseCase\DirectRegisterMeals;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\DomainException;
-use App\Service\ReservationWriteService;
+use App\Application\UseCase\ToggleMeal\ToggleMealInput;
+use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 
 /**
  * カレンダー日付クリックによる複数食事の一括直接登録ユースケース。
  *
  * モーダルを介さず dateClick イベントから呼ばれる専用フロー。
- * 各食事の登録を ReservationWriteService::processToggle() に委譲し、
+ * 各食事の登録を ToggleMealUseCase に委譲し、
  * 成功分・スキップ分・失敗分を分けて返す。食事ごとに確定するので、途中の食事が失敗しても先の食事は登録済みのまま返す。
  */
 final class DirectRegisterMealsUseCase
 {
     public function __construct(
-        private readonly ReservationWriteService $writeService,
+        private readonly ToggleMealUseCase $toggleMeal,
     ) {}
 
     /**
@@ -32,21 +33,17 @@ final class DirectRegisterMealsUseCase
         $firstError = null;
 
         foreach ($input->mealIndices as $meal) {
-            $payload = [
-                'date'   => $input->date,
-                'meal'   => $meal,
-                'value'  => 1,
-                'userId' => $input->targetUserId,
-                'noSwap' => $input->skipLunchBentoSwap,
-            ];
-
             try {
-                $this->writeService->processToggle(
+                $this->toggleMeal->execute(new ToggleMealInput(
                     roomId:        $input->roomId,
-                    payload:       $payload,
+                    date:          $input->date,
+                    meal:          $meal,
+                    value:         1,
+                    targetUserId:  $input->targetUserId,
                     loginUserId:   $input->loginUserId,
                     loginUserName: $input->loginUserName,
-                );
+                    noSwap:        $input->skipLunchBentoSwap,
+                ));
                 $registered[] = $meal;
             } catch (DomainException $e) {
                 if ($this->isSkippable($e)) {

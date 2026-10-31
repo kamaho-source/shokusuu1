@@ -463,9 +463,9 @@ class ReservationChangeEditServiceTest extends TestCase
         };
     }
 
-    private function resTable(): \App\Model\Table\TIndividualReservationInfoTable
+    private function resTable(): \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable
     {
-        /** @var \App\Model\Table\TIndividualReservationInfoTable $t */
+        /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable $t */
         $t = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
 
         return $t;
@@ -699,7 +699,7 @@ class ReservationChangeEditServiceTest extends TestCase
     public function testProcessUpdate_versionConflict_throwsAndRollsBack(): void
     {
         $this->insertMeal(1, 1, 1);
-        $table = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+        $table = $this->getMockBuilder(\App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable::class)
             ->onlyMethods(['updateRowWithVersion'])
             ->setConstructorArgs([['connection' => ConnectionManager::get('test')]])
             ->getMock();

@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var iterable<\App\Model\Entity\MRoomInfo> $mRoomInfo
+ * @var iterable<\App\Infrastructure\Persistence\Entity\MRoomInfo> $mRoomInfo
  * @var list<int> $editableRoomIds 編集ボタンを出す部屋（管理者は全部屋、ブロック長は所属部屋）
  * @var object $user
  */

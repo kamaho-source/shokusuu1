@@ -5,7 +5,7 @@ namespace App\Policy;
 
 use App\Domain\ValueObject\UserRole;
 
-use App\Model\Entity\TReservationInfo;
+use App\Infrastructure\Persistence\Entity\TReservationInfo;
 use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
 

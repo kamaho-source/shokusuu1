@@ -2,7 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var mixed $users
- * @var \App\Model\Entity\MUserInfo|null $selectedUser
+ * @var \App\Infrastructure\Persistence\Entity\MUserInfo|null $selectedUser
  */
 ?>
 <?php $this->assign('title', '管理者：パスワード変更'); ?>

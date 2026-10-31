@@ -5,7 +5,7 @@
  * 「順番」の数字は何人分でも入れておけて、［保存］のときにまとめてその順に並べる。
  *
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\MRoomInfo $mRoomInfo
+ * @var \App\Infrastructure\Persistence\Entity\MRoomInfo $mRoomInfo
  * @var array $users
  * @var bool $canReorder
  */

@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Domain\ValueObject\MealType;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\Log\Log;
 use Cake\ORM\Table;
@@ -11,9 +12,9 @@ use Cake\ORM\TableRegistry;
 
 class ReservationCopyService
 {
-    /** @var \App\Model\Table\TIndividualReservationInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable */
     private Table $TIndividualReservationInfo;
-    /** @var \App\Model\Table\MUserInfoTable */
+    /** @var \App\Infrastructure\Persistence\Table\MUserInfoTable */
     private Table $MUserInfo;
     private ?ReservationDatePolicy $datePolicy = null;
 
@@ -660,8 +661,8 @@ class ReservationCopyService
             return true;
         }
         // 昼食と弁当は同時に予約できない。コピー先で相手が（どの部屋でも）有効ならスキップに数える
-        if (in_array($mealType, [2, 4], true)
-            && $this->TIndividualReservationInfo->findEffectiveRoomIds($userId, $date, $mealType === 2 ? 4 : 2) !== []
+        if (MealType::isExclusiveValue($mealType)
+            && $this->TIndividualReservationInfo->findEffectiveRoomIds($userId, $date, MealType::counterpartValue($mealType)) !== []
         ) {
             return true;
         }
