@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\Service\ReservationDateRule;
 use Cake\Http\Exception\NotFoundException;
+use Cake\I18n\Date;
 use Cake\ORM\Table;
-use Cake\I18n\DateTime;
 
 class ReservationRoomDetailService
 {
@@ -18,13 +19,13 @@ class ReservationRoomDetailService
         Table $userGroupTable
     ): array {
         try {
-            $targetDate   = new \DateTimeImmutable($date);
-            $changeBorder = DateTime::today('Asia/Tokyo')->modify('+14 days');
+            $targetDate = new Date($date);
         } catch (\Exception $e) {
             throw new \InvalidArgumentException('日付の形式が正しくありません。');
         }
 
-        $useChangeFlag = $targetDate <= $changeBorder;
+        // 境界日（今日+14日）以前は i_change_flag を見る（予約の日付ルール）
+        $useChangeFlag = ReservationDateRule::usesChangeFlag($targetDate, Date::today('Asia/Tokyo'));
 
         $room = $roomTable->find()
             ->select(['c_room_name'])
