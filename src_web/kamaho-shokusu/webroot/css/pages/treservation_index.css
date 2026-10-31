@@ -449,3 +449,44 @@
         .meal-cal-ro-meal { color: #adb5bd; }
         .meal-cal-ro-meal.active { color: #198754; font-weight: 600; }
 
+
+/* ===== 複数日予約 ===== */
+.multi-date-dialog { max-width: 640px; }
+.multi-date-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.multi-date-label { font-weight: 700; font-size: .85rem; width: 2.5rem; flex-shrink: 0; }
+.multi-date-pill { border: 2px solid; border-radius: 1.25rem; padding: .25rem .8rem; font-weight: 700; font-size: .8rem; background: #fff; }
+.multi-date-meal { border: 2px solid #d1d5db; border-radius: .5rem; padding: .25rem 1rem; font-weight: 700; font-size: .85rem; background: #fff; color: #374151; }
+.multi-date-meal.on { border-color: #28a745; background: #e9f7ee; color: #15803d; }
+.multi-date-cal { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: .7rem; }
+.multi-date-cal th { border: 1px solid #e5e7eb; background: #f9fafb; text-align: center; font-weight: 500; padding: .15rem; }
+.multi-date-cal th.sun { color: #dc2626; }
+.multi-date-cal th.sat { color: #2563eb; }
+.multi-date-day { border: 1px solid #e5e7eb; vertical-align: top; text-align: center; height: 4.6rem; padding: .1rem; cursor: pointer; }
+.multi-date-day.sun { background: #ffdada; }
+.multi-date-day.sat { background: #e3ecff; }
+.multi-date-day.past { background: #f1f1f1; color: #aaa; cursor: default; }
+.multi-date-day.past .multi-date-band, .multi-date-day.past .multi-date-room { opacity: .45; }
+.multi-date-day.today { outline: 2px solid #2563eb; outline-offset: -2px; }
+.multi-date-day.lock { cursor: not-allowed; background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, .06) 0 4px, transparent 4px 8px); }
+.multi-date-day:focus-visible { outline: 3px solid #f59e0b; outline-offset: -3px; }
+.multi-date-day.sel, .multi-date-day.sel .multi-date-num { color: #fff; }
+.multi-date-day.sel .multi-date-band { background: #fff; color: #15803d; }
+.multi-date-day.sel .multi-date-band.none { color: #d97706; }
+.multi-date-num { font-weight: 700; font-size: .85rem; position: relative; }
+.multi-date-ck, .multi-date-lk { position: absolute; right: 1px; top: 0; font-size: .65rem; }
+.multi-date-band { border-radius: 2px; color: #fff; font-size: .65rem; font-weight: 700; line-height: 1.15; padding: 1px; margin: 2px 0; }
+.multi-date-band.res { background: #28a745; }
+.multi-date-band.none { background: #fd7e14; }
+.multi-date-room { font-size: .65rem; border: 1px solid #86efac; border-radius: 2px; background: #fff; color: #15803d; margin: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.multi-date-hol { background: #dc3545; color: #fff; font-size: .65rem; border-radius: .4rem; padding: 0 .2rem; display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.multi-date-legend { display: flex; flex-wrap: wrap; gap: .75rem; }
+.multi-date-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .2rem; }
+.multi-date-tag { display: inline-block; border: 1px solid #28a745; color: #15803d; border-radius: .25rem; padding: 0 .4rem; font-weight: 700; }
+.multi-date-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .3rem 0; font-size: .8rem; }
+.multi-date-chip { border: 1px solid; border-radius: .9rem; padding: .1rem .3rem .1rem .6rem; background: #fff; }
+.multi-date-chip-x { border: 0; background: none; color: inherit; padding: 0 .25rem; font-weight: 700; }
+.multi-date-meal-n { display: inline-block; background: #28a745; color: #fff; border-radius: .6rem; padding: 0 .35rem; font-size: .7rem; margin-left: .15rem; }
+.multi-date-picks { display: flex; justify-content: center; gap: 1px; margin-top: 1px; }
+.multi-date-picks span { color: #fff; border-radius: 2px; font-size: .65rem; font-weight: 700; padding: 0 2px; opacity: .6; }
+.multi-date-day.sel .multi-date-picks span { opacity: 1; outline: 1px solid #fff; }
+.multi-date-picks span.cur { opacity: 1; outline: 1px solid #fff; }

@@ -18,6 +18,8 @@ final class DirectRegisterMealsInput
         public readonly string $loginUserName,
         public readonly int    $targetUserId,
         public readonly array  $mealIndices,
+        /** true なら、同じ部屋のお弁当（昼食）が登録済みのとき入れ替えずにスキップする */
+        public readonly bool   $skipLunchBentoSwap = false,
     ) {
         if (empty($mealIndices)) {
             throw new \InvalidArgumentException('mealIndices must not be empty.');
