@@ -10,9 +10,8 @@ use Cake\TestSuite\TestCase;
 /**
  * ReservationHistoryController 統合テスト
  *
- * - 職員・管理者は開ける。子ども・一般はダッシュボードへ戻される
+ * - 職員・ブロック長・管理者・子どもは開ける。子どもは自分の分だけで、部屋集計は見られない
  * - 入力ミスは400、見られない相手・部屋は403
- * - ダッシュボードのカードは職員・管理者にだけ出る
  */
 class ReservationHistoryControllerTest extends TestCase
 {
@@ -96,11 +95,22 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseOk();
     }
 
-    public function testIndex_child_redirectedToDashboard(): void
+    /** 子どもは自分の予約と経緯だけ見られる。部屋集計（部屋の情報）は出さず、直接開いても403 */
+    public function testIndex_child_seesOwnOnlyWithoutRoomSummary(): void
     {
         $this->login(3);
         $this->get('/ReservationHistory?' . self::PERIOD);
-        $this->assertRedirect();
+        $this->assertResponseOk();
+        $this->assertResponseContains('● 予約済み');
+        $this->assertResponseNotContains('部屋集計');
+        $this->assertResponseNotContains('tab=summary');
+
+        $this->get('/ReservationHistory?' . self::PERIOD . '&tab=summary&room=1');
+        $this->assertResponseCode(403);
+        $this->assertResponseContains('部屋集計は職員・管理者だけが見られます');
+
+        $this->get('/ReservationHistory?' . self::PERIOD . '&user=2');
+        $this->assertResponseCode(403);
     }
 
     public function testIndex_guest_redirectedToLogin(): void
@@ -173,17 +183,14 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseNotContains('記録されていません');
     }
 
-    public function testDashboard_cardShownToStaffOnly(): void
+    public function testDashboard_cardShownToStaffAndChild(): void
     {
-        $this->login(2);
-        $this->get('/');
-        $this->assertResponseOk();
-        $this->assertResponseContains('予約履歴');
-        $this->assertResponseContains('/ReservationHistory');
-
-        $this->login(3);
-        $this->get('/');
-        $this->assertResponseOk();
-        $this->assertResponseNotContains('/ReservationHistory');
+        foreach ([2, 3] as $userId) {
+            $this->login($userId);
+            $this->get('/');
+            $this->assertResponseOk();
+            $this->assertResponseContains('予約履歴');
+            $this->assertResponseContains('/ReservationHistory');
+        }
     }
 }

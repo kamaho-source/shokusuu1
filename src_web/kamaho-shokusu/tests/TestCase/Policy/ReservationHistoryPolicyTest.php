@@ -35,7 +35,8 @@ class ReservationHistoryPolicyTest extends TestCase
             'システム管理者' => [3, 1, true],
             '職員(level0)' => [0, 0, true],
             '職員(level7)' => [0, 7, true],
-            '子ども' => [0, 1, false],
+            '子ども' => [0, 1, true],
+            'その他' => [0, 3, false],
             'ブロック長' => [2, 1, true],
             'level未設定' => [0, null, false],
         ];

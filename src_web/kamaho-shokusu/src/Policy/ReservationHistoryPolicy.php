@@ -9,7 +9,8 @@ use Authorization\IdentityInterface;
 /**
  * 予約履歴画面用認可ポリシー
  *
- * 管理者・システム管理者・ブロック長・職員（i_user_level 0/7）だけが開ける。
+ * 管理者・システム管理者・ブロック長・職員（i_user_level 0/7）・子ども（i_user_level 1）が開ける。
+ * 子どもは自分の分だけで、部屋集計は見られない（UserRole::canViewRoomSummary）。
  * 誰の履歴を見られるかは ReservationHistoryService::selectableTargets() が決める。
  */
 class ReservationHistoryPolicy

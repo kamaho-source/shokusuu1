@@ -19,10 +19,14 @@
  * @var array<int, string> $rooms
  * @var int $roomId
  * @var array<int, string> $mealLabels
+ * @var bool $canViewSummary
  */
 $this->assign('title', '予約履歴');
 
 $tabs = ['meals' => '予約状況', 'summary' => '部屋集計', 'log' => '変更の経緯'];
+if (!$canViewSummary) {
+    unset($tabs['summary']); // 子どもには部屋の情報を出さない
+}
 $kindLabels = ['reserve' => '予約', 'cancel' => '取消'];
 $kindClass = ['reserve' => 'text-bg-success', 'cancel' => 'text-bg-danger'];
 $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' => [

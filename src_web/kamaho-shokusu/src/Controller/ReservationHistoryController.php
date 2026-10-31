@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\ValueObject\UserRole;
 use App\Service\ReservationHistoryService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
@@ -41,7 +42,7 @@ class ReservationHistoryController extends AppController
         try {
             $this->Authorization->authorize($this, 'index');
         } catch (ForbiddenException $e) {
-            $this->Flash->error('この画面は職員・管理者のみ利用できます。');
+            $this->Flash->error('この画面を利用する権限がありません。');
 
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
@@ -50,7 +51,7 @@ class ReservationHistoryController extends AppController
         $actorId = (int)$this->Authentication->getIdentity()?->get('i_id_user');
         $actor = $svc->findUser($actorId);
         if ($actor === null) {
-            $this->Flash->error('この画面は職員・管理者のみ利用できます。');
+            $this->Flash->error('この画面を利用する権限がありません。');
 
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
@@ -71,10 +72,14 @@ class ReservationHistoryController extends AppController
         $target = null;
         $meals = $logs = $summary = [];
         $logStart = null;
-        $rooms = $svc->summaryRooms($actorId);
+        // 部屋の情報（部屋集計）は子どもには見せない
+        $canViewSummary = UserRole::canViewRoomSummary($actor['admin'], $actor['level']);
+        $rooms = $canViewSummary ? $svc->summaryRooms($actorId) : [];
         $roomId = (int)$this->request->getQuery('room') ?: (int)(array_key_first($rooms) ?? 0);
 
-        if ($error === null && $tab === 'summary') {
+        if ($tab === 'summary' && !$canViewSummary) {
+            $forbidden = '部屋集計は職員・管理者だけが見られます。';
+        } elseif ($error === null && $tab === 'summary') {
             if (!isset($rooms[$roomId])) {
                 $forbidden = 'この部屋の集計を見る権限がありません。';
             } else {
@@ -101,7 +106,7 @@ class ReservationHistoryController extends AppController
         $mealLabels = ReservationHistoryService::MEAL_LABELS;
         $this->set(compact(
             'from', 'to', 'tab', 'targets', 'targetId', 'target', 'actorId', 'error', 'forbidden',
-            'meals', 'logs', 'logStart', 'summary', 'rooms', 'roomId', 'mealLabels'
+            'meals', 'logs', 'logStart', 'summary', 'rooms', 'roomId', 'mealLabels', 'canViewSummary'
         ));
 
         return null;
