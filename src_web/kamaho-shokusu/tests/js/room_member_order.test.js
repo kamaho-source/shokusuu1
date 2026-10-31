@@ -1,8 +1,8 @@
 'use strict';
 
 // 部屋情報の所属メンバーの並び替え（#871）: 数字は何人分でも入れておけて、［保存］でまとめて並ぶ
-const row = (id, no, age = '') => `
-    <tr data-user-id="${id}" data-age="${age}">
+const row = (id, no, age = '', child = false) => `
+    <tr data-user-id="${id}" data-age="${age}"${child ? ' data-child="1"' : ''}>
         <td class="grip"></td><td class="rh">${no}</td>
         <td><input type="hidden" name="user_ids[]" value="${id}"><input type="number" class="member-order-input" value="${no}"></td>
         <td class="chgmark"></td>
@@ -14,8 +14,9 @@ const setup = () => {
             <div class="xl-wrap">
                 <span id="member-order-dirty"></span>
                 <button type="button" data-age-sort="asc">年下から</button>
+                <button type="button" data-age-sort="asc" data-age-scope="child">子どもだけ年下から</button>
                 <table id="member-order-table"><tbody>
-                    ${row(1, 1, 40)}${row(2, 2)}${row(3, 3, 8)}${row(4, 4, 10)}
+                    ${row(1, 1, 40)}${row(2, 2)}${row(3, 3, 12, true)}${row(4, 4, 10)}${row(5, 5, 8, true)}
                 </tbody></table>
             </div>
             <button type="button" id="member-order-undo"></button>
@@ -36,7 +37,7 @@ describe('room-member-order.js', () => {
     test('数字を入れても行はすぐには動かず、未保存の人数だけ出る', () => {
         type(4, 1);
         type(3, 2);
-        expect(order()).toEqual([1, 2, 3, 4]);
+        expect(order()).toEqual([1, 2, 3, 4, 5]);
         expect(document.getElementById('member-order-dirty').textContent).toBe('● 未保存 2人');
     });
 
@@ -44,19 +45,24 @@ describe('room-member-order.js', () => {
         type(4, 1);
         type(3, 2);
         submit();
-        expect(order()).toEqual([4, 1, 3, 2]);
+        expect(order()).toEqual([4, 1, 3, 2, 5]);
     });
 
     test('区分に関係なく、年齢順は全員で並ぶ（年齢なしは末尾）', () => {
         document.querySelector('[data-age-sort]').click();
-        expect(order()).toEqual([3, 4, 1, 2]);
+        expect(order()).toEqual([5, 4, 3, 1, 2]);
+    });
+
+    test('子どもだけ年齢順: 子どもの行だけ並べ替え、職員・その他の位置は動かさない', () => {
+        document.querySelector('[data-age-scope="child"]').click();
+        expect(order()).toEqual([1, 2, 5, 4, 3]);
     });
 
     test('元に戻すで、入れた数字も並びも保存済みに戻る', () => {
         type(4, 1);
         document.querySelector('[data-age-sort]').click();
         document.getElementById('member-order-undo').click();
-        expect(order()).toEqual([1, 2, 3, 4]);
+        expect(order()).toEqual([1, 2, 3, 4, 5]);
         expect(document.getElementById('member-order-dirty').textContent).toBe('保存済み');
     });
 });

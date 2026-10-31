@@ -71,18 +71,23 @@
         if (e.target.closest('.member-order-input')) refresh();
     });
 
-    // 年齢順（同じ年齢は今の並びのまま、年齢が無い人は末尾）
+    // 年齢順（同じ年齢は今の並びのまま、年齢が無い人は末尾）。
+    // 「子どもだけ」は子どもの行だけを並べ替え、子どもがいた位置に入れ直す（職員・その他の位置は動かさない）
     table.closest('.xl-wrap').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-age-sort]');
         if (!btn) return;
         applyNumbers();
         const dir = btn.dataset.ageSort === 'asc' ? 1 : -1;
-        rows().map((r, i) => ({ r, i, age: r.dataset.age === '' ? null : Number(r.dataset.age) }))
+        const isTarget = btn.dataset.ageScope === 'child' ? (r) => r.dataset.child === '1' : () => true;
+        const all = rows();
+        const sorted = all.filter(isTarget)
+            .map((r, i) => ({ r, i, age: r.dataset.age === '' ? null : Number(r.dataset.age) }))
             .sort((a, b) => {
                 if (a.age === null || b.age === null) return (a.age === null) - (b.age === null) || a.i - b.i;
                 return (a.age - b.age) * dir || a.i - b.i;
             })
-            .forEach(({ r }) => tbody.appendChild(r));
+            .map(({ r }) => r);
+        all.map((r) => (isTarget(r) ? sorted.shift() : r)).forEach((r) => tbody.appendChild(r));
         refresh();
     });
 

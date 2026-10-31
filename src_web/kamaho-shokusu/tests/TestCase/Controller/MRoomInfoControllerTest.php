@@ -273,6 +273,9 @@ class MRoomInfoControllerTest extends TestCase
         $this->assertSame(1, substr_count($body, '<tbody'));
         preg_match_all('/<tr data-user-id="(\d+)"/', $body, $m);
         $this->assertSame(['2', '3', '1'], $m[1], '児童3 が職員1 より前に出る');
+        // 「子どもだけ年齢順」用に、子どもの行だけ印を付ける
+        $this->assertMatchesRegularExpression('/<tr data-user-id="3"[^>]*data-child="1"/', $body);
+        $this->assertDoesNotMatchRegularExpression('/<tr data-user-id="2"[^>]*data-child/', $body);
     }
 
     /** 所属部屋の職員は編集画面を開け、部屋名は表示だけ */

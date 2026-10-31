@@ -27,8 +27,12 @@
             <div class="xlbar">
                 <label><input type="checkbox" id="member-order-drag"> <?= __('ドラッグで並び替え') ?></label>
                 <span><?= __('「順番」に数字を入れて［保存］でまとめて並べ替え') ?></span>
-                <button type="button" class="btn btn-outline-secondary btn-sm py-0" data-age-sort="desc"><?= __('年上から') ?></button>
-                <button type="button" class="btn btn-outline-secondary btn-sm py-0" data-age-sort="asc"><?= __('年下から') ?></button>
+                <span><?= __('年齢順') ?>:</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0" data-age-sort="desc"><?= __('全員を年上から') ?></button>
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0" data-age-sort="asc"><?= __('全員を年下から') ?></button>
+                <?php // 子どもだけ並べ替え、職員・その他の位置はそのまま ?>
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0" data-age-sort="desc" data-age-scope="child"><?= __('子どもだけ年上から') ?></button>
+                <button type="button" class="btn btn-outline-secondary btn-sm py-0" data-age-sort="asc" data-age-scope="child"><?= __('子どもだけ年下から') ?></button>
                 <span class="sp"></span>
                 <span id="member-order-dirty"><?= __('保存済み') ?></span>
             </div>
@@ -50,7 +54,7 @@
                 <tbody>
                 <?php // ※ ループ変数にはログインユーザーの $user と別名を使う（シャドーイング防止） ?>
                 <?php foreach (array_values($users) as $i => $member): ?>
-                    <tr data-user-id="<?= (int)$member->i_id_user ?>" data-age="<?= $member->i_user_age === null ? '' : (int)$member->i_user_age ?>">
+                    <tr data-user-id="<?= (int)$member->i_id_user ?>" data-age="<?= $member->i_user_age === null ? '' : (int)$member->i_user_age ?>"<?= $member->i_user_level === 1 ? ' data-child="1"' : '' ?>>
                         <td class="grip" title="<?= __('ドラッグして移動') ?>">⋮⋮</td>
                         <td class="rh"><?= $i + 1 ?></td>
                         <td class="num ord">
