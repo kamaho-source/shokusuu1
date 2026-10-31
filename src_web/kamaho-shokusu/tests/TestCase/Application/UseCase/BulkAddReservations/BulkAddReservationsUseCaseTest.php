@@ -143,6 +143,12 @@ class BulkAddReservationsUseCaseTest extends TestCase
     public function testPersonal_lunchWithoutUncheckingBento_isRejectedOnSave(): void
     {
         $this->f->reservations->record(10, self::FAR, 7, 4);
+        $updateCalls = 0;
+        $this->f->reservations->onUpdate = static function () use (&$updateCalls): bool {
+            $updateCalls++;
+
+            return true;
+        };
         $this->f->reservations->onAdd = static function (): void {
             throw new ReservationValidationException('昼食と弁当は同時に予約できません。どちらか一方にしてください。', [], '{}');
         };
@@ -150,7 +156,7 @@ class BulkAddReservationsUseCaseTest extends TestCase
         $result = $this->personal([2 => [1 => '1']]);
 
         $this->assertSame(['ok' => false, 'message' => '昼食と弁当は同時に予約できません。どちらか一方にしてください。'], $result);
-        $this->assertSame(1, $this->f->reservations->find(10, self::FAR, 7, 4)?->eatFlag, '弁当は黙って取り消さない');
+        $this->assertSame(0, $updateCalls, '弁当は黙って取り消さない（取り消してから保存で失敗する、でもない）');
     }
 
     public function testGroup_staffRegistersAndCancelsChildren_andForgetsCaches(): void
