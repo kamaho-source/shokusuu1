@@ -155,12 +155,10 @@ class FeatureUsageSummaryService
      */
     public function getMonthOptions(): array
     {
-        // 月末（29〜31日）に「-N months」すると存在しない日が翌月へ繰り上がり、月が重複するので月初を起点にする
-        $firstOfMonth = new \DateTimeImmutable('first day of this month');
         $options = [];
         for ($i = 0; $i < 12; $i++) {
-            $month                        = $firstOfMonth->modify("-{$i} months");
-            $options[$month->format('Y-m')] = $month->format('Y年n月');
+            $ym            = date('Y-m', strtotime("first day of -{$i} months"));
+            $options[$ym]  = date('Y年n月', (int)strtotime($ym . '-01'));
         }
         return $options;
     }

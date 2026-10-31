@@ -3,6 +3,7 @@
  * @var \App\View\AppView $this
  * @var \App\Model\Entity\MRoomInfo $mRoomInfo
  * @var array $users
+ * @var bool $canReorder
  * @var object $user
  */
 $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
@@ -13,8 +14,10 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
             <div class="card-header"><?= __('アクション') ?></div>
             <div class="list-group list-group-flush">
                 <?php if (in_array((int)$user->get('i_admin'), [1, 3])): ?>
-                <?= $this->Html->link(__('部屋情報を編集'), ['action' => 'edit', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>
+                <?= $this->Html->link(__('部屋情報を編集（メンバーの並び替え）'), ['action' => 'edit', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>
                 <?= $this->Html->link(__('新しい部屋情報'), ['action' => 'add'], ['class' => 'list-group-item list-group-item-action']) ?>
+                <?php elseif ($canReorder): ?>
+                <?= $this->Html->link(__('メンバーの並び替え'), ['action' => 'edit', $mRoomInfo->i_id_room], ['class' => 'list-group-item list-group-item-action']) ?>
                 <?php endif; ?>
                 <?= $this->Html->link(__('部屋情報一覧'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
             </div>
@@ -59,13 +62,13 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
 
                             // ユーザーを分類
                             $staff = array_filter($filteredUsers, function ($member) {
-                                return $member->i_user_level !== null && \App\Domain\ValueObject\UserRole::isStaffLevel((int)$member->i_user_level);
+                                return $member->i_user_level === 0;
                             });
                             $children = array_filter($filteredUsers, function ($member) {
                                 return $member->i_user_level === 1;
                             });
                             $others = array_filter($filteredUsers, function ($member) {
-                                return $member->i_user_level !== 1 && !($member->i_user_level !== null && \App\Domain\ValueObject\UserRole::isStaffLevel((int)$member->i_user_level));
+                                return $member->i_user_level !== 0 && $member->i_user_level !== 1;
                             });
 
                             $groupedUsers = array_merge($staff, $children, $others);
@@ -76,7 +79,7 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
                                     <td><?= h($member->c_user_name) ?></td>
                                     <td><?= $member->i_disp_no === null ? '' : $this->Number->format($member->i_disp_no) ?></td>
                                     <td>
-                                        <?= h(($member->i_user_level !== null && \App\Domain\ValueObject\UserRole::isStaffLevel((int)$member->i_user_level)) ? '職員' : ($member->i_user_level === 1 ? '児童' : 'その他')) ?>
+                                        <?= h($member->i_user_level === 0 ? '職員' : ($member->i_user_level === 1 ? '児童' : 'その他')) ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

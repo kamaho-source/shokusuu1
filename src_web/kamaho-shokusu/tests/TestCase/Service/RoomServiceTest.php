@@ -84,10 +84,11 @@ class RoomServiceTest extends TestCase
 
         $this->assertIsArray($result);
 
-        $expectedUserIds = array_map(
+        // 削除済みユーザー(6)は除く（#871 で Service 側で除くようにした）
+        $expectedUserIds = array_values(array_diff(array_map(
             static fn ($group) => (int)$group->i_id_user,
             $roomInfo->m_user_group
-        );
+        ), [6]));
         $actualUserIds = array_map(
             static fn ($user) => (int)$user->i_id_user,
             $result

@@ -114,6 +114,48 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertResponseContains('data-is-last-minute="1"');
     }
 
+    /** 複数日予約: 業務UIにもボタンとモーダルがあり、表示モードの切替とは別（uimode=cybozu のような第3のモードは無い） */
+    public function testIndex_bizUi_hasMultiDateButtonAndModal(): void
+    {
+        $this->setAuthenticatedSession(false, 0);
+        $this->get('/TReservationInfo/index?uimode=biz');
+        $this->assertResponseOk();
+
+        $this->assertResponseContains('id="multiDateButton"');
+        $this->assertResponseContains('data-bs-target="#multiDateModal"');
+        $this->assertResponseContains('id="multiDateModal"');
+        $this->assertResponseContains('pages/treservation_multi_date.js');
+        $this->assertResponseContains('食数予約（業務）');
+        $this->assertResponseNotContains('uimode=cybozu');
+    }
+
+    /** 子どもUIの職員プレビューでも、同じボタンが出る */
+    public function testIndex_kidUiPreview_hasMultiDateButton(): void
+    {
+        $this->setAuthenticatedSession(false, 0);
+        $this->get('/TReservationInfo/index?uimode=kid');
+        $this->assertResponseOk();
+
+        $this->assertResponseContains('id="multiDateButton"');
+        $this->assertResponseContains('id="multiDateModal"');
+        $this->assertResponseContains('isKidUI: true');
+    }
+
+    /** 子ども本人にも出る。表示モードの切替（業務UI）は従来どおり出さず、背景は子どもUIのまま */
+    public function testIndex_childUser_hasMultiDateButtonButNoModeSwitch(): void
+    {
+        $this->setAuthenticatedSession(false, 1);
+        $this->get('/TReservationInfo/index');
+        $this->assertResponseOk();
+
+        $this->assertResponseContains('id="multiDateButton"');
+        $this->assertResponseContains('id="multiDateModal"');
+        $this->assertResponseContains('isKidUI: true');
+        $this->assertResponseNotContains('id="calendar"');
+        $this->assertResponseNotContains('uimode=biz');
+        $this->assertResponseNotContains('uimode=cybozu');
+    }
+
     /**
      * viewアクションのテスト（正常系）
      */
