@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Service\AuditLogService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
+use Cake\I18n\DateTime;
 
 /**
  * 監査ログ閲覧コントローラー
@@ -84,7 +85,7 @@ class AuditLogController extends AppController
             ->limit(10000)
             ->all();
 
-        $filename = 'audit_log_' . date('YmdHis') . '.csv';
+        $filename = 'audit_log_' . DateTime::now()->format('YmdHis') . '.csv';
 
         $output = fopen('php://temp', 'w+');
         // BOM付きUTF-8（Excelで文字化けしない）

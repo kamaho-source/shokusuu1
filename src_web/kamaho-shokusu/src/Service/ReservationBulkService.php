@@ -523,7 +523,7 @@ class ReservationBulkService
                         $reservation->i_change_flag = 1;
                         $reservation->i_version = 1;
                         $reservation->c_create_user = $userName;
-                        $reservation->dt_create = date('Y-m-d H:i:s');
+                        $reservation->dt_create = DateTime::now()->format('Y-m-d H:i:s');
                         $reservations[] = $reservation;
                     }
                 }
@@ -723,7 +723,7 @@ class ReservationBulkService
                             $reservation->i_change_flag = 1;
                             $reservation->i_version = 1;
                             $reservation->c_create_user = $userName;
-                            $reservation->dt_create = date('Y-m-d H:i:s');
+                            $reservation->dt_create = DateTime::now()->format('Y-m-d H:i:s');
                             $reservations[] = $reservation;
                         }
                     }
@@ -830,7 +830,7 @@ class ReservationBulkService
                                 $reservation->i_change_flag = 1;
                                 $reservation->i_version = 1;
                                 $reservation->c_create_user = $userName;
-                                $reservation->dt_create = date('Y-m-d H:i:s');
+                                $reservation->dt_create = DateTime::now()->format('Y-m-d H:i:s');
                                 $reservations[] = $reservation;
                             }
                         }

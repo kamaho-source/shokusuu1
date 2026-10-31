@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\FeatureUsageSummaryService;
+use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -131,5 +132,30 @@ class FeatureUsageSummaryServiceTest extends TestCase
         $this->assertCount(12, $opts);
         $this->assertSame(date('Y-m'), array_key_first($opts));
         $this->assertSame(date('Y年n月'), $opts[date('Y-m')]);
+    }
+
+    /**
+     * 月末・うるう日・年始でも、月が重複せず12か月が連続して並ぶ（#919）
+     */
+    public function testGetMonthOptions_isContinuousOnMonthEnd(): void
+    {
+        $cases = [
+            '2026-10-31' => ['2026-10', '2026-09', '2025-11'],
+            '2026-03-31' => ['2026-03', '2026-02', '2025-04'],
+            '2028-02-29' => ['2028-02', '2028-01', '2027-03'],
+            '2027-01-01' => ['2027-01', '2026-12', '2026-02'],
+        ];
+        try {
+            foreach ($cases as $today => [$first, $second, $last]) {
+                DateTime::setTestNow(new DateTime($today . ' 23:30:00', 'Asia/Tokyo'));
+                $keys = array_keys((new FeatureUsageSummaryService())->getMonthOptions());
+
+                $this->assertCount(12, $keys, $today);
+                $this->assertSame([$first, $second], array_slice($keys, 0, 2), $today);
+                $this->assertSame($last, $keys[11], $today);
+            }
+        } finally {
+            DateTime::setTestNow(null);
+        }
     }
 }
