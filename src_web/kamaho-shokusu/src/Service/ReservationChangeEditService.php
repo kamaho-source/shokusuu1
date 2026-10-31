@@ -105,7 +105,7 @@ class ReservationChangeEditService
             $baseUserIds = [-1];
         }
 
-        $userEntities = $userTable->find()
+        $userEntities = RoomMemberOrderService::orderMembers($userTable->find(), $userTable->getAlias())
             ->select(['i_id_user', 'c_user_name', 'i_user_level'])
             ->where(['i_id_user IN' => $baseUserIds, 'i_del_flag' => 0])
             ->all();
@@ -118,7 +118,6 @@ class ReservationChangeEditService
                 'i_user_level' => (int)$userEntity->i_user_level,
             ];
         }
-        usort($users, fn($a,$b) => strcmp($a['name'], $b['name']));
         $userIdList = array_map(fn($u) => $u['id'], $users);
 
         $reservations = $reservationTable->find()

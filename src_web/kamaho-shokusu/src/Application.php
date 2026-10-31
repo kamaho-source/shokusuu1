@@ -205,6 +205,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\AiAssistantController::class      => \App\Policy\AiAssistantPolicy::class,
             \App\Controller\StatsAiController::class          => \App\Policy\StatsAiPolicy::class,
             \App\Controller\SystemReportController::class     => \App\Policy\SystemReportPolicy::class,
+            \App\Controller\ReservationHistoryController::class => \App\Policy\ReservationHistoryPolicy::class,
         ]);
 
         // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック

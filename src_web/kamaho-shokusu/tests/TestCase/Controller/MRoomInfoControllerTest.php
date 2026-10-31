@@ -25,6 +25,7 @@ class MRoomInfoControllerTest extends TestCase
     protected array $fixtures = [
         'app.MRoomInfo',
         'app.MUserInfo',
+        'app.MUserGroup',
     ];
 
     public function setUp(): void
@@ -100,7 +101,7 @@ class MRoomInfoControllerTest extends TestCase
             'i_enable' => 1,
         ]);
         $this->assertResponseSuccess();
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['action' => 'edit', 1]); // 保存後も編集画面に残る
     }
 
     /**
@@ -161,5 +162,197 @@ class MRoomInfoControllerTest extends TestCase
 
         $this->assertRedirectContains('/MRoomInfo');
         $this->assertFlashMessage('この部屋は削除されています。');
+    }
+
+    /* ---------- 所属メンバーの並び替え（#871） ---------- */
+
+    /** DB の値で権限を判定するため、ロールは DB 側に設定してからそのユーザーでログインする */
+    private function loginAs(int $userId, int $iAdmin, int $userLevel): void
+    {
+        $users = $this->getTableLocator()->get('MUserInfo');
+        $users->updateAll(['i_admin' => $iAdmin, 'i_user_level' => $userLevel], ['i_id_user' => $userId]);
+        $this->session(['Auth' => $users->get($userId)->toArray()]);
+    }
+
+    /** 部屋情報の編集フォームの［保存］と同じ形で送る（user_ids[] は画面の並び順） */
+    private function postReorder(array $login, array $userIds, int $roomId = 1, array $extra = []): void
+    {
+        $this->loginAs(...$login);
+        $this->enableCsrfToken();
+        $this->enableSecurityToken();
+        $this->post('/MRoomInfo/edit/' . $roomId, ['user_ids' => $userIds] + $extra);
+    }
+
+    private function dispNo(int $userId): ?int
+    {
+        return $this->getTableLocator()->get('MUserInfo')->get($userId)->i_disp_no;
+    }
+
+    public function testSaveByAdminUpdatesNameAndOrderTogether(): void
+    {
+        $this->postReorder([1, 1, 0], [2, 1, 3], 1, ['c_room_name' => '新しい部屋名']);
+
+        $this->assertRedirect(['action' => 'edit', 1]); // 保存後も編集画面に残る
+        $this->assertSame([2, 1], [$this->dispNo(1), $this->dispNo(2)]);
+        $this->assertSame('新しい部屋名', $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name);
+    }
+
+    /** 所属部屋の職員は並び順だけ保存できる（部屋名は送っても変わらない） */
+    public function testSaveByBlockLeaderOfRoomUpdatesOrderOnly(): void
+    {
+        $before = $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name;
+        $this->postReorder([2, 2, 0], [2, 1, 3], 1, ['c_room_name' => '変更されてはいけない']);
+
+        $this->assertRedirect(['action' => 'edit', 1]); // 保存後も編集画面に残る
+        $this->assertSame(1, $this->dispNo(2));
+        $this->assertSame($before, $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name);
+    }
+
+    /** 一般の職員は、所属している部屋でも並び替えを保存できない（並び替えはブロック長まで） */
+    public function testSaveByStaffOfRoomIsForbidden(): void
+    {
+        $this->postReorder([2, 0, 0], [2, 1, 3]);
+        $this->assertRedirectContains('/MRoomInfo');
+        $this->assertSame(1, $this->dispNo(1));
+    }
+
+    public function testSaveByStaffOutsideRoomIsForbidden(): void
+    {
+        $this->postReorder([5, 0, 0], [2, 1, 3]);
+
+        $this->assertRedirectContains('/MRoomInfo');
+        $this->assertSame(1, $this->dispNo(1));
+    }
+
+    public function testSaveByChildIsForbidden(): void
+    {
+        $this->postReorder([3, 0, 1], [2, 1, 3]);
+
+        $this->assertRedirectContains('/MRoomInfo');
+        $this->assertSame(1, $this->dispNo(1));
+    }
+
+    public function testSaveRejectsNonMemberAndKeepsName(): void
+    {
+        $before = $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name;
+        $this->enableRetainFlashMessages();
+        $this->postReorder([1, 1, 0], [2, 1, 3, 4], 1, ['c_room_name' => '変更されてはいけない']);
+
+        $this->assertRedirectContains('/MRoomInfo/edit/1');
+        $this->assertFlashMessage('部屋の所属メンバーが変わっています。画面を読み込み直してください。');
+        $this->assertSame(1, $this->dispNo(1));
+        $this->assertSame($before, $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name);
+    }
+
+    /** 削除済みの部屋は並び替えの対象にしない（管理者が送っても並びは変わらない） */
+    public function testSaveOnDeletedRoomIgnoresOrder(): void
+    {
+        $this->getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => 1], ['i_id_room' => 1]);
+        $this->postReorder([1, 1, 0], [2, 1, 3]);
+
+        $this->assertSame(1, $this->dispNo(1));
+    }
+
+    /** 並び替えは編集画面（部屋名と同じカード・同じ［保存］）。部屋情報（閲覧）は一覧だけ */
+    public function testReorderControlsAreOnEditScreenOnly(): void
+    {
+        $this->loginAs(1, 1, 0);
+        $this->get('/MRoomInfo/view/1');
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('name="user_ids[]"');
+        $this->assertResponseContains('/MRoomInfo/edit/1');
+
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('name="user_ids[]"');
+        $this->assertResponseContains('name="c_room_name"');
+    }
+
+    /** 編集画面の並び替えは区分で分けず、職員・児童を1つの表で表示順に並べる */
+    public function testEditListsAllLevelsInOneTableByDisplayOrder(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_disp_no' => 10], ['i_id_user' => 1]);
+        $this->loginAs(1, 1, 0);
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertResponseOk();
+
+        $body = (string)$this->_response->getBody();
+        $this->assertStringNotContainsString('class="grp"', $body);
+        $this->assertSame(1, substr_count($body, '<tbody'));
+        preg_match_all('/<tr data-user-id="(\d+)"/', $body, $m);
+        $this->assertSame(['2', '3', '1'], $m[1], '児童3 が職員1 より前に出る');
+        // 「子どもだけ年齢順」用に、子どもの行だけ印を付ける
+        $this->assertMatchesRegularExpression('/<tr data-user-id="3"[^>]*data-child="1"/', $body);
+        $this->assertDoesNotMatchRegularExpression('/<tr data-user-id="2"[^>]*data-child/', $body);
+    }
+
+    /** 区分が未設定の人は、詳細画面でも編集画面でも「未設定」と出る（区分名は UserRole::levelLabel で共通） */
+    public function testUnsetLevelIsLabeledSameOnViewAndEdit(): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => null], ['i_id_user' => 2]);
+        $this->loginAs(1, 1, 0);
+        foreach (['/MRoomInfo/view/1', '/MRoomInfo/edit/1'] as $url) {
+            $this->get($url);
+            $this->assertResponseOk();
+            $this->assertResponseContains('未設定', $url);
+        }
+    }
+
+    /** 所属部屋の職員は編集画面を開け、部屋名は表示だけ */
+    public function testBlockLeaderOfRoomCanOpenEditForReorderOnly(): void
+    {
+        $this->loginAs(2, 2, 0);
+        $this->get('/MRoomInfo/view/1');
+        $this->assertResponseContains('メンバーの並び替え');
+
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertResponseOk();
+        $this->assertResponseContains('name="user_ids[]"');
+        $this->assertResponseNotContains('name="c_room_name"');
+    }
+
+    /** 部屋一覧の「編集」ボタン: 管理者は全部屋、ブロック長は所属部屋だけ、一般の職員には出さない。削除は管理者だけ */
+    public function testIndexEditButtonByRole(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $rooms->save($rooms->newEntity(
+            ['i_id_room' => 2, 'c_room_name' => '別の部屋', 'i_disp_no' => 2, 'i_enable' => 1, 'i_del_flg' => 0],
+            ['validate' => false, 'accessibleFields' => ['*' => true]]
+        ));
+        $editLink = fn(int $id): string => 'href="/MRoomInfo/edit/' . $id . '"';
+
+        $this->loginAs(1, 1, 0);
+        $this->get('/MRoomInfo');
+        $this->assertResponseContains($editLink(1));
+        $this->assertResponseContains($editLink(2));
+        $this->assertResponseContains('🗑 削除');
+
+        $this->loginAs(2, 2, 0); // ブロック長（部屋1に所属）
+        $this->get('/MRoomInfo');
+        $this->assertResponseContains($editLink(1));
+        $this->assertResponseNotContains($editLink(2));
+        $this->assertResponseNotContains('🗑 削除');
+
+        $this->loginAs(2, 0, 0); // 一般の職員（部屋1に所属）
+        $this->get('/MRoomInfo');
+        $this->assertResponseNotContains($editLink(1));
+        $this->get('/MRoomInfo/view/1');
+        $this->assertResponseNotContains('メンバーの並び替え');
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertRedirectContains('/MRoomInfo');
+    }
+
+    /** 児童・所属外の職員は編集画面を開けない */
+    public function testChildAndOutsideStaffCannotOpenEdit(): void
+    {
+        $this->loginAs(3, 0, 1);
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertRedirectContains('/MRoomInfo');
+
+        $this->loginAs(5, 0, 0);
+        $this->get('/MRoomInfo/view/1');
+        $this->assertResponseNotContains('メンバーの並び替え');
+        $this->get('/MRoomInfo/edit/1');
+        $this->assertRedirectContains('/MRoomInfo');
     }
 }
