@@ -13,43 +13,8 @@ use Cake\ORM\TableRegistry;
  */
 class FeatureUsageSummaryService
 {
-    /** @var array<string, string> アクション名 → 表示用機能名 */
-    private const ACTION_LABELS = [
-        'reservation_individual_save' => '予約登録（個人）',
-        'reservation_group_save'      => '予約登録（集団）',
-        'reservation_toggle'          => '直前予約トグル',
-        'reservation_copy'            => '予約コピー',
-        'reservation_bulk_add'        => '予約一括登録',
-        'reservation_change_edit'     => '予約直前変更',
-        'user_login'                  => 'ログイン',
-        'user_login_failed'           => 'ログイン失敗',
-        'user_logout'                 => 'ログアウト',
-        'user_create'                 => 'ユーザー作成',
-        'user_update'                 => 'ユーザー更新',
-        'user_delete'                 => 'ユーザー削除',
-        'user_restore'                => 'ユーザー復元',
-        'user_bulk_import'            => 'ユーザー一括取込',
-        'actual_meal_save'            => '実食入力',
-        'approval_block_leader'       => '承認（ブロック長）',
-        'approval_admin'              => '承認（管理者）',
-        'approval_rejected'           => '承認却下',
-        'audit_export'                => '監査ログCSV出力',
-        'room_create'                 => '部屋作成',
-        'room_update'                 => '部屋更新',
-        'room_delete'                 => '部屋削除',
-        'ai_assistant_ask'            => 'AI問い合わせ',
-        'ai_assistant_feedback'       => 'AIフィードバック',
-    ];
-
-    /** @var array<string, string> カテゴリ → 表示用ラベル */
-    public const CATEGORY_LABELS = [
-        'reservation'  => '予約',
-        'user'         => 'ユーザー管理',
-        'actual_meal'  => '実食管理',
-        'approval'     => '承認フロー',
-        'master'       => 'マスタ管理',
-        'system'       => 'システム',
-    ];
+    /** @var array<string, string> カテゴリ → 表示用ラベル（監査ログと共通） */
+    public const CATEGORY_LABELS = AuditLogService::CATEGORY_LABELS;
 
     /**
      * 機能使用頻度を集計して返す。
@@ -97,7 +62,7 @@ class FeatureUsageSummaryService
 
             $rows[] = [
                 'action'         => $action,
-                'label'          => self::ACTION_LABELS[$action] ?? $action,
+                'label'          => AuditLogService::actionLabel($action),
                 'category'       => $cat,
                 'category_label' => self::CATEGORY_LABELS[$cat] ?? $cat,
                 'total'          => $total,
@@ -111,7 +76,7 @@ class FeatureUsageSummaryService
 
             if ($total > $maxCount) {
                 $maxCount   = $total;
-                $topFeature = self::ACTION_LABELS[$action] ?? $action;
+                $topFeature = AuditLogService::actionLabel($action);
             }
         }
 
