@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Exception\InvalidInputException;
+use App\Service\RoomMemberOrderService;
 use App\Service\RoomService;
 use Authorization\Exception\ForbiddenException;
 use Cake\I18n\DateTime;
@@ -69,9 +71,11 @@ class MRoomInfoController extends AppController
         }
 
         $users = $this->roomService->getUsersForRoom($mRoomInfo);
+        $canReorder = $this->Authorization->can($mRoomInfo, 'reorderMembers');
 
-        $this->set(compact('mRoomInfo', 'users'));
+        $this->set(compact('mRoomInfo', 'users', 'canReorder'));
     }
+
     /**
      * Add method
      *
@@ -122,34 +126,62 @@ class MRoomInfoController extends AppController
     public function edit($id = null)
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
-        $mRoomInfo = $this->MRoomInfo->get($id);
+        $mRoomInfo = $this->MRoomInfo->get($id, contain: ['MUserGroup']);
+        // 部屋名の変更は管理者だけ。所属メンバーの並び替え（#871）は canReorderMembers の人も、この画面で行う
+        $canEditRoom = $this->Authorization->can($mRoomInfo, 'edit');
+        $canReorder = (int)($mRoomInfo->i_del_flg ?? 0) === 0 && $this->Authorization->can($mRoomInfo, 'reorderMembers');
         try {
-            $this->Authorization->authorize($mRoomInfo, 'edit');
+            $this->Authorization->authorize($mRoomInfo, $canEditRoom || !$canReorder ? 'edit' : 'reorderMembers');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('あなたは編集権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
 
         if ($this->request->is(['post', 'put', 'patch'])) {
-            $data = $this->request->getData();
-            $mRoomInfo->dt_update = DateTime::now('Asia/Tokyo');
+            // 部屋名と所属メンバーの並び順を、1つの［保存］でまとめて保存する
             $user = $this->request->getAttribute('identity');
-            if ($user) {
-                $mRoomInfo->c_update_user = $user->get('c_user_name');
+            $userName = (string)($user?->get('c_user_name') ?? '');
+            if ($canEditRoom) {
+                $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $this->request->getData(), [
+                    'fieldList' => ['c_room_name'],
+                ]);
+                if ($mRoomInfo->hasErrors()) {
+                    $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
+                    $users = $this->roomService->getUsersForRoom($mRoomInfo);
+                    $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
+                    return null;
+                }
             }
 
-            $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data, [
-                'fieldList' => ['c_room_name'],
-            ]);
-
-            if ($this->MRoomInfo->save($mRoomInfo)) {
-                \App\Service\AuditLogService::record('master', 'room_update', $mRoomInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
-                $this->Flash->success(__('部屋情報が正常に更新されました。'));
-                return $this->redirect(['action' => 'index']);
+            $userIds = $this->request->getData('user_ids');
+            $changed = 0;
+            if ($canReorder && is_array($userIds)) {
+                try {
+                    $changed = (new RoomMemberOrderService())->reorder((int)$mRoomInfo->i_id_room, array_map('intval', array_values($userIds)), $userName);
+                } catch (InvalidInputException $e) {
+                    $this->Flash->error($e->getMessage());
+                    return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
+                }
             }
-            $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
+
+            if ($canEditRoom && $mRoomInfo->isDirty('c_room_name')) {
+                $mRoomInfo->dt_update = DateTime::now('Asia/Tokyo');
+                $mRoomInfo->c_update_user = $userName;
+                if (!$this->MRoomInfo->save($mRoomInfo)) {
+                    $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
+                    return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
+                }
+                \App\Service\AuditLogService::record('master', 'room_update', $userName ?: '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+            }
+            // 並びが変わらなかった保存は記録しない
+            if ($changed > 0) {
+                \App\Service\AuditLogService::record('master', 'room_member_reorder', $userName ?: '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name, 'changed' => $changed], $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+            }
+            $this->Flash->success(__('部屋情報が正常に更新されました。'));
+            return $this->redirect(['action' => 'index']);
         }
-        $this->set(compact('mRoomInfo'));
+        $users = $this->roomService->getUsersForRoom($mRoomInfo);
+        $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
     }
 
     /**

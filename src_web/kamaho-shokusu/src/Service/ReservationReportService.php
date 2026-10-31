@@ -76,7 +76,7 @@ class ReservationReportService
     ): array {
         // キャッシュしない。1部屋・1日分の軽い読み取りで、更新する経路（直前編集・コピー・
         // ユーザー削除・部屋異動など）すべてで消すのは漏れやすく、古い一覧が返っていたため。
-        $usersByRoom = $userGroupTable->find()
+        $usersByRoom = RoomMemberOrderService::orderMembers($userGroupTable->find())
             ->enableAutoFields(false)
             ->select(['i_id_user', 'i_id_room', 'MUserInfo.c_user_name'])
             // 異動で抜けた所属(active_flag≠0)と削除済みユーザーは含めない

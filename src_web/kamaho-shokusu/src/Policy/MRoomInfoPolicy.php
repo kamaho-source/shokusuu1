@@ -6,10 +6,18 @@ namespace App\Policy;
 use App\Domain\ValueObject\UserRole;
 
 use App\Model\Entity\MRoomInfo;
+use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
 
 class MRoomInfoPolicy
 {
+    private RoomAccessService $roomAccessService;
+
+    public function __construct(?RoomAccessService $roomAccessService = null)
+    {
+        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+    }
+
     public function canIndex(?IdentityInterface $user, MRoomInfo $resource): bool
     {
         return $this->isAuthenticated($user);
@@ -33,6 +41,31 @@ class MRoomInfoPolicy
     public function canDelete(?IdentityInterface $user, MRoomInfo $resource): bool
     {
         return $this->isAdmin($user);
+    }
+
+    /**
+     * 所属メンバーを並び替えられるか（#871）。
+     * 管理者・システム管理者はすべての部屋。ブロック長・職員(i_user_level 0, 7)は自分が今所属している部屋だけ。
+     */
+    public function canReorderMembers(?IdentityInterface $user, MRoomInfo $resource): bool
+    {
+        if ($this->isAdmin($user)) {
+            return true;
+        }
+        $identity = $this->getOriginalIdentity($user);
+        if ($identity === null) {
+            return false;
+        }
+        $get = static function (string $key) use ($identity): ?int {
+            $v = is_object($identity) && method_exists($identity, 'get') ? $identity->get($key) : ($identity[$key] ?? null);
+            return $v === null ? null : (int)$v;
+        };
+        $level = $get('i_user_level');
+        if (!UserRole::isBlockLeader((int)$get('i_admin')) && ($level === null || !UserRole::isStaffLevel($level))) {
+            return false;
+        }
+
+        return $this->roomAccessService->isActiveMember((int)$get('i_id_user'), (int)$resource->i_id_room);
     }
 
     private function isAdmin(?IdentityInterface $user): bool
