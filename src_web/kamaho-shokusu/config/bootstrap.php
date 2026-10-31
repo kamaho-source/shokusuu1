@@ -107,9 +107,9 @@ date_default_timezone_set('Asia/Tokyo');
 
 /*
  * Table クラスは永続化層（src/Infrastructure/Persistence/Table）に置く（CLAUDE.md の層構成）。
- * CakePHP 既定の探索先 Model/Table の代わりに、ここを探す。Entity は Table と同じ並びの Persistence/Entity から自動で見つかる。
+ * ここを先に探し、プラグインの Table のために CakePHP 既定の Model/Table も残す。Entity は Table と同じ並びの Persistence/Entity から自動で見つかる。
  */
-FactoryLocator::add('Table', new TableLocator([\App\Application::TABLE_LOCATION]));
+FactoryLocator::add('Table', new TableLocator(\App\Application::TABLE_LOCATIONS));
 
 /*
  * Configure the mbstring extension to use the correct encoding.

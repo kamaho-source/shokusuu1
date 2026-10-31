@@ -40,4 +40,13 @@ class PersistenceLocationTest extends TestCase
         $this->assertInstanceOf(MUserInfoPolicy::class, $resolver->getPolicy(new MUserInfo()));
         $this->assertInstanceOf(TReservationInfoPolicy::class, $resolver->getPolicy(new TReservationInfo()));
     }
+
+    /**
+     * プラグイン（DebugKit など）の Table は CakePHP 既定の Model/Table から探すため、探索先から外さない。
+     * 外すと Web（見つからないときに代用しない設定）でログイン画面から 500 になる。
+     */
+    public function testTableLocationsKeepCakeDefaultForPlugins(): void
+    {
+        $this->assertSame(['Infrastructure/Persistence/Table', 'Model/Table'], \App\Application::TABLE_LOCATIONS);
+    }
 }

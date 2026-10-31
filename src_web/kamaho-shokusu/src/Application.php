@@ -59,6 +59,12 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
     /** Table クラスの探索先（永続化層）。 */
     public const TABLE_LOCATION = 'Infrastructure/Persistence/Table';
 
+    /**
+     * Table の探索先。アプリは永続化層、プラグイン（DebugKit など）は CakePHP 既定の Model/Table。
+     * 既定を外すとプラグインの Table が見つからず、Web（allowFallbackClass(false)）では 500 になる。
+     */
+    public const TABLE_LOCATIONS = [self::TABLE_LOCATION, 'Model/Table'];
+
     public function bootstrap(): void
     {
         parent::bootstrap();
@@ -69,7 +75,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         if (PHP_SAPI === 'cli') {
             $this->bootstrapCli();
         } else {
-            FactoryLocator::add('Table', (new TableLocator([self::TABLE_LOCATION]))->allowFallbackClass(false));
+            FactoryLocator::add('Table', (new TableLocator(self::TABLE_LOCATIONS))->allowFallbackClass(false));
         }
 
         if (Configure::read('debug')) {
