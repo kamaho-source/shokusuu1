@@ -63,11 +63,8 @@ class ReservationHistoryController extends AppController
         $tab = in_array($tab, self::TABS, true) ? $tab : 'meals';
 
         $targets = $svc->selectableTargets($actor);
-        // 既定の対象者: 見られる人のうち先頭の子ども。いなければ本人
-        $targetId = (int)$this->request->getQuery('user');
-        if ($targetId <= 0) {
-            $targetId = $this->defaultTargetId($targets, $actorId);
-        }
+        // 既定の対象者はログインしている本人
+        $targetId = (int)$this->request->getQuery('user') ?: $actorId;
 
         $error = $svc->validatePeriod($from, $to, $today->format('Y-m-d'));
         $forbidden = null;
@@ -85,7 +82,7 @@ class ReservationHistoryController extends AppController
             }
         } elseif ($error === null) {
             $target = $svc->findUser($targetId);
-            if ($target === null || !$svc->canView($actor, $target)) {
+            if ($target === null || !isset($targets[$targetId])) {
                 $forbidden = 'この人の履歴を見る権限がありません。';
                 $target = null;
             } elseif ($tab === 'log') {
@@ -108,19 +105,5 @@ class ReservationHistoryController extends AppController
         ));
 
         return null;
-    }
-
-    /**
-     * @param array<int, string> $targets 選べる対象者（id => 名前）
-     */
-    private function defaultTargetId(array $targets, int $actorId): int
-    {
-        foreach (array_keys($targets) as $id) {
-            if ($id !== $actorId) {
-                return (int)$id;
-            }
-        }
-
-        return $actorId;
     }
 }

@@ -66,6 +66,18 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseNotContains('実食');
     }
 
+    /** 対象者を指定しないときは、ログインしている本人が選ばれる（どのロールでも） */
+    public function testIndex_defaultTargetIsLoggedInUser(): void
+    {
+        foreach ([2, 1, 4] as $userId) {
+            $this->login($userId);
+            $this->get('/ReservationHistory?' . self::PERIOD);
+            $this->assertResponseOk();
+            $this->assertMatchesRegularExpression('/<option value="' . $userId . '" selected>/', (string)$this->_response->getBody(), "ユーザー{$userId}");
+            $this->assertResponseNotContains('代理で閲覧');
+        }
+    }
+
     /** タブは左から 予約状況 → 部屋集計 → 変更の経緯 */
     public function testIndex_tabOrder(): void
     {

@@ -66,28 +66,6 @@ class ReservationHistoryService
     }
 
     /**
-     * 操作する人が、対象者の履歴を見てよいか。
-     * 本人・管理者は可。職員は子ども（i_user_level=1）のみ。#835 の代理判定と同じ。
-     *
-     * @param array{id:int, admin:int, level:?int} $actor  見る人
-     * @param array{id:int, admin:int, level:?int} $target 見られる人
-     * @return bool
-     */
-    public function canView(array $actor, array $target): bool
-    {
-        if ($actor['id'] === $target['id']) {
-            return true;
-        }
-        if (UserRole::isAdmin($actor['admin'])) {
-            return true;
-        }
-
-        return $actor['level'] !== null
-            && UserRole::isStaffLevel($actor['level'])
-            && $target['level'] === 1;
-    }
-
-    /**
      * ユーザー1人の見る側の情報（権限判定用）を返す。退職・削除済みは null。
      *
      * @return array{id:int, admin:int, level:?int, name:string}|null
@@ -103,23 +81,60 @@ class ReservationHistoryService
     }
 
     /**
-     * 見る人が対象者として選べる人（id => 名前）。canView() をそのまま使う。
+     * 見る人が対象者として選べる人（id => 名前）。先頭は本人。
+     *   - 管理者・システム管理者 … 全員
+     *   - ブロック長 … 自分が所属している部屋の大人と子ども
+     *   - 職員 … 自分が所属している部屋の子ども（i_user_level=1）
+     * 所属は有効な所属（active_flag=0）だけ。退職・削除済みの人は出さない。
      *
-     * @param array{id:int, admin:int, level:?int} $actor
+     * @param array{id:int, admin:int, level:?int, name:string} $actor
      * @return array<int, string>
      */
     public function selectableTargets(array $actor): array
     {
-        $users = TableRegistry::getTableLocator()->get('MUserInfo')->find()
-            ->select(['i_id_user', 'c_user_name', 'i_admin', 'i_user_level'])
-            ->where(['i_del_flag' => 0])
-            ->orderBy(['i_disp_no' => 'ASC', 'i_id_user' => 'ASC']);
-        $out = [];
-        foreach ($users as $u) {
-            $t = $this->toUser($u);
-            if ($this->canView($actor, $t)) {
-                $out[$t['id']] = $t['name'];
+        $out = [$actor['id'] => $actor['name']];
+        $locator = TableRegistry::getTableLocator();
+
+        if (UserRole::isAdmin($actor['admin'])) {
+            $users = $locator->get('MUserInfo')->find()
+                ->select(['i_id_user', 'c_user_name'])
+                ->where(['i_del_flag' => 0])
+                ->orderBy(['i_disp_no' => 'ASC', 'i_id_user' => 'ASC'])
+                ->enableHydration(false);
+            foreach ($users as $u) {
+                $out[(int)$u['i_id_user']] ??= (string)$u['c_user_name'];
             }
+
+            return $out;
+        }
+
+        $isBlockLeader = UserRole::isBlockLeader($actor['admin']);
+        $isStaff = $actor['level'] !== null && UserRole::isStaffLevel($actor['level']);
+        if (!$isBlockLeader && !$isStaff) {
+            return $out;
+        }
+
+        $groups = $locator->get('MUserGroup');
+        $roomIds = $groups->find()
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => $actor['id'], 'active_flag' => 0]);
+        $members = $groups->find()
+            ->enableAutoFields(false)
+            ->select(['id' => 'MUserInfo.i_id_user', 'name' => 'MUserInfo.c_user_name', 'level' => 'MUserInfo.i_user_level'])
+            ->innerJoin(['MUserInfo' => 'm_user_info'], ['MUserInfo.i_id_user = MUserGroup.i_id_user'])
+            ->where([
+                'MUserGroup.i_id_room IN' => $roomIds,
+                'MUserGroup.active_flag' => 0,
+                'MUserInfo.i_del_flag' => 0,
+            ])
+            ->orderBy(['MUserInfo.i_disp_no' => 'ASC', 'MUserInfo.i_id_user' => 'ASC'])
+            ->enableHydration(false);
+        foreach ($members as $m) {
+            // ブロック長は大人も子どもも、職員は子どもだけ
+            if (!$isBlockLeader && (int)($m['level'] ?? -1) !== 1) {
+                continue;
+            }
+            $out[(int)$m['id']] ??= (string)$m['name'];
         }
 
         return $out;

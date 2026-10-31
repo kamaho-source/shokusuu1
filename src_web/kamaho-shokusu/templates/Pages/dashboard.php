@@ -43,7 +43,7 @@ $isBlockLeader = (bool)($roleFlags['isBlockLeader'] ?? false);
 $isSysAdmin = $user && (int)($user->get('i_admin') ?? 0) === 3;
 $hasReportAccess = $user && ($isAdmin || (int)($user->get('i_report_access') ?? 0) === 1);
 $canProxyActualMeal = $isAdmin || $isBlockLeader;
-// 予約履歴（過去の予約の確認）は管理者・職員だけ（判定は ReservationHistoryPolicy と同じ UserRole）
+// 予約履歴（過去の予約の確認）は管理者・ブロック長・職員だけ（判定は ReservationHistoryPolicy と同じ UserRole）
 $canViewReservationHistory = $user && \App\Domain\ValueObject\UserRole::canViewReservationHistory(
     (int)($user->get('i_admin') ?? 0),
     $user->get('i_user_level') === null ? null : (int)$user->get('i_user_level')

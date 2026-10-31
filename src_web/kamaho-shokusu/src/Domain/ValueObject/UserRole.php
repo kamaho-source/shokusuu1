@@ -49,12 +49,12 @@ final class UserRole
 
     /**
      * 予約履歴（予約状況・部屋集計・変更の経緯）の画面を使えるロールかを返す。
-     * 管理者・システム管理者・職員(i_user_level=0 と 7)。権限判定（ReservationHistoryPolicy）とダッシュボードのカード表示がこれを使う。
+     * 管理者・システム管理者・ブロック長・職員(i_user_level=0 と 7)。権限判定（ReservationHistoryPolicy）とダッシュボードのカード表示がこれを使う。
      * i_user_level が未設定(NULL)のときは職員とみなさない。
      */
     public static function canViewReservationHistory(int $iAdmin, ?int $userLevel): bool
     {
-        return self::isAdmin($iAdmin) || ($userLevel !== null && self::isStaffLevel($userLevel));
+        return self::isAdmin($iAdmin) || self::isBlockLeader($iAdmin) || ($userLevel !== null && self::isStaffLevel($userLevel));
     }
 
     /** システム管理者かどうかを返す。 */

@@ -10,7 +10,7 @@ use Cake\TestSuite\TestCase;
 /**
  * ReservationHistoryService テスト
  *
- * 期間の検証・閲覧権限は外部依存なし。実食・経緯・集計は DB（フィクスチャ）で確かめる。
+ * 期間の検証は外部依存なし。見られる範囲・予約状況・経緯・集計は DB（フィクスチャ）で確かめる。
  */
 class ReservationHistoryServiceTest extends TestCase
 {
@@ -61,34 +61,71 @@ class ReservationHistoryServiceTest extends TestCase
         $this->assertSame($expected, $this->svc->validatePeriod($from, $to, '2026-10-30'));
     }
 
-    // ---- canView ----
+    // ---- selectableTargets（見られる範囲） ----
 
-    public function testCanView(): void
+    /**
+     * 部屋1: 管理者1・職員2・子ども3・ブロック長8・その他9（6は削除済み）
+     * 部屋2: 子ども7・職員10（部屋1の人とは別）。職員11 は部屋1を退所済み
+     */
+    private function seedRooms(): void
     {
-        $admin = ['id' => 1, 'admin' => 1, 'level' => 0];
-        $staff = ['id' => 2, 'admin' => 0, 'level' => 0];
-        $staff7 = ['id' => 5, 'admin' => 0, 'level' => 7];
-        $child = ['id' => 3, 'admin' => 0, 'level' => 1];
-        $otherStaff = ['id' => 6, 'admin' => 0, 'level' => 0];
-
-        $this->assertTrue($this->svc->canView($staff, $staff), '本人は可');
-        $this->assertTrue($this->svc->canView($staff, $child), '職員→子どもは可');
-        $this->assertTrue($this->svc->canView($staff7, $child), '職員(level7)→子どもは可');
-        $this->assertFalse($this->svc->canView($staff, $otherStaff), '職員→他の職員は不可');
-        $this->assertFalse($this->svc->canView($staff, $admin), '職員→管理者は不可');
-        $this->assertTrue($this->svc->canView($admin, $staff), '管理者→全員');
-        $this->assertFalse($this->svc->canView($child, $staff), '子ども→他人は不可');
-        $this->assertFalse($this->svc->canView($child, ['id' => 7, 'admin' => 0, 'level' => 1]), '子ども→他の子どもは不可');
+        $users = TableRegistry::getTableLocator()->get('MUserInfo');
+        $groups = TableRegistry::getTableLocator()->get('MUserGroup');
+        $add = function (int $id, int $admin, ?int $level, array $rooms, int $active = 0) use ($users, $groups): void {
+            $users->save($users->newEntity([
+                'i_id_user' => $id, 'c_user_name' => 'u' . $id, 'i_admin' => $admin, 'i_user_level' => $level,
+                'i_disp_no' => $id, 'i_del_flag' => 0,
+            ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+            foreach ($rooms as $room) {
+                $groups->save($groups->newEntity(
+                    ['i_id_user' => $id, 'i_id_room' => $room, 'active_flag' => $active],
+                    ['validate' => false, 'accessibleFields' => ['*' => true]]
+                ));
+            }
+        };
+        $add(7, 0, 1, [2]);
+        $add(8, 2, 0, [1]);
+        $add(9, 0, 3, [1]);
+        $add(10, 0, 0, [2]);
+        $add(11, 0, 1, [1], 1);
     }
 
-    public function testSelectableTargets_staffSeesChildrenAndSelfOnly(): void
+    /** @return list<int> */
+    private function targetsOf(int $userId): array
     {
-        $staff = $this->svc->findUser(2);
-        $this->assertNotNull($staff);
-        $ids = array_keys($this->svc->selectableTargets($staff));
-        $this->assertContains(2, $ids, '本人');
-        $this->assertContains(3, $ids, '子ども（level1）');
-        $this->assertNotContains(1, $ids, '管理者は選べない');
+        $actor = $this->svc->findUser($userId);
+        $this->assertNotNull($actor);
+
+        return array_keys($this->svc->selectableTargets($actor));
+    }
+
+    public function testSelectableTargets_staffSeesSelfAndChildrenOfOwnRooms(): void
+    {
+        $this->seedRooms();
+        $this->assertSame([2, 3], $this->targetsOf(2), '本人が先頭。部屋1の子どもだけ（大人・他の部屋の子ども・退所者・削除済みは出ない）');
+        $this->assertSame([10, 7], $this->targetsOf(10), '部屋2の職員は部屋2の子どもだけ');
+    }
+
+    public function testSelectableTargets_blockLeaderSeesAdultsAndChildrenOfOwnRooms(): void
+    {
+        $this->seedRooms();
+        $this->assertSame([8, 1, 2, 3, 9], $this->targetsOf(8), '本人が先頭。部屋1の大人と子ども（他の部屋・退所者・削除済みは出ない）');
+    }
+
+    public function testSelectableTargets_adminSeesEveryone(): void
+    {
+        $this->seedRooms();
+        $ids = $this->targetsOf(5);
+        $this->assertSame(5, $ids[0], '本人が先頭');
+        $this->assertEqualsCanonicalizing([1, 2, 3, 4, 5, 7, 8, 9, 10, 11], $ids, '削除済み(6)以外の全員');
+        $this->assertSame(4, $this->targetsOf(4)[0], 'システム管理者も本人が先頭');
+        $this->assertCount(10, $this->targetsOf(4));
+    }
+
+    public function testSelectableTargets_childSeesSelfOnly(): void
+    {
+        $this->seedRooms();
+        $this->assertSame([3], $this->targetsOf(3));
     }
 
     // ---- mealRows ----
