@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
@@ -144,7 +145,7 @@ class ReservationViewService
                     ->where([
                         'i_id_user IN' => $activeUserIds,
                         'd_reservation_date' => $targetDate->format('Y-m-d'),
-                        'i_reservation_type IN' => [1, 2, 3, 4],
+                        'i_reservation_type IN' => MealType::values(),
                     ])
                     ->all();
 
