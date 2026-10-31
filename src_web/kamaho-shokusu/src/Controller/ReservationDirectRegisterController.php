@@ -8,7 +8,6 @@ use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsInput;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Domain\Exception\DomainException;
-use App\Infrastructure\ReservationUseCases;
 use App\Service\AuditLogService;
 use Cake\Http\Response;
 
@@ -20,16 +19,11 @@ use Cake\Http\Response;
  */
 class ReservationDirectRegisterController extends ReservationBaseController
 {
-    private DirectRegisterMealsUseCase $useCase;
-    private ChangeMealRoomUseCase $changeRoomUseCase;
 
     public function initialize(): void
     {
         parent::initialize();
 
-        $useCases = new ReservationUseCases($this->TIndividualReservationInfo, $this->MUserInfo);
-        $this->useCase = $useCases->directRegisterMeals();
-        $this->changeRoomUseCase = $useCases->changeMealRoom();
 
         $this->FormProtection->setConfig('unlockedActions', ['register', 'changeRoom']);
     }
@@ -47,7 +41,7 @@ class ReservationDirectRegisterController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function register(): ?Response
+    public function register(DirectRegisterMealsUseCase $directRegisterMeals): ?Response
     {
         $this->request->allowMethod(['post']);
         $this->response = $this->response->withType('application/json');
@@ -113,7 +107,7 @@ class ReservationDirectRegisterController extends ReservationBaseController
                 skipLunchBentoSwap: !empty($payload['noSwap']),
             );
 
-            $output = $this->useCase->execute($input);
+            $output = $directRegisterMeals->execute($input);
 
             $auditContext['registered'] = $output->registered;
             $auditContext['skipped']    = $output->skipped;
@@ -159,7 +153,7 @@ class ReservationDirectRegisterController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function changeRoom(): ?Response
+    public function changeRoom(ChangeMealRoomUseCase $changeMealRoom): ?Response
     {
         $this->request->allowMethod(['post']);
         $this->response = $this->response->withType('application/json');
@@ -203,7 +197,7 @@ class ReservationDirectRegisterController extends ReservationBaseController
 
         $auditContext = ['date' => $dateStr, 'meal' => $meal, 'fromRoomId' => $fromRoomId, 'toRoomId' => $toRoomId, 'targetUserId' => $targetUserId];
         try {
-            $output = $this->changeRoomUseCase->execute(new ChangeMealRoomInput(
+            $output = $changeMealRoom->execute(new ChangeMealRoomInput(
                 date:          $dateStr,
                 meal:          $meal,
                 fromRoomId:    $fromRoomId,

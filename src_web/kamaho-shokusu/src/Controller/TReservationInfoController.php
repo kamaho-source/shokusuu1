@@ -4,9 +4,10 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
+use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
+use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\ReservationUseCases;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
@@ -40,7 +41,6 @@ class TReservationInfoController extends ReservationBaseController
     private ReservationChangeEditService $changeEditService;
     private ReservationRoomDetailService $roomDetailService;
     private ReservationViewService $viewService;
-    private ReservationUseCases $useCases;
 
     /**
      * initialize メソッド
@@ -53,7 +53,6 @@ class TReservationInfoController extends ReservationBaseController
         $this->changeEditService = new ReservationChangeEditService();
         $this->roomDetailService = new ReservationRoomDetailService();
         $this->viewService       = new ReservationViewService($this->datePolicy);
-        $this->useCases          = new ReservationUseCases($this->TIndividualReservationInfo, $this->MUserInfo);
 
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
@@ -508,7 +507,7 @@ class TReservationInfoController extends ReservationBaseController
     /**
      * 予約登録メソッド（個人予約・集団予約）。
      */
-    public function add()
+    public function add(RegisterIndividualReservationUseCase $registerIndividual, RegisterGroupReservationUseCase $registerGroup)
     {
         $this->authorizeReservation('add');
 
@@ -600,7 +599,7 @@ class TReservationInfoController extends ReservationBaseController
                 $dateValidation = $this->datePolicy->validateReservationDate((string)$data['d_reservation_date']);
                 $dateError      = $dateValidation === true ? null : (string)$dateValidation;
                 $result = ((string)$reservationType === '1')
-                    ? $this->useCases->registerIndividualReservation()->execute(new RegisterIndividualReservationInput(
+                    ? $registerIndividual->execute(new RegisterIndividualReservationInput(
                         reservationDate: $data['d_reservation_date'],
                         data: $data,
                         rooms: $rooms,
@@ -608,7 +607,7 @@ class TReservationInfoController extends ReservationBaseController
                         userName: (string)$user->get('c_user_name'),
                         dateError: $dateError,
                     ))->toArray($this->reservationIndexUrl())
-                    : $this->useCases->registerGroupReservation()->execute(new RegisterGroupReservationInput(
+                    : $registerGroup->execute(new RegisterGroupReservationInput(
                         reservationDate: $data['d_reservation_date'],
                         data: $data,
                         rooms: $rooms,
@@ -692,7 +691,7 @@ class TReservationInfoController extends ReservationBaseController
      * @param string|null $date YYYY-MM-DD
      * @param int|null $mealType 1=朝,2=昼,3=夜,4=弁当
      */
-    public function changeEdit($roomId = null, $date = null, $mealType = null): ?Response
+    public function changeEdit(RegisterIndividualReservationUseCase $registerIndividual, $roomId = null, $date = null, $mealType = null): ?Response
     {
         $wantsJson =
             $this->request->is('ajax') ||
@@ -797,7 +796,7 @@ class TReservationInfoController extends ReservationBaseController
                         return $this->redirect(['action' => 'index']);
                     }
                     try {
-                        $result = $this->useCases->registerIndividualReservation()->execute(new RegisterIndividualReservationInput(
+                        $result = $registerIndividual->execute(new RegisterIndividualReservationInput(
                             reservationDate: (string)$postDate,
                             data: $earlyData,
                             rooms: $allowedRooms,
