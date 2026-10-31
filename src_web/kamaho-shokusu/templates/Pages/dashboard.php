@@ -43,6 +43,11 @@ $isBlockLeader = (bool)($roleFlags['isBlockLeader'] ?? false);
 $isSysAdmin = $user && (int)($user->get('i_admin') ?? 0) === 3;
 $hasReportAccess = $user && ($isAdmin || (int)($user->get('i_report_access') ?? 0) === 1);
 $canProxyActualMeal = $isAdmin || $isBlockLeader;
+// 予約履歴のカードは管理者・ブロック長・職員だけ（子どもはナビゲーションバーから開く）
+$canViewReservationHistory = $user && \App\Domain\ValueObject\UserRole::canViewRoomSummary(
+    (int)($user->get('i_admin') ?? 0),
+    $user->get('i_user_level') === null ? null : (int)$user->get('i_user_level')
+);
 
 // DashboardService から渡されたダッシュボード用データを展開する
 $todayLabel             = $dashboard['todayLabel']             ?? '';  // 例: 「2026年2月21日(土)」
@@ -301,6 +306,13 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                     <div class="menu-icon" style="background:#fff7ed;color:#c2410c;">📝</div>
                     <div class="menu-title-text">実食確認</div>
                     <div class="menu-desc">担当部屋の実食を代理入力する</div>
+                </a>
+                <?php endif; ?>
+                <?php if ($canViewReservationHistory): ?>
+                <a class="menu-card" href="<?= $this->Url->build('/ReservationHistory') ?>">
+                    <div class="menu-icon" style="background:#e0f2fe;color:#0369a1;">🕘</div>
+                    <div class="menu-title-text">予約履歴</div>
+                    <div class="menu-desc">過去の予約と変更の経緯を確認する</div>
                 </a>
                 <?php endif; ?>
                 <a class="menu-card" href="<?= $this->Url->build('/Contacts') ?>">
