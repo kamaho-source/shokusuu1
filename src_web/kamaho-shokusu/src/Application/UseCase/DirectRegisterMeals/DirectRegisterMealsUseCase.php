@@ -13,7 +13,7 @@ use App\Service\ReservationWriteService;
  *
  * モーダルを介さず dateClick イベントから呼ばれる専用フロー。
  * 各食事の登録を ReservationWriteService::processToggle() に委譲し、
- * 成功分・スキップ分を分けて返す。
+ * 成功分・スキップ分・失敗分を分けて返す。食事ごとに確定するので、途中の食事が失敗しても先の食事は登録済みのまま返す。
  */
 final class DirectRegisterMealsUseCase
 {
@@ -22,12 +22,14 @@ final class DirectRegisterMealsUseCase
     ) {}
 
     /**
-     * @throws DomainException 権限不足・DB障害など致命的なエラー時
+     * @throws DomainException どの食事も登録・スキップできなかったとき（最初の食事の例外。権限不足・DB障害など）
      */
     public function execute(DirectRegisterMealsInput $input): DirectRegisterMealsOutput
     {
         $registered = [];
         $skipped    = [];
+        $failed     = [];
+        $firstError = null;
 
         foreach ($input->mealIndices as $meal) {
             $payload = [
@@ -35,6 +37,7 @@ final class DirectRegisterMealsUseCase
                 'meal'   => $meal,
                 'value'  => 1,
                 'userId' => $input->targetUserId,
+                'noSwap' => $input->skipLunchBentoSwap,
             ];
 
             try {
@@ -46,16 +49,24 @@ final class DirectRegisterMealsUseCase
                 );
                 $registered[] = $meal;
             } catch (DomainException $e) {
-                if (!$this->isSkippable($e)) {
-                    throw $e;
+                if ($this->isSkippable($e)) {
+                    $skipped[] = $meal;
+                    continue;
                 }
-                $skipped[] = $meal;
+                $failed[]   = ['meal' => $meal, 'message' => $e->getMessage()];
+                $firstError ??= $e;
             }
+        }
+
+        // 1件も登録・スキップできなければ、従来どおりエラーとして返す
+        if ($firstError !== null && $registered === [] && $skipped === []) {
+            throw $firstError;
         }
 
         return new DirectRegisterMealsOutput(
             registered: $registered,
             skipped:    $skipped,
+            failed:     $failed,
         );
     }
 

@@ -115,23 +115,27 @@ class ReservationDirectRegisterController extends ReservationBaseController
                 loginUserName: $loginUserName,
                 targetUserId:  $targetUserId,
                 mealIndices:   $mealIndices,
+                skipLunchBentoSwap: !empty($payload['noSwap']),
             );
 
             $output = $this->useCase->execute($input);
 
             $auditContext['registered'] = $output->registered;
             $auditContext['skipped']    = $output->skipped;
-            $auditResult = empty($output->registered) && !empty($output->skipped) ? 0 : 1;
+            $auditContext['failed']     = $output->failed;
+            $auditResult = empty($output->registered) ? 0 : 1;
 
             AuditLogService::record(
                 'reservation', 'direct_register_meals', $loginUserName, $loginUserId,
                 't_reservation_info', "room:{$roomId}", $auditContext, $this->getClientIp(), $auditResult, $loginAccount,
-                $auditResult === 0 ? '登録対象がなく、すべてスキップされました（競合・対象外など）' : null
+                $auditResult === 0 ? '登録対象がなく、すべてスキップまたは失敗しました（競合・対象外など）'
+                    : ($output->failed !== [] ? '一部の食事を登録できませんでした' : null)
             );
 
             return $this->apiResponseService->success($this->response, [
                 'registered' => $output->registered,
                 'skipped'    => $output->skipped,
+                'failed'     => $output->failed,
             ], null, 200);
         } catch (\InvalidArgumentException $e) {
             return $this->apiResponseService->error($this->response, $e->getMessage(), 400);
