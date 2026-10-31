@@ -2,6 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var iterable<\App\Model\Entity\MRoomInfo> $mRoomInfo
+ * @var list<int> $editableRoomIds 編集ボタンを出す部屋（管理者は全部屋、ブロック長は所属部屋）
  * @var object $user
  */
 
@@ -36,8 +37,10 @@ $isAdmin = in_array((int)$user->get('i_admin'), [1, 3]);
                     <td class="d-none d-md-table-cell text-center"><?= $this->Number->format($room->i_disp_no) ?></td>
                     <td class="text-center">
                         <?= $this->Html->link(__('詳細'), ['action' => 'view', $room->i_id_room], ['class' => 'btn btn-info btn-sm']) ?>
-                        <?php if ($isAdmin): ?>
+                        <?php if (in_array((int)$room->i_id_room, $editableRoomIds, true)): ?>
                             <?= $this->Html->link(__('編集'), ['action' => 'edit', $room->i_id_room], ['class' => 'btn btn-warning btn-sm ms-1']) ?>
+                        <?php endif; ?>
+                        <?php if ($isAdmin): ?>
                             <?= $this->Form->postLink(__('🗑 削除'), ['action' => 'delete', $room->i_id_room], [
                                 'confirm' => __('「{0}」を削除してもよろしいですか？', $room->c_room_name),
                                 'class'   => 'btn btn-danger btn-sm ms-3',
