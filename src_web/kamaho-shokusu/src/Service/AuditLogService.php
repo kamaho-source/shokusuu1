@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\TableRegistry;
+use Cake\I18n\DateTime;
 
 /**
  * 監査ログサービス
@@ -225,7 +226,7 @@ class AuditLogService
                 : null;
             $log->c_ip_address      = $ipAddress;
             $log->i_result          = $result;
-            $log->dt_create         = date('Y-m-d H:i:s');
+            $log->dt_create         = DateTime::now()->format('Y-m-d H:i:s');
 
             $table->save($log);
         } catch (\Throwable) {

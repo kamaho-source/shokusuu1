@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\TableRegistry;
+use Cake\I18n\DateTime;
 
 /**
  * ユーザー部屋割り当てサービス
@@ -43,7 +44,7 @@ class UserRoomAssignmentService
 
             foreach ($oldGroups as $group) {
                 $group->active_flag   = 1;
-                $group->dt_update     = date('Y-m-d H:i:s');
+                $group->dt_update     = DateTime::now()->format('Y-m-d H:i:s');
                 $group->c_update_user = $actor;
                 $userGroupTable->save($group);
             }
@@ -55,7 +56,7 @@ class UserRoomAssignmentService
                         'i_id_user'     => $userId,
                         'i_id_room'     => $room->i_id_room,
                         'active_flag'   => 0,
-                        'dt_create'     => date('Y-m-d H:i:s'),
+                        'dt_create'     => DateTime::now()->format('Y-m-d H:i:s'),
                         'c_create_user' => $actor,
                     ]);
                     if ($userGroupTable->save($newGroup)) {

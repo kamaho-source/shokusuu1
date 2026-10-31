@@ -19,6 +19,7 @@ use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
+use Cake\I18n\DateTime;
 
 class MUserInfoController extends AppController
 {
@@ -204,7 +205,7 @@ class MUserInfoController extends AppController
         }
 
         $mUserInfo->i_del_flag   = 0;
-        $mUserInfo->dt_create    = date('Y-m-d H:i:s');
+        $mUserInfo->dt_create    = DateTime::now()->format('Y-m-d H:i:s');
         $mUserInfo->i_enable     = 0;
         $mUserInfo->i_disp_no    = $maxDispNo;
         $mUserInfo->i_user_age   = (int)$this->request->getData('age');
@@ -344,7 +345,7 @@ class MUserInfoController extends AppController
                     : $mUserInfo->c_login_account,
                 'c_user_name'     => $posted['c_user_name'] ?? $mUserInfo->c_user_name,
                 'c_update_user'   => $user ? $user->get('c_user_name') : '不明なユーザー',
-                'dt_update'       => date('Y-m-d H:i:s'),
+                'dt_update'       => DateTime::now()->format('Y-m-d H:i:s'),
             ];
 
             $roomIds = [];
@@ -638,7 +639,7 @@ class MUserInfoController extends AppController
 
         $table            = $this->MUserInfo;
         $user->i_report_access = $value;
-        $user->dt_update       = date('Y-m-d H:i:s');
+        $user->dt_update       = DateTime::now()->format('Y-m-d H:i:s');
         $user->c_update_user   = $updatedBy;
 
         if ($table->save($user)) {
