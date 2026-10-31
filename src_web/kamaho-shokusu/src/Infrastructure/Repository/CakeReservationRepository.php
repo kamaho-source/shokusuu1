@@ -192,9 +192,16 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
                 'c_create_user'      => $actor,
                 'dt_create'          => DateTime::now('Asia/Tokyo'),
             ];
-            $entities[] = $validate
-                ? $this->reservations->newEntity($data)
-                : $this->reservations->newEmptyEntity()->set($data);
+            if ($validate) {
+                $entities[] = $this->reservations->newEntity($data);
+                continue;
+            }
+            // 検証・型変換をせず、値をそのまま入れる（プロパティへの代入と同じ）
+            $entity = $this->reservations->newEmptyEntity();
+            foreach ($data as $field => $value) {
+                $entity->set($field, $value);
+            }
+            $entities[] = $entity;
         }
 
         try {
@@ -224,7 +231,7 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
             ->select([
                 'd_reservation_date',
                 'max_dt' => $query->func()->max(
-                    $query->newExpr('COALESCE(dt_update, dt_create)'),
+                    $query->expr('COALESCE(dt_update, dt_create)'),
                     // 型を渡さないと float 扱いになり '2026-10-24 15:04:05' が 2026 になる（年が同じだと競合を検出できない）
                     ['string']
                 ),
@@ -233,7 +240,7 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
                 'i_id_room'             => $roomId,
                 'd_reservation_date IN' => $dates,
             ])
-            ->group(['d_reservation_date'])
+            ->groupBy(['d_reservation_date'])
             ->all();
 
         $latest = [];

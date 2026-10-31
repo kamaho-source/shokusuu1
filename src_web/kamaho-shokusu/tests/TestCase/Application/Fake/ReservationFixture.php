@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\Fake;
 
+use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
+use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
+use App\Application\UseCase\BulkReservation\BulkReservationSupport;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
@@ -44,5 +47,33 @@ final class ReservationFixture
     public function registerGroup(): RegisterGroupReservationUseCase
     {
         return new RegisterGroupReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger());
+    }
+
+    public function bulkAdd(): BulkAddReservationsUseCase
+    {
+        return new BulkAddReservationsUseCase(
+            $this->reservations,
+            $this->rooms,
+            $this->users,
+            $this->reservations,
+            $this->cache,
+            new FakeReservationDatePolicy(),
+            new BulkReservationSupport($this->reservations, $this->rooms, $this->cache),
+            new NullLogger(),
+            '過去日は選べません。',
+        );
+    }
+
+    public function bulkChangeEdit(): BulkChangeEditReservationsUseCase
+    {
+        return new BulkChangeEditReservationsUseCase(
+            $this->reservations,
+            $this->rooms,
+            $this->users,
+            $this->reservations,
+            new FakeReservationDatePolicy(),
+            new BulkReservationSupport($this->reservations, $this->rooms, $this->cache),
+            new NullLogger(),
+        );
     }
 }

@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 namespace App\Infrastructure;
 
+use App\Application\Port\ReservationDatePolicyInterface;
+use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
+use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
+use App\Application\UseCase\BulkReservation\BulkReservationSupport;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
@@ -16,6 +20,7 @@ use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Repository\CakeUserRepository;
 use App\Model\Table\TIndividualReservationInfoTable;
+use App\Service\ReservationDatePolicy;
 use Cake\Core\Configure;
 use Cake\ORM\Table;
 
@@ -38,10 +43,16 @@ final class ReservationUseCases
 
     private readonly CakeLogger $logger;
 
+    private readonly ReservationDatePolicyInterface $datePolicy;
+
     private ?ToggleMealUseCase $toggleMeal = null;
 
-    public function __construct(TIndividualReservationInfoTable $reservations, Table $users)
+    /**
+     * @param ReservationDatePolicyInterface|null $datePolicy 予約日の検証（省略時は今日を基準にした ReservationDatePolicy）
+     */
+    public function __construct(TIndividualReservationInfoTable $reservations, Table $users, ?ReservationDatePolicyInterface $datePolicy = null)
     {
+        $this->datePolicy     = $datePolicy ?? new ReservationDatePolicy();
         $this->reservations   = new CakeReservationRepository($reservations);
         $this->rooms          = new CakeRoomMembershipRepository();
         $this->cache          = new ReservationCacheAdapter();
@@ -99,6 +110,42 @@ final class ReservationUseCases
             $this->logger,
             (bool)Configure::read('debug'),
         );
+    }
+
+    public function bulkAddReservations(): BulkAddReservationsUseCase
+    {
+        return new BulkAddReservationsUseCase(
+            $this->reservations,
+            $this->rooms,
+            $this->userRepository,
+            $this->transaction,
+            $this->cache,
+            $this->datePolicy,
+            $this->bulkSupport(),
+            $this->logger,
+            (string)Configure::read(
+                'App.messages.pastDateUnavailable',
+                '過去日の内容はこの画面では表示できません。修正が必要な場合は管理者にお問い合わせください。'
+            ),
+        );
+    }
+
+    public function bulkChangeEditReservations(): BulkChangeEditReservationsUseCase
+    {
+        return new BulkChangeEditReservationsUseCase(
+            $this->reservations,
+            $this->rooms,
+            $this->userRepository,
+            $this->transaction,
+            $this->datePolicy,
+            $this->bulkSupport(),
+            $this->logger,
+        );
+    }
+
+    private function bulkSupport(): BulkReservationSupport
+    {
+        return new BulkReservationSupport($this->reservations, $this->rooms, $this->cache);
     }
 
     /** 部屋・所属の Repository（Service から所属の判定に使う）。 */
