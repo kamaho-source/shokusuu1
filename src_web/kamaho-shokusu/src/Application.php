@@ -22,6 +22,7 @@ use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
+use App\Application\UseCase\CreateUser\CreateUserUseCase;
 use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
@@ -257,6 +258,12 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             new ClockFactory('Asia/Tokyo'),
         ));
         $container->add(RestoreUserUseCase::class, static fn() => new RestoreUserUseCase($userAccounts(), $userTransaction(), new AuditLogAdapter()));
+        $container->add(CreateUserUseCase::class, static fn() => new CreateUserUseCase(
+            $userAccounts(),
+            new CakeRoomMembershipRepository(),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
         $container->add(SystemReportService::class);

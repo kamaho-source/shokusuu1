@@ -68,6 +68,8 @@ class AssignUserRoomsUseCaseTest extends TestCase
             public function isRoomAvailable(int $roomId): bool { return true; }
             public function roomNames(array $roomIds): array { return []; }
             public function roomIdByName(string $roomName): ?int { throw new \RuntimeException('DB down'); }
+            public function activeRoomIds(int $userId): array { return []; }
+            public function selectableRooms(?array $onlyRoomIds = null): array { return []; }
         }, $this->transaction);
 
         try {

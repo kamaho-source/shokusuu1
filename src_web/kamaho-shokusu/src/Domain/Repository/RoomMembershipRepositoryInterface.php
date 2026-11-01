@@ -39,4 +39,19 @@ interface RoomMembershipRepositoryInterface
      * 部屋名から部屋 ID を引く（削除済みの部屋も含めて、最初に見つかったもの）。無ければ null。
      */
     public function roomIdByName(string $roomName): ?int;
+
+    /**
+     * 利用者が今所属している部屋（active_flag=0）。重複なし。
+     *
+     * @return list<int>
+     */
+    public function activeRoomIds(int $userId): array;
+
+    /**
+     * 選べる部屋（削除されていない部屋）。$onlyRoomIds を渡すと、その中だけ。
+     *
+     * @param list<int>|null $onlyRoomIds
+     * @return array<int, string> 部屋ID => 部屋名
+     */
+    public function selectableRooms(?array $onlyRoomIds = null): array;
 }
