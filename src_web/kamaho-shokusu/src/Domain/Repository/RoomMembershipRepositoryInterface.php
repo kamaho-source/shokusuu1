@@ -37,8 +37,10 @@ interface RoomMembershipRepositoryInterface
 
     /**
      * 部屋名から部屋 ID を引く（削除済みの部屋も含めて、最初に見つかったもの）。無ければ null。
+     *
+     * @param list<int>|null $onlyRoomIds 渡すと、その部屋の中だけから探す（部屋名は重複し得るため）
      */
-    public function roomIdByName(string $roomName): ?int;
+    public function roomIdByName(string $roomName, ?array $onlyRoomIds = null): ?int;
 
     /**
      * 利用者が今所属している部屋（active_flag=0）。重複なし。

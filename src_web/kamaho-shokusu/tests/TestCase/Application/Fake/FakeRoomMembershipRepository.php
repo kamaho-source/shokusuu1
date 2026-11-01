@@ -52,9 +52,11 @@ final class FakeRoomMembershipRepository implements RoomMembershipRepositoryInte
         return $onlyRoomIds === null ? $rooms : array_intersect_key($rooms, array_flip($onlyRoomIds));
     }
 
-    public function roomIdByName(string $roomName): ?int
+    public function roomIdByName(string $roomName, ?array $onlyRoomIds = null): ?int
     {
-        return $this->roomIdsByName[$roomName] ?? null;
+        $id = $this->roomIdsByName[$roomName] ?? null;
+
+        return $id !== null && ($onlyRoomIds === null || in_array($id, $onlyRoomIds, true)) ? $id : null;
     }
 
     public function roomNames(array $roomIds): array

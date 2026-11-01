@@ -88,12 +88,15 @@ final class CakeRoomMembershipRepository implements RoomMembershipRepositoryInte
         }
     }
 
-    public function roomIdByName(string $roomName): ?int
+    public function roomIdByName(string $roomName, ?array $onlyRoomIds = null): ?int
     {
-        $room = TableRegistry::getTableLocator()->get('MRoomInfo')->find()
+        $query = TableRegistry::getTableLocator()->get('MRoomInfo')->find()
             ->select(['i_id_room'])
-            ->where(['c_room_name' => $roomName])
-            ->first();
+            ->where(['c_room_name' => $roomName]);
+        if ($onlyRoomIds !== null) {
+            $query->where(['i_id_room IN' => $onlyRoomIds ?: [0]]);
+        }
+        $room = $query->first();
 
         return $room === null ? null : (int)$room->get('i_id_room');
     }

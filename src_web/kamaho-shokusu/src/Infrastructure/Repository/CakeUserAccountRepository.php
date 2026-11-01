@@ -254,6 +254,37 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         return $rows === [] || $this->groups->saveMany($rows) !== false;
     }
 
+    public function activeUserNames(): array
+    {
+        return $this->users->find('list', keyField: 'i_id_user', valueField: 'c_user_name')
+            ->where(['i_del_flag' => 0])
+            ->toArray();
+    }
+
+    public function changePassword(int $userId, string $plainPassword): bool
+    {
+        $user = $this->row($userId);
+        if ($user === null) {
+            return false;
+        }
+        $user->set('c_login_passwd', $plainPassword);
+
+        return (bool)$this->users->save($user);
+    }
+
+    public function importUser(array $data): UserCreationResult
+    {
+        $user = $this->users->newEntity($data);
+        if ($user->hasErrors()) {
+            return UserCreationResult::invalid($user->getErrors());
+        }
+        if (!$this->users->save($user)) {
+            return UserCreationResult::saveFailed();
+        }
+
+        return UserCreationResult::created((int)$user->get('i_id_user'));
+    }
+
     /**
      * @param array<string, mixed> $fields
      */

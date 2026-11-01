@@ -6,6 +6,11 @@ namespace App\Controller;
 use App\Application\Port\AuditActor;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsInput;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
+use App\Application\UseCase\BulkImportUsers\BulkImportUsersInput;
+use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
+use App\Application\UseCase\ChangePassword\ChangePasswordInput;
+use App\Application\UseCase\ChangePassword\ChangePasswordOutput;
+use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
 use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessInput;
 use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleInput;
@@ -26,7 +31,6 @@ use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
 use App\Service\RoomService;
-use App\Service\UserBulkImportService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
@@ -38,7 +42,6 @@ class MUserInfoController extends AppController
     protected $MUserInfo;
     protected $MRoomInfo;
 
-    private UserBulkImportService   $userBulkImportService;
 
     public function initialize(): void
     {
@@ -50,7 +53,6 @@ class MUserInfoController extends AppController
         $this->MUserInfo = $this->fetchTable('MUserInfo');
         $this->MRoomInfo = $this->fetchTable('MRoomInfo');
 
-        $this->userBulkImportService    = new UserBulkImportService();
 
         // これらのアクションは FormProtection のフォームトークン検証対象外にする。
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
@@ -100,7 +102,7 @@ class MUserInfoController extends AppController
     /**
      * クライアント（ブラウザ）でパース済みの JSON を受け取り登録します。
      */
-    public function importJson(CreateUserUseCase $createUserUseCase)
+    public function importJson(BulkImportUsersUseCase $bulkImportUsers)
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
@@ -124,24 +126,12 @@ class MUserInfoController extends AppController
             throw new BadRequestException('records 配列が必要です。');
         }
 
-        $identity   = $this->request->getAttribute('identity');
-        $createUser = $identity ? $identity->get('c_user_name') : 'インポート';
-        $actorId    = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId    = (string)($identity?->get('c_login_account') ?? '');
-
         try {
-            $results = $this->userBulkImportService->import(
+            $results = $bulkImportUsers->execute(new BulkImportUsersInput(
                 $records,
-                $createUser,
-                $actorId,
-                $this->getClientIp(),
-                $loginId,
-                !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0)),
-                $identity === null ? null : $createUserUseCase->allowedRoomIds(
-                    (int)$identity->get('i_id_user'),
-                    UserRole::isAdmin((int)($identity->get('i_admin') ?? 0))
-                )
-            );
+                $this->auditActor(),
+                UserRole::isAdmin((int)($this->request->getAttribute('identity')?->get('i_admin') ?? 0)),
+            ))->toArray();
         } catch (\Throwable $e) {
             $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
             throw new BadRequestException('インポート処理中にエラーが発生しました。');
@@ -621,7 +611,7 @@ class MUserInfoController extends AppController
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
 
-    public function adminChangePassword()
+    public function adminChangePassword(ChangePasswordUseCase $changePassword)
     {
         $this->request->allowMethod(['get', 'post', 'put']);
         $resource = $this->MUserInfo->newEmptyEntity();
@@ -632,70 +622,48 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $users = $this->fetchTable('MUserInfo')->find('list', [
-            'keyField'   => 'i_id_user',
-            'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0])->toArray();
-
-        $selectedUser = null;
+        $users = $changePassword->selectableUsers();
+        $selectedUserId = null;
 
         if ($this->request->is(['post', 'put'])) {
-            $data            = $this->request->getData();
-            $userId          = $data['user_id'] ?? null;
-            $newPassword     = $data['new_password'] ?? '';
-            $confirmPassword = $data['confirm_password'] ?? '';
-
-            if (!$userId || !isset($users[$userId])) {
-                $this->Flash->error(__('ユーザーを選択してください。'));
-                return $this->redirect(['action' => 'adminChangePassword']);
-            }
-
-            $selectedUser = $this->fetchTable('MUserInfo')->get($userId);
-
-            if ($newPassword !== $confirmPassword) {
-                $this->Flash->error(__('新しいパスワードが一致しません。'));
-                return $this->redirect(['action' => 'adminChangePassword']);
-            }
-
-            if (strlen($newPassword) < 2) {
-                $this->Flash->error(__('新しいパスワードは2文字以上にしてください。'));
-                return $this->redirect(['action' => 'adminChangePassword']);
-            }
-
-            $selectedUser->c_login_passwd = $newPassword;
-
-            $actorIdentity = $this->request->getAttribute('identity');
-            if ($this->fetchTable('MUserInfo')->save($selectedUser)) {
-                \App\Service\AuditLogService::record(
-                    'user',
-                    'user_password_change_admin',
-                    $actorIdentity?->get('c_user_name') ?? '不明',
-                    $actorIdentity ? (int)$actorIdentity->get('i_id_user') : 0,
-                    'm_user_info',
-                    (string)$selectedUser->i_id_user,
-                    ['target_user_name' => $selectedUser->c_user_name],
-                    $this->getClientIp(),
-                    1,
-                    (string)($actorIdentity?->get('c_login_account') ?? '')
-                );
+            $data   = $this->request->getData();
+            $userId = $this->userIdParam($data['user_id'] ?? null);
+            $result = $changePassword->execute(new ChangePasswordInput(
+                $userId,
+                (string)($data['new_password'] ?? ''),
+                (string)($data['confirm_password'] ?? ''),
+                $this->auditActor(),
+                true,
+            ));
+            if ($result->status === ChangePasswordOutput::CHANGED) {
                 $this->Flash->success(__('パスワードを変更しました。'));
                 return $this->redirect(['action' => 'index']);
             }
-
+            if ($result->status === ChangePasswordOutput::REJECTED) {
+                $this->Flash->error((string)$result->message);
+                return $this->redirect(['action' => 'adminChangePassword']);
+            }
+            $selectedUserId = $userId;
             $this->Flash->error(__('パスワードの変更に失敗しました。'));
         } elseif ($this->request->is('get')) {
             // 編集画面の「パスワード変更」リンクから ?user_id= 付きで遷移してきた場合、対象ユーザーを事前選択する。
             // 存在しない・削除済みユーザーIDは無視し、通常の未選択状態にフォールバックする。
-            $queryUserId = $this->request->getQuery('user_id');
+            $queryUserId = $this->userIdParam($this->request->getQuery('user_id'));
             if ($queryUserId !== null && isset($users[$queryUserId])) {
-                $selectedUser = $this->fetchTable('MUserInfo')->get((int)$queryUserId);
+                $selectedUserId = $queryUserId;
             }
         }
 
-        $this->set(compact('users', 'selectedUser'));
+        $this->set(compact('users', 'selectedUserId'));
     }
 
-    public function generalPasswordReset(): ?\Cake\Http\Response
+    /** 送られた利用者 ID（数字の文字列だけを受け取る。'01' や '1abc' は選ばれていない扱い）。 */
+    private function userIdParam(string|int|array|null $value): ?int
+    {
+        return is_scalar($value) && (string)(int)$value === (string)$value && (int)$value > 0 ? (int)$value : null;
+    }
+
+    public function generalPasswordReset(ChangePasswordUseCase $changePassword): ?\Cake\Http\Response
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
         $identity = $this->request->getAttribute('identity');
@@ -705,8 +673,7 @@ class MUserInfoController extends AppController
         }
 
         $userId = $identity->getIdentifier() ?? $identity->get('i_id_user');
-        $Users  = $this->fetchTable('MUserInfo');
-        $user   = $Users->get($userId);
+        $user   = $this->MUserInfo->get($userId);
 
         try {
             $this->Authorization->authorize($user, 'generalPasswordReset');
@@ -716,39 +683,23 @@ class MUserInfoController extends AppController
         }
 
         if ($this->request->is(['post', 'put', 'patch'])) {
-            $data            = (array)$this->request->getData();
-            $newPassword     = (string)($data['new_password'] ?? '');
-            $confirmPassword = (string)($data['confirm_password'] ?? '');
-
-            if ($newPassword !== $confirmPassword) {
-                $this->Flash->error('新しいパスワードが一致しません。');
-                return $this->redirect($this->request->getRequestTarget());
-            }
-            if (mb_strlen($newPassword) < 2) {
-                $this->Flash->error('新しいパスワードは2文字以上にしてください。');
-                return $this->redirect($this->request->getRequestTarget());
-            }
-
-            $user->c_login_passwd = $newPassword;
-
-            if ($Users->save($user)) {
+            $data   = (array)$this->request->getData();
+            $result = $changePassword->execute(new ChangePasswordInput(
+                (int)$user->i_id_user,
+                (string)($data['new_password'] ?? ''),
+                (string)($data['confirm_password'] ?? ''),
+                $this->auditActor(),
+                false,
+            ));
+            if ($result->status === ChangePasswordOutput::CHANGED) {
                 $this->request->getSession()->renew();
-                \App\Service\AuditLogService::record(
-                    'user',
-                    'user_password_change_self',
-                    $user->c_user_name ?? '不明',
-                    (int)$user->i_id_user,
-                    'm_user_info',
-                    (string)$user->i_id_user,
-                    null,
-                    $this->getClientIp(),
-                    1,
-                    (string)($user->c_login_account ?? '')
-                );
                 $this->Flash->success('パスワードを変更しました。');
                 return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
             }
-
+            if ($result->status === ChangePasswordOutput::REJECTED) {
+                $this->Flash->error((string)$result->message);
+                return $this->redirect($this->request->getRequestTarget());
+            }
             $this->Flash->error('パスワードの変更に失敗しました。');
         }
 
