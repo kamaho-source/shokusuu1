@@ -443,24 +443,29 @@ class ReservationWriteServiceProcessToggleTest extends TestCase
     public function testProcessBulkToggle_systemErrorHidesSqlAndShowsErrorCode(): void
     {
         // 1件目: DB エラー（デッドロック）、2件目: DB 接続エラー、3件目: 通常のエラー（過去日）。
-        $service = new class (
-            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+        $table = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+            ->onlyMethods(['toggleMeal'])
+            ->setConstructorArgs([[
+                'connection' => ConnectionManager::get('test'),
+                'alias' => 'TIndividualReservationInfo',
+                'table' => 't_individual_reservation_info',
+            ]])
+            ->getMock();
+        $table->method('toggleMeal')->willReturnCallback(static function (int $userId, int $roomId, string $date, int $meal): array {
+            throw match ($meal) {
+                1 => new \Cake\Database\Exception\QueryException(
+                    'UPDATE t_individual_reservation_info SET i_change_flag = 1',
+                    new \PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock')
+                ),
+                default => new \PDOException('SQLSTATE[HY000] [2002] Connection refused'),
+            };
+        });
+        $service = new ReservationWriteService(
+            $table,
             TableRegistry::getTableLocator()->get('MUserInfo'),
             TableRegistry::getTableLocator()->get('MRoomInfo'),
             '/webroot/'
-        ) extends ReservationWriteService {
-            public function processToggle(int $roomId, array $payload, int $loginUserId, string $loginUserName, bool $invalidateCache = true, bool $adminAnyRoom = false): array
-            {
-                return match ((int)$payload['meal']) {
-                    1 => throw new \Cake\Database\Exception\QueryException(
-                        'UPDATE t_individual_reservation_info SET i_change_flag = 1',
-                        new \PDOException('SQLSTATE[40001]: Serialization failure: 1213 Deadlock found when trying to get lock')
-                    ),
-                    2 => throw new \PDOException('SQLSTATE[HY000] [2002] Connection refused'),
-                    default => parent::processToggle($roomId, $payload, $loginUserId, $loginUserName, $invalidateCache, $adminAnyRoom),
-                };
-            }
-        };
+        );
         $items = [
             ['roomId' => 1, 'userId' => 1, 'date' => '2099-01-01', 'meal' => 1, 'value' => 1],
             ['roomId' => 1, 'userId' => 1, 'date' => '2099-01-01', 'meal' => 2, 'value' => 1],
