@@ -34,4 +34,9 @@ interface RoomMembershipRepositoryInterface
      * @throws \RuntimeException 読み取りに失敗したとき
      */
     public function roomNames(array $roomIds): array;
+
+    /**
+     * 部屋名から部屋 ID を引く（削除済みの部屋も含めて、最初に見つかったもの）。無ければ null。
+     */
+    public function roomIdByName(string $roomName): ?int;
 }

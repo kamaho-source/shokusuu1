@@ -98,6 +98,11 @@ interface ReservationRepositoryInterface
     public function addMany(array $rows, string $actor, bool $validate = true): void;
 
     /**
+     * 利用者の、指定日より後の未承認の予約を消す（その日と過去日は実績として残す）。
+     */
+    public function deleteUnapprovedAfter(int $userId, string $date): void;
+
+    /**
      * 部屋の日付ごとの最終更新日時（更新が無ければ作成日時）。'Y-m-d H:i:s' の文字列。
      *
      * @param list<string> $dates

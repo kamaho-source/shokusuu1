@@ -4,25 +4,29 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Port\AuditActor;
+use App\Application\UseCase\AssignUserRooms\AssignUserRoomsInput;
+use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
 use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessInput;
 use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleInput;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleOutput;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
+use App\Application\UseCase\DeleteUser\DeleteUserInput;
+use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
+use App\Application\UseCase\RestoreUser\RestoreUserInput;
+use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
 use App\Service\RoomService;
 use App\Service\UserBulkImportService;
 use App\Service\UserCreateService;
-use App\Service\UserDeletionService;
 use App\Service\UserEditService;
-use App\Service\UserRestoreService;
-use App\Service\UserRoomAssignmentService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
+use Cake\Http\Exception\NotFoundException;
 use Cake\I18n\DateTime;
 
 class MUserInfoController extends AppController
@@ -32,10 +36,7 @@ class MUserInfoController extends AppController
 
     private UserBulkImportService   $userBulkImportService;
     private UserCreateService       $userCreateService;
-    private UserDeletionService     $userDeletionService;
     private UserEditService         $userEditService;
-    private UserRestoreService      $userRestoreService;
-    private UserRoomAssignmentService $userRoomAssignmentService;
 
     public function initialize(): void
     {
@@ -49,10 +50,7 @@ class MUserInfoController extends AppController
 
         $this->userBulkImportService    = new UserBulkImportService();
         $this->userCreateService        = new UserCreateService();
-        $this->userDeletionService      = new UserDeletionService();
         $this->userEditService          = new UserEditService();
-        $this->userRestoreService       = new UserRestoreService();
-        $this->userRoomAssignmentService = new UserRoomAssignmentService();
 
         // これらのアクションは FormProtection のフォームトークン検証対象外にする。
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
@@ -680,24 +678,22 @@ class MUserInfoController extends AppController
         return $names;
     }
 
-    public function delete($id = null)
+    public function delete(DeleteUserUseCase $deleteUser, $id = null)
     {
         $this->request->allowMethod(['post', 'delete']);
-        $mUserInfo = $this->MUserInfo->get($id);
+        if ($deleteUser->target((int)$id) === null) {
+            throw new NotFoundException(__('ユーザーが見つかりません。'));
+        }
 
         try {
-            $this->Authorization->authorize($mUserInfo, 'delete');
+            // 削除の認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'delete');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('あなたは削除権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
 
-        $user      = $this->request->getAttribute('identity');
-        $updatedBy = $user ? $user->get('c_user_name') : '不明なユーザー';
-        $actorId   = $user ? (int)$user->get('i_id_user') : 0;
-        $loginId   = (string)($user?->get('c_login_account') ?? '');
-
-        if ($this->userDeletionService->softDelete($mUserInfo, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
+        if ($deleteUser->execute(new DeleteUserInput((int)$id, $this->auditActor()))->deleted) {
             $this->Flash->success(__('ユーザー情報が削除されました。'));
         } else {
             $this->Flash->error(__('ユーザー情報を削除できませんでした。'));
@@ -939,7 +935,7 @@ class MUserInfoController extends AppController
      * POST: i_id_user, room_names[]
      * 既存所属はactive_flag=1に更新し、新規所属をactive_flag=0で登録（最大2部屋）
      */
-    public function addUserRooms()
+    public function addUserRooms(AssignUserRoomsUseCase $assignRooms)
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
@@ -954,30 +950,29 @@ class MUserInfoController extends AppController
         }
 
         $userId = (int)$userId;
-        $user   = $this->MUserInfo->find()->where(['i_id_user' => $userId, 'i_del_flag' => 0])->first();
-
-        if (!$user) {
+        if (!$assignRooms->isActiveUser($userId)) {
             $this->Authorization->skipAuthorization();
             $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok', 'message']]);
             return;
         }
 
         try {
-            $this->Authorization->authorize($user, 'addUserRooms');
+            // 所属部屋の入れ替えの認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'addUserRooms');
         } catch (ForbiddenException $e) {
             $this->set(['ok' => false, 'message' => '権限がありません', '_serialize' => ['ok', 'message']]);
             return;
         }
 
         $identity = $this->request->getAttribute('identity');
-        $actor    = $identity ? $identity->get('c_user_name') : 'API';
+        $actor    = $identity ? (string)$identity->get('c_user_name') : 'API';
 
         try {
-            $result = $this->userRoomAssignmentService->assign($userId, $roomNames, $actor);
+            $result = $assignRooms->execute(new AssignUserRoomsInput($userId, array_values($roomNames), $actor));
             $this->set([
                 'ok'      => true,
-                'created' => $result['created'],
-                'errors'  => $result['errors'],
+                'created' => $result->created,
+                'errors'  => $result->errors,
                 '_serialize' => ['ok', 'created', 'errors'],
             ]);
         } catch (\Throwable $e) {
@@ -988,31 +983,38 @@ class MUserInfoController extends AppController
     /**
      * 削除済みユーザーを復元する（管理者のみ）
      */
-    public function restore($id = null)
+    public function restore(RestoreUserUseCase $restoreUser, $id = null)
     {
         $this->request->allowMethod(['post', 'put']);
-        $user     = $this->MUserInfo->get($id);
-        $identity = $this->request->getAttribute('identity');
+        $user = $restoreUser->target((int)$id);
+        if ($user === null) {
+            throw new NotFoundException(__('ユーザーが見つかりません。'));
+        }
 
         try {
-            $this->Authorization->authorize($user, 'restore');
+            // 復元の認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'restore');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能は管理者のみ利用できます。'));
             return $this->redirect(['action' => 'index']);
         }
 
-        if ($user->i_del_flag !== 1) {
+        if (!$user->isDeleted()) {
             $this->Flash->error(__('このユーザーは削除されていません。'));
             return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
         }
 
-        $updatedBy = $identity->get('c_user_name') ?? 'admin';
-        $actorId   = (int)($identity->get('i_id_user') ?? 0);
-        $loginId   = (string)($identity->get('c_login_account') ?? '');
+        $identity = $this->request->getAttribute('identity');
+        $actor    = new AuditActor(
+            (string)($identity->get('c_user_name') ?? 'admin'),
+            (int)($identity->get('i_id_user') ?? 0),
+            (string)($identity->get('c_login_account') ?? ''),
+            $this->getClientIp(),
+        );
 
         try {
-            $this->userRestoreService->restore($user, $updatedBy, $actorId, $this->getClientIp(), $loginId);
-            $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->c_user_name));
+            $restoreUser->execute(new RestoreUserInput($user->id, $actor));
+            $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->name));
             return $this->redirect(['action' => 'index']);
         } catch (\Exception $e) {
             $this->log('userRestore error: ' . $e->getMessage(), 'error');

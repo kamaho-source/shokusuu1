@@ -155,6 +155,14 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
         }
     }
 
+    /** @var list<array{int, string}> deleteUnapprovedAfter の呼び出し [利用者ID, 日付] */
+    public array $deletedAfter = [];
+
+    public function deleteUnapprovedAfter(int $userId, string $date): void
+    {
+        $this->deletedAfter[] = [$userId, $date];
+    }
+
     public function latestUpdateByDate(int $roomId, array $dates): array
     {
         $latest = [];

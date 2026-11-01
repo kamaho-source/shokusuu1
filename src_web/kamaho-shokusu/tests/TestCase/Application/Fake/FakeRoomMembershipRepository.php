@@ -29,6 +29,14 @@ final class FakeRoomMembershipRepository implements RoomMembershipRepositoryInte
         return !in_array($roomId, $this->deletedRooms, true);
     }
 
+    /** @var array<string, int> 部屋名 => 部屋 ID（roomIdByName 用） */
+    public array $roomIdsByName = [];
+
+    public function roomIdByName(string $roomName): ?int
+    {
+        return $this->roomIdsByName[$roomName] ?? null;
+    }
+
     public function roomNames(array $roomIds): array
     {
         return array_intersect_key($this->names, array_flip($roomIds));

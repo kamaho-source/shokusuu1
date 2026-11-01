@@ -1,25 +1,40 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\RestoreUser;
 
-use App\Service\UserRestoreService;
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\RestoreUser\RestoreUserInput;
+use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
+use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
+use App\Infrastructure\Repository\CakeUserAccountRepository;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * UserRestoreService テスト
+ * RestoreUserUseCase を本物の Repository・監査ログにつないだテスト（旧 UserRestoreServiceTest を引き継ぐ）
  *
  * restore() がソフトデリートを解除し、成功・失敗どちらのケースでも
  * 監査ログを記録することを検証する。
  */
-class UserRestoreServiceTest extends TestCase
+class RestoreUserIntegrationTest extends TestCase
 {
     protected array $fixtures = [
         'app.MUserInfo',
         'app.MUserGroup',
         'app.TAuditLog',
     ];
+
+    /** RestoreUserUseCase を本物の Repository・監査ログにつないで実行する（失敗なら例外。旧 UserRestoreService::restore と同じ） */
+    private function restoreUser(object $user, string $by, int $actorId = 0, string $ip = ''): bool
+    {
+        $users   = $this->getTableLocator()->get('MUserInfo');
+        $useCase = new RestoreUserUseCase(new CakeUserAccountRepository($users), new CakeTransactionManager($users->getConnection()), new AuditLogAdapter());
+        $useCase->execute(new RestoreUserInput((int)$user->i_id_user, new AuditActor($by, $actorId, '', $ip)));
+
+        return true;
+    }
 
     private function auditTable(): \Cake\ORM\Table
     {
@@ -48,7 +63,7 @@ class UserRestoreServiceTest extends TestCase
     public function testRestore_returnsTrue(): void
     {
         $user    = $this->userTable()->get(1);
-        $result  = (new UserRestoreService())->restore($user, 'admin', 99, '10.0.0.1');
+        $result  = $this->restoreUser($user, 'admin', 99, '10.0.0.1');
 
         $this->assertTrue($result);
     }
@@ -56,7 +71,7 @@ class UserRestoreServiceTest extends TestCase
     public function testRestore_clearsDelFlag(): void
     {
         $user = $this->userTable()->get(1);
-        (new UserRestoreService())->restore($user, 'admin', 99);
+        $this->restoreUser($user, 'admin', 99);
 
         $refreshed = $this->userTable()->get(1);
         $this->assertSame(0, (int)$refreshed->i_del_flag);
@@ -68,7 +83,7 @@ class UserRestoreServiceTest extends TestCase
         $user->i_enable = 1; // 削除時に立つ値
         $this->userTable()->save($user);
 
-        (new UserRestoreService())->restore($this->userTable()->get(1), 'admin', 99);
+        $this->restoreUser($this->userTable()->get(1), 'admin', 99);
 
         $this->assertSame(0, (int)$this->userTable()->get(1)->i_enable);
     }
@@ -82,7 +97,7 @@ class UserRestoreServiceTest extends TestCase
         $before = $this->countAuditLogs();
         $user   = $this->userTable()->get(1);
 
-        (new UserRestoreService())->restore($user, 'admin', 5, '192.168.1.1');
+        $this->restoreUser($user, 'admin', 5, '192.168.1.1');
 
         $this->assertSame($before + 1, $this->countAuditLogs());
     }
@@ -91,7 +106,7 @@ class UserRestoreServiceTest extends TestCase
     {
         $user = $this->userTable()->get(1);
 
-        (new UserRestoreService())->restore($user, 'sysadmin', 3, '10.1.2.3');
+        $this->restoreUser($user, 'sysadmin', 3, '10.1.2.3');
 
         $log = $this->lastAuditLog();
         $this->assertSame('user',           $log->c_category);
@@ -108,7 +123,7 @@ class UserRestoreServiceTest extends TestCase
     {
         $user = $this->userTable()->get(1);
 
-        (new UserRestoreService())->restore($user, 'admin', 1);
+        $this->restoreUser($user, 'admin', 1);
 
         $log     = $this->lastAuditLog();
         $decoded = json_decode($log->c_detail, true);
@@ -120,7 +135,7 @@ class UserRestoreServiceTest extends TestCase
     {
         $user = $this->userTable()->get(1);
 
-        (new UserRestoreService())->restore($user, 'admin', 1, '');
+        $this->restoreUser($user, 'admin', 1, '');
 
         $log = $this->lastAuditLog();
         $this->assertNull($log->c_ip_address);
