@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Repository;
 
 use App\Domain\Entity\UserAccount;
+use App\Domain\Entity\UserCreationResult;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 use App\Domain\Service\DeletedMembershipRule;
 use Cake\Datasource\EntityInterface;
@@ -23,6 +24,55 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
     public function __construct(private readonly Table $users, ?Table $groups = null)
     {
         $this->groups = $groups ?? TableRegistry::getTableLocator()->get('MUserGroup');
+    }
+
+    public function loginAccountExists(string $loginAccount): bool
+    {
+        return (bool)$this->users->find()->where(['c_login_account' => $loginAccount])->first();
+    }
+
+    public function nextDisplayNo(): int
+    {
+        $row = $this->users->find()
+            ->select(['max_no' => $this->users->find()->func()->max('i_disp_no')])
+            ->first();
+
+        return $row !== null && $row->get('max_no') !== null ? ((int)$row->get('max_no') + 1) : 1;
+    }
+
+    public function create(array $attributes, array $input, array $roomIds, string $createdBy): UserCreationResult
+    {
+        $user = $this->users->newEmptyEntity();
+        foreach ($attributes as $field => $value) {
+            $user->set($field, $value);
+        }
+        // 管理者以外も登録できるため、権限・状態系の項目は送られた値から受け取らない
+        $user = $this->users->patchEntity($user, $input, [
+            'fields' => ['c_login_account', 'c_login_passwd', 'c_user_name', 'c_create_user'],
+        ]);
+        if ($user->hasErrors()) {
+            return UserCreationResult::invalid($user->getErrors());
+        }
+        if (!$this->users->save($user)) {
+            return UserCreationResult::saveFailed();
+        }
+
+        $userId = (int)$user->get('i_id_user');
+        $groups = [];
+        foreach ($roomIds as $roomId) {
+            $groups[] = $this->groups->newEntity([
+                'i_id_user'     => $userId,
+                'i_id_room'     => (int)$roomId,
+                'active_flag'   => 0,
+                'dt_create'     => DateTime::now()->format('Y-m-d H:i:s'),
+                'c_create_user' => $createdBy,
+            ]);
+        }
+        if ($groups !== []) {
+            $this->groups->saveMany($groups);
+        }
+
+        return UserCreationResult::created($userId);
     }
 
     public function find(int $userId): ?UserAccount

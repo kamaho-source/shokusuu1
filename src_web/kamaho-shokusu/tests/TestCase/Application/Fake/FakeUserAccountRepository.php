@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Application\Fake;
 
 use App\Domain\Entity\UserAccount;
+use App\Domain\Entity\UserCreationResult;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 
 /**
@@ -19,6 +20,32 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
 
     /** @var list<array{string, int, int, string}> [項目, 利用者ID, 値, 更新者] */
     public array $updates = [];
+
+    /** @var list<string> 使われているログインID */
+    public array $loginAccounts = [];
+
+    /** @var list<array{array<string, mixed>, array<array-key, mixed>, list<int>, string}> create の呼び出し */
+    public array $created = [];
+
+    public function loginAccountExists(string $loginAccount): bool
+    {
+        return in_array($loginAccount, $this->loginAccounts, true);
+    }
+
+    public function nextDisplayNo(): int
+    {
+        return 100;
+    }
+
+    public function create(array $attributes, array $input, array $roomIds, string $createdBy): UserCreationResult
+    {
+        if ($this->failSave) {
+            return UserCreationResult::saveFailed();
+        }
+        $this->created[] = [$attributes, $input, $roomIds, $createdBy];
+
+        return UserCreationResult::created(500 + count($this->created));
+    }
 
     public function find(int $userId): ?UserAccount
     {

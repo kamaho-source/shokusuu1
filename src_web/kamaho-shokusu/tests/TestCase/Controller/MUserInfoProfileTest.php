@@ -340,4 +340,23 @@ class MUserInfoProfileTest extends TestCase
         $created = $table->find()->where(['c_login_account' => 'new_ok'])->firstOrFail();
         $this->assertSame([8, 2, 1], [(int)$created->i_user_age, (int)$created->i_user_rank, (int)$created->i_user_gender]);
     }
+
+    /** 新規登録でテーブルの入力チェックに当たったら、保存せず、理由をその項目の欄に出す（上には定型文） */
+    public function testAddShowsFieldErrorsOnTheForm(): void
+    {
+        $this->loginAs(1, 1);
+        $this->enableRetainFlashMessages();
+
+        $this->post('/MUserInfo/add', [
+            'c_login_account' => 'new_noname', 'c_login_passwd' => 'password123', 'c_user_name' => '',
+            'role' => '1', 'i_user_gender' => '1', 'age_group' => '2', 'age' => '8', 'MUserGroup' => [['i_id_room' => 1]],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertFlashMessage('予期しないエラーが発生しました。もう一度お試しください。', 'flash');
+        // 入力欄の属性（data-validity-message）にも同じ文言があるため、欄の下に出る誤りの表示で確かめる
+        $this->assertMatchesRegularExpression('/class="error-message"[^>]*>ユーザー名を入力してください。/u', (string)$this->_response->getBody());
+        $this->assertResponseContains('value="new_noname"', '入力したログインIDはフォームに残る');
+        $this->assertSame(0, $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'new_noname'])->count());
+    }
 }

@@ -97,4 +97,27 @@ final class CakeRoomMembershipRepository implements RoomMembershipRepositoryInte
 
         return $room === null ? null : (int)$room->get('i_id_room');
     }
+
+    public function activeRoomIds(int $userId): array
+    {
+        $ids = TableRegistry::getTableLocator()->get('MUserGroup')->find()
+            ->select(['i_id_room'])
+            ->where(['i_id_user' => $userId, 'active_flag' => 0])
+            ->all()
+            ->map(static fn($g): int => (int)$g->get('i_id_room'))
+            ->toList();
+
+        return array_values(array_unique($ids));
+    }
+
+    public function selectableRooms(?array $onlyRoomIds = null): array
+    {
+        $query = TableRegistry::getTableLocator()->get('MRoomInfo')->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
+            ->where(['i_del_flg' => 0]);
+        if ($onlyRoomIds !== null) {
+            $query->where(['i_id_room IN' => $onlyRoomIds ?: [0]]);
+        }
+
+        return $query->toArray();
+    }
 }

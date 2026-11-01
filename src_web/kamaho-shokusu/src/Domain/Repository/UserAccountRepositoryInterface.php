@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Domain\Repository;
 
 use App\Domain\Entity\UserAccount;
+use App\Domain\Entity\UserCreationResult;
 
 /**
  * 管理画面で利用者の権限などを読み書きする。
@@ -12,6 +13,24 @@ use App\Domain\Entity\UserAccount;
  */
 interface UserAccountRepositoryInterface
 {
+    /** そのログインIDの利用者が居るか（削除済みも含める）。 */
+    public function loginAccountExists(string $loginAccount): bool;
+
+    /** 新しく登録する利用者の表示順（今の最大 + 1。誰も居なければ 1）。 */
+    public function nextDisplayNo(): int;
+
+    /**
+     * 利用者を新しく保存し、指定した部屋に所属させる。
+     *
+     * 入力（ログインID・パスワード・氏名・作成者）はテーブルの入力チェックを通し、誤りがあれば保存せずに返す。
+     * 所属の保存は、従来どおり利用者の保存のあとに行い、失敗しても利用者の保存は取り消さない。
+     *
+     * @param array<string, mixed> $attributes 入力チェックを通さずに入れる値（表示順・役職・年齢・性別・年代・職員ID・状態）
+     * @param array<array-key, mixed> $input 入力チェックを通す値（送られた値。使うのは c_login_account・c_login_passwd・c_user_name・c_create_user だけ）
+     * @param list<int> $roomIds 所属させる部屋
+     */
+    public function create(array $attributes, array $input, array $roomIds, string $createdBy): UserCreationResult;
+
     /** 利用者。居なければ null（削除済みも含めて探す）。 */
     public function find(int $userId): ?UserAccount;
 

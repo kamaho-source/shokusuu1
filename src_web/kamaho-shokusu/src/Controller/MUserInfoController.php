@@ -11,17 +11,20 @@ use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleInput;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleOutput;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
+use App\Application\UseCase\CreateUser\CreateUserInput;
+use App\Application\UseCase\CreateUser\CreateUserOutput;
+use App\Application\UseCase\CreateUser\CreateUserUseCase;
 use App\Application\UseCase\DeleteUser\DeleteUserInput;
 use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
 use App\Application\UseCase\RestoreUser\RestoreUserInput;
 use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Domain\Service\DeletedMembershipRule;
+use App\Domain\Service\UserProfileRule;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
 use App\Service\RoomService;
 use App\Service\UserBulkImportService;
-use App\Service\UserCreateService;
 use App\Service\UserEditService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
@@ -36,7 +39,6 @@ class MUserInfoController extends AppController
     protected $MRoomInfo;
 
     private UserBulkImportService   $userBulkImportService;
-    private UserCreateService       $userCreateService;
     private UserEditService         $userEditService;
 
     public function initialize(): void
@@ -50,7 +52,6 @@ class MUserInfoController extends AppController
         $this->MRoomInfo = $this->fetchTable('MRoomInfo');
 
         $this->userBulkImportService    = new UserBulkImportService();
-        $this->userCreateService        = new UserCreateService();
         $this->userEditService          = new UserEditService();
 
         // これらのアクションは FormProtection のフォームトークン検証対象外にする。
@@ -101,7 +102,7 @@ class MUserInfoController extends AppController
     /**
      * クライアント（ブラウザ）でパース済みの JSON を受け取り登録します。
      */
-    public function importJson()
+    public function importJson(CreateUserUseCase $createUserUseCase)
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
@@ -138,7 +139,10 @@ class MUserInfoController extends AppController
                 $this->getClientIp(),
                 $loginId,
                 !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0)),
-                $this->allowedRoomIdsForRegistration($identity)
+                $identity === null ? null : $createUserUseCase->allowedRoomIds(
+                    (int)$identity->get('i_id_user'),
+                    UserRole::isAdmin((int)($identity->get('i_admin') ?? 0))
+                )
             );
         } catch (\Throwable $e) {
             $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
@@ -191,13 +195,11 @@ class MUserInfoController extends AppController
         $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted', 'canRegisterUsers'));
     }
 
-    public function add()
+    public function add(CreateUserUseCase $createUser)
     {
         $this->request->allowMethod(['get', 'post']);
 
-        $maxDispNo  = $this->userCreateService->nextDisplayNo();
-        $mUserInfo  = $this->MUserInfo->newEmptyEntity();
-
+        $mUserInfo = $this->MUserInfo->newEmptyEntity();
         try {
             $this->Authorization->authorize($mUserInfo, 'add');
         } catch (ForbiddenException $e) {
@@ -205,116 +207,47 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $mUserInfo->i_del_flag   = 0;
-        $mUserInfo->dt_create    = DateTime::now()->format('Y-m-d H:i:s');
-        $mUserInfo->i_enable     = 0;
-        $mUserInfo->i_disp_no    = $maxDispNo;
-        $mUserInfo->i_user_age   = (int)$this->request->getData('age');
-        // 管理者以外（職員・ブロック長）は児童のみ登録できる
-        $identityForRole = $this->request->getAttribute('identity');
-        $childOnly       = !UserRole::isAdmin((int)($identityForRole?->get('i_admin') ?? 0));
-        $mUserInfo->i_user_level = $childOnly ? 1 : (int)$this->request->getData('role');
-        if ($mUserInfo->i_user_level === 0) {
-            $mUserInfo->i_id_staff = $this->request->getData('staff_id');
-        }
-        $mUserInfo->i_user_gender = (int)$this->request->getData('i_user_gender');
-        $mUserInfo->i_user_rank   = (int)$this->request->getData('age_group');
+        // 管理者以外（職員・ブロック長）は児童のみ、自分が所属している部屋にだけ登録できる
+        $identity  = $this->request->getAttribute('identity');
+        $childOnly = !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0));
+        $allowedRoomIds = $identity === null
+            ? null
+            : $createUser->allowedRoomIds((int)$identity->get('i_id_user'), !$childOnly);
 
         if ($this->request->is('post')) {
-            $data = $this->request->getData();
-
-            $allowedRoomIds = $this->allowedRoomIdsForRegistration($identityForRole);
-            $postedRoomIds  = array_map(
-                static fn($g) => (int)($g['i_id_room'] ?? 0),
-                array_filter((array)($data['MUserGroup'] ?? []), 'is_array')
-            );
-
-            $age = (int)($data['age'] ?? 0);
-            if ($childOnly && (string)($data['role'] ?? '') !== '1') {
-                $this->Flash->error(__('管理者以外は児童のみ登録できます。'));
-            } elseif ($age < UserProfileOptions::MIN_AGE || $age > UserProfileOptions::MAX_AGE
-                || !isset(UserProfileOptions::AGE_GROUPS[(int)($data['age_group'] ?? 0)])
-                || !isset(UserProfileOptions::GENDERS[(int)($data['i_user_gender'] ?? 0)])
-            ) {
-                $this->Flash->error(__('性別・年代・年齢を選択してください。'));
-            } elseif ($mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL
-                && !$this->isValidStaffId(trim((string)($data['staff_id'] ?? '')))
-            ) {
-                $this->Flash->error(__('職員IDは9桁以内の数字で入力してください。'));
-            } elseif ($allowedRoomIds !== null && $allowedRoomIds === []) {
-                $this->Flash->error(__('所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。'));
-            } elseif ($allowedRoomIds !== null && array_filter($postedRoomIds) === []) {
-                $this->Flash->error(__('登録先の部屋を選択してください。'));
-            } elseif ($allowedRoomIds !== null && array_diff(array_filter($postedRoomIds), $allowedRoomIds) !== []) {
-                $this->Flash->error(__('自分が所属していない部屋には登録できません。'));
-            } elseif ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
-                $this->Flash->error(__('このログインIDは既に使用されています。他のIDをお試しください。'));
-            } else {
-                $user              = $this->request->getAttribute('identity');
-                $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
-
-                try {
-                    // 管理者以外も登録できるため、権限・状態系の項目は POST から受け取らない
-                    $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
-                        'fields' => ['c_login_account', 'c_login_passwd', 'c_user_name', 'c_create_user'],
-                    ]);
-
-                    if ($mUserInfo->hasErrors()) {
-                        throw new \Exception('バリデーションエラーが発生しました。');
-                    }
-
-                    $groupData = $data['MUserGroup'] ?? [];
-                    $createdBy = $user ? $user->get('c_user_name') : '不明なユーザー';
-                    $actorId   = $user ? (int)$user->get('i_id_user') : 0;
-                    $loginId   = (string)($user?->get('c_login_account') ?? '');
-
-                    if ($this->userCreateService->saveWithRooms($mUserInfo, $groupData, $createdBy, $actorId, $this->getClientIp(), $loginId)) {
+            try {
+                $result = $createUser->execute(new CreateUserInput(
+                    (array)$this->request->getData(),
+                    $childOnly,
+                    $allowedRoomIds,
+                    $this->auditActor(),
+                ));
+                switch ($result->status) {
+                    case CreateUserOutput::CREATED:
                         $this->Flash->success(__('ユーザー情報が保存されました。'));
                         return $this->redirect(['action' => 'index']);
-                    }
-                    $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
-                } catch (\Exception $e) {
-                    $this->log('userCreate error: ' . $e->getMessage(), 'error');
-                    $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
+                    case CreateUserOutput::REJECTED:
+                        $this->Flash->error(__((string)$result->message));
+                        break;
+                    case CreateUserOutput::INVALID_FIELDS:
+                        // 項目ごとの理由はフォームの各欄に出す（従来どおり、上には定型文）
+                        $mUserInfo->setErrors($result->fieldErrors);
+                        $this->log('userCreate error: バリデーションエラーが発生しました。', 'error');
+                        $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
+                        break;
+                    default:
+                        $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
                 }
+            } catch (\Exception $e) {
+                $this->log('userCreate error: ' . $e->getMessage(), 'error');
+                $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
 
-        $roomsQuery = $this->MRoomInfo->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ])->where(['i_del_flg' => 0]);
-        $allowedForView = $this->allowedRoomIdsForRegistration($identityForRole);
-        if ($allowedForView !== null) {
-            $roomsQuery->where(['i_id_room IN' => $allowedForView ?: [0]]);
-        }
-        $rooms = $roomsQuery->toArray();
-
+        $rooms = $createUser->roomChoices($allowedRoomIds);
         $ages  = range(UserProfileOptions::MIN_AGE, UserProfileOptions::MAX_AGE);
         $roles = $childOnly ? [1 => UserProfileOptions::USER_LEVELS[1]] : UserProfileOptions::USER_LEVELS;
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
-    }
-
-    /**
-     * ユーザー登録で選べる部屋ID。管理者・システム管理者は制限なし(null)、
-     * それ以外（職員・ブロック長）は自分が所属中(active_flag=0)の部屋のみ。
-     *
-     * @return list<int>|null
-     */
-    private function allowedRoomIdsForRegistration(?object $identity): ?array
-    {
-        if ($identity === null || UserRole::isAdmin((int)($identity->get('i_admin') ?? 0))) {
-            return null;
-        }
-
-        $ids = $this->fetchTable('MUserGroup')->find()
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => (int)$identity->get('i_id_user'), 'active_flag' => 0])
-            ->all()
-            ->map(static fn($g) => (int)$g->i_id_room)
-            ->toList();
-
-        return array_values(array_unique($ids));
     }
 
     public function edit($id = null)
@@ -500,7 +433,7 @@ class MUserInfoController extends AppController
      */
     private function isValidStaffId(string $staffId): bool
     {
-        return ctype_digit($staffId) && strlen($staffId) <= 9;
+        return UserProfileRule::isValidStaffId($staffId);
     }
 
     public function updateAdminStatus(ChangeUserRoleUseCase $changeRole)
