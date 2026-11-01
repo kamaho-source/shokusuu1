@@ -6,6 +6,7 @@ namespace App\Model\Table;
 use Cake\ORM\Query;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
+use Cake\I18n\Date;
 
 class MNoticeTable extends Table
 {
@@ -69,7 +70,7 @@ class MNoticeTable extends Table
      */
     public function findActive(Query $query, array $options): Query
     {
-        $today = date('Y-m-d');
+        $today = Date::today()->format('Y-m-d');
 
         return $query
             ->where([

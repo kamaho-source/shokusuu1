@@ -360,8 +360,8 @@ class ActualMealManagementService
      */
     public function getAdminOldestAllowedMonday(): \DateTimeImmutable
     {
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
-        $oldest = $today->modify(sprintf('-%d months', self::ADMIN_LOOKBACK_MONTHS));
+        $today = DateTime::now('Asia/Tokyo');
+        $oldest = $today->subMonths(self::ADMIN_LOOKBACK_MONTHS);
 
         return (int)$oldest->format('N') === 1
             ? $oldest

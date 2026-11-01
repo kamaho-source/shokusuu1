@@ -9,6 +9,7 @@ use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Response;
 use Cake\Http\ServerRequest;
 use Cake\Log\Log;
+use Cake\I18n\Date;
 
 /**
  * システムレポートコントローラー（レポート閲覧権限ユーザー向け）
@@ -221,8 +222,8 @@ final class SystemReportController extends AppController
      */
     private function resolveDateRange(): array
     {
-        $dateFrom = (string)($this->request->getQuery('date_from') ?: date('Y-m-01'));
-        $dateTo   = (string)($this->request->getQuery('date_to') ?: date('Y-m-d'));
+        $dateFrom = (string)($this->request->getQuery('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d'));
+        $dateTo   = (string)($this->request->getQuery('date_to') ?: Date::today()->format('Y-m-d'));
 
         if (!$this->isValidYmd($dateFrom) || !$this->isValidYmd($dateTo)) {
             throw new BadRequestException('日付は YYYY-MM-DD 形式で指定してください。');

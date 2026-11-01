@@ -6,6 +6,7 @@ namespace App\Service;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\AI\UserTokenizer;
 use Cake\ORM\TableRegistry;
+use Cake\I18n\Date;
 
 /**
  * 統計AI用のコンテキスト（集計統計データ）を構築するサービス。
@@ -53,15 +54,15 @@ final class AiStatsContextService
      */
     public function build(): string
     {
-        $dateFrom = date('Y-m-d', strtotime('-' . self::PAST_DAYS . ' days'));
-        $dateTo   = date('Y-m-d', strtotime('+' . self::FUTURE_DAYS . ' days'));
+        $dateFrom = Date::today()->subDays(self::PAST_DAYS)->format('Y-m-d');
+        $dateTo   = Date::today()->addDays(self::FUTURE_DAYS)->format('Y-m-d');
 
         $sections = [
             sprintf(
                 "## 統計データ（集計期間: %s 〜 %s、本日: %s）\n※すべて集計値であり個人を特定する情報は含まない。",
                 $dateFrom,
                 $dateTo,
-                date('Y-m-d')
+                Date::today()->format('Y-m-d')
             ),
             $this->buildMealTypeSummary($dateFrom, $dateTo),
             $this->buildRoomSummary($dateFrom, $dateTo),
@@ -408,9 +409,9 @@ final class AiStatsContextService
      */
     private function buildFeatureUsageSummary(): string
     {
-        $summary = $this->featureUsageSummaryService->getSummary(date('Y-m'));
+        $summary = $this->featureUsageSummaryService->getSummary(Date::today()->format('Y-m'));
 
-        $lines = [sprintf('### 機能利用状況（%s、操作総数: %d件）', date('Y年n月'), (int)$summary['total_operations'])];
+        $lines = [sprintf('### 機能利用状況（%s、操作総数: %d件）', Date::today()->format('Y年n月'), (int)$summary['total_operations'])];
         foreach (array_slice($summary['rows'], 0, 10) as $row) {
             $lines[] = sprintf(
                 '- %s（%s）: %d回 / 利用者%d人',

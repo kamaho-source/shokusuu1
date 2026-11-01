@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ActualMealManagementService;
+use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -378,5 +379,26 @@ class ActualMealManagementServiceTest extends TestCase
         $this->assertNull($m->invoke($this->service, ''));
         $this->assertNull($m->invoke($this->service, 'not a date'));
         $this->assertNull($m->invoke($this->service, null));
+    }
+
+    /**
+     * 管理者が遡れる最古の週は「2か月前の日を含む週の月曜」。月末でも翌月へ繰り上がらない（#919）
+     */
+    public function testGetAdminOldestAllowedMonday_doesNotOverflowOnMonthEnd(): void
+    {
+        $cases = [
+            '2026-12-31' => '2026-10-26', // 2か月前 = 10/31(土) → その週の月曜
+            '2026-04-30' => '2026-02-23', // 2か月前 = 2/28(土)。繰り上がると 3/2 の週になる
+            '2026-11-02' => '2026-08-31', // 2か月前 = 9/2(水)
+        ];
+        try {
+            foreach ($cases as $today => $expected) {
+                DateTime::setTestNow(new DateTime($today . ' 09:00:00', 'Asia/Tokyo'));
+                $monday = (new ActualMealManagementService())->getAdminOldestAllowedMonday();
+                $this->assertSame($expected, $monday->format('Y-m-d'), $today);
+            }
+        } finally {
+            DateTime::setTestNow(null);
+        }
     }
 }
