@@ -3,12 +3,14 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
+use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\ReservationUseCases;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Service\ReservationWriteService;
 use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
 use App\Exception\ApprovedReservationException;
@@ -38,7 +40,7 @@ class TReservationInfoController extends ReservationBaseController
     private ReservationChangeEditService $changeEditService;
     private ReservationRoomDetailService $roomDetailService;
     private ReservationViewService $viewService;
-    private ReservationWriteService $writeService;
+    private ReservationUseCases $useCases;
 
     /**
      * initialize メソッド
@@ -51,12 +53,7 @@ class TReservationInfoController extends ReservationBaseController
         $this->changeEditService = new ReservationChangeEditService();
         $this->roomDetailService = new ReservationRoomDetailService();
         $this->viewService       = new ReservationViewService($this->datePolicy);
-        $this->writeService      = new ReservationWriteService(
-            $this->TIndividualReservationInfo,
-            $this->MUserInfo,
-            $this->MRoomInfo,
-            (string)($this->request->getAttribute('webroot') ?? '')
-        );
+        $this->useCases          = new ReservationUseCases($this->TIndividualReservationInfo, $this->MUserInfo);
 
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
@@ -600,26 +597,28 @@ class TReservationInfoController extends ReservationBaseController
             $reservationType = $data['reservation_type'] ?? '1';
             $auditSuccess = 0;
             try {
+                $dateValidation = $this->datePolicy->validateReservationDate((string)$data['d_reservation_date']);
+                $dateError      = $dateValidation === true ? null : (string)$dateValidation;
                 $result = ((string)$reservationType === '1')
-                    ? $this->writeService->processIndividualReservation(
-                        $data['d_reservation_date'],
-                        $data,
-                        $rooms,
-                        (int)$userId,
-                        (string)$user->get('c_user_name'),
-                        fn($d) => $this->datePolicy->validateReservationDate((string)$d)
-                    )
-                    : $this->writeService->processGroupReservation(
-                        $data['d_reservation_date'],
-                        $data,
-                        $rooms,
-                        (string)$user->get('c_user_name'),
-                        fn($d) => $this->datePolicy->validateReservationDate((string)$d),
-                        (int)$userId,
-                        UserRole::isAdmin((int)$user->get('i_admin')),
-                        (int)$user->get('i_user_level'),
-                        UserRole::isBlockLeader((int)$user->get('i_admin'))
-                    );
+                    ? $this->useCases->registerIndividualReservation()->execute(new RegisterIndividualReservationInput(
+                        reservationDate: $data['d_reservation_date'],
+                        data: $data,
+                        rooms: $rooms,
+                        userId: (int)$userId,
+                        userName: (string)$user->get('c_user_name'),
+                        dateError: $dateError,
+                    ))->toArray($this->reservationIndexUrl())
+                    : $this->useCases->registerGroupReservation()->execute(new RegisterGroupReservationInput(
+                        reservationDate: $data['d_reservation_date'],
+                        data: $data,
+                        rooms: $rooms,
+                        creatorName: (string)$user->get('c_user_name'),
+                        dateError: $dateError,
+                        loginUserId: (int)$userId,
+                        isAdmin: UserRole::isAdmin((int)$user->get('i_admin')),
+                        loginUserLevel: (int)$user->get('i_user_level'),
+                        isBlockLeader: UserRole::isBlockLeader((int)$user->get('i_admin')),
+                    ))->toArray($this->reservationIndexUrl());
                 $auditSuccess = 1;
                 $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
             } catch (\App\Domain\Exception\DomainException $e) {
@@ -798,15 +797,15 @@ class TReservationInfoController extends ReservationBaseController
                         return $this->redirect(['action' => 'index']);
                     }
                     try {
-                        $result = $this->writeService->processIndividualReservation(
-                            (string)$postDate,
-                            $earlyData,
-                            $allowedRooms,
-                            (int)$loginUid,
-                            (string)($loginUser->get('c_user_name') ?? ''),
+                        $result = $this->useCases->registerIndividualReservation()->execute(new RegisterIndividualReservationInput(
+                            reservationDate: (string)$postDate,
+                            data: $earlyData,
+                            rooms: $allowedRooms,
+                            userId: (int)$loginUid,
+                            userName: (string)($loginUser->get('c_user_name') ?? ''),
                             // 直前編集は14日以内を扱う。過ぎた日（実績）は書き換えさせない
-                            fn($d) => $this->datePolicy->isPastDate((string)$d) ? '過去日の予約は変更できません。' : true
-                        );
+                            dateError: $this->datePolicy->isPastDate((string)$postDate) ? '過去日の予約は変更できません。' : null,
+                        ))->toArray($this->reservationIndexUrl());
                         $payload = [
                             'ok'      => true,
                             'status'  => 'success',
@@ -1067,5 +1066,11 @@ class TReservationInfoController extends ReservationBaseController
         }
 
         return '既に予約済みのためスキップ: ' . implode('、', $parts);
+    }
+
+    /** 予約の書き込みのあとに戻る一覧の URL。 */
+    private function reservationIndexUrl(): string
+    {
+        return (string)($this->request->getAttribute('webroot') ?? '') . 'TReservationInfo/';
     }
 }

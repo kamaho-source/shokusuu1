@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Port\ReservationDatePolicyInterface;
 use App\Domain\Service\ReservationDateRule;
 use Cake\I18n\Date;
 
@@ -19,7 +20,7 @@ use Cake\I18n\Date;
  * ルール本体は Domain の ReservationDateRule にある。このクラスは「今日」（Asia/Tokyo）を補って
  * それを呼ぶ入口で、既存の呼び出し側の互換のために残している（#920 で段階的に置き換える）。
  */
-class ReservationDatePolicy
+class ReservationDatePolicy implements ReservationDatePolicyInterface
 {
     /**
      * 通常予約の予約日バリデーションを行う。

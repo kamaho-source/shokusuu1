@@ -10,8 +10,12 @@ use App\Domain\Repository\RoomMembershipRepositoryInterface;
  */
 final class FakeRoomMembershipRepository implements RoomMembershipRepositoryInterface
 {
-    /** @param list<string> $members "userId:roomId" */
-    public function __construct(public array $members = [], public array $deletedRooms = [])
+    /**
+     * @param list<string>       $members "userId:roomId"
+     * @param list<int>          $deletedRooms
+     * @param array<int, string> $names   部屋ID => 部屋名
+     */
+    public function __construct(public array $members = [], public array $deletedRooms = [], public array $names = [])
     {
     }
 
@@ -23,5 +27,10 @@ final class FakeRoomMembershipRepository implements RoomMembershipRepositoryInte
     public function isRoomAvailable(int $roomId): bool
     {
         return !in_array($roomId, $this->deletedRooms, true);
+    }
+
+    public function roomNames(array $roomIds): array
+    {
+        return array_intersect_key($this->names, array_flip($roomIds));
     }
 }

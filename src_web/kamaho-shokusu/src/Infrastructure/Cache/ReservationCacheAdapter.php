@@ -18,4 +18,14 @@ final class ReservationCacheAdapter implements ReservationCacheInterface
         ReservationCache::forgetDate($date, $userIds);
         ReservationCache::bumpVersion();
     }
+
+    public function forgetDates(array $userIdsByDate, bool $bumpVersion = true): void
+    {
+        foreach ($userIdsByDate as $date => $userIds) {
+            ReservationCache::forgetDate((string)$date, $userIds);
+        }
+        if ($bumpVersion) {
+            ReservationCache::bumpVersion();
+        }
+    }
 }
