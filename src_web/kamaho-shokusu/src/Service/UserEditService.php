@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\TableRegistry;
+use Cake\I18n\DateTime;
 
 /**
  * ユーザー編集サービス
@@ -42,8 +43,8 @@ class UserEditService
                 'i_id_user'     => $userId,
                 'i_id_room'     => (int)$roomId,
                 'active_flag'   => 0,
-                'dt_create'     => date('Y-m-d H:i:s'),
-                'dt_update'     => date('Y-m-d H:i:s'),
+                'dt_create'     => DateTime::now()->format('Y-m-d H:i:s'),
+                'dt_update'     => DateTime::now()->format('Y-m-d H:i:s'),
                 'c_update_user' => $updatedBy,
             ]);
         }

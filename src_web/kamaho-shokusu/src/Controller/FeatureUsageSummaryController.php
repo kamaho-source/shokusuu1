@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Service\FeatureUsageSummaryService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
+use Cake\I18n\Date;
 
 /**
  * 機能使用頻度ダッシュボードコントローラー
@@ -38,12 +39,12 @@ class FeatureUsageSummaryController extends AppController
         }
 
         $q         = $this->request->getQueryParams();
-        $yearMonth = $q['month'] ?? date('Y-m');
+        $yearMonth = $q['month'] ?? Date::today()->format('Y-m');
         $category  = $q['category'] ?? null;
 
         // YYYY-MM 形式でない場合は今月にフォールバック
         if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
-            $yearMonth = date('Y-m');
+            $yearMonth = Date::today()->format('Y-m');
         }
 
         $summary          = $this->summaryService->getSummary($yearMonth, $category ?: null);
