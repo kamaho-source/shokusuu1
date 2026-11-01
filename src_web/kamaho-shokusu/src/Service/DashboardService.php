@@ -6,6 +6,7 @@ namespace App\Service;
 use App\Domain\Service\ReservationDateRule;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
+use Cake\I18n\DateTime;
 
 /**
  * DashboardService
@@ -43,7 +44,7 @@ class DashboardService
     public function buildHomeContext(?\Authentication\IdentityInterface $user): array
     {
         // 現在日時をアジア/東京タイムゾーンで取得する
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $today = DateTime::now('Asia/Tokyo');
 
         // 曜日の日本語ラベル (format('w') は 0=日 〜 6=土 を返す)
         $dow = ['日', '月', '火', '水', '木', '金', '土'];

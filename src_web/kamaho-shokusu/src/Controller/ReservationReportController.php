@@ -7,6 +7,7 @@ use App\Service\MealReportingService;
 use App\Service\ReservationReportService;
 use Cake\Http\Response;
 use Cake\Log\Log;
+use Cake\I18n\Date;
 
 /**
  * 食数レポート・エクスポート専用コントローラー。
@@ -278,8 +279,8 @@ class ReservationReportController extends ReservationBaseController
         $toDate   = $this->request->getQuery('to');
 
         if (!$fromDate || !$toDate) {
-            $fromDate = date('Y-m-01', strtotime('-1 month'));
-            $toDate   = date('Y-m-t', strtotime('+1 month'));
+            $fromDate = Date::today()->startOfMonth()->subMonths(1)->format('Y-m-d');
+            $toDate   = Date::today()->startOfMonth()->addMonths(1)->endOfMonth()->format('Y-m-d');
         }
 
         try {
@@ -339,8 +340,8 @@ class ReservationReportController extends ReservationBaseController
         $toDate   = $this->request->getQuery('to');
 
         if (!$fromDate || !$toDate) {
-            $fromDate = date('Y-m-01', strtotime('-1 month'));
-            $toDate   = date('Y-m-t', strtotime('+1 month'));
+            $fromDate = Date::today()->startOfMonth()->subMonths(1)->format('Y-m-d');
+            $toDate   = Date::today()->startOfMonth()->addMonths(1)->endOfMonth()->format('Y-m-d');
         }
 
         try {

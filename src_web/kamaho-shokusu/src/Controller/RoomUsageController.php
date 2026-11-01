@@ -7,6 +7,7 @@ use App\Service\RoomUsageService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 use Cake\Http\ServerRequest;
+use Cake\I18n\Date;
 
 /**
  * 部屋使用率コントローラー
@@ -42,8 +43,8 @@ class RoomUsageController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $dateFrom  = $this->request->getQuery('date_from') ?: date('Y-m-01');
-        $dateTo    = $this->request->getQuery('date_to')   ?: date('Y-m-d');
+        $dateFrom  = $this->request->getQuery('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d');
+        $dateTo    = $this->request->getQuery('date_to')   ?: Date::today()->format('Y-m-d');
         $mealType  = $this->request->getQuery('meal_type') !== null && $this->request->getQuery('meal_type') !== ''
             ? (int)$this->request->getQuery('meal_type')
             : null;
