@@ -228,17 +228,32 @@ class BulkAddReservationsUseCaseTest extends TestCase
         $this->assertSame('承認済みの予約は変更できません。', $this->group([self::FAR => ['21' => ['3' => '0']]])['message']);
     }
 
-    public function testGroupUsersForm_todayForgetsOnlyTodayReportWithoutVersionBump(): void
+    public function testGroupUsersForm_forgetsMealCountsForEverySelectedDate(): void
     {
         $result = $this->add([
             'reservation_type' => 'group',
             'i_id_room' => '1',
-            'dates' => [self::TODAY => '1'],
-            'users' => ['20' => ['morning' => '1']],
+            'dates' => [self::TODAY => '1', self::FAR => '1', self::FAR2 => '0'],
+            'users' => ['20' => ['morning' => '1'], '21' => ['night' => '1']],
         ]);
 
         $this->assertTrue($result['ok']);
-        $this->assertSame([['date' => self::TODAY, 'userIds' => [20]]], $this->f->cache->forgotten);
-        $this->assertSame(0, $this->f->cache->versionBumps);
+        $this->assertSame([
+            ['date' => self::TODAY, 'userIds' => [20, 21]],
+            ['date' => self::FAR, 'userIds' => [20, 21]],
+        ], $this->f->cache->forgotten);
+        $this->assertSame(1, $this->f->cache->versionBumps);
+    }
+
+    public function testPersonal_forgetsMealCountsForSelectedDates(): void
+    {
+        $result = $this->personal([1 => [1 => '1']], [self::FAR, self::FAR2]);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame([
+            ['date' => self::FAR, 'userIds' => [10]],
+            ['date' => self::FAR2, 'userIds' => [10]],
+        ], $this->f->cache->forgotten);
+        $this->assertSame(1, $this->f->cache->versionBumps);
     }
 }

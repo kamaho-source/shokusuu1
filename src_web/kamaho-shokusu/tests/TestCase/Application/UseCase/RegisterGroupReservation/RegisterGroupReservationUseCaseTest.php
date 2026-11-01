@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Application\UseCase\RegisterGroupReservation;
 
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
 use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\PersistenceException;
 use App\Domain\Exception\UnauthorizedException;
 use App\Domain\ValueObject\UserRole;
 use App\Test\TestCase\Application\Fake\FakeUserRepository;
@@ -68,6 +69,22 @@ class RegisterGroupReservationUseCaseTest extends TestCase
         $this->assertSame('予約が正常に登録されました。', $result['message']);
         $this->assertCount(2, $this->f->reservations->added);
         $this->assertSame([['date' => self::FAR, 'userIds' => [20, 21]]], $this->f->cache->forgotten);
+    }
+
+    public function testDbFailure_isInternalErrorWithoutLeakingReason(): void
+    {
+        $this->f->reservations->onAdd = static function (): void {
+            throw new \RuntimeException('SQLSTATE[HY000] 接続が切れました');
+        };
+
+        try {
+            $this->register([20 => [1 => 1]]);
+            $this->fail('例外が投げられていない');
+        } catch (PersistenceException $e) {
+            $this->assertSame('予約処理中に内部エラーが発生しました。', $e->getMessage());
+            $this->assertSame(500, $e->getStatusCode());
+        }
+        $this->assertSame([], $this->f->cache->forgotten);
     }
 
     public function testLastMinuteNewRow_keepsOriginalPlanZero(): void

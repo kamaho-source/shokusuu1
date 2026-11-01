@@ -116,11 +116,8 @@ final class RegisterGroupReservationUseCase
                 $this->transaction->rollback();
             }
             throw $e;
-        } catch (\RuntimeException $e) {
-            // DB の失敗など（従来どおり、理由をそのまま競合として返す）
-            $this->transaction->rollback();
-            throw new ConflictException($e->getMessage());
         } catch (\Throwable $e) {
+            // DB の失敗など。理由（SQL・接続先など）は利用者に返さず、ログに残して内部エラーにする
             if ($this->transaction->inTransaction()) {
                 $this->transaction->rollback();
             }
