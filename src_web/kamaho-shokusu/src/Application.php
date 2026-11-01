@@ -6,7 +6,6 @@ namespace App;
 use Authentication\AuthenticationService;
 use Authentication\AuthenticationServiceInterface;
 use Authentication\AuthenticationServiceProviderInterface;
-use Authentication\Identifier\AbstractIdentifier;
 use Authentication\Middleware\AuthenticationMiddleware;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Authorization\AuthorizationService;
@@ -31,6 +30,7 @@ use App\Controller\SystemReportController;
 use App\Service\SystemReportService;
 use App\Infrastructure\AI\SystemPromptProvider;
 use App\Infrastructure\AI\UserTokenizer;
+use App\Infrastructure\Authentication\UserIdSessionAuthenticator;
 use App\Infrastructure\ReservationUseCases;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
@@ -160,14 +160,23 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ],
         ]);
 
-        // 認証器の設定（セッション → フォーム）
-        // identify: true でリクエストごとにDBから最新ユーザー情報を再取得する。
-        // これによりDBでロール(i_admin)を変更した場合に再ログイン不要で即時反映される。
-        $authenticationService->loadAuthenticator('Authentication.Session', [
-            'identify' => true,
-            'fields'   => [
-                AbstractIdentifier::CREDENTIAL_USERNAME => 'c_login_account',
+        // セッションの利用者 ID から利用者を引く識別子（UserIdSessionAuthenticator が使う）
+        $authenticationService->loadIdentifier('Authentication.Token', [
+            'tokenField' => 'i_id_user',
+            'dataField'  => 'key',
+            'resolver'   => [
+                'className' => 'Authentication.Orm',
+                'userModel' => 'MUserInfo',
             ],
+        ]);
+
+        // 認証器の設定（セッション → フォーム）
+        // セッションには利用者 ID だけを保存し、リクエストのたびに DB から最新の利用者を読み直す。
+        // これによりDBでロール(i_admin)を変更した場合に再ログイン不要で即時反映される。
+        // Entity をセッションに保存しないので、Entity のクラスを移してもログイン中のセッションが壊れない。
+        $authenticationService->loadAuthenticator(UserIdSessionAuthenticator::class, [
+            'idField'       => 'i_id_user',
+            'identifierKey' => 'key',
         ]);
         $authenticationService->loadAuthenticator('Authentication.Form', [
             'fields'   => [
