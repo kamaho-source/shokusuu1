@@ -3,16 +3,20 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessInput;
+use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleInput;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleOutput;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
-use App\Service\AuditLogService;
 use App\Service\RoomService;
 use App\Service\UserBulkImportService;
 use App\Service\UserCreateService;
 use App\Service\UserDeletionService;
 use App\Service\UserEditService;
-use App\Service\UserPermissionService;
 use App\Service\UserRestoreService;
 use App\Service\UserRoomAssignmentService;
 use Authorization\Exception\ForbiddenException;
@@ -30,7 +34,6 @@ class MUserInfoController extends AppController
     private UserCreateService       $userCreateService;
     private UserDeletionService     $userDeletionService;
     private UserEditService         $userEditService;
-    private UserPermissionService   $userPermissionService;
     private UserRestoreService      $userRestoreService;
     private UserRoomAssignmentService $userRoomAssignmentService;
 
@@ -48,7 +51,6 @@ class MUserInfoController extends AppController
         $this->userCreateService        = new UserCreateService();
         $this->userDeletionService      = new UserDeletionService();
         $this->userEditService          = new UserEditService();
-        $this->userPermissionService    = new UserPermissionService();
         $this->userRestoreService       = new UserRestoreService();
         $this->userRoomAssignmentService = new UserRoomAssignmentService();
 
@@ -500,99 +502,82 @@ class MUserInfoController extends AppController
         return ctype_digit($staffId) && strlen($staffId) <= 9;
     }
 
-    public function updateAdminStatus()
+    public function updateAdminStatus(ChangeUserRoleUseCase $changeRole)
     {
+        return $this->changeRole($changeRole, 'i_admin', 'ユーザーIDまたは管理者権限が指定されていません。', 'updateAdminStatus',
+            'この操作は管理者のみ実行できます。', UserRole::ADMIN, false, '管理者権限');
+    }
+
+    public function updateSystemAdminStatus(ChangeUserRoleUseCase $changeRole)
+    {
+        return $this->changeRole($changeRole, 'i_system_admin', 'ユーザーIDまたはシステム管理者権限が指定されていません。', 'updateSystemAdminStatus',
+            'この操作はシステム管理者のみ実行できます。', UserRole::SYSTEM_ADMIN, true, 'システム管理者権限');
+    }
+
+    public function updateUserLevel(ChangeUserRoleUseCase $changeRole)
+    {
+        // ブロック長の切替も、認可は管理者権限の切替と同じ
+        return $this->changeRole($changeRole, 'i_admin', 'ユーザーIDまたは権限レベルが指定されていません。', 'updateAdminStatus',
+            'この操作は管理者のみ実行できます。', UserRole::BLOCK_LEADER, false, 'ブロック長権限');
+    }
+
+    /**
+     * 権限（管理者・ブロック長・システム管理者）の切替の共通処理。
+     * 確かめる順番は、指定が無い（400）→ 対象が居ない（404）→ 認可（403）→ 値・競合（403・409）。
+     *
+     * @param string $valueKey      リクエストの値のキー
+     * @param int    $offTargetRole この画面が切り替える権限（解除のときに、他の権限を消さないために使う）
+     * @param bool   $isSystemAdmin システム管理者の画面か（送られる値は 1/0 で、1 なら 3 を付ける）
+     */
+    private function changeRole(
+        ChangeUserRoleUseCase $changeRole,
+        string $valueKey,
+        string $missingMessage,
+        string $policyAction,
+        string $forbiddenMessage,
+        int $offTargetRole,
+        bool $isSystemAdmin,
+        string $roleLabel,
+    ): \Cake\Http\Response {
         $this->request->allowMethod(['post']);
         $apiResponse = new ApiResponseService();
 
         $data   = $this->request->getData();
         $userId = $data['i_id_user'] ?? null;
-        $isAdmin = $data['i_admin'] ?? null;
+        $value  = $data[$valueKey] ?? null;
 
-        if (is_null($userId) || is_null($isAdmin)) {
+        if (is_null($userId) || is_null($value)) {
             $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, 'ユーザーIDまたは管理者権限が指定されていません。', 400);
+            return $apiResponse->error($this->response, $missingMessage, 400);
         }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
+        if (!$changeRole->targetExists((int)$userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
         try {
-            $this->Authorization->authorize($user, 'updateAdminStatus');
+            // 権限の切替の認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), $policyAction);
         } catch (ForbiddenException $e) {
-            return $apiResponse->error($this->response, 'この操作は管理者のみ実行できます。', 403);
+            return $apiResponse->error($this->response, $forbiddenMessage, 403);
         }
 
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
+        $newRole = $isSystemAdmin ? ((int)$value === 1 ? UserRole::SYSTEM_ADMIN : UserRole::GENERAL) : (int)$value;
+        $result  = $changeRole->execute(new ChangeUserRoleInput(
+            (int)$userId,
+            $newRole,
+            $offTargetRole,
+            $this->isOverwriteConfirmed($data),
+            $isSystemAdmin,
+            $this->auditActor(),
+        ));
 
-        // システム管理者(3)や範囲外の値は updatePermission() が拒否する（監査ログにも残る）
-        $isAllowedValue = in_array((int)$isAdmin, [0, 1, 2], true);
-        if ($isAllowedValue) {
-            $conflict = $this->userPermissionService->findRoleConflict(
-                (int)$user->i_admin, (int)$isAdmin, 1, $this->isOverwriteConfirmed($data)
-            );
-            if ($conflict !== null) {
-                return $apiResponse->error($this->response, $conflict, 409);
-            }
-        }
-
-        if ($this->userPermissionService->updatePermission($user, (int)$isAdmin, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
-            return $apiResponse->success($this->response, [], '管理者権限が正常に更新されました。');
-        }
-        if (!$isAllowedValue) {
-            return $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403);
-        }
-        return $apiResponse->error($this->response, '管理者権限の更新に失敗しました。', 500);
-    }
-
-    public function updateSystemAdminStatus()
-    {
-        $this->request->allowMethod(['post']);
-        $apiResponse = new ApiResponseService();
-
-        $data          = $this->request->getData();
-        $userId        = $data['i_id_user'] ?? null;
-        $isSystemAdmin = $data['i_system_admin'] ?? null;
-
-        if (is_null($userId) || is_null($isSystemAdmin)) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, 'ユーザーIDまたはシステム管理者権限が指定されていません。', 400);
-        }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
-        }
-
-        try {
-            $this->Authorization->authorize($user, 'updateSystemAdminStatus');
-        } catch (ForbiddenException $e) {
-            return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
-        }
-
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
-
-        $value = (int)$isSystemAdmin === 1 ? 3 : 0;
-        $conflict = $this->userPermissionService->findRoleConflict(
-            (int)$user->i_admin, $value, 3, $this->isOverwriteConfirmed($data)
-        );
-        if ($conflict !== null) {
-            return $apiResponse->error($this->response, $conflict, 409);
-        }
-        if ($this->userPermissionService->updatePermission($user, $value, $updatedBy, $actorId, $this->getClientIp(), $loginId, true)) {
-            return $apiResponse->success($this->response, [], 'システム管理者権限が正常に更新されました。');
-        }
-        return $apiResponse->error($this->response, 'システム管理者権限の更新に失敗しました。', 500);
+        return match ($result->status) {
+            ChangeUserRoleOutput::CHANGED        => $apiResponse->success($this->response, [], $roleLabel . 'が正常に更新されました。'),
+            ChangeUserRoleOutput::CONFLICT       => $apiResponse->error($this->response, (string)$result->message, 409),
+            ChangeUserRoleOutput::NOT_ASSIGNABLE => $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403),
+            default                              => $apiResponse->error($this->response, $roleLabel . 'の更新に失敗しました。', 500),
+        };
     }
 
     /**
@@ -605,110 +590,49 @@ class MUserInfoController extends AppController
         return filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
-    public function updateReportAccess()
+    /** 監査ログに残す操作者（ログイン中の利用者）。 */
+    private function auditActor(): AuditActor
+    {
+        $identity = $this->request->getAttribute('identity');
+
+        return new AuditActor(
+            $identity ? (string)$identity->get('c_user_name') : '不明なユーザー',
+            $identity ? (int)$identity->get('i_id_user') : 0,
+            (string)($identity?->get('c_login_account') ?? ''),
+            $this->getClientIp(),
+        );
+    }
+
+    public function updateReportAccess(ChangeReportAccessUseCase $changeReportAccess)
     {
         $this->request->allowMethod(['post']);
         $apiResponse = new ApiResponseService();
 
-        $data           = $this->request->getData();
-        $userId         = $data['i_id_user'] ?? null;
-        $reportAccess   = $data['i_report_access'] ?? null;
+        $data         = $this->request->getData();
+        $userId       = $data['i_id_user'] ?? null;
+        $reportAccess = $data['i_report_access'] ?? null;
 
         if (is_null($userId) || is_null($reportAccess)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
         }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
+        if (!$changeReportAccess->targetExists((int)$userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
         try {
-            $this->Authorization->authorize($user, 'updateReportAccess');
+            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'updateReportAccess');
         } catch (ForbiddenException $e) {
             return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
         }
 
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
-        $value     = (int)$reportAccess === 1 ? 1 : 0;
-
-        $table            = $this->MUserInfo;
-        $user->i_report_access = $value;
-        $user->dt_update       = DateTime::now()->format('Y-m-d H:i:s');
-        $user->c_update_user   = $updatedBy;
-
-        if ($table->save($user)) {
-            AuditLogService::record(
-                'user',
-                'user_report_access_change',
-                $updatedBy,
-                $actorId,
-                'm_user_info',
-                (string)$user->i_id_user,
-                ['target_user_name' => $user->c_user_name, 'i_report_access' => $value],
-                $this->getClientIp() ?: null,
-                1,
-                $loginId
-            );
+        $result = $changeReportAccess->execute(new ChangeReportAccessInput((int)$userId, (int)$reportAccess === 1, $this->auditActor()));
+        if ($result->saved) {
             return $apiResponse->success($this->response, [], 'レポートアクセス権を更新しました。');
         }
+
         return $apiResponse->error($this->response, 'レポートアクセス権の更新に失敗しました。', 500);
-    }
-
-    public function updateUserLevel()
-    {
-        $this->request->allowMethod(['post']);
-        $apiResponse = new ApiResponseService();
-
-        $data   = $this->request->getData();
-        $userId = $data['i_id_user'] ?? null;
-        $level  = $data['i_admin'] ?? null;
-
-        if (is_null($userId) || is_null($level)) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, 'ユーザーIDまたは権限レベルが指定されていません。', 400);
-        }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
-        }
-
-        try {
-            $this->Authorization->authorize($user, 'updateAdminStatus');
-        } catch (ForbiddenException $e) {
-            return $apiResponse->error($this->response, 'この操作は管理者のみ実行できます。', 403);
-        }
-
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
-
-        // システム管理者(3)や範囲外の値は updatePermission() が拒否する（監査ログにも残る）
-        $isAllowedValue = in_array((int)$level, [0, 1, 2], true);
-        if ($isAllowedValue) {
-            $conflict = $this->userPermissionService->findRoleConflict(
-                (int)$user->i_admin, (int)$level, 2, $this->isOverwriteConfirmed($data)
-            );
-            if ($conflict !== null) {
-                return $apiResponse->error($this->response, $conflict, 409);
-            }
-        }
-
-        if ($this->userPermissionService->updatePermission($user, (int)$level, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
-            return $apiResponse->success($this->response, [], 'ブロック長権限が正常に更新されました。');
-        }
-        if (!$isAllowedValue) {
-            return $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403);
-        }
-        return $apiResponse->error($this->response, 'ブロック長権限の更新に失敗しました。', 500);
     }
 
     public function view($id = null)

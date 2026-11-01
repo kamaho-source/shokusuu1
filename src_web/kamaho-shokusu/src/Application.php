@@ -19,6 +19,8 @@ use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
+use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
@@ -31,7 +33,9 @@ use App\Service\SystemReportService;
 use App\Infrastructure\AI\SystemPromptProvider;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Infrastructure\Authentication\UserIdSessionAuthenticator;
+use App\Infrastructure\Log\AuditLogAdapter;
 use App\Infrastructure\ReservationUseCases;
+use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
 use App\Service\RoomUsageService;
@@ -232,6 +236,11 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         ] as $useCase => $factory) {
             $container->add($useCase, static fn() => $container->get(ReservationUseCases::class)->{$factory}());
         }
+
+        // 利用者の管理の UseCase（Controller はアクションの引数で受け取る）
+        $userAccounts = static fn(): CakeUserAccountRepository => new CakeUserAccountRepository(FactoryLocator::get('Table')->get('MUserInfo'));
+        $container->add(ChangeUserRoleUseCase::class, static fn() => new ChangeUserRoleUseCase($userAccounts(), new AuditLogAdapter()));
+        $container->add(ChangeReportAccessUseCase::class, static fn() => new ChangeReportAccessUseCase($userAccounts(), new AuditLogAdapter()));
 
         $container->add(SystemReportService::class);
         $container->add(SystemReportController::class)
