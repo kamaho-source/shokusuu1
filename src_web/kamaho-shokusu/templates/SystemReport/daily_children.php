@@ -76,12 +76,12 @@ $dataUrl        = $basePath . '/SystemReport/dailyChildrenData';
             <div class="col-12 col-md-3">
                 <label class="form-label mb-1 small">開始日</label>
                 <input type="date" id="dateFrom" class="form-control form-control-sm"
-                       value="<?= h(date('Y-m-01')) ?>">
+                       value="<?= h(\Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-01')) ?>">
             </div>
             <div class="col-12 col-md-3">
                 <label class="form-label mb-1 small">終了日</label>
                 <input type="date" id="dateTo" class="form-control form-control-sm"
-                       value="<?= h(date('Y-m-d')) ?>">
+                       value="<?= h(\Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d')) ?>">
             </div>
             <div class="col-12 col-md-2">
                 <button id="btnApply" class="btn btn-primary btn-sm w-100">

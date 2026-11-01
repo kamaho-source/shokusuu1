@@ -114,6 +114,22 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertResponseContains('data-is-last-minute="1"');
     }
 
+    /** 子どもUIの表示は「1か月後の前日」まで。1/31 に開いても月末を繰り越さず 2/27 まで（3/2 までにならない） */
+    public function testIndex_childUser_rangeAtMonthEnd_doesNotOverflow(): void
+    {
+        $this->setAuthenticatedSession(false, 1);
+        try {
+            \Cake\Chronos\Chronos::setTestNow('2027-01-31 09:00:00');
+            $this->get('/TReservationInfo/index');
+            $this->assertResponseOk();
+            $this->assertResponseContains('data-date="2027-02-27"');
+            $this->assertResponseNotContains('data-date="2027-02-28"');
+            $this->assertResponseNotContains('data-date="2027-03-01"');
+        } finally {
+            \Cake\Chronos\Chronos::setTestNow(null);
+        }
+    }
+
     /** 複数日予約: 業務UIにもボタンとモーダルがあり、表示モードの切替とは別（uimode=cybozu のような第3のモードは無い） */
     public function testIndex_bizUi_hasMultiDateButtonAndModal(): void
     {

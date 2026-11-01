@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\DirectRegisterMeals;
 
+use App\Domain\ValueObject\MealType;
+
 /**
  * カレンダークリック直接登録のInput DTO。
  *
@@ -25,7 +27,7 @@ final class DirectRegisterMealsInput
             throw new \InvalidArgumentException('mealIndices must not be empty.');
         }
         foreach ($mealIndices as $idx) {
-            if (!in_array($idx, [1, 2, 3, 4], true)) {
+            if (!is_int($idx) || MealType::tryFrom($idx) === null) {
                 throw new \InvalidArgumentException("Invalid meal index: {$idx}. Must be 1, 2, 3, or 4.");
             }
         }

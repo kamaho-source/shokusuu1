@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\TableRegistry;
+use Cake\I18n\Date;
 
 /**
  * 機能使用頻度集計サービス
@@ -155,10 +156,11 @@ class FeatureUsageSummaryService
      */
     public function getMonthOptions(): array
     {
-        $options = [];
+        $thisMonth = Date::today()->startOfMonth();
+        $options   = [];
         for ($i = 0; $i < 12; $i++) {
-            $ym            = date('Y-m', strtotime("first day of -{$i} months"));
-            $options[$ym]  = date('Y年n月', (int)strtotime($ym . '-01'));
+            $month                          = $thisMonth->subMonths($i);
+            $options[$month->format('Y-m')] = $month->format('Y年n月');
         }
         return $options;
     }

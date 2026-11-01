@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use Cake\ORM\TableRegistry;
 
@@ -20,7 +21,7 @@ use Cake\ORM\TableRegistry;
 class ReservationHistoryService
 {
     /** i_reservation_type と表示名 */
-    public const MEAL_LABELS = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
+    public const MEAL_LABELS = MealType::LABEL_SETS[MealType::LABEL_SHORT_NIGHT];
 
     /** 経緯の取得件数の上限。ponytail: 対象者1人の監査ログ上限。超える場合は期間を絞ってから探す作りに変える */
     private const LOG_LIMIT = 2000;
@@ -207,7 +208,7 @@ class ReservationHistoryService
             $date = (string)($detail['date'] ?? '');
             $meal = (int)($detail['meal'] ?? 0);
             $kind = (int)($detail['value'] ?? 0) === 1 ? 'reserve' : 'cancel';
-            if ($date < $from || $date > $to || !isset(self::MEAL_LABELS[$meal])) {
+            if ($date < $from || $date > $to || MealType::tryFrom($meal) === null) {
                 continue;
             }
             $actorId = (int)$log->i_actor_user_id;

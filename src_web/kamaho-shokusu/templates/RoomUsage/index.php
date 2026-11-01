@@ -5,12 +5,12 @@
 /** @var \App\Controller\RoomUsageController $this */
 $rooms     = $rooms     ?? [];
 $lowRooms  = $lowRooms  ?? [];
-$dateFrom  = $dateFrom  ?? date('Y-m-01');
-$dateTo    = $dateTo    ?? date('Y-m-d');
+$dateFrom  = $dateFrom  ?? \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-01');
+$dateTo    = $dateTo    ?? \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 $mealType  = $mealType  ?? null;
 $threshold = $threshold ?? 50.0;
 
-$mealLabels = ['' => '全食種', 1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁当'];
+$mealLabels = ['' => '全食種'] + \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_SHORT);
 $basePath   = rtrim($this->request->getAttribute('base') ?? '', '/');
 ?>
 <!DOCTYPE html>

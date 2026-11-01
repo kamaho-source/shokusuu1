@@ -7,7 +7,7 @@
  */
 
 $this->assign('title', '部屋異動予約 登録');
-$today = date('Y-m-d');
+$today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 

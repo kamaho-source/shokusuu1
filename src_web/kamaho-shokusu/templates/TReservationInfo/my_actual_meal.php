@@ -22,7 +22,7 @@ $user      = $this->request->getAttribute('identity');
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 
 $dates    = $gridData['dates']    ?? [];
-$meals    = $gridData['meals']    ?? [1 => '朝', 2 => '昼', 3 => '夜'];
+$meals    = $gridData['meals']    ?? \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_SHORT_NIGHT, false);
 $grid     = $gridData['grid']     ?? [];
 $versions = $gridData['versions'] ?? [];
 $statuses = $gridData['statuses'] ?? [];
@@ -216,7 +216,7 @@ if (!empty($dates)) {
             <!-- 日別カード / 週ボード -->
             <?php
             $todayStr  = (new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
-            $mealNames = [1 => '朝食', 2 => '昼食', 3 => '夕食'];
+            $mealNames = \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_FULL, false);
             ?>
             <div class="board-scroll">
             <div class="day-cards" id="day-cards">

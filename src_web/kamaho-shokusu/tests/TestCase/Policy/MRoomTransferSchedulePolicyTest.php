@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
-use App\Model\Entity\MRoomTransferSchedule;
+use App\Infrastructure\Persistence\Entity\MRoomTransferSchedule;
 use App\Policy\MRoomTransferSchedulePolicy;
 use Cake\TestSuite\TestCase;
 

@@ -12,7 +12,7 @@ use Cake\I18n\DateTime;
 /**
  * MRoomInfo Controller
  *
- * @property \App\Model\Table\MRoomInfoTable $MRoomInfo
+ * @property \App\Infrastructure\Persistence\Table\MRoomInfoTable $MRoomInfo
  */
 class MRoomInfoController extends AppController
 {

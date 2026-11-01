@@ -6,8 +6,8 @@
 (function () {
     'use strict';
 
-    var MEAL_LABELS = { 1: '朝食', 2: '昼食', 3: '夕食', 4: '弁当' };
-    var MEAL_SHORT  = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+    var MEAL_LABELS = window.MEAL_LABELS.full;
+    var MEAL_SHORT  = window.MEAL_LABELS.tiny;
     var MEAL_COLORS = { 1: '#17a2b8', 2: '#28a745', 3: '#6610f2', 4: '#fd7e14' };
 
     function getUsersByRoomUrl(roomId, date) {

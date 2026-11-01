@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\ChangeMealRoom;
 
+use App\Domain\ValueObject\MealType;
+
 /**
  * 予約済み食事の部屋変更の Input DTO。
  *
@@ -23,7 +25,7 @@ final class ChangeMealRoomInput
         if ($d === false || $d->format('Y-m-d') !== $date) {
             throw new \InvalidArgumentException('日付が正しくありません。');
         }
-        if (!in_array($meal, [1, 2, 3, 4], true)) {
+        if (MealType::tryFrom($meal) === null) {
             throw new \InvalidArgumentException("Invalid meal index: {$meal}. Must be 1, 2, 3, or 4.");
         }
         if ($fromRoomId <= 0 || $toRoomId <= 0) {

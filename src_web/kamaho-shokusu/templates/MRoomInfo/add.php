@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\MRoomInfo $mRoomInfo
+ * @var \App\Infrastructure\Persistence\Entity\MRoomInfo $mRoomInfo
  */
 $this->assign('title', __('部屋情報追加'));
 $this->Html->script('realtime-validation.js', ['block' => true]);
