@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Service;
 
 use App\Service\ReservationRoomDetailService;
 use Cake\Http\Exception\NotFoundException;
+use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -137,5 +138,24 @@ class ReservationRoomDetailServiceTest extends TestCase
         );
 
         $this->assertTrue($result['useChangeFlag']);
+    }
+
+    /**
+     * 境界日（今日+14日）までは i_change_flag、翌日からは eat_flag。日付を固定して境目を確かめる
+     */
+    public function testGetRoomDetails_boundaryIsTodayPlus14_withFixedToday(): void
+    {
+        $tables = [
+            TableRegistry::getTableLocator()->get('MRoomInfo'),
+            TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
+            TableRegistry::getTableLocator()->get('MUserGroup'),
+        ];
+        DateTime::setTestNow(new DateTime('2026-11-01 23:30:00', 'Asia/Tokyo'));
+        try {
+            $this->assertTrue($this->service->getRoomDetails(1, '2026-11-15', 1, ...$tables)['useChangeFlag']);
+            $this->assertFalse($this->service->getRoomDetails(1, '2026-11-16', 1, ...$tables)['useChangeFlag']);
+        } finally {
+            DateTime::setTestNow(null);
+        }
     }
 }
