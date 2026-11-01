@@ -7,7 +7,7 @@
  */
 // 直前編集の一括画面（ExcelライクUI）
 $user = $this->request->getAttribute('identity');
-$selectedDate = $selectedDate ?? date('Y-m-d');
+$selectedDate = $selectedDate ?? \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 $rooms = $rooms ?? [];
 $selectedRoomId = $selectedRoomId ?? ($this->request->getQuery('room_id') ?? '');
 $selectedDateObj = $selectedDateObj ?? new \DateTimeImmutable($selectedDate);

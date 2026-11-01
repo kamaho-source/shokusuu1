@@ -1,0 +1,73 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Test\TestCase\Infrastructure\Persistence\Table;
+
+use App\Infrastructure\Persistence\Table\MRoomInfoTable;
+use Cake\TestSuite\TestCase;
+
+/**
+ * App\Infrastructure\Persistence\Table\MRoomInfoTable Test Case
+ */
+class MRoomInfoTableTest extends TestCase
+{
+    /**
+     * Test subject
+     *
+     * @var \App\Infrastructure\Persistence\Table\MRoomInfoTable
+     */
+    protected $MRoomInfo;
+
+    /**
+     * Fixtures
+     *
+     * @var list<string>
+     */
+    protected array $fixtures = [
+        'app.MRoomInfo',
+    ];
+
+    /**
+     * setUp method
+     *
+     * @return void
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $config = $this->getTableLocator()->exists('MRoomInfo') ? [] : ['className' => MRoomInfoTable::class];
+        $this->MRoomInfo = $this->getTableLocator()->get('MRoomInfo', $config);
+    }
+
+    /**
+     * tearDown method
+     *
+     * @return void
+     */
+    protected function tearDown(): void
+    {
+        unset($this->MRoomInfo);
+
+        parent::tearDown();
+    }
+
+    /**
+     * Test validationDefault method
+     *
+     * @return void
+     * @uses \App\Infrastructure\Persistence\Table\MRoomInfoTable::validationDefault()
+     */
+    public function testValidationDefault(): void
+    {
+        $valid = $this->MRoomInfo->newEntity([
+            'c_room_name' => 'テスト部屋',
+            'i_disp_no' => 1,
+        ]);
+        $this->assertEmpty($valid->getErrors());
+
+        $invalid = $this->MRoomInfo->newEntity([
+            'c_room_name' => str_repeat('a', 51),
+        ]);
+        $this->assertArrayHasKey('c_room_name', $invalid->getErrors());
+    }
+}

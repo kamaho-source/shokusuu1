@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
@@ -98,7 +99,7 @@ class ActualMealManagementService
             $dates[] = $baseDate->modify("+{$i} days")->format('Y-m-d');
         }
 
-        $meals = [1 => '朝', 2 => '昼', 3 => '夜'];
+        $meals = MealType::labels(MealType::LABEL_SHORT_NIGHT, false);
 
         if (empty($users)) {
             return [
@@ -360,8 +361,8 @@ class ActualMealManagementService
      */
     public function getAdminOldestAllowedMonday(): \DateTimeImmutable
     {
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
-        $oldest = $today->modify(sprintf('-%d months', self::ADMIN_LOOKBACK_MONTHS));
+        $today = DateTime::now('Asia/Tokyo');
+        $oldest = $today->subMonths(self::ADMIN_LOOKBACK_MONTHS);
 
         return (int)$oldest->format('N') === 1
             ? $oldest

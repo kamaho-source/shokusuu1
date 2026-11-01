@@ -7,10 +7,12 @@
 (function () {
     'use strict';
 
+    var FULL  = window.MEAL_LABELS.full;
+    var SHORT = window.MEAL_LABELS.tiny_night;
     var MEALS = [
-        { id: 1, key: 'breakfast', label: '朝食', icon: '☀️', short: '朝' },
-        { id: 2, key: 'lunch',     label: '昼食', icon: '😋', short: '昼' },
-        { id: 3, key: 'dinner',    label: '夕食', icon: '🌙', short: '夜' }
+        { id: 1, key: 'breakfast', label: FULL[1], icon: '☀️', short: SHORT[1] },
+        { id: 2, key: 'lunch',     label: FULL[2], icon: '😋', short: SHORT[2] },
+        { id: 3, key: 'dinner',    label: FULL[3], icon: '🌙', short: SHORT[3] }
     ];
     // 部屋の色は所属順に割り当てる（1つ目＝緑、2つ目＝紫）
     var ROOM_COLORS = ['#28a745', '#7c3aed', '#0d6efd', '#d63384', '#0891b2', '#6b7280'];
@@ -101,7 +103,9 @@
         var minKey = state.year * 12 + state.month;
         // 児童は子どもUIと同じく、今日から1か月後の前日までしか予約できない（kid_section.php と同じ基準）
         var lastDate = cfg.isChild ? (function () {
-            var e = new Date(t.getFullYear(), t.getMonth() + 1, t.getDate() - 1);
+            // 月末を繰り越さない（1/31 なら 3/2 ではなく 2/27。kid_section.php の addMonths と同じ）
+            var daysInNext = new Date(t.getFullYear(), t.getMonth() + 2, 0).getDate();
+            var e = new Date(t.getFullYear(), t.getMonth() + 1, Math.min(t.getDate(), daysInNext) - 1);
             return ymd(e.getFullYear(), e.getMonth(), e.getDate());
         })() : null;
         var maxKey = lastDate ? Math.min(minKey + MONTHS_AHEAD, parse(lastDate).getFullYear() * 12 + parse(lastDate).getMonth()) : minKey + MONTHS_AHEAD;
@@ -131,7 +135,7 @@
                 '<br>夜' + mark('dinner') + ' 弁' + mark('bento') + '</div>';
             if (!multiRoom) return html;
             // 予約の部屋名。食事ごとに部屋が違う日は「朝:ナザレ 夜:ガリラヤ」
-            var used = [['breakfast', '朝'], ['lunch', '昼'], ['dinner', '夜'], ['bento', '弁']]
+            var used = [['breakfast', SHORT[1]], ['lunch', SHORT[2]], ['dinner', SHORT[3]], ['bento', SHORT[4]]]
                 .filter(function (p) { return d[p[0]] && d[p[0] + 'Room']; })
                 .map(function (p) { return { s: p[1], id: d[p[0] + 'Room'] }; });
             var ids = used.map(function (u) { return String(u.id); }).filter(function (v, i, a) { return a.indexOf(v) === i; });

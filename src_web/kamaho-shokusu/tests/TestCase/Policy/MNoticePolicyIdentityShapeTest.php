@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
-use App\Model\Entity\MNotice;
+use App\Infrastructure\Persistence\Entity\MNotice;
 use App\Policy\MNoticePolicy;
 use Cake\ORM\Entity;
 use Cake\TestSuite\TestCase;

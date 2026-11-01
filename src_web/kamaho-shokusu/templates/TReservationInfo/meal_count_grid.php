@@ -36,12 +36,12 @@ $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 $basePath  = rtrim($this->request->getAttribute('base') ?? '', '/');
 
 $dates          = $gridData['dates']       ?? [];
-$meals          = $gridData['meals']       ?? [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁'];
+$meals          = $gridData['meals']       ?? \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_TINY);
 $roomsData      = $gridData['rooms']       ?? [];
 $dailyTotals    = $gridData['dailyTotals'] ?? [];
 $dateCategories = $dateCategories          ?? [];
 
-$today      = date('Y-m-d');
+$today      = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 $dow        = ['日', '月', '火', '水', '木', '金', '土'];
 
 // 日付ラベル (n/j + 曜日)
@@ -81,7 +81,7 @@ $makeUrl = function (array $params) use ($viewMode, $selectedRoomId, $selectedUs
 
 $prevUrl   = $makeUrl(['week' => $prevMonday->format('Y-m-d')]);
 $nextUrl   = $makeUrl(['week' => $nextMonday->format('Y-m-d')]);
-$todayUrl  = $makeUrl(['week' => date('Y-m-d', strtotime('monday this week'))]);
+$todayUrl  = $makeUrl(['week' => \Cake\I18n\Date::today('Asia/Tokyo')->startOfWeek()->format('Y-m-d')]);
 
 // 選択セル情報（数式バー表示用）
 // 行番号は全ユーザーを通じた連番

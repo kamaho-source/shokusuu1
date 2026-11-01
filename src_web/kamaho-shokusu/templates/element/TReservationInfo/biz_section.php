@@ -51,14 +51,14 @@ $copyModalVars = [
                     <label for="fromDate" class="form-label mb-1">期間開始日</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                        <input type="date" id="fromDate" class="form-control" value="<?= date('Y-m-01') ?>">
+                        <input type="date" id="fromDate" class="form-control" value="<?= \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-01') ?>">
                     </div>
                 </div>
                 <div class="col-12 col-md-3">
                     <label for="toDate" class="form-label mb-1">期間終了日</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-calendar-event"></i></span>
-                        <input type="date" id="toDate" class="form-control" value="<?= date('Y-m-t') ?>">
+                        <input type="date" id="toDate" class="form-control" value="<?= \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-t') ?>">
                     </div>
                 </div>
 
@@ -87,7 +87,7 @@ $copyModalVars = [
 
             <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="small text-muted"><i class="bi bi-info-circle"></i> 選択中の期間：</div>
-                <span class="badge rounded-pill text-bg-light" id="rangeChip"><?= date('Y-m-01') ?> 〜 <?= date('Y-m-t') ?></span>
+                <span class="badge rounded-pill text-bg-light" id="rangeChip"><?= \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-01') ?> 〜 <?= \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-t') ?></span>
             </div>
         </div>
     </div>

@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\TApprovalLog[]|\Cake\Collection\CollectionInterface $logs
+ * @var \App\Infrastructure\Persistence\Entity\TApprovalLog[]|\Cake\Collection\CollectionInterface $logs
  */
 $this->assign('title', '承認履歴');
 
@@ -11,7 +11,7 @@ $statusLabels = [
     3 => '<span class="badge bg-danger">差し戻し</span>',
 ];
 
-$mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁'];
+$mealTypes = \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_TINY_NIGHT);
 ?>
 
 <div class="container-fluid py-4">

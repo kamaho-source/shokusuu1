@@ -162,9 +162,8 @@
                 wb.creator = '食数予約システム'; wb.created = new Date(); wb.modified = new Date();
 
                 var addHeader = function (sheet, withRoom) {
-                    var header = withRoom
-                        ? ['日付', '部屋名', '朝食', '昼食', '夕食', '弁当', '合計']
-                        : ['日付', '朝食', '昼食', '夕食', '弁当', '合計'];
+                    var meals  = [1, 2, 3, 4].map(function (t) { return window.MEAL_LABELS.full[t]; });
+                    var header = (withRoom ? ['日付', '部屋名'] : ['日付']).concat(meals, ['合計']);
                     var row = sheet.addRow(header); row.font = { bold: true };
                     sheet.views = [{ state: 'frozen', ySplit: 1 }];
                 };
@@ -227,10 +226,10 @@
                     { key: 'reservation_date', header: '日付' },
                     { key: 'rank_name',        header: 'ランク' },
                     { key: 'gender',           header: '性別' },
-                    { key: 'breakfast',        header: '朝食' },
-                    { key: 'lunch',            header: '昼食' },
-                    { key: 'dinner',           header: '夕食' },
-                    { key: 'bento',            header: '弁当' },
+                    { key: 'breakfast',        header: window.MEAL_LABELS.full[1] },
+                    { key: 'lunch',            header: window.MEAL_LABELS.full[2] },
+                    { key: 'dinner',           header: window.MEAL_LABELS.full[3] },
+                    { key: 'bento',            header: window.MEAL_LABELS.full[4] },
                     { key: 'total_eaters',     header: '合計' }
                 ];
                 ws2.addRow(cols.map(function (c) { return c.header; })).font = { bold: true };

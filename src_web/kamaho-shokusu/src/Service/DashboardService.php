@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\Service\ReservationDateRule;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
+use Cake\I18n\DateTime;
 
 /**
  * DashboardService
@@ -42,7 +44,7 @@ class DashboardService
     public function buildHomeContext(?\Authentication\IdentityInterface $user): array
     {
         // 現在日時をアジア/東京タイムゾーンで取得する
-        $today = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $today = DateTime::now('Asia/Tokyo');
 
         // 曜日の日本語ラベル (format('w') は 0=日 〜 6=土 を返す)
         $dow = ['日', '月', '火', '水', '木', '金', '土'];
@@ -64,8 +66,7 @@ class DashboardService
         $nextNextWeekMonday = $thisWeekMonday->modify('+14 days');
 
         // 通常予約の最小受付日: 「今日から15日後」以降でなければ登録不可
-        // (ReservationDatePolicy::NORMAL_ORDER_MIN_DAYS = 15 に対応)
-        $minNormalDate = $today->modify('+15 days');
+        $minNormalDate = $today->modify('+' . ReservationDateRule::NORMAL_ORDER_MIN_DAYS . ' days');
 
         // $minNormalDate が月曜日ならそのまま使い、それ以外なら「次の月曜日」に繰り上げる。
         // modify('monday this week') を使うと、$minNormalDate が日曜〜土曜の場合に

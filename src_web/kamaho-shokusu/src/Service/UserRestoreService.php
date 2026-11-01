@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\TableRegistry;
+use Cake\I18n\DateTime;
 
 /**
  * ユーザー復元サービス
@@ -16,14 +17,14 @@ use Cake\ORM\TableRegistry;
 class UserRestoreService
 {
     /**
-     * @param \App\Model\Entity\MUserInfo $user      MUserInfo エンティティ（i_del_flag === 1 であること）
+     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $user      MUserInfo エンティティ（i_del_flag === 1 であること）
      * @param string $updatedBy 操作者ユーザー名
      * @param int    $actorId   操作者ユーザーID
      * @param string $ipAddress 操作元IPアドレス
      * @return bool
      * @throws \Exception
      */
-    public function restore(\App\Model\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
+    public function restore(\App\Infrastructure\Persistence\Entity\MUserInfo $user, string $updatedBy, int $actorId = 0, string $ipAddress = '', string $actorLoginId = ''): bool
     {
         $userInfoTable  = TableRegistry::getTableLocator()->get('MUserInfo');
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
@@ -34,7 +35,7 @@ class UserRestoreService
         try {
             $user->i_del_flag    = 0;
             $user->i_enable      = 0; // 削除時に立てた無効化も戻す（ログイン可能にする）
-            $user->dt_update     = date('Y-m-d H:i:s');
+            $user->dt_update     = DateTime::now()->format('Y-m-d H:i:s');
             $user->c_update_user = $updatedBy;
 
             if (!$userInfoTable->save($user)) {
@@ -47,7 +48,7 @@ class UserRestoreService
 
             foreach ($userGroups as $group) {
                 $group->active_flag   = 0;
-                $group->dt_update     = date('Y-m-d H:i:s');
+                $group->dt_update     = DateTime::now()->format('Y-m-d H:i:s');
                 $group->c_update_user = $updatedBy;
 
                 if (!$userGroupTable->save($group)) {

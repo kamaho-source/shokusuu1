@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Exception\DuplicateMealReservationException;
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use App\Service\ReservationCopyService;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\Http\Response;

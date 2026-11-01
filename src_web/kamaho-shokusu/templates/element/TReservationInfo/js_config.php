@@ -30,6 +30,7 @@
  * @var mixed $userRoomIds
  */
 // JS config for TReservationInfo index
+use App\Domain\ValueObject\MealType;
 use Cake\Core\Configure;
 
 $pastDateUnavailableMessage = (string)Configure::read(
@@ -77,6 +78,8 @@ $pastDateUnavailableMessage = (string)Configure::read(
         reservedDates: <?= $JS_RESERVED_DATES ?>,
         existingEvents: <?= $JS_EXISTING_EVENTS ?>,
         calRoomId: <?= json_encode($calRoomId ?? null) ?>,
-        pastDateUnavailableMessage: <?= json_encode($pastDateUnavailableMessage, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>
+        pastDateUnavailableMessage: <?= json_encode($pastDateUnavailableMessage, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>,
+        // 食事区分の表示名（正本は MealType::LABEL_SETS。full / short / short_night / tiny / tiny_night）
+        mealLabels: <?= json_encode(MealType::LABEL_SETS, JSON_UNESCAPED_UNICODE) ?>
     };
 </script>

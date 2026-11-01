@@ -1,0 +1,73 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Test\TestCase\Infrastructure\Persistence\Table;
+
+use App\Infrastructure\Persistence\Table\TReservationInfoTable;
+use Cake\TestSuite\TestCase;
+
+/**
+ * App\Infrastructure\Persistence\Table\TReservationInfoTable Test Case
+ */
+class TReservationInfoTableTest extends TestCase
+{
+    /**
+     * Test subject
+     *
+     * @var \App\Infrastructure\Persistence\Table\TReservationInfoTable
+     */
+    protected $TReservationInfo;
+
+    /**
+     * Fixtures
+     *
+     * @var list<string>
+     */
+    protected array $fixtures = [
+        'app.TReservationInfo',
+    ];
+
+    /**
+     * setUp method
+     *
+     * @return void
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $config = $this->getTableLocator()->exists('TReservationInfo') ? [] : ['className' => TReservationInfoTable::class];
+        $this->TReservationInfo = $this->getTableLocator()->get('TReservationInfo', $config);
+    }
+
+    /**
+     * tearDown method
+     *
+     * @return void
+     */
+    protected function tearDown(): void
+    {
+        unset($this->TReservationInfo);
+
+        parent::tearDown();
+    }
+
+    /**
+     * Test validationDefault method
+     *
+     * @return void
+     * @uses \App\Infrastructure\Persistence\Table\TReservationInfoTable::validationDefault()
+     */
+    public function testValidationDefault(): void
+    {
+        $valid = $this->TReservationInfo->newEntity([
+            'i_taberu_ninzuu' => 3,
+            'i_tabenai_ninzuu' => 0,
+        ]);
+        $this->assertEmpty($valid->getErrors());
+
+        $invalid = $this->TReservationInfo->newEntity([
+            'i_taberu_ninzuu' => 'abc',
+        ]);
+        $this->assertArrayHasKey('i_taberu_ninzuu', $invalid->getErrors());
+    }
+}
