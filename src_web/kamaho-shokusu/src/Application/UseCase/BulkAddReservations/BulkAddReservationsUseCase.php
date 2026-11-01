@@ -6,11 +6,14 @@ namespace App\Application\UseCase\BulkAddReservations;
 use App\Application\Port\ReservationCacheInterface;
 use App\Application\Port\TransactionManagerInterface;
 use App\Application\UseCase\BulkReservation\BulkReservationSupport;
+use App\Domain\Entity\MealReservation;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\ReservationValidationException;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Repository\UserRepositoryInterface;
+use App\Domain\Service\ReservationDateRule;
+use Cake\Chronos\ChronosDate;
 use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 
@@ -35,7 +38,7 @@ final class BulkAddReservationsUseCase
         UserRepositoryInterface $users,
         private readonly TransactionManagerInterface $transaction,
         private readonly ReservationCacheInterface $cache,
-        ClockInterface $clock,
+        private readonly ClockInterface $clock,
         BulkReservationSupport $support,
         private readonly LoggerInterface $logger,
         /** 過去日を選んだときの文言（設定 App.messages.pastDateUnavailable） */
@@ -110,16 +113,20 @@ final class BulkAddReservationsUseCase
         if ($plan['deactivate'] === [] && $plan['activate'] === [] && $plan['create'] === []) {
             return null;
         }
+        // 直前期間（今日〜14日後）の行は、直前の変更（i_change_flag）だけを書き、当初の予定（eat_flag）は残す
+        $today      = new ChronosDate($this->clock->now());
+        $planFlag   = static fn(MealReservation $row, int $value): ?int
+            => ReservationDateRule::isLastMinuteWindow(new ChronosDate($row->date), $today) ? null : $value;
         $this->transaction->begin();
         try {
             foreach ($plan['deactivate'] as $row) {
-                if (!$this->reservations->updateWithVersion($row, 0, 0, $userName)) {
+                if (!$this->reservations->updateWithVersion($row, 0, $planFlag($row, 0), $userName)) {
                     throw new \RuntimeException('optimistic_conflict');
                 }
             }
 
             foreach ($plan['activate'] as $row) {
-                if (!$this->reservations->updateWithVersion($row, 1, 1, $userName)) {
+                if (!$this->reservations->updateWithVersion($row, 1, $planFlag($row, 1), $userName)) {
                     throw new \RuntimeException('optimistic_conflict');
                 }
             }

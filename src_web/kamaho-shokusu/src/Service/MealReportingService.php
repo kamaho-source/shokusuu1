@@ -25,7 +25,7 @@ class MealReportingService
     private const EAT_REPORT_MEAL_TYPES = [MealType::Breakfast->value, MealType::Lunch->value, MealType::Dinner->value];
 
     /**
-     * 「食べない」で報告する（全食種を eat_flag=0, i_change_flag=0 に設定）。
+     * 「食べない」で報告する（全食種の i_change_flag を 0 にする。当日は直前期間なので eat_flag は残す。行が無い食事は 0/0 で作る）。
      *
      * @param Table  $reservationTable TIndividualReservationInfo テーブル
      * @param Table  $userGroupTable   MUserGroup テーブル
@@ -48,7 +48,7 @@ class MealReportingService
                 // 食事ごとに部屋を選べるため、代表部屋だけでなく、その日のすべての部屋の予約を取り消す
                 $reservationTable->updateAll(
                     [
-                        'eat_flag'      => 0,
+                        // 当日は直前期間なので、直前の変更（i_change_flag）だけを 0 にし、当初の予定（eat_flag）は残す
                         'i_change_flag' => 0,
                         'c_update_user' => $userName,
                         'dt_update'     => DateTime::now('Asia/Tokyo'),
@@ -126,7 +126,7 @@ class MealReportingService
     }
 
     /**
-     * 「食べる」で報告する（朝・昼・夕を代表部屋で eat_flag=1, i_change_flag=1 に設定）。
+     * 「食べる」で報告する（朝・昼・夕を代表部屋で i_change_flag=1 にする。当日は直前期間なので、既存行の eat_flag は残し、新しい行は eat_flag=0）。
      *
      * 別の部屋ですでに有効な食事は、その部屋の予約のまま残す（代表部屋にも付けると二重に数えられるため）。
      *
@@ -176,7 +176,7 @@ class MealReportingService
                         $updatedMealTypes[] = $mealType;
                         $reservationTable->updateAll(
                             [
-                                'eat_flag'      => 1,
+                                // 当日は直前期間なので、直前の変更（i_change_flag）だけを 1 にし、当初の予定（eat_flag）は残す
                                 'i_change_flag' => 1,
                                 'c_update_user' => $userName,
                                 'dt_update'     => DateTime::now('Asia/Tokyo'),
@@ -202,7 +202,8 @@ class MealReportingService
                     $entity->d_reservation_date = $today;
                     $entity->i_reservation_type = $mealType;
                     $entity->i_id_room          = $roomId;
-                    $entity->eat_flag           = 1;
+                    // 直前期間の新しい行は、当初の予定（eat_flag）を 0、直前の変更（i_change_flag）を 1 にする
+                    $entity->eat_flag           = 0;
                     $entity->i_change_flag      = 1;
                     $entity->c_create_user      = $userName;
                     $entity->dt_create          = DateTime::now('Asia/Tokyo');

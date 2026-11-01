@@ -6,6 +6,7 @@ namespace App\Application\UseCase\BulkAddReservations;
 use App\Domain\Entity\MealReservation;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
+use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use Cake\Chronos\ChronosDate;
 use Psr\Clock\ClockInterface;
@@ -181,7 +182,9 @@ final class PersonalBulkAddPlanner
                         $rowsToActivate[implode(':', [$date, $userId, $mealTypeInt, $roomIdInt])] = $roomRow;
                         continue;
                     }
-                    $reservations[] = new MealReservation($userId, (string)$date, $roomIdInt, $mealTypeInt, 1, 1);
+                    // 直前期間の新しい行は eat_flag=0（通常は15日ルールで直前期間を選べないが、他の経路と同じ基準にしておく）
+                    $eatFlag = ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today) ? 0 : 1;
+                    $reservations[] = new MealReservation($userId, (string)$date, $roomIdInt, $mealTypeInt, $eatFlag, 1);
                 }
             }
         }

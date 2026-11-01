@@ -243,7 +243,8 @@ class ReservationReportControllerTest extends TestCase
         $this->assertTrue($this->json()['ok']);
         $row = $this->getTableLocator()->get('TIndividualReservationInfo')->find()
             ->where(['i_id_user' => 3, 'i_reservation_type' => 1, 'd_reservation_date' => $today])->firstOrFail();
-        $this->assertSame([0, 0], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+        // 当日は直前期間なので、i_change_flag だけを 0 にし、当初の予定（eat_flag）は残す
+        $this->assertSame([1, 0], [(int)$row->eat_flag, (int)$row->i_change_flag]);
     }
 
     public function testReportNoMeal_userWithoutRoom_returns400(): void
@@ -270,7 +271,7 @@ class ReservationReportControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertTrue($this->json()['ok']);
         $count = $this->getTableLocator()->get('TIndividualReservationInfo')->find()
-            ->where(['i_id_user' => 3, 'd_reservation_date' => date('Y-m-d'), 'eat_flag' => 1])->count();
+            ->where(['i_id_user' => 3, 'd_reservation_date' => date('Y-m-d'), 'i_change_flag' => 1])->count();
         $this->assertGreaterThanOrEqual(1, $count);
     }
 

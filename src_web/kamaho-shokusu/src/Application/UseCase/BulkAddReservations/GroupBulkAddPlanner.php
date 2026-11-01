@@ -8,6 +8,7 @@ use App\Domain\Entity\MealReservation;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Repository\UserRepositoryInterface;
+use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Domain\ValueObject\UserRoleInfo;
@@ -206,7 +207,9 @@ final class GroupBulkAddPlanner
                         $rowsToActivate[implode(':', [$date, (int)$targetUserId, $mealType, $roomId])] = $roomRow;
                         continue;
                     }
-                    $reservations[] = new MealReservation((int)$targetUserId, (string)$date, $roomId, $mealType, 1, 1);
+                    // 直前期間（今日〜14日後）の新しい行は、当初の予定（eat_flag）を 0 にし、直前の変更（i_change_flag）だけ 1 にする
+                    $eatFlag = ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today) ? 0 : 1;
+                    $reservations[] = new MealReservation((int)$targetUserId, (string)$date, $roomId, $mealType, $eatFlag, 1);
                 }
             }
         }
@@ -292,7 +295,9 @@ final class GroupBulkAddPlanner
                         $rowsToActivate[implode(':', [$date, (int)$targetUserId, $mealType, $roomId])] = $roomRow;
                         continue;
                     }
-                    $reservations[] = new MealReservation((int)$targetUserId, (string)$date, $roomId, $mealType, 1, 1);
+                    // 直前期間（今日〜14日後）の新しい行は、当初の予定（eat_flag）を 0 にし、直前の変更（i_change_flag）だけ 1 にする
+                    $eatFlag = ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today) ? 0 : 1;
+                    $reservations[] = new MealReservation((int)$targetUserId, (string)$date, $roomId, $mealType, $eatFlag, 1);
                 }
             }
         }
