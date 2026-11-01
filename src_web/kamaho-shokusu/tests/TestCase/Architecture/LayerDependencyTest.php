@@ -13,7 +13,6 @@ use PHPUnit\Framework\TestCase;
  * - Domain・Application は CakePHP 本体（Cake\…）に依存しない。日付型の cakephp/chronos（Cake\Chronos\…）は別パッケージなので許可する。
  * - Domain は外側の層（Application・Service・Model・Controller・Infrastructure など）を参照しない。
  * - Application は外側の層（Service・Model・Controller・Infrastructure など）を参照しない。
- *   既存の違反は KNOWN_APPLICATION_VIOLATIONS に載せて許容する（#920 第4段階で解消して、この一覧から消す）。
  */
 class LayerDependencyTest extends TestCase
 {
@@ -22,12 +21,6 @@ class LayerDependencyTest extends TestCase
     private const OUTER_THAN_DOMAIN = '/^App\\\\(Application|Service|Model|Controller|Infrastructure|View|Policy|Command|Middleware)\\\\/';
 
     private const OUTER_THAN_APPLICATION = '/^App\\\\(Service|Model|Controller|Infrastructure|View|Policy|Command|Middleware)\\\\/';
-
-    /** 既存の違反（UseCase が Service を呼んでいる）。解消したら消す。 */
-    private const KNOWN_APPLICATION_VIOLATIONS = [
-        'Application/UseCase/ChangeMealRoom/ChangeMealRoomUseCase.php: App\\Service\\ReservationWriteService',
-        'Application/UseCase/DirectRegisterMeals/DirectRegisterMealsUseCase.php: App\\Service\\ReservationWriteService',
-    ];
 
     /**
      * @return list<string> 参照したクラス名のうち $pattern に当たるもの（"相対パス: 名前"、重複なし・ソート済み）
@@ -71,9 +64,8 @@ class LayerDependencyTest extends TestCase
         $this->assertSame([], self::references('Domain', self::OUTER_THAN_DOMAIN));
     }
 
-    public function testApplicationDoesNotDependOnOuterLayersExceptKnownViolations(): void
+    public function testApplicationDoesNotDependOnOuterLayers(): void
     {
-        // 新しい違反が増えたら失敗する。既存の違反を解消したら KNOWN_APPLICATION_VIOLATIONS から消すよう失敗で知らせる
-        $this->assertSame(self::KNOWN_APPLICATION_VIOLATIONS, self::references('Application', self::OUTER_THAN_APPLICATION));
+        $this->assertSame([], self::references('Application', self::OUTER_THAN_APPLICATION));
     }
 }

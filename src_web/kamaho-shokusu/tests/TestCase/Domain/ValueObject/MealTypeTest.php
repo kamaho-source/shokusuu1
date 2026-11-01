@@ -47,4 +47,13 @@ class MealTypeTest extends TestCase
         $this->assertSame(['朝食', '昼食', '夕食', '弁当'], array_map(static fn(MealType $t): string => $t->label(), MealType::cases()));
         $this->assertSame('', MealType::labelOf(9));
     }
+
+    public function testHasExclusiveConflict_onlyWhenBothLunchAndBentoAreEffective(): void
+    {
+        $this->assertTrue(MealType::hasExclusiveConflict([2, 4]));
+        $this->assertTrue(MealType::hasExclusiveConflict([1, 4, 3, 2, 2]));
+        $this->assertFalse(MealType::hasExclusiveConflict([2, 2]));
+        $this->assertFalse(MealType::hasExclusiveConflict([1, 3, 4]));
+        $this->assertFalse(MealType::hasExclusiveConflict([]));
+    }
 }

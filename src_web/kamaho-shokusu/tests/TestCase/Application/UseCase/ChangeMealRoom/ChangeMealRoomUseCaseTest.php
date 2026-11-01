@@ -7,7 +7,7 @@ use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomInput;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\UnauthorizedException;
-use App\Service\ReservationWriteService;
+use App\Test\TestCase\Application\Fake\ReservationFixture;
 use Cake\TestSuite\TestCase;
 
 /**
@@ -28,50 +28,76 @@ class ChangeMealRoomUseCaseTest extends TestCase
         );
     }
 
+    private ReservationFixture $f;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->f = new ReservationFixture();
+        // 旧部屋 8 に夕食の予約がある
+        $this->f->reservations->add(10, 8, '2099-06-01', 3);
+    }
+
+    private function useCase(): ChangeMealRoomUseCase
+    {
+        return new ChangeMealRoomUseCase($this->f->toggleMeal(), $this->f->reservations, $this->f->rooms, $this->f->cache);
+    }
+
     public function testExecute_movesReservationToNewRoom(): void
     {
-        $writeService = $this->createMock(ReservationWriteService::class);
-        $writeService->expects($this->once())
-            ->method('processRoomChange')
-            ->with(8, 7, ['date' => '2099-06-01', 'meal' => 3, 'userId' => 10], 10, 'テストユーザー')
-            ->willReturn(['value' => true, 'details' => [], 'affected' => []]);
-
-        $output = (new ChangeMealRoomUseCase($writeService))->execute($this->createInput());
+        $output = $this->useCase()->execute($this->createInput());
 
         $this->assertSame(3, $output->meal);
         $this->assertSame(8, $output->fromRoomId);
         $this->assertSame(7, $output->toRoomId);
+        $this->assertSame([7], $this->f->reservations->effectiveRoomIds(10, '2099-06-01', 3));
+        $this->assertSame(1, $this->f->reservations->transactions, '1トランザクションで行う');
+        $this->assertSame([['date' => '2099-06-01', 'userIds' => [10]]], $this->f->cache->forgotten, 'キャッシュは最後に1回だけ捨てる');
+    }
+
+    public function testExecute_rollsBackWhenDestinationFails(): void
+    {
+        $this->f->reservations->onToggle = static function (int $meal, int $roomId): void {
+            if ($roomId === 7) {
+                throw new ConflictException('昼食と弁当は同時に予約できません。');
+            }
+        };
+
+        try {
+            $this->useCase()->execute($this->createInput());
+            $this->fail('例外になるはず');
+        } catch (ConflictException) {
+        }
+        $this->assertSame([8], $this->f->reservations->effectiveRoomIds(10, '2099-06-01', 3), '旧部屋の予約が残る');
+        $this->assertSame([], $this->f->cache->forgotten);
+    }
+
+    public function testExecute_rejectsWhenSourceHasNoEffectiveReservation(): void
+    {
+        $this->expectException(ConflictException::class);
+        $this->expectExceptionMessage('変更前の部屋の予約が見つかりません。');
+        $this->useCase()->execute($this->createInput(1, 7));
     }
 
     public function testExecute_rewordsStaffLastMinuteCancelAsRoomChange(): void
     {
-        $writeService = $this->createMock(ReservationWriteService::class);
-        $writeService->method('processRoomChange')
-            ->willThrowException(new UnauthorizedException('職員は直前編集でのキャンセルはできません。'));
+        // 直前期間（今日）の職員の取消は ToggleMealUseCase が拒否する → 部屋変更の文言に言い換える
+        $today = \Cake\Chronos\ChronosDate::today('Asia/Tokyo')->format('Y-m-d');
+        $this->f->reservations->add(10, 8, $today, 3);
+        $input = new ChangeMealRoomInput($today, 3, 8, 7, 10, 'テストユーザー', 10);
 
         $this->expectException(UnauthorizedException::class);
         $this->expectExceptionMessage('直前期間（14日以内）は職員の部屋変更はできません。');
-        (new ChangeMealRoomUseCase($writeService))->execute($this->createInput());
+        $this->useCase()->execute($input);
     }
 
-    public function testExecute_rethrowsOtherUnauthorizedAsIs(): void
+    public function testExecute_rejectsMovingFromRoomTheUserLeft(): void
     {
-        $writeService = $this->createMock(ReservationWriteService::class);
-        $writeService->method('processRoomChange')
-            ->willThrowException(new UnauthorizedException('対象ユーザーは指定された部屋に所属していません。'));
+        $this->f->rooms->members = ['10:7'];
 
-        $this->expectExceptionMessage('対象ユーザーは指定された部屋に所属していません。');
-        (new ChangeMealRoomUseCase($writeService))->execute($this->createInput());
-    }
-
-    public function testExecute_rethrowsConflict(): void
-    {
-        $writeService = $this->createMock(ReservationWriteService::class);
-        $writeService->method('processRoomChange')
-            ->willThrowException(new ConflictException('昼食と弁当は同時に予約できません。'));
-
-        $this->expectException(ConflictException::class);
-        (new ChangeMealRoomUseCase($writeService))->execute($this->createInput(8, 7, 2));
+        $this->expectException(UnauthorizedException::class);
+        $this->expectExceptionMessage('所属外・削除済みの部屋の予約は部屋を変更できません。');
+        $this->useCase()->execute($this->createInput());
     }
 
     public function testInput_rejectsSameRoom(): void

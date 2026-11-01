@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Infrastructure\Cache\ReservationCache;
 use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
@@ -10,14 +11,10 @@ use Cake\ORM\Table;
 class ReservationReportService
 {
     private const REPORT_CACHE_SCHEMA_VERSION = 2;
-    private const MEAL_COUNTS_CACHE_SUFFIX = 'v2';
 
     private function getReportCacheVersion(): int
     {
-        $v = Cache::read('reservation_version', 'default');
-        $base = (is_int($v) && $v > 0) ? $v : 1;
-
-        return ($base * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
+        return (ReservationCache::version() * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
     }
 
     public function getMealCounts(Table $reservationTable, string $date): array
@@ -471,13 +468,12 @@ class ReservationReportService
 
     public static function mealCountsCacheKey(string $date): string
     {
-        return 'meal_counts:' . $date . ':' . self::MEAL_COUNTS_CACHE_SUFFIX;
+        return ReservationCache::mealCountsKey($date);
     }
 
     public static function invalidateMealCountsCache(string $date): void
     {
-        Cache::delete(self::mealCountsCacheKey($date), 'default');
-        Cache::delete('meal_counts:' . $date, 'default');
+        ReservationCache::forgetMealCounts($date);
     }
 
     private function normalizeDateString(\DateTimeInterface|Date|string|int|null $value): ?string
