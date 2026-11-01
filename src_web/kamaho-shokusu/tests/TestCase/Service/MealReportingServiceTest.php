@@ -158,4 +158,46 @@ class MealReportingServiceTest extends TestCase
         $this->assertSame([0, 0], $this->flags()['1:1']);
         $this->assertSame('食べるで報告しました。承認済みの食事は変更されていません。', $result['message']);
     }
+
+    /** 予約の行の追加を DB で失敗させる（SQLite のトリガー）。テストの終わりに消す。 */
+    private function failInserts(): void
+    {
+        ConnectionManager::get('test')->execute(
+            "CREATE TRIGGER ct_fail_insert BEFORE INSERT ON t_individual_reservation_info BEGIN SELECT RAISE(ABORT, 'forced failure'); END"
+        );
+    }
+
+    protected function tearDown(): void
+    {
+        ConnectionManager::get('test')->execute('DROP TRIGGER IF EXISTS ct_fail_insert');
+        parent::tearDown();
+    }
+
+    /** 「食べない」で行の追加が DB で失敗したら、先にした取消も残さず、SQL を含まない 500 を返す */
+    public function testReportNoMeal_dbFailure_rollsBackAndReturns500(): void
+    {
+        $this->insertMeal(1, 1, 1, 1);
+        $this->failInserts();
+
+        $result = $this->service->reportNoMeal($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame(500, $result['status'] ?? null);
+        $this->assertStringNotContainsString('forced failure', $result['message']);
+        $this->assertSame(['1:1' => [1, 1]], $this->flags(), '取消が残っている');
+    }
+
+    /** 「食べる」で行の追加が DB で失敗したら、途中の更新も残さず、SQL を含まない 500 を返す */
+    public function testReportEat_dbFailure_rollsBackAndReturns500(): void
+    {
+        $this->insertMeal(1, 1, 0, 0);
+        $this->failInserts();
+
+        $result = $this->service->reportEat($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame(500, $result['status'] ?? null);
+        $this->assertStringNotContainsString('forced failure', $result['message']);
+        $this->assertSame(['1:1' => [0, 0]], $this->flags(), '朝食の更新が残っている');
+    }
 }

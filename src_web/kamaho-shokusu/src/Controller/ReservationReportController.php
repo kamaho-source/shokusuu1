@@ -219,7 +219,7 @@ class ReservationReportController extends ReservationBaseController
         );
 
         if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], 400);
+            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
         }
 
         return $this->apiResponseService->success($this->response, [], $result['message']);
@@ -254,7 +254,7 @@ class ReservationReportController extends ReservationBaseController
         );
 
         if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], 400);
+            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
         }
 
         return $this->apiResponseService->success($this->response, [], $result['message']);
