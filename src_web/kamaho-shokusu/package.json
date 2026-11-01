@@ -19,6 +19,9 @@
     ],
     "testEnvironmentOptions": {
       "url": "http://localhost/"
-    }
+    },
+    "setupFiles": [
+      "<rootDir>/tests/js/setup_meal_labels.js"
+    ]
   }
 }
