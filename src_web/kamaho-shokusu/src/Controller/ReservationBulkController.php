@@ -4,9 +4,10 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\UseCase\BulkAddReservations\BulkAddReservationsInput;
+use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsInput;
+use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\ReservationUseCases;
 use App\Service\BulkReservationFormService;
 use Cake\Http\Response;
 
@@ -18,14 +19,12 @@ use Cake\Http\Response;
 class ReservationBulkController extends ReservationBaseController
 {
     private BulkReservationFormService $bulkFormService;
-    private ReservationUseCases $useCases;
 
     public function initialize(): void
     {
         parent::initialize();
 
         $this->bulkFormService = new BulkReservationFormService();
-        $this->useCases        = new ReservationUseCases($this->TIndividualReservationInfo, $this->MUserInfo, $this->datePolicy);
 
         $this->FormProtection->setConfig('unlockedActions', [
             'bulkAddForm',
@@ -177,7 +176,7 @@ class ReservationBulkController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function bulkChangeEditSubmit(): ?Response
+    public function bulkChangeEditSubmit(BulkChangeEditReservationsUseCase $bulkChangeEdit): ?Response
     {
         $data     = $this->request->getData();
         $dayUsers = isset($data['day_users']) && is_array($data['day_users']) ? $data['day_users'] : [];
@@ -205,7 +204,7 @@ class ReservationBulkController extends ReservationBaseController
         }
         $loginName = $loginUser->get('c_user_name') ?? 'system';
 
-        $result = $this->useCases->bulkChangeEditReservations()->execute(new BulkChangeEditReservationsInput(
+        $result = $bulkChangeEdit->execute(new BulkChangeEditReservationsInput(
             dayUsers: $dayUsers,
             roomId: (int)$roomId,
             loginName: (string)$loginName,
@@ -244,7 +243,7 @@ class ReservationBulkController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function bulkAddSubmit(): ?Response
+    public function bulkAddSubmit(BulkAddReservationsUseCase $bulkAdd): ?Response
     {
         if ($denied = $this->authorizeReservation('bulkAddSubmit', [], true)) {
             return $denied;
@@ -256,7 +255,7 @@ class ReservationBulkController extends ReservationBaseController
             $userName = $this->request->getAttribute('identity')->get('c_user_name');
             $userId   = $this->request->getAttribute('identity')->get('i_id_user');
 
-            $result = $this->useCases->bulkAddReservations()->execute(new BulkAddReservationsInput(
+            $result = $bulkAdd->execute(new BulkAddReservationsInput(
                 data: $data,
                 userId: (int)$userId,
                 userName: (string)$userName,

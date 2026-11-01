@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\Service\ReservationDateRule;
+use App\Domain\ValueObject\MealType;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -24,7 +25,7 @@ use Cake\ORM\Table;
 class MealCountGridService
 {
     /** 全食事種別（朝/昼/夕/弁）*/
-    public const MEALS = [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁'];
+    public const MEALS = MealType::LABEL_SETS[MealType::LABEL_TINY];
 
     /** 管理者が遡れる最大月数 */
     private const ADMIN_LOOKBACK_MONTHS = 2;

@@ -74,7 +74,7 @@ $hasTodayReservation = !empty($todayReservation) && (
                 ($todayReservation['dinner'] ?? false) ||
                 ($todayReservation['bento'] ?? false)
         );
-$mealLabels = [1=>'朝食',2=>'昼食',3=>'夕食',4=>'弁当'];
+$mealLabels = \App\Domain\ValueObject\MealType::labels();
 $mealKeys   = [1=>'breakfast',2=>'lunch',3=>'dinner',4=>'bento'];
 
 // 子供用UIで使う初期値を先に確定（JS埋め込みで参照）
@@ -123,7 +123,7 @@ foreach ($myReservationDates as $reservedDate) {
 
 // 朝昼夜弁当の食数表示（事務所ユーザー：全部屋、それ以外（管理者を含む）：所属する全部屋の合計）
 if (!$useKidUI && !empty($mealDataArray)) {
-    $mealTypes = ['1'=>'朝','2'=>'昼','3'=>'夜','4'=>'弁'];
+    $mealTypes = \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_TINY_NIGHT);
     foreach ($mealDataArray as $date => $meals) {
         foreach ($mealTypes as $type => $name) {
             if (isset($meals[$type]) && $meals[$type] > 0) {

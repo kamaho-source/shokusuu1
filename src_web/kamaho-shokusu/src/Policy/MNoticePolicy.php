@@ -9,40 +9,40 @@ class MNoticePolicy
 {
     /**
      * @param IdentityInterface|null $user
-     * @param \App\Model\Entity\MNotice $resource
+     * @param \App\Infrastructure\Persistence\Entity\MNotice $resource
      * @return bool
      */
-    public function canIndex(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
+    public function canIndex(?IdentityInterface $user, \App\Infrastructure\Persistence\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
     /**
      * @param IdentityInterface|null $user
-     * @param \App\Model\Entity\MNotice $resource
+     * @param \App\Infrastructure\Persistence\Entity\MNotice $resource
      * @return bool
      */
-    public function canAdd(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
+    public function canAdd(?IdentityInterface $user, \App\Infrastructure\Persistence\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
     /**
      * @param IdentityInterface|null $user
-     * @param \App\Model\Entity\MNotice $resource
+     * @param \App\Infrastructure\Persistence\Entity\MNotice $resource
      * @return bool
      */
-    public function canEdit(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
+    public function canEdit(?IdentityInterface $user, \App\Infrastructure\Persistence\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }
 
     /**
      * @param IdentityInterface|null $user
-     * @param \App\Model\Entity\MNotice $resource
+     * @param \App\Infrastructure\Persistence\Entity\MNotice $resource
      * @return bool
      */
-    public function canDelete(?IdentityInterface $user, \App\Model\Entity\MNotice $resource): bool
+    public function canDelete(?IdentityInterface $user, \App\Infrastructure\Persistence\Entity\MNotice $resource): bool
     {
         return $this->isAdmin($user);
     }

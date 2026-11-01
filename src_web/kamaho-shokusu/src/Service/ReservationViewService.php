@@ -166,7 +166,7 @@ class ReservationViewService
             }
         }
 
-        $mealTypes = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
+        $mealTypes = MealType::labels(MealType::LABEL_SHORT_NIGHT);
         $mealDataArray = [];
 
         $totalUsersPerRoom = [];

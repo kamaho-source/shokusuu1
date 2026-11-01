@@ -6,7 +6,7 @@ namespace App\Service;
 use App\Domain\ValueObject\MealType;
 use App\Exception\DuplicateMealReservationException;
 use App\Infrastructure\Cache\ReservationCache;
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;

@@ -38,17 +38,19 @@ Frameworks & Drivers（CakePHP, DB, HTTP）
 ```
 src/
 ├── Domain/
-│   ├── Entity/
+│   ├── Entity/            # 純粋な業務エンティティ（CakePHP に依存しない。例: MealReservation）
 │   ├── ValueObject/
 │   ├── Service/           # ドメインサービス（エンティティに属さない純粋な業務ルール。例: ReservationDateRule）
 │   ├── Repository/        # インターフェースのみ
 │   └── Exception/
 ├── Application/
 │   ├── UseCase/           # {UseCaseName}/{Input,Output,UseCase}.php
+│   ├── Port/              # Repository 以外の外部への口（キャッシュ・トランザクション・ログなど）。実装は Infrastructure
 │   └── Exception/
 ├── Infrastructure/
 │   ├── Repository/        # Domain/Repository/ の実装
-│   └── Persistence/       # CakePHP Table クラス
+│   ├── Persistence/       # CakePHP の Table/ と ORM の Entity/（探索先は Application::TABLE_LOCATION。ORM の Entity は CakePHP に依存するので Domain には置かない）
+│   └── ReservationUseCases.php # 予約の UseCase の組み立て口（services() から使う）
 └── Presentation/
     └── Controller/
 ```
@@ -70,6 +72,7 @@ src/
 ## 5. 依存性注入（DI）
 
 コンストラクタインジェクションを使用。`Application.php` の `services()` でバインドする。
+Controller は、UseCase をアクションの引数で受け取る（CakePHP がコンテナから渡す。例: `toggle(ToggleMealUseCase $toggleMeal, ?int $roomId = null)`）。
 
 ```php
 public function services(ContainerInterface $container): void

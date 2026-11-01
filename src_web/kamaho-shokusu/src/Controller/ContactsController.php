@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Model\Table\TContactsTable;
+use App\Infrastructure\Persistence\Table\TContactsTable;
 use App\Service\ContactService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;

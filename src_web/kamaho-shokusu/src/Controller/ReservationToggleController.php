@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealInput;
-use App\Infrastructure\ReservationUseCases;
+use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 use Cake\Http\Response;
 
 /**
@@ -14,13 +15,10 @@ use Cake\Http\Response;
  */
 class ReservationToggleController extends ReservationBaseController
 {
-    private ReservationUseCases $useCases;
-
     public function initialize(): void
     {
         parent::initialize();
 
-        $this->useCases = new ReservationUseCases($this->TIndividualReservationInfo, $this->MUserInfo);
 
         $this->FormProtection->setConfig('unlockedActions', ['toggle', 'bulkToggle']);
     }
@@ -31,7 +29,7 @@ class ReservationToggleController extends ReservationBaseController
      * @param int|null $roomId
      * @return Response|null
      */
-    public function toggle(?int $roomId = null): ?Response
+    public function toggle(ToggleMealUseCase $toggleMeal, ?int $roomId = null): ?Response
     {
         $this->request->allowMethod(['post']);
         $this->response = $this->response->withType('application/json');
@@ -70,7 +68,7 @@ class ReservationToggleController extends ReservationBaseController
         // user_id（対象者）は予約履歴画面が変更の経緯を引くのに使う。末尾に置く（検索が "user_id":N, と "user_id":N} を見る）
         $auditContext = ['date' => $payload['date'] ?? null, 'meal' => $payload['meal'] ?? null, 'value' => $payload['value'] ?? null, 'user_id' => $targetUserId > 0 ? $targetUserId : $loginUserId];
         try {
-            $result = $this->useCases->toggleMeal()
+            $result = $toggleMeal
                 ->execute(ToggleMealInput::fromPayload($roomId, $payload, $loginUserId, $loginUserName))
                 ->toArray();
 
@@ -102,7 +100,7 @@ class ReservationToggleController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function bulkToggle(): ?Response
+    public function bulkToggle(BulkToggleMealsUseCase $bulkToggleMeals): ?Response
     {
         $this->request->allowMethod(['post']);
         $this->response = $this->response->withType('application/json');
@@ -136,7 +134,7 @@ class ReservationToggleController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $results = $this->useCases->bulkToggleMeals()->execute($items, $loginUserId, $loginUserName);
+        $results = $bulkToggleMeals->execute($items, $loginUserId, $loginUserName);
 
         $okCount   = count(array_filter($results, static fn($r) => !empty($r['ok'])));
         $failCount = count($results) - $okCount;

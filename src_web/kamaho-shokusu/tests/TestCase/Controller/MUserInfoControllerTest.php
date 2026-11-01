@@ -329,7 +329,7 @@ class MUserInfoControllerTest extends TestCase
         $this->post('/MUserInfo/edit/' . $id, $data);
     }
 
-    private function userRow(int $id): \App\Model\Entity\MUserInfo
+    private function userRow(int $id): \App\Infrastructure\Persistence\Entity\MUserInfo
     {
         return $this->getTableLocator()->get('MUserInfo')->get($id);
     }

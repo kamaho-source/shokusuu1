@@ -5,7 +5,7 @@ namespace App\Policy;
 
 use App\Domain\ValueObject\UserRole;
 
-use App\Model\Entity\MUserInfo;
+use App\Infrastructure\Persistence\Entity\MUserInfo;
 use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
 
@@ -144,7 +144,7 @@ class MUserInfoPolicy
     /**
      * システムレポート閲覧権限の更新可否。
      *
-     * @param \App\Model\Entity\MUserInfo $resource
+     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $resource
      */
     public function canUpdateReportAccess(?IdentityInterface $user, MUserInfo $resource): bool
     {

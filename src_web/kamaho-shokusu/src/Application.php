@@ -14,9 +14,16 @@ use Authorization\AuthorizationServiceInterface;
 use Authorization\AuthorizationServiceProviderInterface;
 use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
-use Authorization\Policy\OrmResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
+use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
+use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
+use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
+use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
+use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
+use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
+use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
+use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
 use App\Controller\StatsAiController;
@@ -24,9 +31,11 @@ use App\Controller\SystemReportController;
 use App\Service\SystemReportService;
 use App\Infrastructure\AI\SystemPromptProvider;
 use App\Infrastructure\AI\UserTokenizer;
+use App\Infrastructure\ReservationUseCases;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
 use App\Service\RoomUsageService;
+use App\Policy\PersistenceOrmResolver;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
 use Psr\Http\Message\ResponseInterface;
@@ -47,6 +56,15 @@ use Cake\Routing\Middleware\RoutingMiddleware;
 
 class Application extends BaseApplication implements AuthenticationServiceProviderInterface, AuthorizationServiceProviderInterface
 {
+    /** Table クラスの探索先（永続化層）。 */
+    public const TABLE_LOCATION = 'Infrastructure/Persistence/Table';
+
+    /**
+     * Table の探索先。アプリは永続化層、プラグイン（DebugKit など）は CakePHP 既定の Model/Table。
+     * 既定を外すとプラグインの Table が見つからず、Web（allowFallbackClass(false)）では 500 になる。
+     */
+    public const TABLE_LOCATIONS = [self::TABLE_LOCATION, 'Model/Table'];
+
     public function bootstrap(): void
     {
         parent::bootstrap();
@@ -57,7 +75,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         if (PHP_SAPI === 'cli') {
             $this->bootstrapCli();
         } else {
-            FactoryLocator::add('Table', (new TableLocator())->allowFallbackClass(false));
+            FactoryLocator::add('Table', (new TableLocator(self::TABLE_LOCATIONS))->allowFallbackClass(false));
         }
 
         if (Configure::read('debug')) {
@@ -186,6 +204,26 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(UserTokenizer::class)
             ->addArgument(ServerRequest::class);
 
+        // 予約の書き込みの UseCase（Controller はアクションの引数で受け取る）。
+        // Repository を共有するため、組み立て口（ReservationUseCases）は1リクエストに1つにする
+        $container->addShared(ReservationUseCases::class, static function (): ReservationUseCases {
+            $tables = FactoryLocator::get('Table');
+
+            return new ReservationUseCases($tables->get('TIndividualReservationInfo'), $tables->get('MUserInfo'));
+        });
+        foreach ([
+            ToggleMealUseCase::class                   => 'toggleMeal',
+            BulkToggleMealsUseCase::class              => 'bulkToggleMeals',
+            ChangeMealRoomUseCase::class               => 'changeMealRoom',
+            DirectRegisterMealsUseCase::class          => 'directRegisterMeals',
+            RegisterIndividualReservationUseCase::class => 'registerIndividualReservation',
+            RegisterGroupReservationUseCase::class     => 'registerGroupReservation',
+            BulkAddReservationsUseCase::class          => 'bulkAddReservations',
+            BulkChangeEditReservationsUseCase::class   => 'bulkChangeEditReservations',
+        ] as $useCase => $factory) {
+            $container->add($useCase, static fn() => $container->get(ReservationUseCases::class)->{$factory}());
+        }
+
         $container->add(SystemReportService::class);
         $container->add(SystemReportController::class)
             ->addArgument(SystemReportService::class)
@@ -208,8 +246,8 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\ReservationHistoryController::class => \App\Policy\ReservationHistoryPolicy::class,
         ]);
 
-        // MapResolver で解決できない場合は OrmResolver（エンティティ→ポリシー）にフォールバック
-        $resolver = new ResolverCollection([$mapResolver, new OrmResolver()]);
+        // MapResolver で解決できない場合は、永続化層のエンティティ・テーブル→ポリシーにフォールバック
+        $resolver = new ResolverCollection([$mapResolver, new PersistenceOrmResolver()]);
 
         return new AuthorizationService($resolver);
     }

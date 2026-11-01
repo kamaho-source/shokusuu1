@@ -80,7 +80,7 @@ class ReservationBulkService
 
     private function useCases(Table $reservationTable, Table $userTable): ReservationUseCases
     {
-        /** @var \App\Model\Table\TIndividualReservationInfoTable $reservationTable */
+        /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable $reservationTable */
         return new ReservationUseCases($reservationTable, $userTable, $this->datePolicy);
     }
 }

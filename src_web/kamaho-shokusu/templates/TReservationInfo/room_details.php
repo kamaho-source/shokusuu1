@@ -15,20 +15,7 @@
     <p>日付: <?= h($date) ?></p>
     <p>食事タイプ:
         <?php
-        switch ($mealType) {
-            case 1:
-                echo '朝';
-                break;
-            case 2:
-                echo '昼';
-                break;
-            case 3:
-                echo '夜';
-                break;
-            default:
-                echo '不明';
-                break;
-        }
+        echo h(\App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_SHORT_NIGHT)[(int)$mealType] ?? '不明');
         ?>
     </p>
 

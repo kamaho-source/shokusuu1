@@ -5,7 +5,7 @@ namespace App\Service;
 
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\ValueObject\MealType;
-use App\Model\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
 use Cake\I18n\DateTime;

@@ -5,7 +5,7 @@ namespace App\Policy;
 
 use App\Domain\ValueObject\UserRole;
 
-use App\Model\Entity\MMealPriceInfo;
+use App\Infrastructure\Persistence\Entity\MMealPriceInfo;
 use Authorization\IdentityInterface;
 
 class MMealPriceInfoPolicy
