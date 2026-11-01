@@ -5,8 +5,8 @@ namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
 use App\Exception\DuplicateMealReservationException;
+use App\Infrastructure\Cache\ReservationCache;
 use App\Model\Table\TIndividualReservationInfoTable;
-use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;
@@ -202,7 +202,7 @@ class MealReportingService
         }
 
         $this->invalidateCaches($userId, $roomId, $today);
-        Cache::write(sprintf('today_report:%d:%s', $userId, $today), 1, 'default');
+        ReservationCache::markTodayReported($userId, $today);
 
         // 承認済みのため変えられなかった食事があれば、「食べない」の報告と同じく黙って「報告しました」にしない
         if ($updatedMealTypes === []) {
@@ -283,7 +283,6 @@ class MealReportingService
 
     private function invalidateCaches(int $userId, int $roomId, string $today): void
     {
-        Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
-        ReservationReportService::invalidateMealCountsCache($today);
+        ReservationCache::forgetDate($today, [$userId]);
     }
 }

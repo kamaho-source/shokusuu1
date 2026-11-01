@@ -7,11 +7,11 @@ use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
+use App\Infrastructure\Cache\ReservationCache;
 use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\Core\Configure;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
-use Cake\Cache\Cache;
 use Cake\Log\Log;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\Table;
@@ -948,9 +948,7 @@ class ReservationBulkService
         }
         if (in_array($today, $targetDates, true)) {
             $targetUserIds = array_values(array_unique(array_filter($targetUserIds)));
-            foreach ($targetUserIds as $uid) {
-                Cache::delete(sprintf('today_report:%d:%s', (int)$uid, $today), 'default');
-            }
+            ReservationCache::forgetDate($today, $targetUserIds);
         }
 
         return [
@@ -1069,26 +1067,14 @@ class ReservationBulkService
         if (!$roomId || empty($dates)) {
             return;
         }
-        $today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
         foreach ($dates as $date) {
             if (!is_string($date) || $date === '') {
                 continue;
             }
-            ReservationReportService::invalidateMealCountsCache($date);
-            if ($date === $today && isset($dayUsers[$date]) && is_array($dayUsers[$date])) {
-                foreach (array_keys($dayUsers[$date]) as $uid) {
-                    Cache::delete(sprintf('today_report:%d:%s', (int)$uid, $date), 'default');
-                }
-            }
+            $users = isset($dayUsers[$date]) && is_array($dayUsers[$date]) ? array_keys($dayUsers[$date]) : [];
+            ReservationCache::forgetDate($date, $users);
         }
-        $this->bumpReportCacheVersion();
-    }
-
-    private function bumpReportCacheVersion(): void
-    {
-        $current = Cache::read('reservation_version', 'default');
-        $next = (is_int($current) && $current > 0) ? $current + 1 : 2;
-        Cache::write('reservation_version', $next, 'default');
+        ReservationCache::bumpVersion();
     }
 
     private function checkReservationSnapshots(
