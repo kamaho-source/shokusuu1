@@ -11,6 +11,7 @@ use App\Domain\ValueObject\UserRole;
 use App\Test\TestCase\Application\Fake\FakeUserRepository;
 use App\Test\TestCase\Application\Fake\ReservationFixture;
 use Cake\Chronos\Chronos;
+use App\Domain\Exception\ReservationValidationException;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -165,6 +166,25 @@ class RegisterGroupReservationUseCaseTest extends TestCase
             $this->assertSame('他の操作と競合しました。画面を再読み込みして再実行してください。', $e->getMessage());
         }
         $this->assertSame(1, $this->f->reservations->find(20, self::FAR, 1, 1)?->eatFlag, '1件目の取消も取り消される');
+        $this->assertSame([], $this->f->cache->forgotten);
+    }
+
+    /** 新しい行の保存で昼食と弁当の同時予約に当たったら、理由つきの 409 にし、先に有効にした行も取り消す */
+    public function testLunchBentoValidationOnSave_isConflictAndRolledBack(): void
+    {
+        $this->f->reservations->record(20, self::FAR, 1, 1, 0, 0);
+        $this->f->reservations->onAdd = static function (): void {
+            throw new ReservationValidationException('昼食と弁当は同時に予約できません。どちらか一方にしてください。', [], '{}');
+        };
+
+        try {
+            $this->register([20 => [1 => 1], 21 => [2 => 1]]);
+            $this->fail('例外が出ていない');
+        } catch (ConflictException $e) {
+            $this->assertSame('昼食と弁当は同時に予約できません。どちらか一方にしてください。', $e->getMessage());
+            $this->assertSame(409, $e->getStatusCode());
+        }
+        $this->assertSame(0, $this->f->reservations->find(20, self::FAR, 1, 1)?->eatFlag, '先に有効にした朝食も取り消される');
         $this->assertSame([], $this->f->cache->forgotten);
     }
 }

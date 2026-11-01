@@ -8,6 +8,7 @@ use App\Domain\ValueObject\UserRole;
 use App\Test\TestCase\Application\Fake\FakeUserRepository;
 use App\Test\TestCase\Application\Fake\ReservationFixture;
 use Cake\Chronos\Chronos;
+use App\Domain\Exception\ReservationValidationException;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -166,5 +167,30 @@ class BulkChangeEditReservationsUseCaseTest extends TestCase
 
         $this->assertSame(self::NEAR, $result['conflict_date']);
         $this->assertSame(1, $this->f->reservations->rollbacks);
+    }
+
+    /** 新しい行が昼食と弁当の同時予約に当たったら、その理由を返し、先に書いた取消も取り消す */
+    public function testLunchBentoValidationOnNewRow_returnsReasonAndRollsBack(): void
+    {
+        $this->f->reservations->record(20, self::NEAR, 1, 1);
+        $this->f->reservations->onAdd = static function (): void {
+            throw new ReservationValidationException('昼食と弁当は同時に予約できません。どちらか一方にしてください。', [], '{}');
+        };
+
+        $result = $this->edit([self::NEAR => ['20' => ['1' => '0', '4' => '1']]]);
+
+        $this->assertSame(['ok' => false, 'message' => '昼食と弁当は同時に予約できません。どちらか一方にしてください。'], $result);
+        $this->assertSame(1, $this->f->reservations->find(20, self::NEAR, 1, 1)?->changeFlag, '朝食の取消も取り消される');
+        $this->assertSame([], $this->f->cache->forgotten);
+    }
+
+    /** 昼食と弁当以外の検証エラーは、理由を出さず決まった文言にする */
+    public function testOtherValidationOnNewRow_isGenericMessage(): void
+    {
+        $this->f->reservations->onAdd = static function (): void {
+            throw new ReservationValidationException(null, ['だめ'], '{}');
+        };
+
+        $this->assertSame(['ok' => false, 'message' => '直前編集の保存中にエラーが発生しました。'], $this->edit([self::NEAR => ['20' => ['3' => '1']]]));
     }
 }

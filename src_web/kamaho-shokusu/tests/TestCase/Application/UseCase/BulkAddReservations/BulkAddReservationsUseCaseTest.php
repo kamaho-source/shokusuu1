@@ -277,4 +277,18 @@ class BulkAddReservationsUseCaseTest extends TestCase
         ], $this->f->cache->forgotten);
         $this->assertSame(1, $this->f->cache->versionBumps);
     }
+
+    /** 部屋 ID が数でない（"1abc"）ときは保存の失敗にし、先に書いた取消も取り消して何も追加しない */
+    public function testGroup_nonNumericRoomId_isSaveErrorAndRollsBack(): void
+    {
+        $this->f->reservations->record(21, self::FAR, 1, 3);
+
+        $result = $this->add(['reservation_type' => 'group', 'i_id_room' => '1abc', 'day_users' => [self::FAR => ['20' => ['1' => '1'], '21' => ['3' => '0']]]]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('予約の保存中にエラーが発生しました。', $result['message']);
+        $this->assertSame([], $this->f->reservations->added);
+        $this->assertSame(1, $this->f->reservations->find(21, self::FAR, 1, 3)?->eatFlag, '取消も取り消される');
+        $this->assertSame([], $this->f->cache->forgotten);
+    }
 }
