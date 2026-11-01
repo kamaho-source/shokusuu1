@@ -45,6 +45,12 @@ class MUserGroupTable extends Table
             ->notEmptyString('active_flag', 'アクティブフラグを入力してください。')
             ->inList('active_flag', [0, 1], 'アクティブフラグは0または1を指定してください.');
 
+        // 利用者の削除で外した所属なら 1（復元で所属中に戻す）。それ以外は NULL
+        $validator
+            ->integer('i_left_by_deletion')
+            ->allowEmptyString('i_left_by_deletion')
+            ->inList('i_left_by_deletion', [1]);
+
         $validator
             ->dateTime('dt_create')
             ->allowEmptyDateTime('dt_create')

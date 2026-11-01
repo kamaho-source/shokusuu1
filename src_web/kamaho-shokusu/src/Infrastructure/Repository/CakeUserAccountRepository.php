@@ -5,6 +5,7 @@ namespace App\Infrastructure\Repository;
 
 use App\Domain\Entity\UserAccount;
 use App\Domain\Repository\UserAccountRepositoryInterface;
+use App\Domain\Service\DeletedMembershipRule;
 use Cake\Datasource\EntityInterface;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
@@ -50,9 +51,9 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         return $this->update($userId, ['i_report_access' => $reportAccess], $updatedBy);
     }
 
-    public function markDeleted(int $userId, string $updatedBy): bool
+    public function markDeleted(int $userId, string $updatedBy, ?string $at = null): bool
     {
-        return $this->update($userId, ['i_del_flag' => 1, 'i_enable' => 1], $updatedBy);
+        return $this->update($userId, ['i_del_flag' => 1, 'i_enable' => 1], $updatedBy, $at);
     }
 
     public function markRestored(int $userId, string $updatedBy): bool
@@ -70,11 +71,72 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         }
     }
 
-    public function rejoinAllRooms(int $userId, string $updatedBy): bool
+    public function leaveAllRoomsForDeletion(int $userId, string $updatedBy, string $at): bool
     {
-        $rows = $this->groups->find()->where(['i_id_user' => $userId])->all();
+        $rows = $this->groups->find()->where(['i_id_user' => $userId, 'active_flag' => 0])->all();
         foreach ($rows as $row) {
-            $this->setUpdated($row, ['active_flag' => 0], $updatedBy);
+            $this->setUpdated($row, ['active_flag' => 1, 'i_left_by_deletion' => 1], $updatedBy, $at);
+            if (!$this->groups->save($row)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    public function roomsLeftByDeletion(int $userId): array
+    {
+        $user = $this->row($userId);
+        if ($user === null) {
+            return [];
+        }
+        $rows     = $this->groups->find()->where(['i_id_user' => $userId])->orderByAsc('i_id_room')->all()->toList();
+        $hasMarks = false;
+        foreach ($rows as $row) {
+            $hasMarks = $hasMarks || (int)$row->get('i_left_by_deletion') === 1;
+        }
+
+        $roomIds = [];
+        foreach ($rows as $row) {
+            if (DeletedMembershipRule::isLeftByDeletion(
+                $row->get('active_flag') === null ? null : (int)$row->get('active_flag'),
+                $row->get('i_left_by_deletion') === null ? null : (int)$row->get('i_left_by_deletion'),
+                $hasMarks,
+                $row->get('dt_update'),
+                $user->get('dt_update'),
+            )) {
+                $roomIds[] = (int)$row->get('i_id_room');
+            }
+        }
+
+        return $roomIds;
+    }
+
+    public function freezeLeftByDeletion(int $userId): void
+    {
+        $user = $this->row($userId);
+        if ($user === null || (int)$user->get('i_del_flag') !== 1) {
+            return;
+        }
+        if ($this->groups->exists(['i_id_user' => $userId, 'i_left_by_deletion' => 1])) {
+            return;
+        }
+        $roomIds = $this->roomsLeftByDeletion($userId);
+        if ($roomIds === []) {
+            return;
+        }
+        // 時刻（dt_update）は変えずに印だけを付ける
+        $this->groups->updateAll(['i_left_by_deletion' => 1], ['i_id_user' => $userId, 'i_id_room IN' => $roomIds]);
+    }
+
+    public function rejoinRooms(int $userId, array $roomIds, string $updatedBy): bool
+    {
+        if ($roomIds === []) {
+            return true;
+        }
+        $rows = $this->groups->find()->where(['i_id_user' => $userId, 'i_id_room IN' => $roomIds])->all();
+        foreach ($rows as $row) {
+            $this->setUpdated($row, ['active_flag' => 0, 'i_left_by_deletion' => null], $updatedBy);
             if (!$this->groups->save($row)) {
                 return false;
             }
@@ -99,10 +161,10 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
     /**
      * @param array<string, mixed> $fields
      */
-    private function setUpdated(EntityInterface $row, array $fields, string $updatedBy): void
+    private function setUpdated(EntityInterface $row, array $fields, string $updatedBy, ?string $at = null): void
     {
         foreach ($fields + [
-            'dt_update'     => DateTime::now()->format('Y-m-d H:i:s'),
+            'dt_update'     => $at ?? DateTime::now()->format('Y-m-d H:i:s'),
             'c_update_user' => $updatedBy,
         ] as $field => $value) {
             $row->set($field, $value);
@@ -112,13 +174,15 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
     /**
      * @param array<string, mixed> $fields
      */
-    private function update(int $userId, array $fields, string $updatedBy): bool
+    private function update(int $userId, array $fields, string $updatedBy, ?string $at = null): bool
     {
+        // 削除済みの人の行を更新すると、時刻で見分けていた「削除で外した所属」が分からなくなるため、先に印を付ける
+        $this->freezeLeftByDeletion($userId);
         $row = $this->row($userId);
         if ($row === null) {
             return false;
         }
-        $this->setUpdated($row, $fields, $updatedBy);
+        $this->setUpdated($row, $fields, $updatedBy, $at);
 
         return (bool)$this->users->save($row);
     }

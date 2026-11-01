@@ -358,6 +358,80 @@ class MUserInfoControllerActionsTest extends TestCase
         $this->assertSame(0, (int)$this->userField(6, 'i_del_flag'));
     }
 
+    /**
+     * 削除済みの利用者 6 に、削除で外した部屋 70（印あり）と、部屋異動で外れた部屋 71（印なし）を持たせる。
+     */
+    private function seedDeletedUserRooms(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->delete('m_user_group', ['i_id_user' => 6]);
+        foreach ([70 => '削除前の部屋', 71 => '異動で外れた部屋'] as $id => $name) {
+            $db->insert('m_room_info', ['i_id_room' => $id, 'c_room_name' => $name, 'i_disp_no' => $id, 'i_del_flg' => 0]);
+        }
+        $db->insert('m_user_group', ['i_id_user' => 6, 'i_id_room' => 70, 'active_flag' => 1, 'i_left_by_deletion' => 1, 'dt_update' => '2024-07-29 09:10:37']);
+        $db->insert('m_user_group', ['i_id_user' => 6, 'i_id_room' => 71, 'active_flag' => 1, 'dt_update' => '2024-04-01 10:00:00']);
+    }
+
+    /** @return array<int, int> 部屋ID => active_flag */
+    private function roomFlags(int $userId): array
+    {
+        $rows = ConnectionManager::get('test')->execute('SELECT i_id_room, active_flag FROM m_user_group WHERE i_id_user = ? ORDER BY i_id_room', [$userId])->fetchAll('assoc');
+
+        return array_combine(array_map('intval', array_column($rows, 'i_id_room')), array_map('intval', array_column($rows, 'active_flag')));
+    }
+
+    public function testRestore_bringsBackOnlyRoomsBeforeDeletion_withoutWarning(): void
+    {
+        $this->seedDeletedUserRooms();
+        $this->login(1);
+        $this->enableRetainFlashMessages();
+
+        $this->post('/MUserInfo/restore/6');
+
+        $this->assertFlashMessage('ユーザー「削除済みユーザー」を復元しました。', 'flash');
+        $this->assertSame([70 => 0, 71 => 1], $this->roomFlags(6), '部屋異動で外れた部屋は戻らない');
+        $this->assertCount(1, $this->_flashMessages['flash'] ?? [], '注意は出さない');
+    }
+
+    public function testRestore_withUnknownRooms_warnsToSetRooms(): void
+    {
+        $this->login(1);
+
+        // 利用者 6 には、削除で外した所属が無い（時刻も合わない）
+        $this->post('/MUserInfo/restore/6');
+
+        $this->assertFlashMessageAt(0, 'ユーザー「削除済みユーザー」を復元しました。', 'flash');
+        $this->assertFlashMessageAt(1, '削除前の所属部屋が分からないため、所属部屋なしで復元しました。必要に応じて編集画面で所属部屋を設定してください。', 'flash');
+    }
+
+    public function testIndex_deletedUser_showsOnlyRoomsBeforeDeletion(): void
+    {
+        $this->seedDeletedUserRooms();
+        $this->login(1);
+
+        $this->get('/MUserInfo?show_deleted=1');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('削除前の部屋');
+        $this->assertResponseNotContains('異動で外れた部屋');
+    }
+
+    public function testEdit_deletedUser_canRenameButCannotChangeRooms(): void
+    {
+        $this->seedDeletedUserRooms();
+        $this->login(1);
+
+        $this->get('/MUserInfo/edit/6');
+        $this->assertResponseContains('削除済みのユーザーは所属部屋を変更できません。');
+        $this->assertResponseNotContains('name="rooms[70]"');
+
+        $this->post('/MUserInfo/edit/6', ['c_login_account' => 'deleted_user', 'c_user_name' => '削除済みユーザー改', 'rooms' => [70 => '1', 71 => '1']]);
+
+        $this->assertRedirect(['action' => 'index']);
+        $this->assertSame('削除済みユーザー改', $this->userField(6, 'c_user_name'));
+        $this->assertSame([70 => 1, 71 => 1], $this->roomFlags(6), '削除済みのまま所属中にならない');
+    }
+
     public function testRestore_getMethod_isNotAllowed(): void
     {
         $this->login(1);

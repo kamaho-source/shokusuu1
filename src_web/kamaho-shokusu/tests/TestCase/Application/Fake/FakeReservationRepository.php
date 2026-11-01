@@ -158,8 +158,14 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
     /** @var list<array{int, string}> deleteUnapprovedAfter の呼び出し [利用者ID, 日付] */
     public array $deletedAfter = [];
 
+    /** deleteUnapprovedAfter で投げる例外（DB の失敗を真似る） */
+    public ?\Throwable $deleteUnapprovedFails = null;
+
     public function deleteUnapprovedAfter(int $userId, string $date): void
     {
+        if ($this->deleteUnapprovedFails !== null) {
+            throw $this->deleteUnapprovedFails;
+        }
         $this->deletedAfter[] = [$userId, $date];
     }
 

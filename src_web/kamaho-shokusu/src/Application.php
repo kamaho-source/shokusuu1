@@ -252,6 +252,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(DeleteUserUseCase::class, static fn() => new DeleteUserUseCase(
             $userAccounts(),
             new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            $userTransaction(),
             new AuditLogAdapter(),
             new ClockFactory('Asia/Tokyo'),
         ));

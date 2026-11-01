@@ -115,8 +115,15 @@ class RoomTransferScheduleService
 
         $applied = 0;
         $errors  = [];
+        $userInfoTable = TableRegistry::getTableLocator()->get('MUserInfo');
 
         foreach ($pending as $schedule) {
+            // 削除済みの人には適用しない（所属中になると「削除済みなのに所属中」になる）。
+            // 予約は未適用のまま残し、復元されれば次の適用で予約どおりに異動する
+            if ($userInfoTable->exists(['i_id_user' => (int)$schedule->i_id_user, 'i_del_flag' => 1])) {
+                continue;
+            }
+
             $conn = $scheduleTable->getConnection();
             $conn->begin();
 

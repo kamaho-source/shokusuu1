@@ -15,6 +15,7 @@ use App\Application\UseCase\DeleteUser\DeleteUserInput;
 use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
 use App\Application\UseCase\RestoreUser\RestoreUserInput;
 use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
+use App\Domain\Service\DeletedMembershipRule;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
@@ -175,7 +176,7 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], (int)$u->i_del_flag === 1);
+            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], $u);
         }
 
         $roomService      = new RoomService();
@@ -333,6 +334,8 @@ class MUserInfoController extends AppController
         // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、所属部屋を変更できない
         $canEditRooms = $this->Authorization->can($mUserInfo, 'changeRole')
             || (int)$this->request->getAttribute('identity')?->get('i_id_user') === (int)$mUserInfo->i_id_user;
+        // 削除済みの人は所属部屋を変えられない（所属中になると「削除済みなのに所属中」になる）。復元すると削除前の所属に戻る
+        $roomsLocked = (int)$mUserInfo->i_del_flag === 1;
 
         if ($this->request->is(['patch', 'post', 'put'])) {
             $posted = $this->request->getData();
@@ -349,7 +352,7 @@ class MUserInfoController extends AppController
             ];
 
             $roomIds = [];
-            if (!$canEditRooms) {
+            if (!$canEditRooms || $roomsLocked) {
                 foreach ($mUserInfo->m_user_group ?? [] as $group) {
                     if ((int)$group->active_flag === 0) {
                         $roomIds[] = (int)$group->i_id_room;
@@ -417,7 +420,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms'));
+        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms', 'roomsLocked'));
     }
 
     /**
@@ -645,28 +648,46 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
+        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], $mUserInfo);
         $canEdit   = $this->Authorization->can($mUserInfo, 'edit');
 
         $this->set(compact('mUserInfo', 'userRooms', 'canEdit'));
     }
 
     /**
-     * 現在所属している部屋名の一覧。既定では、退出済み(active_flag=1)と削除済み部屋は含めない。
+     * 所属している部屋名の一覧。退出済み(active_flag=1)と削除済み部屋は含めない。
      * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
-     * 削除済みユーザーは、削除時に所属が全て退出済みになるため、削除前の所属を見られるよう退出済みも含める。
-     * 削除前に異動で退出していた部屋と区別できないため、それも含まれる（復元で全所属が戻る挙動と同じ集合）。
+     * 削除済みユーザーは、削除の直前に所属していた部屋（削除で外した所属）を出す。復元で所属中に戻る部屋と同じ集合
+     * （部屋異動で外れた昔の部屋は出さない。見分け方は DeletedMembershipRule）。
      *
      * @param iterable<\App\Infrastructure\Persistence\Entity\MUserGroup> $groups
-     * @param bool $includeLeft 退出済み(active_flag=1)の部屋も含めるか
+     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $user 所属の持ち主
      * @return list<string>
      */
-    private function activeRoomNames(iterable $groups, bool $includeLeft = false): array
+    private function activeRoomNames(iterable $groups, \App\Infrastructure\Persistence\Entity\MUserInfo $user): array
     {
+        $isDeletedUser = (int)$user->i_del_flag === 1;
+        $groups        = is_array($groups) ? $groups : iterator_to_array($groups);
+        $hasMarks      = false;
+        foreach ($groups as $group) {
+            $hasMarks = $hasMarks || (int)($group->i_left_by_deletion ?? 0) === 1;
+        }
+
         $names = [];
         foreach ($groups as $group) {
             $isLeft = (int)($group->active_flag ?? 0) !== 0;
-            if (($isLeft && !$includeLeft)
+            if ($isDeletedUser) {
+                $show = DeletedMembershipRule::isLeftByDeletion(
+                    $group->active_flag === null ? null : (int)$group->active_flag,
+                    $group->i_left_by_deletion === null ? null : (int)$group->i_left_by_deletion,
+                    $hasMarks,
+                    $group->dt_update,
+                    $user->dt_update,
+                );
+            } else {
+                $show = !$isLeft;
+            }
+            if (!$show
                 || empty($group->m_room_info)
                 || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
             ) {
@@ -1013,8 +1034,11 @@ class MUserInfoController extends AppController
         );
 
         try {
-            $restoreUser->execute(new RestoreUserInput($user->id, $actor));
+            $result = $restoreUser->execute(new RestoreUserInput($user->id, $actor));
             $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->name));
+            if ($result->restoredRoomCount === 0) {
+                $this->Flash->warning(__('削除前の所属部屋が分からないため、所属部屋なしで復元しました。必要に応じて編集画面で所属部屋を設定してください。'));
+            }
             return $this->redirect(['action' => 'index']);
         } catch (\Exception $e) {
             $this->log('userRestore error: ' . $e->getMessage(), 'error');

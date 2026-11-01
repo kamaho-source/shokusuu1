@@ -41,8 +41,18 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
     /** 所属の操作を失敗させる（rejoin・join） */
     public bool $failRooms = false;
 
-    public function markDeleted(int $userId, string $updatedBy): bool
+    /** @var array<int, list<int>> 利用者ID => 削除で外した部屋（roomsLeftByDeletion が返す） */
+    public array $leftByDeletion = [];
+
+    /** 削除のための所属の退出を失敗させる */
+    public bool $failLeaveForDeletion = false;
+
+    /** @var list<string> markDeleted に渡された時刻 */
+    public array $deletedAt = [];
+
+    public function markDeleted(int $userId, string $updatedBy, ?string $at = null): bool
     {
+        $this->deletedAt[] = (string)$at;
         return $this->setDelFlag($userId, 1);
     }
 
@@ -56,9 +66,26 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
         $this->roomOps[] = 'leave:' . $userId;
     }
 
-    public function rejoinAllRooms(int $userId, string $updatedBy): bool
+    public function leaveAllRoomsForDeletion(int $userId, string $updatedBy, string $at): bool
     {
-        $this->roomOps[] = 'rejoin:' . $userId;
+        $this->roomOps[] = 'leaveForDeletion:' . $userId . '@' . $at;
+
+        return !$this->failLeaveForDeletion;
+    }
+
+    public function roomsLeftByDeletion(int $userId): array
+    {
+        return $this->leftByDeletion[$userId] ?? [];
+    }
+
+    public function freezeLeftByDeletion(int $userId): void
+    {
+        $this->roomOps[] = 'freeze:' . $userId;
+    }
+
+    public function rejoinRooms(int $userId, array $roomIds, string $updatedBy): bool
+    {
+        $this->roomOps[] = 'rejoin:' . $userId . ':' . implode(',', $roomIds);
 
         return !$this->failRooms;
     }
