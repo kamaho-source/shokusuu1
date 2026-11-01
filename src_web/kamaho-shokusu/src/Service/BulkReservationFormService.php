@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\Table;
+use Cake\I18n\DateTime;
 
 class BulkReservationFormService
 {
@@ -21,7 +22,7 @@ class BulkReservationFormService
 
     public function buildBulkAddData(string $selectedDate, ?string $baseWeekParam): array
     {
-        $today = new \DateTimeImmutable('today', new \DateTimeZone('Asia/Tokyo'));
+        $today = DateTime::today('Asia/Tokyo');
         $base  = $this->buildWeekBase($selectedDate, $baseWeekParam, $today);
 
         $days = [];
@@ -41,7 +42,7 @@ class BulkReservationFormService
 
     public function buildBulkChangeEditData(string $selectedDate, ?string $baseWeekParam): array
     {
-        $today = new \DateTimeImmutable('today', new \DateTimeZone('Asia/Tokyo'));
+        $today = DateTime::today('Asia/Tokyo');
         $base  = $this->buildWeekBase($selectedDate, $baseWeekParam, $today);
 
         $days = [];

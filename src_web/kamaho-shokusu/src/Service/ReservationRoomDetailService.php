@@ -5,6 +5,7 @@ namespace App\Service;
 
 use Cake\Http\Exception\NotFoundException;
 use Cake\ORM\Table;
+use Cake\I18n\DateTime;
 
 class ReservationRoomDetailService
 {
@@ -18,7 +19,7 @@ class ReservationRoomDetailService
     ): array {
         try {
             $targetDate   = new \DateTimeImmutable($date);
-            $changeBorder = (new \DateTimeImmutable('today'))->modify('+14 days');
+            $changeBorder = DateTime::today('Asia/Tokyo')->modify('+14 days');
         } catch (\Exception $e) {
             throw new \InvalidArgumentException('日付の形式が正しくありません。');
         }

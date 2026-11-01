@@ -10,6 +10,7 @@ use Cake\Core\Configure;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
+use Cake\I18n\DateTime;
 
 /**
  * 実食確認管理・食数グリッド専用コントローラー。
@@ -88,7 +89,7 @@ class ReservationActualMealController extends ReservationBaseController
             $selectedRoomId = !empty($rooms) ? (int)array_key_first($rooms) : null;
         }
 
-        $today         = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $today         = DateTime::now('Asia/Tokyo');
         $defaultMonday = $today->modify('monday this week')->format('Y-m-d');
         $weekParam      = $this->request->getQuery('week') ?? $defaultMonday;
 
@@ -192,7 +193,7 @@ class ReservationActualMealController extends ReservationBaseController
             $selectedRoomId = !empty($rooms) ? (int)array_key_first($rooms) : null;
         }
 
-        $today         = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $today         = DateTime::now('Asia/Tokyo');
         $defaultMonday = $today->modify('monday this week')->format('Y-m-d');
         $weekParam      = $this->request->getQuery('week') ?? $defaultMonday;
 
@@ -503,7 +504,7 @@ class ReservationActualMealController extends ReservationBaseController
         }
 
         $gridService = new MealCountGridService();
-        $today       = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $today       = DateTime::now('Asia/Tokyo');
 
         $weekParam     = $this->request->getQuery('week') ?? $session->read('mealCountGrid.week');
         $weekNav       = $gridService->resolveWeekNavigation($weekParam, $isAdmin, $today);

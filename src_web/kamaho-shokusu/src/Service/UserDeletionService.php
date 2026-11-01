@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\TableRegistry;
+use Cake\I18n\Date;
+use Cake\I18n\DateTime;
 
 /**
  * ユーザーソフトデリートサービス
@@ -26,7 +28,7 @@ class UserDeletionService
 
         $user->i_del_flag    = 1;
         $user->i_enable      = 1;
-        $user->dt_update     = date('Y-m-d H:i:s');
+        $user->dt_update     = DateTime::now()->format('Y-m-d H:i:s');
         $user->c_update_user = $updatedBy;
 
         $userGroups = $userGroupTable->find()
@@ -35,7 +37,7 @@ class UserDeletionService
 
         foreach ($userGroups as $group) {
             $group->active_flag   = 1;
-            $group->dt_update     = date('Y-m-d H:i:s');
+            $group->dt_update     = DateTime::now()->format('Y-m-d H:i:s');
             $group->c_update_user = $updatedBy;
             $userGroupTable->save($group);
         }
@@ -48,7 +50,7 @@ class UserDeletionService
             $reservationTable->deleteAll([
                 'i_id_user' => $user->i_id_user,
                 'i_approval_status' => 0, // 未承認のみ
-                'd_reservation_date >' => date('Y-m-d'), // 当日分は実績として残す
+                'd_reservation_date >' => Date::today()->format('Y-m-d'), // 当日分は実績として残す
             ]);
         }
 
