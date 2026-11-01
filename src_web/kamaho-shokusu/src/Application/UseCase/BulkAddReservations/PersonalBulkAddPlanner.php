@@ -8,6 +8,7 @@ use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\ValueObject\MealType;
 use Cake\Chronos\ChronosDate;
+use Psr\Clock\ClockInterface;
 
 /**
  * 個人の一括登録（自分の予約を、複数日 × 食事 × 部屋でまとめて登録する）で書く行を決める。
@@ -19,6 +20,7 @@ final class PersonalBulkAddPlanner
         private readonly ReservationRepositoryInterface $reservations,
         private readonly RoomMembershipRepositoryInterface $rooms,
         private readonly BulkAddRequestValidator $validator,
+        private readonly ClockInterface $clock,
     ) {}
 
     /**
@@ -113,7 +115,7 @@ final class PersonalBulkAddPlanner
             ];
         }
 
-        $today             = ChronosDate::today('Asia/Tokyo');
+        $today             = new ChronosDate($this->clock->now());
         $existingActiveMap = [];
         $existingRoomMap   = [];
         $existingRows      = $this->reservations->findByUsersAndDates(

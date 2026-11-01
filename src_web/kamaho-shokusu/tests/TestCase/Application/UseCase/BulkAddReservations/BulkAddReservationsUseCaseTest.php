@@ -9,6 +9,7 @@ use App\Domain\Exception\ReservationValidationException;
 use App\Test\TestCase\Application\Fake\FakeUserRepository;
 use App\Test\TestCase\Application\Fake\ReservationFixture;
 use Cake\Chronos\Chronos;
+use Psr\Clock\ClockInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -105,6 +106,26 @@ class BulkAddReservationsUseCaseTest extends TestCase
         $this->assertSame('過去日は選べません。', $this->personal([1 => [1 => '1']], ['2026-10-30'])['message']);
         $this->assertSame('無効な日付が含まれています。', $this->personal([1 => [1 => '1']], ['2026/11/20'])['message']);
         $this->assertSame([], $this->f->reservations->added);
+    }
+
+    public function testDatesThatDoNotExist_areInvalidOnBothPaths(): void
+    {
+        $this->assertSame('無効な日付が含まれています。', $this->personal([1 => [1 => '1']], ['2026-13-45'])['message']);
+        $this->assertSame('無効な日付が含まれています。', $this->group(['2026-13-45' => ['20' => ['1' => '1']]])['message']);
+        $this->assertSame([], $this->f->reservations->added);
+    }
+
+    public function testTodayComesFromTheInjectedClock(): void
+    {
+        // Chronos の固定日（11/01）ではなく、渡した時計の日（11/10 → 通常予約は 11/25 以降）で判定する
+        $this->f->clock = new class implements ClockInterface {
+            public function now(): \DateTimeImmutable
+            {
+                return new \DateTimeImmutable('2026-11-10 09:00:00', new \DateTimeZone('Asia/Tokyo'));
+            }
+        };
+
+        $this->assertStringContainsString('2026-11-25 以降', $this->personal([1 => [1 => '1']], [self::FAR])['message']);
     }
 
     public function testPersonal_existingActiveIsSkipped_restIsCreated(): void

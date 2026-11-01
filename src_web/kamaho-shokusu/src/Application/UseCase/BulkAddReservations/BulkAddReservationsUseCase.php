@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Application\UseCase\BulkAddReservations;
 
 use App\Application\Port\ReservationCacheInterface;
-use App\Application\Port\ReservationDatePolicyInterface;
 use App\Application\Port\TransactionManagerInterface;
 use App\Application\UseCase\BulkReservation\BulkReservationSupport;
 use App\Domain\Exception\ConflictException;
@@ -12,6 +11,7 @@ use App\Domain\Exception\ReservationValidationException;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Repository\UserRepositoryInterface;
+use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -35,15 +35,15 @@ final class BulkAddReservationsUseCase
         UserRepositoryInterface $users,
         private readonly TransactionManagerInterface $transaction,
         private readonly ReservationCacheInterface $cache,
-        ReservationDatePolicyInterface $datePolicy,
+        ClockInterface $clock,
         BulkReservationSupport $support,
         private readonly LoggerInterface $logger,
         /** 過去日を選んだときの文言（設定 App.messages.pastDateUnavailable） */
         string $pastDateMessage = '過去日の内容はこの画面では表示できません。修正が必要な場合は管理者にお問い合わせください。',
     ) {
-        $validator             = new BulkAddRequestValidator($datePolicy, $rooms, $pastDateMessage);
-        $this->personalPlanner = new PersonalBulkAddPlanner($reservations, $rooms, $validator);
-        $this->groupPlanner    = new GroupBulkAddPlanner($reservations, $rooms, $users, $support, $validator);
+        $validator             = new BulkAddRequestValidator($clock, $rooms, $pastDateMessage);
+        $this->personalPlanner = new PersonalBulkAddPlanner($reservations, $rooms, $validator, $clock);
+        $this->groupPlanner    = new GroupBulkAddPlanner($reservations, $rooms, $users, $support, $validator, $clock);
     }
 
     /**

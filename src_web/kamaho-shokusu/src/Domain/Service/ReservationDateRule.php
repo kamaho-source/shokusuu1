@@ -23,6 +23,16 @@ final class ReservationDateRule
     /** 通常予約の最短リードタイム（今日からこの日数後から通常予約できる）。 */
     public const NORMAL_ORDER_MIN_DAYS = 15;
 
+    /** 日付の文字列を日付にする。日付として読めなければ null。 */
+    public static function parse(string $date): ?ChronosDate
+    {
+        try {
+            return new ChronosDate($date);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
     /** 直前編集ウィンドウの最終日（今日+14日）。 */
     public static function changeBoundaryDate(ChronosDate $today): ChronosDate
     {

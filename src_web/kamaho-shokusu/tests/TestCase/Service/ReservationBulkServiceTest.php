@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ReservationBulkService;
-use App\Service\ReservationDatePolicy;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -44,30 +43,19 @@ class ReservationBulkServiceTest extends TestCase
         return date('Y-m-d', strtotime("+{$day} days"));
     }
 
-    /** 過去日の判定を本物にした直前一括編集（setUp のモックは isPastDate を常に false にするため） */
+    /** 直前一括編集（過去日の判定は本物の今日で行う） */
     private function callBulkChangeEditWithRealDates(array $dayUsers, bool $isAdmin, int $loginUserId): array
     {
-        return (new ReservationBulkService())->processBulkChangeEdit(
+        return $this->service->processBulkChangeEdit(
             $dayUsers, 1, 'tester', $this->reservationTable, $this->userTable, [], $loginUserId, $isAdmin, 0, false
         );
-    }
-
-    // 日付バリデーションを常に通過させるポリシーモック
-    private function makeDatePolicyMock(): ReservationDatePolicy
-    {
-        $mock = $this->getMockBuilder(ReservationDatePolicy::class)
-            ->onlyMethods(['validateReservationDate', 'isPastDate'])
-            ->getMock();
-        $mock->method('validateReservationDate')->willReturn(true);
-        $mock->method('isPastDate')->willReturn(false);
-        return $mock;
     }
 
     public function setUp(): void
     {
         parent::setUp();
 
-        $this->service = new ReservationBulkService($this->makeDatePolicyMock());
+        $this->service = new ReservationBulkService();
 
         $this->reservationTable = TableRegistry::getTableLocator()->get(
             'TIndividualReservationInfo',

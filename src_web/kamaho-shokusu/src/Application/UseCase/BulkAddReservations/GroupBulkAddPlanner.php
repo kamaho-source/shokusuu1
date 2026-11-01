@@ -12,6 +12,7 @@ use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Domain\ValueObject\UserRoleInfo;
 use Cake\Chronos\ChronosDate;
+use Psr\Clock\ClockInterface;
 
 /**
  * 部屋単位の一括登録で書く行を決める。
@@ -35,6 +36,7 @@ final class GroupBulkAddPlanner
         private readonly UserRepositoryInterface $users,
         private readonly BulkReservationSupport $support,
         private readonly BulkAddRequestValidator $validator,
+        private readonly ClockInterface $clock,
     ) {}
 
     /**
@@ -129,7 +131,7 @@ final class GroupBulkAddPlanner
         }
         $userIds = array_keys($userIds);
 
-        $today = ChronosDate::today('Asia/Tokyo');
+        $today = new ChronosDate($this->clock->now());
         ['active' => $existingActiveMap, 'byRoom' => $existingRoomMap] = $this->existingMaps($dates, $userIds, $today);
 
         $userNameMap      = $this->users->findNames($userIds);
@@ -240,7 +242,7 @@ final class GroupBulkAddPlanner
             }
         }
 
-        $today = ChronosDate::today('Asia/Tokyo');
+        $today = new ChronosDate($this->clock->now());
         ['active' => $existingActiveMap, 'byRoom' => $existingRoomMap] = $this->existingMaps($selectedDates, $userIds, $today);
 
         $userNameMap      = $this->users->findNames($userIds);

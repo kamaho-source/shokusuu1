@@ -13,6 +13,7 @@ use PHPUnit\Framework\TestCase;
  * - Domain・Application は CakePHP 本体（Cake\…）に依存しない。日付型の cakephp/chronos（Cake\Chronos\…）は別パッケージなので許可する。
  * - Domain は外側の層（Application・Service・Model・Controller・Infrastructure など）を参照しない。
  * - Application は外側の層（Service・Model・Controller・Infrastructure など）を参照しない。
+ * - Domain・Application は時計を直接読まない（今日・現在時刻は PSR-20 ClockInterface で受け取る）。
  */
 class LayerDependencyTest extends TestCase
 {
@@ -67,5 +68,50 @@ class LayerDependencyTest extends TestCase
     public function testApplicationDoesNotDependOnOuterLayers(): void
     {
         $this->assertSame([], self::references('Application', self::OUTER_THAN_APPLICATION));
+    }
+
+    /**
+     * Domain・Application で時計を直接読んでいる箇所（Xxx::now()・Xxx::today() など、time()・date() など）。
+     *
+     * @return list<string> "相対パス:行: 呼び出し"
+     */
+    private static function clockReads(string $layer): array
+    {
+        $root  = dirname(__DIR__, 3) . '/src/' . $layer;
+        $found = [];
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+            $path   = $layer . substr($file->getPathname(), strlen($root));
+            $tokens = array_values(array_filter(
+                token_get_all((string)file_get_contents($file->getPathname())),
+                static fn($t): bool => !is_array($t) || !in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)
+            ));
+            foreach ($tokens as $i => $t) {
+                if (!is_array($t) || $t[0] !== T_STRING) {
+                    continue;
+                }
+                $prev = $tokens[$i - 1] ?? null;
+                $next = $tokens[$i + 1] ?? null;
+                $name = strtolower($t[1]);
+                $isStaticClock = is_array($prev) && $prev[0] === T_DOUBLE_COLON
+                    && in_array($name, ['now', 'today', 'yesterday', 'tomorrow'], true);
+                $isClockFunction = $next === '(' && in_array($name, ['time', 'date', 'strtotime', 'microtime', 'hrtime'], true)
+                    && !(is_array($prev) && in_array($prev[0], [T_DOUBLE_COLON, T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_FUNCTION], true));
+                if ($isStaticClock || $isClockFunction) {
+                    $found[] = "{$path}:{$t[2]}: {$t[1]}";
+                }
+            }
+        }
+        sort($found);
+
+        return $found;
+    }
+
+    public function testDomainAndApplicationDoNotReadTheClockDirectly(): void
+    {
+        $this->assertSame([], array_merge(self::clockReads('Domain'), self::clockReads('Application')));
     }
 }

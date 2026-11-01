@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\BulkAddReservations;
 
-use App\Application\Port\ReservationDatePolicyInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
+use App\Domain\Service\ReservationDateRule;
+use Cake\Chronos\ChronosDate;
+use Psr\Clock\ClockInterface;
 
 /**
  * 一括登録で選んだ日付・部屋の検証（個人・部屋単位で共通）。
@@ -12,7 +14,7 @@ use App\Domain\Repository\RoomMembershipRepositoryInterface;
 final class BulkAddRequestValidator
 {
     public function __construct(
-        private readonly ReservationDatePolicyInterface $datePolicy,
+        private readonly ClockInterface $clock,
         private readonly RoomMembershipRepositoryInterface $rooms,
         /** 過去日を選んだときの文言（設定 App.messages.pastDateUnavailable） */
         private readonly string $pastDateMessage,
@@ -30,19 +32,21 @@ final class BulkAddRequestValidator
             return '日付が選択されていません。';
         }
 
+        $today = new ChronosDate($this->clock->now());
         foreach ($dates as $date) {
-            if (!is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $target = is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? ReservationDateRule::parse($date) : null;
+            if ($target === null) {
                 return '無効な日付が含まれています。';
             }
 
-            if ($this->datePolicy->isPastDate($date)) {
+            if (ReservationDateRule::isPast($target, $today)) {
                 return $this->pastDateMessage;
             }
 
             if ($enforceNormalRule) {
-                $policyResult = $this->datePolicy->validateReservationDate($date);
-                if ($policyResult !== true) {
-                    return (string)$policyResult;
+                $error = ReservationDateRule::normalOrderError($target, $today);
+                if ($error !== null) {
+                    return $error;
                 }
             }
         }

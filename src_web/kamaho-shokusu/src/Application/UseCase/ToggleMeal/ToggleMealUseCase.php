@@ -16,6 +16,7 @@ use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use Cake\Chronos\ChronosDate;
+use Psr\Clock\ClockInterface;
 
 /**
  * 1件の食事予約を登録・取消する（トグル）。
@@ -31,6 +32,7 @@ final class ToggleMealUseCase
         private readonly RoomMembershipRepositoryInterface $rooms,
         private readonly UserRepositoryInterface $users,
         private readonly ReservationCacheInterface $cache,
+        private readonly ClockInterface $clock,
     ) {}
 
     /**
@@ -97,7 +99,7 @@ final class ToggleMealUseCase
             throw new InvalidInputException('日付が正しくありません。');
         }
 
-        $today = ChronosDate::today('Asia/Tokyo');
+        $today = new ChronosDate($this->clock->now());
         $date  = new ChronosDate($dateStr);
         if (ReservationDateRule::isPast($date, $today)) {
             throw new InvalidInputException('過去日の予約は変更できません。');
