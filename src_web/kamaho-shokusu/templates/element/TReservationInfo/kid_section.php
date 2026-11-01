@@ -34,7 +34,7 @@ $toggleBase = $toggleBase ?? $this->Url->build('/TReservationInfo/toggle/__ROOM_
 
 // 中学生向け UI 設定
 $isChild = isset($isChild) && (bool)$isChild;
-$todayDt  = new DateTimeImmutable('today', new DateTimeZone('Asia/Tokyo'));
+$todayDt  = new DateTimeImmutable(\Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d'), new DateTimeZone('Asia/Tokyo'));
 $day14Dt  = $todayDt->modify('+' . \App\Domain\Service\ReservationDateRule::CHANGE_WINDOW_DAYS . ' days'); // 当日〜14日先＝直前期間（発注済）
 
 if ($isChild) {

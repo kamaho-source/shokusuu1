@@ -5,8 +5,8 @@
 /** @var \App\Controller\RoomUsageController $this */
 $rooms     = $rooms     ?? [];
 $lowRooms  = $lowRooms  ?? [];
-$dateFrom  = $dateFrom  ?? date('Y-m-01');
-$dateTo    = $dateTo    ?? date('Y-m-d');
+$dateFrom  = $dateFrom  ?? \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-01');
+$dateTo    = $dateTo    ?? \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 $mealType  = $mealType  ?? null;
 $threshold = $threshold ?? 50.0;
 

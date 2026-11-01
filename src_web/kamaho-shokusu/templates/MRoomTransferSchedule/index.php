@@ -14,7 +14,7 @@ $statusLabels = [
     2 => ['label' => 'キャンセル','class' => 'text-bg-secondary', 'icon' => 'bi-x-circle-fill'],
 ];
 
-$today = new \DateTime('today');
+$today = new \DateTime(\Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d'));
 $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
 ?>
 <meta name="csrfToken" content="<?= h($csrfToken) ?>">
