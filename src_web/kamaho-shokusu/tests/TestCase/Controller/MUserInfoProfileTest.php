@@ -359,4 +359,21 @@ class MUserInfoProfileTest extends TestCase
         $this->assertResponseContains('value="new_noname"', '入力したログインIDはフォームに残る');
         $this->assertSame(0, $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'new_noname'])->count());
     }
+
+    /** 編集で保存できなかったときは、欄の下に理由を出し、選んだ部屋の状態のまま出し直す（何も保存しない） */
+    public function testEditShowsFieldErrorsAndKeepsCheckedRooms(): void
+    {
+        $this->loginAs(1, 1);
+        $this->enableRetainFlashMessages();
+
+        $this->postEdit(2, ['c_login_account' => 'admin_user', 'rooms' => [1 => '0']]);
+
+        $this->assertResponseOk();
+        $this->assertFlashMessage('ユーザー情報の保存に失敗しました。もう一度お試しください。', 'flash');
+        $body = (string)$this->_response->getBody();
+        $this->assertMatchesRegularExpression('/class="error-message"[^>]*>このログインIDは既に使用されています。/u', $body);
+        $this->assertMatchesRegularExpression('/<input type="checkbox" name="rooms\[1\]"(?![^>]*checked)[^>]*>/u', $body, '外した部屋は外したまま');
+        $this->assertSame('staff_user', $this->user(2)->c_login_account);
+        $this->assertSame(1, $this->getTableLocator()->get('MUserGroup')->find()->where(['i_id_user' => 2, 'active_flag' => 0])->count(), '所属部屋も元のまま');
+    }
 }

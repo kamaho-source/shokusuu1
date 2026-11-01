@@ -72,4 +72,75 @@ final class UserProfileRule
 
         return null;
     }
+
+    /**
+     * 編集画面の性別・年代・役職・職員IDを確かめる（管理者が保存するとき）。
+     * 「未設定」（空）で保存したときは、その項目を変えない（既存ユーザーには未入力の人がいるため）。
+     * 役職が職員以外なら職員IDは持たない（新規登録と同じ扱い）。
+     * 職員IDの入力を求めるのは、役職を職員に変えたときだけ（職員IDの無い既存の職員も保存できるように）。
+     *
+     * @param array<string, mixed> $data
+     * @param int|null $currentLevel 保存前の役職
+     * @return array{0: array<string, mixed>, 1: string|null} [整えたデータ, エラー文]
+     */
+    public static function normalizeForEdit(array $data, ?int $currentLevel): array
+    {
+        foreach ([
+            'i_user_gender' => UserProfileOptions::GENDERS,
+            'i_user_rank'   => UserProfileOptions::AGE_GROUPS,
+            'i_user_level'  => UserProfileOptions::USER_LEVELS,
+        ] as $field => $options) {
+            if (!array_key_exists($field, $data)) {
+                continue;
+            }
+            if ($data[$field] === '') {
+                // 「未設定」のまま保存したときは変更しない（年代は空にできないテーブルの検証があるため、消すことはしない）
+                unset($data[$field]);
+                continue;
+            }
+            if (!is_scalar($data[$field]) || !ctype_digit((string)$data[$field]) || !isset($options[(int)$data[$field]])) {
+                return [$data, '性別・年代・役職の選択が正しくありません。'];
+            }
+        }
+
+        if (!array_key_exists('i_user_level', $data)) {
+            return [$data, null];
+        }
+        if ((int)$data['i_user_level'] !== UserProfileOptions::STAFF_LEVEL) {
+            $data['i_id_staff'] = null;
+            return [$data, null];
+        }
+        $staffId = trim((string)($data['i_id_staff'] ?? ''));
+        if ($staffId === '') {
+            if ($currentLevel !== UserProfileOptions::STAFF_LEVEL) {
+                return [$data, '役職が職員のときは職員IDを入力してください。'];
+            }
+            return [$data, null];
+        }
+        if (!self::isValidStaffId($staffId)) {
+            return [$data, '職員IDは9桁以内の数字で入力してください。'];
+        }
+
+        return [$data, null];
+    }
+
+    /**
+     * 本人（職員）が自分の職員IDを保存するときの確認。空なら変えない。
+     *
+     * @param array<string, mixed> $data
+     * @return array{0: array<string, mixed>, 1: string|null} [整えたデータ, エラー文]
+     */
+    public static function normalizeOwnStaffId(array $data): array
+    {
+        $staffId = trim((string)($data['i_id_staff'] ?? ''));
+        if ($staffId === '') {
+            unset($data['i_id_staff']);
+            return [$data, null];
+        }
+        if (!self::isValidStaffId($staffId)) {
+            return [$data, '職員IDは9桁以内の数字で入力してください。'];
+        }
+
+        return [$data, null];
+    }
 }

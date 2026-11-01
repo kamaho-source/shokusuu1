@@ -12,6 +12,7 @@ final class UserAccount
      * @param int|null $role         i_admin（UserRole の値。未設定なら null）
      * @param int|null $reportAccess i_report_access
      * @param int|null $delFlag      i_del_flag（1 なら削除済み）
+     * @param int|null $level        i_user_level（役職。未設定なら null）
      */
     public function __construct(
         public readonly int $id,
@@ -19,6 +20,8 @@ final class UserAccount
         public readonly ?int $role,
         public readonly ?int $reportAccess,
         public readonly ?int $delFlag = 0,
+        public readonly ?int $level = null,
+        public readonly ?string $loginAccount = null,
     ) {}
 
     public function isDeleted(): bool

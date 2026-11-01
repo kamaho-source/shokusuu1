@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Application\Fake;
 
 use App\Domain\Entity\UserAccount;
 use App\Domain\Entity\UserCreationResult;
+use App\Domain\Entity\UserUpdateResult;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 
 /**
@@ -124,13 +125,40 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
         return !$this->failRooms;
     }
 
+    /** @var list<array{int, array<string, mixed>, list<string>}> updateProfile の呼び出し [利用者ID, 値, 変えてよい項目] */
+    public array $profileUpdates = [];
+
+    /** updateProfile で例外を投げる */
+    public ?\Throwable $profileThrows = null;
+
+    public function updateProfile(int $userId, array $data, array $fields): UserUpdateResult
+    {
+        if ($this->profileThrows !== null) {
+            throw $this->profileThrows;
+        }
+        if ($this->failSave) {
+            return UserUpdateResult::failed(['c_user_name' => ['unique' => 'このユーザー名は既に使用されています。']]);
+        }
+        $this->profileUpdates[] = [$userId, $data, $fields];
+        $before = ['c_user_name' => $this->users[$userId]->name ?? null];
+
+        return UserUpdateResult::saved($before, ['c_user_name' => $data['c_user_name'] ?? null]);
+    }
+
+    public function replaceActiveRooms(int $userId, array $roomIds, string $updatedBy): bool
+    {
+        $this->roomOps[] = 'replace:' . $userId . ':' . implode(',', $roomIds);
+
+        return !$this->failRooms;
+    }
+
     private function setDelFlag(int $userId, int $flag): bool
     {
         if ($this->failSave || !isset($this->users[$userId])) {
             return false;
         }
         $u = $this->users[$userId];
-        $this->users[$userId] = new UserAccount($u->id, $u->name, $u->role, $u->reportAccess, $flag);
+        $this->users[$userId] = new UserAccount($u->id, $u->name, $u->role, $u->reportAccess, $flag, $u->level, $u->loginAccount);
 
         return true;
     }
@@ -148,6 +176,8 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
             $field === 'role' ? $value : $u->role,
             $field === 'reportAccess' ? $value : $u->reportAccess,
             $u->delFlag,
+            $u->level,
+            $u->loginAccount,
         );
 
         return true;

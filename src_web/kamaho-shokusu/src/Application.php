@@ -24,6 +24,7 @@ use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
 use App\Application\UseCase\CreateUser\CreateUserUseCase;
 use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
+use App\Application\UseCase\EditUser\EditUserUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
@@ -261,6 +262,13 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(CreateUserUseCase::class, static fn() => new CreateUserUseCase(
             $userAccounts(),
             new CakeRoomMembershipRepository(),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(EditUserUseCase::class, static fn() => new EditUserUseCase(
+            $userAccounts(),
+            new CakeRoomMembershipRepository(),
+            $userTransaction(),
             new AuditLogAdapter(),
             new ClockFactory('Asia/Tokyo'),
         ));
