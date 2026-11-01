@@ -73,8 +73,8 @@ function openModalById(id){
             var modeSelectEl = document.getElementById('kidModeSelect');
             var kidMode = modeSelectEl ? modeSelectEl.value : 'auto';
 
-            var mealNamesShort = {1:'朝', 2:'昼', 3:'夜', 4:'弁'};
-            var mealJaFull     = {1:'朝食', 2:'昼食', 3:'夕食', 4:'弁当'};
+            var mealNamesShort = window.MEAL_LABELS.tiny_night;
+            var mealJaFull     = window.MEAL_LABELS.full;
 
             function updateModeBadge(){
                 var badge = document.getElementById('kidModeBadge');
@@ -527,7 +527,7 @@ function openModalById(id){
             var reservedDates  = window.__TRESP.reservedDates;
             var existingEvents = window.__TRESP.existingEvents;
 
-            var MEAL_SHORT_NAMES = { 1: '朝', 2: '昼', 3: '夜', 4: '弁' };
+            var MEAL_SHORT_NAMES = window.MEAL_LABELS.tiny_night;
             var MEAL_KEY_MAP     = { 1: 'breakfast', 2: 'lunch', 3: 'dinner', 4: 'bento' };
 
             // 複数日予約（treservation_multi_date.js）で登録した予約を、背景のカレンダーに反映する。
@@ -779,7 +779,7 @@ function openModalById(id){
                         if (window.pageToast) window.pageToast(reservationErrorText(r.status, data.message), 'danger');
                         return false;
                     }
-                    var mealNameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+                    var mealNameMap = window.MEAL_LABELS.tiny;
                     var registered = data.data && data.data.registered ? data.data.registered : [];
                     var skipped    = data.data && data.data.skipped ? data.data.skipped : [];
                     var failed     = data.data && data.data.failed ? data.data.failed : [];
@@ -816,7 +816,7 @@ function openModalById(id){
                 if (!mealIndices || mealIndices.length === 0) return Promise.resolve(true);
                 var toggleBase = (window.__TRESP && window.__TRESP.toggleBase) || '';
                 var userId = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
-                var nameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+                var nameMap = window.MEAL_LABELS.tiny;
                 var detail = MY_DETAILS[dateStr] || {};
 
                 var jobs = mealIndices.map(function(idx) {
@@ -868,7 +868,7 @@ function openModalById(id){
             function moveMealRoom(dateStr, idx, fromRoomId, toRoomId) {
                 var url = (window.__TRESP && window.__TRESP.changeRoomUrl) || '';
                 var userId = (window.__TRESP && window.__TRESP.userId != null) ? window.__TRESP.userId : undefined;
-                var nameMap = { 1: '朝', 2: '昼', 3: '夕', 4: '弁' };
+                var nameMap = window.MEAL_LABELS.tiny;
                 var key = MEAL_KEY_MAP[idx];
                 return postReservationJson(url, { date: dateStr, meal: idx, fromRoomId: fromRoomId, toRoomId: toRoomId, userId: userId })
                 .then(function(r) {
@@ -898,10 +898,10 @@ function openModalById(id){
 
                 var detail = MY_DETAILS[dateStr] || { breakfast: false, lunch: false, dinner: false, bento: false };
                 var meals = [
-                    { idx: 1, key: 'breakfast', label: '朝食', bg: '#fff1f1', border: '#fbd5d5' },
-                    { idx: 2, key: 'lunch',     label: '昼食', bg: '#fff8ec', border: '#fbe3bd' },
-                    { idx: 3, key: 'dinner',    label: '夕食', bg: '#f1f2ff', border: '#d9dcfb' },
-                    { idx: 4, key: 'bento',     label: '弁当', bg: '#edfaf3', border: '#c8eedb' },
+                    { idx: 1, key: 'breakfast', label: window.MEAL_LABELS.full[1], bg: '#fff1f1', border: '#fbd5d5' },
+                    { idx: 2, key: 'lunch',     label: window.MEAL_LABELS.full[2], bg: '#fff8ec', border: '#fbe3bd' },
+                    { idx: 3, key: 'dinner',    label: window.MEAL_LABELS.full[3], bg: '#f1f2ff', border: '#d9dcfb' },
+                    { idx: 4, key: 'bento',     label: window.MEAL_LABELS.full[4], bg: '#edfaf3', border: '#c8eedb' },
                 ];
                 var availableMeals = editMode ? meals : meals.filter(function(m) { return !detail[m.key]; });
 
