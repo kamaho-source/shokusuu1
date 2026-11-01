@@ -93,10 +93,10 @@ class MealReportingServiceTest extends TestCase
         $flags = $this->flags();
         $this->assertArrayNotHasKey('1:3', $flags, '別の部屋で有効な夕食が代表部屋にも付いている');
         $this->assertSame([0, 1], $flags['60:3']);
-        $this->assertSame([1, 1], $flags['1:1']);
+        $this->assertSame([0, 1], $flags['1:1'], '当日（直前期間）の新しい行は eat_flag=0, i_change_flag=1');
     }
 
-    /** 「食べない」は代表部屋以外の部屋の有効な予約も取り消し、行が無い食事は代表部屋に 0/0 の行を作る */
+    /** 「食べない」は代表部屋以外の部屋の有効な予約も取り消し（当日は直前期間なので i_change_flag だけ 0 にし、eat_flag は残す）、行が無い食事は代表部屋に 0/0 の行を作る */
     public function testReportNoMeal_cancelsAllRoomsAndCreatesMissingRowsInPrimaryRoom(): void
     {
         $this->insertMeal(1, 1, 1, 1);  // 朝（代表部屋）
@@ -106,7 +106,7 @@ class MealReportingServiceTest extends TestCase
 
         $this->assertTrue($result['ok'], $result['message']);
         $this->assertSame([
-            '1:1'  => [0, 0],
+            '1:1'  => [1, 0],
             '1:2'  => [0, 0],
             '1:4'  => [0, 0],
             '60:3' => [0, 0],
@@ -130,10 +130,24 @@ class MealReportingServiceTest extends TestCase
 
         $this->assertTrue($result['ok'], $result['message']);
         $flags = $this->flags();
-        $this->assertSame([1, 1], $flags['1:1']);
-        $this->assertSame([1, 1], $flags['1:2']);
-        $this->assertSame([1, 1], $flags['1:3']);
+        $this->assertSame([0, 1], $flags['1:1']);
+        $this->assertSame([0, 1], $flags['1:2']);
+        $this->assertSame([0, 1], $flags['1:3']);
         $this->assertArrayNotHasKey('1:4', $flags);
+    }
+
+    /** 「食べる」で既存の行を有効にするときは、i_change_flag だけを 1 にし、当初の予定（eat_flag）は残す */
+    public function testReportEat_existingRows_changeFlagOnlyAndKeepOriginalPlan(): void
+    {
+        $this->insertMeal(1, 1, 1, 0); // 当初は食べる予定 → 直前に取消済み
+        $this->insertMeal(1, 2, 0, 0); // 当初から予定なし
+
+        $result = $this->service->reportEat($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertTrue($result['ok'], $result['message']);
+        $flags = $this->flags();
+        $this->assertSame([1, 1], $flags['1:1']);
+        $this->assertSame([0, 1], $flags['1:2']);
     }
 
     public function testReportEat_keepsBentoAndDoesNotAddLunch(): void
@@ -157,5 +171,47 @@ class MealReportingServiceTest extends TestCase
 
         $this->assertSame([0, 0], $this->flags()['1:1']);
         $this->assertSame('食べるで報告しました。承認済みの食事は変更されていません。', $result['message']);
+    }
+
+    /** 予約の行の追加を DB で失敗させる（SQLite のトリガー）。テストの終わりに消す。 */
+    private function failInserts(): void
+    {
+        ConnectionManager::get('test')->execute(
+            "CREATE TRIGGER ct_fail_insert BEFORE INSERT ON t_individual_reservation_info BEGIN SELECT RAISE(ABORT, 'forced failure'); END"
+        );
+    }
+
+    protected function tearDown(): void
+    {
+        ConnectionManager::get('test')->execute('DROP TRIGGER IF EXISTS ct_fail_insert');
+        parent::tearDown();
+    }
+
+    /** 「食べない」で行の追加が DB で失敗したら、先にした取消も残さず、SQL を含まない 500 を返す */
+    public function testReportNoMeal_dbFailure_rollsBackAndReturns500(): void
+    {
+        $this->insertMeal(1, 1, 1, 1);
+        $this->failInserts();
+
+        $result = $this->service->reportNoMeal($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame(500, $result['status'] ?? null);
+        $this->assertStringNotContainsString('forced failure', $result['message']);
+        $this->assertSame(['1:1' => [1, 1]], $this->flags(), '取消が残っている');
+    }
+
+    /** 「食べる」で行の追加が DB で失敗したら、途中の更新も残さず、SQL を含まない 500 を返す */
+    public function testReportEat_dbFailure_rollsBackAndReturns500(): void
+    {
+        $this->insertMeal(1, 1, 0, 0);
+        $this->failInserts();
+
+        $result = $this->service->reportEat($this->reservationTable, $this->userGroupTable, 1, '管理者ユーザー');
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame(500, $result['status'] ?? null);
+        $this->assertStringNotContainsString('forced failure', $result['message']);
+        $this->assertSame(['1:1' => [0, 0]], $this->flags(), '朝食の更新が残っている');
     }
 }

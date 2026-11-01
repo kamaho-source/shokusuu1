@@ -51,7 +51,7 @@ class MUserInfoProfileTest extends TestCase
         ]);
     }
 
-    private function user(int $id): \App\Model\Entity\MUserInfo
+    private function user(int $id): \App\Infrastructure\Persistence\Entity\MUserInfo
     {
         return $this->getTableLocator()->get('MUserInfo')->get($id);
     }

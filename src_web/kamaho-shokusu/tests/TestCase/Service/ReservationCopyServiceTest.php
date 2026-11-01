@@ -594,7 +594,7 @@ class ReservationCopyServiceTest extends TestCase
     {
         $this->insertRow('2030-01-08');
         $this->insertRow('2030-01-15', ['eat_flag' => 0, 'i_change_flag' => 0]);
-        $mock = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+        $mock = $this->getMockBuilder(\App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable::class)
             ->onlyMethods(['updateRowWithVersion'])
             ->setConstructorArgs([['connection' => ConnectionManager::get('test'), 'alias' => 'TIndividualReservationInfo', 'table' => 't_individual_reservation_info']])
             ->getMock();
@@ -616,7 +616,7 @@ class ReservationCopyServiceTest extends TestCase
     {
         $this->insertRow('2030-01-10');
         $this->insertRow('2030-02-10', ['eat_flag' => 0, 'i_change_flag' => 0]);
-        $mock = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+        $mock = $this->getMockBuilder(\App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable::class)
             ->onlyMethods(['updateRowWithVersion'])
             ->setConstructorArgs([['connection' => ConnectionManager::get('test'), 'alias' => 'TIndividualReservationInfo', 'table' => 't_individual_reservation_info']])
             ->getMock();

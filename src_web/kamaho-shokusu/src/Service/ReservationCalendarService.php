@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -299,7 +300,7 @@ class ReservationCalendarService
             }
         }
 
-        $mealTypes = ['1' => '朝', '2' => '昼', '3' => '夜', '4' => '弁'];
+        $mealTypes = MealType::labels(MealType::LABEL_TINY_NIGHT);
         foreach ($mealDataArray as $date => $meals) {
             foreach ($mealTypes as $type => $name) {
                 if (!empty($meals[$type])) {

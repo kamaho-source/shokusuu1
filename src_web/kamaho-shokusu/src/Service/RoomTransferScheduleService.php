@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Model\Table\TIndividualReservationInfoTable;
-use App\Model\Table\MRoomTransferScheduleTable;
-use Cake\Cache\Cache;
+use App\Infrastructure\Cache\ReservationCache;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Persistence\Table\MRoomTransferScheduleTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -386,12 +386,9 @@ class RoomTransferScheduleService
         string $today
     ): void {
         // 有効開始日以降の今日分だけキャッシュ削除（全日削除は重すぎるため当日のみ対象）
-        ReservationReportService::invalidateMealCountsCache($today);
-
-        Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
-
-        $current = Cache::read('reservation_version', 'default');
-        $next    = (is_int($current) && $current > 0) ? $current + 1 : 2;
-        Cache::write('reservation_version', $next, 'default');
+        // 基準日はコマンドの --date で今日以外にもなるため、今日かどうかに関係なく消す（従来どおり）
+        ReservationCache::forgetMealCounts($today);
+        ReservationCache::forgetTodayReport($userId, $today);
+        ReservationCache::bumpVersion();
     }
 }

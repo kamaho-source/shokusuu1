@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ReservationBulkService;
-use App\Service\ReservationDatePolicy;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -14,8 +13,9 @@ use Cake\TestSuite\TestCase;
  * ReservationBulkService のテスト
  *
  * 主な確認項目:
- *   - 通常予約でチェックON → eat_flag=1, i_change_flag=1 で新規作成
+ *   - 通常予約（15日目以降）でチェックON → eat_flag=1, i_change_flag=1 で新規作成
  *   - 通常予約でチェックOFF → eat_flag=0, i_change_flag=0 に更新
+ *   - 直前期間（今日〜14日後）でチェックON → eat_flag=0, i_change_flag=1 で新規作成。OFF → i_change_flag=0 のみ（eat_flag は残す）
  */
 class ReservationBulkServiceTest extends TestCase
 {
@@ -44,30 +44,19 @@ class ReservationBulkServiceTest extends TestCase
         return date('Y-m-d', strtotime("+{$day} days"));
     }
 
-    /** 過去日の判定を本物にした直前一括編集（setUp のモックは isPastDate を常に false にするため） */
+    /** 直前一括編集（過去日の判定は本物の今日で行う） */
     private function callBulkChangeEditWithRealDates(array $dayUsers, bool $isAdmin, int $loginUserId): array
     {
-        return (new ReservationBulkService())->processBulkChangeEdit(
+        return $this->service->processBulkChangeEdit(
             $dayUsers, 1, 'tester', $this->reservationTable, $this->userTable, [], $loginUserId, $isAdmin, 0, false
         );
-    }
-
-    // 日付バリデーションを常に通過させるポリシーモック
-    private function makeDatePolicyMock(): ReservationDatePolicy
-    {
-        $mock = $this->getMockBuilder(ReservationDatePolicy::class)
-            ->onlyMethods(['validateReservationDate', 'isPastDate'])
-            ->getMock();
-        $mock->method('validateReservationDate')->willReturn(true);
-        $mock->method('isPastDate')->willReturn(false);
-        return $mock;
     }
 
     public function setUp(): void
     {
         parent::setUp();
 
-        $this->service = new ReservationBulkService($this->makeDatePolicyMock());
+        $this->service = new ReservationBulkService();
 
         $this->reservationTable = TableRegistry::getTableLocator()->get(
             'TIndividualReservationInfo',
@@ -162,12 +151,12 @@ class ReservationBulkServiceTest extends TestCase
     public function testCheckOnCreatesReservationWithEatFlagOne(): void
     {
         $result = $this->callBulkAdd([
-            self::d(1) => ['1' => ['1' => '1']],
+            self::d(21) => ['1' => ['1' => '1']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
-        $row = $this->fetchReservation(1, self::d(1), 1, 1);
+        $row = $this->fetchReservation(1, self::d(21), 1, 1);
         $this->assertNotNull($row, 'レコードが作成されていない');
         $this->assertSame(1, (int)$row->eat_flag, 'eat_flag が 1 でない');
         $this->assertSame(1, (int)$row->i_change_flag, 'i_change_flag が 1 でない');
@@ -182,7 +171,7 @@ class ReservationBulkServiceTest extends TestCase
         // テスト用に別途 2026-06-01 のレコードを挿入
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => self::d(1),
+            'd_reservation_date' => self::d(21),
             'i_reservation_type' => 2,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -190,15 +179,50 @@ class ReservationBulkServiceTest extends TestCase
         ]);
 
         $result = $this->callBulkAdd([
-            self::d(1) => ['1' => ['2' => '0']],
+            self::d(21) => ['1' => ['2' => '0']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
-        $row = $this->fetchReservation(1, self::d(1), 2, 1);
+        $row = $this->fetchReservation(1, self::d(21), 2, 1);
         $this->assertNotNull($row, 'レコードが見つからない');
         $this->assertSame(0, (int)$row->eat_flag, 'eat_flag が 0 になっていない');
         $this->assertSame(0, (int)$row->i_change_flag, 'i_change_flag が 0 になっていない');
+    }
+
+    /**
+     * 直前期間（今日〜14日後）: ON の新しい行は eat_flag=0, i_change_flag=1。OFF は i_change_flag だけ 0 にし、eat_flag（当初の予定）は残す
+     */
+    public function testLastMinute_onCreatesChangeOnly_offKeepsOriginalPlan(): void
+    {
+        $this->insertReservation([
+            'i_id_user'          => 1,
+            'd_reservation_date' => self::d(5),
+            'i_reservation_type' => 1,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 1,
+        ]);
+        $this->insertReservation([
+            'i_id_user'          => 1,
+            'd_reservation_date' => self::d(5),
+            'i_reservation_type' => 3,
+            'i_id_room'          => 1,
+            'eat_flag'           => 1,
+            'i_change_flag'      => 0,
+        ]);
+
+        $result = $this->callBulkAdd([
+            self::d(5) => ['1' => ['1' => '0', '2' => '1', '3' => '1']],
+        ]);
+        $this->assertTrue($result['ok'], $result['message'] ?? '');
+
+        $off = $this->fetchReservation(1, self::d(5), 1, 1);
+        $this->assertSame([1, 0], [(int)$off->eat_flag, (int)$off->i_change_flag], 'OFF: eat_flag は残し i_change_flag だけ 0');
+        $new = $this->fetchReservation(1, self::d(5), 2, 1);
+        $this->assertSame([0, 1], [(int)$new->eat_flag, (int)$new->i_change_flag], 'ON（新規）: eat_flag=0, i_change_flag=1');
+        $reOn = $this->fetchReservation(1, self::d(5), 3, 1);
+        $this->assertSame([1, 1], [(int)$reOn->eat_flag, (int)$reOn->i_change_flag], 'ON（既存行の有効化）: eat_flag は残し i_change_flag だけ 1');
     }
 
     /**
@@ -224,7 +248,7 @@ class ReservationBulkServiceTest extends TestCase
         // 朝(1) は既存予約あり → OFF でキャンセル
         $this->insertReservation([
             'i_id_user'          => 1,
-            'd_reservation_date' => self::d(3),
+            'd_reservation_date' => self::d(23),
             'i_reservation_type' => 1,
             'i_id_room'          => 1,
             'eat_flag'           => 1,
@@ -233,19 +257,19 @@ class ReservationBulkServiceTest extends TestCase
 
         // 昼(2) は未予約 → ON で新規作成
         $result = $this->callBulkAdd([
-            self::d(3) => ['1' => ['1' => '0', '2' => '1']],
+            self::d(23) => ['1' => ['1' => '0', '2' => '1']],
         ]);
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
 
         // 朝 → 非活性化
-        $morning = $this->fetchReservation(1, self::d(3), 1, 1);
+        $morning = $this->fetchReservation(1, self::d(23), 1, 1);
         $this->assertNotNull($morning);
         $this->assertSame(0, (int)$morning->eat_flag, '朝の eat_flag が 0 になっていない');
         $this->assertSame(0, (int)$morning->i_change_flag, '朝の i_change_flag が 0 になっていない');
 
         // 昼 → 新規作成
-        $noon = $this->fetchReservation(1, self::d(3), 2, 1);
+        $noon = $this->fetchReservation(1, self::d(23), 2, 1);
         $this->assertNotNull($noon, '昼のレコードが作成されていない');
         $this->assertSame(1, (int)$noon->eat_flag, '昼の eat_flag が 1 でない');
         $this->assertSame(1, (int)$noon->i_change_flag, '昼の i_change_flag が 1 でない');
@@ -584,8 +608,8 @@ class ReservationBulkServiceTest extends TestCase
 
         $row = $this->fetchReservation(3, self::d(14), 1, 1);
         $this->assertNotNull($row);
-        $this->assertSame(0, (int)$row->eat_flag, '取り消しが保存されていない');
-        $this->assertSame(0, (int)$row->i_change_flag);
+        $this->assertSame(0, (int)$row->i_change_flag, '取り消しが保存されていない');
+        $this->assertSame(1, (int)$row->eat_flag, '直前期間の取消で当初の予定が消えている');
     }
 
     // ---------------------------------------------------------------------------
@@ -773,7 +797,7 @@ class ReservationBulkServiceTest extends TestCase
             2, 'tester', $this->reservationTable, $this->userTable, $this->roomTable, false, 0, false
         );
         $this->assertTrue($cancel['ok'], $cancel['message'] ?? '');
-        $this->assertSame(0, (int)$this->fetchReservation(3, self::d(12), 1, 51)->eat_flag);
+        $this->assertSame(0, (int)$this->fetchReservation(3, self::d(12), 1, 51)->i_change_flag);
     }
 
     /** 一括変更: 退出済みの児童の予約を取消（0）できるが、新規登録（1）はできない */
@@ -887,8 +911,8 @@ class ReservationBulkServiceTest extends TestCase
         );
 
         $this->assertTrue($result['ok'], $result['message'] ?? '');
-        $this->assertSame(0, (int)$this->fetchReservation(3, self::d(12), 1, 59)->eat_flag, '認可した部屋の予約が取消された');
-        $this->assertSame(1, (int)$this->fetchReservation(3, self::d(12), 1, 60)->eat_flag, '他部屋の予約は残る');
+        $this->assertSame(0, (int)$this->fetchReservation(3, self::d(12), 1, 59)->i_change_flag, '認可した部屋の予約が取消された');
+        $this->assertSame(1, (int)$this->fetchReservation(3, self::d(12), 1, 60)->i_change_flag, '他部屋の予約は残る');
     }
 
     /** 個人の一括登録で、弁当のチェックを外して昼食を入れると、弁当を取り消して入れ替える */
@@ -1025,9 +1049,9 @@ class ReservationBulkServiceTest extends TestCase
     // ---------------------------------------------------------------------------
 
     /** updateRowWithVersion だけ差し替えた予約テーブル（他は実DBのまま） */
-    private function tableWithUpdate(callable $behavior): \App\Model\Table\TIndividualReservationInfoTable
+    private function tableWithUpdate(callable $behavior): \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable
     {
-        $mock = $this->getMockBuilder(\App\Model\Table\TIndividualReservationInfoTable::class)
+        $mock = $this->getMockBuilder(\App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable::class)
             ->onlyMethods(['updateRowWithVersion'])
             ->setConstructorArgs([[
                 'connection' => ConnectionManager::get('test'),

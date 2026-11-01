@@ -10,6 +10,7 @@ use Cake\Core\Configure;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
+use Cake\I18n\Date;
 
 /**
  * 承認フロー コントローラー
@@ -99,8 +100,8 @@ class ApprovalController extends AppController
         $filterStatus = $this->request->getQuery('status') !== null && $this->request->getQuery('status') !== ''
             ? (int)$this->request->getQuery('status')
             : ApprovalService::STATUS_PENDING;
-        $dateFrom = $this->request->getQuery('date_from') ?? date('Y-m-d', strtotime('monday this week'));
-        $dateTo   = $this->request->getQuery('date_to')   ?? date('Y-m-d', strtotime('sunday this week'));
+        $dateFrom = $this->request->getQuery('date_from') ?? Date::today()->startOfWeek()->format('Y-m-d');
+        $dateTo   = $this->request->getQuery('date_to')   ?? Date::today()->endOfWeek()->format('Y-m-d');
 
         $records = $this->approvalService->getBlockLeaderList(
             $userId, $filterRoomId, $dateFrom, $dateTo, $filterStatus
@@ -182,8 +183,8 @@ class ApprovalController extends AppController
         $filterStatus = $this->request->getQuery('status') !== null && $this->request->getQuery('status') !== ''
             ? (int)$this->request->getQuery('status')
             : ApprovalService::STATUS_BLOCK_LEADER;
-        $dateFrom = $this->request->getQuery('date_from') ?? date('Y-m-d', strtotime('monday this week'));
-        $dateTo   = $this->request->getQuery('date_to')   ?? date('Y-m-d', strtotime('sunday this week'));
+        $dateFrom = $this->request->getQuery('date_from') ?? Date::today()->startOfWeek()->format('Y-m-d');
+        $dateTo   = $this->request->getQuery('date_to')   ?? Date::today()->endOfWeek()->format('Y-m-d');
 
         $records = $this->approvalService->getAdminList($filterRoomId, $dateFrom, $dateTo, $filterStatus);
         $summary = $this->approvalService->getAdminSummary($dateFrom, $dateTo);

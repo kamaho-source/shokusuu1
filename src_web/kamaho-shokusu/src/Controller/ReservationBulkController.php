@@ -3,9 +3,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\UseCase\BulkAddReservations\BulkAddReservationsInput;
+use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
+use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsInput;
+use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Domain\ValueObject\UserRole;
 use App\Service\BulkReservationFormService;
-use App\Service\ReservationBulkService;
 use Cake\Http\Response;
 
 /**
@@ -16,14 +19,12 @@ use Cake\Http\Response;
 class ReservationBulkController extends ReservationBaseController
 {
     private BulkReservationFormService $bulkFormService;
-    private ReservationBulkService $bulkService;
 
     public function initialize(): void
     {
         parent::initialize();
 
         $this->bulkFormService = new BulkReservationFormService();
-        $this->bulkService     = new ReservationBulkService();
 
         $this->FormProtection->setConfig('unlockedActions', [
             'bulkAddForm',
@@ -175,7 +176,7 @@ class ReservationBulkController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function bulkChangeEditSubmit(): ?Response
+    public function bulkChangeEditSubmit(BulkChangeEditReservationsUseCase $bulkChangeEdit): ?Response
     {
         $data     = $this->request->getData();
         $dayUsers = isset($data['day_users']) && is_array($data['day_users']) ? $data['day_users'] : [];
@@ -203,18 +204,16 @@ class ReservationBulkController extends ReservationBaseController
         }
         $loginName = $loginUser->get('c_user_name') ?? 'system';
 
-        $result = $this->bulkService->processBulkChangeEdit(
-            $dayUsers,
-            (int)$roomId,
-            (string)$loginName,
-            $this->TIndividualReservationInfo,
-            $this->MUserInfo,
-            $snapshots,
-            (int)($loginUser?->get('i_id_user') ?? 0),
-            UserRole::isAdmin((int)($loginUser?->get('i_admin') ?? 0)),
-            (int)($loginUser?->get('i_user_level') ?? 0),
-            UserRole::isBlockLeader((int)($loginUser?->get('i_admin') ?? 0))
-        );
+        $result = $bulkChangeEdit->execute(new BulkChangeEditReservationsInput(
+            dayUsers: $dayUsers,
+            roomId: (int)$roomId,
+            loginName: (string)$loginName,
+            snapshots: $snapshots,
+            loginUserId: (int)($loginUser?->get('i_id_user') ?? 0),
+            isAdmin: UserRole::isAdmin((int)($loginUser?->get('i_admin') ?? 0)),
+            loginUserLevel: (int)($loginUser?->get('i_user_level') ?? 0),
+            isBlockLeader: UserRole::isBlockLeader((int)($loginUser?->get('i_admin') ?? 0)),
+        ));
 
         if (!$result['ok']) {
             $conflictDate = $result['conflict_date'] ?? null;
@@ -244,7 +243,7 @@ class ReservationBulkController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function bulkAddSubmit(): ?Response
+    public function bulkAddSubmit(BulkAddReservationsUseCase $bulkAdd): ?Response
     {
         if ($denied = $this->authorizeReservation('bulkAddSubmit', [], true)) {
             return $denied;
@@ -256,17 +255,14 @@ class ReservationBulkController extends ReservationBaseController
             $userName = $this->request->getAttribute('identity')->get('c_user_name');
             $userId   = $this->request->getAttribute('identity')->get('i_id_user');
 
-            $result = $this->bulkService->processBulkAdd(
-                $data,
-                (int)$userId,
-                (string)$userName,
-                $this->TIndividualReservationInfo,
-                $this->MUserInfo,
-                $this->MRoomInfo,
-                UserRole::isAdmin((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
-                (int)($this->request->getAttribute('identity')->get('i_user_level') ?? 0),
-                UserRole::isBlockLeader((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0))
-            );
+            $result = $bulkAdd->execute(new BulkAddReservationsInput(
+                data: $data,
+                userId: (int)$userId,
+                userName: (string)$userName,
+                isAdmin: UserRole::isAdmin((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
+                loginUserLevel: (int)($this->request->getAttribute('identity')->get('i_user_level') ?? 0),
+                isBlockLeader: UserRole::isBlockLeader((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
+            ));
 
             if (!$result['ok']) {
                 $conflictDate = $result['conflict_date'] ?? null;

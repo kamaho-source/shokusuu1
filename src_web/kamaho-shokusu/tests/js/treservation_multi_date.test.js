@@ -179,6 +179,14 @@ describe('treservation_multi_date.js 画面', () => {
         expect(window.pageToast).toHaveBeenCalledWith('選べる日付は、1つの食事につき最大31日です。', 'warning');
     });
 
+    test('児童は「1か月後の前日」まで。1/31 なら 2/27 まで選べ、2/28 からは選べない（月末を繰り越さない）', () => {
+        setup({ isChild: true, serverToday: '2027-01-31', myDetails: {} });
+        click(document.getElementById('multiDateNext'));
+        expect(document.getElementById('multiDateMonth').textContent).toBe('2027年2月');
+        expect(cell('2027-02-27').classList.contains('past')).toBe(false);
+        expect(cell('2027-02-28').classList.contains('past')).toBe(true);
+    });
+
     test('月は今月から2か月先まで。前の月には戻れない', () => {
         setup();
         expect(document.getElementById('multiDatePrev').disabled).toBe(true);

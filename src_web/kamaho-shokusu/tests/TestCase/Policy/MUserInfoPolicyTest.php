@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Policy;
 
-use App\Model\Entity\MUserInfo;
+use App\Infrastructure\Persistence\Entity\MUserInfo;
 use App\Policy\MUserInfoPolicy;
 use Cake\TestSuite\TestCase;
 

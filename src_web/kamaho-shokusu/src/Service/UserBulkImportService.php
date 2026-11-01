@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use Cake\ORM\TableRegistry;
+use Cake\I18n\DateTime;
 
 /**
  * ユーザー一括インポートサービス
@@ -169,7 +170,7 @@ class UserBulkImportService
                     'i_del_flag'      => 0,
                     'i_enable'        => 0,
                     'i_disp_no'       => $nextDispNo++,
-                    'dt_create'       => date('Y-m-d H:i:s'),
+                    'dt_create'       => DateTime::now()->format('Y-m-d H:i:s'),
                     'c_create_user'   => $createUser,
                 ];
                 if ($ageVal !== null) {
@@ -214,7 +215,7 @@ class UserBulkImportService
                                 'i_id_user'     => $userId,
                                 'i_id_room'     => $room->i_id_room,
                                 'active_flag'   => 0,
-                                'dt_create'     => date('Y-m-d H:i:s'),
+                                'dt_create'     => DateTime::now()->format('Y-m-d H:i:s'),
                                 'c_create_user' => $createUser,
                             ]);
                             $userGroupTable->save($userGroup);

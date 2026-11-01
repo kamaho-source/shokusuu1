@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
+use App\Infrastructure\Cache\ReservationCache;
 use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
@@ -10,14 +12,10 @@ use Cake\ORM\Table;
 class ReservationReportService
 {
     private const REPORT_CACHE_SCHEMA_VERSION = 2;
-    private const MEAL_COUNTS_CACHE_SUFFIX = 'v2';
 
     private function getReportCacheVersion(): int
     {
-        $v = Cache::read('reservation_version', 'default');
-        $base = (is_int($v) && $v > 0) ? $v : 1;
-
-        return ($base * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
+        return (ReservationCache::version() * 10) + self::REPORT_CACHE_SCHEMA_VERSION;
     }
 
     public function getMealCounts(Table $reservationTable, string $date): array
@@ -180,7 +178,7 @@ class ReservationReportService
 
         $result      = ['overall' => [], 'rooms' => []];
         $overallTmp  = [];
-        $mealTypeMap = [1 => '朝', 2 => '昼', 3 => '夜', 4 => '弁当'];
+        $mealTypeMap = MealType::labels(MealType::LABEL_SHORT_NIGHT);
 
         foreach ($reservations as $reservation) {
             $roomName    = $reservation['room_name'];
@@ -203,12 +201,12 @@ class ReservationReportService
             $totalEaters = (int)$reservation['total_eaters'];
 
             if (!isset($result['rooms'][$roomName][$date])) {
-                $result['rooms'][$roomName][$date] = ['朝' => 0, '昼' => 0, '夜' => 0, '弁当' => 0];
+                $result['rooms'][$roomName][$date] = array_fill_keys($mealTypeMap, 0);
             }
             $result['rooms'][$roomName][$date][$mealLabel] += $totalEaters;
 
             if (!isset($overallTmp[$roomName][$date])) {
-                $overallTmp[$roomName][$date] = ['朝' => 0, '昼' => 0, '夜' => 0, '弁当' => 0];
+                $overallTmp[$roomName][$date] = array_fill_keys($mealTypeMap, 0);
             }
             $overallTmp[$roomName][$date][$mealLabel] += $totalEaters;
         }
@@ -471,13 +469,12 @@ class ReservationReportService
 
     public static function mealCountsCacheKey(string $date): string
     {
-        return 'meal_counts:' . $date . ':' . self::MEAL_COUNTS_CACHE_SUFFIX;
+        return ReservationCache::mealCountsKey($date);
     }
 
     public static function invalidateMealCountsCache(string $date): void
     {
-        Cache::delete(self::mealCountsCacheKey($date), 'default');
-        Cache::delete('meal_counts:' . $date, 'default');
+        ReservationCache::forgetMealCounts($date);
     }
 
     private function normalizeDateString(\DateTimeInterface|Date|string|int|null $value): ?string

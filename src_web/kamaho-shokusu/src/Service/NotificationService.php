@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 
@@ -179,7 +180,7 @@ class NotificationService
 
     private function formatItemSummary(object $row): string
     {
-        $mealLabels = [1 => '朝', 2 => '昼', 3 => '夕', 4 => '弁当'];
+        $mealLabels = MealType::labels(MealType::LABEL_SHORT);
         $date = method_exists($row->d_reservation_date, 'format')
             ? $row->d_reservation_date->format('Y-m-d')
             : (string)$row->d_reservation_date;

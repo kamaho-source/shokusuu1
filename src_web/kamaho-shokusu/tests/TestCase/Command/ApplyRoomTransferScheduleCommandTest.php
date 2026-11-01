@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Command;
 
-use App\Model\Table\MRoomTransferScheduleTable;
+use App\Infrastructure\Persistence\Table\MRoomTransferScheduleTable;
 use Cake\Console\TestSuite\ConsoleIntegrationTestTrait;
 use Cake\Datasource\ConnectionManager;
 use Cake\TestSuite\TestCase;

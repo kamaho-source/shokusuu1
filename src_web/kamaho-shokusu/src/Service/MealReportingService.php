@@ -3,10 +3,13 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Exception\DuplicateMealReservationException;
-use App\Model\Table\TIndividualReservationInfoTable;
-use Cake\Cache\Cache;
+use App\Infrastructure\Cache\ReservationCache;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
+use Cake\Database\Exception\QueryException;
 use Cake\I18n\Date;
+use Cake\Log\Log;
 use Cake\I18n\DateTime;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\Table;
@@ -19,18 +22,16 @@ use Cake\ORM\Table;
  */
 class MealReportingService
 {
-    private const MEAL_TYPES = [1, 2, 3, 4];
-
-    private const EAT_REPORT_MEAL_TYPES = [1, 2, 3];
+    private const EAT_REPORT_MEAL_TYPES = [MealType::Breakfast->value, MealType::Lunch->value, MealType::Dinner->value];
 
     /**
-     * 「食べない」で報告する（全食種を eat_flag=0, i_change_flag=0 に設定）。
+     * 「食べない」で報告する（全食種の i_change_flag を 0 にする。当日は直前期間なので eat_flag は残す。行が無い食事は 0/0 で作る）。
      *
      * @param Table  $reservationTable TIndividualReservationInfo テーブル
      * @param Table  $userGroupTable   MUserGroup テーブル
      * @param int    $userId           ログインユーザーID
      * @param string $userName         ログインユーザー名
-     * @return array{ok: bool, message: string}
+     * @return array{ok: bool, message: string, status?: int} status は DB の失敗のとき 500
      */
     public function reportNoMeal(Table $reservationTable, Table $userGroupTable, int $userId, string $userName): array
     {
@@ -41,50 +42,62 @@ class MealReportingService
 
         $today = Date::today('Asia/Tokyo')->format('Y-m-d');
 
-        // 食事ごとに部屋を選べるため、代表部屋だけでなく、その日のすべての部屋の予約を取り消す
-        $reservationTable->updateAll(
-            [
-                'eat_flag'      => 0,
-                'i_change_flag' => 0,
-                'c_update_user' => $userName,
-                'dt_update'     => DateTime::now('Asia/Tokyo'),
-                // 版を上げて、同時に開いていた画面からの古い保存を競合として止める（updateRowWithVersion と同じ）
-                'i_version'     => $reservationTable->updateQuery()->expr('i_version + 1'),
-            ],
-            [
-                'i_id_user'             => $userId,
-                'd_reservation_date'    => $today,
-                'i_reservation_type IN' => self::MEAL_TYPES,
-                // 承認済みの行は変えない（他の書き込み経路と同じく、承認後の内容を守る）
-                'OR' => [
-                    'i_approval_status IS'     => null,
-                    'i_approval_status NOT IN' => TIndividualReservationInfoTable::APPROVED_STATUSES,
-                ],
-            ]
-        );
+        // 取消と「食べない」の行の追加は、途中で失敗したら両方取り消す
+        try {
+            $saved = $reservationTable->getConnection()->transactional(function () use ($reservationTable, $userId, $userName, $roomId, $today): bool {
+                // 食事ごとに部屋を選べるため、代表部屋だけでなく、その日のすべての部屋の予約を取り消す
+                $reservationTable->updateAll(
+                    [
+                        // 当日は直前期間なので、直前の変更（i_change_flag）だけを 0 にし、当初の予定（eat_flag）は残す
+                        'i_change_flag' => 0,
+                        'c_update_user' => $userName,
+                        'dt_update'     => DateTime::now('Asia/Tokyo'),
+                        // 版を上げて、同時に開いていた画面からの古い保存を競合として止める（updateRowWithVersion と同じ）
+                        'i_version'     => $reservationTable->updateQuery()->expr('i_version + 1'),
+                    ],
+                    [
+                        'i_id_user'             => $userId,
+                        'd_reservation_date'    => $today,
+                        'i_reservation_type IN' => MealType::values(),
+                        // 承認済みの行は変えない（他の書き込み経路と同じく、承認後の内容を守る）
+                        'OR' => [
+                            'i_approval_status IS'     => null,
+                            'i_approval_status NOT IN' => TIndividualReservationInfoTable::APPROVED_STATUSES,
+                        ],
+                    ]
+                );
 
-        // 予約行が1つも無い食事は、従来どおり代表部屋に「食べない」の行を残す
-        foreach (self::MEAL_TYPES as $mealType) {
-            $exists = $reservationTable->exists([
-                'i_id_user'          => $userId,
-                'd_reservation_date' => $today,
-                'i_reservation_type' => $mealType,
-            ]);
-            if ($exists) {
-                continue;
-            }
-            $entity = $reservationTable->newEmptyEntity();
-            $entity->i_id_user          = $userId;
-            $entity->d_reservation_date = $today;
-            $entity->i_reservation_type = $mealType;
-            $entity->i_id_room          = $roomId;
-            $entity->eat_flag           = 0;
-            $entity->i_change_flag      = 0;
-            $entity->c_create_user      = $userName;
-            $entity->dt_create          = DateTime::now('Asia/Tokyo');
-            if (!$reservationTable->save($entity)) {
-                return ['ok' => false, 'message' => '報告の保存に失敗しました。'];
-            }
+                // 予約行が1つも無い食事は、従来どおり代表部屋に「食べない」の行を残す
+                foreach (MealType::values() as $mealType) {
+                    $exists = $reservationTable->exists([
+                        'i_id_user'          => $userId,
+                        'd_reservation_date' => $today,
+                        'i_reservation_type' => $mealType,
+                    ]);
+                    if ($exists) {
+                        continue;
+                    }
+                    $entity = $reservationTable->newEmptyEntity();
+                    $entity->i_id_user          = $userId;
+                    $entity->d_reservation_date = $today;
+                    $entity->i_reservation_type = $mealType;
+                    $entity->i_id_room          = $roomId;
+                    $entity->eat_flag           = 0;
+                    $entity->i_change_flag      = 0;
+                    $entity->c_create_user      = $userName;
+                    $entity->dt_create          = DateTime::now('Asia/Tokyo');
+                    if (!$reservationTable->save($entity)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+        } catch (QueryException $e) {
+            return $this->dbFailure('reportNoMeal', $userId, $e);
+        }
+        if (!$saved) {
+            return ['ok' => false, 'message' => '報告の保存に失敗しました。'];
         }
 
         foreach ($this->roomIdsOnDate($reservationTable, $userId, $today, $roomId) as $rid) {
@@ -113,7 +126,7 @@ class MealReportingService
     }
 
     /**
-     * 「食べる」で報告する（朝・昼・夕を代表部屋で eat_flag=1, i_change_flag=1 に設定）。
+     * 「食べる」で報告する（朝・昼・夕を代表部屋で i_change_flag=1 にする。当日は直前期間なので、既存行の eat_flag は残し、新しい行は eat_flag=0）。
      *
      * 別の部屋ですでに有効な食事は、その部屋の予約のまま残す（代表部屋にも付けると二重に数えられるため）。
      *
@@ -121,7 +134,7 @@ class MealReportingService
      * @param Table  $userGroupTable   MUserGroup テーブル
      * @param int    $userId           ログインユーザーID
      * @param string $userName         ログインユーザー名
-     * @return array{ok: bool, message: string}
+     * @return array{ok: bool, message: string, status?: int} status は DB の失敗のとき 500
      */
     public function reportEat(Table $reservationTable, Table $userGroupTable, int $userId, string $userName): array
     {
@@ -139,7 +152,8 @@ class MealReportingService
                 // 「食べる」は朝・昼・夕。弁当は昼食と同時に有効にできないため付けない。
                 // 弁当をすでに予約している日は、昼食も付けない（弁当のまま）
                 foreach (self::EAT_REPORT_MEAL_TYPES as $mealType) {
-                    if ($mealType === 2 && $this->hasEffectiveMeal($reservationTable, $userId, $today, 4)) {
+                    $counterpart = MealType::counterpartValue($mealType);
+                    if ($counterpart !== null && $this->hasEffectiveMeal($reservationTable, $userId, $today, $counterpart)) {
                         continue;
                     }
                     $rows = $reservationTable->find()
@@ -162,7 +176,7 @@ class MealReportingService
                         $updatedMealTypes[] = $mealType;
                         $reservationTable->updateAll(
                             [
-                                'eat_flag'      => 1,
+                                // 当日は直前期間なので、直前の変更（i_change_flag）だけを 1 にし、当初の予定（eat_flag）は残す
                                 'i_change_flag' => 1,
                                 'c_update_user' => $userName,
                                 'dt_update'     => DateTime::now('Asia/Tokyo'),
@@ -188,7 +202,8 @@ class MealReportingService
                     $entity->d_reservation_date = $today;
                     $entity->i_reservation_type = $mealType;
                     $entity->i_id_room          = $roomId;
-                    $entity->eat_flag           = 1;
+                    // 直前期間の新しい行は、当初の予定（eat_flag）を 0、直前の変更（i_change_flag）を 1 にする
+                    $entity->eat_flag           = 0;
                     $entity->i_change_flag      = 1;
                     $entity->c_create_user      = $userName;
                     $entity->dt_create          = DateTime::now('Asia/Tokyo');
@@ -200,10 +215,12 @@ class MealReportingService
         } catch (PersistenceFailedException $e) {
             // 昼食と弁当は同時に有効にできない（テーブルの検証ルール）など。途中までの保存は取り消される
             return ['ok' => false, 'message' => '報告の保存に失敗しました。'];
+        } catch (QueryException $e) {
+            return $this->dbFailure('reportEat', $userId, $e);
         }
 
         $this->invalidateCaches($userId, $roomId, $today);
-        Cache::write(sprintf('today_report:%d:%s', $userId, $today), 1, 'default');
+        ReservationCache::markTodayReported($userId, $today);
 
         // 承認済みのため変えられなかった食事があれば、「食べない」の報告と同じく黙って「報告しました」にしない
         if ($updatedMealTypes === []) {
@@ -227,6 +244,18 @@ class MealReportingService
         }
 
         return ['ok' => true, 'message' => '食べるで報告しました。'];
+    }
+
+    /**
+     * DB の失敗（接続断・制約違反など）。理由（SQL など）は利用者に返さず、ログに残して 500 にする。途中までの保存は取り消し済み。
+     *
+     * @return array{ok: false, message: string, status: int}
+     */
+    private function dbFailure(string $action, int $userId, QueryException $e): array
+    {
+        Log::error(sprintf('%s DB error (user %d): %s', $action, $userId, $e->getMessage()));
+
+        return ['ok' => false, 'message' => '報告の保存に失敗しました（システムエラー）。管理者にお問い合わせください。', 'status' => 500];
     }
 
     private function getPrimaryRoomId(Table $userGroupTable, int $userId): ?int
@@ -284,7 +313,6 @@ class MealReportingService
 
     private function invalidateCaches(int $userId, int $roomId, string $today): void
     {
-        Cache::delete(sprintf('today_report:%d:%s', $userId, $today), 'default');
-        ReservationReportService::invalidateMealCountsCache($today);
+        ReservationCache::forgetDate($today, [$userId]);
     }
 }

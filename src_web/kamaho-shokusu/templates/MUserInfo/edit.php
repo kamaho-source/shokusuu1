@@ -1,10 +1,10 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Model\Entity\MUserInfo $mUserInfo
+ * @var \App\Infrastructure\Persistence\Entity\MUserInfo $mUserInfo
  * @var array $rooms
  * @var array $selectedRooms
- * @var \App\Model\Entity\User $user
+ * @var \App\Infrastructure\Persistence\Entity\User $user
  * @var bool $canChangeRole 役職を変更できるか（管理者が他のユーザーを編集するとき）
  * @var bool $canEditRooms 所属部屋を変更できるか
  */
