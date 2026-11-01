@@ -300,6 +300,30 @@ class ReservationReportControllerTest extends TestCase
         $this->assertResponseOk();
     }
 
+    /** 期間を省いたときの既定（先月1日〜来月末）は、月末に開いても月がずれない */
+    public function testGetAllRoomsMealCounts_defaultRange_atMonthEnd_doesNotShiftMonth(): void
+    {
+        $this->insertReservation(1, 1, '2026-02-15', 1, 1);
+        $this->insertReservation(1, 1, '2026-03-15', 1, 1);
+        $this->login(1);
+        try {
+            // 3/31 の「先月1日」は 2/1（3/1 ではない）
+            \Cake\Chronos\Chronos::setTestNow('2026-03-31 10:00:00');
+            $this->get('/TReservationInfo/getAllRoomsMealCounts');
+            $this->assertResponseOk();
+            $this->assertStringContainsString('2026-02-15', (string)$this->_response->getBody());
+
+            // 1/31 の「来月末」は 2/28（3/31 ではない）
+            \Cake\Cache\Cache::clear('default');
+            \Cake\Chronos\Chronos::setTestNow('2026-01-31 10:00:00');
+            $this->get('/TReservationInfo/getAllRoomsMealCounts');
+            $this->assertResponseOk();
+            $this->assertStringNotContainsString('2026-03-15', (string)$this->_response->getBody());
+        } finally {
+            \Cake\Chronos\Chronos::setTestNow(null);
+        }
+    }
+
     public function testGetAllRoomsMealCounts_nonAdmin_forbidden(): void
     {
         $this->login(2);

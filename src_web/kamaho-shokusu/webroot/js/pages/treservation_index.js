@@ -2700,9 +2700,10 @@ document.addEventListener('shown.bs.modal', function(ev) {
                 suggestedDate.setDate(suggestedDate.getDate() + 7);
             } else {
                 // 月単位の場合：翌月の1日
+                // 先に1日にしてから月を進める（1/31 から setMonth すると 3/3 になり、2月を飛ばすため）
                 suggestedDate = new Date(source);
-                suggestedDate.setMonth(suggestedDate.getMonth() + 1);
                 suggestedDate.setDate(1);
+                suggestedDate.setMonth(suggestedDate.getMonth() + 1);
             }
             
             // 入力欄に設定

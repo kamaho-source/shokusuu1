@@ -103,7 +103,9 @@
         var minKey = state.year * 12 + state.month;
         // 児童は子どもUIと同じく、今日から1か月後の前日までしか予約できない（kid_section.php と同じ基準）
         var lastDate = cfg.isChild ? (function () {
-            var e = new Date(t.getFullYear(), t.getMonth() + 1, t.getDate() - 1);
+            // 月末を繰り越さない（1/31 なら 3/2 ではなく 2/27。kid_section.php の addMonths と同じ）
+            var daysInNext = new Date(t.getFullYear(), t.getMonth() + 2, 0).getDate();
+            var e = new Date(t.getFullYear(), t.getMonth() + 1, Math.min(t.getDate(), daysInNext) - 1);
             return ymd(e.getFullYear(), e.getMonth(), e.getDate());
         })() : null;
         var maxKey = lastDate ? Math.min(minKey + MONTHS_AHEAD, parse(lastDate).getFullYear() * 12 + parse(lastDate).getMonth()) : minKey + MONTHS_AHEAD;
