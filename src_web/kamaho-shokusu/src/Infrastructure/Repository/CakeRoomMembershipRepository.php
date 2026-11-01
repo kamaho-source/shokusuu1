@@ -87,4 +87,14 @@ final class CakeRoomMembershipRepository implements RoomMembershipRepositoryInte
             throw SystemError::reservationUpdateFailed($e, '部屋・所属の読み取り');
         }
     }
+
+    public function roomIdByName(string $roomName): ?int
+    {
+        $room = TableRegistry::getTableLocator()->get('MRoomInfo')->find()
+            ->select(['i_id_room'])
+            ->where(['c_room_name' => $roomName])
+            ->first();
+
+        return $room === null ? null : (int)$room->get('i_id_room');
+    }
 }

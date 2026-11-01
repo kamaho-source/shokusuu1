@@ -227,6 +227,15 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
         }
     }
 
+    public function deleteUnapprovedAfter(int $userId, string $date): void
+    {
+        $this->reservations->deleteAll([
+            'i_id_user'            => $userId,
+            'i_approval_status'    => 0, // 未承認のみ
+            'd_reservation_date >' => $date, // 当日分は実績として残す
+        ]);
+    }
+
     public function latestUpdateByDate(int $roomId, array $dates): array
     {
         if ($dates === []) {

@@ -15,15 +15,18 @@ use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
+use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
 use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
+use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
+use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
@@ -34,7 +37,10 @@ use App\Infrastructure\AI\SystemPromptProvider;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Infrastructure\Authentication\UserIdSessionAuthenticator;
 use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
+use App\Infrastructure\Repository\CakeReservationRepository;
+use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
@@ -45,6 +51,7 @@ use Cake\Routing\Router;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Cake\Chronos\ClockFactory;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
@@ -241,6 +248,15 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $userAccounts = static fn(): CakeUserAccountRepository => new CakeUserAccountRepository(FactoryLocator::get('Table')->get('MUserInfo'));
         $container->add(ChangeUserRoleUseCase::class, static fn() => new ChangeUserRoleUseCase($userAccounts(), new AuditLogAdapter()));
         $container->add(ChangeReportAccessUseCase::class, static fn() => new ChangeReportAccessUseCase($userAccounts(), new AuditLogAdapter()));
+        $userTransaction = static fn(): CakeTransactionManager => new CakeTransactionManager(FactoryLocator::get('Table')->get('MUserInfo')->getConnection());
+        $container->add(DeleteUserUseCase::class, static fn() => new DeleteUserUseCase(
+            $userAccounts(),
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(RestoreUserUseCase::class, static fn() => new RestoreUserUseCase($userAccounts(), $userTransaction(), new AuditLogAdapter()));
+        $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
         $container->add(SystemReportService::class);
         $container->add(SystemReportController::class)

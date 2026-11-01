@@ -1,18 +1,24 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\DeleteUser;
 
-use App\Service\UserDeletionService;
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\DeleteUser\DeleteUserInput;
+use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
+use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Repository\CakeReservationRepository;
+use App\Infrastructure\Repository\CakeUserAccountRepository;
+use Cake\Chronos\ClockFactory;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * UserDeletionService テスト
+ * DeleteUserUseCase を本物の Repository・監査ログにつないだテスト（旧 UserDeletionServiceTest を引き継ぐ）
  *
  * softDelete() が i_del_flag を立てるとともに監査ログを記録することを検証する。
  */
-class UserDeletionServiceTest extends TestCase
+class DeleteUserIntegrationTest extends TestCase
 {
     protected array $fixtures = [
         'app.MUserInfo',
@@ -20,6 +26,20 @@ class UserDeletionServiceTest extends TestCase
         'app.TAuditLog',
         'app.TIndividualReservationInfo',
     ];
+
+    /** DeleteUserUseCase を本物の Repository・監査ログにつないで実行する（旧 UserDeletionService::softDelete と同じ呼び方） */
+    private function deleteUser(object $user, string $by, int $actorId = 0, string $ip = ''): bool
+    {
+        $tables  = $this->getTableLocator();
+        $useCase = new DeleteUserUseCase(
+            new CakeUserAccountRepository($tables->get('MUserInfo')),
+            new CakeReservationRepository($tables->get('TIndividualReservationInfo')),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        );
+
+        return $useCase->execute(new DeleteUserInput((int)$user->i_id_user, new AuditActor($by, $actorId, '', $ip)))->deleted;
+    }
 
     private function auditTable(): \Cake\ORM\Table
     {
@@ -48,9 +68,8 @@ class UserDeletionServiceTest extends TestCase
     public function testSoftDelete_returnsTrue(): void
     {
         $user = $this->userTable()->get(1);
-        $service = new UserDeletionService();
 
-        $result = $service->softDelete($user, 'admin', 99, '10.0.0.1');
+        $result = $this->deleteUser($user, 'admin', 99, '10.0.0.1');
 
         $this->assertTrue($result);
     }
@@ -62,8 +81,7 @@ class UserDeletionServiceTest extends TestCase
         $this->userTable()->save($user);
 
         $user = $this->userTable()->get(1);
-        $service = new UserDeletionService();
-        $service->softDelete($user, 'admin', 99);
+        $this->deleteUser($user, 'admin', 99);
 
         $refreshed = $this->userTable()->get(1);
         $this->assertSame(1, (int)$refreshed->i_del_flag);
@@ -78,7 +96,7 @@ class UserDeletionServiceTest extends TestCase
         $before = $this->countAuditLogs();
         $user   = $this->userTable()->get(1);
 
-        (new UserDeletionService())->softDelete($user, 'admin', 99, '192.168.0.1');
+        $this->deleteUser($user, 'admin', 99, '192.168.0.1');
 
         $this->assertSame($before + 1, $this->countAuditLogs());
     }
@@ -87,7 +105,7 @@ class UserDeletionServiceTest extends TestCase
     {
         $user = $this->userTable()->get(1);
 
-        (new UserDeletionService())->softDelete($user, 'adminuser', 7, '10.0.0.1');
+        $this->deleteUser($user, 'adminuser', 7, '10.0.0.1');
 
         $log = $this->lastAuditLog();
         $this->assertSame('user',         $log->c_category);
@@ -104,7 +122,7 @@ class UserDeletionServiceTest extends TestCase
     {
         $user = $this->userTable()->get(1);
 
-        (new UserDeletionService())->softDelete($user, 'admin', 1);
+        $this->deleteUser($user, 'admin', 1);
 
         $log     = $this->lastAuditLog();
         $decoded = json_decode($log->c_detail, true);
@@ -116,7 +134,7 @@ class UserDeletionServiceTest extends TestCase
     {
         $user = $this->userTable()->get(1);
 
-        (new UserDeletionService())->softDelete($user, 'admin', 1, '');
+        $this->deleteUser($user, 'admin', 1, '');
 
         $log = $this->lastAuditLog();
         $this->assertNull($log->c_ip_address);
@@ -140,7 +158,7 @@ class UserDeletionServiceTest extends TestCase
             $table->saveOrFail($row);
         }
 
-        (new UserDeletionService())->softDelete($this->userTable()->get(1), 'admin', 99);
+        $this->deleteUser($this->userTable()->get(1), 'admin', 99);
 
         $left = $table->find()->where(['i_id_user' => 1])->all()
             ->map(fn($r) => $r->d_reservation_date->format('Y-m-d'))->toList();
