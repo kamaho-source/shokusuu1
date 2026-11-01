@@ -292,4 +292,22 @@ class RoomTransferScheduleServiceTest extends TestCase
             ->where(['i_id_user' => 1, 'i_id_room' => 2, 'd_reservation_date' => $near, 'i_reservation_type' => 1])->firstOrFail();
         $this->assertNull($row->i_change_flag);
     }
+
+    /** 削除済みの人の部屋異動は、削除されている間は適用しない（未適用のまま残す）。#936 */
+    public function testApplyPending_skipsDeletedUser_andKeepsTheSchedulePending(): void
+    {
+        $db = \Cake\Datasource\ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 72, 'c_room_name' => '異動先', 'i_disp_no' => 72, 'i_del_flg' => 0]);
+        $db->insert('m_room_transfer_schedule', [
+            'i_id_user' => 6, 'i_id_room_from' => 1, 'i_id_room_to' => 72,
+            'd_effective_date' => date('Y-m-d'), 'i_status' => 0, 'c_create_user' => 't', 'dt_create' => '2026-01-01 00:00:00',
+        ]);
+
+        $result = $this->service->applyPending(date('Y-m-d'));
+
+        $this->assertSame(0, $result['applied']);
+        $this->assertSame([], $result['errors']);
+        $this->assertSame(0, (int)$db->execute('SELECT i_status FROM m_room_transfer_schedule WHERE i_id_user = 6')->fetchColumn(0), '未適用のまま残る');
+        $this->assertSame(0, (int)$db->execute('SELECT COUNT(*) FROM m_user_group WHERE i_id_user = 6 AND i_id_room = 72')->fetchColumn(0), '削除済みの人が異動先に所属していない');
+    }
 }

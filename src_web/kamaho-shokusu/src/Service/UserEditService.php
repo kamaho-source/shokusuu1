@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Infrastructure\Repository\CakeUserAccountRepository;
 use Cake\ORM\TableRegistry;
 use Cake\I18n\DateTime;
 
@@ -53,6 +54,9 @@ class UserEditService
         $conn->begin();
 
         try {
+            // 削除済みの人を更新すると、時刻で見分けていた「削除で外した所属」が分からなくなるため、先に印を付ける
+            (new CakeUserAccountRepository($userInfoTable, $userGroupTable))->freezeLeftByDeletion((int)$userId);
+
             // 削除するのは「現在所属している行(active_flag=0)」と、今回選択された部屋の行だけ。
             // 部屋異動で無効化された旧部屋の行(active_flag=1)まで消して作り直すと、
             // 保存のたびに旧部屋の所属が復活して食数が二重になる。

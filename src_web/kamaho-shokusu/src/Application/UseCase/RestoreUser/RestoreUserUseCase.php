@@ -12,8 +12,9 @@ use App\Domain\Repository\UserAccountRepositoryInterface;
 /**
  * 削除済みの利用者を復元する。誰が復元してよいか（認可）と、削除済みかどうかは呼び出し側で確かめる。
  *
- * 利用者の削除を取り消し、所属の行をすべて所属中に戻す（1つのトランザクション）。
- * ponytail: 部屋異動で退出した昔の部屋も所属中に戻る（従来どおり）。直すなら、削除時に退出させた行だけを戻す。
+ * 利用者の削除を取り消し、削除で外した所属だけを所属中に戻す（1つのトランザクション）。
+ * 部屋異動で外れた昔の部屋は戻さない。どの部屋が削除で外したものかは DeletedMembershipRule で見分ける。
+ * 見分けられない（印の列を足す前に削除され、時刻もずれている）人は、所属なしで復元する。
  */
 final class RestoreUserUseCase
 {
@@ -40,12 +41,15 @@ final class RestoreUserUseCase
             throw new NotFoundException('対象ユーザーが見つかりません。');
         }
 
+        // 削除済みにした時刻で見分けるため、利用者を更新する前に戻す部屋を決める
+        $roomIds = $this->users->roomsLeftByDeletion($user->id);
+
         $this->transaction->begin();
         try {
             if (!$this->users->markRestored($user->id, $input->actor->name)) {
                 throw new \RuntimeException('ユーザー情報の更新に失敗しました。');
             }
-            if (!$this->users->rejoinAllRooms($user->id, $input->actor->name)) {
+            if (!$this->users->rejoinRooms($user->id, $roomIds, $input->actor->name)) {
                 throw new \RuntimeException('グループ情報の更新に失敗しました。');
             }
             $this->transaction->commit();
@@ -60,9 +64,9 @@ final class RestoreUserUseCase
 
         $this->auditLog->record(
             'user', 'user_restore', $input->actor, 'm_user_info', (string)$user->id,
-            ['target_user_name' => $user->name], true
+            ['target_user_name' => $user->name, 'restored_room_ids' => $roomIds], true
         );
 
-        return new RestoreUserOutput($user->name);
+        return new RestoreUserOutput($user->name, count($roomIds));
     }
 }

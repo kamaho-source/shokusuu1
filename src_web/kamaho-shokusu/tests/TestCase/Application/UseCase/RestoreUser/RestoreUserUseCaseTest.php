@@ -32,20 +32,29 @@ class RestoreUserUseCaseTest extends TestCase
         $this->useCase     = new RestoreUserUseCase($this->users, $this->transaction, $this->audit);
     }
 
-    private function restore(): void
+    private function restore(): int
     {
-        $this->useCase->execute(new RestoreUserInput(20, new AuditActor('管理者', 1, 'admin', '')));
+        return $this->useCase->execute(new RestoreUserInput(20, new AuditActor('管理者', 1, 'admin', '')))->restoredRoomCount;
     }
 
-    public function testRestore_clearsDeletionRejoinsRoomsInOneTransaction(): void
+    public function testRestore_rejoinsOnlyRoomsLeftByDeletionInOneTransaction(): void
     {
-        $this->restore();
+        $this->users->leftByDeletion[20] = [1, 3];
+
+        $this->assertSame(2, $this->restore());
 
         $this->assertFalse($this->users->users[20]->isDeleted());
-        $this->assertSame(['rejoin:20'], $this->users->roomOps);
+        $this->assertSame(['rejoin:20:1,3'], $this->users->roomOps, '削除で外した部屋だけ戻す');
         $this->assertSame(['begin', 'commit'], $this->transaction->calls);
-        $this->assertSame(['target_user_name' => '児童さん'], $this->audit->records[0]['detail']);
+        $this->assertSame(['target_user_name' => '児童さん', 'restored_room_ids' => [1, 3]], $this->audit->records[0]['detail']);
         $this->assertTrue($this->audit->records[0]['succeeded']);
+    }
+
+    public function testRestore_withUnknownRooms_restoresWithoutRoomsAndTellsSo(): void
+    {
+        $this->assertSame(0, $this->restore(), '所属なしで復元したことを呼び出し側に返す');
+        $this->assertFalse($this->users->users[20]->isDeleted());
+        $this->assertSame(['rejoin:20:'], $this->users->roomOps);
     }
 
     /**

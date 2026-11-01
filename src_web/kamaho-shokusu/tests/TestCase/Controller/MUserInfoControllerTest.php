@@ -97,7 +97,7 @@ class MUserInfoControllerTest extends TestCase
 
     /**
      * 削除済みユーザーの所属を作る。部屋1(現役)、部屋2(別の現役)、部屋3(削除済み)。
-     * ユーザー6は部屋1・部屋3に所属していたが、削除時に全て退出済みになっている。
+     * ユーザー6は部屋1・部屋3に所属していたが、削除時に全て退出済みになり、「削除で外した」印が付いている。
      */
     private function prepareDeletedUserRooms(): void
     {
@@ -111,8 +111,8 @@ class MUserInfoControllerTest extends TestCase
         $groups = $this->getTableLocator()->get('MUserGroup');
         $groupBase = $groups->find()->where(['i_id_user' => 6])->firstOrFail()->toArray();
         unset($groupBase['i_id_group'], $groupBase['id']);
-        $groups->updateAll(['active_flag' => 1], ['i_id_user' => 6]);
-        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 3, 'active_flag' => 1] + $groupBase);
+        $groups->updateAll(['active_flag' => 1, 'i_left_by_deletion' => 1], ['i_id_user' => 6]);
+        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 3, 'active_flag' => 1, 'i_left_by_deletion' => 1] + $groupBase);
         $this->getTableLocator()->get('MUserInfo')->updateAll(['i_del_flag' => 1], ['i_id_user' => 6]);
     }
 

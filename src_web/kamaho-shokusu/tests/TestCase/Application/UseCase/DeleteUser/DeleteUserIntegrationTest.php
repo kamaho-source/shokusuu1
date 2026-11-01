@@ -7,6 +7,7 @@ use App\Application\Port\AuditActor;
 use App\Application\UseCase\DeleteUser\DeleteUserInput;
 use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
 use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Repository\CakeUserAccountRepository;
 use Cake\Chronos\ClockFactory;
@@ -34,6 +35,7 @@ class DeleteUserIntegrationTest extends TestCase
         $useCase = new DeleteUserUseCase(
             new CakeUserAccountRepository($tables->get('MUserInfo')),
             new CakeReservationRepository($tables->get('TIndividualReservationInfo')),
+            new CakeTransactionManager($tables->get('MUserInfo')->getConnection()),
             new AuditLogAdapter(),
             new ClockFactory('Asia/Tokyo'),
         );

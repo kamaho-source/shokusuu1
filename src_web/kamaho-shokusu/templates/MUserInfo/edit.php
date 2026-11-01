@@ -7,6 +7,7 @@
  * @var \App\Infrastructure\Persistence\Entity\User $user
  * @var bool $canChangeRole 役職を変更できるか（管理者が他のユーザーを編集するとき）
  * @var bool $canEditRooms 所属部屋を変更できるか
+ * @var bool $roomsLocked 削除済みのため所属部屋を変えられないか
  */
 use App\Domain\ValueObject\UserProfileOptions;
 $this->assign('title', 'ユーザー情報の編集');
@@ -105,7 +106,12 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                             ]) ?>
                         </div>
                     <?php endif; ?>
-                    <?php if ($canEditRooms): ?>
+                    <?php if ($canEditRooms && !empty($roomsLocked)): ?>
+                    <div class="mb-3">
+                        <label>所属部屋</label>
+                        <p class="text-muted small mb-0">削除済みのユーザーは所属部屋を変更できません。復元すると、削除前の所属部屋に戻ります。</p>
+                    </div>
+                    <?php elseif ($canEditRooms): ?>
                     <div class="mb-3">
                         <label>所属部屋</label>
                         <?php foreach ($rooms as $id => $name): ?>
