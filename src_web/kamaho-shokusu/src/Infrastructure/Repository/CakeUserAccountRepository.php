@@ -5,6 +5,7 @@ namespace App\Infrastructure\Repository;
 
 use App\Domain\Entity\UserAccount;
 use App\Domain\Entity\UserCreationResult;
+use App\Domain\Entity\UserUpdateResult;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 use App\Domain\Service\DeletedMembershipRule;
 use Cake\Datasource\EntityInterface;
@@ -19,6 +20,9 @@ use Cake\ORM\TableRegistry;
  */
 final class CakeUserAccountRepository implements UserAccountRepositoryInterface
 {
+    /** updateProfile で保存前後を返す項目。 */
+    private const PROFILE_FIELDS = ['c_login_account', 'c_user_name', 'i_user_gender', 'i_user_rank', 'i_user_level', 'i_id_staff'];
+
     private readonly Table $groups;
 
     public function __construct(private readonly Table $users, ?Table $groups = null)
@@ -88,6 +92,8 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
             $row->get('i_admin') === null ? null : (int)$row->get('i_admin'),
             $row->get('i_report_access') === null ? null : (int)$row->get('i_report_access'),
             $row->get('i_del_flag') === null ? null : (int)$row->get('i_del_flag'),
+            $row->get('i_user_level') === null ? null : (int)$row->get('i_user_level'),
+            $row->get('c_login_account') === null ? null : (string)$row->get('c_login_account'),
         );
     }
 
@@ -206,6 +212,46 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         ]);
 
         return (bool)$this->groups->save($row);
+    }
+
+    public function updateProfile(int $userId, array $data, array $fields): UserUpdateResult
+    {
+        $user = $this->row($userId);
+        if ($user === null) {
+            return UserUpdateResult::failed([]);
+        }
+        $before = $user->extract(self::PROFILE_FIELDS);
+        $user = $this->users->patchEntity($user, $data, ['fields' => $fields]);
+        if (!$this->users->save($user)) {
+            return UserUpdateResult::failed($user->getErrors());
+        }
+
+        return UserUpdateResult::saved($before, $user->extract(self::PROFILE_FIELDS));
+    }
+
+    public function replaceActiveRooms(int $userId, array $roomIds, string $updatedBy): bool
+    {
+        // 部屋異動で外れた旧部屋の行(active_flag=1)まで消して作り直すと、保存のたびに旧部屋の所属が復活して食数が二重になる
+        $conditions = ['active_flag' => 0];
+        if ($roomIds !== []) {
+            $conditions = ['OR' => ['active_flag' => 0, 'i_id_room IN' => array_map('intval', $roomIds)]];
+        }
+        $this->groups->deleteAll(['i_id_user' => $userId] + $conditions);
+
+        $now  = DateTime::now()->format('Y-m-d H:i:s');
+        $rows = [];
+        foreach ($roomIds as $roomId) {
+            $rows[] = $this->groups->newEntity([
+                'i_id_user'     => $userId,
+                'i_id_room'     => (int)$roomId,
+                'active_flag'   => 0,
+                'dt_create'     => $now,
+                'dt_update'     => $now,
+                'c_update_user' => $updatedBy,
+            ]);
+        }
+
+        return $rows === [] || $this->groups->saveMany($rows) !== false;
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Domain\Repository;
 
 use App\Domain\Entity\UserAccount;
 use App\Domain\Entity\UserCreationResult;
+use App\Domain\Entity\UserUpdateResult;
 
 /**
  * 管理画面で利用者の権限などを読み書きする。
@@ -93,4 +94,21 @@ interface UserAccountRepositoryInterface
      * 部屋に所属させる（新しい行を作る）。保存できなければ false。
      */
     public function joinRoom(int $userId, int $roomId, string $createdBy): bool;
+
+    /**
+     * 編集画面の値でプロフィールを保存する。$fields に挙げた項目だけを変え、テーブルの入力チェック・ルールを通す。
+     * 保存できたときは、保存前後のプロフィール（ログインID・氏名・性別・年代・役職・職員ID）を返す。
+     *
+     * @param array<string, mixed> $data
+     * @param list<string> $fields 変えてよい項目
+     */
+    public function updateProfile(int $userId, array $data, array $fields): UserUpdateResult;
+
+    /**
+     * 今所属している部屋（active_flag=0）を、指定した部屋に差し替える（行を消して作り直す）。保存できなければ false。
+     * 部屋異動で外れた旧所属（active_flag=1）は残す。ただし指定した部屋の旧所属の行は消して所属中で作り直す。
+     *
+     * @param list<int> $roomIds
+     */
+    public function replaceActiveRooms(int $userId, array $roomIds, string $updatedBy): bool;
 }
