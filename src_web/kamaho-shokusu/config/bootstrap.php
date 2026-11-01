@@ -231,3 +231,22 @@ ServerRequest::addDetector('tablet', function ($request) {
 // and https://unicode-org.github.io/icu/userguide/format_parse/datetime/#datetime-format-syntax
 //\Cake\I18n\FrozenDate::setToStringFormat('dd.MM.yyyy');
 //\Cake\I18n\FrozenTime::setToStringFormat('dd.MM.yyyy HH:mm');
+
+/*
+ * 旧 Entity のクラス名（App\Model\Entity\Xxx）を、永続化層の新しいクラスの別名として読めるようにする。
+ *
+ * ログイン情報はセッションに Entity をそのまま保存する。Entity を App\Infrastructure\Persistence\Entity へ移したあと、
+ * 移す前にログインした人のセッションには旧クラス名が残り、読み戻せずに全画面が 500 になる（ログイン画面も含む）。
+ * 旧クラスが実在する間（移す前のコード）は、Composer が先に見つけるのでここは呼ばれない。
+ * ponytail: セッションの有効期限（12時間）を過ぎれば不要。次のリリース以降に削除してよい。
+ */
+spl_autoload_register(static function (string $class): void {
+    $legacy = 'App\\Model\\Entity\\';
+    if (!str_starts_with($class, $legacy)) {
+        return;
+    }
+    $current = 'App\\Infrastructure\\Persistence\\Entity\\' . substr($class, strlen($legacy));
+    if (class_exists($current)) {
+        class_alias($current, $class);
+    }
+});
