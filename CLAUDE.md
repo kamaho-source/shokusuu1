@@ -40,6 +40,7 @@ src/
 ├── Domain/
 │   ├── Entity/
 │   ├── ValueObject/
+│   ├── Service/           # ドメインサービス（エンティティに属さない純粋な業務ルール。例: ReservationDateRule）
 │   ├── Repository/        # インターフェースのみ
 │   └── Exception/
 ├── Application/
@@ -56,7 +57,7 @@ src/
 
 ## 4. 各層の実装ルール
 
-**Domain 層** — フレームワーク・DB依存を一切持たない。バリデーションはエンティティ・値オブジェクト内で完結。
+**Domain 層** — フレームワーク・DB依存を一切持たない。バリデーションはエンティティ・値オブジェクト内で完結。「今日」などの現在時刻は引数で受け取り、Domain の中で取得しない。日付型は cakephp/chronos（`ChronosDate`）を使ってよい（CakePHP 本体ではない）。依存方向は `tests/TestCase/Architecture/LayerDependencyTest.php` で検査している。
 
 **Application 層** — 1クラス1機能・`execute()` メソッドを持つ。Input/Output は専用DTOクラス。
 

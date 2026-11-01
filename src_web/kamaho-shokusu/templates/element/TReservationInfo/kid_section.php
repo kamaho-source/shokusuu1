@@ -35,7 +35,7 @@ $toggleBase = $toggleBase ?? $this->Url->build('/TReservationInfo/toggle/__ROOM_
 // 中学生向け UI 設定
 $isChild = isset($isChild) && (bool)$isChild;
 $todayDt  = new DateTimeImmutable('today', new DateTimeZone('Asia/Tokyo'));
-$day14Dt  = $todayDt->modify('+14 days'); // 当日〜14日先＝直前期間（発注済）
+$day14Dt  = $todayDt->modify('+' . \App\Domain\Service\ReservationDateRule::CHANGE_WINDOW_DAYS . ' days'); // 当日〜14日先＝直前期間（発注済）
 
 if ($isChild) {
     // 子ども：今日から1か月後の前日まで（直前＋通常を含む全日）
@@ -43,7 +43,7 @@ if ($isChild) {
     $showUntilDt = $todayDt->modify('+1 month')->modify('-1 day');
 } else {
     // 大人：通常予約の開始日（今日+15日目）から1か月分
-    $startDt     = $todayDt->modify('+15 days');
+    $startDt     = $todayDt->modify('+' . \App\Domain\Service\ReservationDateRule::NORMAL_ORDER_MIN_DAYS . ' days');
     $showUntilDt = $startDt->modify('+1 month')->modify('-1 day');
 }
 

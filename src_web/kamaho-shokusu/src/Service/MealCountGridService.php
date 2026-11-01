@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\Service\ReservationDateRule;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -370,7 +371,7 @@ class MealCountGridService
     {
         $today      = Date::today('Asia/Tokyo');
         // 直前編集ウィンドウ最終日: 当日〜+14日は 'last_minute'、15日以降は 'normal'。
-        $borderDate = $today->addDays(14);
+        $borderDate = ReservationDateRule::changeBoundaryDate($today);
 
         $categories = [];
         foreach ($dates as $d) {

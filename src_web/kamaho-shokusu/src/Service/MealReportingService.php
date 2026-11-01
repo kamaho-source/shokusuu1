@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\MealType;
 use App\Exception\DuplicateMealReservationException;
 use App\Model\Table\TIndividualReservationInfoTable;
 use Cake\Cache\Cache;
@@ -19,8 +20,6 @@ use Cake\ORM\Table;
  */
 class MealReportingService
 {
-    private const MEAL_TYPES = [1, 2, 3, 4];
-
     private const EAT_REPORT_MEAL_TYPES = [1, 2, 3];
 
     /**
@@ -54,7 +53,7 @@ class MealReportingService
             [
                 'i_id_user'             => $userId,
                 'd_reservation_date'    => $today,
-                'i_reservation_type IN' => self::MEAL_TYPES,
+                'i_reservation_type IN' => MealType::values(),
                 // 承認済みの行は変えない（他の書き込み経路と同じく、承認後の内容を守る）
                 'OR' => [
                     'i_approval_status IS'     => null,
@@ -64,7 +63,7 @@ class MealReportingService
         );
 
         // 予約行が1つも無い食事は、従来どおり代表部屋に「食べない」の行を残す
-        foreach (self::MEAL_TYPES as $mealType) {
+        foreach (MealType::values() as $mealType) {
             $exists = $reservationTable->exists([
                 'i_id_user'          => $userId,
                 'd_reservation_date' => $today,

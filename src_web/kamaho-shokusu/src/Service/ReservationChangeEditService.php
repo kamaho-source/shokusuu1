@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\Exception\InvalidInputException;
+use App\Domain\ValueObject\MealType;
 use App\Model\Table\TIndividualReservationInfoTable;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
@@ -64,7 +65,7 @@ class ReservationChangeEditService
             ->where([
                 'd_reservation_date'    => $date,
                 'i_id_room IN'          => array_keys($allowedRooms),
-                'i_reservation_type IN' => [1, 2, 3, 4],
+                'i_reservation_type IN' => MealType::values(),
             ])
             ->first();
 
@@ -124,7 +125,7 @@ class ReservationChangeEditService
             ->contain(['MRoomInfo'])
             ->where([
                 'd_reservation_date'    => $date,
-                'i_reservation_type IN' => [1,2,3,4],
+                'i_reservation_type IN' => MealType::values(),
                 'i_id_user IN'          => $userIdList ?: [-1],
             ])->all();
 
@@ -252,7 +253,7 @@ class ReservationChangeEditService
                     ->where([
                         'i_id_user IN' => $targetUserIds,
                         'd_reservation_date' => $date,
-                        'i_reservation_type IN' => [1, 2, 3, 4],
+                        'i_reservation_type IN' => MealType::values(),
                     ])
                     ->all();
                 foreach ($existingRows as $row) {
@@ -289,7 +290,7 @@ class ReservationChangeEditService
 
                 foreach ($meals as $mealTypeRaw => $flags) {
                     $mealType = (int)$mealTypeRaw;
-                    if (!in_array($mealType, [1,2,3,4], true)) {
+                    if (MealType::tryFrom($mealType) === null) {
                         continue;
                     }
 
