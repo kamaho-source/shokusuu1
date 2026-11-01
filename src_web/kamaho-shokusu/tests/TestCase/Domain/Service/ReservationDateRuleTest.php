@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Domain\Service;
 
 use App\Domain\Service\ReservationDateRule;
 use Cake\Chronos\ChronosDate;
+use Cake\I18n\Date;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -69,5 +70,20 @@ class ReservationDateRuleTest extends TestCase
             '通常発注は「きょうから15日目以降」のみ登録できます（2026-11-16 以降）。',
             ReservationDateRule::normalOrderError(self::d('2026-11-15'), $today)
         );
+    }
+
+    /**
+     * 予約日が Cake\I18n\Date、今日が ChronosDate（またはその逆）でも同じ結果になる。
+     * 演算子で比べると、クラスが違うだけで常に false になり、過去日や15日ルールが素通りする。
+     */
+    public function testMixedDateClasses_giveTheSameResults(): void
+    {
+        $today = self::d('2026-11-01');
+        $this->assertTrue(ReservationDateRule::isPast(new Date('2026-10-31'), $today));
+        $this->assertTrue(ReservationDateRule::usesChangeFlag(new Date('2026-11-15'), $today));
+        $this->assertFalse(ReservationDateRule::usesChangeFlag(new Date('2026-11-16'), $today));
+        $this->assertTrue(ReservationDateRule::isLastMinuteWindow(new Date('2026-11-01'), $today));
+        $this->assertNotNull(ReservationDateRule::normalOrderError(new Date('2026-11-15'), $today));
+        $this->assertTrue(ReservationDateRule::isPast(self::d('2026-10-31'), new Date('2026-11-01')));
     }
 }

@@ -34,17 +34,22 @@ $toggleBase = $toggleBase ?? $this->Url->build('/TReservationInfo/toggle/__ROOM_
 
 // 中学生向け UI 設定
 $isChild = isset($isChild) && (bool)$isChild;
-$todayDt  = new DateTimeImmutable('today', new DateTimeZone('Asia/Tokyo'));
+$todayDt  = new DateTimeImmutable(\Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d'), new DateTimeZone('Asia/Tokyo'));
+// 「1か月後の前日」。月末を繰り越さない（1/31 なら 3/2 ではなく 2/27。複数日予約の JS と同じ基準）
+$monthLaterMinusDay = static fn(DateTimeImmutable $d): DateTimeImmutable => new DateTimeImmutable(
+    \Cake\I18n\Date::parse($d->format('Y-m-d'))->addMonths(1)->subDays(1)->format('Y-m-d'),
+    new DateTimeZone('Asia/Tokyo')
+);
 $day14Dt  = $todayDt->modify('+' . \App\Domain\Service\ReservationDateRule::CHANGE_WINDOW_DAYS . ' days'); // 当日〜14日先＝直前期間（発注済）
 
 if ($isChild) {
     // 子ども：今日から1か月後の前日まで（直前＋通常を含む全日）
     $startDt     = $todayDt;
-    $showUntilDt = $todayDt->modify('+1 month')->modify('-1 day');
+    $showUntilDt = $monthLaterMinusDay($todayDt);
 } else {
     // 大人：通常予約の開始日（今日+15日目）から1か月分
     $startDt     = $todayDt->modify('+' . \App\Domain\Service\ReservationDateRule::NORMAL_ORDER_MIN_DAYS . ' days');
-    $showUntilDt = $startDt->modify('+1 month')->modify('-1 day');
+    $showUntilDt = $monthLaterMinusDay($startDt);
 }
 
 $daysToShow = (int)$startDt->diff($showUntilDt)->days + 1; // 両端含む

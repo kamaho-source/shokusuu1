@@ -9,6 +9,8 @@ use App\Application\UseCase\BulkReservation\BulkReservationSupport;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
+use Cake\Chronos\ClockFactory;
+use Psr\Clock\ClockInterface;
 use Psr\Log\NullLogger;
 
 /**
@@ -26,27 +28,31 @@ final class ReservationFixture
 
     public SpyReservationCache $cache;
 
+    /** 時計（今日は各テストの Chronos::setTestNow で固定する） */
+    public ClockInterface $clock;
+
     public function __construct()
     {
         $this->reservations = new FakeReservationRepository();
         $this->rooms        = new FakeRoomMembershipRepository(['10:1', '10:7', '10:8']);
         $this->users        = new FakeUserRepository([10 => FakeUserRepository::staff()]);
         $this->cache        = new SpyReservationCache();
+        $this->clock        = new ClockFactory('Asia/Tokyo');
     }
 
     public function toggleMeal(): ToggleMealUseCase
     {
-        return new ToggleMealUseCase($this->reservations, $this->rooms, $this->users, $this->cache);
+        return new ToggleMealUseCase($this->reservations, $this->rooms, $this->users, $this->cache, $this->clock);
     }
 
     public function registerIndividual(): RegisterIndividualReservationUseCase
     {
-        return new RegisterIndividualReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger());
+        return new RegisterIndividualReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger(), $this->clock);
     }
 
     public function registerGroup(): RegisterGroupReservationUseCase
     {
-        return new RegisterGroupReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger());
+        return new RegisterGroupReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger(), $this->clock);
     }
 
     public function bulkAdd(): BulkAddReservationsUseCase
@@ -57,7 +63,7 @@ final class ReservationFixture
             $this->users,
             $this->reservations,
             $this->cache,
-            new FakeReservationDatePolicy(),
+            $this->clock,
             new BulkReservationSupport($this->reservations, $this->rooms, $this->cache),
             new NullLogger(),
             '過去日は選べません。',
@@ -71,7 +77,7 @@ final class ReservationFixture
             $this->rooms,
             $this->users,
             $this->reservations,
-            new FakeReservationDatePolicy(),
+            $this->clock,
             new BulkReservationSupport($this->reservations, $this->rooms, $this->cache),
             new NullLogger(),
         );

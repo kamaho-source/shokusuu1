@@ -238,16 +238,20 @@ class RegisterIndividualReservationUseCaseTest extends TestCase
         $this->register([1 => [1 => 1]]);
     }
 
-    public function testDbFailure_isConflictWithReason(): void
+    public function testDbFailure_isInternalErrorWithoutLeakingReason(): void
     {
         $this->f->reservations->onAdd = static function (): void {
-            throw new \RuntimeException('接続が切れました');
+            throw new \RuntimeException('SQLSTATE[HY000] 接続が切れました');
         };
 
-        $this->expectException(ConflictException::class);
-        $this->expectExceptionMessage('接続が切れました');
-
-        $this->register([1 => [1 => 1]]);
+        try {
+            $this->register([1 => [1 => 1]]);
+            $this->fail('例外が投げられていない');
+        } catch (PersistenceException $e) {
+            $this->assertSame('予約処理中に内部エラーが発生しました。', $e->getMessage());
+            $this->assertSame(500, $e->getStatusCode());
+        }
+        $this->assertSame([], $this->f->cache->forgotten);
     }
 
     public function testNothingChanged_isSystemError(): void

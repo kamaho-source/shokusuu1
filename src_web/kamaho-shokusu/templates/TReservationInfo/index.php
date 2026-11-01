@@ -18,7 +18,7 @@ $user = $this->request->getAttribute('identity');
 $isChild = ($user && (int)$user->get('i_user_level') === 1);
 $isAdmin = ($user && in_array((int)$user->get('i_admin'), [1, 3]));
 $isStaff = ($user && (in_array((int)$user->get('i_user_level'), [0, 7]) || $isAdmin));
-$today = date('Y-m-d');
+$today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 $serverToday = $today;
 $date = $this->request->getQuery('date', $today);
@@ -60,7 +60,7 @@ $getUsersByRoomTpl = $getUsersByRoomTpl ?? $this->Url->build(
 );
 
 // 今日
-$today = date('Y-m-d');
+$today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 // 今日の予約情報（参考用）
 $myReservationDates   = $myReservationDates   ?? [];
 $myReservationDetails = $myReservationDetails ?? [];

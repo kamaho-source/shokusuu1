@@ -7,17 +7,18 @@ use App\Application\UseCase\BulkAddReservations\BulkAddReservationsInput;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsInput;
 use App\Infrastructure\ReservationUseCases;
 use Cake\ORM\Table;
+use Psr\Clock\ClockInterface;
 
 /**
  * 一括登録・直前一括編集の入口（処理本体は BulkAddReservationsUseCase・BulkChangeEditReservationsUseCase）。
  */
 class ReservationBulkService
 {
-    private ReservationDatePolicy $datePolicy;
-
-    public function __construct(?ReservationDatePolicy $datePolicy = null)
+    /**
+     * @param ClockInterface|null $clock 時計（省略時は Asia/Tokyo の現在時刻）
+     */
+    public function __construct(private readonly ?ClockInterface $clock = null)
     {
-        $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
     }
 
     /**
@@ -81,6 +82,6 @@ class ReservationBulkService
     private function useCases(Table $reservationTable, Table $userTable): ReservationUseCases
     {
         /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable $reservationTable */
-        return new ReservationUseCases($reservationTable, $userTable, $this->datePolicy);
+        return new ReservationUseCases($reservationTable, $userTable, $this->clock);
     }
 }

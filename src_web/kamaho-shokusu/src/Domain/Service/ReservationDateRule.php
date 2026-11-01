@@ -14,6 +14,7 @@ use Cake\Chronos\ChronosDate;
  *
  * 「今日」は呼び出し側が渡す（Domain は時計を持たない）。
  * 日付型は CakePHP 本体ではなく cakephp/chronos の ChronosDate。Cake\I18n\Date も渡せ、戻り値は渡した型のまま。
+ * 比較は演算子ではなく lessThan() などで行う。PHP の < はクラスの違う ChronosDate と Cake\I18n\Date を比べると常に false になるため。
  */
 final class ReservationDateRule
 {
@@ -22,6 +23,16 @@ final class ReservationDateRule
 
     /** 通常予約の最短リードタイム（今日からこの日数後から通常予約できる）。 */
     public const NORMAL_ORDER_MIN_DAYS = 15;
+
+    /** 日付の文字列を日付にする。日付として読めなければ null。 */
+    public static function parse(string $date): ?ChronosDate
+    {
+        try {
+            return new ChronosDate($date);
+        } catch (\Exception) {
+            return null;
+        }
+    }
 
     /** 直前編集ウィンドウの最終日（今日+14日）。 */
     public static function changeBoundaryDate(ChronosDate $today): ChronosDate
@@ -38,19 +49,19 @@ final class ReservationDateRule
     /** 予約日が i_change_flag を使うべきか（境界日以前。過去日を含む）。 */
     public static function usesChangeFlag(ChronosDate $targetDate, ChronosDate $today): bool
     {
-        return $targetDate <= self::changeBoundaryDate($today);
+        return $targetDate->lessThanOrEquals(self::changeBoundaryDate($today));
     }
 
     /** 予約日が直前編集ウィンドウ内か（今日以降かつ境界日以前。過去日は含まない）。 */
     public static function isLastMinuteWindow(ChronosDate $targetDate, ChronosDate $today): bool
     {
-        return $targetDate >= $today && $targetDate <= self::changeBoundaryDate($today);
+        return $targetDate->greaterThanOrEquals($today) && $targetDate->lessThanOrEquals(self::changeBoundaryDate($today));
     }
 
     /** 予約日が今日より前か。 */
     public static function isPast(ChronosDate $targetDate, ChronosDate $today): bool
     {
-        return $targetDate < $today;
+        return $targetDate->lessThan($today);
     }
 
     /**
@@ -72,7 +83,7 @@ final class ReservationDateRule
     public static function normalOrderError(ChronosDate $targetDate, ChronosDate $today): ?string
     {
         $minDate = self::minimumOrderDate($today);
-        if ($targetDate < $minDate) {
+        if ($targetDate->lessThan($minDate)) {
             return sprintf('通常発注は「きょうから15日目以降」のみ登録できます（%s 以降）。', $minDate->format('Y-m-d'));
         }
 

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\BulkChangeEditReservations;
 
-use App\Application\Port\ReservationDatePolicyInterface;
 use App\Application\Port\TransactionManagerInterface;
 use App\Application\UseCase\BulkReservation\BulkReservationSupport;
 use App\Domain\Entity\MealReservation;
@@ -17,6 +16,7 @@ use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Domain\ValueObject\UserRoleInfo;
 use Cake\Chronos\ChronosDate;
+use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -39,7 +39,7 @@ final class BulkChangeEditReservationsUseCase
         private readonly RoomMembershipRepositoryInterface $rooms,
         private readonly UserRepositoryInterface $users,
         private readonly TransactionManagerInterface $transaction,
-        private readonly ReservationDatePolicyInterface $datePolicy,
+        private readonly ClockInterface $clock,
         private readonly BulkReservationSupport $support,
         private readonly LoggerInterface $logger,
     ) {}
@@ -93,7 +93,7 @@ final class BulkChangeEditReservationsUseCase
                 ];
             }
 
-            $result = $this->applyChanges($input, ChronosDate::today('Asia/Tokyo'));
+            $result = $this->applyChanges($input, new ChronosDate($this->clock->now()));
             if ($result['ok'] === false) {
                 $this->transaction->rollback();
                 return $result;
@@ -245,7 +245,7 @@ final class BulkChangeEditReservationsUseCase
                             ];
                         }
                         // 権限の判定のあとで見る（権限のない操作を「過去日」として ok にしない）
-                        if (!$isAdmin && $this->datePolicy->isPastDate((string)$date)) {
+                        if (!$isAdmin && self::isPastDate((string)$date, $today)) {
                             $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
                             continue;
                         }
@@ -266,7 +266,7 @@ final class BulkChangeEditReservationsUseCase
                         ];
                     }
                     // 権限の判定のあとで見る（権限のない操作を「過去日」として ok にしない）
-                    if (!$isAdmin && $this->datePolicy->isPastDate((string)$date)) {
+                    if (!$isAdmin && self::isPastDate((string)$date, $today)) {
                         $skipped[] = "{$date} は過去日のため、利用者ID {$userId} の予約は変更できません。";
                         continue;
                     }
@@ -294,5 +294,13 @@ final class BulkChangeEditReservationsUseCase
             'created' => $created,
             'skipped' => array_values(array_unique($skipped)),
         ];
+    }
+
+    /** 今日より前の日か（日付として読めなければ false）。 */
+    private static function isPastDate(string $date, ChronosDate $today): bool
+    {
+        $target = ReservationDateRule::parse($date);
+
+        return $target !== null && ReservationDateRule::isPast($target, $today);
     }
 }

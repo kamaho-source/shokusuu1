@@ -13,6 +13,8 @@
     window.__csrfToken            = cfg.csrfToken          || window.__csrfToken            || '';
     window.SERVER_TODAY           = cfg.serverToday        || window.SERVER_TODAY           || '';
     window.TODAY                  = cfg.serverToday        || window.TODAY                  || '';
+    // 食事区分の表示名（サーバーの MealType::LABEL_SETS）。例: MEAL_LABELS.full[1] === '朝食'
+    window.MEAL_LABELS            = cfg.mealLabels         || {};
     window.__USER_INFO = {
         isStaff:   !!cfg.isStaff,
         isChild:   !!cfg.isChild,

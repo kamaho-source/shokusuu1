@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Infrastructure;
 
-use App\Application\Port\ReservationDatePolicyInterface;
 use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Application\UseCase\BulkReservation\BulkReservationSupport;
@@ -20,9 +19,10 @@ use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Repository\CakeUserRepository;
 use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
-use App\Service\ReservationDatePolicy;
 use Cake\Core\Configure;
+use Cake\Chronos\ClockFactory;
 use Cake\ORM\Table;
+use Psr\Clock\ClockInterface;
 
 /**
  * 予約の書き込みの UseCase を、CakePHP の Table から組み立てる（Controller から使う組み立て口）。
@@ -43,16 +43,16 @@ final class ReservationUseCases
 
     private readonly CakeLogger $logger;
 
-    private readonly ReservationDatePolicyInterface $datePolicy;
+    private readonly ClockInterface $clock;
 
     private ?ToggleMealUseCase $toggleMeal = null;
 
     /**
-     * @param ReservationDatePolicyInterface|null $datePolicy 予約日の検証（省略時は今日を基準にした ReservationDatePolicy）
+     * @param ClockInterface|null $clock 時計（省略時は Asia/Tokyo の現在時刻。Chronos::setTestNow に従う）
      */
-    public function __construct(TIndividualReservationInfoTable $reservations, Table $users, ?ReservationDatePolicyInterface $datePolicy = null)
+    public function __construct(TIndividualReservationInfoTable $reservations, Table $users, ?ClockInterface $clock = null)
     {
-        $this->datePolicy     = $datePolicy ?? new ReservationDatePolicy();
+        $this->clock          = $clock ?? new ClockFactory('Asia/Tokyo');
         $this->reservations   = new CakeReservationRepository($reservations);
         $this->rooms          = new CakeRoomMembershipRepository();
         $this->cache          = new ReservationCacheAdapter();
@@ -68,6 +68,7 @@ final class ReservationUseCases
             $this->rooms,
             $this->userRepository,
             $this->cache,
+            $this->clock,
         );
     }
 
@@ -95,6 +96,7 @@ final class ReservationUseCases
             $this->transaction,
             $this->cache,
             $this->logger,
+            $this->clock,
             (bool)Configure::read('debug'),
         );
     }
@@ -108,6 +110,7 @@ final class ReservationUseCases
             $this->transaction,
             $this->cache,
             $this->logger,
+            $this->clock,
             (bool)Configure::read('debug'),
         );
     }
@@ -120,7 +123,7 @@ final class ReservationUseCases
             $this->userRepository,
             $this->transaction,
             $this->cache,
-            $this->datePolicy,
+            $this->clock,
             $this->bulkSupport(),
             $this->logger,
             (string)Configure::read(
@@ -137,7 +140,7 @@ final class ReservationUseCases
             $this->rooms,
             $this->userRepository,
             $this->transaction,
-            $this->datePolicy,
+            $this->clock,
             $this->bulkSupport(),
             $this->logger,
         );

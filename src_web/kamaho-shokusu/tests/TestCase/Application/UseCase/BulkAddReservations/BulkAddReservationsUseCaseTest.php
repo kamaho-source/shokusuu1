@@ -9,6 +9,7 @@ use App\Domain\Exception\ReservationValidationException;
 use App\Test\TestCase\Application\Fake\FakeUserRepository;
 use App\Test\TestCase\Application\Fake\ReservationFixture;
 use Cake\Chronos\Chronos;
+use Psr\Clock\ClockInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -105,6 +106,26 @@ class BulkAddReservationsUseCaseTest extends TestCase
         $this->assertSame('過去日は選べません。', $this->personal([1 => [1 => '1']], ['2026-10-30'])['message']);
         $this->assertSame('無効な日付が含まれています。', $this->personal([1 => [1 => '1']], ['2026/11/20'])['message']);
         $this->assertSame([], $this->f->reservations->added);
+    }
+
+    public function testDatesThatDoNotExist_areInvalidOnBothPaths(): void
+    {
+        $this->assertSame('無効な日付が含まれています。', $this->personal([1 => [1 => '1']], ['2026-13-45'])['message']);
+        $this->assertSame('無効な日付が含まれています。', $this->group(['2026-13-45' => ['20' => ['1' => '1']]])['message']);
+        $this->assertSame([], $this->f->reservations->added);
+    }
+
+    public function testTodayComesFromTheInjectedClock(): void
+    {
+        // Chronos の固定日（11/01）ではなく、渡した時計の日（11/10 → 通常予約は 11/25 以降）で判定する
+        $this->f->clock = new class implements ClockInterface {
+            public function now(): \DateTimeImmutable
+            {
+                return new \DateTimeImmutable('2026-11-10 09:00:00', new \DateTimeZone('Asia/Tokyo'));
+            }
+        };
+
+        $this->assertStringContainsString('2026-11-25 以降', $this->personal([1 => [1 => '1']], [self::FAR])['message']);
     }
 
     public function testPersonal_existingActiveIsSkipped_restIsCreated(): void
@@ -228,17 +249,46 @@ class BulkAddReservationsUseCaseTest extends TestCase
         $this->assertSame('承認済みの予約は変更できません。', $this->group([self::FAR => ['21' => ['3' => '0']]])['message']);
     }
 
-    public function testGroupUsersForm_todayForgetsOnlyTodayReportWithoutVersionBump(): void
+    public function testGroupUsersForm_forgetsMealCountsForEverySelectedDate(): void
     {
         $result = $this->add([
             'reservation_type' => 'group',
             'i_id_room' => '1',
-            'dates' => [self::TODAY => '1'],
-            'users' => ['20' => ['morning' => '1']],
+            'dates' => [self::TODAY => '1', self::FAR => '1', self::FAR2 => '0'],
+            'users' => ['20' => ['morning' => '1'], '21' => ['night' => '1']],
         ]);
 
         $this->assertTrue($result['ok']);
-        $this->assertSame([['date' => self::TODAY, 'userIds' => [20]]], $this->f->cache->forgotten);
-        $this->assertSame(0, $this->f->cache->versionBumps);
+        $this->assertSame([
+            ['date' => self::TODAY, 'userIds' => [20, 21]],
+            ['date' => self::FAR, 'userIds' => [20, 21]],
+        ], $this->f->cache->forgotten);
+        $this->assertSame(1, $this->f->cache->versionBumps);
+    }
+
+    public function testPersonal_forgetsMealCountsForSelectedDates(): void
+    {
+        $result = $this->personal([1 => [1 => '1']], [self::FAR, self::FAR2]);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame([
+            ['date' => self::FAR, 'userIds' => [10]],
+            ['date' => self::FAR2, 'userIds' => [10]],
+        ], $this->f->cache->forgotten);
+        $this->assertSame(1, $this->f->cache->versionBumps);
+    }
+
+    /** 部屋 ID が数でない（"1abc"）ときは保存の失敗にし、先に書いた取消も取り消して何も追加しない */
+    public function testGroup_nonNumericRoomId_isSaveErrorAndRollsBack(): void
+    {
+        $this->f->reservations->record(21, self::FAR, 1, 3);
+
+        $result = $this->add(['reservation_type' => 'group', 'i_id_room' => '1abc', 'day_users' => [self::FAR => ['20' => ['1' => '1'], '21' => ['3' => '0']]]]);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('予約の保存中にエラーが発生しました。', $result['message']);
+        $this->assertSame([], $this->f->reservations->added);
+        $this->assertSame(1, $this->f->reservations->find(21, self::FAR, 1, 3)?->eatFlag, '取消も取り消される');
+        $this->assertSame([], $this->f->cache->forgotten);
     }
 }

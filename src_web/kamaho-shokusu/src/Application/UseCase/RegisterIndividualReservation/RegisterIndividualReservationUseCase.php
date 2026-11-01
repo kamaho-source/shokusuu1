@@ -19,6 +19,7 @@ use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use Cake\Chronos\ChronosDate;
+use Psr\Clock\ClockInterface;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -39,6 +40,7 @@ final class RegisterIndividualReservationUseCase
         private readonly TransactionManagerInterface $transaction,
         private readonly ReservationCacheInterface $cache,
         private readonly LoggerInterface $logger,
+        private readonly ClockInterface $clock,
         /** true なら保存失敗の詳細（検証エラーの文言）を利用者に返す（デバッグ時のみ） */
         private readonly bool $showErrorDetail = false,
     ) {}
@@ -84,7 +86,7 @@ final class RegisterIndividualReservationUseCase
             throw new UnauthorizedException($e->getMessage());
         }
 
-        $today      = ChronosDate::today('Asia/Tokyo');
+        $today      = new ChronosDate($this->clock->now());
         $duplicates = [];
         $this->transaction->begin();
         try {
@@ -103,11 +105,8 @@ final class RegisterIndividualReservationUseCase
                 $this->transaction->rollback();
             }
             throw $e;
-        } catch (\RuntimeException $e) {
-            // DB の失敗など（従来どおり、理由をそのまま競合として返す）
-            $this->transaction->rollback();
-            throw new ConflictException($e->getMessage());
         } catch (\Throwable $e) {
+            // DB の失敗など。理由（SQL・接続先など）は利用者に返さず、ログに残して内部エラーにする
             if ($this->transaction->inTransaction()) {
                 $this->transaction->rollback();
             }

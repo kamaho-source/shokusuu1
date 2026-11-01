@@ -6,8 +6,8 @@ namespace App\Controller;
 use App\Service\MealReportingService;
 use App\Service\ReservationReportService;
 use Cake\Http\Response;
-use Cake\Log\Log;
 use Cake\I18n\Date;
+use Cake\Log\Log;
 
 /**
  * 食数レポート・エクスポート専用コントローラー。
@@ -220,7 +220,7 @@ class ReservationReportController extends ReservationBaseController
         );
 
         if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], 400);
+            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
         }
 
         return $this->apiResponseService->success($this->response, [], $result['message']);
@@ -255,7 +255,7 @@ class ReservationReportController extends ReservationBaseController
         );
 
         if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], 400);
+            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
         }
 
         return $this->apiResponseService->success($this->response, [], $result['message']);
@@ -279,8 +279,7 @@ class ReservationReportController extends ReservationBaseController
         $toDate   = $this->request->getQuery('to');
 
         if (!$fromDate || !$toDate) {
-            $fromDate = Date::today()->startOfMonth()->subMonths(1)->format('Y-m-d');
-            $toDate   = Date::today()->startOfMonth()->addMonths(1)->endOfMonth()->format('Y-m-d');
+            [$fromDate, $toDate] = self::defaultCountRange();
         }
 
         try {
@@ -340,8 +339,7 @@ class ReservationReportController extends ReservationBaseController
         $toDate   = $this->request->getQuery('to');
 
         if (!$fromDate || !$toDate) {
-            $fromDate = Date::today()->startOfMonth()->subMonths(1)->format('Y-m-d');
-            $toDate   = Date::today()->startOfMonth()->addMonths(1)->endOfMonth()->format('Y-m-d');
+            [$fromDate, $toDate] = self::defaultCountRange();
         }
 
         try {
@@ -357,5 +355,22 @@ class ReservationReportController extends ReservationBaseController
 
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
+    }
+
+    /**
+     * 食数 API の既定の期間（先月1日〜来月末）。
+     *
+     * 月の足し引きは月末を繰り越さない（3/31 の「先月」は 3/1 ではなく 2/1、1/31 の「来月末」は 3/31 ではなく 2/28）。
+     *
+     * @return array{0: string, 1: string}
+     */
+    private static function defaultCountRange(): array
+    {
+        $today = Date::today('Asia/Tokyo');
+
+        return [
+            $today->subMonths(1)->startOfMonth()->format('Y-m-d'),
+            $today->addMonths(1)->endOfMonth()->format('Y-m-d'),
+        ];
     }
 }

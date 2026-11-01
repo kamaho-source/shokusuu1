@@ -16,7 +16,7 @@ echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 $user = $this->request->getAttribute('identity'); // ユーザー情報を取得
 
 // 画面で使う日付（週リンクやAPIのdateパラメータで使用）
-$date = $this->request->getQuery('date') ?? date('Y-m-d');
+$date = $this->request->getQuery('date') ?? \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 
 // ✅ モーダル判定
 $isModal = (string)($this->request->getQuery('modal') ?? '') === '1';

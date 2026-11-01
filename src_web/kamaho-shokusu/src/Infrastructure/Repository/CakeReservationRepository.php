@@ -16,6 +16,7 @@ use App\Infrastructure\Persistence\SystemError;
 use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
+use Cake\Database\Exception\QueryException;
 use Cake\ORM\Exception\PersistenceFailedException;
 
 /**
@@ -217,6 +218,12 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
             );
         } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
             throw new ConflictException($e->getMessage());
+        } catch (QueryException $e) {
+            // 同時に同じ予約が送られ、先に登録された行と主キーが重なった。SQL は利用者に返さない
+            if (self::isDuplicateKey($e)) {
+                throw new ConflictException('同じ予約がすでに登録されています。画面を再読み込みしてください。');
+            }
+            throw $e;
         }
     }
 
@@ -272,6 +279,18 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
             (bool)$isOptimisticConflict => new ConflictException('他の操作と競合しました。画面を再読み込みして再実行してください。'),
             default                     => new InvalidInputException('Validation failed.'),
         };
+    }
+
+    /**
+     * 一意キーの重複か（MySQL 1062・SQLite の UNIQUE 違反）。NOT NULL などの他の制約違反は含めない。
+     */
+    private static function isDuplicateKey(QueryException $e): bool
+    {
+        $previous = $e->getPrevious();
+        $info     = $previous instanceof \PDOException ? ($previous->errorInfo ?? []) : [];
+
+        return ($info[0] ?? '') === '23000'
+            && (($info[1] ?? null) === 1062 || str_contains((string)($info[2] ?? ''), 'UNIQUE'));
     }
 
     private static function readFailed(\Throwable $e): DomainException

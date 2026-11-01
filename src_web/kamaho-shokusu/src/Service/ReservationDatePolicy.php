@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Application\Port\ReservationDatePolicyInterface;
 use App\Domain\Service\ReservationDateRule;
 use Cake\I18n\Date;
 
@@ -18,9 +17,10 @@ use Cake\I18n\Date;
  *               登録・更新する。14日を超える日付は「eat_flag」列を使う。
  *
  * ルール本体は Domain の ReservationDateRule にある。このクラスは「今日」（Asia/Tokyo）を補って
- * それを呼ぶ入口で、既存の呼び出し側の互換のために残している（#920 で段階的に置き換える）。
+ * それを呼ぶ、Service 層（読み取り・画面向け）の入口。UseCase はこのクラスを使わず、
+ * 時計（PSR-20 ClockInterface）から今日を受け取って ReservationDateRule を直接呼ぶ。
  */
-class ReservationDatePolicy implements ReservationDatePolicyInterface
+class ReservationDatePolicy
 {
     /**
      * 通常予約の予約日バリデーションを行う。
