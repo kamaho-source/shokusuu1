@@ -2,25 +2,20 @@
 /**
  * 食数状況確認（部屋別）
  *
- * @var string $date
- * @var array $mealDataArray
- * @var array $authorizedRooms
- * @var array $roomUsers
- * @var array $userMealMap
- * @var array $otherRoomMealMap
- * @var int $activeRoomId
- * @var string $activeRoomName
- * @var int|null $userRoomId
- * @var bool $isAdmin
  * @var \App\View\AppView $this
+ * @var \App\Application\Query\Dto\DayView $day
  */
 use Cake\I18n\FrozenDate;
 
 $this->assign('title', '食数状況確認');
 $user = $this->request->getAttribute('identity');
-$roomsForTabs = $authorizedRooms ?? [];
-$activeRoomId = (int)($activeRoomId ?? 0);
-$activeRoomName = (string)($activeRoomName ?? '所属部屋');
+$roomsForTabs     = $day->authorizedRooms;
+$activeRoomId     = $day->activeRoomId;
+$activeRoomName   = $day->activeRoomName;
+$roomUsers        = $day->users;
+$userMealMap      = $day->userMeals;
+$otherRoomMealMap = $day->otherRoomMeals;
+$date             = $day->date;
 
 $targetDate = new FrozenDate($date);
 $dow = ['日', '月', '火', '水', '木', '金', '土'];
@@ -33,7 +28,7 @@ $defaultMealType = 2;
 $totalEat = 0;
 $totalNo = 0;
 foreach ($roomUsers as $u) {
-    $uid = (int)$u['user_id'];
+    $uid = $u->userId;
     if (!empty($userMealMap[$uid][$defaultMealType])) {
         $totalEat++;
     } else {
@@ -87,7 +82,7 @@ echo $this->Html->css('pages/t_reservation_view.css');
                     <?php $idx = 1; ?>
                     <?php foreach ($roomUsers as $u): ?>
                         <?php
-                        $uid = (int)$u['user_id'];
+                        $uid = $u->userId;
                         $b = (bool)($userMealMap[$uid][1] ?? false);
                         $l = (bool)($userMealMap[$uid][2] ?? false);
                         $d = (bool)($userMealMap[$uid][3] ?? false);
@@ -115,14 +110,14 @@ echo $this->Html->css('pages/t_reservation_view.css');
                             <div><?= h($idx) ?></div>
                             <div>
                                 <div class="fw-semibold d-flex align-items-center flex-wrap">
-                                    <span><?= h($u['name']) ?></span>
+                                    <span><?= h($u->name) ?></span>
                                     <?php if ($otherRoomLabel): ?>
                                         <span class="other-room">他部屋: <?= h($otherRoomLabel) ?></span>
                                     <?php endif; ?>
 
                                 </div>
-                                <?php if (!empty($u['staff_id'])): ?>
-                                    <div class="small text-muted">職員ID: <?= h($u['staff_id']) ?></div>
+                                <?php if ($u->staffId !== ''): ?>
+                                    <div class="small text-muted">職員ID: <?= h($u->staffId) ?></div>
                                 <?php endif; ?>
                             </div>
                             <div>
