@@ -1,20 +1,25 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Infrastructure\Query;
 
-use App\Service\ReservationCalendarService;
+use App\Application\Query\CalendarEventBuilder;
+use App\Application\Query\Dto\DayMealCounts;
+use App\Application\Query\Dto\MyReservationDay;
+use App\Infrastructure\Query\CakeCalendarQuery;
+use App\Infrastructure\Query\CakeRoomQuery;
+use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * ReservationCalendarService テスト。
+ * 予約カレンダーの読み取り（CakeCalendarQuery）とイベントの組み立て（CalendarEventBuilder）。旧 ReservationCalendarServiceTest を引き継ぐ。
  *
- * getPrimaryRoomId・buildMyReservationDates・buildCalendarEvents・getUserRoomIds・isOfficeUser・getRoomsForUser の挙動を検証する。
+ * 旧 Service と同じ呼び出しで書いたテストの意味を変えないよう、adapter() で新しい部品につなぐ。
  */
-class ReservationCalendarServiceTest extends TestCase
+class CakeCalendarQueryTest extends TestCase
 {
     protected array $fixtures = [
         'app.MUserInfo',
@@ -23,12 +28,97 @@ class ReservationCalendarServiceTest extends TestCase
         'app.TIndividualReservationInfo',
     ];
 
-    private ReservationCalendarService $service;
+    private object $service;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ReservationCalendarService();
+        $this->service = self::adapter();
+    }
+
+    /** 旧 ReservationCalendarService と同じ呼び出しを、CakeCalendarQuery・CakeRoomQuery・CalendarEventBuilder につなぐ */
+    private static function adapter(): object
+    {
+        return new class {
+            private CakeCalendarQuery $calendar;
+            private CakeRoomQuery $rooms;
+
+            public function __construct()
+            {
+                $this->calendar = new CakeCalendarQuery(new ClockFactory('Asia/Tokyo'));
+                $this->rooms    = new CakeRoomQuery();
+            }
+
+            /** @param list<int> $roomIds */
+            public function getPrimaryRoomId(array $roomIds): ?int
+            {
+                return $roomIds !== [] ? (int)$roomIds[0] : null;
+            }
+
+            /** @param array<string, array<string, int|null>> $details */
+            public function buildMyReservationDates(array $details): array
+            {
+                return CalendarEventBuilder::reservedDates(self::days($details));
+            }
+
+            /**
+             * @param array<string, array<int, int>> $meals
+             * @param array<string, array<string, int|null>> $details
+             */
+            public function buildCalendarEvents(array $meals, array $details, \Cake\Chronos\ChronosDate $start, \Cake\Chronos\ChronosDate $end): array
+            {
+                $counts = [];
+                foreach ($meals as $date => $byMeal) {
+                    $counts[$date] = new DayMealCounts((string)$date, $byMeal);
+                }
+
+                return CalendarEventBuilder::calendarEvents($counts, self::days($details), $start, $end);
+            }
+
+            public function getUserRoomIds(object $table, int $userId): array
+            {
+                return $this->rooms->getUserRoomIds($userId);
+            }
+
+            public function isOfficeUser(object $userGroupTable, object $roomTable, int $userId): bool
+            {
+                return $this->rooms->isOfficeUser($userId);
+            }
+
+            /** @param list<int> $roomIds */
+            public function getRoomsForUser(object $table, array $roomIds, bool $includeAllRooms, bool $isOfficeUser = false, bool $isBlockLeader = false): array
+            {
+                return $this->calendar->getRoomsForUser($roomIds, $includeAllRooms, $isOfficeUser);
+            }
+
+            public function buildMyReservationDetails(object $table, int $userId): array
+            {
+                return array_map(static fn(MyReservationDay $d) => $d->toArray(), $this->calendar->getMyReservationDays($userId, null, null));
+            }
+
+            /** @param list<int>|null $roomIds */
+            public function buildMealCountsByDate(object $table, ?array $roomIds = null): array
+            {
+                return array_map(static fn(DayMealCounts $d) => $d->toArray(), $this->calendar->getMealCountsByDate($roomIds, null, null));
+            }
+
+            /** @param list<int>|null $roomIds */
+            public function buildTotalEvents(object $table, string $start, string $end, ?object $border = null, ?array $roomIds = null): array
+            {
+                return CalendarEventBuilder::totalEvents($this->calendar->getTotalCountsByDate($start, $end, $roomIds));
+            }
+
+            /**
+             * @param array<string, array<string, int|null>> $details
+             * @return array<string, MyReservationDay>
+             */
+            private static function days(array $details): array
+            {
+                $keys = ['breakfast', 'breakfastRoom', 'lunch', 'lunchRoom', 'dinner', 'dinnerRoom', 'bento', 'bentoRoom'];
+
+                return array_map(static fn(array $d) => new MyReservationDay(...array_intersect_key($d, array_flip($keys))), $details);
+            }
+        };
     }
 
     // ----------------------------------------------------------------
@@ -404,5 +494,48 @@ class ReservationCalendarServiceTest extends TestCase
         $this->assertSame('合計食数: 1', $total([1]));
         $this->assertStringContainsString('合計食数: ', $total(null));
         $this->assertNotSame('合計食数: 1', $total(null), '全部屋は部屋1だけより多い');
+    }
+
+    /** 食事区分（1〜4）以外の行は、日ごとの食数に数えない（警告も出さない） */
+    public function testMealCountsByDate_ignoresUnknownMealType(): void
+    {
+        $date = Date::today()->addDays(40)->format('Y-m-d');
+        $insert = fn(int $type) => ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => $type, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+        $insert(1);
+        $insert(5);
+
+        $counts = (new CakeCalendarQuery(new ClockFactory('Asia/Tokyo')))->getMealCountsByDate([1], $date, Date::today()->addDays(41)->format('Y-m-d'));
+
+        $this->assertSame([1 => 1, 2 => 0, 3 => 0, 4 => 0], $counts[$date]->counts);
+    }
+
+    /** 事務所ユーザーの部屋の選択肢は、所属部屋のうち「事務所」の部屋だけ */
+    public function testRoomsForOfficeUser_onlyOfficeRooms(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 80, 'c_room_name' => '本部事務所', 'i_disp_no' => 80, 'i_del_flg' => 0]);
+
+        $rooms = (new CakeCalendarQuery(new ClockFactory('Asia/Tokyo')))->getRoomsForUser([1, 80], false, true);
+
+        $this->assertSame([80 => '本部事務所'], $rooms);
+    }
+
+    /** 食べない予約には部屋を付けない（食べる予約だけ部屋を持つ） */
+    public function testMyReservationDays_roomOnlyWhenEating(): void
+    {
+        $date = Date::today()->addDays(40)->format('Y-m-d');
+        $insert = fn(int $type, int $eat) => ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 1, 'd_reservation_date' => $date, 'i_reservation_type' => $type, 'i_id_room' => 1,
+            'eat_flag' => $eat, 'i_change_flag' => $eat, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+        ]);
+        $insert(1, 0);
+        $insert(2, 1);
+
+        $day = (new CakeCalendarQuery(new ClockFactory('Asia/Tokyo')))->getMyReservationDays(1, $date, null)[$date];
+
+        $this->assertSame([0, null, 1, 1], [$day->breakfast, $day->breakfastRoom, $day->lunch, $day->lunchRoom]);
     }
 }

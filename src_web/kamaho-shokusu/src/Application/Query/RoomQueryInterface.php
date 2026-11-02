@@ -14,7 +14,7 @@ interface RoomQueryInterface
 {
     /**
      * 利用者が所属している部屋（所属中で、部屋が削除されていないもの）。読み取りに失敗したら空。
-     * カレンダー・権限の判定・承認で共通の判定（ReservationCalendarService もこれを使う）。
+     * カレンダー・権限の判定・承認で共通の判定。
      *
      * @return list<int>
      */
