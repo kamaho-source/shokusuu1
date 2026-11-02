@@ -8,7 +8,7 @@ use App\Application\Query\Dto\LoginReport;
 use App\Application\Query\Dto\ReportUserOption;
 use App\Application\Query\Dto\RoomUsageStat;
 use App\Application\Query\SystemReportQueryInterface;
-use App\Domain\Service\HistoryPeriodRule;
+use App\Domain\Service\DatePeriodRule;
 use App\Domain\Service\MealUsageRate;
 use App\Domain\Service\ReservationDateRule;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
@@ -103,7 +103,7 @@ final class CakeSystemReportQuery implements SystemReportQueryInterface
             }
         }
 
-        $daily = array_fill_keys(HistoryPeriodRule::dates($dateFrom, $dateTo), 0);
+        $daily = array_fill_keys(DatePeriodRule::dates($dateFrom, $dateTo), 0);
         foreach ($this->countedReservations($dateFrom, $dateTo) as $row) {
             $date = $row->d_reservation_date->format('Y-m-d');
             if (isset($children[(int)$row->i_id_user], $daily[$date])) {
@@ -157,7 +157,7 @@ final class CakeSystemReportQuery implements SystemReportQueryInterface
             ->orderBy(['dt_create' => 'DESC'])
             ->all();
 
-        $daily = array_fill_keys(HistoryPeriodRule::dates($dateFrom, $dateTo), ['success' => 0, 'failed' => 0]);
+        $daily = array_fill_keys(DatePeriodRule::dates($dateFrom, $dateTo), ['success' => 0, 'failed' => 0]);
         $failedLoginNames = AuditLogService::failedLoginActorNames($rows);
         $logs = [];
         foreach ($rows as $row) {

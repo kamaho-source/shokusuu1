@@ -16,6 +16,7 @@ use Authorization\Policy\MapResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Application\Query\DayViewQueryInterface;
+use App\Application\Query\RoomUsageQueryInterface;
 use App\Application\Query\SystemReportQueryInterface;
 use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
@@ -57,6 +58,7 @@ use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Query\CakeDayViewQuery;
+use App\Infrastructure\Query\CakeRoomUsageQuery;
 use App\Infrastructure\Query\CakeSystemReportQuery;
 use App\Infrastructure\Query\CakeRoomMealDetailQuery;
 use App\Infrastructure\Query\CakeRoomQuery;
@@ -67,7 +69,6 @@ use App\Infrastructure\Repository\CakeRoomTransferScheduleRepository;
 use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
-use App\Service\RoomUsageService;
 use App\Policy\PersistenceOrmResolver;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
@@ -231,9 +232,9 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(SystemPromptProviderInterface::class)
             ->addArgument(ServerRequest::class);
 
-        $container->add(RoomUsageService::class);
+        $container->add(RoomUsageQueryInterface::class, static fn() => new CakeRoomUsageQuery(new ClockFactory('Asia/Tokyo')));
         $container->add(RoomUsageController::class)
-            ->addArgument(RoomUsageService::class)
+            ->addArgument(RoomUsageQueryInterface::class)
             ->addArgument(ServerRequest::class);
 
         $container->add(UserTokenizer::class);
@@ -241,7 +242,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(AiStatsContextService::class)
             ->addArgument(FeatureUsageSummaryService::class)
             ->addArgument(UserTokenizer::class)
-            ->addArgument(RoomUsageService::class);
+            ->addArgument(RoomUsageQueryInterface::class);
         $container->add(StatsAiController::class)
             ->addArgument(AiStatsContextService::class)
             ->addArgument(UserTokenizer::class)

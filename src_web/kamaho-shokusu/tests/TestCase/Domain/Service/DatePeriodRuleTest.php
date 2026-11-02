@@ -3,13 +3,13 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Domain\Service;
 
-use App\Domain\Service\HistoryPeriodRule;
+use App\Domain\Service\DatePeriodRule;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 予約履歴の期間の決まり（HistoryPeriodRule）。旧 ReservationHistoryServiceTest の期間の部分を引き継ぐ。
+ * 期間の決まり（DatePeriodRule）。旧 ReservationHistoryServiceTest の期間の部分を引き継ぐ。
  */
-class HistoryPeriodRuleTest extends TestCase
+class DatePeriodRuleTest extends TestCase
 {
     /**
      * @return array<string, array{string, string, ?string}>
@@ -34,13 +34,13 @@ class HistoryPeriodRuleTest extends TestCase
      */
     public function testError(string $from, string $to, ?string $expected): void
     {
-        $this->assertSame($expected, HistoryPeriodRule::error($from, $to));
+        $this->assertSame($expected, DatePeriodRule::error($from, $to));
     }
 
     public function testDates_allDaysInclusive(): void
     {
-        $this->assertSame(['2024-02-27', '2024-02-28', '2024-02-29', '2024-03-01'], HistoryPeriodRule::dates('2024-02-27', '2024-03-01'));
-        $this->assertSame(['2024-09-05'], HistoryPeriodRule::dates('2024-09-05', '2024-09-05'));
-        $this->assertCount(31, HistoryPeriodRule::dates('2026-10-01', '2026-10-31'));
+        $this->assertSame(['2024-02-27', '2024-02-28', '2024-02-29', '2024-03-01'], DatePeriodRule::dates('2024-02-27', '2024-03-01'));
+        $this->assertSame(['2024-09-05'], DatePeriodRule::dates('2024-09-05', '2024-09-05'));
+        $this->assertCount(31, DatePeriodRule::dates('2026-10-01', '2026-10-31'));
     }
 }
