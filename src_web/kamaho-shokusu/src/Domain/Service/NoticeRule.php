@@ -7,7 +7,7 @@ namespace App\Domain\Service;
  * お知らせの入力の決まり。
  *
  * - 重要度は 通常(0)・重要(1)、種別は 通常(0)・リリースノート(1)
- * - 掲載開始日・終了日は YYYY-MM-DD（空は制限なし）。終了日は開始日より前にできない
+ * - 掲載開始日・終了日は暦にある YYYY-MM-DD（空は制限なし）。終了日は開始日より前にできない
  * - 種別を決められるのはシステム管理者だけ。それ以外は、登録なら通常、更新なら今の種別のまま
  */
 final class NoticeRule
@@ -26,10 +26,10 @@ final class NoticeRule
         if (!in_array($type, [self::TYPE_NORMAL, self::TYPE_RELEASE_NOTE], true)) {
             return '種別の値が不正です。';
         }
-        if ($startDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate) !== 1) {
+        if ($startDate !== null && !DatePeriodRule::isDate($startDate)) {
             return '開始日の形式が不正です。';
         }
-        if ($endDate !== null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate) !== 1) {
+        if ($endDate !== null && !DatePeriodRule::isDate($endDate)) {
             return '終了日の形式が不正です。';
         }
         if ($startDate !== null && $endDate !== null && $endDate < $startDate) {

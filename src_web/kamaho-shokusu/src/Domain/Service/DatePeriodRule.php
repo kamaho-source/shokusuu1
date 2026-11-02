@@ -39,7 +39,8 @@ final class DatePeriodRule
         return $out;
     }
 
-    private static function isDate(string $s): bool
+    /** 暦にある YYYY-MM-DD か（2026-02-30 などは不可）。 */
+    public static function isDate(string $s): bool
     {
         $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $s);
 

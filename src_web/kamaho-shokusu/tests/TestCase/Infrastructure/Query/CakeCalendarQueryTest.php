@@ -11,6 +11,7 @@ use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
+use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -49,12 +50,6 @@ class CakeCalendarQueryTest extends TestCase
                 $this->rooms    = new CakeRoomQuery();
             }
 
-            /** @param list<int> $roomIds */
-            public function getPrimaryRoomId(array $roomIds): ?int
-            {
-                return $roomIds !== [] ? (int)$roomIds[0] : null;
-            }
-
             /** @param array<string, array<string, int|null>> $details */
             public function buildMyReservationDates(array $details): array
             {
@@ -86,7 +81,7 @@ class CakeCalendarQueryTest extends TestCase
             }
 
             /** @param list<int> $roomIds */
-            public function getRoomsForUser(object $table, array $roomIds, bool $includeAllRooms, bool $isOfficeUser = false, bool $isBlockLeader = false): array
+            public function getRoomsForUser(object $table, array $roomIds, bool $includeAllRooms, bool $isOfficeUser = false): array
             {
                 return $this->calendar->getRoomsForUser($roomIds, $includeAllRooms, $isOfficeUser);
             }
@@ -119,20 +114,6 @@ class CakeCalendarQueryTest extends TestCase
                 return array_map(static fn(array $d) => new MyReservationDay(...array_intersect_key($d, array_flip($keys))), $details);
             }
         };
-    }
-
-    // ----------------------------------------------------------------
-    // getPrimaryRoomId — DB不要
-    // ----------------------------------------------------------------
-
-    public function testGetPrimaryRoomId_emptyArray_returnsNull(): void
-    {
-        $this->assertNull($this->service->getPrimaryRoomId([]));
-    }
-
-    public function testGetPrimaryRoomId_returnsFirstElement(): void
-    {
-        $this->assertSame(42, $this->service->getPrimaryRoomId([42, 10, 5]));
     }
 
     // ----------------------------------------------------------------
@@ -267,29 +248,18 @@ class CakeCalendarQueryTest extends TestCase
         $this->assertSame([], $result);
     }
 
-    /** 複数部屋所属のブロック長には所属している全部屋を返す */
-    public function testGetRoomsForUser_blockLeaderReturnsAllBelongingRooms(): void
-    {
-        $this->insertRoom(2, '第二の部屋', 0);
-        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
-
-        $result = $this->service->getRoomsForUser($roomTable, [1, 2], includeAllRooms: false, isOfficeUser: false, isBlockLeader: true);
-
-        $this->assertSame([1, 2], array_keys($result));
-    }
-
-    /** ブロック長でも削除済みの部屋は返さない */
-    public function testGetRoomsForUser_blockLeaderExcludesDeletedRooms(): void
+    /** 削除済みの部屋は返さない */
+    public function testGetRoomsForUser_excludesDeletedRooms(): void
     {
         $this->insertRoom(3, '削除済みの部屋', 1);
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $result = $this->service->getRoomsForUser($roomTable, [1, 3], includeAllRooms: false, isOfficeUser: false, isBlockLeader: true);
+        $result = $this->service->getRoomsForUser($roomTable, [1, 3], includeAllRooms: false);
 
         $this->assertSame([1], array_keys($result));
     }
 
-    /** ブロック長以外（職員など）も、複数部屋に所属していれば全部屋を返す */
+    /** 複数部屋に所属していれば全部屋を返す */
     public function testGetRoomsForUser_regularUserReturnsAllBelongingRooms(): void
     {
         $this->insertRoom(2, '第二の部屋', 0);
@@ -397,8 +367,16 @@ class CakeCalendarQueryTest extends TestCase
     /** 境界日（今日+14日）までは i_change_flag、その翌日からは eat_flag で数える（食数の報告と同じ） */
     public function testBuildMealCountsByDate_boundaryDay(): void
     {
-        $d14 = Date::today()->addDays(14)->format('Y-m-d');
-        $d15 = Date::today()->addDays(15)->format('Y-m-d');
+        DateTime::setTestNow(new DateTime('2026-11-01 23:30:00', 'Asia/Tokyo'));
+        try {
+            $this->assertBoundaryDay('2026-11-15', '2026-11-16');
+        } finally {
+            DateTime::setTestNow(null);
+        }
+    }
+
+    private function assertBoundaryDay(string $d14, string $d15): void
+    {
         foreach ([$d14, $d15] as $date) {
             ConnectionManager::get('test')->insert('t_individual_reservation_info', [
                 'i_id_user' => 9906, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 6,

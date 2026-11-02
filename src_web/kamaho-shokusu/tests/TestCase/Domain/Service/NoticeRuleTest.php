@@ -20,6 +20,8 @@ class NoticeRuleTest extends TestCase
         $this->assertSame('種別の値が不正です。', NoticeRule::error(0, 2, null, null));
         $this->assertSame('開始日の形式が不正です。', NoticeRule::error(0, 0, '2026/10/01', null));
         $this->assertSame('終了日の形式が不正です。', NoticeRule::error(0, 0, null, '10-31'));
+        $this->assertSame('開始日の形式が不正です。', NoticeRule::error(0, 0, '2026-02-30', null), '暦に無い日');
+        $this->assertSame('終了日の形式が不正です。', NoticeRule::error(0, 0, null, '2026-13-45'), '暦に無い日');
         $this->assertSame('終了日は開始日以降の日付を指定してください。', NoticeRule::error(0, 0, '2026-10-31', '2026-10-30'));
         $this->assertNull(NoticeRule::error(0, 0, '2026-10-31', null));
         $this->assertNull(NoticeRule::error(0, 0, null, '2026-10-01'));

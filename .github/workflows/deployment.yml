@@ -162,6 +162,11 @@ jobs:
             echo "── Running CakePHP migrations ───────────────────────────────────"
             docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake migrations migrate
 
+            # ── キャッシュ削除（列の追加・ルートの変更を反映する） ──────────────
+            # ORM のスキーマとルートは 1 年キャッシュされ、tmp/cache はデプロイ後も残る。
+            # 消さないと、追加した列を ORM が知らず、save で黙って捨てる。セッションは PHP 標準なので消えない。
+            docker compose -f "$DEPLOY_PATH/docker/docker-compose.yml" exec -T kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake cache clear_all
+
             # ── アプリ用 .env に環境変数を注入（コンテナの env_file と同じパス） ──
             ENV_FILE="$DEPLOY_PATH/src_web/kamaho-shokusu/.env"
             touch "$ENV_FILE"
