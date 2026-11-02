@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\RoomMealDetailQueryInterface;
+use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
@@ -12,7 +14,6 @@ use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
@@ -39,7 +40,6 @@ class TReservationInfoController extends ReservationBaseController
 {
     private ReservationAddService $addService;
     private ReservationChangeEditService $changeEditService;
-    private ReservationRoomDetailService $roomDetailService;
     private ReservationViewService $viewService;
 
     /**
@@ -51,7 +51,6 @@ class TReservationInfoController extends ReservationBaseController
 
         $this->addService        = new ReservationAddService();
         $this->changeEditService = new ReservationChangeEditService();
-        $this->roomDetailService = new ReservationRoomDetailService();
         $this->viewService       = new ReservationViewService($this->datePolicy);
 
         $this->FormProtection->setConfig('unlockedActions', [
@@ -347,7 +346,7 @@ class TReservationInfoController extends ReservationBaseController
      * @param int $mealType 食事タイプ
      * @return Response|null|void ビューをレンダリングする
      */
-    public function roomDetails($roomId, $date, $mealType): ?Response
+    public function roomDetails(RoomMealDetailQueryInterface $roomMealDetail, $roomId, $date, $mealType): ?Response
     {
         $this->authorizeReservation('roomDetails', ['i_id_room' => (int)$roomId]);
 
@@ -365,23 +364,16 @@ class TReservationInfoController extends ReservationBaseController
             throw new \InvalidArgumentException('食事タイプは整数である必要があります。');
         }
 
-        $detail = $this->roomDetailService->getRoomDetails(
-            (int)$roomId,
-            (string)$date,
-            (int)$mealType,
-            $this->MRoomInfo,
-            $this->TIndividualReservationInfo,
-            $this->MUserGroup
-        );
+        try {
+            $detail = $roomMealDetail->getRoomMealDetail((int)$roomId, (string)$date, (int)$mealType);
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException(__('部屋が見つかりません。'));
+        }
 
         $this->set([
-            'room'            => $detail['room'],
-            'date'            => $date,
-            'mealType'        => $mealType,
-            'eatUsers'        => $detail['eatUsers'],
-            'noEatUsers'      => $detail['noEatUsers'],
-            'otherRoomEaters' => $detail['otherRoomEaters'],
-            'useChangeFlag'   => $detail['useChangeFlag'],
+            'detail'   => $detail,
+            'date'     => $date,
+            'mealType' => $mealType,
         ]);
         return null;
     }

@@ -181,7 +181,9 @@ class TReservationInfoControllerActionsTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertSame($date, $this->viewVariable('date'));
-        $this->assertNotEmpty($this->viewVariable('eatUsers'));
+        $eatUsers = $this->viewVariable('detail')->eatUsers;
+        $this->assertNotEmpty($eatUsers);
+        $this->assertResponseContains(h($eatUsers[0]), '食べる人の名前が画面に出る');
     }
 
     public function testRoomDetails_badDateFormatIsRejected(): void

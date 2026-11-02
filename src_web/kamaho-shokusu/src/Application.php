@@ -15,6 +15,7 @@ use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
+use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
@@ -52,6 +53,7 @@ use App\Infrastructure\Log\AuditLogAdapter;
 use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
 use App\Infrastructure\Repository\CakeReservationRepository;
+use App\Infrastructure\Query\CakeRoomMealDetailQuery;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Cache\ReservationCacheAdapter;
 use App\Infrastructure\Repository\CakeRoomRepository;
@@ -314,6 +316,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $userTransaction(),
             new ClockFactory('Asia/Tokyo'),
         ));
+        $container->add(RoomMealDetailQueryInterface::class, static fn() => new CakeRoomMealDetailQuery(new ClockFactory('Asia/Tokyo')));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
         $container->add(SystemReportService::class);
