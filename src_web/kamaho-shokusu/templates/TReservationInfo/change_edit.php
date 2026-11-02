@@ -4,8 +4,7 @@
  *
  * @var \App\View\AppView $this
  * @var mixed $date
- * @var object $r
- * @var object $room
+ * @var array{id: int, name: string}|null $room
  * @var array $rooms
  */
 $this->assign('title', '直前編集');
@@ -14,9 +13,9 @@ $selectedRoomId = null;
 $selectedRoomName = '';
 $individualReservations = $individualReservations ?? [];
 
-if (isset($room) && is_object($room)) {
-    $selectedRoomId = $room->i_id_room;
-    $selectedRoomName = $room->c_room_name ?? '';
+if (isset($room) && is_array($room)) {
+    $selectedRoomId = $room['id'];
+    $selectedRoomName = $room['name'];
 } elseif (is_array($rooms) && !empty($rooms)) {
     $selectedRoomId = array_key_first($rooms);
     $selectedRoomName = $rooms[$selectedRoomId] ?? '';
@@ -43,13 +42,7 @@ $this->Html->css('pages/t_reservation_add.css', ['block' => 'css']);
 $this->Html->css('pages/t_reservation_change_edit.css', ['block' => 'css']);
 echo $this->Html->meta('csrfToken', $this->request->getAttribute('csrfToken'));
 
-$indivJson = json_encode(
-    array_values(array_map(fn($r) => [
-        'type'    => (int)$r->i_reservation_type,
-        'room_id' => (int)$r->i_id_room,
-    ], $individualReservations)),
-    JSON_UNESCAPED_UNICODE
-);
+$indivJson = json_encode(array_values($individualReservations), JSON_UNESCAPED_UNICODE);
 ?>
 <div id="ce-root"
      data-base="<?= h($basePath) ?>"
