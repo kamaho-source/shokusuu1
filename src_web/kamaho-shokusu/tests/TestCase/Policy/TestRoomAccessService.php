@@ -48,11 +48,6 @@ class TestRoomAccessService implements RoomQueryInterface
         return array_fill_keys($this->getUserRoomIds($userId), '');
     }
 
-    public function getOfficeRoomIds(int $userId): array
-    {
-        return [];
-    }
-
     public function getRoomsByIds(array $roomIds): array
     {
         return array_fill_keys($roomIds, '');

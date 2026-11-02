@@ -28,10 +28,11 @@ final class CakeRoomQuery implements RoomQueryInterface
         }
 
         try {
-            $table = TableRegistry::getTableLocator()->get('MUserGroup');
-            $rows = $table->find()
-                ->select(['i_id_room'])
-                ->where(['i_id_user' => $userId, ...MUserGroupTable::activeCondition('')])
+            // 削除済みの部屋は所属に数えない（代表部屋が削除済みになると、カレンダーで予約を開けなくなるため）
+            $rows = TableRegistry::getTableLocator()->get('MUserGroup')->find()
+                ->select(['MUserGroup.i_id_room'])
+                ->innerJoin(['MRoomInfo' => 'm_room_info'], ['MRoomInfo.i_id_room = MUserGroup.i_id_room'])
+                ->where(['MUserGroup.i_id_user' => $userId, ...MUserGroupTable::activeCondition(), 'MRoomInfo.i_del_flg' => 0])
                 ->all();
 
             $roomIds = [];
@@ -134,45 +135,6 @@ final class CakeRoomQuery implements RoomQueryInterface
         }
 
         return $rooms;
-    }
-
-    /**
-     * @return array<int>
-     */
-    public function getOfficeRoomIds(int $userId): array
-    {
-        if ($userId <= 0) {
-            return [];
-        }
-
-        try {
-            $table = TableRegistry::getTableLocator()->get('MUserGroup');
-            $rows = $table->find()
-                ->select(['MUserGroup.i_id_room'])
-                ->innerJoin(
-                    ['MRoomInfo' => 'm_room_info'],
-                    ['MRoomInfo.i_id_room = MUserGroup.i_id_room']
-                )
-                ->where([
-                    'MUserGroup.i_id_user' => $userId,
-                    ...MUserGroupTable::activeCondition(),
-                    'MRoomInfo.c_room_name LIKE' => '%' . self::OFFICE_ROOM_KEYWORD . '%',
-                ])
-                ->all();
-
-            $roomIds = [];
-            foreach ($rows as $row) {
-                $roomId = (int)$row->i_id_room;
-                if ($roomId > 0) {
-                    $roomIds[] = $roomId;
-                }
-            }
-
-            return array_values(array_unique($roomIds));
-        } catch (\Throwable $e) {
-            Log::error(sprintf('CakeRoomQuery#getOfficeRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
-            return [];
-        }
     }
 
     /**

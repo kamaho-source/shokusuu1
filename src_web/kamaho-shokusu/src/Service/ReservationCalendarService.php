@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
-use App\Infrastructure\Persistence\Table\MUserGroupTable;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -21,25 +21,12 @@ class ReservationCalendarService
      * 利用者が有効に所属している部屋の ID（退出済みの所属と、削除済みの部屋は含めない）。
      *
      * @return list<int>
-     * @throws \Cake\Database\Exception\DatabaseException 永続化層の照会に失敗した場合
+     * 読み取りに失敗したら空（RoomQuery と同じ）。
      */
     public function getUserRoomIds(Table $userGroupTable, int $userId): array
     {
-        // 削除済みの部屋は所属に数えない（代表部屋が削除済みになると、カレンダーで予約を開けなくなるため）
-        $userGroups = $userGroupTable->find()
-            ->select(['MUserGroup.i_id_room'])
-            ->innerJoin(['MRoomInfo' => 'm_room_info'], ['MRoomInfo.i_id_room = MUserGroup.i_id_room'])
-            ->where(['MUserGroup.i_id_user' => $userId, ...MUserGroupTable::activeCondition(), 'MRoomInfo.i_del_flg' => 0])
-            ->toArray();
-
-        $roomIds = [];
-        foreach ($userGroups as $group) {
-            if ($group->i_id_room) {
-                $roomIds[] = (int)$group->i_id_room;
-            }
-        }
-
-        return array_values(array_unique($roomIds));
+        // 判定は RoomQuery に1つだけある（権限の判定・承認と共通）
+        return (new CakeRoomQuery())->getUserRoomIds($userId);
     }
 
     public function getPrimaryRoomId(array $roomIds): ?int
@@ -49,23 +36,8 @@ class ReservationCalendarService
 
     public function isOfficeUser(Table $userGroupTable, Table $roomTable, int $userId): bool
     {
-        if ($userId <= 0) {
-            return false;
-        }
-
-        return $userGroupTable->find()
-            ->innerJoin(
-                ['MRoomInfo' => $roomTable->getTable()],
-                ['MRoomInfo.i_id_room = MUserGroup.i_id_room']
-            )
-            ->where([
-                'MUserGroup.i_id_user' => $userId,
-                ...MUserGroupTable::activeCondition(),
-                'MRoomInfo.i_del_flg' => 0,
-                'MRoomInfo.c_room_name LIKE' => '%事務所%',
-                'MRoomInfo.i_del_flg' => 0, // 削除済みの事務所の所属では事務所ユーザーにしない
-            ])
-            ->count() > 0;
+        // 判定は RoomQuery に1つだけある（予約履歴と共通）
+        return (new CakeRoomQuery())->isOfficeUser($userId);
     }
 
     /**

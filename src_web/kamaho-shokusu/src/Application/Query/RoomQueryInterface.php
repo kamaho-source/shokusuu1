@@ -13,7 +13,8 @@ use App\Application\Query\Dto\RoomMemberView;
 interface RoomQueryInterface
 {
     /**
-     * 利用者が所属している部屋（部屋が削除済みでも含む）。読み取りに失敗したら空。
+     * 利用者が所属している部屋（所属中で、部屋が削除されていないもの）。読み取りに失敗したら空。
+     * カレンダー・権限の判定・承認で共通の判定（ReservationCalendarService もこれを使う）。
      *
      * @return list<int>
      */
@@ -22,7 +23,7 @@ interface RoomQueryInterface
     /** 削除されていない「事務所」の部屋に所属しているか。読み取りに失敗したら false。 */
     public function isOfficeUser(int $userId): bool;
 
-    /** どこかの部屋に所属しているか。 */
+    /** 削除されていない部屋に、どこか所属しているか（getUserRoomIds と同じ判定）。 */
     public function hasAnyAffiliation(int $userId): bool;
 
     /** 所属中で、部屋も削除されていないか（RoomMembershipRepository と同じ判定）。 */
@@ -37,13 +38,6 @@ interface RoomQueryInterface
      * @return array<int, string> 部屋ID => 部屋名
      */
     public function getAccessibleRooms(int $userId): array;
-
-    /**
-     * 利用者が所属している「事務所」の部屋。読み取りに失敗したら空。
-     *
-     * @return list<int>
-     */
-    public function getOfficeRoomIds(int $userId): array;
 
     /**
      * 指定した部屋のうち、削除されていない部屋（表示順）。読み取りに失敗したら空。

@@ -265,13 +265,6 @@ class CakeRoomQueryTest extends TestCase
         $this->assertFalse($this->service->isOfficeUser(10));
     }
 
-    public function testGetOfficeRoomIds(): void
-    {
-        $this->assertSame([2], $this->service->getOfficeRoomIds(10));
-        $this->assertSame([], $this->service->getOfficeRoomIds(0));
-        $this->assertSame([], $this->service->getOfficeRoomIds(9999));
-    }
-
     public function testUserCanAccessRoom_invalidIds(): void
     {
         $this->assertFalse($this->service->isActiveMember(0, 2));
@@ -305,7 +298,6 @@ class CakeRoomQueryTest extends TestCase
 
         $this->assertSame([], $this->service->getUserRoomIds(10));
         $this->assertFalse($this->service->isOfficeUser(10));
-        $this->assertSame([], $this->service->getOfficeRoomIds(10));
         $this->assertSame([], $this->service->getRoomsByIds([2]));
         $this->assertSame([], $this->service->getAllActiveRooms());
     }
@@ -351,5 +343,16 @@ class CakeRoomQueryTest extends TestCase
         TableRegistry::getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => 1], ['i_id_room' => 1]);
 
         $this->assertSame($before - 1, $this->service->countActiveRooms());
+    }
+
+    /** 所属が削除済みの部屋だけの人は、所属部屋なし・所属なしとして扱う（カレンダーと同じ判定） */
+    public function testDeletedRoomIsNotCountedAsAffiliation(): void
+    {
+        $ids = $this->service->getUserRoomIds(10);
+        $this->assertNotEmpty($ids);
+        TableRegistry::getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => 1], ['i_id_room IN' => $ids]);
+
+        $this->assertSame([], $this->service->getUserRoomIds(10));
+        $this->assertFalse($this->service->hasAnyAffiliation(10));
     }
 }
