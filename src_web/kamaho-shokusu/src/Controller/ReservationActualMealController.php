@@ -3,10 +3,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Service\MealGridWeekRule;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Query\CakeMealCountGridQuery;
+use Cake\Chronos\ChronosDate;
+use Cake\Chronos\ClockFactory;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Service\ActualMealManagementService;
-use App\Service\MealCountGridService;
 use Cake\Core\Configure;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
@@ -494,14 +497,14 @@ class ReservationActualMealController extends ReservationBaseController
             $selectedRoomId = !empty($allRooms) ? (int)array_key_first($allRooms) : null;
         }
 
-        $gridService = new MealCountGridService();
-        $today       = DateTime::now('Asia/Tokyo');
+        $gridQuery = new CakeMealCountGridQuery(new ClockFactory('Asia/Tokyo'));
+        $today     = DateTime::now('Asia/Tokyo');
 
         $weekParam     = $this->request->getQuery('week') ?? $session->read('mealCountGrid.week');
-        $weekNav       = $gridService->resolveWeekNavigation($weekParam, $isAdmin, $today);
-        $weekMondayStr = $weekNav['weekMondayStr'];
-        $dates         = $gridService->buildDateRange($weekMondayStr, 28);
-        $periodLabel   = $gridService->buildPeriodLabel($dates);
+        $week          = MealGridWeekRule::resolve($weekParam, $isAdmin, $today);
+        $weekMondayStr = $week->mondayString();
+        $dates         = MealGridWeekRule::dateRange($weekMondayStr);
+        $periodLabel   = MealGridWeekRule::periodLabel($dates);
 
         $userIdQuery    = $this->request->getQuery('user_id');
         $selectedUserId = $userIdQuery
@@ -514,14 +517,7 @@ class ReservationActualMealController extends ReservationBaseController
         // 選べる利用者。管理者・システム管理者と事務所ユーザーは全員
         $selectableUsers = [];
         if ($canViewAll) {
-            $userQuery = $this->MUserInfo->find()
-                ->select(['MUserInfo.i_id_user', 'MUserInfo.c_user_name'])
-                ->where(['MUserInfo.i_del_flag' => 0])
-                ->orderByAsc('MUserInfo.c_user_name')
-                ->enableHydration(false);
-            foreach ($userQuery->all() as $u) {
-                $selectableUsers[(int)$u['i_id_user']] = (string)$u['c_user_name'];
-            }
+            $selectableUsers = $gridQuery->getSelectableUsers();
             if (!isset($selectableUsers[$selectedUserId])) {
                 $selectedUserId = $loginUserId;
             }
@@ -539,25 +535,21 @@ class ReservationActualMealController extends ReservationBaseController
         }
 
         // 部屋ごとにクエリを投げると部屋数ぶんの N+1 になるため、まとめて1回で引く
-        $roomUsers = $gridService->getRoomUsersByRooms(
-            $this->MUserGroup,
-            $this->MUserInfo,
-            array_keys($targetRooms)
-        );
+        $roomUsers = $gridQuery->getRoomUsers(array_keys($targetRooms));
         if ($viewMode === 'individual') {
             // 個人モードは権限にかかわらず選択ユーザーのみ表示する
             // （非 canViewAll は $selectedUserId がログインユーザーに固定済み。
             //   部屋内の子供の管理は「部屋」モードで行う）
             foreach ($roomUsers as $roomId => $users) {
                 $roomUsers[$roomId] = array_values(
-                    array_filter($users, fn($u) => (int)$u['id'] === $selectedUserId)
+                    array_filter($users, fn($u) => $u->id === $selectedUserId)
                 );
             }
         }
 
-        $gridData       = $gridService->buildGrid($this->TIndividualReservationInfo, $targetRooms, $roomUsers, $dates);
-        $monthlyTotals  = $gridService->buildMonthlyTotals($gridData);
-        $dateCategories = $gridService->buildDateCategories($dates);
+        $gridData       = $gridQuery->getGrid($targetRooms, $roomUsers, $dates);
+        $monthlyTotals  = $gridData->totalsByMeal();
+        $dateCategories = MealGridWeekRule::dateCategories($dates, new ChronosDate($today));
 
         $nameList = [];
         if ($viewMode === 'individual') {
@@ -586,10 +578,10 @@ class ReservationActualMealController extends ReservationBaseController
             'dateCategories'  => $dateCategories,
             'weekMondayStr'   => $weekMondayStr,
             'periodLabel'     => $periodLabel,
-            'prevMonday'      => $weekNav['prevMonday'],
-            'nextMonday'      => $weekNav['nextMonday'],
-            'canGoPrev'       => $weekNav['canGoPrev'],
-            'canGoNext'       => $weekNav['canGoNext'],
+            'prevMonday'      => $week->prevMonday,
+            'nextMonday'      => $week->nextMonday,
+            'canGoPrev'       => $week->canGoPrev,
+            'canGoNext'       => $week->canGoNext,
             'isAdmin'         => $isAdmin,
             'isBlockLeader'   => $isBlockLeader,
             'canViewAll'      => $canViewAll,

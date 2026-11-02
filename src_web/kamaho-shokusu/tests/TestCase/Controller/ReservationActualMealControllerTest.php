@@ -526,6 +526,6 @@ class ReservationActualMealControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertNull($this->viewVariable('selectedRoomId'));
         $this->assertSame([], $this->viewVariable('allRooms'));
-        $this->assertSame([], $this->viewVariable('gridData')['grid'] ?? []);
+        $this->assertSame([], $this->viewVariable('gridData')->rooms);
     }
 }

@@ -10,7 +10,7 @@ use App\Application\UseCase\UpdateRoom\UpdateRoomUseCase;
 use App\Infrastructure\Log\AuditLogAdapter;
 use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\Repository\CakeRoomRepository;
-use App\Service\MealCountGridService;
+use App\Infrastructure\Query\CakeMealCountGridQuery;
 use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
@@ -125,12 +125,12 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         $users->updateAll(['c_user_name' => 'あ'], ['i_id_user' => 2]); // 名前順なら 2 が先だが、表示順の小さい児童3 が先
         $users->updateAll(['i_disp_no' => 9], ['i_id_user' => 2]);
 
-        $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $users, [1])[1];
-        $this->assertSame([3, 2, 1], array_column($grid, 'id'), '区分で分けず表示順だけで並ぶ（NULL の 1 は後ろ）');
+        $grid = self::gridUserIds();
+        $this->assertSame([3, 2, 1], $grid, '区分で分けず表示順だけで並ぶ（NULL の 1 は後ろ）');
 
         $this->reorder([1, 2, 3]);
-        $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $users, [1])[1];
-        $this->assertSame([1, 2, 3], array_column($grid, 'id'));
+        $grid = self::gridUserIds();
+        $this->assertSame([1, 2, 3], $grid);
 
         $this->assertSame([1, 2, 3], array_map(fn($u) => $u->userId, (new CakeRoomQuery())->getRoomMembers(1)), '削除済み 6 は出ない');
     }
@@ -150,8 +150,8 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         $d = $this->dispNos();
         $this->assertSame([1, 2, 3, 31, 71, 90, 91], array_map(fn($id) => $d[$id], $order));
 
-        $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $this->getTableLocator()->get('MUserInfo'), [1])[1];
-        $this->assertSame($order, array_column($grid, 'id'));
+        $grid = self::gridUserIds();
+        $this->assertSame($order, $grid);
     }
 
     /** 食数予約の各画面のメンバー一覧が、同じ並び（表示順 → 名前。区分では分けない）になる */
@@ -212,5 +212,13 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         $this->assertArrayHasKey('c_room_name', $result->fieldErrors);
         $d = $this->dispNos();
         $this->assertSame([1, 2, 3], [$d[1], $d[2], $d[3]], '並び順も保存しない');
+    }
+
+    /** エクセル食数予約の部屋 1 の行の並び（利用者ID）。 */
+    private static function gridUserIds(): array
+    {
+        $query = new CakeMealCountGridQuery(new \Cake\Chronos\ClockFactory('Asia/Tokyo'));
+
+        return array_map(static fn($u) => $u->id, $query->getRoomUsers([1])[1]);
     }
 }

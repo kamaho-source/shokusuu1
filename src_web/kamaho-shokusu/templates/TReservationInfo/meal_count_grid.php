@@ -8,7 +8,7 @@
  * @var array  $nameList       [userId => userName]（個人モード用）
  * @var int    $selectedUserId
  * @var string $viewMode       'individual' | 'room' | 'all'
- * @var array  $gridData       {dates, meals, rooms, dailyTotals}
+ * @var \App\Application\Query\Dto\MealCountGrid $gridData
  * @var array  $monthlyTotals  [mealType => int]
  * @var array  $dateCategories [date => 'past'|'last_minute'|'normal']
  * @var string $weekMondayStr  YYYY-MM-DD
@@ -35,10 +35,10 @@ $this->assign('title', 'エクセル食数予約');
 $csrfToken = $this->request->getAttribute('csrfToken') ?? '';
 $basePath  = rtrim($this->request->getAttribute('base') ?? '', '/');
 
-$dates          = $gridData['dates']       ?? [];
-$meals          = $gridData['meals']       ?? \App\Domain\ValueObject\MealType::labels(\App\Domain\ValueObject\MealType::LABEL_TINY);
-$roomsData      = $gridData['rooms']       ?? [];
-$dailyTotals    = $gridData['dailyTotals'] ?? [];
+$dates          = $gridData->dates;
+$meals          = $gridData->meals;
+$roomsData      = $gridData->rooms;
+$dailyTotals    = $gridData->dailyTotals;
 $dateCategories = $dateCategories          ?? [];
 
 $today      = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
@@ -85,11 +85,10 @@ $todayUrl  = $makeUrl(['week' => \Cake\I18n\Date::today('Asia/Tokyo')->startOfWe
 
 // 選択セル情報（数式バー表示用）
 // 行番号は全ユーザーを通じた連番
-$rowOffset = 0;
-foreach ($roomsData as $rid => $ri) {
-    foreach ($ri['users'] as $u) { $rowOffset++; }
+$totalRows = 0;
+foreach ($roomsData as $ri) {
+    $totalRows += count($ri->users);
 }
-$totalRows = $rowOffset;
 
 // CSS・JS をレイアウトの <head> / </body> 直前ブロックに注入
 $this->Html->css('pages/meal_count_grid.css', ['block' => true]);
@@ -249,15 +248,15 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                         <?php
                         $rowNum = 1;
                         foreach ($roomsData as $roomId => $roomInfo):
-                            $roomName  = $roomInfo['name'];
-                            $users     = $roomInfo['users'];
-                            $grid      = $roomInfo['grid'];
-                            $otherRoom = $roomInfo['otherRoom'] ?? [];
+                            $roomName  = $roomInfo->name;
+                            $users     = $roomInfo->users;
+                            $grid      = $roomInfo->grid;
+                            $otherRoom = $roomInfo->otherRoom;
                         ?>
 
                         <?php foreach ($users as $u):
-                            $uid                 = (int)$u['id'];
-                            $uLevel              = (int)($u['i_user_level'] ?? 0);
+                            $uid                 = $u->id;
+                            $uLevel              = $u->level;
                             // ブロック長がその部屋に所属しているか
                             $blockLeaderHere     = $isBlockLeader && in_array($roomId, $loginRoomIds ?? [], true);
                             // 編集可否: 管理者は全員、部屋所属のブロック長は全員、部屋所属で部屋アクセス権あり→自分+子供(level=1)、それ以外→自分のみ
@@ -276,8 +275,8 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                             <?= $readonlyMsg !== '' ? 'class="mcg-row-readonly"' : '' ?>>
                             <td class="col-row"><?= h($rowNum++) ?></td>
                             <td class="col-room" title="<?= h($roomName) ?>"><?= h($roomName) ?></td>
-                            <td class="col-name" title="<?= h($u['name']) ?>">
-                                <?= h($u['name']) ?>
+                            <td class="col-name" title="<?= h($u->name) ?>">
+                                <?= h($u->name) ?>
                                 <?php if ($readonlyMsg !== ''): ?>
                                 <span class="mcg-badge-readonly" title="<?= h($readonlyMsg) ?>">閲覧</span>
                                 <?php endif; ?>
@@ -311,7 +310,7 @@ $this->Html->script('pages/meal_count_grid.js', ['block' => true]);
                                         $attrs .= ' data-no-edit-msg="' . h($readonlyMsg) . '"';
                                     }
                                     if ($toggleable) {
-                                        $attrs .= ' title="' . h($u['name'] . ' ' . $d . ' ' . $mealLabel) . '"'
+                                        $attrs .= ' title="' . h($u->name . ' ' . $d . ' ' . $mealLabel) . '"'
                                             . ' role="checkbox"'
                                             . ' aria-checked="' . ($reserved ? 'true' : 'false') . '"'
                                             . ' tabindex="0"';
