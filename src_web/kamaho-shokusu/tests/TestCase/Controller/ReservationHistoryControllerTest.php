@@ -113,6 +113,19 @@ class ReservationHistoryControllerTest extends TestCase
         $this->assertResponseOk();
     }
 
+    /** クエリに配列が来ても警告を出さず、既定の値で表示する（以前は「Array to string conversion」の警告が出て、期間が "Array" になっていた） */
+    public function testIndex_arrayQuery_usesDefaultsWithoutWarning(): void
+    {
+        $this->login(1);
+        $this->get('/ReservationHistory?from[]=x&to[]=y&tab[]=log&user[]=3&room[]=1');
+
+        $this->assertResponseOk();
+        $this->assertSame(date('Y-m-01'), $this->viewVariable('from'));
+        $this->assertSame('meals', $this->viewVariable('tab'));
+        $this->assertSame(1, $this->viewVariable('targetId'));
+        $this->assertResponseNotContains('Array to string');
+    }
+
     /** 子どもは自分の予約と経緯だけ見られる。部屋集計（部屋の情報）は出さず、直接開いても403 */
     public function testIndex_child_seesOwnOnlyWithoutRoomSummary(): void
     {

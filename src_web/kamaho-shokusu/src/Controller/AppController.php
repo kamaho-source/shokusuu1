@@ -99,16 +99,28 @@ class AppController extends Controller
     }
 
     /**
-     * クライアントの実IPアドレスを取得する。
+     * クエリの値を文字列で返す。無い・配列（?from[]=x など）は空文字。
      *
-     * Docker + リバースプロキシ構成では REMOTE_ADDR がプロキシのIPになるため、
-     * X-Forwarded-For → X-Real-IP → REMOTE_ADDR の優先順位で実IPを取得する。
-     * X-Forwarded-For が複数IPを持つ場合（例: "client, proxy1"）は
-     * 最左（クライアント側）のIPを使用する。
-     *
-     * @return string IPアドレス文字列
+     * (string) で変換すると、配列のとき「Array to string conversion」の警告が出て値が "Array" になるため。
      */
-/** 監査ログに残す操作者（ログイン中の利用者）。 */
+    protected function queryString(string $key): string
+    {
+        $value = $this->request->getQuery($key);
+
+        return is_string($value) ? $value : '';
+    }
+
+    /**
+     * 送信された値を文字列で返す。無い・配列は空文字（理由は queryString と同じ）。
+     */
+    protected function dataString(string $key): string
+    {
+        $value = $this->request->getData($key);
+
+        return is_string($value) ? $value : '';
+    }
+
+    /** 監査ログに残す操作者（ログイン中の利用者）。 */
     protected function auditActor(): AuditActor
     {
         $identity = $this->request->getAttribute('identity');
@@ -121,6 +133,16 @@ class AppController extends Controller
         );
     }
 
+    /**
+     * クライアントの実IPアドレスを取得する。
+     *
+     * Docker + リバースプロキシ構成では REMOTE_ADDR がプロキシのIPになるため、
+     * X-Forwarded-For → X-Real-IP → REMOTE_ADDR の優先順位で実IPを取得する。
+     * X-Forwarded-For が複数IPを持つ場合（例: "client, proxy1"）は
+     * 最左（クライアント側）のIPを使用する。
+     *
+     * @return string IPアドレス文字列
+     */
     protected function getClientIp(): string
     {
         $forwardedFor = $this->request->getHeaderLine('X-Forwarded-For');

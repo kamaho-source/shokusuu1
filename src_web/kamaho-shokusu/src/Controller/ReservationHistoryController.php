@@ -3,8 +3,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\ReservationHistoryQueryInterface;
+use App\Domain\Service\HistoryPeriodRule;
+use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
-use App\Service\ReservationHistoryService;
+use App\Infrastructure\Query\CakeReservationHistoryQuery;
+use App\Infrastructure\Query\CakeRoomQuery;
+use Cake\Chronos\ClockFactory;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 use Cake\I18n\DateTime;
@@ -16,7 +21,7 @@ use Cake\I18n\DateTime;
  *   meals   … 予約状況（実食機能はオフのため「予約済み」かどうか）
  *   summary … 部屋集計
  *   log     … 変更の経緯
- * ビジネスロジックは ReservationHistoryService にある。
+ * 読み取りは ReservationHistoryQueryInterface、期間の決まりは HistoryPeriodRule にある。
  */
 class ReservationHistoryController extends AppController
 {
@@ -25,12 +30,12 @@ class ReservationHistoryController extends AppController
 
     private const TABS = ['meals', 'summary', 'log'];
 
-    private ReservationHistoryService $historyService;
+    private ReservationHistoryQueryInterface $history;
 
     public function initialize(): void
     {
         parent::initialize();
-        $this->historyService = new ReservationHistoryService();
+        $this->history = new CakeReservationHistoryQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo'));
     }
 
     /**
@@ -48,9 +53,9 @@ class ReservationHistoryController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $svc = $this->historyService;
+        $svc = $this->history;
         $actorId = (int)$this->Authentication->getIdentity()?->get('i_id_user');
-        $actor = $svc->findUser($actorId);
+        $actor = $svc->findViewer($actorId);
         if ($actor === null) {
             $this->Flash->error('この画面を利用する権限がありません。');
 
@@ -59,24 +64,24 @@ class ReservationHistoryController extends AppController
 
         // 初期の期間は今月1日〜今月末日（過去日も未来日も見られる）
         $today = DateTime::now('Asia/Tokyo');
-        $from = (string)($this->request->getQuery('from') ?: $today->format('Y-m-01'));
-        $to = (string)($this->request->getQuery('to') ?: $today->format('Y-m-t'));
-        $tab = (string)$this->request->getQuery('tab');
+        $from = $this->queryString('from') ?: $today->format('Y-m-01');
+        $to = $this->queryString('to') ?: $today->format('Y-m-t');
+        $tab = $this->queryString('tab');
         $tab = in_array($tab, self::TABS, true) ? $tab : 'meals';
 
         $targets = $svc->selectableTargets($actor);
         // 既定の対象者はログインしている本人
-        $targetId = (int)$this->request->getQuery('user') ?: $actorId;
+        $targetId = (int)$this->queryString('user') ?: $actorId;
 
-        $error = $svc->validatePeriod($from, $to);
+        $error = HistoryPeriodRule::error($from, $to);
         $forbidden = null;
         $target = null;
         $meals = $logs = $summary = [];
         $logStart = null;
         // 部屋の情報（部屋集計）は子どもには見せない
-        $canViewSummary = UserRole::canViewRoomSummary($actor['admin'], $actor['level']);
+        $canViewSummary = UserRole::canViewRoomSummary($actor->admin, $actor->level);
         $rooms = $canViewSummary ? $svc->summaryRooms($actorId) : [];
-        $roomId = (int)$this->request->getQuery('room') ?: (int)(array_key_first($rooms) ?? 0);
+        $roomId = (int)$this->queryString('room') ?: (int)(array_key_first($rooms) ?? 0);
 
         if ($tab === 'summary' && !$canViewSummary) {
             $forbidden = '部屋集計は職員・管理者だけが見られます。';
@@ -87,15 +92,15 @@ class ReservationHistoryController extends AppController
                 $summary = $svc->roomSummary($roomId, $from, $to);
             }
         } elseif ($error === null) {
-            $target = $svc->findUser($targetId);
+            $target = $svc->findViewer($targetId);
             if ($target === null || !isset($targets[$targetId])) {
                 $forbidden = 'この人の履歴を見る権限がありません。';
                 $target = null;
             } elseif ($tab === 'log') {
-                $logs = $svc->logRows($targetId, $from, $to, self::SHOW_ACTOR_NAME);
+                $logs = $svc->changeLog($targetId, $from, $to, self::SHOW_ACTOR_NAME);
                 $logStart = $svc->logStartDate();
             } else {
-                $meals = $svc->mealRows($targetId, $from, $to);
+                $meals = $svc->bookedMeals($targetId, $from, $to);
             }
         }
         if ($forbidden !== null) {
@@ -104,9 +109,9 @@ class ReservationHistoryController extends AppController
             $this->response = $this->response->withStatus(400);
         }
 
-        $mealLabels = ReservationHistoryService::MEAL_LABELS;
+        $mealLabels = MealType::labels(MealType::LABEL_SHORT_NIGHT);
         // 予約状況・部屋集計は、予約の無い日も含めて期間の全日付を並べる（初期は今月1日〜今月末日の1か月分）
-        $dates = $error === null ? $svc->periodDates($from, $to) : [];
+        $dates = $error === null ? HistoryPeriodRule::dates($from, $to) : [];
         $this->set(compact(
             'from', 'to', 'tab', 'targets', 'targetId', 'target', 'actorId', 'error', 'forbidden',
             'meals', 'logs', 'logStart', 'summary', 'rooms', 'roomId', 'mealLabels', 'canViewSummary', 'dates'
