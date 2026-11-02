@@ -224,6 +224,7 @@ class ReservationReportControllerTest extends TestCase
             'from array' => ['?from[]=x&to=2026-03-10', '無効な期間'],
             'to array' => ['?from=2026-03-01&to[]=x', '無効な期間'],
             'month array' => ['?month[]=2026-03', '無効な月'],
+            'month with NUL byte' => ['?month=2026-03%00', '無効な月'],
         ];
     }
 
