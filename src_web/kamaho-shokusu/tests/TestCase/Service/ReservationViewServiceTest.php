@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Service;
 
-use App\Service\ReservationQueryService;
+use App\Infrastructure\Query\CakeRoomQuery;
 use App\Service\ReservationViewService;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
@@ -39,7 +39,7 @@ class ReservationViewServiceTest extends TestCase
         $roomTable        = TableRegistry::getTableLocator()->get('MRoomInfo');
         $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $queryService     = new ReservationQueryService();
+        $queryService     = new CakeRoomQuery();
 
         $result = $this->service->buildViewContext(
             null,
@@ -66,7 +66,7 @@ class ReservationViewServiceTest extends TestCase
         $roomTable        = TableRegistry::getTableLocator()->get('MRoomInfo');
         $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $queryService     = new ReservationQueryService();
+        $queryService     = new CakeRoomQuery();
 
         $result = $this->service->buildViewContext(
             null,
@@ -86,7 +86,7 @@ class ReservationViewServiceTest extends TestCase
         $roomTable        = TableRegistry::getTableLocator()->get('MRoomInfo');
         $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $queryService     = new ReservationQueryService();
+        $queryService     = new CakeRoomQuery();
 
         $today = (new \DateTime('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
 
@@ -108,7 +108,7 @@ class ReservationViewServiceTest extends TestCase
         $roomTable        = TableRegistry::getTableLocator()->get('MRoomInfo');
         $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $queryService     = new ReservationQueryService();
+        $queryService     = new CakeRoomQuery();
 
         $result = $this->service->buildViewContext(
             null,

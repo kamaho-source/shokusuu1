@@ -1,33 +1,50 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Infrastructure\Query;
 
+use App\Application\Query\Dto\BulkRoomUser;
+use App\Application\Query\Dto\BulkRoomUsers;
+use App\Application\Query\Dto\PersonalReservation;
+use App\Application\Query\Dto\RoomUserMeals;
+use App\Application\Query\ReservationReadQueryInterface;
 use App\Application\Query\RoomQueryInterface;
+use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
-use App\Infrastructure\Query\CakeRoomQuery;
+use App\Service\RoomMemberOrderService;
+use Cake\Chronos\ChronosDate;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
+use Psr\Clock\ClockInterface;
 
-class ReservationQueryService
+/**
+ * ReservationReadQueryInterface の CakePHP 実装（m_user_group・m_user_info・t_individual_reservation_info の読み取り）。
+ */
+final class CakeReservationReadQuery implements ReservationReadQueryInterface
 {
-    private ReservationDatePolicy $datePolicy;
-    private RoomQueryInterface $roomAccessService;
-
-    public function __construct(?ReservationDatePolicy $datePolicy = null, ?RoomQueryInterface $roomAccessService = null)
-    {
-        $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
-        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
+    public function __construct(
+        private readonly RoomQueryInterface $rooms,
+        private readonly ClockInterface $clock,
+    ) {
     }
 
-    public function getAuthorizedRooms(Table $roomTable, Table $userGroupTable, int $userId): array
+    private static function table(string $alias): Table
     {
-        return $this->roomAccessService->getAccessibleRooms($userId);
+        return TableRegistry::getTableLocator()->get($alias);
     }
 
-    public function getUsersByRoom(Table $userGroupTable, Table $reservationTable, int $roomId, ?string $date): array
+    /** 直前期間の判定（境界日以前は i_change_flag を見る）。 */
+    private function usesChangeFlag(Date $targetDate): bool
     {
+        return ReservationDateRule::usesChangeFlag($targetDate, new ChronosDate($this->clock->now()));
+    }
+
+    public function getUsersByRoom(int $roomId, ?string $date): array
+    {
+        $userGroupTable   = self::table('MUserGroup');
+        $reservationTable = self::table('TIndividualReservationInfo');
         $users = $userGroupTable->find()
             ->enableAutoFields(false)
             ->select([
@@ -49,7 +66,7 @@ class ReservationQueryService
         if ($date) {
             try {
                 $targetDate = new Date($date);
-                $useChangeFlag = $this->datePolicy->shouldUseChangeFlag($targetDate);
+                $useChangeFlag = $this->usesChangeFlag($targetDate);
             } catch (\Throwable $e) {
                 $useChangeFlag = false;
             }
@@ -74,28 +91,23 @@ class ReservationQueryService
         $usersByRoom = [];
         foreach ($users as $user) {
             $userId = (int)$user['i_id_user'];
-            $usersByRoom[] = [
-                'id' => $userId,
-                'name' => (string)$user['user_name'],
-                'morning' => !empty($reservedMap[$userId][1]),
-                'noon' => !empty($reservedMap[$userId][2]),
-                'night' => !empty($reservedMap[$userId][3]),
-                'bento' => !empty($reservedMap[$userId][4]),
-            ];
+            $usersByRoom[] = new RoomUserMeals(
+                $userId,
+                (string)$user['user_name'],
+                !empty($reservedMap[$userId][1]),
+                !empty($reservedMap[$userId][2]),
+                !empty($reservedMap[$userId][3]),
+                !empty($reservedMap[$userId][4]),
+            );
         }
 
         return $usersByRoom;
     }
 
-    public function getUsersByRoomForBulk(
-        Table $userGroupTable,
-        Table $reservationTable,
-        int $roomId,
-        ?string $date,
-        int $page = 1,
-        int $limit = 100
-    ): array
+    public function getUsersByRoomForBulk(int $roomId, ?string $date, int $page, int $limit): BulkRoomUsers
     {
+        $userGroupTable   = self::table('MUserGroup');
+        $reservationTable = self::table('TIndividualReservationInfo');
         $baseConditions = [
             'MUserGroup.i_id_room' => $roomId,
             ...MUserGroupTable::activeCondition()
@@ -134,24 +146,24 @@ class ReservationQueryService
         $userData = [];
         foreach ($users as $user) {
             $staffId = $user['staff_id'] ?? null;
-            $userData[] = [
-                'id' => (int)$user['i_id_user'],
-                'name' => (string)$user['user_name'],
-                'i_user_level' => (int)($user['user_level'] ?? 0),
-                'is_staff' => ($staffId !== null && $staffId !== ''),
-            ];
+            $userData[] = new BulkRoomUser(
+                (int)$user['i_id_user'],
+                (string)$user['user_name'],
+                (int)($user['user_level'] ?? 0),
+                $staffId !== null && $staffId !== '',
+            );
         }
 
         $reservations = [];
         $otherRoomReservations = [];
         $snapshot = null;
         if (!empty($date) && !empty($userData)) {
-            $userIds = array_map(static fn($u) => (int)$u['id'], $userData);
+            $userIds = array_map(static fn(BulkRoomUser $u) => $u->userId, $userData);
             try {
                 // 他サービス（getUsersByRoom/getPersonalReservationData 等）と判定基準を揃える。
                 // 下限のない shouldUseChangeFlag（i_change_flag が非NULLなら日付を問わず優先）を用いる。
                 $targetDate = new Date($date, 'Asia/Tokyo');
-                $useChangeFlag = $this->datePolicy->shouldUseChangeFlag($targetDate);
+                $useChangeFlag = $this->usesChangeFlag($targetDate);
             } catch (\Throwable $e) {
                 $useChangeFlag = false;
             }
@@ -200,26 +212,15 @@ class ReservationQueryService
             }
         }
 
-        return [
-            'users' => $userData,
-            'reservations' => $reservations,
-            'other_room_reservations' => $otherRoomReservations,
-            'total' => $total,
-            'page' => $page,
-            'limit' => $limit,
-            'reservation_snapshot' => $snapshot,
-        ];
+        return new BulkRoomUsers($userData, $reservations, $otherRoomReservations, $total, $page, $limit, $snapshot);
     }
 
-    public function getReservationSnapshots(
-        Table $reservationTable,
-        int $roomId,
-        array $dates
-    ): array {
+    public function getReservationSnapshots(int $roomId, array $dates): array
+    {
         if (!$roomId || empty($dates)) {
             return [];
         }
-        $snapshotQuery = $reservationTable->find();
+        $snapshotQuery = self::table('TIndividualReservationInfo')->find();
         $rows = $snapshotQuery
             ->enableAutoFields(false)
             ->select([
@@ -250,7 +251,7 @@ class ReservationQueryService
     /**
      * 予約の有効値を返す。
      *
-     * $useChangeFlag（ReservationDatePolicy::shouldUseChangeFlag）が真で
+     * $useChangeFlag（直前期間）が真で
      * i_change_flag が非NULLの場合は i_change_flag を優先し、それ以外は eat_flag を用いる。
      *
      */
@@ -262,17 +263,12 @@ class ReservationQueryService
         return (int)($eatFlag ?? 0);
     }
 
-    public function getPersonalReservationData(
-        Table $reservationTable,
-        Table $roomTable,
-        Table $userGroupTable,
-        int $userId,
-        string $userName,
-        string $date
-    ): array {
+    public function getPersonalReservation(int $userId, string $userName, string $date): PersonalReservation
+    {
+        $reservationTable = self::table('TIndividualReservationInfo');
         try {
             $targetDate = new Date($date, 'Asia/Tokyo');
-            $isLastMinute = $this->datePolicy->shouldUseChangeFlag($targetDate);
+            $isLastMinute = $this->usesChangeFlag($targetDate);
         } catch (\Throwable $e) {
             $isLastMinute = false;
         }
@@ -304,25 +300,12 @@ class ReservationQueryService
             $result[$roomId][$type] = true;
         }
 
-        $authorizedRooms = $this->getAuthorizedRooms($roomTable, $userGroupTable, $userId);
-
-        return [
-            'user' => [
-                'i_id_user'    => $userId,
-                'c_user_name'  => $userName,
-            ],
-            'reservation'      => $result,
-            'authorized_rooms' => $authorizedRooms,
-        ];
+        return new PersonalReservation($userId, $userName, $result, $this->rooms->getAccessibleRooms($userId));
     }
 
-    public function hasDuplicateReservation(
-        Table $reservationTable,
-        string $date,
-        int $roomId,
-        int $mealType
-    ): bool {
-        return $reservationTable->exists([
+    public function hasDuplicateReservation(string $date, int $roomId, int $mealType): bool
+    {
+        return self::table('TIndividualReservationInfo')->exists([
             'd_reservation_date' => $date,
             'i_id_room' => $roomId,
             'i_reservation_type' => $mealType,

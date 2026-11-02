@@ -6,7 +6,10 @@ namespace App\Controller;
 use App\Service\ApiResponseService;
 use App\Service\ReservationCalendarService;
 use App\Service\ReservationDatePolicy;
-use App\Service\ReservationQueryService;
+use App\Application\Query\ReservationReadQueryInterface;
+use App\Infrastructure\Query\CakeReservationReadQuery;
+use App\Infrastructure\Query\CakeRoomQuery;
+use Cake\Chronos\ClockFactory;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 
@@ -30,7 +33,7 @@ abstract class ReservationBaseController extends AppController
     protected $TIndividualReservationInfo;
 
     protected ReservationCalendarService $calendarService;
-    protected ReservationQueryService $queryService;
+    protected ReservationReadQueryInterface $reservationRead;
     protected ReservationDatePolicy $datePolicy;
     protected ApiResponseService $apiResponseService;
 
@@ -46,7 +49,7 @@ abstract class ReservationBaseController extends AppController
 
         $this->datePolicy       = new ReservationDatePolicy();
         $this->calendarService  = new ReservationCalendarService();
-        $this->queryService     = new ReservationQueryService($this->datePolicy);
+        $this->reservationRead  = new CakeReservationReadQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo'));
         $this->apiResponseService = new ApiResponseService();
 
         $this->viewBuilder()->setLayout('default');
