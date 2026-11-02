@@ -4,8 +4,8 @@
  * @var mixed $categories
  * @var mixed $defaultEmail
  * @var mixed $defaultName
- * @var object $entity
- * @var array<\App\Infrastructure\Persistence\Entity\TContact> $myContacts
+ * @var \App\Application\UseCase\SubmitContact\SubmitContactOutput $entity 送信できなかったときの入力と理由
+ * @var list<\App\Domain\Entity\Contact> $myContacts
  */
 $this->assign('title', 'フィードバック・お問い合わせ');
 ?>
@@ -114,21 +114,21 @@ $this->assign('title', 'フィードバック・お問い合わせ');
                 <div class="card-header bg-light d-flex align-items-center justify-content-between">
                     <span>
                         <span class="badge bg-secondary me-2"><?= h($myContact->category) ?></span>
-                        <span class="text-muted small"><?= h($myContact->created->format('Y-m-d H:i')) ?></span>
+                        <span class="text-muted small"><?= h($myContact->createdAt?->format('Y-m-d H:i')) ?></span>
                     </span>
                 </div>
                 <div class="card-body">
                     <div style="white-space: pre-wrap;"><?= h($myContact->body) ?></div>
 
-                    <?php if (!empty($myContact->t_contact_replies)): ?>
+                    <?php if (!empty($myContact->replies)): ?>
                         <div class="mt-3 d-flex flex-column gap-2">
-                            <?php foreach ($myContact->t_contact_replies as $reply): ?>
-                                <?php $isAdminReply = $reply->author_type !== 'user'; ?>
+                            <?php foreach ($myContact->replies as $reply): ?>
+                                <?php $isAdminReply = $reply->authorType !== 'user'; ?>
                                 <div class="d-flex <?= $isAdminReply ? 'justify-content-start' : 'justify-content-end' ?>">
                                     <div class="p-2 px-3 rounded-3 <?= $isAdminReply ? 'bg-primary bg-opacity-10' : 'bg-light border' ?>" style="max-width: 85%;">
                                         <div class="text-muted small mb-1">
                                             <?= $isAdminReply ? '<i class="bi bi-headset me-1"></i>担当者' : '<i class="bi bi-person me-1"></i>ご自身' ?>
-                                            ・<?= h($reply->sent_at->format('Y-m-d H:i')) ?>
+                                            ・<?= h($reply->sentAt?->format('Y-m-d H:i')) ?>
                                         </div>
                                         <div style="white-space: pre-wrap;"><?= h($reply->body) ?></div>
                                     </div>

@@ -1,9 +1,16 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\Contact;
 
-use App\Service\ContactService;
+use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
+use App\Application\UseCase\ReplyToContact\ReplyToContactUseCase;
+use App\Application\UseCase\SubmitContact\SubmitContactOutput;
+use App\Application\UseCase\SubmitContact\SubmitContactUseCase;
+use App\Domain\Exception\NotFoundException;
+use App\Infrastructure\Notification\CakeContactNotifier;
+use App\Infrastructure\Query\CakeContactQuery;
+use App\Infrastructure\Repository\CakeContactRepository;
 use Cake\Core\Configure;
 use Cake\Datasource\Exception\RecordNotFoundException;
 use Cake\Http\Client;
@@ -15,12 +22,12 @@ use Cake\TestSuite\EmailTrait;
 use Cake\TestSuite\TestCase;
 
 /**
- * ContactService の保存・メール送信・Slack通知・一覧取得のテスト。
+ * 問い合わせの保存・メール送信・Slack通知・一覧取得（SubmitContact・ReplyToContact・AddContactReply・CakeContactQuery）。旧 ContactServiceMailTest を引き継ぐ。
  *
  * メールは EmailTrait のデバッグトランスポート、Slack は Http\Client のモックレスポンスで
  * 受け、実際の通信は行わない。
  */
-class ContactServiceMailTest extends TestCase
+class ContactMailTest extends TestCase
 {
     use EmailTrait;
 
@@ -29,12 +36,9 @@ class ContactServiceMailTest extends TestCase
         'app.TContactReplies',
     ];
 
-    private ContactService $service;
-
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ContactService();
         Configure::write('App.adminEmail', 'ops@example.com');
         putenv('SLACK_CONTACT_WEBHOOK');
         unset($_ENV['SLACK_CONTACT_WEBHOOK'], $_SERVER['SLACK_CONTACT_WEBHOOK']);
@@ -48,6 +52,26 @@ class ContactServiceMailTest extends TestCase
         unset($_ENV['SLACK_CONTACT_WEBHOOK'], $_SERVER['SLACK_CONTACT_WEBHOOK']);
         Client::clearMockResponses();
         parent::tearDown();
+    }
+
+    private function submit(array $data, ?int $userId): SubmitContactOutput
+    {
+        return (new SubmitContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute($data, $userId);
+    }
+
+    private function sendReply(int $contactId, string $body): bool
+    {
+        return (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute($contactId, $body);
+    }
+
+    private function replies(): AddContactReplyUseCase
+    {
+        return new AddContactReplyUseCase(new CakeContactRepository(), new CakeContactNotifier());
+    }
+
+    private function latestContact(): \App\Infrastructure\Persistence\Entity\TContact
+    {
+        return $this->getTableLocator()->get('TContacts')->find()->orderByDesc('id')->firstOrFail();
     }
 
     /**
@@ -78,10 +102,10 @@ class ContactServiceMailTest extends TestCase
 
     public function testSubmit_invalidInput_returnsErrorsAndSendsNothing(): void
     {
-        $result = $this->service->submit(['category' => 'でたらめ', 'name' => '', 'email' => 'x', 'body' => ''], 1);
+        $result = $this->submit(['category' => 'でたらめ', 'name' => '', 'email' => 'x', 'body' => ''], 1);
 
-        $this->assertFalse($result['success']);
-        $errors = $result['entity']->getErrors();
+        $this->assertFalse($result->saved);
+        $errors = $result->errors;
         $this->assertArrayHasKey('category', $errors);
         $this->assertArrayHasKey('name', $errors);
         $this->assertArrayHasKey('body', $errors);
@@ -91,11 +115,10 @@ class ContactServiceMailTest extends TestCase
 
     public function testSubmit_valid_savesTrimmedWithTokenAndSendsAutoReplyAndAdminMail(): void
     {
-        $result = $this->service->submit($this->validInput(), 7);
+        $result = $this->submit($this->validInput(), 7);
 
-        $this->assertTrue($result['success']);
-        $entity = $result['entity'];
-        $saved = $this->getTableLocator()->get('TContacts')->get($entity->id);
+        $this->assertTrue($result->saved);
+        $saved = $this->latestContact();
         $this->assertSame('新規 太郎', $saved->name);
         $this->assertSame('new@example.com', $saved->email);
         $this->assertSame('画面が真っ白になります。', $saved->body);
@@ -114,9 +137,9 @@ class ContactServiceMailTest extends TestCase
     {
         Configure::write('App.inboundReplyDomain', 'in.example.test');
 
-        $result = $this->service->submit($this->validInput('ご意見・ご要望'), null);
+        $this->submit($this->validInput('ご意見・ご要望'), null);
 
-        $token = (string)$result['entity']->reply_token;
+        $token = (string)$this->latestContact()->reply_token;
         $this->assertMailSentWithAt(0, 'reply+' . $token . '@in.example.test', 'replyTo');
         $this->assertMailSubjectContainsAt(0, 'ご意見・ご要望を受け付けました');
     }
@@ -125,9 +148,9 @@ class ContactServiceMailTest extends TestCase
     {
         Configure::write('App.adminEmail', 'admin@localhost');
 
-        $result = $this->service->submit($this->validInput('使い方の質問'), 1);
+        $result = $this->submit($this->validInput('使い方の質問'), 1);
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result->saved);
         $this->assertMailCount(1);
         $this->assertMailSentTo('new@example.com');
     }
@@ -136,10 +159,10 @@ class ContactServiceMailTest extends TestCase
     {
         $this->failingTransport();
 
-        $result = $this->service->submit($this->validInput(), 1);
+        $result = $this->submit($this->validInput(), 1);
 
-        $this->assertTrue($result['success'], 'メール送信に失敗しても問い合わせ自体は保存される');
-        $this->assertTrue($this->getTableLocator()->get('TContacts')->exists(['id' => $result['entity']->id]));
+        $this->assertTrue($result->saved, 'メール送信に失敗しても問い合わせ自体は保存される');
+        $this->assertSame(3, $this->getTableLocator()->get('TContacts')->find()->count());
     }
 
     public function testSubmit_postsToSlackWhenWebhookConfigured(): void
@@ -155,9 +178,9 @@ class ContactServiceMailTest extends TestCase
             },
         ]);
 
-        $result = $this->service->submit($this->validInput(), 1);
+        $result = $this->submit($this->validInput(), 1);
 
-        $this->assertTrue($result['success']);
+        $this->assertTrue($result->saved);
         $this->assertCount(1, $posted);
         $this->assertStringContainsString('新規 太郎', (string)json_decode($posted[0], true)['text']);
     }
@@ -166,24 +189,23 @@ class ContactServiceMailTest extends TestCase
 
     public function testGetListAndGetDetail(): void
     {
-        $list = $this->service->getList();
+        $query = new CakeContactQuery();
+        $list = $query->page(1);
         $this->assertSame([2, 1], array_map(fn($c) => $c->id, $list));
-        $this->assertCount(1, $this->service->getList(1, 1));
-        $this->assertCount(1, $this->service->getList(2, 1));
-        $this->assertSame([], $this->service->getList(3, 1));
+        $this->assertCount(1, $query->page(1, 1));
+        $this->assertCount(1, $query->page(2, 1));
+        $this->assertSame([], $query->page(3, 1));
+        $this->assertSame([2], array_map(fn($c) => $c->id, $query->page(0, 1)), '0 以下は 1 ページ目');
 
-        $this->assertSame(1, $this->service->getDetail(1)->id);
-        $this->expectException(RecordNotFoundException::class);
-        $this->service->getDetail(999);
+        $this->assertSame(1, $query->find(1)?->id);
+        $this->assertNull($query->find(999));
     }
 
     // --------------------------------------------------------------- replies
 
     public function testSendReply_sendsMailFromSupportWithReplyTo(): void
     {
-        $result = $this->service->sendReply(1, '  手順をご案内します。  ');
-
-        $this->assertTrue($result['success']);
+        $this->assertTrue($this->sendReply(1, '  手順をご案内します。  '));
         $this->assertMailCount(1);
         $this->assertMailSentTo('taro@example.com');
         $this->assertMailSentFrom('support@kamaho-shokusu.jp');
@@ -194,57 +216,47 @@ class ContactServiceMailTest extends TestCase
 
     public function testSendReply_emptyBody_returnsValidationErrorsWithoutMail(): void
     {
-        $result = $this->service->sendReply(1, '   ');
-
-        $this->assertFalse($result['success']);
-        $this->assertArrayHasKey('body', $result['errors']);
+        $this->assertFalse($this->sendReply(1, '   '));
         $this->assertNoMailSent();
+        $this->assertFalse($this->getTableLocator()->get('TContactReplies')->exists(['contact_id' => 1, 'body' => '']));
     }
 
     public function testSendReply_unknownContact_throws(): void
     {
-        $this->expectException(RecordNotFoundException::class);
-        $this->service->sendReply(999, '本文');
+        $this->expectException(NotFoundException::class);
+        $this->sendReply(999, '本文');
     }
 
     public function testSendReply_mailFailure_keepsHistoryAndReportsMailError(): void
     {
         $this->failingTransport();
 
-        $result = $this->service->sendReply(1, '返信です');
-
-        $this->assertFalse($result['success']);
-        $this->assertArrayHasKey('mail', $result['errors']);
+        $this->assertFalse($this->sendReply(1, '返信です'), 'メールが送れなかったことを返す');
         $replies = $this->getTableLocator()->get('TContactReplies');
         $this->assertTrue($replies->exists(['contact_id' => 1, 'body' => '返信です', 'author_type' => 'admin']));
     }
 
     public function testAddUserReply_notifiesAdminAndRejectsEmptyBody(): void
     {
-        $ok = $this->service->addUserReply(1, 1, '追加の質問です');
-        $this->assertTrue($ok['success']);
+        $this->assertTrue($this->replies()->fromUser(1, 1, '追加の質問です'));
         $this->assertMailCount(1);
         $this->assertMailSentTo('ops@example.com');
         $this->assertMailSubjectContains('お問い合わせに返信がありました：使い方の質問');
         $this->assertMailContainsText('追加の質問です');
 
-        $ng = $this->service->addUserReply(1, 1, '  ');
-        $this->assertFalse($ng['success']);
-        $this->assertArrayHasKey('body', $ng['errors']);
+        $this->assertFalse($this->replies()->fromUser(1, 1, '  '));
     }
 
     public function testAddUserReply_adminMailFailureStillSucceeds(): void
     {
         $this->failingTransport();
 
-        $result = $this->service->addUserReply(1, 1, '追加の質問です');
-
-        $this->assertTrue($result['success']);
+        $this->assertTrue($this->replies()->fromUser(1, 1, '追加の質問です'));
     }
 
     public function testAddUserReplyByToken_notifiesAdmin(): void
     {
-        $result = $this->service->addUserReplyByToken('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'メールからの返信', 'ext-mail-1');
+        $result = $this->replies()->fromEmail('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'メールからの返信', 'ext-mail-1');
 
         $this->assertTrue($result['success']);
         $this->assertMailCount(1);
@@ -254,7 +266,7 @@ class ContactServiceMailTest extends TestCase
 
     public function testAddUserReplyByToken_emptyBody_returnsValidationErrors(): void
     {
-        $result = $this->service->addUserReplyByToken('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '', 'ext-mail-2');
+        $result = $this->replies()->fromEmail('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '', 'ext-mail-2');
 
         $this->assertFalse($result['success']);
         $this->assertArrayHasKey('body', $result['errors']);
@@ -265,7 +277,7 @@ class ContactServiceMailTest extends TestCase
     {
         $this->failingTransport();
 
-        $result = $this->service->addUserReplyByToken('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '返信', 'ext-mail-3');
+        $result = $this->replies()->fromEmail('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '返信', 'ext-mail-3');
 
         $this->assertTrue($result['success']);
     }

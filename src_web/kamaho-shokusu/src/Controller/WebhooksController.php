@@ -6,7 +6,7 @@ namespace App\Controller;
 use App\Domain\ValueObject\EmailQuoteStripper;
 use App\Infrastructure\Email\ResendInboundClient;
 use App\Infrastructure\Email\ResendWebhookVerifier;
-use App\Service\ContactService;
+use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
 use Cake\Event\EventInterface;
 use Cake\Http\Response;
 use Cake\Log\Log;
@@ -21,13 +21,6 @@ use Throwable;
  */
 class WebhooksController extends AppController
 {
-    private ContactService $contactService;
-
-    public function initialize(): void
-    {
-        parent::initialize();
-        $this->contactService = new ContactService();
-    }
 
     public function beforeFilter(EventInterface $event): void
     {
@@ -41,7 +34,7 @@ class WebhooksController extends AppController
     /**
      * Resend Inbound（email.received）Webhookを受け取り、本人からの返信として登録する。
      */
-    public function resendInbound(): Response
+    public function resendInbound(AddContactReplyUseCase $addReply): Response
     {
         $this->Authorization->skipAuthorization();
         $this->request->allowMethod(['post']);
@@ -98,7 +91,7 @@ class WebhooksController extends AppController
             return $this->response->withType('application/json')->withStringBody('{"ok":true}');
         }
 
-        $result = $this->contactService->addUserReplyByToken($token, $replyBody, $emailId);
+        $result = $addReply->fromEmail($token, $replyBody, $emailId);
 
         if (!$result['success']) {
             Log::warning('Resend inbound webhook: addUserReplyByToken failed - ' . json_encode($result['errors']));
