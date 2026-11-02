@@ -1,17 +1,21 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Infrastructure\Query;
 
-use App\Service\SystemReportService;
+use App\Application\Query\Dto\DailyChildCount;
+use App\Application\Query\Dto\ReportUserOption;
+use App\Application\Query\Dto\RoomUsageStat;
+use App\Infrastructure\Query\CakeSystemReportQuery;
+use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
 use Cake\TestSuite\TestCase;
 
 /**
- * SystemReportService のテスト。
+ * システムレポートの読み取り（CakeSystemReportQuery）。旧 SystemReportServiceTest を引き継ぐ。
  */
-class SystemReportServiceTest extends TestCase
+class CakeSystemReportQueryTest extends TestCase
 {
     protected array $fixtures = [
         'app.MUserInfo',
@@ -21,8 +25,27 @@ class SystemReportServiceTest extends TestCase
         'app.TAuditLog',
     ];
 
-    /** 日別の集計は、予約日を Y-m-d で数える（文字列にした日付がロケール依存の形になり、0件になっていた） */
-    public function testGetDailyStats_countsReservationsByDate(): void
+    private static function query(): CakeSystemReportQuery
+    {
+        return new CakeSystemReportQuery(new ClockFactory('Asia/Tokyo'));
+    }
+
+    /** @param list<RoomUsageStat> $stats
+     *  @return list<array<string, int|float|string>> */
+    private static function rows(array $stats): array
+    {
+        return array_map(static fn(RoomUsageStat $s) => $s->toArray(), $stats);
+    }
+
+    /** @param list<DailyChildCount> $counts
+     *  @return list<array{date: string, child_count: int}> */
+    private static function daily(array $counts): array
+    {
+        return array_map(static fn(DailyChildCount $c) => $c->toArray(), $counts);
+    }
+
+    /** 日別の集計、予約日を Y-m-d で数える（文字列にした日付がロケール依存の形になり、0件になっていた） */
+    public function testDailyChildCounts_countsReservationsByDate(): void
     {
         $date = Date::today()->subDays(3)->format('Y-m-d');
         ConnectionManager::get('test')->insert('t_individual_reservation_info', [
@@ -31,7 +54,7 @@ class SystemReportServiceTest extends TestCase
             'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
         ]);
 
-        $stats = (new SystemReportService())->getDailyStats([], $date, $date);
+        $stats = self::daily(self::query()->dailyChildCounts([], $date, $date));
 
         $this->assertSame(1, $stats[0]['child_count'], '児童（user 3）の直前に追加した予約が数えられていない');
     }
@@ -46,7 +69,7 @@ class SystemReportServiceTest extends TestCase
     }
 
     /** 部屋別: 児童(user3)・大人(user1,2)を分けて数え、削除済み(user6)は人数に入れない。使用率は 予約数/(人数×日数×4)。 */
-    public function testGetRoomStats_countsChildAndAdultSeparately(): void
+    public function testRoomStats_countsChildAndAdultSeparately(): void
     {
         $this->insertReservation(3, 1, '2026-03-01', 0, 1);
         $this->insertReservation(2, 1, '2026-03-01', 0, 1);
@@ -57,7 +80,7 @@ class SystemReportServiceTest extends TestCase
         // 別の部屋に所属していないユーザーの予約は無視
         $this->insertReservation(2, 99, '2026-03-01', 0, 1);
 
-        $stats = (new SystemReportService())->getRoomStats([], '2026-03-01', '2026-03-02');
+        $stats = self::rows(self::query()->roomStats([], '2026-03-01', '2026-03-02'));
 
         $this->assertCount(1, $stats);
         $this->assertSame(1, $stats[0]['room_id']);
@@ -69,12 +92,12 @@ class SystemReportServiceTest extends TestCase
         $this->assertSame(6.3, $stats[0]['adult_usage_rate']);
     }
 
-    public function testGetRoomStats_excludedUserIsNotCounted(): void
+    public function testRoomStats_excludedUserIsNotCounted(): void
     {
         $this->insertReservation(1, 1, '2026-03-01', 0, 1);
         $this->insertReservation(2, 1, '2026-03-01', 0, 1);
 
-        $stats = (new SystemReportService())->getRoomStats([1], '2026-03-01', '2026-03-01');
+        $stats = self::rows(self::query()->roomStats([1], '2026-03-01', '2026-03-01'));
 
         $this->assertSame(1, $stats[0]['adult_users']);
         $this->assertSame(1, $stats[0]['adult_reservations']);
@@ -82,7 +105,7 @@ class SystemReportServiceTest extends TestCase
         $this->assertSame(25.0, $stats[0]['adult_usage_rate']);
     }
 
-    public function testGetRoomStats_roomsSortedByNameAndEmptyWhenEveryoneExcluded(): void
+    public function testRoomStats_roomsSortedByNameAndEmptyWhenEveryoneExcluded(): void
     {
         $conn = ConnectionManager::get('test');
         $conn->insert('m_room_info', [
@@ -93,56 +116,60 @@ class SystemReportServiceTest extends TestCase
             'i_id_user' => 4, 'i_id_room' => 2, 'active_flag' => 0,
             'dt_create' => '2024-09-07 15:59:52', 'c_create_user' => 't', 'dt_update' => '2024-09-07 15:59:52', 'c_update_user' => 't',
         ]);
-        $service = new SystemReportService();
-
-        $stats = $service->getRoomStats([], '2026-03-01', '2026-03-01');
+        $stats = self::rows(self::query()->roomStats([], '2026-03-01', '2026-03-01'));
         $this->assertSame([2, 1], array_column($stats, 'room_id'));
         // 予約がなくても使用率は 0.0（0 除算しない）
         $this->assertSame(0.0, $stats[0]['child_usage_rate']);
 
-        $this->assertSame([], $service->getRoomStats([1, 2, 3, 4], '2026-03-01', '2026-03-01'));
+        $this->assertSame([], self::query()->roomStats([1, 2, 3, 4], '2026-03-01', '2026-03-01'));
     }
 
-    public function testGetRoomStats_inactiveMembershipIsIgnored(): void
+    /** 削除済みの部屋は出さない */
+    public function testRoomStats_deletedRoomIsIgnored(): void
+    {
+        ConnectionManager::get('test')->update('m_room_info', ['i_del_flg' => 1], ['i_id_room' => 1]);
+
+        $this->assertSame([], self::query()->roomStats([], '2026-03-01', '2026-03-01'));
+    }
+
+    public function testRoomStats_inactiveMembershipIsIgnored(): void
     {
         ConnectionManager::get('test')->update('m_user_group', ['active_flag' => 1], ['i_id_user' => 3]);
 
-        $stats = (new SystemReportService())->getRoomStats([], '2026-03-01', '2026-03-01');
+        $stats = self::rows(self::query()->roomStats([], '2026-03-01', '2026-03-01'));
 
         $this->assertSame(0, $stats[0]['child_users']);
     }
 
-    public function testGetDailyStats_splitsChildAdultAndHonoursExclusion(): void
+    /** 期間のすべての日を並べ、子どもだけを数える（大人・削除済み・除いた人は数えない） */
+    public function testDailyChildCounts_allDaysChildrenOnlyAndHonoursExclusion(): void
     {
         $this->insertReservation(3, 1, '2026-03-01', 0, 1);
         $this->insertReservation(2, 1, '2026-03-01', 0, 1);
         $this->insertReservation(1, 1, '2026-03-02', 0, 1);
+        $this->insertReservation(3, 1, '2026-03-03', 1, 0);
         // 削除済みユーザー(6)は対象外
-        $this->insertReservation(6, 1, '2026-03-01', 0, 1);
+        ConnectionManager::get('test')->update('m_user_info', ['i_user_level' => 1], ['i_id_user' => 6]);
+        $this->insertReservation(6, 1, '2026-03-02', 0, 1);
 
-        $service = new SystemReportService();
-        $stats = $service->getDailyStats([], '2026-03-01', '2026-03-03');
+        $stats = self::daily(self::query()->dailyChildCounts([], '2026-03-01', '2026-03-03'));
 
         $this->assertSame(['2026-03-01', '2026-03-02', '2026-03-03'], array_column($stats, 'date'));
         $this->assertSame([1, 0, 0], array_column($stats, 'child_count'));
-        $this->assertSame([1, 1, 0], array_column($stats, 'adult_count'));
-        $this->assertSame([2, 1, 0], array_column($stats, 'total'));
-
-        $excluded = $service->getDailyStats([2, 3], '2026-03-01', '2026-03-03');
-        $this->assertSame([0, 1, 0], array_column($excluded, 'total'));
+        $this->assertSame([0, 0, 0], array_column(self::daily(self::query()->dailyChildCounts([2, 3], '2026-03-01', '2026-03-03')), 'child_count'));
     }
 
-    public function testGetDailyChildrenStats_returnsOnlyChildCount(): void
+    public function testDailyChildCounts_returnsOnlyChildCount(): void
     {
         $this->insertReservation(3, 1, '2026-03-01', 0, 1);
         $this->insertReservation(2, 1, '2026-03-01', 0, 1);
 
-        $stats = (new SystemReportService())->getDailyChildrenStats([], '2026-03-01', '2026-03-01');
+        $stats = self::daily(self::query()->dailyChildCounts([], '2026-03-01', '2026-03-01'));
 
         $this->assertSame([['date' => '2026-03-01', 'child_count' => 1]], $stats);
     }
 
-    public function testGetLoginStats_bucketsByDayAndResolvesFailedLoginName(): void
+    public function testLoginReport_bucketsByDayAndResolvesFailedLoginName(): void
     {
         $conn = ConnectionManager::get('test');
         // 失敗ログ: 操作者不明・入力されたログインIDが実在アカウント → アカウント名で表示
@@ -157,7 +184,8 @@ class SystemReportServiceTest extends TestCase
             'c_actor_user_name' => 'x', 'i_result' => 1, 'dt_create' => '2026-07-01 09:00:00',
         ]);
 
-        $stats = (new SystemReportService())->getLoginStats('2026-06-01', '2026-06-02');
+        $report = self::query()->loginReport('2026-06-01', '2026-06-02');
+        $stats = ['daily' => $report->daily, 'logs' => $report->logs];
 
         $this->assertSame(
             [['date' => '2026-06-01', 'success' => 1, 'failed' => 1], ['date' => '2026-06-02', 'success' => 0, 'failed' => 1]],
@@ -173,9 +201,9 @@ class SystemReportServiceTest extends TestCase
         $this->assertSame(1, $stats['logs'][2]['result']);
     }
 
-    public function testGetAllUsers_adultsFirstThenChildren_excludingDeleted(): void
+    public function testUserOptions_adultsFirstThenChildren_excludingDeleted(): void
     {
-        $users = (new SystemReportService())->getAllUsers();
+        $users = array_map(static fn(ReportUserOption $u) => ['user_id' => $u->userId, 'user_name' => $u->userName, 'is_child' => $u->isChild], self::query()->userOptions());
 
         $ids = array_column($users, 'user_id');
         $this->assertNotContains(6, $ids);

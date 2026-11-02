@@ -1,6 +1,6 @@
 <?php
 /** @var \App\View\AppView $this */
-/** @var array<array{user_id:int, user_name:string, is_child:bool}> $allUsers */
+/** @var list<\App\Application\Query\Dto\ReportUserOption> $allUsers */
 /** @var array<int> $excludeUserIds */
 $allUsers       = $allUsers       ?? [];
 $excludeUserIds = $excludeUserIds ?? [];
@@ -97,14 +97,14 @@ $dataUrl        = $basePath . '/SystemReport/dailyChildrenData';
             </div>
             <div class="exclude-list" id="excludeList">
                 <?php foreach ($allUsers as $u): ?>
-                    <?php if (!$u['is_child']) continue; ?>
-                    <?php $checked = in_array($u['user_id'], $excludeUserIds, true); ?>
+                    <?php if (!$u->isChild) continue; ?>
+                    <?php $checked = in_array($u->userId, $excludeUserIds, true); ?>
                     <label class="exclude-item <?= $checked ? 'active' : '' ?>"
-                           data-uid="<?= (int)$u['user_id'] ?>">
-                        <input type="checkbox" value="<?= (int)$u['user_id'] ?>"
+                           data-uid="<?= (int)$u->userId ?>">
+                        <input type="checkbox" value="<?= (int)$u->userId ?>"
                                <?= $checked ? 'checked' : '' ?>>
                         <span class="badge-child">子</span>
-                        <?= h($u['user_name']) ?>
+                        <?= h($u->userName) ?>
                     </label>
                 <?php endforeach; ?>
             </div>

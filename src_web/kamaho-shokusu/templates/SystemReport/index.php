@@ -1,6 +1,6 @@
 <?php
 /** @var \App\View\AppView $this */
-/** @var array<array{user_id:int, user_name:string, is_child:bool}> $allUsers */
+/** @var list<\App\Application\Query\Dto\ReportUserOption> $allUsers */
 /** @var array<int> $excludeUserIds */
 $allUsers           = $allUsers       ?? [];
 $excludeUserIds     = $excludeUserIds ?? [];
@@ -100,18 +100,18 @@ $loginReportUrl     = $basePath . '/SystemReport/loginReport';
             </div>
             <div class="exclude-list" id="excludeList">
                 <?php foreach ($allUsers as $u): ?>
-                    <?php $checked = in_array($u['user_id'], $excludeUserIds, true); ?>
+                    <?php $checked = in_array($u->userId, $excludeUserIds, true); ?>
                     <label class="exclude-item <?= $checked ? 'active' : '' ?>"
-                           data-uid="<?= (int)$u['user_id'] ?>">
-                        <input type="checkbox" value="<?= (int)$u['user_id'] ?>"
+                           data-uid="<?= (int)$u->userId ?>">
+                        <input type="checkbox" value="<?= (int)$u->userId ?>"
                                <?= $checked ? 'checked' : '' ?>>
-                        <?php if ($u['is_child']): ?>
+                        <?php if ($u->isChild): ?>
                             <span class="badge-child">子</span>
                         <?php endif; ?>
-                        <?php if (!$u['is_child']): ?>
+                        <?php if (!$u->isChild): ?>
                             <span class="badge-adult">大</span>
                         <?php endif; ?>
-                        <?= h($u['user_name']) ?>
+                        <?= h($u->userName) ?>
                     </label>
                 <?php endforeach; ?>
             </div>
