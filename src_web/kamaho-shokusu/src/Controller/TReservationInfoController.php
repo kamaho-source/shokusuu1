@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Query\CalendarEventBuilder;
+use App\Application\Query\DayViewQueryInterface;
 use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
@@ -16,7 +17,6 @@ use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Service\ReservationViewService;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
 use App\Exception\OptimisticLockConflictException;
@@ -42,7 +42,6 @@ class TReservationInfoController extends ReservationBaseController
 {
     private ReservationAddService $addService;
     private ReservationChangeEditService $changeEditService;
-    private ReservationViewService $viewService;
 
     /**
      * initialize メソッド
@@ -53,7 +52,6 @@ class TReservationInfoController extends ReservationBaseController
 
         $this->addService        = new ReservationAddService();
         $this->changeEditService = new ReservationChangeEditService();
-        $this->viewService       = new ReservationViewService($this->datePolicy);
 
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
@@ -269,7 +267,7 @@ class TReservationInfoController extends ReservationBaseController
      *
      * @return Response|null|void ビューをレンダリングする
      */
-    public function view(): ?Response
+    public function view(DayViewQueryInterface $dayView): ?Response
     {
         $this->authorizeReservation('view');
 
@@ -277,17 +275,13 @@ class TReservationInfoController extends ReservationBaseController
             ?? $this->request->getParam('pass.0')
             ?? $this->request->getQuery('date');
         $roomIdRaw  = $this->request->getData('room_id') ?? $this->request->getQuery('room_id');
-        $context    = $this->viewService->buildViewContext(
-            $this->request->getAttribute('identity'),
+        $day = $dayView->getDayView(
+            (int)($this->request->getAttribute('identity')?->get('i_id_user') ?? 0),
             $date,
-            $roomIdRaw !== null ? (int)$roomIdRaw : null,
-            $this->MRoomInfo,
-            $this->MUserGroup,
-            $this->TIndividualReservationInfo,
-            new \App\Infrastructure\Query\CakeRoomQuery()
+            $roomIdRaw !== null ? (int)$roomIdRaw : null
         );
 
-        $this->set($context);
+        $this->set(compact('day'));
         return null;
     }
 
