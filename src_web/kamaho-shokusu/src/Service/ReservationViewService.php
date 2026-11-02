@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
@@ -25,7 +26,7 @@ class ReservationViewService
         Table $roomTable,
         Table $userGroupTable,
         Table $reservationTable,
-        ReservationQueryService $queryService
+        RoomQueryInterface $roomQuery
     ): array {
         $userRoomId = null;
         $isAdmin = false;
@@ -81,11 +82,7 @@ class ReservationViewService
         if ($user !== null) {
             $userId = $user->get('i_id_user');
             if ($userId) {
-                $authorizedRooms = $queryService->getAuthorizedRooms(
-                    $roomTable,
-                    $userGroupTable,
-                    (int)$userId
-                );
+                $authorizedRooms = $roomQuery->getAccessibleRooms((int)$userId);
             }
         }
 

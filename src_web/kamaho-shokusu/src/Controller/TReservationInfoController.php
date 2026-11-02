@@ -332,7 +332,7 @@ class TReservationInfoController extends ReservationBaseController
             $this->MRoomInfo,
             $this->MUserGroup,
             $this->TIndividualReservationInfo,
-            $this->queryService
+            new \App\Infrastructure\Query\CakeRoomQuery()
         );
 
         $this->set($context);
@@ -401,11 +401,9 @@ class TReservationInfoController extends ReservationBaseController
         }
 
         $date        = $this->request->getQuery('date');
-        $usersByRoom = $this->queryService->getUsersByRoom(
-            $this->MUserGroup,
-            $this->TIndividualReservationInfo,
-            (int)$roomId,
-            $date
+        $usersByRoom = array_map(
+            static fn(\App\Application\Query\Dto\RoomUserMeals $u) => $u->toArray(),
+            $this->reservationRead->getUsersByRoom((int)$roomId, $date)
         );
 
         return $this->apiResponseService->success($this->response, ['usersByRoom' => $usersByRoom]);
@@ -438,14 +436,7 @@ class TReservationInfoController extends ReservationBaseController
         $userId   = $user->get('i_id_user');
         $userName = $user->get('c_user_name');
 
-        $output = $this->queryService->getPersonalReservationData(
-            $this->TIndividualReservationInfo,
-            $this->MRoomInfo,
-            $this->MUserGroup,
-            (int)$userId,
-            (string)$userName,
-            (string)$date
-        );
+        $output = $this->reservationRead->getPersonalReservation((int)$userId, (string)$userName, (string)$date)->toArray();
 
         return $this->apiResponseService->success($this->response, $output);
     }
@@ -475,8 +466,7 @@ class TReservationInfoController extends ReservationBaseController
             );
         }
 
-        $isDuplicate = $this->queryService->hasDuplicateReservation(
-            $this->TIndividualReservationInfo,
+        $isDuplicate = $this->reservationRead->hasDuplicateReservation(
             (string)$data['d_reservation_date'],
             (int)$data['i_id_room'],
             (int)$data['reservation_type']
@@ -532,11 +522,7 @@ class TReservationInfoController extends ReservationBaseController
 
         $userLevel = $user->i_user_level;
         $userId    = $user->get('i_id_user');
-        $rooms     = $this->queryService->getAuthorizedRooms(
-            $this->MRoomInfo,
-            $this->MUserGroup,
-            $userId
-        );
+        $rooms     = (new \App\Infrastructure\Query\CakeRoomQuery())->getAccessibleRooms((int)$userId);
 
         if ($this->request->is('get')) {
             $validation = $addService->validateDate((string)$date, $this->datePolicy);

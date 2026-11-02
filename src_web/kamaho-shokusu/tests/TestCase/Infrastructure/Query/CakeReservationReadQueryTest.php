@@ -1,20 +1,22 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Infrastructure\Query;
 
-use App\Service\ReservationQueryService;
+use App\Application\Query\Dto\RoomUserMeals;
+use App\Infrastructure\Query\CakeReservationReadQuery;
+use App\Infrastructure\Query\CakeRoomQuery;
+use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
-use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * ReservationQueryService テスト。
+ * 予約の読み取り API（CakeReservationReadQuery）。旧 ReservationQueryServiceTest を引き継ぐ。
  *
  * hasDuplicateReservation・getUsersByRoom・getReservationSnapshots・getUsersByRoomForBulk の挙動を検証する。
  */
-class ReservationQueryServiceTest extends TestCase
+class CakeReservationReadQueryTest extends TestCase
 {
     protected array $fixtures = [
         'app.MUserInfo',
@@ -23,12 +25,21 @@ class ReservationQueryServiceTest extends TestCase
         'app.TIndividualReservationInfo',
     ];
 
-    private ReservationQueryService $service;
+    private CakeReservationReadQuery $service;
+
+    /**
+     * @param list<RoomUserMeals> $users
+     * @return list<array<string, int|string|bool>> API の応答の形
+     */
+    private static function rows(array $users): array
+    {
+        return array_map(static fn(RoomUserMeals $u) => $u->toArray(), $users);
+    }
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ReservationQueryService();
+        $this->service = new CakeReservationReadQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo'));
     }
 
     // ----------------------------------------------------------------
@@ -37,10 +48,7 @@ class ReservationQueryServiceTest extends TestCase
 
     public function testHasDuplicateReservation_nonExistent_returnsFalse(): void
     {
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
         $result = $this->service->hasDuplicateReservation(
-            $reservationTable,
             '2099-12-31',
             9999,
             1
@@ -55,20 +63,14 @@ class ReservationQueryServiceTest extends TestCase
 
     public function testGetUsersByRoom_returnsArray(): void
     {
-        $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getUsersByRoom($userGroupTable, $reservationTable, 1, null);
+        $result = self::rows($this->service->getUsersByRoom(1, null));
 
         $this->assertIsArray($result);
     }
 
     public function testGetUsersByRoom_eachEntryHasRequiredKeys(): void
     {
-        $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getUsersByRoom($userGroupTable, $reservationTable, 1, null);
+        $result = self::rows($this->service->getUsersByRoom(1, null));
 
         $this->assertNotEmpty($result);
         foreach ($result as $entry) {
@@ -83,10 +85,7 @@ class ReservationQueryServiceTest extends TestCase
 
     public function testGetUsersByRoom_nonExistentRoom_returnsEmpty(): void
     {
-        $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getUsersByRoom($userGroupTable, $reservationTable, 9999, null);
+        $result = self::rows($this->service->getUsersByRoom(9999, null));
 
         $this->assertSame([], $result);
     }
@@ -97,27 +96,21 @@ class ReservationQueryServiceTest extends TestCase
 
     public function testGetReservationSnapshots_zeroRoomId_returnsEmpty(): void
     {
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getReservationSnapshots($reservationTable, 0, ['2099-01-01']);
+        $result = $this->service->getReservationSnapshots(0, ['2099-01-01']);
 
         $this->assertSame([], $result);
     }
 
     public function testGetReservationSnapshots_emptyDates_returnsEmpty(): void
     {
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getReservationSnapshots($reservationTable, 1, []);
+        $result = $this->service->getReservationSnapshots(1, []);
 
         $this->assertSame([], $result);
     }
 
     public function testGetReservationSnapshots_nonExistentData_returnsEmptyMap(): void
     {
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getReservationSnapshots($reservationTable, 1, ['2099-12-31']);
+        $result = $this->service->getReservationSnapshots(1, ['2099-12-31']);
 
         $this->assertIsArray($result);
         $this->assertEmpty($result);
@@ -129,10 +122,7 @@ class ReservationQueryServiceTest extends TestCase
 
     public function testGetUsersByRoomForBulk_returnsRequiredKeys(): void
     {
-        $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getUsersByRoomForBulk($userGroupTable, $reservationTable, 1, null);
+        $result = $this->service->getUsersByRoomForBulk(1, null, 1, 100)->toArray();
 
         $this->assertArrayHasKey('users', $result);
         $this->assertArrayHasKey('reservations', $result);
@@ -145,10 +135,7 @@ class ReservationQueryServiceTest extends TestCase
 
     public function testGetUsersByRoomForBulk_roomWithUsers_returnsUsers(): void
     {
-        $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $result = $this->service->getUsersByRoomForBulk($userGroupTable, $reservationTable, 1, null);
+        $result = $this->service->getUsersByRoomForBulk(1, null, 1, 100)->toArray();
 
         // フィクスチャにroom1にuser1,2,3が存在する
         $this->assertGreaterThan(0, $result['total']);
@@ -183,17 +170,14 @@ class ReservationQueryServiceTest extends TestCase
             'c_create_user'      => 'test',
         ]);
 
-        $userGroupTable   = TableRegistry::getTableLocator()->get('MUserGroup');
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-
-        $bulk = $this->service->getUsersByRoomForBulk($userGroupTable, $reservationTable, 1, $pastDate);
+        $bulk = $this->service->getUsersByRoomForBulk(1, $pastDate, 1, 100)->toArray();
         $this->assertTrue(
             $bulk['reservations'][2][1] ?? false,
             'i_change_flag=1 の過去日予約が一括編集画面で有効と判定されていない'
         );
 
         // getUsersByRoom（shouldUseChangeFlag 利用）と判定が一致する
-        $byRoom = $this->service->getUsersByRoom($userGroupTable, $reservationTable, 1, $pastDate);
+        $byRoom = self::rows($this->service->getUsersByRoom(1, $pastDate));
         $user2  = array_values(array_filter($byRoom, static fn(array $u): bool => $u['id'] === 2));
         $this->assertTrue($user2[0]['morning'], 'getUsersByRoom と判定が一致していない');
     }
@@ -208,9 +192,7 @@ class ReservationQueryServiceTest extends TestCase
             'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
         ]);
 
-        $map = (new \App\Service\ReservationQueryService())->getReservationSnapshots(
-            \Cake\ORM\TableRegistry::getTableLocator()->get('TIndividualReservationInfo'), 1, [$date]
-        );
+        $map = $this->service->getReservationSnapshots(1, [$date]);
 
         $this->assertArrayHasKey($date, $map);
     }
@@ -225,10 +207,34 @@ class ReservationQueryServiceTest extends TestCase
             'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-03-04 05:06:07',
         ]);
 
-        $map = (new \App\Service\ReservationQueryService())->getReservationSnapshots(
-            \Cake\ORM\TableRegistry::getTableLocator()->get('TIndividualReservationInfo'), 1, [$date]
-        );
+        $map = $this->service->getReservationSnapshots(1, [$date]);
 
         $this->assertSame('2026-03-04 05:06:07', $map[$date]);
+    }
+
+    /** 一括登録の応答に、その日・部屋の最終更新日時（楽観的ロック用）が入る */
+    public function testGetUsersByRoomForBulk_includesSnapshot(): void
+    {
+        $date = \Cake\I18n\Date::today()->addDays(5)->format('Y-m-d');
+        \Cake\Datasource\ConnectionManager::get('test')->insert('t_individual_reservation_info', [
+            'i_id_user' => 3, 'd_reservation_date' => $date, 'i_reservation_type' => 1, 'i_id_room' => 1,
+            'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2026-03-04 05:06:07',
+        ]);
+
+        $payload = $this->service->getUsersByRoomForBulk(1, $date, 1, 100)->toArray();
+
+        $this->assertSame('2026-03-04 05:06:07', $payload['reservation_snapshot']);
+        $this->assertTrue($payload['reservations'][3][1] ?? false);
+    }
+
+    /** 個人予約の応答に、本人と、選べる部屋（所属している削除されていない部屋）が入る */
+    public function testGetPersonalReservation_includesUserAndAuthorizedRooms(): void
+    {
+        $payload = $this->service->getPersonalReservation(1, '管理者', '2099-01-01')->toArray();
+
+        $this->assertSame(['i_id_user' => 1, 'c_user_name' => '管理者'], $payload['user']);
+        $this->assertArrayHasKey(1, $payload['authorized_rooms']);
+        $this->assertSame([], $payload['reservation']);
     }
 }

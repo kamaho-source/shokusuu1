@@ -164,11 +164,11 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         $users->updateAll(['i_id_staff' => 1001], ['i_id_user IN' => [1, 2]]);
         $expected = [2, 3, 1];
 
-        $query = new \App\Service\ReservationQueryService();
-        $this->assertSame($expected, array_column($query->getUsersByRoom($groups, $reservations, 1, null), 'id'), '予約モーダル');
+        $query = new \App\Infrastructure\Query\CakeReservationReadQuery(new \App\Infrastructure\Query\CakeRoomQuery(), new \Cake\Chronos\ClockFactory('Asia/Tokyo'));
+        $this->assertSame($expected, array_map(fn($u) => $u->userId, $query->getUsersByRoom(1, null)), '予約モーダル');
         $paged = array_merge(
-            array_column($query->getUsersByRoomForBulk($groups, $reservations, 1, null, 1, 2)['users'], 'id'),
-            array_column($query->getUsersByRoomForBulk($groups, $reservations, 1, null, 2, 2)['users'], 'id'),
+            array_map(fn($u) => $u->userId, $query->getUsersByRoomForBulk(1, null, 1, 2)->users),
+            array_map(fn($u) => $u->userId, $query->getUsersByRoomForBulk(1, null, 2, 2)->users),
         );
         $this->assertSame($expected, $paged, '一括登録（ページ送りで重複・抜けなし）');
 
