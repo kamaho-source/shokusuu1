@@ -29,35 +29,6 @@ class RoomServiceTest extends TestCase
     }
 
     // ----------------------------------------------------------------
-    // nextDisplayNo — DB使用
-    // ----------------------------------------------------------------
-
-    public function testNextDisplayNo_returnsInt(): void
-    {
-        $result = $this->service->nextDisplayNo();
-        $this->assertIsInt($result);
-    }
-
-    public function testNextDisplayNo_greaterThanZero(): void
-    {
-        $result = $this->service->nextDisplayNo();
-        $this->assertGreaterThan(0, $result);
-    }
-
-    public function testNextDisplayNo_greaterThanCurrentMax(): void
-    {
-        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $maxRow = $roomTable->find()
-            ->select(['max_no' => 'MAX(i_disp_no)'])
-            ->first();
-        $currentMax = (int)($maxRow->max_no ?? 0);
-
-        $result = $this->service->nextDisplayNo();
-
-        $this->assertSame($currentMax + 1, $result);
-    }
-
-    // ----------------------------------------------------------------
     // getUsersForRoom — DB使用
     // ----------------------------------------------------------------
 
@@ -97,42 +68,6 @@ class RoomServiceTest extends TestCase
         sort($actualUserIds);
         $this->assertNotEmpty($expectedUserIds);
         $this->assertSame($expectedUserIds, $actualUserIds);
-    }
-
-    // ----------------------------------------------------------------
-    // softDelete — DB使用
-    // ----------------------------------------------------------------
-
-    public function testSoftDelete_existingRoom_returnsTrue(): void
-    {
-        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $room = $roomTable->get(1);
-
-        $result = $this->service->softDelete($room, 'test_admin');
-
-        $this->assertTrue($result);
-    }
-
-    public function testSoftDelete_setsDelFlag(): void
-    {
-        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $room = $roomTable->get(1);
-
-        $this->service->softDelete($room, 'test_admin');
-
-        $updated = $roomTable->get(1);
-        $this->assertSame(1, (int)$updated->i_del_flg);
-    }
-
-    public function testSoftDelete_setsUpdateUser(): void
-    {
-        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $room = $roomTable->get(1);
-
-        $this->service->softDelete($room, 'test_admin');
-
-        $updated = $roomTable->get(1);
-        $this->assertSame('test_admin', $updated->c_update_user);
     }
 
     // ----------------------------------------------------------------
@@ -178,8 +113,7 @@ class RoomServiceTest extends TestCase
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
         $before = $this->service->countActiveRooms();
 
-        $room = $roomTable->get(1);
-        $this->service->softDelete($room, 'test_admin');
+        $roomTable->updateAll(['i_del_flg' => 1], ['i_id_room' => 1]);
 
         $this->assertSame($before - 1, $this->service->countActiveRooms());
     }

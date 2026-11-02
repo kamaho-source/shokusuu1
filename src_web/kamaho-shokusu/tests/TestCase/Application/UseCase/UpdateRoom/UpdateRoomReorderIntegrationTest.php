@@ -1,24 +1,33 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\UpdateRoom;
 
-use App\Domain\Exception\InvalidInputException;
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\UpdateRoom\UpdateRoomInput;
+use App\Application\UseCase\UpdateRoom\UpdateRoomOutput;
+use App\Application\UseCase\UpdateRoom\UpdateRoomUseCase;
+use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
+use App\Infrastructure\Repository\CakeRoomRepository;
 use App\Service\MealCountGridService;
-use App\Service\RoomMemberOrderService;
 use App\Service\RoomService;
+use Cake\Chronos\ClockFactory;
+use Cake\Datasource\ConnectionManager;
 use Cake\TestSuite\TestCase;
 
 /**
+ * 部屋の所属メンバーの並び替え（UpdateRoomUseCase）を、本物の DB で確かめる（旧 RoomMemberOrderServiceTest を引き継ぐ）。
  * フィクスチャの部屋1: 職員 1(表示順1)・2(表示順2)、児童 3(表示順3)、削除済み 6。部屋に属さない 4・5。
  */
-class RoomMemberOrderServiceTest extends TestCase
+class UpdateRoomReorderIntegrationTest extends TestCase
 {
     protected array $fixtures = [
         'app.MRoomInfo',
         'app.MUserGroup',
         'app.MUserInfo',
         'app.TIndividualReservationInfo',
+        'app.TAuditLog',
     ];
 
     /** 部屋1にユーザーを足す（i_user_level・表示順を指定） */
@@ -37,6 +46,16 @@ class RoomMemberOrderServiceTest extends TestCase
         ]));
     }
 
+    /**
+     * @param list<int> $userIds
+     */
+    private function reorder(array $userIds, bool $canRename = false, array $input = []): UpdateRoomOutput
+    {
+        $useCase = new UpdateRoomUseCase(new CakeRoomRepository(), new CakeTransactionManager(ConnectionManager::get('test')), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo'));
+
+        return $useCase->execute(new UpdateRoomInput(1, $input, $userIds, new AuditActor('tester', 1, 'admin_user', '127.0.0.1'), $canRename, true));
+    }
+
     private function dispNos(): array
     {
         return $this->getTableLocator()->get('MUserInfo')->find('list', keyField: 'i_id_user', valueField: 'i_disp_no')->toArray();
@@ -45,7 +64,7 @@ class RoomMemberOrderServiceTest extends TestCase
     public function testReorderAcrossLevels(): void
     {
         // 児童3 を職員より前に送れる（区分をまたいで並べられる）
-        $changed = (new RoomMemberOrderService())->reorder(1, [3, 2, 1], 'tester');
+        $changed = $this->reorder([3, 2, 1])->reordered;
 
         $this->assertSame(2, $changed);
         $d = $this->dispNos();
@@ -56,14 +75,15 @@ class RoomMemberOrderServiceTest extends TestCase
 
     public function testSameOrderChangesNothing(): void
     {
-        $this->assertSame(0, (new RoomMemberOrderService())->reorder(1, [1, 2, 3], 'tester'));
+        $this->assertSame(0, $this->reorder([1, 2, 3])->reordered);
+        $this->assertSame(0, $this->getTableLocator()->get('TAuditLog')->find()->where(['c_action' => 'room_member_reorder'])->count(), '並びが変わらなければ記録しない');
     }
 
     public function testNullNumbersAreAssignedAfterMax(): void
     {
         $this->getTableLocator()->get('MUserInfo')->updateAll(['i_disp_no' => null], ['i_id_user IN' => [1, 2]]);
 
-        (new RoomMemberOrderService())->reorder(1, [2, 1, 3], 'tester');
+        $this->reorder([2, 1, 3]);
 
         $d = $this->dispNos();
         $this->assertSame([3, 7, 8], [$d[2], $d[1], $d[3]], '今ある番号(3)を先頭から配り、足りない分は全員の最大値(6)の後ろに振る');
@@ -83,12 +103,9 @@ class RoomMemberOrderServiceTest extends TestCase
     /** @dataProvider invalidOrders */
     public function testRejectsOrderThatDoesNotMatchMembers(array $userIds): void
     {
-        try {
-            (new RoomMemberOrderService())->reorder(1, $userIds, 'tester');
-            $this->fail('例外になること');
-        } catch (InvalidInputException $e) {
-            $this->assertSame(422, $e->getStatusCode());
-        }
+        $result = $this->reorder($userIds);
+        $this->assertSame(UpdateRoomOutput::REJECTED, $result->status);
+        $this->assertSame('部屋の所属メンバーが変わっています。画面を読み込み直してください。', $result->message);
         $d = $this->dispNos();
         $this->assertSame([1, 2, 3], [$d[1], $d[2], $d[3]], '保存しない');
     }
@@ -97,8 +114,7 @@ class RoomMemberOrderServiceTest extends TestCase
     {
         $this->getTableLocator()->get('MUserGroup')->updateAll(['active_flag' => 1], ['i_id_user' => 2, 'i_id_room' => 1]);
 
-        $this->expectException(InvalidInputException::class);
-        (new RoomMemberOrderService())->reorder(1, [2, 1, 3], 'tester');
+        $this->assertSame(UpdateRoomOutput::REJECTED, $this->reorder([2, 1, 3])->status);
     }
 
     /** 保存した並びが、エクセル食数予約・部屋情報の取得順に出る（NULL は後ろ） */
@@ -112,7 +128,7 @@ class RoomMemberOrderServiceTest extends TestCase
         $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $users, [1])[1];
         $this->assertSame([3, 2, 1], array_column($grid, 'id'), '区分で分けず表示順だけで並ぶ（NULL の 1 は後ろ）');
 
-        (new RoomMemberOrderService())->reorder(1, [1, 2, 3], 'tester');
+        $this->reorder([1, 2, 3]);
         $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $users, [1])[1];
         $this->assertSame([1, 2, 3], array_column($grid, 'id'));
 
@@ -129,7 +145,7 @@ class RoomMemberOrderServiceTest extends TestCase
         $this->addMember(90, null, 90, '区分なし');
 
         $order = [72, 31, 2, 90, 3, 71, 1];
-        (new RoomMemberOrderService())->reorder(1, $order, 'tester');
+        $this->reorder($order);
 
         // 今の番号（1・2・3・31・71・90）を並べた順に配り直し、足りない1つは最大値の後ろ（91）
         $d = $this->dispNos();
@@ -162,5 +178,40 @@ class RoomMemberOrderServiceTest extends TestCase
 
         $this->assertSame($expected, array_column((new \App\Service\ReservationReportService())->getUsersByRoomForEdit($groups, $reservations, 1, '2026-05-11'), 'id'), '直前編集API');
         $this->assertSame([2, 1], array_column((new \App\Service\ActualMealManagementService())->getAdultUsers($groups, $users, 1), 'id'), '実績管理');
+    }
+
+    /** 部屋名と並び順は1つのトランザクション。並び順が誤っていれば、部屋名の変更も保存しない */
+    public function testRejectedOrder_rollsBackRename(): void
+    {
+        $result = $this->reorder([1, 2], canRename: true, input: ['c_room_name' => '新しい名前']);
+
+        $this->assertSame(UpdateRoomOutput::REJECTED, $result->status);
+        $this->assertSame('Lorem ipsum dolor sit amet', $this->getTableLocator()->get('MRoomInfo')->get(1)->c_room_name);
+    }
+
+    /** 名前を変えたときだけ保存・記録し、同じ名前なら更新しない */
+    public function testRenameOnlyWhenChanged(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $audit = $this->getTableLocator()->get('TAuditLog');
+        $this->reorder([1, 2, 3], canRename: true, input: ['c_room_name' => 'Lorem ipsum dolor sit amet']);
+        $this->assertSame(0, $audit->find()->where(['c_action' => 'room_update'])->count());
+
+        $this->reorder([1, 2, 3], canRename: true, input: ['c_room_name' => 'ひまわり', 'i_disp_no' => 99, 'i_enable' => 1]);
+        $room = $rooms->get(1);
+        $this->assertSame('ひまわり', $room->c_room_name);
+        $this->assertSame('tester', $room->c_update_user);
+        $this->assertNotSame(99, (int)$room->i_disp_no, '部屋名以外は受け取らない');
+        $this->assertSame(1, $audit->find()->where(['c_action' => 'room_update'])->count());
+    }
+
+    public function testTooLongName_returnsFieldErrorWithoutSaving(): void
+    {
+        $result = $this->reorder([3, 2, 1], canRename: true, input: ['c_room_name' => str_repeat('あ', 51)]);
+
+        $this->assertSame(UpdateRoomOutput::INVALID_FIELDS, $result->status);
+        $this->assertArrayHasKey('c_room_name', $result->fieldErrors);
+        $d = $this->dispNos();
+        $this->assertSame([1, 2, 3], [$d[1], $d[2], $d[3]], '並び順も保存しない');
     }
 }

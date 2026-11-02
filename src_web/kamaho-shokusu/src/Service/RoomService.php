@@ -3,13 +3,12 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 
 /**
  * 部屋管理サービス
  *
- * 部屋の表示用データ集約・採番・ソフトデリートを担う。
+ * 部屋の表示用データの集約を担う（作成・編集・削除は UseCase）。
  */
 class RoomService
 {
@@ -43,19 +42,6 @@ class RoomService
             ->toArray();
     }
 
-    /**
-     * 次の表示番号（MAX + 1）を返す。
-     */
-    public function nextDisplayNo(): int
-    {
-        $table   = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $maxDispNo = (int)($table->find()
-            ->select(['max_disp_no' => 'MAX(i_disp_no)'])
-            ->first()
-            ?->max_disp_no ?? 0);
-
-        return $maxDispNo + 1;
-    }
 
     /**
      * 有効な部屋数（i_del_flg = 0）を返す。
@@ -86,23 +72,5 @@ class RoomService
         }
 
         return implode(', ', $uniqueNames);
-    }
-
-    /**
-     * 部屋をソフトデリートする（i_del_flg = 1）。
-     *
-     * @param \App\Infrastructure\Persistence\Entity\MRoomInfo $roomInfo
-     * @param string|null                 $updatedBy 更新者名
-     * @return bool
-     */
-    public function softDelete(\App\Infrastructure\Persistence\Entity\MRoomInfo $roomInfo, ?string $updatedBy): bool
-    {
-        $table = TableRegistry::getTableLocator()->get('MRoomInfo');
-
-        $roomInfo->i_del_flg    = 1;
-        $roomInfo->c_update_user = $updatedBy;
-        $roomInfo->dt_update    = DateTime::now('Asia/Tokyo');
-
-        return (bool)$table->save($roomInfo);
     }
 }
