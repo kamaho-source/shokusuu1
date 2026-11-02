@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Infrastructure\Persistence\Entity\MRoomInfo;
 use App\Application\Query\RoomQueryInterface;
 use App\Application\UseCase\CreateRoom\CreateRoomInput;
 use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
@@ -40,7 +41,7 @@ class MRoomInfoController extends AppController
      */
     public function index()
     {
-        $resource = $this->MRoomInfo->newEmptyEntity();
+        $resource = new MRoomInfo();
         try {
             $this->Authorization->authorize($resource, 'index');
         } catch (ForbiddenException $e) {

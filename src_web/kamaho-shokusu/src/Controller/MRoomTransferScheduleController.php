@@ -3,11 +3,12 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\RoomTransferQueryInterface;
+use App\Infrastructure\Persistence\Entity\MRoomTransferSchedule;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
-use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
 
@@ -27,10 +28,9 @@ class MRoomTransferScheduleController extends AppController
     /**
      * 異動予約一覧
      */
-    public function index(): void
+    public function index(RoomTransferQueryInterface $transferQuery): void
     {
-        $table    = $this->fetchTable('MRoomTransferSchedule');
-        $resource = $table->newEmptyEntity();
+        $resource = new MRoomTransferSchedule();
 
         try {
             $this->Authorization->authorize($resource, 'index');
@@ -41,16 +41,7 @@ class MRoomTransferScheduleController extends AppController
         }
 
         $statusFilter = $this->request->getQuery('status');
-        $conditions   = [];
-        if (in_array($statusFilter, ['0', '1', '2'], true)) {
-            $conditions['MRoomTransferSchedule.i_status'] = (int)$statusFilter;
-        }
-
-        $schedules = $table->find()
-            ->contain(['MUserInfo', 'RoomFrom', 'RoomTo'])
-            ->where($conditions)
-            ->orderByDesc('MRoomTransferSchedule.d_effective_date')
-            ->all();
+        $schedules = $transferQuery->schedules(in_array($statusFilter, ['0', '1', '2'], true) ? (int)$statusFilter : null);
 
         $this->set(compact('schedules', 'statusFilter'));
     }
@@ -58,12 +49,11 @@ class MRoomTransferScheduleController extends AppController
     /**
      * 異動予約登録フォーム・保存
      */
-    public function add(CreateRoomTransferUseCase $createTransfer): void
+    public function add(CreateRoomTransferUseCase $createTransfer, RoomTransferQueryInterface $transferQuery): void
     {
         $this->request->allowMethod(['get', 'post']);
 
-        $table    = $this->fetchTable('MRoomTransferSchedule');
-        $resource = $table->newEmptyEntity();
+        $resource = new MRoomTransferSchedule();
 
         try {
             $this->Authorization->authorize($resource, 'add');
@@ -97,25 +87,9 @@ class MRoomTransferScheduleController extends AppController
             }
         }
 
-        $users = $this->fetchTable('MUserInfo')->find('list', [
-            'keyField'   => 'i_id_user',
-            'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0])->orderByAsc('i_disp_no')->toArray();
-
-        $rooms = $this->fetchTable('MRoomInfo')->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ])->where(['i_del_flg' => 0])->toArray();
-
-        $userRoomRows = $this->fetchTable('MUserGroup')->find()
-            ->select(['i_id_user', 'i_id_room'])
-            ->where(MUserGroupTable::activeCondition(''))
-            ->toArray();
-
-        $userRoomMap = [];
-        foreach ($userRoomRows as $row) {
-            $userRoomMap[$row->i_id_user][] = $row->i_id_room;
-        }
+        $users       = $transferQuery->selectableUsers();
+        $rooms       = $transferQuery->selectableRooms();
+        $userRoomMap = $transferQuery->activeRoomsByUser();
 
         $this->set(compact('users', 'rooms', 'userRoomMap'));
     }
@@ -129,8 +103,7 @@ class MRoomTransferScheduleController extends AppController
     {
         $this->request->allowMethod(['post']);
 
-        $table    = $this->fetchTable('MRoomTransferSchedule');
-        $resource = $table->newEmptyEntity();
+        $resource = new MRoomTransferSchedule();
 
         try {
             $this->Authorization->authorize($resource, 'cancel');

@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var iterable $schedules
+ * @var list<\App\Application\Query\Dto\RoomTransferView> $schedules
  * @var string|null $statusFilter
  */
 
@@ -74,11 +74,9 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
             <?php foreach ($schedules as $schedule): ?>
                 <?php
                     $rowCount++;
-                    $statusInfo = $statusLabels[(int)$schedule->i_status] ?? ['label' => '不明', 'class' => 'text-bg-dark', 'icon' => 'bi-question'];
+                    $statusInfo = $statusLabels[$schedule->status] ?? ['label' => '不明', 'class' => 'text-bg-dark', 'icon' => 'bi-question'];
 
-                    $effectiveDateObj = $schedule->d_effective_date instanceof \DateTime
-                        ? $schedule->d_effective_date
-                        : new \DateTime((string)$schedule->d_effective_date);
+                    $effectiveDateObj = new \DateTime($schedule->effectiveDate);
                     $diff = (int)$today->diff($effectiveDateObj)->days * ($effectiveDateObj >= $today ? 1 : -1);
                     $dow  = $dayNames[(int)$effectiveDateObj->format('w')];
                     $dateFormatted = $effectiveDateObj->format('Y/m/d') . "（{$dow}）";
@@ -93,49 +91,49 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                         $dateBadge = '<span class="fw-semibold">' . h($dateFormatted) . '</span>';
                     }
 
-                    $dtCreate = $schedule->dt_create
-                        ? (new \DateTime((string)$schedule->dt_create))->format('Y/m/d H:i')
+                    $dtCreate = $schedule->createdAt
+                        ? (new \DateTime($schedule->createdAt))->format('Y/m/d H:i')
                         : '-';
 
                     $cancelMessage = sprintf(
                         '%s の異動予約（→ %s）をキャンセルしますか？',
-                        $schedule->m_user_info->c_user_name ?? '',
-                        $schedule->room_to->c_room_name ?? ''
+                        $schedule->userName ?? '',
+                        $schedule->roomToName ?? ''
                     );
-                    $cancelUrl = $this->Url->build(['action' => 'cancel', $schedule->i_id]);
+                    $cancelUrl = $this->Url->build(['action' => 'cancel', $schedule->id]);
                 ?>
                 <tr>
-                    <td><?= h($schedule->m_user_info->c_user_name ?? '-') ?></td>
+                    <td><?= h($schedule->userName ?? '-') ?></td>
                     <td>
-                        <?php if ($schedule->room_from): ?>
-                            <?= h($schedule->room_from->c_room_name) ?>
+                        <?php if ($schedule->roomFromName !== null): ?>
+                            <?= h($schedule->roomFromName) ?>
                         <?php else: ?>
                             <span class="text-muted fst-italic">新規配属</span>
                         <?php endif; ?>
                     </td>
-                    <td class="fw-semibold"><?= h($schedule->room_to->c_room_name ?? '-') ?></td>
+                    <td class="fw-semibold"><?= h($schedule->roomToName ?? '-') ?></td>
                     <td class="text-nowrap"><?= $dateBadge ?></td>
                     <td>
                         <span class="badge rounded-pill <?= $statusInfo['class'] ?>">
                             <i class="bi <?= $statusInfo['icon'] ?> me-1"></i><?= h($statusInfo['label']) ?>
                         </span>
                     </td>
-                    <td class="text-muted small"><?= h($schedule->c_create_user) ?></td>
+                    <td class="text-muted small"><?= h($schedule->createdBy) ?></td>
                     <td class="text-muted small text-nowrap"><?= h($dtCreate) ?></td>
                     <td>
-                        <?php if ((int)$schedule->i_status === 0): ?>
+                        <?php if ($schedule->status === 0): ?>
                             <!-- キャンセル用フォーム（非表示） -->
                             <?= $this->Form->create(null, [
-                                'url'    => ['action' => 'cancel', $schedule->i_id],
+                                'url'    => ['action' => 'cancel', $schedule->id],
                                 'method' => 'post',
-                                'id'     => 'cancel-form-' . $schedule->i_id,
+                                'id'     => 'cancel-form-' . $schedule->id,
                                 'style'  => 'display:none',
                             ]) ?>
                             <?= $this->Form->end() ?>
 
                             <button type="button"
                                     class="btn btn-sm btn-outline-danger rts-cancel-btn"
-                                    data-form-id="cancel-form-<?= $schedule->i_id ?>"
+                                    data-form-id="cancel-form-<?= $schedule->id ?>"
                                     data-message="<?= h($cancelMessage) ?>">
                                 <i class="bi bi-x-circle"></i> キャンセル
                             </button>
