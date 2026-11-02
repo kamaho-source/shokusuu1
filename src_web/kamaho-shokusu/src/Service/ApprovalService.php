@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Query\RoomQueryInterface;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -30,16 +32,16 @@ class ApprovalService
     public const STATUS_ADMIN            = 2;
     public const STATUS_REJECTED         = 3;
 
-    private RoomAccessService $roomAccessService;
+    private RoomQueryInterface $roomAccessService;
     private NotificationService $notificationService;
     private ?ReservationDatePolicy $datePolicy = null;
 
     public function __construct(
-        ?RoomAccessService $roomAccessService = null,
+        ?RoomQueryInterface $roomAccessService = null,
         ?NotificationService $notificationService = null
     )
     {
-        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
         $this->notificationService = $notificationService ?? new NotificationService();
     }
 

@@ -342,7 +342,7 @@ class ReservationActualMealController extends ReservationBaseController
 
         // 存在しない・削除済みの部屋には、管理者でも書き込めない。
         // 対象ユーザーが部屋に有効所属していること（既に行がある場合の更新は除く）。管理者も同じ（#821）。
-        $roomAccess = new \App\Service\RoomAccessService();
+        $roomAccess = new \App\Infrastructure\Query\CakeRoomQuery();
         if (!$roomAccess->isRoomAvailable($roomId)) {
             return $this->apiResponseService->error($this->response, '選択された部屋は利用できません。', 403);
         }

@@ -871,7 +871,7 @@ class TReservationInfoController extends ReservationBaseController
 
             if ($this->request->is('get')) {
                 if ($wantsJson) {
-                    $isBlockLeaderInRoom = $isBlockLeaderForEdit && $roomId && (new \App\Service\RoomAccessService())->isActiveMember((int)$loginUid, (int)$roomId);
+                    $isBlockLeaderInRoom = $isBlockLeaderForEdit && $roomId && (new \App\Infrastructure\Query\CakeRoomQuery())->isActiveMember((int)$loginUid, (int)$roomId);
                     $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser, $isRoomManager, $isBlockLeaderInRoom);
 
                     return $this->response->withType('application/json')
