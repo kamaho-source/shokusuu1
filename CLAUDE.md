@@ -64,11 +64,28 @@ src/
 
 **Domain 層** — フレームワーク・DB依存を一切持たない。バリデーションはエンティティ・値オブジェクト内で完結。「今日」などの現在時刻は引数で受け取り、Domain の中で取得しない。日付型は cakephp/chronos（`ChronosDate`）を使ってよい（CakePHP 本体ではない）。依存方向は `tests/TestCase/Architecture/LayerDependencyTest.php` で検査している。
 
-**Application 層** — 1クラス1機能・`execute()` メソッドを持つ。Input/Output は専用DTOクラス。「今日」は PSR-20 の `Psr\Clock\ClockInterface` をコンストラクタで受け取り（`new ChronosDate($this->clock->now())`）、`ChronosDate::today()` や `date()` で直接読まない（`LayerDependencyTest` で検査）。組み立て側は `Cake\Chronos\ClockFactory('Asia/Tokyo')` を渡す。
+**Application 層** — 1クラス1機能。UseCase の入口は `execute(XxxInput): XxxOutput` の1つだけにする。
+- スカラーの引数は並べず Input DTO にまとめる。戻り値も bool・文字列・配列ではなく Output DTO にする。
+- UseCase に読み取り用の public メソッド（対象を探す・選択肢を返すなど）を置かない。読み取りは Query に置く（例: 利用者の存在確認・選べる部屋は `UserQueryInterface`）。
+- 入口の違う流れは UseCase を分ける（例: 画面からの返信 `AddContactReplyFromUserUseCase` とメールからの返信 `AddContactReplyFromEmailUseCase`）。
+- 同じ判定を共有する UseCase（コピーとプレビューなど）は、同じ名前空間の小さなクラスに共通部分を置く（例: `CopyReservations/ReservationCopyPlanner` を `CopyReservationsUseCase` と `PreviewReservationCopyUseCase` が使う）。
+- 「今日」は PSR-20 の `Psr\Clock\ClockInterface` をコンストラクタで受け取り（`new ChronosDate($this->clock->now())`）、`ChronosDate::today()` や `date()` で直接読まない（`LayerDependencyTest` で検査）。時計はコンテナから渡す（§5）。
+
+**失敗の伝え方（UseCase）** — 2通りに分ける。
+- 入力の誤り・見つからない・競合・権限は Domain 例外を投げる（`InvalidInputException`・`NotFoundException`・`ConflictException`・`UnauthorizedException` など。`DomainException::getStatusCode()` で HTTP の状態が決まり、Controller は `catch (DomainException $e)` で受ける）。
+- 画面で選択肢として扱う結果（確認つき上書きの競合、部分成功、保存できなかった など）は Output の status で返す（例: `ChangeUserRoleOutput::CONFLICT`、`CreateUserOutput::SAVE_FAILED`）。
+- UseCase から HTTP の数値（422 など）や配列の `ok` を返さない。HTTP への変換は Controller の仕事。
+
+**Output の書き方** — 次の2つのどちらかにする。
+- 結果が1通りのもの: readonly プロパティだけの final クラス（例: `CreateMealPriceOutput`）。
+- 結果が何通りかあるもの: status の定数＋private コンストラクタ＋名前付きの static コンストラクタ（例: `CreateUserOutput::created()` / `rejected($message)` / `saveFailed()`）。
+- JS が読む JSON の形を保つ必要があるものは、Output に `toArray()` を持たせて今と同じ配列を返す（例: `ToggleMealOutput`・`CopyReservationsOutput`）。
 
 **Infrastructure 層** — Domain の Repository Interface を必ず実装。CakePHP ORMへの依存はこの層に閉じ込める。
 
 **Presentation 層** — コントローラーは薄く保つ。書き込みは UseCase、読み取りは Query を呼び、結果をテンプレートに渡すだけ。ビジネスロジック・ORM直接記述は禁止。
+- 1つの URL に複数の流れがある（例: 直前編集 `changeEdit` の画面・JSON・まとめて保存・個人の保存）ときは、アクションは「どの流れか」の振り分けだけにし、流れごとの private メソッドに分ける。使える人かの判定は Policy、行ごとの可否は Query、保存の決まりは UseCase・Domain に置く。
+- Query・Repository・時計を `new` しない（§5）。
 - 例外（Table を Controller から読んでよい場合）: ① Paginator の並べ替え・ページ送りを使う一覧（ユーザー・部屋・監査ログ）、② Policy の判定にエンティティの中身が要るとき、③ FormHelper にエンティティを渡すフォーム。いずれも読み込みだけで、書き込みは必ず UseCase を通す。
 - 権限の判定のためだけに空のエンティティが要るときは、Table を使わず `new MUserInfo()` のように直接作る。
 - リクエストの値は `queryString()` / `dataString()`（AppController）で文字列として受け取る（配列が来ても警告を出さない）。
@@ -84,14 +101,33 @@ src/
 
 ## 5. 依存性注入（DI）
 
-コンストラクタインジェクションを使用。`Application.php` の `services()` でバインドする。
-Controller は、UseCase をアクションの引数で受け取る（CakePHP がコンテナから渡す。例: `toggle(ToggleMealUseCase $toggleMeal, ?int $roomId = null)`）。
+依存はすべて `Application.php` の `services()` に登録し、コンテナから受け取る。受け取り方は次の使い分けにする。
+- **全アクションで使う依存**（`RoomQueryInterface` など）は Controller の**コンストラクタ**で受け取り、`services()` で `addArguments()` を書く。
+- **そのアクションだけで使う依存**（UseCase・そのアクション専用の Query）は**アクションの引数**で受け取る（CakePHP がコンテナから渡す。例: `bulkAddSubmit(BulkAddReservationsUseCase $bulkAdd)`）。
+- 時計は `ClockInterface` を `services()` で1つだけ登録する（`addShared`、Asia/Tokyo）。他の場所で `new ClockFactory` を書かない。
+- Controller・Policy・Service で `new Cake*Query` / `new Cake*Repository` / `new ClockFactory` をしない（`tests/TestCase/Architecture/LayerDependencyTest.php` が検査する）。`initialize()` で Query を作るのもやめる。
+- Policy は依存をコンストラクタで受け取る（既定値の `?? new ...` を書かない）。`getAuthorizationService()` で Resolver（`MapResolver`・`PersistenceOrmResolver`）にコンテナを渡し、Policy をコンテナから作らせる。
+- 予約系の UseCase は `ReservationUseCases`（1リクエストで Repository を共有する組み立て口）が作る。時計はこれにもコンテナから渡す。
 
 ```php
 public function services(ContainerInterface $container): void
 {
-    $container->add(MealCountRepositoryInterface::class, CakeMealCountRepository::class);
-    $container->add(RegisterMealCountUseCase::class);
+    // 時計は1つだけ
+    $container->addShared(ClockInterface::class, static fn(): ClockInterface => new ClockFactory('Asia/Tokyo'));
+    $clock = static fn(): ClockInterface => $container->get(ClockInterface::class);
+
+    // 読み取り（Query）は Interface で登録する
+    $container->add(RoomQueryInterface::class, CakeRoomQuery::class);
+    $container->add(CalendarQueryInterface::class, static fn() => new CakeCalendarQuery($clock()));
+
+    // UseCase（アクションの引数で受け取る）
+    $container->add(CreateMealPriceUseCase::class, static fn() => new CreateMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
+
+    // Controller のコンストラクタ注入（全アクションで使うものだけ）
+    $container->add(MRoomInfoController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class]);
+
+    // Policy（Resolver がコンテナから作る）
+    $container->add(MRoomInfoPolicy::class)->addArgument(RoomQueryInterface::class);
 }
 ```
 
