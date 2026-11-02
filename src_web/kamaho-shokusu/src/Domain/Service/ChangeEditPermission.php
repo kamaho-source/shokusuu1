@@ -25,6 +25,15 @@ final class ChangeEditPermission
         return UserRole::isAdmin($loginAdmin) || $isBlockLeaderInRoom;
     }
 
+    /**
+     * ある利用者の予約を変えてよいか（本人か、本人以外を変えられる人か）。
+     *
+     * @param bool $canEditAll 全員を編集できる人か（canEditAll の結果）
+     * @param int $loginUserId 操作する人の ID（0 以下は本人とみなさない）
+     * @param int $loginLevel 操作する人の区分（i_user_level）
+     * @param int $targetUserId 対象の利用者の ID
+     * @param int|null $targetLevel 対象の区分（不明は null。子どもとみなさない）
+     */
     public static function canEdit(bool $canEditAll, int $loginUserId, int $loginLevel, int $targetUserId, ?int $targetLevel): bool
     {
         return ($loginUserId > 0 && $loginUserId === $targetUserId)

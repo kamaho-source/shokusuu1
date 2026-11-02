@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Application\UseCase\CreateMealPrice;
 
 use App\Application\Port\AuditLogInterface;
-use App\Domain\Entity\MealPrice;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Repository\MealPriceRepositoryInterface;
 use App\Domain\Service\MealPriceRule;
