@@ -12,6 +12,7 @@ use App\Infrastructure\Query\CakeMealReportQuery;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealInput;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
 use App\Domain\Exception\DomainException;
+use App\Domain\Service\DatePeriodRule;
 use Cake\Chronos\ClockFactory;
 use Cake\Http\Response;
 use Cake\I18n\Date;
@@ -149,23 +150,20 @@ class ReservationReportController extends ReservationBaseController
 
         $this->autoRender = false;
 
-        $from  = $this->request->getQuery('from');
-        $to    = $this->request->getQuery('to');
-        $month = $this->request->getQuery('month');
+        // 配列（?from[]=x など）は空として扱う（以前は strtotime / preg_match の TypeError で 500）
+        $from  = $this->queryString('from');
+        $to    = $this->queryString('to');
+        $month = $this->queryString('month');
+        $hasRange = $this->request->getQuery('from') !== null || $this->request->getQuery('to') !== null;
 
-        $isDate  = static fn($d) => (bool)preg_match('/^\d{4}-\d{2}-\d{2}$/', $d);
-        $isMonth = static fn($m) => (bool)preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $m);
-
-        if ($from !== null || $to !== null) {
-            $tsFrom = $from ? strtotime($from) : false;
-            $tsTo   = $to   ? strtotime($to)   : false;
-            if (!$from || !$to || !$isDate($from) || !$isDate($to) || $tsFrom === false || $tsTo === false || $tsFrom > $tsTo) {
+        if ($hasRange) {
+            if (!DatePeriodRule::isDate($from) || !DatePeriodRule::isDate($to) || $from > $to) {
                 return $this->apiResponseService->error($this->response, '無効な期間が指定されました。', 400);
             }
             $startDate = $from;
             $endDate   = date('Y-m-d', strtotime($to . ' +1 day'));
         } else {
-            if (!$month || !$isMonth($month)) {
+            if (!DatePeriodRule::isDate($month . '-01')) {
                 return $this->apiResponseService->error($this->response, '無効な月が指定されました。', 400);
             }
             $startDate = $month . '-01';
