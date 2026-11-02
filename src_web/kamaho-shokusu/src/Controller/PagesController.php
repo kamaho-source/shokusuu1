@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Infrastructure\Query\CakeDashboardQuery;
 use App\Infrastructure\Query\CakeNoticeQuery;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApprovalService;
@@ -202,20 +203,15 @@ class PagesController extends AppController
         if ($user) {
             // ログイン済みの場合: ユーザーIDを取得してサービスを呼び出す
             $userId = (int)$user->get('i_id_user');
-            $currentUser = $this->fetchTable('MUserInfo')->find()
-                ->select(['i_admin'])
-                ->where(['i_id_user' => $userId])
-                ->first();
-            $isAdmin = UserRole::isAdmin((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0));
-            $isBlockLeader = UserRole::isBlockLeader((int)($currentUser?->i_admin ?? $user->get('i_admin') ?? 0));
+            $dashboardQuery = new CakeDashboardQuery();
+            $adminLevel = $dashboardQuery->adminLevel($userId) ?? (int)($user->get('i_admin') ?? 0);
+            $isAdmin = UserRole::isAdmin($adminLevel);
+            $isBlockLeader = UserRole::isBlockLeader($adminLevel);
 
             // ログインユーザー自身の本日の予約レコード有無で申告済みを判定する
             // 「食べる」「食べない」どちらの申告でもレコードが作成されるため、
             // レコードが存在しない場合のみアラートを表示する
-            $hasTodayReport = $dashboardService->hasTodayReport(
-                $userId,
-                $this->fetchTable('TIndividualReservationInfo')
-            );
+            $hasTodayReport = $dashboardQuery->hasReservationOn($userId, Date::today('Asia/Tokyo')->format('Y-m-d'));
 
             // ダッシュボード画面の日付データ・週データを組み立てる
             $dashboard = $dashboardService->buildHomeContext($user);
