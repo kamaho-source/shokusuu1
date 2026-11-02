@@ -186,12 +186,13 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertResponseContains(h($eatUsers[0]), '食べる人の名前が画面に出る');
     }
 
+    /** 日付の形が誤っている URL は、入力の誤り（400）として断る（以前はシステムエラーの 500 だった） */
     public function testRoomDetails_badDateFormatIsRejected(): void
     {
         $this->loginAdmin(false);
         $this->get('/TReservationInfo/roomDetails/1/20-01-2030/3');
 
-        $this->assertResponseCode(500);
+        $this->assertResponseCode(400);
     }
 
     // ---- getUsersByRoom / getPersonalReservation / checkDuplicateReservation ----
