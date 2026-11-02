@@ -6,7 +6,7 @@ namespace App\Test\TestCase\Service;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\UnauthorizedException;
-use App\Service\ReservationWriteService;
+use App\Test\TestCase\Support\ReservationWriteService;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;

@@ -110,7 +110,7 @@ class ReservationBulkController extends ReservationBaseController
         }
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam  = $this->request->getQuery('base_week');
@@ -144,7 +144,7 @@ class ReservationBulkController extends ReservationBaseController
         }
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam  = $this->request->getQuery('base_week');

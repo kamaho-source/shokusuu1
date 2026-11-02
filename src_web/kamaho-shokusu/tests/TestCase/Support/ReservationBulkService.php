@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Test\TestCase\Support;
 
 use App\Application\UseCase\BulkAddReservations\BulkAddReservationsInput;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsInput;
@@ -11,6 +11,8 @@ use Psr\Clock\ClockInterface;
 
 /**
  * 一括登録・直前一括編集の入口（処理本体は BulkAddReservationsUseCase・BulkChangeEditReservationsUseCase）。
+ *
+ * テスト用: 予約の UseCase を以前のサービスと同じ引数で呼ぶ（本番のコードからは使わない）。
  */
 class ReservationBulkService
 {

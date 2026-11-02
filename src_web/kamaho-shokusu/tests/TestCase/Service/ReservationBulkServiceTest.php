@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Service;
 
-use App\Service\ReservationBulkService;
+use App\Test\TestCase\Support\ReservationBulkService;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;

@@ -7,7 +7,7 @@ use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\DuplicateMealConflictException;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\UnauthorizedException;
-use App\Service\ReservationWriteService;
+use App\Test\TestCase\Support\ReservationWriteService;
 use Cake\Datasource\ConnectionManager;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;

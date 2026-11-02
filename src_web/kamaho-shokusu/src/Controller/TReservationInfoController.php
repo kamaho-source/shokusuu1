@@ -216,7 +216,7 @@ class TReservationInfoController extends ReservationBaseController
      */
     public function calendarEvents(): Response
     {
-        $resource = $this->TReservationInfo->newEmptyEntity();
+        $resource = new \App\Infrastructure\Persistence\Entity\TReservationInfo();
         $this->Authorization->authorize($resource, 'calendarEvents');
         $this->request->allowMethod(['get']);
 
@@ -473,7 +473,7 @@ class TReservationInfoController extends ReservationBaseController
 
         if ($this->request->is('get')) {
             $validation = $addService->validateDate((string)$date, $this->datePolicy);
-            $roomList   = $addService->buildRoomList($this->MRoomInfo);
+            $roomList   = $this->roomQuery->getAllActiveRooms();
 
             $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
 
@@ -498,7 +498,7 @@ class TReservationInfoController extends ReservationBaseController
             return $this->redirect(['action' => 'index', '?' => ['date' => $date]]);
         }
 
-        $roomList = $addService->buildRoomList($this->MRoomInfo);
+        $roomList = $this->roomQuery->getAllActiveRooms();
 
         if (!$roomList) {
             if ($this->request->is('ajax')) {
