@@ -136,4 +136,13 @@ interface ReservationRepositoryInterface
      * @param string $at 更新日時（'Y-m-d H:i:s'）
      */
     public function adjustRoomCount(string $date, int $roomId, int $mealType, int $delta, string $at): void;
+
+    /**
+     * 期間内の予約行（部屋・利用者で絞れる。空の配列は渡さない）。並びは DB の読み取り順のまま。予約のコピーの元に使う。
+     *
+     * @param list<int>|null $roomIds
+     * @param list<int>|null $userIds
+     * @return list<MealReservation>
+     */
+    public function findInDateRange(string $from, string $to, ?array $roomIds = null, ?array $userIds = null): array;
 }

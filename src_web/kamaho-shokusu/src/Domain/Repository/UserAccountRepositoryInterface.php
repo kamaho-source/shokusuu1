@@ -139,4 +139,11 @@ interface UserAccountRepositoryInterface
      * @param string $at 更新日時（'Y-m-d H:i:s'）
      */
     public function transferRoom(int $userId, ?int $fromRoomId, int $toRoomId, string $at): void;
+
+    /**
+     * 削除されていない児童（i_user_level=1）の利用者 ID。
+     *
+     * @return list<int>
+     */
+    public function childUserIds(): array;
 }

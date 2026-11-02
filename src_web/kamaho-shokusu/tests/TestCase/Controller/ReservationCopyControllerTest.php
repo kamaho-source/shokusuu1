@@ -359,4 +359,45 @@ class ReservationCopyControllerTest extends TestCase
         $this->assertResponseContains('プレビュー取得中にエラーが発生しました。');
         $this->assertStringNotContainsString('t_individual_reservation_info', (string)$this->_response->getBody());
     }
+
+    /** @return array<string, array{\Throwable, int, string}> */
+    public static function copyFailures(): array
+    {
+        return [
+            '二重予約（同時の操作）'   => [new \App\Domain\Exception\ConflictException('Aさんの予約が重なります。'), 409, 'コピーできませんでした。Aさんの予約が重なります。'],
+            '昼食と弁当（検証ルール）' => [new \App\Domain\Exception\ReservationValidationException('昼と弁当は同時に予約できません。', [], '{}'), 409, 'コピーできませんでした。昼と弁当は同時に予約できません。'],
+            'ほかの検証エラー'         => [new \App\Domain\Exception\ReservationValidationException(null, ['x'], '{}'), 500, 'コピー処理中にエラーが発生しました。'],
+            '予期しないエラー'         => [new \RuntimeException('optimistic_conflict'), 500, 'コピー処理中にエラーが発生しました。'],
+        ];
+    }
+
+    /**
+     * コピーの途中で保存できなかったときの応答（同時の操作でしか起きないため、UseCase を差し替えて確かめる）。
+     *
+     * @dataProvider copyFailures
+     */
+    public function testCopy_failureResponses(\Throwable $failure, int $status, string $message): void
+    {
+        $src = $this->srcMonday();
+        $this->mockService(\App\Application\UseCase\CopyReservations\CopyReservationsUseCase::class, function () use ($failure, $src) {
+            // コピー元の1行を写すところで保存に失敗させる
+            $reservations = new \App\Test\TestCase\Application\Fake\FakeReservationRepository();
+            $reservations->record(1, $src->format('Y-m-d'), 1, 1);
+            $reservations->onAdd = static fn() => throw $failure;
+
+            return new \App\Application\UseCase\CopyReservations\CopyReservationsUseCase(
+                $reservations,
+                new \App\Test\TestCase\Application\Fake\FakeRoomMembershipRepository(['1:1'], [], [1 => '部屋1']),
+                new \App\Test\TestCase\Application\Fake\FakeUserAccountRepository(),
+                new \App\Test\TestCase\Application\Fake\SpyTransaction(),
+                new \Cake\Chronos\ClockFactory('Asia/Tokyo'),
+            );
+        });
+        $this->login();
+
+        $this->post('/TReservationInfo/copy', ['mode' => 'week', 'source' => $src->format('Y-m-d'), 'target' => $src->addWeeks(1)->format('Y-m-d')]);
+
+        $this->assertResponseCode($status);
+        $this->assertSame($message, $this->json()['message'] ?? null);
+    }
 }

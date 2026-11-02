@@ -269,6 +269,28 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
         return $latest;
     }
 
+    public function findInDateRange(string $from, string $to, ?array $roomIds = null, ?array $userIds = null): array
+    {
+        $where = ['d_reservation_date >=' => $from, 'd_reservation_date <=' => $to];
+        if ($roomIds !== null) {
+            $where['i_id_room IN'] = $roomIds;
+        }
+        if ($userIds !== null) {
+            $where['i_id_user IN'] = $userIds;
+        }
+        $rows = $this->reservations->find()
+            ->select(['i_id_user', 'i_id_room', 'i_reservation_type', 'd_reservation_date', 'eat_flag', 'i_change_flag'])
+            ->where($where)
+            ->all();
+
+        $found = [];
+        foreach ($rows as $row) {
+            $found[] = self::toReservation($row);
+        }
+
+        return $found;
+    }
+
     public function findFromDate(int $userId, int $roomId, string $fromDate): array
     {
         $rows = $this->reservations->find()
@@ -371,6 +393,7 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
             eatFlag: $row->get('eat_flag') === null ? null : (int)$row->get('eat_flag'),
             changeFlag: $row->get('i_change_flag') === null ? null : (int)$row->get('i_change_flag'),
             version: $row->get('i_version') === null ? null : (int)$row->get('i_version'),
+            approvalStatus: $row->get('i_approval_status') === null ? null : (int)$row->get('i_approval_status'),
         );
     }
 

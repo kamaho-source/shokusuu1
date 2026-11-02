@@ -28,6 +28,7 @@ use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
 use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
 use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
+use App\Application\UseCase\CopyReservations\CopyReservationsUseCase;
 use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
 use App\Application\UseCase\CreateUser\CreateUserUseCase;
 use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
@@ -306,6 +307,13 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             new ClockFactory('Asia/Tokyo'),
         ));
         $container->add(ApplyRoomTransferScheduleCommand::class)->addArgument(ApplyRoomTransfersUseCase::class);
+        $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            new CakeRoomMembershipRepository(),
+            $userAccounts(),
+            $userTransaction(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
         $container->add(SystemReportService::class);

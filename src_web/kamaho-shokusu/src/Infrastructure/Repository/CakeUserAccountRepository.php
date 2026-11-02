@@ -310,6 +310,17 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         ]));
     }
 
+    public function childUserIds(): array
+    {
+        return array_map('intval', $this->users->find()
+            ->select(['i_id_user'])
+            ->where(['i_user_level' => 1, 'i_del_flag' => 0])
+            ->enableHydration(false)
+            ->all()
+            ->extract('i_id_user')
+            ->toList());
+    }
+
     /**
      * @param array<string, mixed> $fields
      */
