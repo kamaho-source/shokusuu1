@@ -100,7 +100,7 @@ $days = $days ?? [];
     </div>
 
     <div class="sub-bar mt-2 d-flex align-items-center gap-3 flex-wrap">
-        <span>表示中：<strong id="active-date-label"><?= h($days[0]['label']) ?>曜日</strong></span>
+        <span>表示中：<strong id="active-date-label"><?= h($days[0]['label'] ?? '') ?>曜日</strong></span>
         <span>朝食：<span class="meal-count" id="count-morning">0</span></span>
         <span>昼食：<span class="meal-count" id="count-noon">0</span></span>
         <span>夕食：<span class="meal-count" id="count-night">0</span></span>
