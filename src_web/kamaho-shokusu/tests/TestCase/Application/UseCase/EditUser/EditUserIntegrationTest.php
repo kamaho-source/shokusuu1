@@ -28,19 +28,42 @@ class EditUserIntegrationTest extends TestCase
     ];
 
     /**
-     * @param array<string, mixed> $posted
+     * 編集する人（管理者 1）は部屋 1・2 に所属する。部屋 1 だけのフィクスチャに部屋 2 を足す（#821 で、選べる部屋は編集する人の所属部屋だけになった）。
      */
-    private function edit(int $userId, array $posted, bool $canChangeRole = true): EditUserOutput
+    protected function setUp(): void
     {
-        $useCase = new EditUserUseCase(
+        parent::setUp();
+        $this->addRoom(2);
+        $this->join(1, 2);
+    }
+
+    private function addRoom(int $roomId, int $delFlg = 0): void
+    {
+        ConnectionManager::get('test')->insert('m_room_info', ['i_id_room' => $roomId, 'c_room_name' => '部屋' . $roomId, 'i_disp_no' => $roomId, 'i_enable' => 1, 'i_del_flg' => $delFlg]);
+    }
+
+    private function join(int $userId, int $roomId): void
+    {
+        ConnectionManager::get('test')->insert('m_user_group', ['i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => 0]);
+    }
+
+    private function useCase(): EditUserUseCase
+    {
+        return new EditUserUseCase(
             new CakeUserAccountRepository($this->getTableLocator()->get('MUserInfo')),
             new CakeRoomMembershipRepository(),
             new CakeTransactionManager(ConnectionManager::get('test')),
             new AuditLogAdapter(),
             new ClockFactory('Asia/Tokyo'),
         );
+    }
 
-        return $useCase->execute(new EditUserInput($userId, $posted, new AuditActor('admin', 1, 'admin_user', '127.0.0.1'), $canChangeRole, true, true));
+    /**
+     * @param array<string, mixed> $posted
+     */
+    private function edit(int $userId, array $posted, bool $canChangeRole = true): EditUserOutput
+    {
+        return $this->useCase()->execute(new EditUserInput($userId, $posted, new AuditActor('admin', 1, 'admin_user', '127.0.0.1'), $canChangeRole, true, true));
     }
 
     /**
@@ -49,7 +72,7 @@ class EditUserIntegrationTest extends TestCase
     private function activeRooms(int $userId): array
     {
         return array_map('intval', $this->getTableLocator()->get('MUserGroup')->find()
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])->all()->extract('i_id_room')->toList());
+            ->where(['i_id_user' => $userId, 'active_flag' => 0])->orderByAsc('i_id_room')->all()->extract('i_id_room')->toList());
     }
 
     public function testUpdatesNameAndRooms(): void
@@ -130,5 +153,35 @@ class EditUserIntegrationTest extends TestCase
         $this->edit(3, ['c_user_name' => '一般ユーザー', 'i_id_staff' => '999', 'rooms' => ['1' => '1']], canChangeRole: false);
 
         $this->assertNull($this->getTableLocator()->get('MUserInfo')->get(3)->i_id_staff);
+    }
+
+    /** 選べる部屋は、管理者でも編集する人が所属している削除されていない部屋だけ */
+    public function testRoomChoices_onlyActorsActiveRooms(): void
+    {
+        $this->addRoom(3);
+        $this->addRoom(4, 1);
+        $this->join(1, 4);
+
+        $this->assertSame([1, 2], array_keys($this->useCase()->roomChoices(1)), '所属外の部屋 3・削除済みの部屋 4 は出ない');
+        $this->assertSame([], $this->useCase()->roomChoices(4), '所属部屋の無いシステム管理者は選べる部屋が無い');
+    }
+
+    /**
+     * 保存では選べる部屋だけチェックどおりにし、選べない部屋（所属外 3・削除済み 4）の既存の所属は残す。
+     * 選べない部屋にチェックを送っても付与しない。
+     */
+    public function testRoomsOutsideActorsChoice_areKeptAndCannotBeAdded(): void
+    {
+        $this->addRoom(3);
+        $this->addRoom(4, 1);
+        $this->addRoom(5);
+        $this->join(1, 4);
+        $this->join(3, 3);
+        $this->join(3, 4);
+
+        $result = $this->edit(3, ['c_user_name' => '一般ユーザー', 'rooms' => ['1' => '0', '2' => '1', '3' => '0', '4' => '0', '5' => '1']]);
+
+        $this->assertSame(EditUserOutput::UPDATED, $result->status);
+        $this->assertSame([2, 3, 4], $this->activeRooms(3), '1 は外れ 2 が付く。3・4 は残り、選べない 5 は付かない');
     }
 }

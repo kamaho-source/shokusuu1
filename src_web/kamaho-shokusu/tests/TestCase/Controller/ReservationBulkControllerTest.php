@@ -109,6 +109,30 @@ class ReservationBulkControllerTest extends TestCase
         $this->assertResponseCode(403);
     }
 
+    /**
+     * 日付が配列・暦にない日付は 400 の JSON（以前は配列が TypeError で 500）
+     *
+     * @return array<string, array{string}>
+     */
+    public static function badBulkUsersDateProvider(): array
+    {
+        return [
+            '配列'               => ['date[]=x'],
+            '暦にない日（2/30）' => ['date=2026-02-30'],
+        ];
+    }
+
+    /** @dataProvider badBulkUsersDateProvider */
+    public function testGetUsersByRoomForBulk_invalidDate_returns400Json(string $query): void
+    {
+        $this->loginAdmin();
+        $this->get('/TReservationInfo/getUsersByRoomForBulk/1?' . $query);
+
+        $this->assertResponseCode(400);
+        $this->assertFalse($this->json()['ok']);
+        $this->assertSame('日付が正しくありません。', $this->json()['message']);
+    }
+
     // ---- getReservationSnapshots ----
 
     public function testGetReservationSnapshots_returnsLatestUpdatePerDate(): void
@@ -153,13 +177,51 @@ class ReservationBulkControllerTest extends TestCase
         $this->assertFlashMessage('日付が指定されていません。');
     }
 
-    public function testBulkAddForm_invalidDateRedirectsToIndexWithFlash(): void
+    /**
+     * 日付でない・配列・暦にない日付（以前は配列が TypeError で 500、2/30 は 3/2 に繰り越して画面が出ていた）
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function invalidDateProvider(): array
+    {
+        $forms = ['一括登録' => 'bulk-add-form', '直前一括編集' => 'bulk-change-edit-form'];
+        $queries = [
+            '日付でない'         => 'date=' . urlencode('not a date at all'),
+            '配列'               => 'date[]=x',
+            '暦にない日（2/30）' => 'date=2026-02-30',
+        ];
+        $cases = [];
+        foreach ($forms as $formName => $path) {
+            foreach ($queries as $queryName => $query) {
+                $cases[$formName . '・' . $queryName] = [$path, $query];
+            }
+        }
+
+        return $cases;
+    }
+
+    /** @dataProvider invalidDateProvider */
+    public function testBulkForm_invalidDateRedirectsToIndexWithFlash(string $path, string $query): void
     {
         $this->loginAdmin();
-        $this->get('/TReservationInfo/bulk-add-form?date=' . urlencode('not a date at all'));
+        $this->get('/TReservationInfo/' . $path . '?' . $query);
 
         $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashMessage('無効な日付が指定されました。');
+    }
+
+    /** 週ナビの基準日が配列なら無視して、選んだ日の週から出す（以前は TypeError で 500） */
+    public function testBulkForm_arrayBaseWeekIsIgnored(): void
+    {
+        $date   = $this->farDate();
+        $monday = (new \DateTimeImmutable($date))->modify('monday this week')->format('Y-m-d');
+        foreach (['bulk-add-form', 'bulk-change-edit-form'] as $path) {
+            $this->loginAdmin();
+            $this->get('/TReservationInfo/' . $path . '?date=' . $date . '&base_week[]=x');
+
+            $this->assertResponseOk($path);
+            $this->assertSame($monday, $this->viewVariable('baseWeek')->format('Y-m-d'), $path);
+        }
     }
 
     public function testBulkAddForm_rendersWithRoomsAndRoleFlags(): void

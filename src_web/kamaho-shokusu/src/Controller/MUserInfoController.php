@@ -197,12 +197,11 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        // 管理者以外（職員・ブロック長）は児童のみ、自分が所属している部屋にだけ登録できる
+        // 管理者以外（職員・ブロック長）は児童のみ。登録先は管理者も含めて自分が所属している部屋だけ（#821）
         $identity  = $this->request->getAttribute('identity');
         $childOnly = !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0));
-        $allowedRoomIds = $identity === null
-            ? null
-            : $createUser->allowedRoomIds((int)$identity->get('i_id_user'), !$childOnly);
+        $actorId   = (int)($identity?->get('i_id_user') ?? 0);
+        $allowedRoomIds = $createUser->allowedRoomIds($actorId);
 
         if ($this->request->is('post')) {
             try {
@@ -234,7 +233,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $rooms = $createUser->roomChoices($allowedRoomIds);
+        $rooms = $createUser->roomChoices($actorId);
         $ages  = range(UserProfileOptions::MIN_AGE, UserProfileOptions::MAX_AGE);
         $roles = $childOnly ? [1 => UserProfileOptions::USER_LEVELS[1]] : UserProfileOptions::USER_LEVELS;
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
@@ -295,7 +294,7 @@ class MUserInfoController extends AppController
             }
         }
 
-        $rooms = $editUser->roomChoices();
+        $rooms = $editUser->roomChoices((int)($this->request->getAttribute('identity')?->get('i_id_user') ?? 0));
 
         $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms', 'roomsLocked'));
     }

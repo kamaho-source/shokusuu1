@@ -51,19 +51,19 @@ final class UserProfileRule
     /**
      * 登録先の部屋の誤り。問題なければ null。
      *
-     * @param list<int>|null $allowedRoomIds 登録できる部屋（管理者は null で制限なし）
+     * 管理者・システム管理者も、自分が所属している部屋にだけ登録できる（#821）。部屋の選択が必須なのは管理者以外。
+     *
+     * @param list<int> $allowedRoomIds 登録できる部屋（操作する人の所属部屋）
      * @param list<int> $postedRoomIds 送られた登録先の部屋（0 は未選択）
+     * @param bool $required 部屋の選択が必須か（管理者以外）
      */
-    public static function roomsError(?array $allowedRoomIds, array $postedRoomIds): ?string
+    public static function roomsError(array $allowedRoomIds, array $postedRoomIds, bool $required): ?string
     {
-        if ($allowedRoomIds === null) {
-            return null;
-        }
-        if ($allowedRoomIds === []) {
+        $selected = array_filter($postedRoomIds);
+        if ($required && $allowedRoomIds === []) {
             return '所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。';
         }
-        $selected = array_filter($postedRoomIds);
-        if ($selected === []) {
+        if ($required && $selected === []) {
             return '登録先の部屋を選択してください。';
         }
         if (array_diff($selected, $allowedRoomIds) !== []) {

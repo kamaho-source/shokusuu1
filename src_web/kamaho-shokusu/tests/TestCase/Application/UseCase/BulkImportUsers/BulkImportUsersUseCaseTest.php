@@ -55,6 +55,7 @@ class BulkImportUsersUseCaseTest extends TestCase
 
     public function testValidRows_areSavedWithNormalizedValuesAndRooms(): void
     {
+        $this->rooms->members = ['2:1', '2:5'];  // 管理者も登録先は自分の所属部屋だけ（#821）
         $result = $this->import([
             ['_row' => 2, 'login_id' => ' kid1 ', 'name' => '児童A', 'role' => '児童', 'password' => 'p1', 'age' => '9', 'gender' => '女', 'age_group' => '中学年', 'room_name1' => 'ひまわり', 'room_name2' => 'さくら'],
             ['_row' => 3, 'login_id' => 'staff1', 'name' => '職員B', 'role' => 'ｓｔａｆｆ', 'staff_id' => '42', 'age' => '-1'],
@@ -104,6 +105,42 @@ class BulkImportUsersUseCaseTest extends TestCase
         $this->assertSame([1 => ['所属している部屋がないため登録できません。']], $result->errors);
     }
 
+    /** 管理者も登録先は自分の所属部屋だけ（#821）。部屋名が空なら部屋なしで登録できる */
+    public function testAdmin_onlyOwnRooms_roomOptional(): void
+    {
+        $result = $this->import([
+            ['_row' => 1, 'login_id' => 'a', 'name' => 'A', 'role' => '児童', 'room_name1' => 'ひまわり'],
+            ['_row' => 2, 'login_id' => 'b', 'name' => 'B', 'role' => '職員', 'staff_id' => '1', 'room_name1' => 'さくら'],
+            ['_row' => 3, 'login_id' => 'c', 'name' => 'C', 'role' => '児童', 'room_name1' => '無い部屋'],
+            ['_row' => 4, 'login_id' => 'd', 'name' => 'D', 'role' => '児童', 'room_name1' => 'ひまわり', 'room_name2' => 'さくら'],
+            ['_row' => 5, 'login_id' => 'e', 'name' => 'E', 'role' => '職員', 'staff_id' => '2'],
+        ]);
+
+        $this->assertSame([
+            2 => ['自分が所属していない部屋、または存在しない部屋には登録できません。'],
+            3 => ['自分が所属していない部屋、または存在しない部屋には登録できません。'],
+            4 => ['自分が所属していない部屋、または存在しない部屋には登録できません。'],
+        ], $result->errors);
+        $this->assertSame(2, $result->created);
+        $this->assertSame(['a', 'e'], array_column($this->users->imported, 'c_login_account'));
+        $this->assertSame(['join:701:1'], $this->users->roomOps, '所属外の部屋 5 には所属させない');
+    }
+
+    /** 所属部屋の無い管理者は、部屋名があれば拒否、無ければ登録できる */
+    public function testAdminWithoutRooms_canImportOnlyWithoutRoom(): void
+    {
+        $this->rooms->members = [];
+
+        $result = $this->import([
+            ['_row' => 1, 'login_id' => 'a', 'name' => 'A', 'role' => '児童', 'room_name1' => 'ひまわり'],
+            ['_row' => 2, 'login_id' => 'b', 'name' => 'B', 'role' => '児童'],
+        ]);
+
+        $this->assertSame([1 => ['自分が所属していない部屋、または存在しない部屋には登録できません。']], $result->errors);
+        $this->assertSame(1, $result->created);
+        $this->assertSame([], $this->users->roomOps);
+    }
+
     public function testRowChecks_inOrder(): void
     {
         $this->users->loginAccounts = ['taken'];
@@ -121,9 +158,9 @@ class BulkImportUsersUseCaseTest extends TestCase
             2 => ['c_login_account が既に存在します。'],
             3 => ['role の値が不正です（職員/児童/その他 または 0/1/3 を指定してください）。'],
             4 => ['role=職員 のため staff_id が必須です。'],
-            5 => ["部屋名 '無い部屋' が見つかりません"],
-        ], $result->errors);
-        $this->assertSame(['processed' => 5, 'created' => 1, 'skipped' => 1, 'failed' => 3], array_diff_key($result->toArray(), ['errors' => 1]));
+            5 => ['自分が所属していない部屋、または存在しない部屋には登録できません。'],
+        ], $result->errors, '管理者でも存在しない部屋は拒否する（#821 以前は部屋なしで登録して注意だけ出していた）');
+        $this->assertSame(['processed' => 5, 'created' => 0, 'skipped' => 1, 'failed' => 4], array_diff_key($result->toArray(), ['errors' => 1]));
     }
 
     public function testSaveFailure_isCountedAsFailed(): void

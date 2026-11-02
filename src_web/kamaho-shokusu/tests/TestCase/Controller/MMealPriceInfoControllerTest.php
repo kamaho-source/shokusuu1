@@ -238,6 +238,8 @@ class MMealPriceInfoControllerTest extends TestCase
             '年度が3桁' => [['i_fiscal_year' => 999] + $ok, '年度は 4 桁の数字で入力してください。'],
             '単価が負' => [['i_lunch_price' => -1] + $ok, '昼食の単価は 0 以上の整数（円）で入力してください。'],
             '単価が空' => [['i_bento_price' => ''] + $ok, '弁当の単価は 0 以上の整数（円）で入力してください。'],
+            '単価が上限超え' => [['i_morning_price' => 100000] + $ok, '朝食の単価は 99,999 円以下で入力してください。'],
+            '単価が int を超える桁数' => [['i_dinner_price' => '99999999999'] + $ok, '夕食の単価は 99,999 円以下で入力してください。'],
             '同じ年がある' => [['i_fiscal_year' => 2024] + $ok, '2024年の単価はすでに登録されています。登録済みの単価を編集してください。'],
         ];
     }
@@ -263,6 +265,41 @@ class MMealPriceInfoControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertFlashMessage('2025年の単価はすでに登録されています。登録済みの単価を編集してください。', 'flash');
         $this->assertSame(2024, (int)$this->getTableLocator()->get('MMealPriceInfo')->get(1)->i_fiscal_year);
+    }
+
+    /** 上限ちょうど（99,999 円）は登録できる */
+    public function testAdd_maxPrice_isSaved(): void
+    {
+        $this->postPrice('/MMealPriceInfo/add', ['i_fiscal_year' => 2025, 'i_morning_price' => 99999, 'i_lunch_price' => 2, 'i_dinner_price' => 3, 'i_bento_price' => 4]);
+
+        $this->assertSame(2, $this->priceCount());
+        $this->assertSame(99999, (int)$this->getTableLocator()->get('MMealPriceInfo')->find()->where(['i_fiscal_year' => 2025])->firstOrFail()->i_morning_price);
+    }
+
+    /**
+     * 編集でも上限を超える単価は 500 にせず、理由を出して保存しない
+     *
+     * @return array<string, array{array<string, int|string>, string}>
+     */
+    public static function tooLargePriceProvider(): array
+    {
+        return [
+            '100000' => [['i_lunch_price' => 100000], '昼食の単価は 99,999 円以下で入力してください。'],
+            '99999999999' => [['i_bento_price' => '99999999999'], '弁当の単価は 99,999 円以下で入力してください。'],
+        ];
+    }
+
+    /**
+     * @dataProvider tooLargePriceProvider
+     */
+    public function testEdit_tooLargePrice_isRejected(array $data, string $message): void
+    {
+        $this->postPrice('/MMealPriceInfo/edit/1', $data);
+
+        $this->assertResponseOk();
+        $this->assertFlashMessage($message, 'flash');
+        $row = $this->getTableLocator()->get('MMealPriceInfo')->get(1);
+        $this->assertSame([300, 500, 600, 450], [(int)$row->i_morning_price, (int)$row->i_lunch_price, (int)$row->i_dinner_price, (int)$row->i_bento_price]);
     }
 
     /** 送らなかった項目は今の値のまま */

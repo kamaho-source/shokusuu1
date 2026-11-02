@@ -4,13 +4,15 @@ declare(strict_types=1);
 namespace App\Domain\Service;
 
 /**
- * 単価マスタの入力の決まり（画面の入力欄の決まりと同じ）。
+ * 単価マスタの入力の決まり。
  *
  * - 年（暦年）は必須で 4 桁。同じ年の単価は 1 行だけ（控除表がどれを使うか決まらなくなるため）
- * - 朝・昼・夕・弁当の単価は必須で 0 以上の整数（円）
+ * - 朝・昼・夕・弁当の単価は必須で 0 以上 MAX_PRICE 以下の整数（円）。上限が無いと、21 億円を超える値で DB の列の範囲を超えて 500 になっていた
  */
 final class MealPriceRule
 {
+    public const MAX_PRICE = 99999;
+
     /**
      * 入力の問題（利用者に出す文言）。問題が無ければ null。
      *
@@ -23,8 +25,12 @@ final class MealPriceRule
             return '年度は 4 桁の数字で入力してください。';
         }
         foreach (['morning' => '朝食', 'lunch' => '昼食', 'dinner' => '夕食', 'bento' => '弁当'] as $key => $label) {
-            if (preg_match('/^\d+$/', $values[$key] ?? '') !== 1) {
+            $price = $values[$key] ?? '';
+            if (preg_match('/^\d+$/', $price) !== 1) {
                 return $label . 'の単価は 0 以上の整数（円）で入力してください。';
+            }
+            if (strlen(ltrim($price, '0')) > 5 || (int)$price > self::MAX_PRICE) {
+                return $label . 'の単価は ' . number_format(self::MAX_PRICE) . ' 円以下で入力してください。';
             }
         }
 

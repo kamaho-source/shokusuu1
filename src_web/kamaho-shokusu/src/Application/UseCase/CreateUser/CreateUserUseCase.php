@@ -13,7 +13,8 @@ use Psr\Clock\ClockInterface;
 /**
  * 利用者を新しく登録する。誰が登録してよいか（認可）は呼び出し側で確かめる。
  *
- * - 管理者以外（職員・ブロック長）は、児童だけを、自分が所属している部屋にだけ登録できる。
+ * - 管理者以外（職員・ブロック長）は、児童だけを登録でき、部屋の選択は必須。
+ * - 登録先の部屋は、管理者・システム管理者も含めて自分が所属している部屋だけ（#821）。
  * - 権限・状態系の項目（i_admin など）は送られた値から受け取らない。
  */
 final class CreateUserUseCase
@@ -26,24 +27,23 @@ final class CreateUserUseCase
     ) {}
 
     /**
-     * 登録できる部屋。管理者は制限なし（null）、それ以外は自分が所属している部屋だけ。
+     * 登録できる部屋。管理者・システム管理者も、自分が所属している部屋（削除済みを除く）だけ（#821）。
      *
-     * @return list<int>|null
+     * @return list<int>
      */
-    public function allowedRoomIds(int $actorId, bool $actorIsAdmin): ?array
+    public function allowedRoomIds(int $actorId): array
     {
-        return $actorIsAdmin ? null : $this->rooms->activeRoomIds($actorId);
+        return array_keys($this->roomChoices($actorId));
     }
 
     /**
-     * 登録画面で選べる部屋。
+     * 登録画面で選べる部屋（自分が所属している、削除されていない部屋）。
      *
-     * @param list<int>|null $allowedRoomIds
      * @return array<int, string> 部屋ID => 部屋名
      */
-    public function roomChoices(?array $allowedRoomIds): array
+    public function roomChoices(int $actorId): array
     {
-        return $this->rooms->selectableRooms($allowedRoomIds);
+        return $this->rooms->selectableRooms($this->rooms->activeRoomIds($actorId));
     }
 
     /**
@@ -59,7 +59,7 @@ final class CreateUserUseCase
         }
 
         $error = UserProfileRule::creationError($input->childOnly, $data, $level)
-            ?? UserProfileRule::roomsError($input->allowedRoomIds, $roomIds);
+            ?? UserProfileRule::roomsError($input->allowedRoomIds, $roomIds, $input->childOnly);
         if ($error !== null) {
             return CreateUserOutput::rejected($error);
         }

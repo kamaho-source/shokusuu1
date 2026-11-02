@@ -432,6 +432,163 @@ class MUserInfoControllerActionsTest extends TestCase
         $this->assertSame([70 => 1, 71 => 1], $this->roomFlags(6), '削除済みのまま所属中にならない');
     }
 
+    // ------------------------------------------------------------ 登録・編集で選べる部屋（#821）
+
+    /**
+     * 部屋 80（管理者 1・システム管理者 4 が所属）、81（誰も所属しない）、82（削除済み、管理者 1 が所属）を作る。
+     * 管理者 1 は部屋 1・80・82、システム管理者 4 は部屋 80 だけに所属する。
+     */
+    private function seedRoomsForChoices(): void
+    {
+        $db = ConnectionManager::get('test');
+        foreach ([80 => ['自分の部屋B', 0], 81 => ['所属外の部屋', 0], 82 => ['削除済みの部屋', 1]] as $id => [$name, $del]) {
+            $db->insert('m_room_info', ['i_id_room' => $id, 'c_room_name' => $name, 'i_disp_no' => $id, 'i_del_flg' => $del]);
+        }
+        foreach ([[1, 80], [1, 82], [4, 80]] as [$userId, $roomId]) {
+            $db->insert('m_user_group', ['i_id_user' => $userId, 'i_id_room' => $roomId, 'active_flag' => 0]);
+        }
+    }
+
+    /** @return list<int> 所属中の部屋（昇順） */
+    private function activeRoomIds(int $userId): array
+    {
+        return array_keys(array_filter($this->roomFlags($userId), static fn(int $flag): bool => $flag === 0));
+    }
+
+    /**
+     * @return array<string, array{int, list<int>, list<int>}> ログインする人, 出る部屋, 出ない部屋
+     */
+    public static function adminRoomChoices(): array
+    {
+        return [
+            '管理者'         => [1, [1, 80], [81, 82]],
+            'システム管理者' => [4, [80], [1, 81, 82]],
+        ];
+    }
+
+    /**
+     * 管理者・システム管理者でも、登録画面の部屋の選択肢は自分が所属している削除されていない部屋だけ。
+     *
+     * @dataProvider adminRoomChoices
+     * @param list<int> $shown
+     * @param list<int> $hidden
+     */
+    public function testAddForm_admin_showsOnlyOwnRooms(int $userId, array $shown, array $hidden): void
+    {
+        $this->seedRoomsForChoices();
+        $this->login($userId);
+
+        $this->get('/MUserInfo/add');
+
+        $this->assertResponseOk();
+        foreach ($shown as $roomId) {
+            $this->assertResponseContains('name="MUserGroup[' . $roomId . '][i_id_room]"');
+        }
+        foreach ($hidden as $roomId) {
+            $this->assertResponseNotContains('name="MUserGroup[' . $roomId . '][i_id_room]"');
+        }
+    }
+
+    /**
+     * 管理者・システム管理者でも、所属外の部屋・削除済みの部屋を POST しても登録しない。
+     *
+     * @return array<string, array{int, int}>
+     */
+    public static function adminRoomsOutsideOwn(): array
+    {
+        return [
+            '管理者が所属外の部屋'           => [1, 81],
+            '管理者が削除済みの部屋'         => [1, 82],
+            'システム管理者が所属外の部屋'   => [4, 1],
+        ];
+    }
+
+    /**
+     * @dataProvider adminRoomsOutsideOwn
+     */
+    public function testAdd_admin_roomOutsideOwn_isRejected(int $userId, int $roomId): void
+    {
+        $this->seedRoomsForChoices();
+        $this->login($userId);
+        $this->enableRetainFlashMessages();
+        $groupsBefore = $this->getTableLocator()->get('MUserGroup')->find()->count();
+
+        $this->post('/MUserInfo/add', [
+            'c_login_account' => 'outside_room_user', 'c_login_passwd' => 'password123', 'c_user_name' => '所属外テスト',
+            'role' => 1, 'age' => 10, 'age_group' => 1, 'i_user_gender' => 1,
+            'MUserGroup' => [['i_id_room' => $roomId]],
+        ]);
+
+        $this->assertResponseOk();
+        $this->assertFlashMessage('自分が所属していない部屋には登録できません。', 'flash');
+        $this->assertSame(0, $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'outside_room_user'])->count());
+        $this->assertSame($groupsBefore, $this->getTableLocator()->get('MUserGroup')->find()->count(), '所属も作らない');
+    }
+
+    /** システム管理者は自分が所属している部屋には登録できる */
+    public function testAdd_systemAdmin_ownRoom_isRegistered(): void
+    {
+        $this->seedRoomsForChoices();
+        $this->login(4);
+
+        $this->post('/MUserInfo/add', [
+            'c_login_account' => 'own_room_user', 'c_login_passwd' => 'password123', 'c_user_name' => '自室テスト',
+            'role' => 1, 'age' => 10, 'age_group' => 1, 'i_user_gender' => 1,
+            'MUserGroup' => [['i_id_room' => 80]],
+        ]);
+
+        $created = $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'own_room_user'])->firstOrFail();
+        $this->assertSame([80], $this->activeRoomIds((int)$created->i_id_user));
+    }
+
+    /** 管理者でも、編集画面の部屋の選択肢は自分が所属している削除されていない部屋だけ */
+    public function testEditForm_admin_showsOnlyOwnRooms(): void
+    {
+        $this->seedRoomsForChoices();
+        $this->login(1);
+
+        $this->get('/MUserInfo/edit/3');
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('name="rooms[1]"');
+        $this->assertResponseContains('name="rooms[80]"');
+        $this->assertResponseNotContains('name="rooms[81]"');
+        $this->assertResponseNotContains('name="rooms[82]"');
+    }
+
+    /**
+     * 管理者が編集で保存すると、選べる部屋だけチェックどおりになり、
+     * 選べない部屋（所属外 81・削除済み 82）の既存の所属は残る。
+     */
+    public function testEdit_admin_keepsMembershipsOutsideOwnRooms(): void
+    {
+        $this->seedRoomsForChoices();
+        $db = ConnectionManager::get('test');
+        foreach ([81, 82] as $roomId) {
+            $db->insert('m_user_group', ['i_id_user' => 3, 'i_id_room' => $roomId, 'active_flag' => 0]);
+        }
+        $this->login(1);
+
+        // 部屋 1 を外し、80 を付ける。画面に出ない 81・82 は「0」を送っても外れない
+        $this->post('/MUserInfo/edit/3', ['c_login_account' => 'non_staff_user', 'c_user_name' => '一般ユーザー', 'rooms' => [1 => '0', 80 => '1', 81 => '0', 82 => '0']]);
+
+        $this->assertRedirect(['action' => 'index']);
+        $this->assertSame([80, 81, 82], $this->activeRoomIds(3));
+    }
+
+    /** 管理者が所属外の部屋を POST しても、編集で付与されない */
+    public function testEdit_admin_cannotAddRoomOutsideOwn(): void
+    {
+        $this->seedRoomsForChoices();
+        $this->login(1);
+
+        $this->post('/MUserInfo/edit/2', ['c_login_account' => 'staff_user', 'c_user_name' => '職員ユーザー', 'rooms' => [1 => '1', 81 => '1', 82 => '1']]);
+
+        $this->assertRedirect(['action' => 'index']);
+        $this->assertSame([1], $this->activeRoomIds(2));
+        $this->assertSame(0, $this->getTableLocator()->get('MUserGroup')->find()->where(['i_id_user' => 2, 'i_id_room IN' => [81, 82]])->count());
+    }
+
     public function testRestore_getMethod_isNotAllowed(): void
     {
         $this->login(1);

@@ -64,12 +64,13 @@ class ApplyRoomTransfersIntegrationTest extends TestCase
 
     public function testCreate_invalidDate_returnsJapaneseMessage(): void
     {
-        $this->assertSame('バリデーションエラー: 有効開始日は YYYY-MM-DD の正しい日付で入力してください。', $this->create('2026-13-45'));
+        $this->assertSame('有効開始日が正しくありません。', $this->create('2026-13-45'));
     }
 
     public function testCreate_valid_savesPendingSchedule(): void
     {
-        $this->assertNull($this->create('2026-12-01'));
+        // 今日以降しか登録できないため、実時計から十分離した未来の日付にする
+        $this->assertNull($this->create('2099-12-01'));
         $row = TableRegistry::getTableLocator()->get('MRoomTransferSchedule')->find()->where(['c_create_user' => 'tester'])->firstOrFail();
         $this->assertSame(0, (int)$row->i_status);
         $this->assertNull($row->i_id_room_from);
