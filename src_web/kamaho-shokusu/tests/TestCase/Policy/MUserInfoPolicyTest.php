@@ -11,7 +11,7 @@ class MUserInfoPolicyTest extends TestCase
 {
     public function testCanViewAllowsOwnerAndAdmin(): void
     {
-        $policy = new MUserInfoPolicy();
+        $policy = new MUserInfoPolicy(new \App\Infrastructure\Query\CakeRoomQuery());
         $resource = new MUserInfo();
         $resource->set('i_id_user', 10, ['guard' => false]);
 
@@ -26,7 +26,7 @@ class MUserInfoPolicyTest extends TestCase
 
     public function testRegisterAllowedForStaffAndBlockLeaderButNotChildOrUnset(): void
     {
-        $policy = new MUserInfoPolicy();
+        $policy = new MUserInfoPolicy(new \App\Infrastructure\Query\CakeRoomQuery());
         $resource = new MUserInfo();
 
         foreach (['add', 'import', 'importForm', 'importJson'] as $action) {
@@ -42,7 +42,7 @@ class MUserInfoPolicyTest extends TestCase
 
     public function testCanDeleteRequiresAdmin(): void
     {
-        $policy = new MUserInfoPolicy();
+        $policy = new MUserInfoPolicy(new \App\Infrastructure\Query\CakeRoomQuery());
         $resource = new MUserInfo();
 
         $admin = new PolicyTestIdentity(['i_id_user' => 1, 'i_admin' => 1]);

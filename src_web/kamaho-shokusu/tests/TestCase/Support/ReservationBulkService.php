@@ -84,6 +84,6 @@ class ReservationBulkService
     private function useCases(Table $reservationTable, Table $userTable): ReservationUseCases
     {
         /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable $reservationTable */
-        return new ReservationUseCases($reservationTable, $userTable, $this->clock);
+        return new ReservationUseCases($reservationTable, $userTable, $this->clock ?? new \Cake\Chronos\ClockFactory('Asia/Tokyo'));
     }
 }

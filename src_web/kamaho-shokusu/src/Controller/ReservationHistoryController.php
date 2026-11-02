@@ -3,13 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\ServerRequest;
 use App\Application\Query\ReservationHistoryQueryInterface;
 use App\Domain\Service\DatePeriodRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Query\CakeReservationHistoryQuery;
-use App\Infrastructure\Query\CakeRoomQuery;
-use Cake\Chronos\ClockFactory;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 use Cake\I18n\DateTime;
@@ -30,12 +28,9 @@ class ReservationHistoryController extends AppController
 
     private const TABS = ['meals', 'summary', 'log'];
 
-    private ReservationHistoryQueryInterface $history;
-
-    public function initialize(): void
+    public function __construct(ServerRequest $request, private readonly ReservationHistoryQueryInterface $history)
     {
-        parent::initialize();
-        $this->history = new CakeReservationHistoryQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo'));
+        parent::__construct($request);
     }
 
     /**

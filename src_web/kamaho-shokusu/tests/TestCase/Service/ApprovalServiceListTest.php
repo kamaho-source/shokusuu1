@@ -32,7 +32,7 @@ class ApprovalServiceListTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ApprovalService();
+        $this->service = new ApprovalService(new \App\Infrastructure\Query\CakeRoomQuery());
         $this->individual = $this->getTableLocator()->get('TIndividualReservationInfo');
 
         $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 7], ['i_id_user IN' => [1, 2]]);

@@ -5,9 +5,8 @@ namespace App\Controller;
 
 use App\Domain\Service\MealGridWeekRule;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Query\CakeMealCountGridQuery;
+use App\Application\Query\MealCountGridQueryInterface;
 use Cake\Chronos\ChronosDate;
-use Cake\Chronos\ClockFactory;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Service\ActualMealManagementService;
 use Cake\Core\Configure;
@@ -345,7 +344,7 @@ class ReservationActualMealController extends ReservationBaseController
 
         // 存在しない・削除済みの部屋には、管理者でも書き込めない。
         // 対象ユーザーが部屋に有効所属していること（既に行がある場合の更新は除く）。管理者も同じ（#821）。
-        $roomAccess = new \App\Infrastructure\Query\CakeRoomQuery();
+        $roomAccess = $this->roomQuery;
         if (!$roomAccess->isRoomAvailable($roomId)) {
             return $this->apiResponseService->error($this->response, '選択された部屋は利用できません。', 403);
         }
@@ -443,7 +442,7 @@ class ReservationActualMealController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function mealCountGrid(): ?Response
+    public function mealCountGrid(MealCountGridQueryInterface $gridQuery): ?Response
     {
         $this->authorizeReservation('mealCountGrid');
 
@@ -497,7 +496,6 @@ class ReservationActualMealController extends ReservationBaseController
             $selectedRoomId = !empty($allRooms) ? (int)array_key_first($allRooms) : null;
         }
 
-        $gridQuery = new CakeMealCountGridQuery(new ClockFactory('Asia/Tokyo'));
         $today     = DateTime::now('Asia/Tokyo');
 
         $weekParam     = $this->queryDate('week') ?? $session->read('mealCountGrid.week');

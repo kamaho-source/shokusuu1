@@ -22,7 +22,6 @@ use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Repository\CakeUserRepository;
 use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\Core\Configure;
-use Cake\Chronos\ClockFactory;
 use Cake\ORM\Table;
 use Psr\Clock\ClockInterface;
 
@@ -50,11 +49,11 @@ final class ReservationUseCases
     private ?ToggleMealUseCase $toggleMeal = null;
 
     /**
-     * @param ClockInterface|null $clock 時計（省略時は Asia/Tokyo の現在時刻。Chronos::setTestNow に従う）
+     * @param ClockInterface $clock 時計（コンテナの ClockInterface）
      */
-    public function __construct(TIndividualReservationInfoTable $reservations, Table $users, ?ClockInterface $clock = null)
+    public function __construct(TIndividualReservationInfoTable $reservations, Table $users, ClockInterface $clock)
     {
-        $this->clock          = $clock ?? new ClockFactory('Asia/Tokyo');
+        $this->clock          = $clock;
         $this->reservations   = new CakeReservationRepository($reservations);
         $this->rooms          = new CakeRoomMembershipRepository();
         $this->cache          = new ReservationCacheAdapter();
