@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var mixed $contacts
+ * @var list<\App\Domain\Entity\Contact> $contacts
  * @var mixed $page
  */
 $this->assign('title', 'お問い合わせ一覧（管理者）');
@@ -31,12 +31,12 @@ $this->assign('title', 'お問い合わせ一覧（管理者）');
             <tbody>
                 <?php foreach ($contacts as $contact): ?>
                     <?php
-                        $replies = $contact->t_contact_replies ?? [];
+                        $replies = $contact->replies ?? [];
                         $lastReply = $replies !== [] ? end($replies) : null;
-                        $needsAttention = $lastReply !== null && $lastReply->author_type === 'user';
+                        $needsAttention = $lastReply !== null && $lastReply->authorType === 'user';
                     ?>
                     <tr>
-                        <td class="text-muted small"><?= h($contact->created->format('Y-m-d H:i')) ?></td>
+                        <td class="text-muted small"><?= h($contact->createdAt?->format('Y-m-d H:i')) ?></td>
                         <td>
                             <span class="badge bg-secondary"><?= h($contact->category) ?></span>
                             <?php if ($needsAttention): ?>
