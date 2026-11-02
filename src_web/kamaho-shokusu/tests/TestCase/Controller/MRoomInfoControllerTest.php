@@ -66,6 +66,16 @@ class MRoomInfoControllerTest extends TestCase
         $this->assertResponseOk();
     }
 
+    /** ID なしは 404（以前は InvalidPrimaryKeyException で 500） */
+    public function testViewAndEdit_withoutId_return404(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MRoomInfo/view');
+        $this->assertResponseCode(404);
+        $this->get('/MRoomInfo/edit');
+        $this->assertResponseCode(404);
+    }
+
     /**
      * Test add method
      *

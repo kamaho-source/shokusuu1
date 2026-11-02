@@ -311,9 +311,7 @@ class ReservationReportController extends ReservationBaseController
     /** YYYY-MM-DD の実在する日付か（2026-02-30 のような繰り越しも認めない）。 */
     private static function isValidDate(string $date): bool
     {
-        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-
-        return $parsed !== false && $parsed->format('Y-m-d') === $date;
+        return DatePeriodRule::isDate($date);
     }
 
     /**

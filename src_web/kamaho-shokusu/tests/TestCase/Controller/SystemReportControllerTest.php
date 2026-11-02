@@ -112,6 +112,19 @@ class SystemReportControllerTest extends TestCase
     }
 
     /**
+     * NUL バイトを含む日付も入力の誤り（以前は createFromFormat の ValueError で 500）
+     *
+     * @dataProvider dataActions
+     */
+    public function testData_dateWithNulByte_returns422(string $url): void
+    {
+        $this->loginAs(1);
+        $this->get($url . '?date_from=2026-03-01%00&date_to=2026-03-02');
+        $this->assertResponseCode(422);
+        $this->assertStringContainsString('YYYY-MM-DD', (string)$this->_response->getBody());
+    }
+
+    /**
      * @dataProvider dataActions
      */
     public function testData_fromAfterTo_returns422(string $url): void
