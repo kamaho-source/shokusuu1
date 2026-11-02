@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Support;
 
+use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsInput;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomInput;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
@@ -154,7 +155,7 @@ class ReservationWriteService
      */
     public function processBulkToggle(array $items, int $loginUserId, string $loginUserName): array
     {
-        return $this->useCases()->bulkToggleMeals()->execute($items, $loginUserId, $loginUserName);
+        return $this->useCases()->bulkToggleMeals()->execute(new BulkToggleMealsInput($items, $loginUserId, $loginUserName))->toArray();
     }
 
     /**

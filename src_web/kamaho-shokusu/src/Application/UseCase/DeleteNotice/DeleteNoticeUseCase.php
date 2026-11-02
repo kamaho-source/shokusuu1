@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\DeleteNotice;
 
-use App\Application\Port\AuditActor;
 use App\Application\Port\AuditLogInterface;
 use App\Domain\Exception\NotFoundException;
 use App\Domain\Repository\NoticeRepositoryInterface;
@@ -19,18 +18,18 @@ final class DeleteNoticeUseCase
     ) {}
 
     /**
-     * @return bool 消せたか
      * @throws NotFoundException お知らせが無い
      */
-    public function execute(int $id, AuditActor $actor): bool
+    public function execute(DeleteNoticeInput $input): DeleteNoticeOutput
     {
+        $id = $input->id;
         $notice = $this->notices->find($id) ?? throw new NotFoundException('お知らせが見つかりません。');
         if (!$this->notices->delete($id)) {
-            return false;
+            return new DeleteNoticeOutput(false);
         }
 
-        $this->auditLog->record('notice', 'notice_delete', $actor, 'm_notice', (string)$id, ['title' => $notice->title], true);
+        $this->auditLog->record('notice', 'notice_delete', $input->actor, 'm_notice', (string)$id, ['title' => $notice->title], true);
 
-        return true;
+        return new DeleteNoticeOutput(true);
     }
 }

@@ -50,10 +50,20 @@ final class BulkAddReservationsUseCase
     }
 
     /**
+     * 登録できなかった理由は Output の ok=false と message で返す。
+     *
+     * @throws \RuntimeException 保存前の読み取りに失敗した場合
+     */
+    public function execute(BulkAddReservationsInput $input): BulkAddReservationsOutput
+    {
+        return new BulkAddReservationsOutput($this->run($input));
+    }
+
+    /**
      * @return array{ok: bool, message: string, redirect_url?: string, conflict_date?: string}
      * @throws \RuntimeException 保存前の読み取りに失敗した場合
      */
-    public function execute(BulkAddReservationsInput $input): array
+    private function run(BulkAddReservationsInput $input): array
     {
         $data            = $input->data;
         $userId          = $input->userId;

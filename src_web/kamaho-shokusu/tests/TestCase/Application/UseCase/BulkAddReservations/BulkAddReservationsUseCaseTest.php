@@ -49,7 +49,7 @@ class BulkAddReservationsUseCaseTest extends TestCase
      */
     private function add(array $data, int $userId = 10, int $level = 0, bool $isAdmin = false): array
     {
-        return $this->f->bulkAdd()->execute(new BulkAddReservationsInput($data, $userId, '職員', $isAdmin, $level));
+        return $this->f->bulkAdd()->execute(new BulkAddReservationsInput($data, $userId, '職員', $isAdmin, $level))->toArray();
     }
 
     /**

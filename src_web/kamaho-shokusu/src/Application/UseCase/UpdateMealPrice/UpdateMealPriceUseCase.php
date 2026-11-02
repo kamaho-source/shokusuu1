@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\UpdateMealPrice;
 
-use App\Application\Port\AuditActor;
 use App\Application\Port\AuditLogInterface;
 use App\Application\UseCase\CreateMealPrice\MealPriceInput;
 use App\Domain\Exception\InvalidInputException;
@@ -22,14 +21,15 @@ final class UpdateMealPriceUseCase
     ) {}
 
     /**
-     * @param array<string, string> $values 'year'・'morning'・'lunch'・'dinner'・'bento' => 入力（送られなかった項目は今の値のまま）
      * @throws NotFoundException 単価が無い
      * @throws InvalidInputException 入力が不正・同じ年がある・保存できない
      */
-    public function execute(int $id, array $values, AuditActor $actor): void
+    public function execute(UpdateMealPriceInput $input): void
     {
+        $id    = $input->id;
+        $actor = $input->actor;
         $current = $this->prices->find($id) ?? throw new NotFoundException('食事料金情報が見つかりません。');
-        $values += [
+        $values = $input->values + [
             'year'    => (string)$current->year,
             'morning' => (string)$current->morning,
             'lunch'   => (string)$current->lunch,

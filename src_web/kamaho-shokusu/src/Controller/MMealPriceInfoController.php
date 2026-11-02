@@ -4,9 +4,13 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Query\MealPriceQueryInterface;
+use App\Application\UseCase\CreateMealPrice\CreateMealPriceInput;
 use App\Application\UseCase\CreateMealPrice\CreateMealPriceUseCase;
+use App\Application\UseCase\DeleteMealPrice\DeleteMealPriceInput;
 use App\Application\UseCase\DeleteMealPrice\DeleteMealPriceUseCase;
+use App\Application\UseCase\ExportMealSummary\ExportMealSummaryInput;
 use App\Application\UseCase\ExportMealSummary\ExportMealSummaryUseCase;
+use App\Application\UseCase\UpdateMealPrice\UpdateMealPriceInput;
 use App\Application\UseCase\UpdateMealPrice\UpdateMealPriceUseCase;
 use App\Domain\Entity\MealPrice;
 use App\Domain\Exception\InvalidInputException;
@@ -112,7 +116,7 @@ class MMealPriceInfoController extends AppController
         if ($this->request->is('post')) {
             $values = $this->submittedValues();
             try {
-                $createPrice->execute($values, $this->auditActor());
+                $createPrice->execute(new CreateMealPriceInput($values, $this->auditActor()));
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -138,7 +142,7 @@ class MMealPriceInfoController extends AppController
         if ($this->request->is(['patch', 'post', 'put'])) {
             $values = $this->submittedValues();
             try {
-                $updatePrice->execute((int)$price->id, $values, $this->auditActor());
+                $updatePrice->execute(new UpdateMealPriceInput((int)$price->id, $values, $this->auditActor()));
                 $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -164,7 +168,7 @@ class MMealPriceInfoController extends AppController
         }
 
         try {
-            $deleted = $deletePrice->execute((int)$price->id, $this->auditActor());
+            $deleted = $deletePrice->execute(new DeleteMealPriceInput((int)$price->id, $this->auditActor()))->deleted;
         } catch (DomainNotFoundException $e) {
             throw new NotFoundException($e->getMessage(), null, $e);
         }
@@ -203,7 +207,7 @@ class MMealPriceInfoController extends AppController
         $year  = (int)($this->queryString('year') !== '' ? $this->queryString('year') : Date::today()->format('Y'));
         $month = (int)($this->queryString('month') !== '' ? $this->queryString('month') : Date::today()->format('n'));
         try {
-            $rows = $exportSummary->execute($year, $month, $this->auditActor());
+            $rows = $exportSummary->execute(new ExportMealSummaryInput($year, $month, $this->auditActor()))->rows;
         } catch (InvalidInputException $e) {
             return $apiResponse->error($this->response, $e->getMessage(), $e->getStatusCode());
         }

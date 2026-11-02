@@ -50,7 +50,7 @@ class ReservationBulkService
             isAdmin: $isAdmin,
             loginUserLevel: $loginUserLevel,
             isBlockLeader: $isBlockLeader,
-        ));
+        ))->toArray();
     }
 
     /**
@@ -78,7 +78,7 @@ class ReservationBulkService
             isAdmin: $isAdmin,
             loginUserLevel: $loginUserLevel,
             isBlockLeader: $isBlockLeader,
-        ));
+        ))->toArray();
     }
 
     private function useCases(Table $reservationTable, Table $userTable): ReservationUseCases
