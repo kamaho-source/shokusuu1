@@ -3,15 +3,23 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\NoticeQueryInterface;
+use App\Application\UseCase\CreateNotice\CreateNoticeInput;
+use App\Application\UseCase\CreateNotice\CreateNoticeUseCase;
+use App\Application\UseCase\DeleteNotice\DeleteNoticeUseCase;
+use App\Application\UseCase\UpdateNotice\UpdateNoticeInput;
+use App\Application\UseCase\UpdateNotice\UpdateNoticeUseCase;
+use App\Domain\Exception\InvalidInputException;
+use App\Domain\Exception\NotFoundException as DomainNotFoundException;
+use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Persistence\Entity\MNotice;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
+use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
 
 /**
- * お知らせ管理コントローラー
- *
- * 管理者（i_admin=1 または i_admin=3）専用。
- * お知らせ（m_notice）の一覧・追加・編集・削除を提供する。
+ * お知らせ管理（管理者・システム管理者）。登録・更新・削除は UseCase、一覧は NoticeQueryInterface。
  */
 class MNoticeController extends AppController
 {
@@ -21,10 +29,6 @@ class MNoticeController extends AppController
         $this->viewBuilder()->setLayout('default');
     }
 
-    /**
-     * FormProtection::startup() より前に実行されるため、ここで unlockedFields を設定する。
-     * i_importance・i_type はプレーン HTML の radio で生成するため Form ヘルパーが追跡しない。
-     */
     public function beforeFilter(EventInterface $event): void
     {
         parent::beforeFilter($event);
@@ -32,238 +36,128 @@ class MNoticeController extends AppController
     }
 
     /**
-     * お知らせ一覧
+     * 管理者でなければ Response（お知らせ一覧またはダッシュボードへ戻す）。
      */
-    public function index(): ?Response
+    private function denyUnlessAdmin(string $action, array $redirect): ?Response
     {
-        $table    = $this->fetchTable('MNotice');
-        $resource = $table->newEmptyEntity();
-
         try {
-            $this->Authorization->authorize($resource, 'index');
-        } catch (ForbiddenException $e) {
+            $this->Authorization->authorize(new MNotice(), $action);
+
+            return null;
+        } catch (ForbiddenException) {
             $this->Flash->error(__('この機能は管理者のみ利用できます。'));
-            return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
+
+            return $this->redirect($redirect);
         }
+    }
 
-        $notices = $table->find()
-            ->orderByDesc('dt_create')
-            ->all();
-
-        $this->set(compact('notices'));
-        return null;
+    private function isSystemAdmin(): bool
+    {
+        return (int)($this->request->getAttribute('identity')?->get('i_admin') ?? 0) === UserRole::SYSTEM_ADMIN;
     }
 
     /**
-     * お知らせ追加フォーム・保存
+     * 送信された値（タイトル・本文・掲載期間・重要度・種別）。
+     *
+     * @return array{0: string, 1: string|null, 2: string|null, 3: string|null, 4: int, 5: int}
      */
-    public function add(): ?Response
+    private function noticeFields(): array
     {
-        $this->request->allowMethod(['get', 'post']);
+        $body = $this->dataString('c_body');
 
-        $table    = $this->fetchTable('MNotice');
-        $resource = $table->newEmptyEntity();
+        return [
+            $this->dataString('c_title'),
+            $body !== '' ? $body : null,
+            $this->dataString('d_start') ?: null,
+            $this->dataString('d_end') ?: null,
+            (int)$this->dataString('i_importance'),
+            (int)$this->dataString('i_type'),
+        ];
+    }
 
-        try {
-            $this->Authorization->authorize($resource, 'add');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
-            return $this->redirect(['action' => 'index']);
+    public function index(NoticeQueryInterface $noticeQuery): ?Response
+    {
+        if ($denied = $this->denyUnlessAdmin('index', ['controller' => 'Pages', 'action' => 'dashboard'])) {
+            return $denied;
         }
 
-        $loginUser  = $this->request->getAttribute('identity');
-        $isSysAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 3;
+        $this->set('notices', $noticeQuery->all());
 
+        return null;
+    }
+
+    public function add(CreateNoticeUseCase $createNotice): ?Response
+    {
+        $this->request->allowMethod(['get', 'post']);
+        if ($denied = $this->denyUnlessAdmin('add', ['action' => 'index'])) {
+            return $denied;
+        }
+
+        $isSysAdmin = $this->isSystemAdmin();
         if ($this->request->is('post')) {
-            $data       = $this->request->getData();
-            $importance = (int)($data['i_importance'] ?? 0);
-            $rawType    = (int)($data['i_type'] ?? 0);
-            $dStart     = ($data['d_start'] ?? '') !== '' ? (string)$data['d_start'] : null;
-            $dEnd       = ($data['d_end']   ?? '') !== '' ? (string)$data['d_end']   : null;
-
-            if (!in_array($importance, [0, 1], true)) {
-                $this->Flash->error(__('重要度の値が不正です。'));
-                $this->set(compact('resource', 'isSysAdmin'));
-                return null;
-            }
-            if (!in_array($rawType, [0, 1], true)) {
-                $this->Flash->error(__('種別の値が不正です。'));
-                $this->set(compact('resource', 'isSysAdmin'));
-                return null;
-            }
-            if ($dStart !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dStart)) {
-                $this->Flash->error(__('開始日の形式が不正です。'));
-                $this->set(compact('resource', 'isSysAdmin'));
-                return null;
-            }
-            if ($dEnd !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dEnd)) {
-                $this->Flash->error(__('終了日の形式が不正です。'));
-                $this->set(compact('resource', 'isSysAdmin'));
-                return null;
-            }
-
-            $notice = $table->newEmptyEntity();
-            $notice = $table->patchEntity($notice, [
-                'c_title'      => trim((string)($data['c_title'] ?? '')),
-                'c_body'       => ($data['c_body'] ?? '') !== '' ? $data['c_body'] : null,
-                'd_start'      => $dStart,
-                'd_end'        => $dEnd,
-                'i_importance' => $importance,
-                'i_type'       => $isSysAdmin ? $rawType : 0,
-            ]);
-
-            $notice->i_id_user_created = (int)($loginUser?->get('i_id_user') ?? 0);
-            $notice->c_create_user     = $loginUser?->get('c_user_name') ?? 'system';
-            $notice->c_update_user     = $loginUser?->get('c_user_name') ?? 'system';
-
-            if ($table->save($notice)) {
-                \App\Service\AuditLogService::record(
-                    'notice',
-                    'notice_add',
-                    $loginUser?->get('c_user_name') ?? 'system',
-                    (int)($loginUser?->get('i_id_user') ?? 0),
-                    'm_notice',
-                    (string)$notice->i_id,
-                    ['title' => $notice->c_title],
-                    $this->getClientIp(),
-                    1,
-                    (string)($loginUser?->get('c_login_account') ?? '')
-                );
+            [$title, $body, $start, $end, $importance, $type] = $this->noticeFields();
+            try {
+                $createNotice->execute(new CreateNoticeInput($title, $body, $start, $end, $importance, $type, $isSysAdmin, $this->auditActor()));
                 $this->Flash->success(__('お知らせを登録しました。'));
-                return $this->redirect(['action' => 'index']);
-            }
 
-            $this->Flash->error(__('お知らせの登録に失敗しました。入力内容を確認してください。'));
+                return $this->redirect(['action' => 'index']);
+            } catch (InvalidInputException $e) {
+                $this->Flash->error(__($e->getMessage()));
+            }
         }
 
-        $this->set(compact('resource', 'isSysAdmin'));
+        $this->set(compact('isSysAdmin'));
+
         return null;
     }
 
-    /**
-     * お知らせ編集フォーム・保存
-     *
-     * @param int $id お知らせID
-     */
-    public function edit(int $id): ?Response
+    public function edit(UpdateNoticeUseCase $updateNotice, NoticeQueryInterface $noticeQuery, int $id): ?Response
     {
         $this->request->allowMethod(['get', 'post']);
+        if ($denied = $this->denyUnlessAdmin('edit', ['action' => 'index'])) {
+            return $denied;
+        }
 
-        $table    = $this->fetchTable('MNotice');
-        $resource = $table->newEmptyEntity();
-
+        $isSysAdmin = $this->isSystemAdmin();
         try {
-            $this->Authorization->authorize($resource, 'edit');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+            if (!$this->request->is('post')) {
+                $notice = $noticeQuery->find($id) ?? throw new DomainNotFoundException('お知らせが見つかりません。');
+                $this->set(compact('notice', 'isSysAdmin'));
+
+                return null;
+            }
+
+            [$title, $body, $start, $end, $importance, $type] = $this->noticeFields();
+            $output = $updateNotice->execute(new UpdateNoticeInput($id, $title, $body, $start, $end, $importance, $type, $isSysAdmin, $this->auditActor()));
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException($e->getMessage(), null, $e);
+        }
+        if ($output->succeeded) {
+            $this->Flash->success(__('お知らせを更新しました。'));
+
             return $this->redirect(['action' => 'index']);
         }
 
-        $notice = $table->get($id);
-
-        $loginUser  = $this->request->getAttribute('identity');
-        $isSysAdmin = (int)($loginUser?->get('i_admin') ?? 0) === 3;
-
-        if ($this->request->is('post')) {
-            $data       = $this->request->getData();
-            $importance = (int)($data['i_importance'] ?? 0);
-            $rawType    = (int)($data['i_type'] ?? 0);
-            $dStart     = ($data['d_start'] ?? '') !== '' ? (string)$data['d_start'] : null;
-            $dEnd       = ($data['d_end']   ?? '') !== '' ? (string)$data['d_end']   : null;
-
-            if (!in_array($importance, [0, 1], true)) {
-                $this->Flash->error(__('重要度の値が不正です。'));
-                $this->set(compact('notice', 'isSysAdmin'));
-                return null;
-            }
-            if (!in_array($rawType, [0, 1], true)) {
-                $this->Flash->error(__('種別の値が不正です。'));
-                $this->set(compact('notice', 'isSysAdmin'));
-                return null;
-            }
-            if ($dStart !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dStart)) {
-                $this->Flash->error(__('開始日の形式が不正です。'));
-                $this->set(compact('notice', 'isSysAdmin'));
-                return null;
-            }
-            if ($dEnd !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dEnd)) {
-                $this->Flash->error(__('終了日の形式が不正です。'));
-                $this->set(compact('notice', 'isSysAdmin'));
-                return null;
-            }
-
-            $notice = $table->patchEntity($notice, [
-                'c_title'      => trim((string)($data['c_title'] ?? '')),
-                'c_body'       => ($data['c_body'] ?? '') !== '' ? $data['c_body'] : null,
-                'd_start'      => $dStart,
-                'd_end'        => $dEnd,
-                'i_importance' => $importance,
-                'i_type'       => $isSysAdmin ? $rawType : (int)$notice->i_type,
-            ]);
-
-            $notice->c_update_user = $loginUser?->get('c_user_name') ?? 'system';
-
-            if ($table->save($notice)) {
-                \App\Service\AuditLogService::record(
-                    'notice',
-                    'notice_edit',
-                    $loginUser?->get('c_user_name') ?? 'system',
-                    (int)($loginUser?->get('i_id_user') ?? 0),
-                    'm_notice',
-                    (string)$notice->i_id,
-                    ['title' => $notice->c_title],
-                    $this->getClientIp(),
-                    1,
-                    (string)($loginUser?->get('c_login_account') ?? '')
-                );
-                $this->Flash->success(__('お知らせを更新しました。'));
-                return $this->redirect(['action' => 'index']);
-            }
-
-            $this->Flash->error(__('お知らせの更新に失敗しました。入力内容を確認してください。'));
-        }
-
+        $this->Flash->error(__((string)$output->error));
+        $notice = $output->notice;
         $this->set(compact('notice', 'isSysAdmin'));
+
         return null;
     }
 
-    /**
-     * お知らせ削除
-     *
-     * @param int $id お知らせID
-     */
-    public function delete(int $id): Response
+    public function delete(DeleteNoticeUseCase $deleteNotice, int $id): Response
     {
         $this->request->allowMethod(['post']);
-
-        $table    = $this->fetchTable('MNotice');
-        $resource = $table->newEmptyEntity();
-
-        try {
-            $this->Authorization->authorize($resource, 'delete');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
-            return $this->redirect(['action' => 'index']);
+        if ($denied = $this->denyUnlessAdmin('delete', ['action' => 'index'])) {
+            return $denied;
         }
 
-        $notice     = $table->get($id);
-        $loginUser  = $this->request->getAttribute('identity');
-        $noticeId    = $notice->i_id;
-        $noticeTitle = $notice->c_title;
-
-        if ($table->delete($notice)) {
-            \App\Service\AuditLogService::record(
-                'notice',
-                'notice_delete',
-                $loginUser?->get('c_user_name') ?? 'system',
-                (int)($loginUser?->get('i_id_user') ?? 0),
-                'm_notice',
-                (string)$noticeId,
-                ['title' => $noticeTitle],
-                $this->getClientIp(),
-                1,
-                (string)($loginUser?->get('c_login_account') ?? '')
-            );
+        try {
+            $deleted = $deleteNotice->execute($id, $this->auditActor());
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException($e->getMessage(), null, $e);
+        }
+        if ($deleted) {
             $this->Flash->success(__('お知らせを削除しました。'));
         } else {
             $this->Flash->error(__('お知らせの削除に失敗しました。'));

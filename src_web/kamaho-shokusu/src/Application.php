@@ -16,6 +16,10 @@ use Authorization\Policy\MapResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Application\Query\DayViewQueryInterface;
+use App\Application\Query\NoticeQueryInterface;
+use App\Application\UseCase\CreateNotice\CreateNoticeUseCase;
+use App\Application\UseCase\DeleteNotice\DeleteNoticeUseCase;
+use App\Application\UseCase\UpdateNotice\UpdateNoticeUseCase;
 use App\Application\Query\RoomUsageQueryInterface;
 use App\Application\Query\SystemReportQueryInterface;
 use App\Application\Query\RoomMealDetailQueryInterface;
@@ -59,6 +63,8 @@ use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Query\CakeDayViewQuery;
+use App\Infrastructure\Query\CakeNoticeQuery;
+use App\Infrastructure\Repository\CakeNoticeRepository;
 use App\Infrastructure\Query\CakeRoomUsageQuery;
 use App\Infrastructure\Query\CakeSystemReportQuery;
 use App\Infrastructure\Query\CakeRoomMealDetailQuery;
@@ -327,6 +333,10 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $userTransaction(),
             new ClockFactory('Asia/Tokyo'),
         ));
+        $container->add(NoticeQueryInterface::class, CakeNoticeQuery::class);
+        $container->add(CreateNoticeUseCase::class, static fn() => new CreateNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
+        $container->add(UpdateNoticeUseCase::class, static fn() => new UpdateNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
+        $container->add(DeleteNoticeUseCase::class, static fn() => new DeleteNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
         $container->add(DayViewQueryInterface::class, static fn() => new CakeDayViewQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo')));
         $container->add(RoomMealDetailQueryInterface::class, static fn() => new CakeRoomMealDetailQuery(new ClockFactory('Asia/Tokyo')));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));

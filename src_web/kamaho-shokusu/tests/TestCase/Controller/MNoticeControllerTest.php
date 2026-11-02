@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller;
 
-use Cake\Datasource\Exception\RecordNotFoundException;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -74,6 +73,20 @@ class MNoticeControllerTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertResponseContains('一覧に出るお知らせ');
+    }
+
+    /** 掲載期間は Y/m/d で出す（以前は地域設定に依存する「10/31/26」の形だった） */
+    public function testIndex_showsPeriodAsYmd(): void
+    {
+        $table = $this->getTableLocator()->get('MNotice');
+        $notice = $table->newEntity(['c_title' => '期間あり', 'i_importance' => 0, 'i_type' => 0, 'd_start' => '2026-10-01', 'd_end' => '2026-10-31']);
+        $notice->c_create_user = 'seed';
+        $table->saveOrFail($notice);
+        $this->login(1);
+
+        $this->get('/MNotice');
+
+        $this->assertResponseContains('2026/10/01 〜 2026/10/31');
     }
 
     public function testIndex_staff_isRedirectedToDashboard(): void
@@ -162,6 +175,8 @@ class MNoticeControllerTest extends TestCase
             '種別が範囲外' => [['c_title' => 'a', 'i_importance' => 0, 'i_type' => 9], '種別の値が不正です。'],
             '開始日の形式不正' => [['c_title' => 'a', 'i_importance' => 0, 'i_type' => 0, 'd_start' => '2026/10/01'], '開始日の形式が不正です。'],
             '終了日の形式不正' => [['c_title' => 'a', 'i_importance' => 0, 'i_type' => 0, 'd_end' => '10-31'], '終了日の形式が不正です。'],
+            // 以前は保存でき、いつまでも掲載されないお知らせになっていた
+            '終了日が開始日より前' => [['c_title' => 'a', 'i_importance' => 0, 'i_type' => 0, 'd_start' => '2026-10-31', 'd_end' => '2026-10-01'], '終了日は開始日以降の日付を指定してください。'],
         ];
     }
 
@@ -209,8 +224,17 @@ class MNoticeControllerTest extends TestCase
         $this->login(1);
         $this->disableErrorHandlerMiddleware();
 
-        $this->expectException(RecordNotFoundException::class);
+        $this->expectException(\Cake\Http\Exception\NotFoundException::class);
         $this->get('/MNotice/edit/9999');
+    }
+
+    public function testEditAndDelete_unknownId_return404(): void
+    {
+        $this->login(1);
+        $this->post('/MNotice/edit/9999', ['c_title' => 'a', 'i_importance' => 0, 'i_type' => 0]);
+        $this->assertResponseCode(404);
+        $this->post('/MNotice/delete/9999');
+        $this->assertResponseCode(404);
     }
 
     public function testEdit_staff_isRejected(): void
@@ -230,7 +254,7 @@ class MNoticeControllerTest extends TestCase
         $this->login(1);
 
         $this->post('/MNotice/edit/' . $id, [
-            'c_title' => '編集後',
+            'c_title' => '  編集後  ',
             'c_body' => '',
             'i_importance' => 1,
             'i_type' => 0,
@@ -242,7 +266,10 @@ class MNoticeControllerTest extends TestCase
         $this->assertSame('編集後', $saved->c_title);
         $this->assertNull($saved->c_body);
         $this->assertSame(1, (int)$saved->i_importance);
-        $this->assertSame(1, (int)$saved->i_type, '管理者は既存の種別を変更できない');
+        $this->assertSame(1, (int)$saved->i_type, '管理者は既存の種別を変更できない');        $this->assertSame('管理者ユーザー', $saved->c_update_user, '更新した人（ログイン中の利用者）を残す');
+
+        $log = $this->getTableLocator()->get('TAuditLog')->find()->where(['c_action' => 'notice_edit'])->firstOrFail();
+        $this->assertSame([(string)$id, 'm_notice'], [$log->c_target_id, $log->c_target_table], '更新も監査ログに残す');
     }
 
     public function testEdit_systemAdmin_canChangeType(): void

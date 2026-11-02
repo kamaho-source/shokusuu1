@@ -123,9 +123,9 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                 </div>
                 <?php foreach ($activeNotices as $notice): ?>
                     <?php
-                        $isHighNotice    = (int)$notice->i_importance === 1;
-                        $isReleaseNote   = (int)($notice->i_type ?? 0) === 1;
-                        $noticeId        = (int)$notice->i_id;
+                        $isHighNotice    = $notice->isHighImportance();
+                        $isReleaseNote   = $notice->isReleaseNote();
+                        $noticeId        = $notice->id;
                     ?>
                     <?php if ($isReleaseNote): ?>
                     <div class="alert-card notice-item" data-notice-id="<?= $noticeId ?>"
@@ -138,10 +138,10 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                                     <?php if ($isHighNotice): ?>
                                         <span class="badge text-bg-danger me-1" style="font-size:.7rem;">重要</span>
                                     <?php endif; ?>
-                                    <?= h($notice->c_title) ?>
+                                    <?= h($notice->title) ?>
                                 </div>
-                                <?php if ($notice->c_body): ?>
-                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->c_body) ?></div>
+                                <?php if ($notice->body): ?>
+                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->body) ?></div>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -159,10 +159,10 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                             <div>
                                 <div class="alert-title">
                                     <span class="badge text-bg-danger me-1" style="font-size:.7rem;">重要</span>
-                                    <?= h($notice->c_title) ?>
+                                    <?= h($notice->title) ?>
                                 </div>
-                                <?php if ($notice->c_body): ?>
-                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->c_body) ?></div>
+                                <?php if ($notice->body): ?>
+                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->body) ?></div>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -177,9 +177,9 @@ $adminPendingCount       = (int)($approvalCounts['admin'] ?? 0);
                         <div class="alert-left">
                             <div class="alert-icon" style="background:#e8f4fd;color:#2b7bb9;">i</div>
                             <div>
-                                <div class="alert-title"><?= h($notice->c_title) ?></div>
-                                <?php if ($notice->c_body): ?>
-                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->c_body) ?></div>
+                                <div class="alert-title"><?= h($notice->title) ?></div>
+                                <?php if ($notice->body): ?>
+                                    <div class="alert-sub" style="white-space:pre-line;"><?= h($notice->body) ?></div>
                                 <?php endif; ?>
                             </div>
                         </div>

@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Infrastructure\Query\CakeNoticeQuery;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApprovalService;
 use App\Service\DashboardService;
@@ -245,10 +246,7 @@ class PagesController extends AppController
             ];
         }
 
-        $activeNotices = $this->fetchTable('MNotice')
-            ->find('active')
-            ->all()
-            ->toArray();
+        $activeNotices = (new CakeNoticeQuery())->active();
 
         return compact('hasTodayReport', 'dashboard', 'activeNotices');
     }
