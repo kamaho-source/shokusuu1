@@ -6,6 +6,7 @@ namespace App\Application\UseCase\BulkReservation;
 use App\Application\Port\ReservationCacheInterface;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
+use App\Domain\Service\ChangeEditPermission;
 
 /**
  * 一括登録・直前一括編集で共通の判定（対象者を扱えるか・他の人の更新との競合・キャッシュの破棄）。
@@ -63,7 +64,7 @@ final class BulkReservationSupport
         }
 
         // 管理者は所属部屋内なら対象の区分を問わず扱える（所属外の部屋は上の所属判定で弾く。#821）
-        return $isAdmin || ($isLoginStaff && $targetUserLevel === 1) || $blockLeaderInRoom;
+        return ChangeEditPermission::canEditOther($isAdmin || $blockLeaderInRoom, $isLoginStaff, $targetUserLevel);
     }
 
     /**

@@ -22,11 +22,14 @@ interface ChangeEditQueryInterface
     public function roomName(int $roomId): ?string;
 
     /**
-     * 部屋の利用者と、その日の予約（どの部屋で食べるか）。
+     * 部屋の利用者（見る人がその人の予約を変えられるか＝allowEdit 付き）と、その日の予約（どの部屋で食べるか）。
      *
+     * @param int $loginUserId 見る人（ログイン者）の利用者ID
+     * @param int $loginAdmin  見る人の i_admin
+     * @param int $loginLevel  見る人の i_user_level
      * @throws NotFoundException 部屋が無い
      */
-    public function context(int $roomId, string $date): ChangeEditContext;
+    public function context(int $roomId, string $date, int $loginUserId, int $loginAdmin, int $loginLevel): ChangeEditContext;
 
     /**
      * 利用者本人の、その日に食べる予約（食事と部屋）。個人の直前編集の初期表示に使う。
