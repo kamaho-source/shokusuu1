@@ -172,7 +172,7 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         );
         $this->assertSame($expected, $paged, '一括登録（ページ送りで重複・抜けなし）');
 
-        $context = (new \App\Infrastructure\Query\CakeChangeEditQuery(new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->context(1, '2026-05-11');
+        $context = (new \App\Infrastructure\Query\CakeChangeEditQuery(new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->context(1, '2026-05-11', 0, 0, -1);
         $this->assertSame($expected, $context->memberIds(), '予約変更');
 
         $this->assertSame($expected, array_map(static fn($u) => $u->userId, (new \App\Infrastructure\Query\CakeMealReportQuery(new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->getUsersByRoomForEdit(1, '2026-05-11')), '直前編集API');

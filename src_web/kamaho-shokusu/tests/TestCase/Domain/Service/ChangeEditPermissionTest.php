@@ -31,4 +31,25 @@ class ChangeEditPermissionTest extends TestCase
         $this->assertFalse(ChangeEditPermission::canEdit(false, 4, 0, 3, null), '区分が分からない人は子どもとみなさない');
         $this->assertFalse(ChangeEditPermission::canEdit(false, 0, -1, 0, 0), '未ログインは本人とみなさない');
     }
+
+    /** 本人以外（一括登録・直前一括編集と共通）。部屋の所属は呼び出し側で見る */
+    public function testCanEditOther(): void
+    {
+        $this->assertTrue(ChangeEditPermission::canEditOther(true, false, 0), '全員を編集できる人は職員も');
+        $this->assertTrue(ChangeEditPermission::canEditOther(false, true, 1), '職員は子ども');
+        $this->assertFalse(ChangeEditPermission::canEditOther(false, true, 0), '職員は他の職員を変えられない');
+        $this->assertFalse(ChangeEditPermission::canEditOther(false, false, 1), '職員でなければ子どもも変えられない');
+        $this->assertFalse(ChangeEditPermission::canEditOther(false, true, null), '区分が分からない人は子どもとみなさない');
+    }
+
+    /** 直前期間の職員の予約は、管理者以外は取消・部屋の移動ができない */
+    public function testIsStaffLockedInLastMinute(): void
+    {
+        $this->assertTrue(ChangeEditPermission::isStaffLockedInLastMinute(false, true, 0), '職員(0)');
+        $this->assertTrue(ChangeEditPermission::isStaffLockedInLastMinute(false, true, 7), '職員(7)');
+        $this->assertFalse(ChangeEditPermission::isStaffLockedInLastMinute(true, true, 0), '管理者は止めない');
+        $this->assertFalse(ChangeEditPermission::isStaffLockedInLastMinute(false, false, 0), '直前期間でなければ止めない');
+        $this->assertFalse(ChangeEditPermission::isStaffLockedInLastMinute(false, true, 1), '子どもは止めない');
+        $this->assertFalse(ChangeEditPermission::isStaffLockedInLastMinute(false, true, null), '区分が分からない人は職員とみなさない');
+    }
 }

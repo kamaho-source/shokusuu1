@@ -12,17 +12,19 @@ final class ChangeEditMember
 {
     /**
      * @param int $level i_user_level（NULL は 0）
+     * @param bool $allowEdit 見る人がこの人の予約を変えられるか
      */
     public function __construct(
         public readonly int $id,
         public readonly string $name,
         public readonly int $level,
+        public readonly bool $allowEdit,
     ) {}
 
     /**
      * @return array{id: int, name: string, i_user_level: int, userLevel: int, isStaff: bool, allowEdit: bool} 画面（JSON）の形
      */
-    public function toJson(bool $allowEdit): array
+    public function toJson(): array
     {
         return [
             'id'           => $this->id,
@@ -30,7 +32,7 @@ final class ChangeEditMember
             'i_user_level' => $this->level,
             'userLevel'    => $this->level,
             'isStaff'      => UserRole::isStaffLevel($this->level),
-            'allowEdit'    => $allowEdit,
+            'allowEdit'    => $this->allowEdit,
         ];
     }
 

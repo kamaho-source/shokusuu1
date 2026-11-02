@@ -82,7 +82,7 @@ class CakeChangeEditQueryTest extends TestCase
         $this->insertMeal(2, 3, 3, '2030-05-05', 0, null);
         $this->insertMeal(1, 3, 1, '2030-05-06', 0, 0); // 別の日は混ぜない
 
-        $ctx = $this->query->context(1, '2030-05-05');
+        $ctx = $this->query->context(1, '2030-05-05', 0, 0, -1);
 
         $this->assertSame([1, 'Lorem ipsum dolor sit amet'], [$ctx->roomId, $ctx->roomName]);
         // 削除済みユーザー(6)は含まれず、表示順（i_disp_no）で並ぶ（#871。名前順なら 3 が先頭になる）
@@ -94,25 +94,40 @@ class CakeChangeEditQueryTest extends TestCase
         ], $ctx->reservations[3], '他の部屋の予約も、どの部屋かと一緒に返す');
     }
 
+    /** 行ごとの allowEdit は見る人で決まる（部屋1の利用者: 1=職員, 2=職員, 3=子ども） */
+    public function testContext_allowEditDependsOnViewer(): void
+    {
+        $allow = fn(int $uid, int $admin, int $level): array => array_map(
+            static fn(ChangeEditMember $m): bool => $m->allowEdit,
+            $this->query->context(1, '2030-05-05', $uid, $admin, $level)->members,
+        );
+
+        $this->assertSame([false, true, true], $allow(2, 0, 0), '職員は本人と子どもだけ');
+        $this->assertSame([true, true, true], $allow(1, 1, 0), '管理者は全員');
+        $this->assertSame([true, true, true], $allow(2, 2, 0), '部屋に所属するブロック長は全員');
+        $this->assertSame([false, false, true], $allow(9, 2, 0), '部屋に所属しないブロック長は全員を編集できない');
+        $this->assertSame([false, false, false], $allow(0, 0, -1), '見る人が分からなければ誰も編集できない');
+    }
+
     public function testContext_excludesLeftMembers(): void
     {
         ConnectionManager::get('test')->update('m_user_group', ['active_flag' => 1], ['i_id_user' => 2]);
 
-        $this->assertSame([1, 3], $this->query->context(1, '2030-05-05')->memberIds());
+        $this->assertSame([1, 3], $this->query->context(1, '2030-05-05', 0, 0, -1)->memberIds());
     }
 
     public function testContext_unknownRoom_throwsNotFound(): void
     {
         $this->expectException(NotFoundException::class);
 
-        $this->query->context(999, '2030-05-05');
+        $this->query->context(999, '2030-05-05', 0, 0, -1);
     }
 
     public function testContext_roomWithoutMembers_returnsNoUsers(): void
     {
         $this->insertRoom(5);
 
-        $ctx = $this->query->context(5, '2030-05-05');
+        $ctx = $this->query->context(5, '2030-05-05', 0, 0, -1);
 
         $this->assertSame([], $ctx->members);
         $this->assertSame([], $ctx->reservations);
@@ -139,8 +154,8 @@ class CakeChangeEditQueryTest extends TestCase
     {
         $this->assertSame(
             ['id' => 5, 'name' => '職員', 'i_user_level' => 7, 'userLevel' => 7, 'isStaff' => true, 'allowEdit' => false],
-            (new ChangeEditMember(5, '職員', 7))->toJson(false)
+            (new ChangeEditMember(5, '職員', 7, false))->toJson()
         );
-        $this->assertFalse((new ChangeEditMember(2, '子ども', 1))->toJson(true)['isStaff']);
+        $this->assertFalse((new ChangeEditMember(2, '子ども', 1, true))->toJson()['isStaff']);
     }
 }

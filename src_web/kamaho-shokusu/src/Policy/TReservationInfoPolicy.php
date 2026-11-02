@@ -343,8 +343,7 @@ class TReservationInfoPolicy
     /**
      * ログインユーザーがいずれかの部屋グループに所属しているか。
      *
-     * コントローラー側の早期チェック（TReservationInfoController::changeEdit）と
-     * 同じ判定基準（RoomQueryInterface::hasAnyAffiliation）を用いる。
+     * TReservationInfoController::changeEdit は、所属の無い人への専用の文言を出すため、この判定（canChangeEdit）を先に呼ぶ。
      */
     private function isRoomAffiliated(?IdentityInterface $user): bool
     {
