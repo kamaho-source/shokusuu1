@@ -234,4 +234,11 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
     {
         $this->transferOps[] = sprintf('count:%s:%d:%+d', $date, $roomId, $delta);
     }
+
+    public function findInDateRange(string $from, string $to, ?array $roomIds = null, ?array $userIds = null): array
+    {
+        return array_values(array_filter($this->records, fn(MealReservation $r) => $r->date >= $from && $r->date <= $to
+            && ($roomIds === null || in_array($r->roomId, $roomIds, true))
+            && ($userIds === null || in_array($r->userId, $userIds, true))));
+    }
 }

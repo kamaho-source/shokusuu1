@@ -201,6 +201,14 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
         $this->roomOps[] = 'transfer:' . $userId . ':' . ($fromRoomId ?? '-') . '->' . $toRoomId;
     }
 
+    /** @var list<int> childUserIds が返す ID */
+    public array $childIds = [];
+
+    public function childUserIds(): array
+    {
+        return $this->childIds;
+    }
+
     private function setDelFlag(int $userId, int $flag): bool
     {
         if ($this->failSave || !isset($this->users[$userId])) {
