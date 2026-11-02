@@ -86,6 +86,7 @@ use App\Infrastructure\Query\CakeRoomUsageQuery;
 use App\Infrastructure\Query\CakeSystemReportQuery;
 use App\Infrastructure\Query\CakeRoomMealDetailQuery;
 use App\Infrastructure\Query\CakeRoomQuery;
+use App\Infrastructure\Query\CakeUserQuery;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Cache\ReservationCacheAdapter;
 use App\Infrastructure\Repository\CakeRoomRepository;
@@ -102,6 +103,7 @@ use App\Application\Query\MealReportQueryInterface;
 use App\Application\Query\ReservationHistoryQueryInterface;
 use App\Application\Query\ReservationReadQueryInterface;
 use App\Application\Query\RoomQueryInterface;
+use App\Application\Query\UserQueryInterface;
 use App\Controller\ApprovalController;
 use App\Controller\MRoomInfoController;
 use App\Controller\PagesController;
@@ -344,7 +346,6 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(RestoreUserUseCase::class, static fn() => new RestoreUserUseCase($userAccounts(), $userTransaction(), new AuditLogAdapter()));
         $container->add(CreateUserUseCase::class, static fn() => new CreateUserUseCase(
             $userAccounts(),
-            new CakeRoomMembershipRepository(),
             new AuditLogAdapter(),
             $clock(),
         ));
@@ -363,6 +364,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $clock(),
         ));
         $container->add(ChangePasswordUseCase::class, static fn() => new ChangePasswordUseCase($userAccounts(), new AuditLogAdapter()));
+        $container->add(UserQueryInterface::class, static fn() => new CakeUserQuery($userAccounts(), new CakeRoomMembershipRepository()));
         $container->add(CreateRoomUseCase::class, static fn() => new CreateRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), $clock()));
         $container->add(UpdateRoomUseCase::class, static fn() => new UpdateRoomUseCase(new CakeRoomRepository(), $userTransaction(), new AuditLogAdapter(), $clock()));
         $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), $clock()));

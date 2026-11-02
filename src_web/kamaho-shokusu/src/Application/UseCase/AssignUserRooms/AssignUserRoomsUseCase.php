@@ -23,14 +23,6 @@ final class AssignUserRoomsUseCase
         private readonly TransactionManagerInterface $transaction,
     ) {}
 
-    /** 削除されていない利用者か（居なければ「ユーザーが見つかりません」を返すため）。 */
-    public function isActiveUser(int $userId): bool
-    {
-        $user = $this->users->find($userId);
-
-        return $user !== null && !$user->isDeleted();
-    }
-
     /**
      * @throws \Throwable DB の失敗（取り消してから投げ直す）
      */

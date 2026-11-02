@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Query\RoomQueryInterface;
+use App\Application\Query\UserQueryInterface;
 use App\Infrastructure\Persistence\Entity\MUserInfo;
 use App\Application\Port\AuditActor;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsInput;
@@ -185,7 +186,7 @@ class MUserInfoController extends AppController
         $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted', 'canRegisterUsers'));
     }
 
-    public function add(CreateUserUseCase $createUser)
+    public function add(CreateUserUseCase $createUser, UserQueryInterface $userQuery)
     {
         $this->request->allowMethod(['get', 'post']);
 
@@ -201,7 +202,8 @@ class MUserInfoController extends AppController
         $identity  = $this->request->getAttribute('identity');
         $childOnly = !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0));
         $actorId   = (int)($identity?->get('i_id_user') ?? 0);
-        $allowedRoomIds = $createUser->allowedRoomIds($actorId);
+        $rooms     = $userQuery->selectableRoomsFor($actorId);
+        $allowedRoomIds = array_keys($rooms);
 
         if ($this->request->is('post')) {
             try {
@@ -233,13 +235,12 @@ class MUserInfoController extends AppController
             }
         }
 
-        $rooms = $createUser->roomChoices($actorId);
         $ages  = range(UserProfileOptions::MIN_AGE, UserProfileOptions::MAX_AGE);
         $roles = $childOnly ? [1 => UserProfileOptions::USER_LEVELS[1]] : UserProfileOptions::USER_LEVELS;
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
     }
 
-    public function edit(EditUserUseCase $editUser, $id = null)
+    public function edit(EditUserUseCase $editUser, UserQueryInterface $userQuery, $id = null)
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
 
@@ -295,27 +296,27 @@ class MUserInfoController extends AppController
             }
         }
 
-        $rooms = $editUser->roomChoices((int)($this->request->getAttribute('identity')?->get('i_id_user') ?? 0));
+        $rooms = $userQuery->selectableRoomsFor((int)($this->request->getAttribute('identity')?->get('i_id_user') ?? 0));
 
         $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms', 'roomsLocked'));
     }
 
-    public function updateAdminStatus(ChangeUserRoleUseCase $changeRole)
+    public function updateAdminStatus(ChangeUserRoleUseCase $changeRole, UserQueryInterface $userQuery)
     {
-        return $this->changeRole($changeRole, 'i_admin', 'ユーザーIDまたは管理者権限が指定されていません。', 'updateAdminStatus',
+        return $this->changeRole($changeRole, $userQuery, 'i_admin', 'ユーザーIDまたは管理者権限が指定されていません。', 'updateAdminStatus',
             'この操作は管理者のみ実行できます。', UserRole::ADMIN, false, '管理者権限');
     }
 
-    public function updateSystemAdminStatus(ChangeUserRoleUseCase $changeRole)
+    public function updateSystemAdminStatus(ChangeUserRoleUseCase $changeRole, UserQueryInterface $userQuery)
     {
-        return $this->changeRole($changeRole, 'i_system_admin', 'ユーザーIDまたはシステム管理者権限が指定されていません。', 'updateSystemAdminStatus',
+        return $this->changeRole($changeRole, $userQuery, 'i_system_admin', 'ユーザーIDまたはシステム管理者権限が指定されていません。', 'updateSystemAdminStatus',
             'この操作はシステム管理者のみ実行できます。', UserRole::SYSTEM_ADMIN, true, 'システム管理者権限');
     }
 
-    public function updateUserLevel(ChangeUserRoleUseCase $changeRole)
+    public function updateUserLevel(ChangeUserRoleUseCase $changeRole, UserQueryInterface $userQuery)
     {
         // ブロック長の切替も、認可は管理者権限の切替と同じ
-        return $this->changeRole($changeRole, 'i_admin', 'ユーザーIDまたは権限レベルが指定されていません。', 'updateAdminStatus',
+        return $this->changeRole($changeRole, $userQuery, 'i_admin', 'ユーザーIDまたは権限レベルが指定されていません。', 'updateAdminStatus',
             'この操作は管理者のみ実行できます。', UserRole::BLOCK_LEADER, false, 'ブロック長権限');
     }
 
@@ -329,6 +330,7 @@ class MUserInfoController extends AppController
      */
     private function changeRole(
         ChangeUserRoleUseCase $changeRole,
+        UserQueryInterface $userQuery,
         string $valueKey,
         string $missingMessage,
         string $policyAction,
@@ -348,7 +350,7 @@ class MUserInfoController extends AppController
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, $missingMessage, 400);
         }
-        if (!$changeRole->targetExists((int)$userId)) {
+        if (!$userQuery->exists((int)$userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
@@ -389,7 +391,7 @@ class MUserInfoController extends AppController
     }
 
 
-    public function updateReportAccess(ChangeReportAccessUseCase $changeReportAccess)
+    public function updateReportAccess(ChangeReportAccessUseCase $changeReportAccess, UserQueryInterface $userQuery)
     {
         $this->request->allowMethod(['post']);
         $apiResponse = new ApiResponseService();
@@ -402,7 +404,7 @@ class MUserInfoController extends AppController
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
         }
-        if (!$changeReportAccess->targetExists((int)$userId)) {
+        if (!$userQuery->exists((int)$userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
@@ -484,10 +486,10 @@ class MUserInfoController extends AppController
         return $names;
     }
 
-    public function delete(DeleteUserUseCase $deleteUser, $id = null)
+    public function delete(DeleteUserUseCase $deleteUser, UserQueryInterface $userQuery, $id = null)
     {
         $this->request->allowMethod(['post', 'delete']);
-        if ($deleteUser->target((int)$id) === null) {
+        if (!$userQuery->exists((int)$id)) {
             throw new NotFoundException(__('ユーザーが見つかりません。'));
         }
 
@@ -601,7 +603,7 @@ class MUserInfoController extends AppController
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
 
-    public function adminChangePassword(ChangePasswordUseCase $changePassword)
+    public function adminChangePassword(ChangePasswordUseCase $changePassword, UserQueryInterface $userQuery)
     {
         $this->request->allowMethod(['get', 'post', 'put']);
         $resource = new MUserInfo();
@@ -612,7 +614,7 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $users = $changePassword->selectableUsers();
+        $users = $userQuery->passwordResetTargets();
         $selectedUserId = null;
 
         if ($this->request->is(['post', 'put'])) {
@@ -702,7 +704,7 @@ class MUserInfoController extends AppController
      * POST: i_id_user, room_names[]
      * 既存所属はactive_flag=1に更新し、新規所属をactive_flag=0で登録（最大2部屋）
      */
-    public function addUserRooms(AssignUserRoomsUseCase $assignRooms)
+    public function addUserRooms(AssignUserRoomsUseCase $assignRooms, UserQueryInterface $userQuery)
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
@@ -717,7 +719,7 @@ class MUserInfoController extends AppController
         }
 
         $userId = (int)$userId;
-        if (!$assignRooms->isActiveUser($userId)) {
+        if (!$userQuery->isActive($userId)) {
             $this->Authorization->skipAuthorization();
             $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok', 'message']]);
             return;
@@ -750,10 +752,10 @@ class MUserInfoController extends AppController
     /**
      * 削除済みユーザーを復元する（管理者のみ）
      */
-    public function restore(RestoreUserUseCase $restoreUser, $id = null)
+    public function restore(RestoreUserUseCase $restoreUser, UserQueryInterface $userQuery, $id = null)
     {
         $this->request->allowMethod(['post', 'put']);
-        $user = $restoreUser->target((int)$id);
+        $user = $userQuery->find((int)$id);
         if ($user === null) {
             throw new NotFoundException(__('ユーザーが見つかりません。'));
         }

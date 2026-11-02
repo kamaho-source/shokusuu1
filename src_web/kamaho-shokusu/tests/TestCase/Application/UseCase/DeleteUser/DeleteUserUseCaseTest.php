@@ -104,7 +104,6 @@ class DeleteUserUseCaseTest extends TestCase
 
     public function testMissingUser_isNotFoundAndNothingHappens(): void
     {
-        $this->assertNull($this->useCase->target(999));
         try {
             $this->delete(999);
             $this->fail('例外が出ていない');

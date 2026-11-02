@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Application\UseCase\CreateUser;
 
 use App\Application\Port\AuditLogInterface;
-use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 use App\Domain\Service\UserProfileRule;
 use App\Domain\ValueObject\UserProfileOptions;
@@ -21,30 +20,9 @@ final class CreateUserUseCase
 {
     public function __construct(
         private readonly UserAccountRepositoryInterface $users,
-        private readonly RoomMembershipRepositoryInterface $rooms,
         private readonly AuditLogInterface $auditLog,
         private readonly ClockInterface $clock,
     ) {}
-
-    /**
-     * 登録できる部屋。管理者・システム管理者も、自分が所属している部屋（削除済みを除く）だけ（#821）。
-     *
-     * @return list<int>
-     */
-    public function allowedRoomIds(int $actorId): array
-    {
-        return array_keys($this->roomChoices($actorId));
-    }
-
-    /**
-     * 登録画面で選べる部屋（自分が所属している、削除されていない部屋）。
-     *
-     * @return array<int, string> 部屋ID => 部屋名
-     */
-    public function roomChoices(int $actorId): array
-    {
-        return $this->rooms->selectableRooms($this->rooms->activeRoomIds($actorId));
-    }
 
     /**
      * @throws \Throwable DB の失敗（変換せずにそのまま投げる）

@@ -19,16 +19,6 @@ final class ChangePasswordUseCase
     ) {}
 
     /**
-     * 管理者がパスワードを変える相手として選べる人。
-     *
-     * @return array<int, string> 利用者ID => 氏名
-     */
-    public function selectableUsers(): array
-    {
-        return $this->users->activeUserNames();
-    }
-
-    /**
      * @throws \Throwable DB の失敗（変換せずにそのまま投げる）
      */
     public function execute(ChangePasswordInput $input): ChangePasswordOutput
