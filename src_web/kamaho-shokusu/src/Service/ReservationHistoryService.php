@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -109,14 +110,14 @@ class ReservationHistoryService
         $groups = $locator->get('MUserGroup');
         $roomIds = $groups->find()
             ->select(['i_id_room'])
-            ->where(['i_id_user' => $actor['id'], 'active_flag' => 0]);
+            ->where(['i_id_user' => $actor['id'], ...MUserGroupTable::activeCondition('')]);
         $members = $groups->find()
             ->enableAutoFields(false)
             ->select(['id' => 'MUserInfo.i_id_user', 'name' => 'MUserInfo.c_user_name', 'level' => 'MUserInfo.i_user_level'])
             ->innerJoin(['MUserInfo' => 'm_user_info'], ['MUserInfo.i_id_user = MUserGroup.i_id_user'])
             ->where([
                 'MUserGroup.i_id_room IN' => $roomIds,
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MUserInfo.i_del_flag' => 0,
             ])
             ->orderBy(['MUserInfo.i_disp_no' => 'ASC', 'MUserInfo.i_id_user' => 'ASC'])

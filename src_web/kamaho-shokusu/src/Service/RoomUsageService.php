@@ -4,8 +4,9 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\ValueObject\UserRole;
-use Cake\ORM\TableRegistry;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\I18n\Date;
+use Cake\ORM\TableRegistry;
 
 /**
  * 部屋使用率集計サービス
@@ -48,7 +49,7 @@ class RoomUsageService
         $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
         $masterRows = $userGroupTable->find()
             ->contain(['MUserInfo', 'MRoomInfo'])
-            ->where(['MUserGroup.active_flag' => 0])
+            ->where(MUserGroupTable::activeCondition())
             ->all()
             ->toArray();
 

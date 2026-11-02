@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -202,7 +203,7 @@ class MealCountGridService
             )
             ->where([
                 'MUserGroup.i_id_room IN' => $roomIds,
-                'MUserGroup.active_flag'  => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MUserInfo.i_del_flag'    => 0,
             ])
             ->enableHydration(false)

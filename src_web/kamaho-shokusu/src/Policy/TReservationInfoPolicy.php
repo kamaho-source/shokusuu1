@@ -385,7 +385,7 @@ class TReservationInfoPolicy
             return false;
         }
 
-        return $this->roomAccessService->userCanAccessRoom($userId, $requestedRoomId);
+        return $this->roomAccessService->isActiveMember($userId, $requestedRoomId);
     }
 
     private function getUserId(?IdentityInterface $user): int

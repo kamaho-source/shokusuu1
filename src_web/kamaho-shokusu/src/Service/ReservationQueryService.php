@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -36,7 +37,7 @@ class ReservationQueryService
                 ['MUserInfo' => 'm_user_info'],
                 ['MUserInfo.i_id_user = MUserGroup.i_id_user']
             )
-            ->where(['MUserGroup.i_id_room' => $roomId, 'MUserGroup.active_flag' => 0])
+            ->where(['MUserGroup.i_id_room' => $roomId, ...MUserGroupTable::activeCondition()])
             ->andWhere(['MUserInfo.i_del_flag' => 0])
             ->enableHydration(false);
         $users = RoomMemberOrderService::orderMembers($users)->toArray();
@@ -95,7 +96,7 @@ class ReservationQueryService
     {
         $baseConditions = [
             'MUserGroup.i_id_room' => $roomId,
-            'MUserGroup.active_flag' => 0
+            ...MUserGroupTable::activeCondition()
         ];
 
         $total = (int)$userGroupTable->find()

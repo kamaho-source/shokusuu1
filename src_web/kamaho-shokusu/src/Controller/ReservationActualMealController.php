@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Service\ActualMealManagementService;
 use App\Service\MealCountGridService;
 use Cake\Core\Configure;
@@ -127,7 +128,7 @@ class ReservationActualMealController extends ReservationBaseController
                 $alreadyIn = array_filter($adultUsers, fn($u) => (int)$u['id'] === $userId);
                 if (empty($alreadyIn)) {
                     $inRoom = $this->MUserGroup->find()
-                        ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, 'active_flag' => 0])
+                        ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, ...MUserGroupTable::activeCondition('')])
                         ->count() > 0;
                     if ($inRoom) {
                         array_unshift($adultUsers, [
@@ -237,7 +238,7 @@ class ReservationActualMealController extends ReservationBaseController
             $hasSelf     = array_filter($targetUsers, fn($targetUser) => (int)$targetUser['id'] === $userId);
             if (empty($hasSelf) && $selectedRoomId !== null) {
                 $belongsToRoom = $this->MUserGroup->find()
-                    ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, 'active_flag' => 0])
+                    ->where(['i_id_user' => $userId, 'i_id_room' => $selectedRoomId, ...MUserGroupTable::activeCondition('')])
                     ->count() > 0;
                 if ($belongsToRoom) {
                     array_unshift($targetUsers, [

@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -41,7 +42,7 @@ class ReservationViewService
                         ->select(['i_id_room'])
                         ->where([
                             'i_id_user' => $userId,
-                            'active_flag' => 0,
+                            ...MUserGroupTable::activeCondition(''),
                         ])
                         ->disableHydration()
                         ->first();
@@ -113,7 +114,7 @@ class ReservationViewService
                 )
                 ->where([
                     'MUserGroup.i_id_room' => $activeRoomId,
-                    'MUserGroup.active_flag' => 0,
+                    ...MUserGroupTable::activeCondition(),
                     'MUserInfo.i_del_flag' => 0,
                 ])
                 ->enableHydration(false);
@@ -181,7 +182,7 @@ class ReservationViewService
                 ['MUserInfo.i_id_user = MUserGroup.i_id_user']
             )
             ->where([
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MUserInfo.i_del_flag' => 0,
             ])
             ->andWhere(function ($exp) use ($targetDate) {
