@@ -18,7 +18,9 @@ final class AddContactReplyFromEmailOutput
     public const INVALID = 'invalid';
 
     /**
-     * @param array<string, string|array<string, string>> $errors
+     * @param array{token: string}|array<string, array<string, string>> $errors
+     *   UNKNOWN_TOKEN は ['token' => 文言]（文字列）、INVALID は 項目 => [ルール => 文言]（テーブルの入力チェックの形）。
+     *   SAVED・DUPLICATE は空。
      */
     private function __construct(
         public readonly string $status,

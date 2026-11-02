@@ -8,6 +8,7 @@ use App\Domain\Entity\MealReservation;
 use App\Domain\Exception\UnauthorizedException;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Service\ReservationDateRule;
+use Cake\Chronos\ChronosDate;
 
 /**
  * 予約の週コピー・月コピー。どの行をどの日へ写すかは ReservationCopyPlanner（プレビューと同じ判定）。
@@ -36,36 +37,18 @@ final class CopyReservationsUseCase
         }
         $actor = $input->actorName !== null && $input->actorName !== '' ? $input->actorName : 'system';
         $today = $this->planner->today();
-        $copied = $skipped = $invalid = 0;
+        $skipped = $invalid = 0;
 
         $this->transaction->begin();
         try {
             foreach ($rows as $r) {
                 // 前の行を写した結果で判定が変わることがあるので、1行ずつトランザクションの中で判定する
                 $dst = $this->planner->targetDate($input, $r);
-                $verdict = $this->planner->verdict($r, $dst, $today);
-                if ($verdict === ReservationCopyPlanner::INVALID_DATE) {
-                    $invalid++;
-                    continue;
-                }
-                if ($verdict === ReservationCopyPlanner::SKIP) {
-                    $skipped++;
-                    continue;
-                }
-                $dstStr = $dst->format('Y-m-d');
-                // フラグはコピー元をそのまま写さず、コピー先の日付に合わせて「食べる」で作る
-                $lastMinute = ReservationDateRule::isLastMinuteWindow($dst, $today);
-                $existing = $this->reservations->findOne($r->userId, $r->roomId, $dstStr, $r->mealType);
-                if ($existing !== null) {
-                    // スキップしなかったので、食べない未承認の行。直前期間は当初予定を残し、i_change_flag だけを立てる
-                    if (!$this->reservations->updateWithVersion($existing, 1, $lastMinute ? null : 1, $actor)) {
-                        throw new \RuntimeException('optimistic_conflict');
-                    }
-                    $copied++;
-                    continue;
-                }
-                $this->reservations->addMany([new MealReservation($r->userId, $dstStr, $r->roomId, $r->mealType, $lastMinute ? 0 : 1, 1)], $actor);
-                $copied++;
+                match ($this->planner->verdict($r, $dst, $today)) {
+                    CopyVerdict::InvalidDate => $invalid++,
+                    CopyVerdict::Skip => $skipped++,
+                    CopyVerdict::Copy => $this->copyRow($r, $dst, $today, $actor),
+                };
             }
             $this->transaction->commit();
         } catch (\Throwable $e) {
@@ -74,7 +57,32 @@ final class CopyReservationsUseCase
             }
             throw $e;
         }
+        // 保存に失敗した行は無い（失敗したら上で投げ直している）ので、無効な日付・スキップ以外はすべて写した
+        $copied = count($rows) - $skipped - $invalid;
 
         return new CopyReservationsOutput($input->mode, count($rows), $copied, $skipped, $invalid);
+    }
+
+    /**
+     * 1行を写す。コピー先に食べない（未承認の）行があれば食べるにし、無ければ作る。
+     *
+     * @param ChronosDate $dst コピー先の日（verdict が Copy なら null ではない）
+     * @throws \RuntimeException 楽観的ロック競合（optimistic_conflict）
+     */
+    private function copyRow(MealReservation $r, ChronosDate $dst, ChronosDate $today, string $actor): void
+    {
+        $dstStr = $dst->format('Y-m-d');
+        // フラグはコピー元をそのまま写さず、コピー先の日付に合わせて「食べる」で作る
+        $lastMinute = ReservationDateRule::isLastMinuteWindow($dst, $today);
+        $existing = $this->reservations->findOne($r->userId, $r->roomId, $dstStr, $r->mealType);
+        if ($existing !== null) {
+            // スキップしなかったので、食べない未承認の行。直前期間は当初予定を残し、i_change_flag だけを立てる
+            if (!$this->reservations->updateWithVersion($existing, 1, $lastMinute ? null : 1, $actor)) {
+                throw new \RuntimeException('optimistic_conflict');
+            }
+
+            return;
+        }
+        $this->reservations->addMany([new MealReservation($r->userId, $dstStr, $r->roomId, $r->mealType, $lastMinute ? 0 : 1, 1)], $actor);
     }
 }

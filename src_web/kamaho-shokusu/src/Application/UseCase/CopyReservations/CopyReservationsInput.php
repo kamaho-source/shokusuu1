@@ -32,7 +32,8 @@ final class CopyReservationsInput
     /**
      * 送られた値を確かめて、週は月曜日、月は1日にそろえる。
      *
-     * @param array<array-key, mixed> $data mode・source（source_start）・target（target_start）・room_id・only_children
+     * @param array<array-key, mixed> $data mode・source（source_start）・target（target_start）・room_id・only_children。
+     *   リクエストの生データのため型を決められない（ここで確かめて型をそろえる）
      * @throws InvalidInputException mode・日付の誤り（422）
      */
     public static function fromRequest(array $data, int $loginUserId, ?string $actorName): self

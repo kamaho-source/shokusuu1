@@ -214,13 +214,13 @@ class ReservationBulkController extends ReservationBaseController
             isAdmin: UserRole::isAdmin((int)($loginUser?->get('i_admin') ?? 0)),
             loginUserLevel: (int)($loginUser?->get('i_user_level') ?? 0),
             isBlockLeader: UserRole::isBlockLeader((int)($loginUser?->get('i_admin') ?? 0)),
-        ))->toArray();
+        ));
 
-        if (!$result['ok']) {
-            $conflictDate = $result['conflict_date'] ?? null;
+        if (!$result->ok) {
+            $conflictDate = $result->conflictDate;
             return $this->apiResponseService->error(
                 $this->response,
-                $result['message'] ?? '直前編集の保存中にエラーが発生しました。',
+                $result->message ?? '直前編集の保存中にエラーが発生しました。',
                 $conflictDate ? 409 : 422,
                 ['conflict_date' => $conflictDate]
             );
@@ -229,13 +229,13 @@ class ReservationBulkController extends ReservationBaseController
         return $this->apiResponseService->success(
             $this->response,
             [
-                'updated'  => $result['updated'] ?? 0,
-                'created'  => $result['created'] ?? 0,
-                'skipped'  => $result['skipped'] ?? [],
+                'updated'  => $result->updated,
+                'created'  => $result->created,
+                'skipped'  => $result->skipped,
                 'redirect' => './',
             ],
             // 変更できなかった分は、黙って捨てずに理由を伝える
-            '直前編集を保存しました。' . (($result['skipped'] ?? []) !== [] ? "\n" . implode("\n", $result['skipped']) : '')
+            '直前編集を保存しました。' . ($result->skipped !== [] ? "\n" . implode("\n", $result->skipped) : '')
         );
     }
 
@@ -263,22 +263,21 @@ class ReservationBulkController extends ReservationBaseController
                 isAdmin: UserRole::isAdmin((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
                 loginUserLevel: (int)($this->request->getAttribute('identity')->get('i_user_level') ?? 0),
                 isBlockLeader: UserRole::isBlockLeader((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
-            ))->toArray();
+            ));
 
-            if (!$result['ok']) {
-                $conflictDate = $result['conflict_date'] ?? null;
+            if (!$result->ok) {
                 return $this->apiResponseService->error(
                     $this->response,
-                    $result['message'] ?? 'エラーが発生しました。',
+                    $result->message,
                     200,
-                    ['conflict_date' => $conflictDate]
+                    ['conflict_date' => $result->conflictDate]
                 );
             }
 
             return $this->apiResponseService->success(
                 $this->response,
-                ['redirect' => $result['redirect_url'] ?? './'],
-                $result['message'] ?? 'すべての予約が正常に登録されました。'
+                ['redirect' => $result->redirectUrl ?? './'],
+                $result->message
             );
         } catch (\Throwable $e) {
             $this->log('Error occurred: ' . $e->getMessage(), 'error');
