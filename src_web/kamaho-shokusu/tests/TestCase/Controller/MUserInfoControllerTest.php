@@ -658,9 +658,8 @@ class MUserInfoControllerTest extends TestCase
         $this->get('/MUserInfo/admin_change_password?user_id=2');
         $this->assertResponseOk();
 
-        $selectedUser = $this->viewVariable('selectedUser');
-        $this->assertNotNull($selectedUser);
-        $this->assertSame(2, (int)$selectedUser->i_id_user);
+        $this->assertSame(2, $this->viewVariable('selectedUserId'));
+        $this->assertMatchesRegularExpression('/<option value="2" selected="selected">/', (string)$this->_response->getBody());
     }
 
     /**
@@ -674,7 +673,8 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true);
         $this->get('/MUserInfo/admin_change_password?user_id=99999');
         $this->assertResponseOk();
-        $this->assertNull($this->viewVariable('selectedUser'));
+        $this->assertNull($this->viewVariable('selectedUserId'));
+        $this->assertStringNotContainsString('selected="selected"', (string)$this->_response->getBody());
     }
 
     /**
@@ -689,7 +689,8 @@ class MUserInfoControllerTest extends TestCase
         // fixture の i_id_user=6 (deleted_user) は i_del_flag=1（削除済み）
         $this->get('/MUserInfo/admin_change_password?user_id=6');
         $this->assertResponseOk();
-        $this->assertNull($this->viewVariable('selectedUser'));
+        $this->assertNull($this->viewVariable('selectedUserId'));
+        $this->assertStringNotContainsString('selected="selected"', (string)$this->_response->getBody());
     }
 
     /**

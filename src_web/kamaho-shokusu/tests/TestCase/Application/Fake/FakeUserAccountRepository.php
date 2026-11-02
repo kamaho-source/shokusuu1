@@ -152,6 +152,50 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
         return !$this->failRooms;
     }
 
+    /** @var array<int, string> changePassword の呼び出し（利用者ID => 新しいパスワード） */
+    public array $passwords = [];
+
+    public function activeUserNames(): array
+    {
+        $names = [];
+        foreach ($this->users as $u) {
+            if ($u->delFlag === 0) {
+                $names[$u->id] = (string)$u->name;
+            }
+        }
+
+        return $names;
+    }
+
+    public function changePassword(int $userId, string $plainPassword): bool
+    {
+        if ($this->failSave || !isset($this->users[$userId])) {
+            return false;
+        }
+        $this->passwords[$userId] = $plainPassword;
+
+        return true;
+    }
+
+    /** @var list<array<string, mixed>> importUser の呼び出し */
+    public array $imported = [];
+
+    /** importUser で例外を投げる */
+    public ?\Throwable $importThrows = null;
+
+    public function importUser(array $data): UserCreationResult
+    {
+        if ($this->importThrows !== null) {
+            throw $this->importThrows;
+        }
+        if ($this->failSave) {
+            return UserCreationResult::saveFailed();
+        }
+        $this->imported[] = $data;
+
+        return UserCreationResult::created(700 + count($this->imported));
+    }
+
     private function setDelFlag(int $userId, int $flag): bool
     {
         if ($this->failSave || !isset($this->users[$userId])) {

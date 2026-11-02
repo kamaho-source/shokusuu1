@@ -111,4 +111,24 @@ interface UserAccountRepositoryInterface
      * @param list<int> $roomIds
      */
     public function replaceActiveRooms(int $userId, array $roomIds, string $updatedBy): bool;
+
+    /**
+     * 削除されていない利用者（i_del_flag=0）の氏名。パスワードを変える相手を選ぶのに使う。
+     *
+     * @return array<int, string> 利用者ID => 氏名
+     */
+    public function activeUserNames(): array;
+
+    /**
+     * パスワードを変える（保存時にハッシュ化される）。保存できなければ false（利用者が居ない場合も false）。
+     */
+    public function changePassword(int $userId, string $plainPassword): bool;
+
+    /**
+     * 一括登録の1行を保存する。すべての値をテーブルの入力チェックに通し、誤りがあれば保存せずに返す。
+     * 所属部屋は保存しない（joinRoom で行う）。
+     *
+     * @param array<string, mixed> $data
+     */
+    public function importUser(array $data): UserCreationResult;
 }
