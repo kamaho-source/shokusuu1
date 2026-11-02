@@ -219,6 +219,11 @@ class ReservationReportControllerTest extends TestCase
             'only from' => ['?from=2026-03-01', '無効な期間'],
             'bad date' => ['?from=2026/03/01&to=2026-03-10', '無効な期間'],
             'reversed' => ['?from=2026-03-10&to=2026-03-01', '無効な期間'],
+            'not on calendar' => ['?from=2026-02-30&to=2026-03-10', '無効な期間'],
+            // 配列は以前 strtotime / preg_match の TypeError で 500 だった
+            'from array' => ['?from[]=x&to=2026-03-10', '無効な期間'],
+            'to array' => ['?from=2026-03-01&to[]=x', '無効な期間'],
+            'month array' => ['?month[]=2026-03', '無効な月'],
         ];
     }
 
