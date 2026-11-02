@@ -386,18 +386,6 @@ class MUserInfoController extends AppController
         return filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
-    /** 監査ログに残す操作者（ログイン中の利用者）。 */
-    private function auditActor(): AuditActor
-    {
-        $identity = $this->request->getAttribute('identity');
-
-        return new AuditActor(
-            $identity ? (string)$identity->get('c_user_name') : '不明なユーザー',
-            $identity ? (int)$identity->get('i_id_user') : 0,
-            (string)($identity?->get('c_login_account') ?? ''),
-            $this->getClientIp(),
-        );
-    }
 
     public function updateReportAccess(ChangeReportAccessUseCase $changeReportAccess)
     {

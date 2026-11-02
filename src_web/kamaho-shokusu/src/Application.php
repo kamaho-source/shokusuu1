@@ -24,7 +24,10 @@ use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
 use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
 use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
 use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
+use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
 use App\Application\UseCase\CreateUser\CreateUserUseCase;
+use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
+use App\Application\UseCase\UpdateRoom\UpdateRoomUseCase;
 use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
 use App\Application\UseCase\EditUser\EditUserUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
@@ -45,6 +48,7 @@ use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
+use App\Infrastructure\Repository\CakeRoomRepository;
 use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
@@ -282,6 +286,9 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             new ClockFactory('Asia/Tokyo'),
         ));
         $container->add(ChangePasswordUseCase::class, static fn() => new ChangePasswordUseCase($userAccounts(), new AuditLogAdapter()));
+        $container->add(CreateRoomUseCase::class, static fn() => new CreateRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
+        $container->add(UpdateRoomUseCase::class, static fn() => new UpdateRoomUseCase(new CakeRoomRepository(), $userTransaction(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
+        $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
         $container->add(SystemReportService::class);

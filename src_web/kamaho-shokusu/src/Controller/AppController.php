@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Application\Port\AuditActor;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -107,6 +108,19 @@ class AppController extends Controller
      *
      * @return string IPアドレス文字列
      */
+/** 監査ログに残す操作者（ログイン中の利用者）。 */
+    protected function auditActor(): AuditActor
+    {
+        $identity = $this->request->getAttribute('identity');
+
+        return new AuditActor(
+            $identity ? (string)$identity->get('c_user_name') : '不明なユーザー',
+            $identity ? (int)$identity->get('i_id_user') : 0,
+            (string)($identity?->get('c_login_account') ?? ''),
+            $this->getClientIp(),
+        );
+    }
+
     protected function getClientIp(): string
     {
         $forwardedFor = $this->request->getHeaderLine('X-Forwarded-For');
