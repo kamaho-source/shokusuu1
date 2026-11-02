@@ -129,15 +129,15 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
             && ($roomId === null || $r->roomId === $roomId)));
     }
 
-    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor): bool
+    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor, ?int $roomId = null): bool
     {
         if ($this->onUpdate !== null && !($this->onUpdate)($row)) {
             return false;
         }
-        $this->updates[] = compact('row', 'changeFlag', 'eatFlag', 'actor');
+        $this->updates[] = compact('row', 'changeFlag', 'eatFlag', 'actor', 'roomId');
         foreach ($this->records as $i => $r) {
             if ($r->userId === $row->userId && $r->date === $row->date && $r->roomId === $row->roomId && $r->mealType === $row->mealType) {
-                $this->records[$i] = new MealReservation($r->userId, $r->date, $r->roomId, $r->mealType, $eatFlag ?? $r->eatFlag, $changeFlag, (int)$r->version + 1);
+                $this->records[$i] = new MealReservation($r->userId, $r->date, $roomId ?? $r->roomId, $r->mealType, $eatFlag ?? $r->eatFlag, $changeFlag, (int)$r->version + 1, $r->approvalStatus);
             }
         }
 
@@ -153,6 +153,20 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
             $this->records[] = $row;
             $this->added[]   = $row;
         }
+    }
+
+    /** @var list<array{int, string}> deleteUnapprovedAfter の呼び出し [利用者ID, 日付] */
+    public array $deletedAfter = [];
+
+    /** deleteUnapprovedAfter で投げる例外（DB の失敗を真似る） */
+    public ?\Throwable $deleteUnapprovedFails = null;
+
+    public function deleteUnapprovedAfter(int $userId, string $date): void
+    {
+        if ($this->deleteUnapprovedFails !== null) {
+            throw $this->deleteUnapprovedFails;
+        }
+        $this->deletedAfter[] = [$userId, $date];
     }
 
     public function latestUpdateByDate(int $roomId, array $dates): array
@@ -190,5 +204,41 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
     public function inTransaction(): bool
     {
         return $this->savepoints !== [];
+    }
+
+    public function findFromDate(int $userId, int $roomId, string $fromDate): array
+    {
+        return array_values(array_filter($this->records, fn(MealReservation $r) => $r->userId === $userId && $r->roomId === $roomId && $r->date >= $fromDate));
+    }
+
+    public function findOne(int $userId, int $roomId, string $date, int $mealType): ?MealReservation
+    {
+        return $this->find($userId, $date, $roomId, $mealType);
+    }
+
+    /** @var list<string> moveForTransfer・adjustRoomCount の呼び出し */
+    public array $transferOps = [];
+
+    /** moveForTransfer で例外を投げる */
+    public ?\Throwable $moveThrows = null;
+
+    public function moveForTransfer(MealReservation $source, int $toRoomId, bool $overwriteDestination, bool $createDestination, string $at): void
+    {
+        if ($this->moveThrows !== null) {
+            throw $this->moveThrows;
+        }
+        $this->transferOps[] = sprintf('move:%s:%d->%d:%s%s', $source->date, $source->roomId, $toRoomId, $overwriteDestination ? 'overwrite' : '', $createDestination ? 'create' : '');
+    }
+
+    public function adjustRoomCount(string $date, int $roomId, int $mealType, int $delta, string $at): void
+    {
+        $this->transferOps[] = sprintf('count:%s:%d:%+d', $date, $roomId, $delta);
+    }
+
+    public function findInDateRange(string $from, string $to, ?array $roomIds = null, ?array $userIds = null): array
+    {
+        return array_values(array_filter($this->records, fn(MealReservation $r) => $r->date >= $from && $r->date <= $to
+            && ($roomIds === null || in_array($r->roomId, $roomIds, true))
+            && ($userIds === null || in_array($r->userId, $userIds, true))));
     }
 }

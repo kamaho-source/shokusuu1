@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Infrastructure\Persistence\Entity\MMealPriceInfo $mMealPriceInfo
+ * @var array{schema: array<string, array{type: string}>, defaults: array<string, int|string|null>} $mealPriceForm
  */
 $this->assign('title', __('新しい食事単価情報の追加'));
 $this->Html->script('realtime-validation.js', ['block' => true]);
@@ -28,7 +28,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                 <div class="card-body">
                     <h5 class="card-title"><?= __('新しい食事単価情報を追加') ?></h5>
 
-                    <?= $this->Form->create($mMealPriceInfo, ['id' => 'meal-price-form']) ?>
+                    <?= $this->Form->create($mealPriceForm, ['id' => 'meal-price-form']) ?>
                     <fieldset>
                         <legend class="mb-4"><?= __('必要な情報を入力してください') ?></legend>
                         <div class="row g-3">

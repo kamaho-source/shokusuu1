@@ -3,7 +3,7 @@
  * お知らせ一覧（管理者用）
  *
  * @var \App\View\AppView $this
- * @var iterable $notices
+ * @var list<\App\Domain\Entity\Notice> $notices
  */
 
 $this->assign('title', 'お知らせ管理');
@@ -50,10 +50,11 @@ $typeLabels = [
             <?php foreach ($notices as $notice): ?>
                 <?php
                     $rowCount++;
-                    $imp  = $importanceLabels[(int)$notice->i_importance] ?? $importanceLabels[0];
-                    $type = $typeLabels[(int)($notice->i_type ?? 0)] ?? $typeLabels[0];
-                    $startStr = $notice->d_start ? (string)$notice->d_start : null;
-                    $endStr   = $notice->d_end   ? (string)$notice->d_end   : null;
+                    $imp  = $importanceLabels[$notice->importance] ?? $importanceLabels[0];
+                    $type = $typeLabels[$notice->type] ?? $typeLabels[0];
+                    // 日付は Y/m/d で出す（以前は地域設定に依存する「11/5/26」の形になっていた）
+                    $startStr = $notice->startDate !== null ? str_replace('-', '/', $notice->startDate) : null;
+                    $endStr   = $notice->endDate !== null ? str_replace('-', '/', $notice->endDate) : null;
                     if ($startStr && $endStr) {
                         $period = h($startStr) . ' 〜 ' . h($endStr);
                     } elseif ($startStr) {
@@ -63,8 +64,8 @@ $typeLabels = [
                     } else {
                         $period = '無期限';
                     }
-                    $dtCreate = $notice->dt_create
-                        ? (new \DateTime((string)$notice->dt_create))->format('Y/m/d H:i')
+                    $dtCreate = $notice->createdAt
+                        ? (new \DateTime($notice->createdAt))->format('Y/m/d H:i')
                         : '-';
                 ?>
                 <tr>
@@ -75,34 +76,34 @@ $typeLabels = [
                         <span class="badge rounded-pill <?= $imp['class'] ?>"><?= $imp['label'] ?></span>
                     </td>
                     <td>
-                        <div class="fw-semibold"><?= h($notice->c_title) ?></div>
-                        <?php if ($notice->c_body): ?>
+                        <div class="fw-semibold"><?= h($notice->title) ?></div>
+                        <?php if ($notice->body): ?>
                             <div class="text-muted small text-truncate" style="max-width:300px;">
-                                <?= h(mb_substr($notice->c_body, 0, 60)) ?>
+                                <?= h(mb_substr($notice->body, 0, 60)) ?>
                             </div>
                         <?php endif; ?>
                     </td>
                     <td class="text-nowrap small"><?= $period ?></td>
-                    <td class="text-muted small"><?= h($notice->c_create_user ?? '-') ?></td>
+                    <td class="text-muted small"><?= h($notice->createdBy ?? '-') ?></td>
                     <td class="text-muted small text-nowrap"><?= h($dtCreate) ?></td>
                     <td class="text-nowrap">
                         <?= $this->Html->link(
                             '<i class="bi bi-pencil"></i>',
-                            ['action' => 'edit', $notice->i_id],
+                            ['action' => 'edit', $notice->id],
                             ['class' => 'btn btn-sm btn-outline-primary me-1', 'escape' => false, 'title' => '編集']
                         ) ?>
 
                         <?= $this->Form->create(null, [
-                            'url'    => ['action' => 'delete', $notice->i_id],
+                            'url'    => ['action' => 'delete', $notice->id],
                             'method' => 'post',
-                            'id'     => 'delete-form-' . $notice->i_id,
+                            'id'     => 'delete-form-' . $notice->id,
                             'style'  => 'display:none',
                         ]) ?>
                         <?= $this->Form->end() ?>
                         <button type="button"
                                 class="btn btn-sm btn-outline-danger notice-delete-btn"
-                                data-form-id="delete-form-<?= $notice->i_id ?>"
-                                data-title="<?= h($notice->c_title) ?>"
+                                data-form-id="delete-form-<?= $notice->id ?>"
+                                data-title="<?= h($notice->title) ?>"
                                 title="削除">
                             <i class="bi bi-trash"></i>
                         </button>

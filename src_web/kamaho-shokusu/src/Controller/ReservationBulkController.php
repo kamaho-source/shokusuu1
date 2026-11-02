@@ -55,14 +55,7 @@ class ReservationBulkController extends ReservationBaseController
         }
         $limit = max(1, min(500, $limit));
 
-        $payload = $this->queryService->getUsersByRoomForBulk(
-            $this->MUserGroup,
-            $this->TIndividualReservationInfo,
-            (int)$roomId,
-            $date,
-            $page,
-            $limit
-        );
+        $payload = $this->reservationRead->getUsersByRoomForBulk((int)$roomId, $date, $page, $limit)->toArray();
 
         return $this->apiResponseService->success($this->response, $payload);
     }
@@ -88,11 +81,7 @@ class ReservationBulkController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'room_id または dates が不足しています。', 400);
         }
 
-        $map = $this->queryService->getReservationSnapshots(
-            $this->TIndividualReservationInfo,
-            $roomId,
-            $dates
-        );
+        $map = $this->reservationRead->getReservationSnapshots($roomId, $dates);
 
         return $this->apiResponseService->success($this->response, ['snapshots' => $map], 'ok');
     }
@@ -121,7 +110,7 @@ class ReservationBulkController extends ReservationBaseController
         }
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam  = $this->request->getQuery('base_week');
@@ -155,7 +144,7 @@ class ReservationBulkController extends ReservationBaseController
         }
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
         $baseWeekParam  = $this->request->getQuery('base_week');

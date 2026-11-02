@@ -4,7 +4,7 @@
  *
  * @var \App\View\AppView $this
  * @var array $mealDataArray 食数データの配列
- * @var mixed $yearList
+ * @var list<int> $yearList
  */
 $this->assign('title', __('食事給与控除データエクスポート'));
 $exportSummaryUrl        = $this->Url->build(['controller' => 'MMealPriceInfo', 'action' => 'exportMealSummary']);
@@ -23,7 +23,7 @@ $featApproval = (bool)\Cake\Core\Configure::read('Features.approval');
             <select class="form-select" id="year-select" name="year">
                 <option selected disabled>年度を選択してください</option>
                 <?php foreach ($yearList as $year): ?>
-                    <option value="<?= h($year['i_fiscal_year']) ?>"><?= h($year['i_fiscal_year']) ?></option>
+                    <option value="<?= h($year) ?>"><?= h($year) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
@@ -230,7 +230,12 @@ $featApproval = (bool)\Cake\Core\Configure::read('Features.approval');
                     const response = await fetch(
                         `<?= h($exportSummaryUrl) ?>?year=${encodeURIComponent(selectedYear)}&month=${encodeURIComponent(selectedMonth)}`
                     );
-                    if (!response.ok) throw new Error(`APIエラー: ${response.status}`);
+                    if (!response.ok) {
+                        // 単価が未登録などの理由は、そのまま出す
+                        const err = await response.json().catch(() => null);
+                        if (err && err.message) { alert(err.message); return; }
+                        throw new Error(`APIエラー: ${response.status}`);
+                    }
 
                     const raw = await response.json();
                     const payload = window.normalizeApiPayload ? window.normalizeApiPayload(raw) : raw;

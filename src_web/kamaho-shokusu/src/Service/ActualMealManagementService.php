@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
@@ -50,7 +51,7 @@ class ActualMealManagementService
             )
             ->where([
                 'MUserGroup.i_id_room'   => $roomId,
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MUserInfo.i_del_flag'   => 0,
             ])
             ->andWhere(['MUserInfo.i_id_staff IS NOT' => null])

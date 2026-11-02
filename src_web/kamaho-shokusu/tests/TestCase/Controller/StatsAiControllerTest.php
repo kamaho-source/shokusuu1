@@ -7,7 +7,7 @@ use App\Controller\StatsAiController;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
-use App\Service\RoomUsageService;
+use App\Application\Query\RoomUsageQueryInterface;
 use Cake\Http\ServerRequest;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\IntegrationTestTrait;
@@ -172,7 +172,7 @@ class StatsAiControllerTest extends TestCase
             new AiStatsContextService(
                 new FeatureUsageSummaryService(),
                 new UserTokenizer('test-salt'),
-                $this->createMock(RoomUsageService::class)
+                $this->createMock(RoomUsageQueryInterface::class)
             ),
             new UserTokenizer('test-salt'),
             new ServerRequest()

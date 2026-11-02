@@ -2,7 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var mixed $users
- * @var \App\Infrastructure\Persistence\Entity\MUserInfo|null $selectedUser
+ * @var int|null $selectedUserId 事前に選んでおく利用者
  */
 ?>
 <?php $this->assign('title', '管理者：パスワード変更'); ?>
@@ -16,7 +16,7 @@
         <?= $this->Form->control('user_id', [
             'type' => 'select',
             'options' => $users,
-            'value' => $selectedUser?->i_id_user,
+            'value' => $selectedUserId,
             'empty' => 'ユーザーを選択してください',
             'label' => ['text' => 'ユーザー選択', 'class' => 'form-label'],
             'required' => true,

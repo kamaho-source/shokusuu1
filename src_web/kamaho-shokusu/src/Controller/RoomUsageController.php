@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Service\RoomUsageService;
+use App\Application\Query\Dto\RoomUsage;
+use App\Application\Query\RoomUsageQueryInterface;
+use App\Domain\Service\DatePeriodRule;
+use App\Domain\ValueObject\MealType;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
 use Cake\Http\ServerRequest;
@@ -19,7 +22,7 @@ class RoomUsageController extends AppController
     use JsonResponseTrait;
 
     public function __construct(
-        private RoomUsageService $roomUsageService,
+        private RoomUsageQueryInterface $roomUsageQuery,
         ServerRequest $request
     ) {
         parent::__construct($request);
@@ -43,17 +46,17 @@ class RoomUsageController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $dateFrom  = $this->request->getQuery('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d');
-        $dateTo    = $this->request->getQuery('date_to')   ?: Date::today()->format('Y-m-d');
-        $mealType  = $this->request->getQuery('meal_type') !== null && $this->request->getQuery('meal_type') !== ''
-            ? (int)$this->request->getQuery('meal_type')
-            : null;
-        $threshold = $this->request->getQuery('threshold') !== null && $this->request->getQuery('threshold') !== ''
-            ? (float)$this->request->getQuery('threshold')
-            : 50.0;
-
-        $rooms    = $this->roomUsageService->getRoomUsage($dateFrom, $dateTo, $mealType);
-        $lowRooms = $this->roomUsageService->getLowUsageRooms($threshold, $dateFrom, $dateTo, $mealType);
+        [$dateFrom, $dateTo, $mealType, $threshold, $error] = $this->resolveFilters();
+        $rooms = $lowRooms = [];
+        if ($error !== null) {
+            // 期間・食事・しきい値が読めないと、以前は 500 になるか、誤った表（期間が逆なら使用率 0%）を出していた
+            $this->response = $this->response->withStatus(400);
+            $this->Flash->error($error);
+        } else {
+            $usage    = $this->roomUsageQuery->roomUsage($dateFrom, $dateTo, $mealType);
+            $rooms    = self::rows($usage);
+            $lowRooms = self::rows(array_filter($usage, static fn(RoomUsage $r): bool => $r->isLow($threshold)));
+        }
 
         $this->set(compact('rooms', 'lowRooms', 'dateFrom', 'dateTo', 'mealType', 'threshold'));
         return null;
@@ -77,13 +80,12 @@ class RoomUsageController extends AppController
             return $this->jsonError('この機能はシステム管理者のみ利用できます。', 403);
         }
 
-        $dateFrom = $this->request->getQuery('date_from') ?: null;
-        $dateTo   = $this->request->getQuery('date_to')   ?: null;
-        $mealType = $this->request->getQuery('meal_type')  !== null && $this->request->getQuery('meal_type') !== ''
-            ? (int)$this->request->getQuery('meal_type')
-            : null;
+        [$dateFrom, $dateTo, $mealType, , $error] = $this->resolveFilters();
+        if ($error !== null) {
+            return $this->jsonError($error, 400);
+        }
 
-        $rooms = $this->roomUsageService->getRoomUsage($dateFrom, $dateTo, $mealType);
+        $rooms = self::rows($this->roomUsageQuery->roomUsage($dateFrom, $dateTo, $mealType));
 
         return $this->jsonResponse(['rooms' => $rooms]);
     }
@@ -107,16 +109,15 @@ class RoomUsageController extends AppController
             return $this->jsonError('この機能はシステム管理者のみ利用できます。', 403);
         }
 
-        $threshold = $this->request->getQuery('threshold') !== null && $this->request->getQuery('threshold') !== ''
-            ? (float)$this->request->getQuery('threshold')
-            : 50.0;
-        $dateFrom = $this->request->getQuery('date_from') ?: null;
-        $dateTo   = $this->request->getQuery('date_to')   ?: null;
-        $mealType = $this->request->getQuery('meal_type') !== null && $this->request->getQuery('meal_type') !== ''
-            ? (int)$this->request->getQuery('meal_type')
-            : null;
+        [$dateFrom, $dateTo, $mealType, $threshold, $error] = $this->resolveFilters();
+        if ($error !== null) {
+            return $this->jsonError($error, 400);
+        }
 
-        $rooms = $this->roomUsageService->getLowUsageRooms($threshold, $dateFrom, $dateTo, $mealType);
+        $rooms = self::rows(array_filter(
+            $this->roomUsageQuery->roomUsage($dateFrom, $dateTo, $mealType),
+            static fn(RoomUsage $r): bool => $r->isLow($threshold)
+        ));
 
         return $this->jsonResponse([
             'threshold' => $threshold,
@@ -124,4 +125,42 @@ class RoomUsageController extends AppController
         ]);
     }
 
+    /**
+     * 絞り込みの値。期間の既定は今月1日〜今日、食事の既定は全食事、しきい値の既定は 50%。
+     *
+     * @return array{0: string, 1: string, 2: int|null, 3: float, 4: string|null} [開始日, 終了日, 食事, しきい値, 読めないときの理由]
+     */
+    private function resolveFilters(): array
+    {
+        $dateFrom  = $this->queryString('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d');
+        $dateTo    = $this->queryString('date_to') ?: Date::today()->format('Y-m-d');
+        $mealRaw   = $this->queryString('meal_type');
+        $threshRaw = $this->queryString('threshold');
+        $mealType  = $mealRaw === '' ? null : MealType::tryFrom((int)$mealRaw)?->value;
+        $threshold = $threshRaw === '' ? 50.0 : (float)$threshRaw;
+
+        $error = DatePeriodRule::error($dateFrom, $dateTo);
+        if ($error === null && $mealRaw !== '' && ($mealType === null || (string)$mealType !== $mealRaw)) {
+            $error = '食事の種類が正しくありません。';
+        }
+        if ($error === null && $threshRaw !== '' && !is_numeric($threshRaw)) {
+            $error = '使用率のしきい値は数値で指定してください。';
+        }
+
+        return [$dateFrom, $dateTo, $mealType, $threshold, $error];
+    }
+
+    /**
+     * @param iterable<RoomUsage> $usage
+     * @return list<array<string, int|float|string|list<array<string, int|float|string>>>>
+     */
+    private static function rows(iterable $usage): array
+    {
+        $rows = [];
+        foreach ($usage as $r) {
+            $rows[] = $r->toArray();
+        }
+
+        return $rows;
+    }
 }

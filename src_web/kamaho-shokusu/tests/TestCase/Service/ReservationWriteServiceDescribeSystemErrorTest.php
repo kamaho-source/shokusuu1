@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Service;
 
-use App\Service\ReservationWriteService;
+use App\Test\TestCase\Support\ReservationWriteService;
 use Cake\Database\Exception\QueryException;
 use PHPUnit\Framework\TestCase;
 

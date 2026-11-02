@@ -292,11 +292,6 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'ReservationReport', 'action' => 'reportNoMeal']
         )->setMethods(['POST']);
 
-        $builder->connect(
-            '/TReservationInfo/reportEat',
-            ['controller' => 'ReservationReport', 'action' => 'reportEat']
-        )->setMethods(['POST']);
-
         // ── 実食確認管理（ReservationActualMealController） ──
         $builder->connect(
             '/TReservationInfo/actual-meal-management',

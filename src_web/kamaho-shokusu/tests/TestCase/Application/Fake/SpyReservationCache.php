@@ -28,4 +28,12 @@ final class SpyReservationCache implements ReservationCacheInterface
         }
         $this->versionBumps += $bumpVersion ? 1 : 0;
     }
+
+    /** @var list<array{date: string, userId: int}> forgetAfterRoomTransfer の呼び出し */
+    public array $afterTransfer = [];
+
+    public function forgetAfterRoomTransfer(string $date, int $userId): void
+    {
+        $this->afterTransfer[] = ['date' => $date, 'userId' => $userId];
+    }
 }

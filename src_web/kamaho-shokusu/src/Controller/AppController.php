@@ -16,6 +16,7 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
+use App\Application\Port\AuditActor;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -95,6 +96,41 @@ class AppController extends Controller
             $url = '/';
         }
         return parent::redirect($url, $status);
+    }
+
+    /**
+     * クエリの値を文字列で返す。無い・配列（?from[]=x など）は空文字。
+     *
+     * (string) で変換すると、配列のとき「Array to string conversion」の警告が出て値が "Array" になるため。
+     */
+    protected function queryString(string $key): string
+    {
+        $value = $this->request->getQuery($key);
+
+        return is_string($value) ? $value : '';
+    }
+
+    /**
+     * 送信された値を文字列で返す。無い・配列は空文字（理由は queryString と同じ）。
+     */
+    protected function dataString(string $key): string
+    {
+        $value = $this->request->getData($key);
+
+        return is_string($value) ? $value : '';
+    }
+
+    /** 監査ログに残す操作者（ログイン中の利用者）。 */
+    protected function auditActor(): AuditActor
+    {
+        $identity = $this->request->getAttribute('identity');
+
+        return new AuditActor(
+            $identity ? (string)$identity->get('c_user_name') : '不明なユーザー',
+            $identity ? (int)$identity->get('i_id_user') : 0,
+            (string)($identity?->get('c_login_account') ?? ''),
+            $this->getClientIp(),
+        );
     }
 
     /**

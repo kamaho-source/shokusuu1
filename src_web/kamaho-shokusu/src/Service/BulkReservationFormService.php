@@ -4,23 +4,13 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\Service\ReservationDateRule;
-use Cake\ORM\Table;
 use Cake\I18n\DateTime;
 
+/**
+ * 一括予約の画面に出す週・日付の組み立て（DB を読まない）。
+ */
 class BulkReservationFormService
 {
-    private RoomAccessService $roomAccessService;
-
-    public function __construct(?RoomAccessService $roomAccessService = null)
-    {
-        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
-    }
-
-    public function getRoomsForUser(Table $roomTable, int $userId): array
-    {
-        return $this->roomAccessService->getAccessibleRooms($roomTable, $userId);
-    }
-
     public function buildBulkAddData(string $selectedDate, ?string $baseWeekParam): array
     {
         $today = DateTime::today('Asia/Tokyo');

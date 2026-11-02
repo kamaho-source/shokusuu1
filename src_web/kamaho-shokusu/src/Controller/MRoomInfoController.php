@@ -3,11 +3,17 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Domain\Exception\InvalidInputException;
-use App\Service\RoomMemberOrderService;
-use App\Service\RoomService;
+use App\Infrastructure\Persistence\Entity\MRoomInfo;
+use App\Application\Query\RoomQueryInterface;
+use App\Application\UseCase\CreateRoom\CreateRoomInput;
+use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
+use App\Application\UseCase\DeleteRoom\DeleteRoomInput;
+use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
+use App\Application\UseCase\UpdateRoom\UpdateRoomInput;
+use App\Application\UseCase\UpdateRoom\UpdateRoomOutput;
+use App\Application\UseCase\UpdateRoom\UpdateRoomUseCase;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Authorization\Exception\ForbiddenException;
-use Cake\I18n\DateTime;
 
 /**
  * MRoomInfo Controller
@@ -16,7 +22,7 @@ use Cake\I18n\DateTime;
  */
 class MRoomInfoController extends AppController
 {
-    private RoomService $roomService;
+    private RoomQueryInterface $roomQuery;
 
     public function initialize(): void
     {
@@ -25,7 +31,7 @@ class MRoomInfoController extends AppController
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
-        $this->roomService = new RoomService();
+        $this->roomQuery = new CakeRoomQuery();
     }
 
     /**
@@ -35,7 +41,7 @@ class MRoomInfoController extends AppController
      */
     public function index()
     {
-        $resource = $this->MRoomInfo->newEmptyEntity();
+        $resource = new MRoomInfo();
         try {
             $this->Authorization->authorize($resource, 'index');
         } catch (ForbiddenException $e) {
@@ -77,7 +83,7 @@ class MRoomInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $users = $this->roomService->getUsersForRoom($mRoomInfo);
+        $users = $this->roomQuery->getRoomMembers((int)$mRoomInfo->i_id_room);
         $canReorder = $this->Authorization->can($mRoomInfo, 'reorderMembers');
 
         $this->set(compact('mRoomInfo', 'users', 'canReorder'));
@@ -88,7 +94,7 @@ class MRoomInfoController extends AppController
      *
      * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
      */
-    public function add()
+    public function add(CreateRoomUseCase $createRoom)
     {
         $this->request->allowMethod(['get', 'post']);
         $mRoomInfo = $this->MRoomInfo->newEmptyEntity();
@@ -100,24 +106,16 @@ class MRoomInfoController extends AppController
         }
 
         if ($this->request->is('post')) {
-            $data = $this->request->getData();
-            $mRoomInfo->dt_create    = DateTime::now('Asia/Tokyo');
-            $user = $this->request->getAttribute('identity');
-            if ($user) {
-                $mRoomInfo->c_create_user = $user->get('c_user_name');
-            }
-            $mRoomInfo->i_del_flg  = 0;
-            $mRoomInfo->i_disp_no  = $this->roomService->nextDisplayNo();
-
-            $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $data, [
-                'fieldList' => ['c_room_name'],
-            ]);
-
-            if ($this->MRoomInfo->save($mRoomInfo)) {
-                \App\Service\AuditLogService::record('master', 'room_create', $mRoomInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+            $result = $createRoom->execute(new CreateRoomInput(
+                (array)$this->request->getData(),
+                $this->auditActor(),
+                $this->request->getAttribute('identity') !== null,
+            ));
+            if ($result->created) {
                 $this->Flash->success(__('部屋情報が正常に追加されました。'));
                 return $this->redirect(['action' => 'index']);
             }
+            $mRoomInfo->setErrors($result->fieldErrors);
             $this->Flash->error(__('部屋情報を保存できませんでした。もう一度お試しください。'));
         }
         $this->set(compact('mRoomInfo'));
@@ -130,7 +128,7 @@ class MRoomInfoController extends AppController
      * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
      * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
      */
-    public function edit($id = null)
+    public function edit(UpdateRoomUseCase $updateRoom, $id = null)
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
         $mRoomInfo = $this->MRoomInfo->get($id, contain: ['MUserGroup']);
@@ -146,49 +144,35 @@ class MRoomInfoController extends AppController
 
         if ($this->request->is(['post', 'put', 'patch'])) {
             // 部屋名と所属メンバーの並び順を、1つの［保存］でまとめて保存する
-            $user = $this->request->getAttribute('identity');
-            $userName = (string)($user?->get('c_user_name') ?? '');
-            if ($canEditRoom) {
-                $mRoomInfo = $this->MRoomInfo->patchEntity($mRoomInfo, $this->request->getData(), [
-                    'fieldList' => ['c_room_name'],
-                ]);
-                if ($mRoomInfo->hasErrors()) {
-                    $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
-                    $users = $this->roomService->getUsersForRoom($mRoomInfo);
-                    $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
-                    return null;
-                }
-            }
-
             $userIds = $this->request->getData('user_ids');
-            $changed = 0;
-            if ($canReorder && is_array($userIds)) {
-                try {
-                    $changed = (new RoomMemberOrderService())->reorder((int)$mRoomInfo->i_id_room, array_map('intval', array_values($userIds)), $userName);
-                } catch (InvalidInputException $e) {
-                    $this->Flash->error($e->getMessage());
-                    return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
-                }
+            $result = $updateRoom->execute(new UpdateRoomInput(
+                (int)$mRoomInfo->i_id_room,
+                (array)$this->request->getData(),
+                is_array($userIds) ? array_map('intval', array_values($userIds)) : null,
+                $this->auditActor(),
+                $canEditRoom,
+                $canReorder,
+            ));
+            if ($result->status === UpdateRoomOutput::INVALID_FIELDS) {
+                $mRoomInfo->setErrors($result->fieldErrors);
+                $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
+                $users = $this->roomQuery->getRoomMembers((int)$mRoomInfo->i_id_room);
+                $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
+                return null;
             }
-
-            if ($canEditRoom && $mRoomInfo->isDirty('c_room_name')) {
-                $mRoomInfo->dt_update = DateTime::now('Asia/Tokyo');
-                $mRoomInfo->c_update_user = $userName;
-                if (!$this->MRoomInfo->save($mRoomInfo)) {
-                    $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
-                    return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
-                }
-                \App\Service\AuditLogService::record('master', 'room_update', $userName ?: '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+            if ($result->status === UpdateRoomOutput::REJECTED) {
+                $this->Flash->error((string)$result->message);
+                return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
             }
-            // 並びが変わらなかった保存は記録しない
-            if ($changed > 0) {
-                \App\Service\AuditLogService::record('master', 'room_member_reorder', $userName ?: '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name, 'changed' => $changed], $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+            if ($result->status === UpdateRoomOutput::SAVE_FAILED) {
+                $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
+                return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
             }
             $this->Flash->success(__('部屋情報が正常に更新されました。'));
             // 並びを続けて直せるよう、保存後も編集画面に残る（一覧へは画面の「部屋一覧に戻る」から）
             return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
         }
-        $users = $this->roomService->getUsersForRoom($mRoomInfo);
+        $users = $this->roomQuery->getRoomMembers((int)$mRoomInfo->i_id_room);
         $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
     }
 
@@ -199,7 +183,7 @@ class MRoomInfoController extends AppController
      * @return \Cake\Http\Response|null Redirects to index.
      * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
      */
-    public function delete($id = null)
+    public function delete(DeleteRoomUseCase $deleteRoom, $id = null)
     {
         $this->request->allowMethod(['post', 'delete']);
         $mRoomInfo = $this->MRoomInfo->get($id);
@@ -209,11 +193,11 @@ class MRoomInfoController extends AppController
             $this->Flash->error(__('あなたは削除権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
-        $user      = $this->request->getAttribute('identity');
-        $updatedBy = $user?->get('c_user_name');
-
-        $deleted = $this->roomService->softDelete($mRoomInfo, $updatedBy);
-        \App\Service\AuditLogService::record('master', 'room_delete', $updatedBy ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_room_info', (string)$mRoomInfo->i_id_room, ['room_name' => $mRoomInfo->c_room_name], $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''), $deleted ? null : '部屋マスタの削除に失敗しました（対象が存在しない、またはDBエラー）');
+        $deleted = $deleteRoom->execute(new DeleteRoomInput(
+            (int)$mRoomInfo->i_id_room,
+            $this->auditActor(),
+            $this->request->getAttribute('identity') !== null,
+        ));
         if ($deleted) {
             $this->Flash->success(__('部屋情報を削除しました。'));
         } else {

@@ -3,11 +3,17 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\CalendarQueryInterface;
+use App\Application\Query\ReservationReadQueryInterface;
+use App\Application\Query\RoomQueryInterface;
+use App\Infrastructure\Persistence\Entity\TReservationInfo;
+use App\Infrastructure\Query\CakeCalendarQuery;
+use App\Infrastructure\Query\CakeReservationReadQuery;
+use App\Infrastructure\Query\CakeRoomQuery;
 use App\Service\ApiResponseService;
-use App\Service\ReservationCalendarService;
 use App\Service\ReservationDatePolicy;
-use App\Service\ReservationQueryService;
 use Authorization\Exception\ForbiddenException;
+use Cake\Chronos\ClockFactory;
 use Cake\Http\Response;
 
 /**
@@ -29,8 +35,9 @@ abstract class ReservationBaseController extends AppController
     /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable */
     protected $TIndividualReservationInfo;
 
-    protected ReservationCalendarService $calendarService;
-    protected ReservationQueryService $queryService;
+    protected CalendarQueryInterface $calendarQuery;
+    protected RoomQueryInterface $roomQuery;
+    protected ReservationReadQueryInterface $reservationRead;
     protected ReservationDatePolicy $datePolicy;
     protected ApiResponseService $apiResponseService;
 
@@ -45,8 +52,9 @@ abstract class ReservationBaseController extends AppController
         $this->TIndividualReservationInfo = $this->fetchTable('TIndividualReservationInfo');
 
         $this->datePolicy       = new ReservationDatePolicy();
-        $this->calendarService  = new ReservationCalendarService();
-        $this->queryService     = new ReservationQueryService($this->datePolicy);
+        $this->calendarQuery    = new CakeCalendarQuery(new ClockFactory('Asia/Tokyo'));
+        $this->roomQuery        = new CakeRoomQuery();
+        $this->reservationRead  = new CakeReservationReadQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo'));
         $this->apiResponseService = new ApiResponseService();
 
         $this->viewBuilder()->setLayout('default');
@@ -62,7 +70,7 @@ abstract class ReservationBaseController extends AppController
      */
     protected function authorizeReservation(string $action, array $context = [], bool $asJson = false): ?Response
     {
-        $resource = $this->TReservationInfo->newEmptyEntity();
+        $resource = new TReservationInfo();
         if ($context) {
             $resource->set($context, ['guard' => false]);
         }

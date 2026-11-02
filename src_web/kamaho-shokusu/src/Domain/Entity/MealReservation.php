@@ -22,7 +22,17 @@ final class MealReservation
         public readonly ?int $eatFlag,
         public readonly ?int $changeFlag,
         public readonly ?int $version = 1,
+        public readonly ?int $approvalStatus = null,
     ) {}
+
+    /** 承認済み（1・2）の i_approval_status。承認済みの行は変更しない。 */
+    public const APPROVED_STATUSES = [1, 2];
+
+    /** 承認済みか（NULL は未承認）。 */
+    public function isApproved(): bool
+    {
+        return in_array($this->approvalStatus, self::APPROVED_STATUSES, true);
+    }
 
     /** 食数として数える値（1=食べる）。 */
     public function countedValue(ChronosDate $today): int

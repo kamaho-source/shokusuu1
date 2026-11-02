@@ -3,21 +3,20 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Infrastructure\Persistence\Table\TContactsTable;
-use App\Service\ContactService;
+use App\Application\Query\ContactQueryInterface;
+use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
+use App\Application\UseCase\ReplyToContact\ReplyToContactUseCase;
+use App\Application\UseCase\SubmitContact\SubmitContactUseCase;
+use App\Domain\Entity\Contact;
+use App\Domain\Exception\NotFoundException as DomainNotFoundException;
+use App\Infrastructure\Persistence\Entity\TContact;
+use Cake\Http\Exception\NotFoundException;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Response;
 
 class ContactsController extends AppController
 {
-    private ContactService $contactService;
-
-    public function initialize(): void
-    {
-        parent::initialize();
-        $this->contactService = new ContactService();
-    }
 
     /**
      * @throws \Exception
@@ -33,12 +32,12 @@ class ContactsController extends AppController
     /**
      * フィードバック・お問い合わせフォーム（全ユーザー共通）
      */
-    public function index(): ?Response
+    public function index(SubmitContactUseCase $submitContact, ContactQueryInterface $contactQuery): ?Response
     {
         $this->Authorization->authorize($this, 'index');
 
         $user = $this->Authentication->getIdentity();
-        $categories = TContactsTable::CATEGORIES;
+        $categories = array_combine(Contact::CATEGORIES, Contact::CATEGORIES);
         $userId = (int)$user->get('i_id_user');
 
         // ログインユーザーの情報を初期値として渡す
@@ -46,23 +45,26 @@ class ContactsController extends AppController
         $defaultEmail = ''; // メールカラムがあれば取得
 
         if ($this->request->is('post')) {
-            $data = (array)$this->request->getData();
+            $data = [];
+            foreach (['category', 'name', 'email', 'body'] as $field) {
+                $data[$field] = $this->dataString($field);
+            }
 
-            $result = $this->contactService->submit($data, $userId);
+            $result = $submitContact->execute($data, $userId);
 
-            if ($result['success']) {
+            if ($result->saved) {
                 $this->Flash->success('お問い合わせを送信しました。ありがとうございます。');
                 return $this->redirect(['action' => 'index']);
             }
 
             $this->Flash->error('入力内容に誤りがあります。確認してください。');
-            $entity = $result['entity'];
-            $myContacts = $this->contactService->getMyList($userId);
+            $entity = $result;
+            $myContacts = $contactQuery->mine($userId);
             $this->set(compact('entity', 'categories', 'defaultName', 'defaultEmail', 'myContacts'));
             return null;
         }
 
-        $myContacts = $this->contactService->getMyList($userId);
+        $myContacts = $contactQuery->mine($userId);
         $this->set(compact('categories', 'defaultName', 'defaultEmail', 'myContacts'));
         return null;
     }
@@ -70,32 +72,30 @@ class ContactsController extends AppController
     /**
      * 問い合わせ者本人：自分の問い合わせへ追加の返信を送信する
      */
-    public function reply(int $id): ?Response
+    public function reply(AddContactReplyUseCase $addReply, ContactQueryInterface $contactQuery, int $id): ?Response
     {
         $this->request->allowMethod(['post']);
 
         $user = $this->Authentication->getIdentity();
         $userId = (int)$user->get('i_id_user');
 
-        try {
-            $contact = $this->contactService->getDetailForUser($id, $userId);
-        } catch (\Cake\Datasource\Exception\RecordNotFoundException) {
+        $contact = $contactQuery->find($id);
+        if ($contact === null || $contact->userId !== $userId) {
             $this->Authorization->skipAuthorization();
             $this->Flash->error('指定されたお問い合わせが見つかりません。');
             return $this->redirect(['action' => 'index']);
         }
 
         try {
-            $this->Authorization->authorize($contact, 'reply');
+            // 本人の問い合わせか（Policy は TContact の user_id を見る）
+            $this->Authorization->authorize(new TContact(['id' => $contact->id, 'user_id' => $contact->userId], ['guard' => false]), 'reply');
         } catch (ForbiddenException) {
             $this->Flash->error('あなたはこの操作を行う権限がありません。');
             return $this->redirect(['action' => 'index']);
         }
 
-        $replyBody = (string)($this->request->getData('reply_body') ?? '');
-        $result = $this->contactService->addUserReply($id, $userId, $replyBody);
-
-        if ($result['success']) {
+        $replyBody = $this->dataString('reply_body');
+        if ($addReply->fromUser($id, $userId, $replyBody)) {
             $this->Flash->success('返信を送信しました。');
         } else {
             $this->Flash->error('返信の送信に失敗しました。入力内容を確認してください。');
@@ -107,12 +107,13 @@ class ContactsController extends AppController
     /**
      * 管理者用：問い合わせ一覧
      */
-    public function adminIndex(): ?Response
+    public function adminIndex(ContactQueryInterface $contactQuery): ?Response
     {
         $this->Authorization->authorize($this, 'adminIndex');
 
-        $page    = (int)($this->request->getQuery('page') ?? 1);
-        $contacts = $this->contactService->getList($page);
+        // 0 以下・数字でない値は 1 ページ目（以前は 500 になっていた）
+        $page     = max(1, (int)$this->queryString('page'));
+        $contacts = $contactQuery->page($page);
 
         $this->set(compact('contacts', 'page'));
         return null;
@@ -121,17 +122,21 @@ class ContactsController extends AppController
     /**
      * 管理者用：問い合わせ詳細・返信送信
      */
-    public function adminDetail(int $id): ?Response
+    public function adminDetail(ReplyToContactUseCase $replyToContact, ContactQueryInterface $contactQuery, int $id): ?Response
     {
         $this->Authorization->authorize($this, 'adminDetail');
 
-        $contact = $this->contactService->getDetail($id);
+        $contact = $contactQuery->find($id) ?? throw new NotFoundException('お問い合わせが見つかりません。');
 
         if ($this->request->is('post')) {
-            $replyBody = (string)($this->request->getData('reply_body') ?? '');
-            $result = $this->contactService->sendReply($id, $replyBody);
+            $replyBody = $this->dataString('reply_body');
+            try {
+                $sent = $replyToContact->execute($id, $replyBody);
+            } catch (DomainNotFoundException $e) {
+                throw new NotFoundException($e->getMessage(), null, $e);
+            }
 
-            if ($result['success']) {
+            if ($sent) {
                 $this->Flash->success('返信を送信しました。');
                 return $this->redirect(['action' => 'adminDetail', $id]);
             }

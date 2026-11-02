@@ -32,7 +32,7 @@ class ReservationCacheTest extends TestCase
         foreach (['2026-11-01', '2026-11-02'] as $date) {
             Cache::write(ReservationCache::mealCountsKey($date), ['x'], 'default');
             Cache::write('meal_counts:' . $date, ['old'], 'default');
-            ReservationCache::markTodayReported(7, $date);
+            Cache::write(ReservationCache::todayReportKey(7, $date), 1, 'default');
         }
 
         ReservationCache::forgetDate('2026-11-01', [7]);

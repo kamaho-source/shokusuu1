@@ -3,8 +3,16 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Service\MealReportingService;
-use App\Service\ReservationReportService;
+use App\Application\Query\Dto\DailyMealCount;
+use App\Application\Query\Dto\MealTypeCount;
+use App\Application\Query\Dto\RankMealCount;
+use App\Application\Query\Dto\RoomUserMealStatus;
+use App\Application\Query\MealReportQueryInterface;
+use App\Infrastructure\Query\CakeMealReportQuery;
+use App\Application\UseCase\ReportNoMeal\ReportNoMealInput;
+use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
+use App\Domain\Exception\DomainException;
+use Cake\Chronos\ClockFactory;
 use Cake\Http\Response;
 use Cake\I18n\Date;
 use Cake\Log\Log;
@@ -12,25 +20,22 @@ use Cake\Log\Log;
 /**
  * 食数レポート・エクスポート専用コントローラー。
  *
- * 食数取得API・JSONエクスポート・欠食/実食報告を担当する。
+ * 食数取得API・JSONエクスポート・欠食報告を担当する。
  */
 class ReservationReportController extends ReservationBaseController
 {
-    private ReservationReportService $reportService;
-    private MealReportingService $mealReportingService;
+    private MealReportQueryInterface $mealReport;
 
     public function initialize(): void
     {
         parent::initialize();
 
-        $this->reportService        = new ReservationReportService();
-        $this->mealReportingService = new MealReportingService();
+        $this->mealReport           = new CakeMealReportQuery(new ClockFactory('Asia/Tokyo'));
 
         // fetch から直接 POST される API のため FormProtection のフォームトークン検証対象外にする。
         // CSRF は X-CSRF-Token ヘッダで別途検証される。
         $this->FormProtection->setConfig('unlockedActions', [
             'reportNoMeal',
-            'reportEat',
         ]);
     }
 
@@ -50,11 +55,12 @@ class ReservationReportController extends ReservationBaseController
         $this->autoRender = false;
 
         $dateStr = (string)$date;
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateStr)) {
+        // 形は合っていても存在しない日付（2026-13-45 など）は 500 になっていたため、ここで 400 にする
+        if (!self::isValidDate($dateStr)) {
             return $this->apiResponseService->error($this->response, 'Invalid date format (Y-m-d).', 400);
         }
 
-        $rows = $this->reportService->getMealCounts($this->TIndividualReservationInfo, $dateStr);
+        $rows = array_map(static fn(MealTypeCount $c) => $c->toArray(), $this->mealReport->getMealCounts($dateStr));
 
         return $this->apiResponseService->success($this->response, ['mealCounts' => $rows]);
     }
@@ -76,16 +82,13 @@ class ReservationReportController extends ReservationBaseController
         $this->autoRender = false;
 
         // 日付が無い・不正だと SQL エラー(500)になっていたため、先に 400 で返す
-        $parsed = is_string($date) ? \DateTimeImmutable::createFromFormat('!Y-m-d', $date) : false;
-        if ($parsed === false || $parsed->format('Y-m-d') !== $date) {
+        if (!is_string($date) || !self::isValidDate($date)) {
             return $this->apiResponseService->error($this->response, '日付（YYYY-MM-DD）を指定してください。', 400);
         }
 
-        $completeUserInfo = $this->reportService->getUsersByRoomForEdit(
-            $this->MUserGroup,
-            $this->TIndividualReservationInfo,
-            (int)$roomId,
-            (string)$date
+        $completeUserInfo = array_map(
+            static fn(RoomUserMealStatus $u) => $u->toArray(),
+            $this->mealReport->getUsersByRoomForEdit((int)$roomId, (string)$date)
         );
 
         return $this->apiResponseService->success($this->response, ['usersByRoom' => $completeUserInfo]);
@@ -121,13 +124,9 @@ class ReservationReportController extends ReservationBaseController
                 throw new \InvalidArgumentException('開始日は終了日以前の日付を指定してください');
             }
 
-            $result = $this->reportService->buildExportJson(
-                $this->TIndividualReservationInfo,
-                $startDate->format('Y-m-d'),
-                $endDate->format('Y-m-d')
-            );
+            $result = $this->mealReport->getExportJson($startDate->format('Y-m-d'), $endDate->format('Y-m-d'));
 
-            return $this->apiResponseService->success($this->response, $result);
+            return $this->apiResponseService->success($this->response, $result->toArray());
         } catch (\Throwable $e) {
             Log::write('error', (string)$e);
             if ($e instanceof \InvalidArgumentException) {
@@ -165,22 +164,18 @@ class ReservationReportController extends ReservationBaseController
             }
             $startDate = $from;
             $endDate   = date('Y-m-d', strtotime($to . ' +1 day'));
-            $emptyMsg  = '指定された期間にデータが見つかりませんでした。';
         } else {
             if (!$month || !$isMonth($month)) {
                 return $this->apiResponseService->error($this->response, '無効な月が指定されました。', 400);
             }
             $startDate = $month . '-01';
             $endDate   = date('Y-m-d', strtotime($month . ' +1 month'));
-            $emptyMsg  = '指定された月にデータが見つかりませんでした。';
         }
 
         try {
-            $finalOutput = $this->reportService->buildExportJsonRank(
-                $this->TIndividualReservationInfo,
-                $startDate,
-                $endDate,
-                $emptyMsg
+            $finalOutput = array_map(
+                static fn(RankMealCount $r) => $r->toArray(),
+                $this->mealReport->getExportRank($startDate, $endDate)
             );
 
             return $this->apiResponseService->success($this->response, $finalOutput);
@@ -196,7 +191,7 @@ class ReservationReportController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function reportNoMeal(): ?Response
+    public function reportNoMeal(ReportNoMealUseCase $reportNoMealUseCase): ?Response
     {
         if ($denied = $this->authorizeReservation('reportNoMeal', [], true)) {
             return $denied;
@@ -212,53 +207,13 @@ class ReservationReportController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $result = $this->mealReportingService->reportNoMeal(
-            $this->TIndividualReservationInfo,
-            $this->MUserGroup,
-            $userId,
-            $userName
-        );
-
-        if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
+        try {
+            $output = $reportNoMealUseCase->execute(new ReportNoMealInput($userId, $userName));
+        } catch (DomainException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         }
 
-        return $this->apiResponseService->success($this->response, [], $result['message']);
-    }
-
-    /**
-     * 実食報告API。
-     *
-     * @return Response|null
-     */
-    public function reportEat(): ?Response
-    {
-        if ($denied = $this->authorizeReservation('reportEat', [], true)) {
-            return $denied;
-        }
-
-        $this->request->allowMethod(['post']);
-
-        $loginUser = $this->request->getAttribute('identity');
-        $userId    = (int)($loginUser?->get('i_id_user') ?? 0);
-        $userName  = (string)($loginUser?->get('c_user_name') ?? $userId);
-
-        if ($userId <= 0) {
-            return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
-        }
-
-        $result = $this->mealReportingService->reportEat(
-            $this->TIndividualReservationInfo,
-            $this->MUserGroup,
-            $userId,
-            $userName
-        );
-
-        if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
-        }
-
-        return $this->apiResponseService->success($this->response, [], $result['message']);
+        return $this->apiResponseService->success($this->response, [], $output->message);
     }
 
     /**
@@ -281,13 +236,12 @@ class ReservationReportController extends ReservationBaseController
         if (!$fromDate || !$toDate) {
             [$fromDate, $toDate] = self::defaultCountRange();
         }
+        if ($error = $this->invalidRangeResponse($fromDate, $toDate)) {
+            return $error;
+        }
 
         try {
-            $result = $this->reportService->buildAllRoomsMealCounts(
-                $this->TIndividualReservationInfo,
-                $fromDate,
-                $toDate
-            );
+            $result = self::dailyRows($this->mealReport->getDailyMealCounts($fromDate, $toDate));
             return $this->apiResponseService->success($this->response, ['result' => $result]);
         } catch (\Throwable $e) {
             Log::write('error', (string)$e);
@@ -317,19 +271,8 @@ class ReservationReportController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'ログインが必要です。', 401);
         }
 
-        $userGroups = $this->MUserGroup->find()
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId])
-            ->toArray();
-
-        $userRoomIds = [];
-        foreach ($userGroups as $group) {
-            if ($group->i_id_room) {
-                $userRoomIds[] = $group->i_id_room;
-            }
-        }
-
-        $targetRoomIds = $roomId ? [(int)$roomId] : $userRoomIds;
+        // 部屋の指定が無いときは自分の所属部屋（異動で抜けた部屋・削除済みの部屋は含めない。他の画面と同じ基準）
+        $targetRoomIds = $roomId ? [(int)$roomId] : $this->roomQuery->getUserRoomIds($userId);
 
         if (empty($targetRoomIds)) {
             return $this->apiResponseService->error($this->response, '所属部屋が見つかりません。', 400);
@@ -341,20 +284,47 @@ class ReservationReportController extends ReservationBaseController
         if (!$fromDate || !$toDate) {
             [$fromDate, $toDate] = self::defaultCountRange();
         }
+        if ($error = $this->invalidRangeResponse($fromDate, $toDate)) {
+            return $error;
+        }
 
         try {
-            $result = $this->reportService->buildRoomMealCounts(
-                $this->TIndividualReservationInfo,
-                $targetRoomIds,
-                $fromDate,
-                $toDate
-            );
+            $result = self::dailyRows($this->mealReport->getDailyMealCounts($fromDate, $toDate, $targetRoomIds));
             return $this->apiResponseService->success($this->response, ['result' => $result]);
         } catch (\Throwable $e) {
             Log::write('error', (string)$e);
 
             return $this->apiResponseService->error($this->response, 'データ取得に失敗しました。', 500);
         }
+    }
+
+    /**
+     * 期間の指定が日付として読めないとき 400 を返す（以前は SQL エラーで 500 になっていた）。
+     */
+    private function invalidRangeResponse(array|string|null $fromDate, array|string|null $toDate): ?Response
+    {
+        if (is_string($fromDate) && is_string($toDate) && self::isValidDate($fromDate) && self::isValidDate($toDate)) {
+            return null;
+        }
+
+        return $this->apiResponseService->error($this->response, '期間（from・to）を YYYY-MM-DD で指定してください。', 400);
+    }
+
+    /** YYYY-MM-DD の実在する日付か（2026-02-30 のような繰り越しも認めない）。 */
+    private static function isValidDate(string $date): bool
+    {
+        $parsed = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+
+        return $parsed !== false && $parsed->format('Y-m-d') === $date;
+    }
+
+    /**
+     * @param list<DailyMealCount> $counts
+     * @return list<array{date: string, morning: int, lunch: int, dinner: int, bento: int, total: int}>
+     */
+    private static function dailyRows(array $counts): array
+    {
+        return array_map(static fn(DailyMealCount $c) => $c->toArray(), $counts);
     }
 
     /**

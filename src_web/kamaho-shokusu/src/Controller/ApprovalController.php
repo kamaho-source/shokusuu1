@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Query\CakeRoomQuery;
 use App\Service\ApprovalService;
-use App\Service\RoomAccessService;
 use Cake\Core\Configure;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
@@ -23,7 +24,7 @@ class ApprovalController extends AppController
     use JsonResponseTrait;
 
     private ApprovalService $approvalService;
-    private RoomAccessService $roomAccessService;
+    private RoomQueryInterface $roomAccessService;
 
     /**
      * 承認機能(Features.approval)が無効のときは全アクションを 404 にする。
@@ -45,7 +46,7 @@ class ApprovalController extends AppController
     {
         parent::initialize();
         $this->approvalService   = new ApprovalService();
-        $this->roomAccessService = new RoomAccessService();
+        $this->roomAccessService = new CakeRoomQuery();
 
         // これらのアクションは JSON ボディを受け取る AJAX エンドポイントのため
         // FormProtection のフォームトークン検証対象外にする。
@@ -293,7 +294,7 @@ class ApprovalController extends AppController
 
         // ブロック長の場合は自分が担当する部屋のログ、または自分が承認したログのみに制限
         if (!$isAdmin && $isBlockLeader) {
-            $roomAccessService = new \App\Service\RoomAccessService();
+            $roomAccessService = new CakeRoomQuery();
             $myRoomIds = $roomAccessService->getUserRoomIds((int)$user->get('i_id_user'));
             $query->where([
                 'OR' => [

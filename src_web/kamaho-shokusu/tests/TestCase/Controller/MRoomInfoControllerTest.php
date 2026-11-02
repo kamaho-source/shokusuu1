@@ -355,4 +355,20 @@ class MRoomInfoControllerTest extends TestCase
         $this->get('/MRoomInfo/edit/1');
         $this->assertRedirectContains('/MRoomInfo');
     }
+
+    /** 部屋名が長すぎるときは、作成・編集とも欄の下に理由を出して保存しない */
+    public function testTooLongNameShowsFieldErrorOnAddAndEdit(): void
+    {
+        $long = str_repeat('あ', 51);
+        foreach (['/MRoomInfo/add', '/MRoomInfo/edit/1'] as $url) {
+            $this->setAuthenticatedSession();
+            $this->enableCsrfToken();
+            $this->enableSecurityToken();
+            $this->post($url, ['c_room_name' => $long]);
+
+            $this->assertResponseOk($url);
+            $this->assertMatchesRegularExpression('/<div class="error-message"[^>]*>/', (string)$this->_response->getBody(), $url);
+        }
+        $this->assertSame(0, $this->getTableLocator()->get('MRoomInfo')->find()->where(['c_room_name' => $long])->count());
+    }
 }
