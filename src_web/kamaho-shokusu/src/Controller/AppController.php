@@ -17,9 +17,11 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Port\AuditActor;
+use App\Domain\Service\DatePeriodRule;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
+use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Response;
 use Psr\Http\Message\UriInterface;
 
@@ -108,6 +110,24 @@ class AppController extends Controller
         $value = $this->request->getQuery($key);
 
         return is_string($value) ? $value : '';
+    }
+
+    /**
+     * クエリの日付（YYYY-MM-DD）。無い・空は null。
+     *
+     * @throws BadRequestException 配列や暦にない日付（2026-02-30 など）。以前は 500 や、翌月に繰り越した 200 になっていた
+     */
+    protected function queryDate(string $key): ?string
+    {
+        $value = $this->request->getQuery($key);
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_string($value) || !DatePeriodRule::isDate($value)) {
+            throw new BadRequestException('日付が正しくありません。');
+        }
+
+        return $value;
     }
 
     /**

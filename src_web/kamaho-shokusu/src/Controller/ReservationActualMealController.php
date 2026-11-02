@@ -500,7 +500,7 @@ class ReservationActualMealController extends ReservationBaseController
         $gridQuery = new CakeMealCountGridQuery(new ClockFactory('Asia/Tokyo'));
         $today     = DateTime::now('Asia/Tokyo');
 
-        $weekParam     = $this->request->getQuery('week') ?? $session->read('mealCountGrid.week');
+        $weekParam     = $this->queryDate('week') ?? $session->read('mealCountGrid.week');
         $week          = MealGridWeekRule::resolve($weekParam, $isAdmin, $today);
         $weekMondayStr = $week->mondayString();
         $dates         = MealGridWeekRule::dateRange($weekMondayStr);

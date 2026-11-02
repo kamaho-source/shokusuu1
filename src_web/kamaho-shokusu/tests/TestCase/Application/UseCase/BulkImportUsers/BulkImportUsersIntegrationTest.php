@@ -102,6 +102,33 @@ class BulkImportUsersIntegrationTest extends TestCase
         $this->assertSame(1, $this->import([['_row' => 1, 'login_id' => 'nr_c', 'name' => 'C', 'role' => '児童']])['created']);
     }
 
+    /** 管理者・システム管理者も、所属していない部屋には取り込めない（#821）。部屋名が空なら取り込める */
+    public function testSystemAdmin_roomOutsideOwn_isRejected_withoutRoom_isCreated(): void
+    {
+        $result = $this->import([
+            ['_row' => 1, 'login_id' => 'sa_ng', 'name' => 'A', 'role' => '児童', 'room_name1' => self::ROOM1],
+            ['_row' => 2, 'login_id' => 'sa_ok', 'name' => 'B', 'role' => '児童'],
+        ], actorId: 4);
+
+        $this->assertSame([1 => ['自分が所属していない部屋、または存在しない部屋には登録できません。']], $result['errors']);
+        $users = $this->getTableLocator()->get('MUserInfo');
+        $this->assertSame(0, $users->find()->where(['c_login_account' => 'sa_ng'])->count());
+        $this->assertSame(1, $users->find()->where(['c_login_account' => 'sa_ok'])->count());
+    }
+
+    /** 管理者でも、同じ名前の所属外の部屋ではなく自分の所属部屋に所属させる */
+    public function testAdmin_duplicateRoomName_joinsOwnRoomOnly(): void
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $rooms->saveOrFail($rooms->newEntity(['i_id_room' => 50, 'c_room_name' => self::ROOM1, 'i_disp_no' => 50, 'i_del_flg' => 0], ['accessibleFields' => ['i_id_room' => true]]));
+
+        $result = $this->import([['_row' => 1, 'login_id' => 'adm_dup', 'name' => 'A', 'role' => '児童', 'room_name1' => self::ROOM1]]);
+
+        $this->assertSame(1, $result['created']);
+        $userId = $this->getTableLocator()->get('MUserInfo')->find()->where(['c_login_account' => 'adm_dup'])->firstOrFail()->i_id_user;
+        $this->assertSame([1], array_map('intval', $this->getTableLocator()->get('MUserGroup')->find()->where(['i_id_user' => $userId])->all()->extract('i_id_room')->toList()));
+    }
+
     /** 部屋名が重複していても、所属させるのは自分の所属部屋のほう（確かめた部屋と同じ部屋） */
     public function testDuplicateRoomName_joinsTheActorsOwnRoom(): void
     {

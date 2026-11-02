@@ -47,6 +47,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 500',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>
@@ -57,6 +58,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 800',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>
@@ -67,6 +69,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 1000',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>
@@ -77,6 +80,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 700',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>

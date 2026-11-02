@@ -46,9 +46,9 @@ class CreateUserIntegrationTest extends TestCase
 
     /**
      * @param array<string, mixed> $override
-     * @param list<int>|null $allowed
+     * @param list<int> $allowed
      */
-    private function create(array $override = [], bool $childOnly = false, ?array $allowed = null, string $actor = 'adminuser', int $actorId = 8, string $ip = '10.1.2.3'): CreateUserOutput
+    private function create(array $override = [], bool $childOnly = false, array $allowed = [1], string $actor = 'adminuser', int $actorId = 8, string $ip = '10.1.2.3'): CreateUserOutput
     {
         return $this->useCase()->execute(new CreateUserInput(
             $override + [
@@ -118,28 +118,30 @@ class CreateUserIntegrationTest extends TestCase
     }
 
     /**
-     * @return array<string, array{array<string, mixed>, bool, list<int>|null, string}>
+     * @return array<string, array{array<string, mixed>, bool, list<int>, string}>
      */
     public static function rejections(): array
     {
         return [
             '職員が児童以外を登録'     => [['role' => '0'], true, [1], '管理者以外は児童のみ登録できます。'],
-            '年齢が範囲外'           => [['age' => '0'], false, null, '性別・年代・年齢を選択してください。'],
-            '性別が未選択'           => [['i_user_gender' => ''], false, null, '性別・年代・年齢を選択してください。'],
-            '職員IDが10桁'          => [['staff_id' => '1234567890'], false, null, '職員IDは9桁以内の数字で入力してください。'],
+            '年齢が範囲外'           => [['age' => '0'], false, [1], '性別・年代・年齢を選択してください。'],
+            '性別が未選択'           => [['i_user_gender' => ''], false, [1], '性別・年代・年齢を選択してください。'],
+            '職員IDが10桁'          => [['staff_id' => '1234567890'], false, [1], '職員IDは9桁以内の数字で入力してください。'],
             '所属部屋がない職員'      => [['role' => '1'], true, [], '所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。'],
             '登録先の部屋が未選択'     => [['role' => '1', 'MUserGroup' => []], true, [1], '登録先の部屋を選択してください。'],
             '所属していない部屋'      => [['role' => '1', 'MUserGroup' => [['i_id_room' => '2']]], true, [1], '自分が所属していない部屋には登録できません。'],
-            'ログインIDの重複'       => [['c_login_account' => 'admin_user'], false, null, 'このログインIDは既に使用されています。他のIDをお試しください。'],
+            '管理者が所属していない部屋' => [['MUserGroup' => [['i_id_room' => '2']]], false, [1], '自分が所属していない部屋には登録できません。'],
+            '所属部屋の無い管理者が部屋を選ぶ' => [[], false, [], '自分が所属していない部屋には登録できません。'],
+            'ログインIDの重複'       => [['c_login_account' => 'admin_user'], false, [1], 'このログインIDは既に使用されています。他のIDをお試しください。'],
         ];
     }
 
     /**
      * @dataProvider rejections
      * @param array<string, mixed> $override
-     * @param list<int>|null $allowed
+     * @param list<int> $allowed
      */
-    public function testRejections_saveNothingAndExplain(array $override, bool $childOnly, ?array $allowed, string $message): void
+    public function testRejections_saveNothingAndExplain(array $override, bool $childOnly, array $allowed, string $message): void
     {
         $before = (int)ConnectionManager::get('test')->execute('SELECT COUNT(*) FROM m_user_info')->fetchColumn(0);
 
@@ -159,12 +161,31 @@ class CreateUserIntegrationTest extends TestCase
         $this->assertSame([], $this->savedUser());
     }
 
+    /** 管理者は部屋を選ばなくても登録できる（所属部屋が無くても） */
+    public function testAdmin_withoutRoom_isCreated(): void
+    {
+        $this->assertSame(CreateUserOutput::CREATED, $this->create(['MUserGroup' => []], false, [])->status);
+        $id = (int)$this->savedUser()['i_id_user'];
+        $this->assertSame(0, (int)ConnectionManager::get('test')->execute('SELECT COUNT(*) FROM m_user_group WHERE i_id_user = ?', [$id])->fetchColumn(0));
+    }
+
+    /**
+     * 登録できる部屋・選べる部屋は、管理者・システム管理者も含めて自分が所属している削除されていない部屋だけ（#821）。
+     */
     public function testRoomChoicesAndAllowedRooms(): void
     {
+        $db = ConnectionManager::get('test');
+        $base = ['i_disp_no' => 9, 'i_enable' => 1];
+        $db->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '所属外の部屋', 'i_del_flg' => 0] + $base);
+        $db->insert('m_room_info', ['i_id_room' => 3, 'c_room_name' => '削除済みの部屋', 'i_del_flg' => 1] + $base);
+        $db->insert('m_user_group', ['i_id_user' => 1, 'i_id_room' => 3, 'active_flag' => 0]);
+        $db->insert('m_user_group', ['i_id_user' => 1, 'i_id_room' => 2, 'active_flag' => 1]);
+
         $useCase = $this->useCase();
-        $this->assertNull($useCase->allowedRoomIds(1, true), '管理者は制限なし');
-        $this->assertSame([1], $useCase->allowedRoomIds(2, false), '職員は自分が所属している部屋だけ');
-        $this->assertArrayHasKey(1, $useCase->roomChoices(null));
-        $this->assertSame([], $useCase->roomChoices([]), '登録できる部屋が無ければ選べる部屋も無い');
+        $this->assertSame([1], $useCase->allowedRoomIds(1), '管理者も所属している部屋だけ（削除済み・異動で外れた部屋は除く）');
+        $this->assertSame([1], array_keys($useCase->roomChoices(1)));
+        $this->assertSame([1], $useCase->allowedRoomIds(2), '職員は自分が所属している部屋だけ');
+        $this->assertSame([], $useCase->allowedRoomIds(4), '所属部屋の無いシステム管理者は登録できる部屋が無い');
+        $this->assertSame([], $useCase->roomChoices(4));
     }
 }

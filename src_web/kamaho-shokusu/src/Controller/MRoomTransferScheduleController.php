@@ -64,6 +64,10 @@ class MRoomTransferScheduleController extends AppController
         }
 
         if ($this->request->is('post')) {
+            // 日付が配列だと、入力し直しの画面を描くときに日付の入力欄が TypeError で 500 になる。空（必須エラー）として扱う
+            if (!is_string($this->request->getData('d_effective_date') ?? '')) {
+                $this->request = $this->request->withData('d_effective_date', '');
+            }
             $data     = $this->request->getData();
             $identity = $this->request->getAttribute('identity');
             try {
@@ -71,7 +75,7 @@ class MRoomTransferScheduleController extends AppController
                     isset($data['i_id_user']) ? (int)$data['i_id_user'] : null,
                     isset($data['i_id_room_from']) && $data['i_id_room_from'] !== '' ? (int)$data['i_id_room_from'] : null,
                     isset($data['i_id_room_to']) ? (int)$data['i_id_room_to'] : null,
-                    (string)($data['d_effective_date'] ?? ''),
+                    $this->dataString('d_effective_date'),
                     $identity ? (string)$identity->get('c_user_name') : '管理者',
                 ));
                 if ($error === null) {
