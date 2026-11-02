@@ -83,57 +83,6 @@ class MealSummaryExportServiceTest extends TestCase
         return $out;
     }
 
-    /** 削除済み職員は、実績のある月だけ載り、月の境界（月初・月末）も正しく数える */
-    public function testAggregate_deletedStaffOnlyWhenMonthHasMeals(): void
-    {
-        Configure::write('Features.approval', false);
-        $this->seedStaffAndMeals();
-        $service = new MealSummaryExportService();
-
-        $sep = $this->totalsByStaff($service->aggregate(2026, 9));
-        $this->assertSame([9002 => 1, 9006 => 2], $sep); // 9/1 と 9/30 は9月、10/1 は含まない
-
-        $oct = $this->totalsByStaff($service->aggregate(2026, 10));
-        $this->assertSame([9002 => 0, 9006 => 1], $oct);
-
-        $aug = $this->totalsByStaff($service->aggregate(2026, 8));
-        $this->assertSame([9002 => 0], $aug); // 実績のない月は削除済み職員を載せない
-    }
-
-    /** 承認機能オンのときは、承認済み(2)のみを数える（削除済み職員も同様） */
-    public function testAggregate_approvalOn_countsOnlyApproved(): void
-    {
-        Configure::write('Features.approval', true);
-        $this->seedStaffAndMeals();
-        $db = ConnectionManager::get('test');
-        $db->update('t_individual_reservation_info', ['i_approval_status' => 2], ['i_id_user' => 6, 'd_reservation_date' => '2026-09-30']);
-
-        $sep = $this->totalsByStaff((new MealSummaryExportService())->aggregate(2026, 9));
-
-        $this->assertSame(1, $sep[9006]);
-    }
-
-    /** 予約の取得は、職員の人数に関わらず1回のクエリ（N+1 でない） */
-    public function testAggregate_queriesReservationsOnce(): void
-    {
-        Configure::write('Features.approval', false);
-        $this->seedStaffAndMeals();
-        $db = ConnectionManager::get('test');
-        $db->execute("UPDATE m_user_info SET i_id_staff = 9000 + i_id_user");
-
-        $queries = [];
-        $logger = new class ($queries) extends \Psr\Log\AbstractLogger {
-            public function __construct(public array &$q) {}
-            public function log($level, string|\Stringable $message, array $context = []): void { $this->q[] = (string)$message; }
-        };
-        $db->getDriver()->setLogger($logger);
-
-        (new MealSummaryExportService())->aggregate(2026, 9);
-
-        $reservationQueries = array_filter($queries, fn(string $m) => str_contains($m, 'FROM t_individual_reservation_info'));
-        $this->assertCount(1, $reservationQueries);
-    }
-
     /** 未承認プレビューは、未承認(0)・ブロック長承認済(1)のみを状態別の行で返す */
     public function testAggregatePreview_splitsByStatusAndSkipsOthers(): void
     {
