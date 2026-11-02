@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\ChangeMealRoom;
 
+use App\Domain\Service\DatePeriodRule;
 use App\Domain\ValueObject\MealType;
 
 /**
@@ -21,8 +22,7 @@ final class ChangeMealRoomInput
         public readonly string $loginUserName,
         public readonly int    $targetUserId,
     ) {
-        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-        if ($d === false || $d->format('Y-m-d') !== $date) {
+        if (!DatePeriodRule::isDate($date)) {
             throw new \InvalidArgumentException('日付が正しくありません。');
         }
         if (MealType::tryFrom($meal) === null) {

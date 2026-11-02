@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Service\DatePeriodRule;
 use App\Application\Query\Dto\DailyChildCount;
 use App\Application\Query\Dto\RoomUsageStat;
 use App\Application\Query\SystemReportQueryInterface;
@@ -247,8 +248,8 @@ final class SystemReportController extends AppController
 
     private function isValidYmd(string $value): bool
     {
-        $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
-        return $dt !== false && $dt->format('Y-m-d') === $value;
+        // NUL バイトを含む値でも 500 にしないよう、共通の判定を使う
+        return DatePeriodRule::isDate($value);
     }
 
     private function jsonResponse(array $data, int $status = 200): Response

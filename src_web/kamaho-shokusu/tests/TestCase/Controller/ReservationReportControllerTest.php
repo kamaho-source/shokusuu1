@@ -130,6 +130,8 @@ class ReservationReportControllerTest extends TestCase
             'missing' => [''],
             'invalid' => ['?date=2026-02-30'],
             'wrong format' => ['?date=20260301'],
+            // 以前は createFromFormat の ValueError で 500
+            'nul byte' => ['?date=2026-03-01%00'],
         ];
     }
 

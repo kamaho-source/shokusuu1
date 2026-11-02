@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\ToggleMeal;
 
+use App\Domain\Service\DatePeriodRule;
 use App\Application\Port\ReservationCacheInterface;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\DomainException;
@@ -176,8 +177,6 @@ final class ToggleMealUseCase
     /** YYYY-MM-DD の形式で、暦に実在する日付か */
     private static function isValidYmd(string $date): bool
     {
-        $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-
-        return $d !== false && $d->format('Y-m-d') === $date;
+        return DatePeriodRule::isDate($date);
     }
 }
