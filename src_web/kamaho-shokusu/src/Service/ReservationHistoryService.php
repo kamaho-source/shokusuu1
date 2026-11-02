@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -29,12 +31,12 @@ class ReservationHistoryService
 
     private ReservationDatePolicy $datePolicy;
 
-    private RoomAccessService $roomAccess;
+    private RoomQueryInterface $roomAccess;
 
-    public function __construct(?ReservationDatePolicy $datePolicy = null, ?RoomAccessService $roomAccess = null)
+    public function __construct(?ReservationDatePolicy $datePolicy = null, ?RoomQueryInterface $roomAccess = null)
     {
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
-        $this->roomAccess = $roomAccess ?? new RoomAccessService();
+        $this->roomAccess = $roomAccess ?? new CakeRoomQuery();
     }
 
     /**
@@ -278,7 +280,7 @@ class ReservationHistoryService
             return $this->roomAccess->getAllActiveRooms();
         }
 
-        return $this->roomAccess->getAccessibleRooms(TableRegistry::getTableLocator()->get('MRoomInfo'), $userId);
+        return $this->roomAccess->getAccessibleRooms($userId);
     }
 
     /**

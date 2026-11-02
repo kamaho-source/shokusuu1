@@ -3,25 +3,27 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\MealType;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
 class ReservationQueryService
 {
     private ReservationDatePolicy $datePolicy;
-    private RoomAccessService $roomAccessService;
+    private RoomQueryInterface $roomAccessService;
 
-    public function __construct(?ReservationDatePolicy $datePolicy = null, ?RoomAccessService $roomAccessService = null)
+    public function __construct(?ReservationDatePolicy $datePolicy = null, ?RoomQueryInterface $roomAccessService = null)
     {
         $this->datePolicy = $datePolicy ?? new ReservationDatePolicy();
-        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     public function getAuthorizedRooms(Table $roomTable, Table $userGroupTable, int $userId): array
     {
-        return $this->roomAccessService->getAccessibleRooms($roomTable, $userId);
+        return $this->roomAccessService->getAccessibleRooms($userId);
     }
 
     public function getUsersByRoom(Table $userGroupTable, Table $reservationTable, int $roomId, ?string $date): array

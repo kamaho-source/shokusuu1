@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Infrastructure\Query;
 
-use App\Service\RoomAccessService;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
-class RoomAccessServiceTest extends TestCase
+class CakeRoomQueryTest extends TestCase
 {
     protected array $fixtures = [
         'app.MRoomInfo',
@@ -17,12 +17,12 @@ class RoomAccessServiceTest extends TestCase
         'app.MUserGroup',
     ];
 
-    private RoomAccessService $service;
+    private CakeRoomQuery $service;
 
     public function setUp(): void
     {
         parent::setUp();
-        $this->service = new RoomAccessService();
+        $this->service = new CakeRoomQuery();
 
         $connection = ConnectionManager::get('test');
         $now = DateTime::now('Asia/Tokyo')->format('Y-m-d H:i:s');
@@ -77,7 +77,7 @@ class RoomAccessServiceTest extends TestCase
     {
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $rooms = $this->service->getAccessibleRooms($roomTable, 10);
+        $rooms = $this->service->getAccessibleRooms(10);
 
         $this->assertSame([2 => '事務所', 3 => '居室A'], $rooms);
     }
@@ -86,7 +86,7 @@ class RoomAccessServiceTest extends TestCase
     {
         $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
 
-        $rooms = $this->service->getAccessibleRooms($roomTable, 0);
+        $rooms = $this->service->getAccessibleRooms(0);
 
         $this->assertSame([], $rooms);
     }
@@ -208,7 +208,7 @@ class RoomAccessServiceTest extends TestCase
     {
         $this->addMembership(10, 23, 0, 1); // 所属は有効だが部屋が削除済み
 
-        $rooms = $this->service->getAccessibleRooms(TableRegistry::getTableLocator()->get('MRoomInfo'), 10);
+        $rooms = $this->service->getAccessibleRooms(10);
 
         $this->assertArrayNotHasKey(23, $rooms);
         $this->assertSame([2, 3], array_keys($rooms));
@@ -289,41 +289,9 @@ class RoomAccessServiceTest extends TestCase
         $connection = ConnectionManager::get('test');
         $connection->update('m_room_info', ['i_disp_no' => 0], ['i_id_room' => 40]);
 
-        $rooms = $this->service->getAccessibleRooms(TableRegistry::getTableLocator()->get('MRoomInfo'), 10);
+        $rooms = $this->service->getAccessibleRooms(10);
 
         $this->assertSame([40, 2, 3], array_keys($rooms));
-    }
-
-    public function testGetOfficeRooms_privateReturnsOfficeRoomsOnly(): void
-    {
-        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $m = new \ReflectionMethod($this->service, 'getOfficeRooms');
-        $m->setAccessible(true);
-
-        $this->assertSame([2 => '事務所'], $m->invoke($this->service, $roomTable, 10));
-        $this->assertSame([], $m->invoke($this->service, $roomTable, 9999));
-    }
-
-    public function testBuildRoomOrder_prefersDispNoColumn(): void
-    {
-        $roomTable = TableRegistry::getTableLocator()->get('MRoomInfo');
-        $m = new \ReflectionMethod($this->service, 'buildRoomOrder');
-        $m->setAccessible(true);
-
-        $order = $m->invoke($this->service, $roomTable);
-
-        $this->assertSame('i_id_room', array_key_last($order));
-        $this->assertCount(2, $order);
-    }
-
-    public function testBuildRoomOrder_fallsBackWhenSchemaFails(): void
-    {
-        $table = $this->createStub(\Cake\ORM\Table::class);
-        $table->method('getSchema')->willThrowException(new \RuntimeException('boom'));
-        $m = new \ReflectionMethod($this->service, 'buildRoomOrder');
-        $m->setAccessible(true);
-
-        $this->assertSame(['i_id_room' => 'ASC'], $m->invoke($this->service, $table));
     }
 
     public function testDbFailureFallsBackToSafeDefaults(): void
@@ -340,5 +308,48 @@ class RoomAccessServiceTest extends TestCase
         $this->assertSame([], $this->service->getOfficeRoomIds(10));
         $this->assertSame([], $this->service->getRoomsByIds([2]));
         $this->assertSame([], $this->service->getAllActiveRooms());
+    }
+
+    // ----------------------------------------------------------------
+    // 部屋のメンバー・部屋の数（旧 RoomServiceTest を引き継ぐ）
+    // ----------------------------------------------------------------
+
+    /** 部屋のメンバーは所属中で、削除されていない人だけ（削除済み 6、異動で抜けた人は出ない） */
+    public function testGetRoomMembers_activeAndNotDeletedOnly(): void
+    {
+        $groups = TableRegistry::getTableLocator()->get('MUserGroup');
+        $expected = array_values(array_diff(array_map('intval', $groups->find()->where(['i_id_room' => 1, 'active_flag' => 0])->all()->extract('i_id_user')->toList()), [6]));
+        $ids = array_map(static fn($m) => $m->userId, $this->service->getRoomMembers(1));
+        sort($expected);
+        $sorted = $ids;
+        sort($sorted);
+        $this->assertNotEmpty($expected);
+        $this->assertSame($expected, $sorted);
+
+        $groups->updateAll(['active_flag' => 1], ['i_id_user' => $ids[0], 'i_id_room' => 1]);
+        $this->assertNotContains($ids[0], array_map(static fn($m) => $m->userId, $this->service->getRoomMembers(1)), '異動で抜けた人は出ない');
+    }
+
+    public function testGetRoomMembers_roomWithoutMembers_isEmpty(): void
+    {
+        $this->assertSame([], $this->service->getRoomMembers(9999));
+    }
+
+    public function testGetRoomMembers_carriesProfileForTheScreen(): void
+    {
+        TableRegistry::getTableLocator()->get('MUserInfo')->updateAll(['i_user_age' => 9, 'i_user_level' => 1, 'i_disp_no' => 3], ['i_id_user' => 1]);
+        $member = array_values(array_filter($this->service->getRoomMembers(1), static fn($m) => $m->userId === 1))[0] ?? null;
+
+        $this->assertNotNull($member);
+        $this->assertSame([9, 1, 3], [$member->age, $member->level, $member->displayNo]);
+        $this->assertSame(TableRegistry::getTableLocator()->get('MUserInfo')->get(1)->c_user_name, $member->name);
+    }
+
+    public function testCountActiveRooms_excludesDeletedRooms(): void
+    {
+        $before = $this->service->countActiveRooms();
+        TableRegistry::getTableLocator()->get('MRoomInfo')->updateAll(['i_del_flg' => 1], ['i_id_room' => 1]);
+
+        $this->assertSame($before - 1, $this->service->countActiveRooms());
     }
 }

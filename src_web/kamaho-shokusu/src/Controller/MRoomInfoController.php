@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Application\UseCase\CreateRoom\CreateRoomInput;
 use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
 use App\Application\UseCase\DeleteRoom\DeleteRoomInput;
@@ -10,7 +11,7 @@ use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
 use App\Application\UseCase\UpdateRoom\UpdateRoomInput;
 use App\Application\UseCase\UpdateRoom\UpdateRoomOutput;
 use App\Application\UseCase\UpdateRoom\UpdateRoomUseCase;
-use App\Service\RoomService;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Authorization\Exception\ForbiddenException;
 
 /**
@@ -20,7 +21,7 @@ use Authorization\Exception\ForbiddenException;
  */
 class MRoomInfoController extends AppController
 {
-    private RoomService $roomService;
+    private RoomQueryInterface $roomQuery;
 
     public function initialize(): void
     {
@@ -29,7 +30,7 @@ class MRoomInfoController extends AppController
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
 
-        $this->roomService = new RoomService();
+        $this->roomQuery = new CakeRoomQuery();
     }
 
     /**
@@ -81,7 +82,7 @@ class MRoomInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $users = $this->roomService->getUsersForRoom($mRoomInfo);
+        $users = $this->roomQuery->getRoomMembers((int)$mRoomInfo->i_id_room);
         $canReorder = $this->Authorization->can($mRoomInfo, 'reorderMembers');
 
         $this->set(compact('mRoomInfo', 'users', 'canReorder'));
@@ -154,7 +155,7 @@ class MRoomInfoController extends AppController
             if ($result->status === UpdateRoomOutput::INVALID_FIELDS) {
                 $mRoomInfo->setErrors($result->fieldErrors);
                 $this->Flash->error(__('部屋情報を更新できませんでした。もう一度お試しください。'));
-                $users = $this->roomService->getUsersForRoom($mRoomInfo);
+                $users = $this->roomQuery->getRoomMembers((int)$mRoomInfo->i_id_room);
                 $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
                 return null;
             }
@@ -170,7 +171,7 @@ class MRoomInfoController extends AppController
             // 並びを続けて直せるよう、保存後も編集画面に残る（一覧へは画面の「部屋一覧に戻る」から）
             return $this->redirect(['action' => 'edit', $mRoomInfo->i_id_room]);
         }
-        $users = $this->roomService->getUsersForRoom($mRoomInfo);
+        $users = $this->roomQuery->getRoomMembers((int)$mRoomInfo->i_id_room);
         $this->set(compact('mRoomInfo', 'users', 'canEditRoom', 'canReorder'));
     }
 

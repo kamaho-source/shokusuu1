@@ -11,7 +11,7 @@ use App\Infrastructure\Log\AuditLogAdapter;
 use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\Repository\CakeRoomRepository;
 use App\Service\MealCountGridService;
-use App\Service\RoomService;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
 use Cake\TestSuite\TestCase;
@@ -132,8 +132,7 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         $grid = (new MealCountGridService())->getRoomUsersByRooms($this->getTableLocator()->get('MUserGroup'), $users, [1])[1];
         $this->assertSame([1, 2, 3], array_column($grid, 'id'));
 
-        $room = $this->getTableLocator()->get('MRoomInfo')->get(1, contain: ['MUserGroup']);
-        $this->assertSame([1, 2, 3], array_map(fn($u) => (int)$u->i_id_user, (new RoomService())->getUsersForRoom($room)), '削除済み 6 は出ない');
+        $this->assertSame([1, 2, 3], array_map(fn($u) => $u->userId, (new CakeRoomQuery())->getRoomMembers(1)), '削除済み 6 は出ない');
     }
 
     /** 区分（0・1・7・NULL）が混ざる部屋で、区分をまたいで混ぜた並びをそのまま保存する */

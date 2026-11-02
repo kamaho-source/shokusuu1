@@ -3,22 +3,24 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
 
 class ReservationChangeEditService
 {
-    private RoomAccessService $roomAccessService;
+    private RoomQueryInterface $roomAccessService;
 
-    public function __construct(?RoomAccessService $roomAccessService = null)
+    public function __construct(?RoomQueryInterface $roomAccessService = null)
     {
-        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     public function userHasRoomAccess(int $userId): bool
@@ -30,7 +32,7 @@ class ReservationChangeEditService
     {
         $loginUid = (int)($loginUser?->get('i_id_user') ?? 0);
 
-        $allowedRooms = $this->roomAccessService->getAccessibleRooms($roomTable, $loginUid);
+        $allowedRooms = $this->roomAccessService->getAccessibleRooms($loginUid);
 
         if (empty($allowedRooms) && $roomId && $this->roomAccessService->isActiveMember($loginUid, $roomId)) {
             $one = $roomTable->find()

@@ -3,9 +3,10 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Query\CakeRoomQuery;
 
-use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
 
 /**
@@ -15,11 +16,11 @@ use Authorization\IdentityInterface;
  */
 class ApprovalPolicy
 {
-    private RoomAccessService $roomAccessService;
+    private RoomQueryInterface $roomAccessService;
 
-    public function __construct(?RoomAccessService $roomAccessService = null)
+    public function __construct(?RoomQueryInterface $roomAccessService = null)
     {
-        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     /** ブロック長用承認一覧 */

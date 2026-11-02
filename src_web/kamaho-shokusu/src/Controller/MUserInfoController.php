@@ -27,11 +27,12 @@ use App\Application\UseCase\EditUser\EditUserUseCase;
 use App\Application\UseCase\RestoreUser\RestoreUserInput;
 use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Domain\Service\DeletedMembershipRule;
+use App\Domain\Service\RoomAffiliationLabel;
 use App\Domain\ValueObject\RoomMembershipStatus;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Query\CakeRoomQuery;
 use App\Service\ApiResponseService;
-use App\Service\RoomService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
@@ -172,11 +173,10 @@ class MUserInfoController extends AppController
             $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], $u);
         }
 
-        $roomService      = new RoomService();
-        $totalActiveRooms = $roomService->countActiveRooms();
+        $totalActiveRooms = (new CakeRoomQuery())->countActiveRooms();
         $userRoomLabels   = [];
         foreach ($userRooms as $uid => $roomNames) {
-            $userRoomLabels[$uid] = $roomService->buildAffiliationLabel($roomNames, $totalActiveRooms);
+            $userRoomLabels[$uid] = RoomAffiliationLabel::build($roomNames, $totalActiveRooms);
         }
 
         $canRegisterUsers = $this->Authorization->can($resource, 'add');

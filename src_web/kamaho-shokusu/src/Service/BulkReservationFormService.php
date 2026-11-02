@@ -3,22 +3,24 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\Service\ReservationDateRule;
-use Cake\ORM\Table;
+use App\Infrastructure\Query\CakeRoomQuery;
 use Cake\I18n\DateTime;
+use Cake\ORM\Table;
 
 class BulkReservationFormService
 {
-    private RoomAccessService $roomAccessService;
+    private RoomQueryInterface $roomAccessService;
 
-    public function __construct(?RoomAccessService $roomAccessService = null)
+    public function __construct(?RoomQueryInterface $roomAccessService = null)
     {
-        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     public function getRoomsForUser(Table $roomTable, int $userId): array
     {
-        return $this->roomAccessService->getAccessibleRooms($roomTable, $userId);
+        return $this->roomAccessService->getAccessibleRooms($userId);
     }
 
     public function buildBulkAddData(string $selectedDate, ?string $baseWeekParam): array

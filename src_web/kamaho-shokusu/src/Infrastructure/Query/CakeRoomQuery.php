@@ -1,15 +1,20 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Infrastructure\Query;
 
+use App\Application\Query\Dto\RoomMemberView;
+use App\Application\Query\RoomQueryInterface;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
+use App\Service\RoomMemberOrderService;
 use Cake\Log\Log;
-use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
 
-class RoomAccessService
+/**
+ * RoomQueryInterface の CakePHP 実装（m_room_info・m_user_group・m_user_info の読み取り）。
+ */
+final class CakeRoomQuery implements RoomQueryInterface
 {
     private const OFFICE_ROOM_KEYWORD = '事務所';
 
@@ -39,7 +44,7 @@ class RoomAccessService
 
             return array_values(array_unique($roomIds));
         } catch (\Throwable $e) {
-            Log::error(sprintf('RoomAccessService#getUserRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
+            Log::error(sprintf('CakeRoomQuery#getUserRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return [];
         }
     }
@@ -66,7 +71,7 @@ class RoomAccessService
                 ])
                 ->count() > 0;
         } catch (\Throwable $e) {
-            Log::error(sprintf('RoomAccessService#isOfficeUser failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
+            Log::error(sprintf('CakeRoomQuery#isOfficeUser failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return false;
         }
     }
@@ -95,13 +100,13 @@ class RoomAccessService
         return !empty($this->getUserRoomIds($userId));
     }
 
-    public function getAccessibleRooms(Table $roomTable, int $userId): array
+    public function getAccessibleRooms(int $userId): array
     {
         if ($userId <= 0) {
             return [];
         }
 
-        $rows = $roomTable->find()
+        $rows = TableRegistry::getTableLocator()->get('MRoomInfo')->find()
             ->enableAutoFields(false)
             ->select([
                 'room_id' => 'MRoomInfo.i_id_room',
@@ -165,7 +170,7 @@ class RoomAccessService
 
             return array_values(array_unique($roomIds));
         } catch (\Throwable $e) {
-            Log::error(sprintf('RoomAccessService#getOfficeRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
+            Log::error(sprintf('CakeRoomQuery#getOfficeRoomIds failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return [];
         }
     }
@@ -189,7 +194,7 @@ class RoomAccessService
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
         } catch (\Throwable $e) {
-            Log::error(sprintf('RoomAccessService#getRoomsByIds failed: %s: %s (roomIds=%s)', get_class($e), $e->getMessage(), implode(',', $roomIds)));
+            Log::error(sprintf('CakeRoomQuery#getRoomsByIds failed: %s: %s (roomIds=%s)', get_class($e), $e->getMessage(), implode(',', $roomIds)));
             return [];
         }
     }
@@ -208,48 +213,41 @@ class RoomAccessService
                 ->orderBy(['i_disp_no' => 'ASC'])
                 ->toArray();
         } catch (\Throwable $e) {
-            Log::error(sprintf('RoomAccessService#getAllActiveRooms failed: %s: %s', get_class($e), $e->getMessage()));
+            Log::error(sprintf('CakeRoomQuery#getAllActiveRooms failed: %s: %s', get_class($e), $e->getMessage()));
             return [];
         }
     }
 
-    private function getOfficeRooms(Table $roomTable, int $userId): array
+    public function countActiveRooms(): int
     {
-        $officeRoomIds = $this->getOfficeRoomIds($userId);
-        if (empty($officeRoomIds)) {
+        return TableRegistry::getTableLocator()->get('MRoomInfo')->find()->where(['i_del_flg' => 0])->count();
+    }
+
+    public function getRoomMembers(int $roomId): array
+    {
+        $userIds = TableRegistry::getTableLocator()->get('MUserGroup')->find()
+            ->select(['i_id_user'])
+            ->where(['i_id_room' => $roomId, ...MUserGroupTable::activeCondition('')])
+            ->all()
+            ->extract('i_id_user')
+            ->toList();
+        if ($userIds === []) {
             return [];
         }
 
-        return $roomTable->find('list', [
-            'keyField' => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ])
-            ->where(['i_id_room IN' => $officeRoomIds])
-            ->orderBy($this->buildRoomOrder($roomTable))
-            ->toArray();
-    }
-
-    private function buildRoomOrder(Table $roomTable): array
-    {
-        $roomOrder = ['i_id_room' => 'ASC'];
-
-        try {
-            $schema = $roomTable->getSchema();
-            if (method_exists($schema, 'hasColumn')) {
-                if ($schema->hasColumn('i_sort')) {
-                    $roomOrder = ['i_sort' => 'ASC', 'i_id_room' => 'ASC'];
-                } elseif ($schema->hasColumn('display_order')) {
-                    $roomOrder = ['display_order' => 'ASC', 'i_id_room' => 'ASC'];
-                } elseif ($schema->hasColumn('i_disp_no')) {
-                    $roomOrder = ['i_disp_no' => 'ASC', 'i_id_room' => 'ASC'];
-                } elseif ($schema->hasColumn('c_room_name')) {
-                    $roomOrder = ['c_room_name' => 'ASC', 'i_id_room' => 'ASC'];
-                }
-            }
-        } catch (\Throwable $e) {
-            $roomOrder = ['i_id_room' => 'ASC'];
+        $members = [];
+        foreach (RoomMemberOrderService::orderMembers(TableRegistry::getTableLocator()->get('MUserInfo')->find())
+            ->where(['MUserInfo.i_id_user IN' => $userIds, 'MUserInfo.i_del_flag' => 0])
+            ->all() as $user) {
+            $members[] = new RoomMemberView(
+                (int)$user->get('i_id_user'),
+                $user->get('c_user_name') === null ? null : (string)$user->get('c_user_name'),
+                $user->get('i_user_level') === null ? null : (int)$user->get('i_user_level'),
+                $user->get('i_user_age') === null ? null : (int)$user->get('i_user_age'),
+                $user->get('i_disp_no') === null ? null : (int)$user->get('i_disp_no'),
+            );
         }
 
-        return $roomOrder;
+        return $members;
     }
 }
