@@ -1,7 +1,8 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Infrastructure\Persistence\Entity\MMealPriceInfo $mMealPriceInfo
+ * @var array{schema: array<string, array{type: string}>, defaults: array<string, int|string|null>} $mealPriceForm
+ * @var \App\Domain\Entity\MealPrice $mMealPriceInfo
  */
 $this->assign('title', __('食事単価情報の編集'));
 $this->Html->script('realtime-validation.js', ['block' => true]);
@@ -15,9 +16,9 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                     <h5 class="card-title"><?= __('Actions') ?></h5>
                     <?= $this->Form->postLink(
                         '削除',
-                        ['action' => 'delete', $mMealPriceInfo->i_id],
+                        ['action' => 'delete', $mMealPriceInfo->id],
                         [
-                            'confirm' => __('本当に削除してもよろしいですか？ # {0}', $mMealPriceInfo->i_id),
+                            'confirm' => __('本当に削除してもよろしいですか？ # {0}', $mMealPriceInfo->id),
                             'class' => 'btn btn-danger w-100 mb-2'
                         ]
                     ) ?>
@@ -36,7 +37,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                 <div class="card-body">
                     <h5 class="card-title"><?= __('食事単価情報の編集') ?></h5>
 
-                    <?= $this->Form->create($mMealPriceInfo, ['id' => 'meal-price-form']) ?>
+                    <?= $this->Form->create($mealPriceForm, ['id' => 'meal-price-form']) ?>
                     <fieldset>
                         <legend class="mb-4"><?= __('必要な情報を変更してください') ?></legend>
                         <div class="row g-3">

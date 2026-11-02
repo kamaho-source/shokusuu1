@@ -3,156 +3,171 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\MealPriceQueryInterface;
+use App\Application\UseCase\CreateMealPrice\CreateMealPriceUseCase;
+use App\Application\UseCase\DeleteMealPrice\DeleteMealPriceUseCase;
+use App\Application\UseCase\ExportMealSummary\ExportMealSummaryUseCase;
+use App\Application\UseCase\UpdateMealPrice\UpdateMealPriceUseCase;
+use App\Domain\Entity\MealPrice;
+use App\Domain\Exception\InvalidInputException;
+use App\Domain\Exception\NotFoundException as DomainNotFoundException;
+use App\Infrastructure\Persistence\Entity\MMealPriceInfo;
 use App\Service\ApiResponseService;
 use App\Service\MealSummaryExportService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Core\Configure;
 use Cake\Http\Exception\NotFoundException;
+use Cake\Http\Response;
 use Cake\I18n\Date;
-use Cake\I18n\DateTime;
 
 /**
- * MMealPriceInfo Controller
- *
+ * 単価マスタ（管理者）と控除表の出力。登録・更新・削除・出力は UseCase、一覧は MealPriceQueryInterface。
  */
 class MMealPriceInfoController extends AppController
 {
+    private const FIELDS = ['year' => 'i_fiscal_year', 'morning' => 'i_morning_price', 'lunch' => 'i_lunch_price', 'dinner' => 'i_dinner_price', 'bento' => 'i_bento_price'];
 
-    protected $MMealPriceInfo;
-    private MealSummaryExportService $mealSummaryExportService;
-
-    public function initialize(): void
+    /**
+     * 権限が無ければ Response（$redirect へ戻す）。
+     */
+    private function deny(string $action, string $message, array $redirect): ?Response
     {
-        parent::initialize();
-        $this->MMealPriceInfo = $this->fetchTable('MMealPriceInfo');
-        $this->mealSummaryExportService = new MealSummaryExportService();
+        try {
+            $this->Authorization->authorize(new MMealPriceInfo(), $action);
+
+            return null;
+        } catch (ForbiddenException) {
+            $this->Flash->error(__($message));
+
+            return $this->redirect($redirect);
+        }
     }
 
     /**
-     * Index method
+     * 送信された単価（'year' などのキーで、空は空文字）。送られなかった項目は入れない（更新では今の値のまま）。
      *
-     * @return \Cake\Http\Response|null|void Renders view
+     * @return array<string, string>
      */
-    public function index()
+    private function submittedValues(): array
     {
-        $resource = $this->MMealPriceInfo->newEmptyEntity();
-        try {
-            $this->Authorization->authorize($resource, 'index');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('あなたは閲覧権限がありません。'));
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+        $values = [];
+        foreach (self::FIELDS as $key => $field) {
+            if ($this->request->getData($field) !== null) {
+                $values[$key] = trim($this->dataString($field));
+            }
         }
 
-        $query = $this->MMealPriceInfo->find();
-        $mMealPriceInfo = $this->paginate($query);
-
-        $this->set(compact('mMealPriceInfo'));
+        return $values;
     }
 
     /**
-     * View method
+     * 入力フォームの中身（型・初期値）。保存できなかったときは送信された値を出し直す。
      *
-     * @param string|null $id M Meal Price Info id.
-     * @return \Cake\Http\Response|null|void Renders view
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
+     * @param array<string, string>|null $submitted
+     * @return array{schema: array<string, array{type: string}>, defaults: array<string, int|string|null>}
      */
-    public function view($id = null)
+    private static function formContext(?MealPrice $price, ?array $submitted = null): array
     {
-        $mMealPriceInfo = $this->MMealPriceInfo->get($id, contain: []);
-        try {
-            $this->Authorization->authorize($mMealPriceInfo, 'view');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('あなたは閲覧権限がありません。'));
-            return $this->redirect(['action' => 'index']);
+        $values = $submitted ?? ['year' => $price?->year, 'morning' => $price?->morning, 'lunch' => $price?->lunch, 'dinner' => $price?->dinner, 'bento' => $price?->bento];
+        $schema = $defaults = [];
+        foreach (self::FIELDS as $key => $field) {
+            $schema[$field] = ['type' => 'integer'];
+            $defaults[$field] = $values[$key] ?? null;
         }
-        $this->set(compact('mMealPriceInfo'));
+
+        return ['schema' => $schema, 'defaults' => $defaults];
     }
 
-    /**
-     * Add method
-     *
-     * @return \Cake\Http\Response|null|void Redirects on successful add, renders view otherwise.
-     */
-    public function add()
+    public function index(MealPriceQueryInterface $priceQuery): ?Response
+    {
+        if ($denied = $this->deny('index', 'あなたは閲覧権限がありません。', ['controller' => 'MUserInfo', 'action' => 'login'])) {
+            return $denied;
+        }
+
+        $this->set('mMealPriceInfo', $priceQuery->all());
+
+        return null;
+    }
+
+    public function view(MealPriceQueryInterface $priceQuery, $id = null): ?Response
+    {
+        $price = $priceQuery->find((int)$id) ?? throw new NotFoundException('食事料金情報が見つかりません。');
+        if ($denied = $this->deny('view', 'あなたは閲覧権限がありません。', ['action' => 'index'])) {
+            return $denied;
+        }
+
+        $this->set('mMealPriceInfo', $price);
+
+        return null;
+    }
+
+    public function add(CreateMealPriceUseCase $createPrice): ?Response
     {
         $this->request->allowMethod(['get', 'post']);
-        $mMealPriceInfo = $this->MMealPriceInfo->newEmptyEntity();
-        try {
-            $this->Authorization->authorize($mMealPriceInfo, 'add');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('あなたは追加権限がありません。'));
-            return $this->redirect(['action' => 'index']);
+        if ($denied = $this->deny('add', 'あなたは追加権限がありません。', ['action' => 'index'])) {
+            return $denied;
         }
-        $user = $this->request->getAttribute('identity');
-        if ($this->request->is('post')) {
-            $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
-            $mMealPriceInfo->dt_create = DateTime::now()->format('Y-m-d H:i:s');
-            $mMealPriceInfo->c_create_user = $user ? $user->get('c_user_name') : null;
 
-            if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
-                \App\Service\AuditLogService::record('master', 'meal_price_create', $mMealPriceInfo->c_create_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+        $form = self::formContext(null);
+        if ($this->request->is('post')) {
+            $values = $this->submittedValues();
+            try {
+                $createPrice->execute($values, $this->auditActor());
                 $this->Flash->success(__('食事料金情報が正常に保存されました。'));
 
                 return $this->redirect(['action' => 'index']);
+            } catch (InvalidInputException $e) {
+                $this->Flash->error(__($e->getMessage()));
+                $form = self::formContext(null, $values);
             }
-            $this->Flash->error(__('食事料金情報を保存できませんでした。もう一度お試しください。'));
         }
-        $this->set(compact('mMealPriceInfo'));
+        $this->set('mealPriceForm', $form);
+
+        return null;
     }
 
-    /**
-     * Edit method
-     *
-     * @param string|null $id M Meal Price Info id.
-     * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function edit($id = null)
+    public function edit(UpdateMealPriceUseCase $updatePrice, MealPriceQueryInterface $priceQuery, $id = null): ?Response
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
-        $mMealPriceInfo = $this->MMealPriceInfo->get($id, contain: []);
-        try {
-            $this->Authorization->authorize($mMealPriceInfo, 'edit');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('あなたは編集権限がありません。'));
-            return $this->redirect(['action' => 'index']);
+        $price = $priceQuery->find((int)$id) ?? throw new NotFoundException('食事料金情報が見つかりません。');
+        if ($denied = $this->deny('edit', 'あなたは編集権限がありません。', ['action' => 'index'])) {
+            return $denied;
         }
-        $user = $this->request->getAttribute('identity');
+
+        $form = self::formContext($price);
         if ($this->request->is(['patch', 'post', 'put'])) {
-            $mMealPriceInfo = $this->MMealPriceInfo->patchEntity($mMealPriceInfo, $this->request->getData());
-            $mMealPriceInfo->dt_update = DateTime::now()->format('Y-m-d H:i:s');
-            $mMealPriceInfo->c_update_user = $user ? $user->get('c_user_name') : null;
-            if ($this->MMealPriceInfo->save($mMealPriceInfo)) {
-                \App\Service\AuditLogService::record('master', 'meal_price_update', $mMealPriceInfo->c_update_user ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), 1, (string)($user?->get('c_login_account') ?? ''));
+            $values = $this->submittedValues();
+            try {
+                $updatePrice->execute((int)$price->id, $values, $this->auditActor());
                 $this->Flash->success(__('食事料金情報が正常に更新されました。'));
 
                 return $this->redirect(['action' => 'index']);
+            } catch (InvalidInputException $e) {
+                $this->Flash->error(__($e->getMessage()));
+                $form = self::formContext($price, $values);
+            } catch (DomainNotFoundException $e) {
+                throw new NotFoundException($e->getMessage(), null, $e);
             }
-            $this->Flash->error(__('食事料金情報を更新できませんでした。もう一度お試しください。'));
         }
-        $this->set(compact('mMealPriceInfo'));
+        $this->set('mMealPriceInfo', $price);
+        $this->set('mealPriceForm', $form);
+
+        return null;
     }
 
-    /**
-     * Delete method
-     *
-     * @param string|null $id M Meal Price Info id.
-     * @return \Cake\Http\Response|null Redirects to index.
-     * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
-     */
-    public function delete($id = null)
+    public function delete(DeleteMealPriceUseCase $deletePrice, MealPriceQueryInterface $priceQuery, $id = null): Response
     {
         $this->request->allowMethod(['post', 'delete']);
-        $mMealPriceInfo = $this->MMealPriceInfo->get($id);
-        try {
-            $this->Authorization->authorize($mMealPriceInfo, 'delete');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('あなたは削除権限がありません。'));
-            return $this->redirect(['action' => 'index']);
+        $price = $priceQuery->find((int)$id) ?? throw new NotFoundException('食事料金情報が見つかりません。');
+        if ($denied = $this->deny('delete', 'あなたは削除権限がありません。', ['action' => 'index'])) {
+            return $denied;
         }
-        $user = $this->request->getAttribute('identity');
-        $deleted = $this->MMealPriceInfo->delete($mMealPriceInfo);
-        \App\Service\AuditLogService::record('master', 'meal_price_delete', $user?->get('c_user_name') ?? '不明', $user ? (int)$user->get('i_id_user') : 0, 'm_meal_price_info', (string)$mMealPriceInfo->i_id_price, null, $this->getClientIp(), $deleted ? 1 : 0, (string)($user?->get('c_login_account') ?? ''), $deleted ? null : '単価マスタの削除に失敗しました（対象が存在しない、またはDBエラー）');
+
+        try {
+            $deleted = $deletePrice->execute((int)$price->id, $this->auditActor());
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException($e->getMessage(), null, $e);
+        }
         if ($deleted) {
             $this->Flash->success(__('食事料金情報が正常に削除されました。'));
         } else {
@@ -162,78 +177,56 @@ class MMealPriceInfoController extends AppController
         return $this->redirect(['action' => 'index']);
     }
 
-    public function getMealSummary()
+    public function getMealSummary(MealPriceQueryInterface $priceQuery): ?Response
     {
-        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'index');
+        $this->Authorization->authorize(new MMealPriceInfo(), 'index');
 
         // 年度と月をリクエストから取得 (デフォルト値は今年と現在の月)
-        $Year = $this->request->getQuery('year', Date::today()->format('Y'));
-        $month = $this->request->getQuery('month', Date::today()->format('n')); // 月は1月から12月で選択
-
-        // 年度と月のリストをテンプレートに渡す
-        $yearList = $this->MMealPriceInfo->find()
-            ->select(['i_fiscal_year'])
-            ->distinct(['i_fiscal_year'])
-            ->orderBy(['i_fiscal_year'])
-            ->toArray();
-
-        $monthList = range(1, 12); // 月のリスト (1〜12)
+        $Year  = $this->queryString('year') ?: Date::today()->format('Y');
+        $month = $this->queryString('month') ?: Date::today()->format('n');
+        $yearList  = $priceQuery->years();
+        $monthList = range(1, 12);
 
         $this->set(compact('yearList', 'monthList', 'Year', 'month'));
+
+        return null;
     }
 
-    public function exportMealSummary()
+    public function exportMealSummary(ExportMealSummaryUseCase $exportSummary): Response
     {
         // 全職員の氏名・職員ID・食数・控除額が返るため、管理者のみ許可する。
-        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'exportMealSummary');
-
+        $this->Authorization->authorize(new MMealPriceInfo(), 'exportMealSummary');
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();
 
-        $year  = (int)$this->request->getQuery('year', Date::today()->format('Y'));
-        $month = (int)$this->request->getQuery('month', Date::today()->format('n'));
+        // 空のときだけ今年・今月にする（"0" を指定なしと同じにしない）
+        $year  = (int)($this->queryString('year') !== '' ? $this->queryString('year') : Date::today()->format('Y'));
+        $month = (int)($this->queryString('month') !== '' ? $this->queryString('month') : Date::today()->format('n'));
+        try {
+            $rows = $exportSummary->execute($year, $month, $this->auditActor());
+        } catch (InvalidInputException $e) {
+            return $apiResponse->error($this->response, $e->getMessage(), $e->getStatusCode());
+        }
 
-        $monthlyData = $this->mealSummaryExportService->aggregate($year, $month);
-
-        $identity = $this->request->getAttribute('identity');
-        \App\Service\AuditLogService::record(
-            'master',
-            'meal_price_excel_export',
-            $identity?->get('c_user_name') ?? '不明',
-            $identity ? (int)$identity->get('i_id_user') : 0,
-            'm_meal_price_info',
-            null,
-            ['year' => $year, 'month' => $month],
-            $this->getClientIp(),
-            1,
-            (string)($identity?->get('c_login_account') ?? '')
-        );
-
-        return $apiResponse->success($this->response, ['rows' => $monthlyData]);
+        return $apiResponse->success($this->response, ['rows' => $rows]);
     }
 
-    /**
-     * GET /MMealPriceInfo/exportMealSummaryPreview
-     *
-     * 未承認(status=0)・ブロック長承認済(status=1) のみを集計したプレビューデータを返す。
-     * 管理者のみ使用可能（canAdd ポリシーで管理者判定）。
-     */
-    public function exportMealSummaryPreview()
+    public function exportMealSummaryPreview(): Response
     {
         // 承認機能オフのときは「未承認プレビュー」は概念として存在しないため無効化する。
         if (!Configure::read('Features.approval')) {
             throw new NotFoundException('未承認プレビューは現在無効です。');
         }
 
-        $this->Authorization->authorize($this->MMealPriceInfo->newEmptyEntity(), 'add');
+        $this->Authorization->authorize(new MMealPriceInfo(), 'add');
 
         $this->autoRender = false;
         $apiResponse = new ApiResponseService();
 
-        $year  = (int)$this->request->getQuery('year', Date::today()->format('Y'));
-        $month = (int)$this->request->getQuery('month', Date::today()->format('n'));
+        $year  = (int)($this->queryString('year') ?: Date::today()->format('Y'));
+        $month = (int)($this->queryString('month') ?: Date::today()->format('n'));
 
-        $result = $this->mealSummaryExportService->aggregatePreview($year, $month);
+        $result = (new MealSummaryExportService())->aggregatePreview($year, $month);
 
         return $apiResponse->success($this->response, $result);
     }

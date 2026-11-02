@@ -3,13 +3,12 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use Cake\Core\Configure;
 use Cake\ORM\TableRegistry;
 
 /**
  * 食事集計エクスポートサービス
  *
- * 指定年度・月の職員別食事回数と料金を集計する。
+ * 未承認プレビュー（承認機能）の集計。控除表の本体は ExportMealSummaryUseCase と CakeMealSummaryQuery。
  */
 class MealSummaryExportService
 {
@@ -17,43 +16,9 @@ class MealSummaryExportService
     private const RESERVATION_TYPE_LUNCH   = 2;
     private const RESERVATION_TYPE_DINNER  = 3;
     private const RESERVATION_TYPE_BENTO   = 4;
-    private const APPROVAL_STATUS_APPROVED = 2;
 
     /** 未承認プレビュー対象ステータス（差し戻し=3は除外） */
     private const PREVIEW_STATUSES = [0, 1];
-
-    /**
-     * 指定年度・月の職員別食事集計データを返す。
-     *
-     * @param int $year  年度
-     * @param int $month 月（1〜12）
-     * @return array{name: string, staff_id: int|string|null, meal_counts: array, total_price: int}[]
-     */
-    public function aggregate(int $year, int $month): array
-    {
-        $mealPrices = $this->fetchMealPrices($year);
-        $users      = $this->fetchStaffUsers();
-        $rowsByUser = $this->fetchReservationRowsByUser($users, $year, $month, self::approvalFilterConditions());
-
-        $monthlyData = [];
-        foreach ($users as $user) {
-            $mealCounts    = $this->countMeals($rowsByUser[$user->i_id_user] ?? []);
-            // 削除（退職）済み職員は、その月に実績がある場合のみ控除表に載せる
-            if ((int)$user->i_del_flag === 1 && array_sum($mealCounts) === 0) {
-                continue;
-            }
-            $mealTotalPrice = $this->calcTotalPrice($mealCounts, $mealPrices);
-
-            $monthlyData[] = [
-                'name'        => $user->c_user_name,
-                'staff_id'    => $user->i_id_staff,
-                'meal_counts' => $mealCounts,
-                'total_price' => $mealTotalPrice,
-            ];
-        }
-
-        return $monthlyData;
-    }
 
     /**
      * 未承認プレビュー用: 未承認(0)・ブロック長承認済(1) のみを集計する。
@@ -128,7 +93,7 @@ class MealSummaryExportService
     }
 
     /**
-     * 控除表集計(countMeals)で使う承認ステータス絞り込み条件を返す。
+     * 控除表の集計で使う承認ステータス絞り込み条件を返す（CakeMealSummaryQuery と同じ）。
      *
      * - 承認機能が有効: 承認済み(2)のみを集計対象にする。
      * - 承認オフ運用:   承認ステータスで絞らない（空配列）＝有効予約をそのまま集計する。
@@ -139,9 +104,7 @@ class MealSummaryExportService
      */
     public static function approvalFilterConditions(): array
     {
-        return Configure::read('Features.approval')
-            ? ['i_approval_status' => self::APPROVAL_STATUS_APPROVED]
-            : [];
+        return \App\Infrastructure\Query\CakeMealSummaryQuery::approvalFilterConditions();
     }
 
     /**
@@ -182,34 +145,6 @@ class MealSummaryExportService
         }
 
         return $byUser;
-    }
-
-    /**
-     * @param iterable<\Cake\Datasource\EntityInterface> $rows 1ユーザーの対象月の予約行
-     * @return array{morning: int, lunch: int, dinner: int, bento: int}
-     */
-    private function countMeals(iterable $rows): array
-    {
-        $counts = ['bento' => 0, 'morning' => 0, 'lunch' => 0, 'dinner' => 0];
-
-        foreach ($rows as $row) {
-            // 食数として数える基準は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag、それより先は eat_flag）
-            $effectiveFlag = (new ReservationDatePolicy())->countedValue($row->d_reservation_date, $row->eat_flag, $row->i_change_flag);
-
-            if ($effectiveFlag !== 1) {
-                continue;
-            }
-
-            match ((int)$row->i_reservation_type) {
-                self::RESERVATION_TYPE_BENTO   => $counts['bento']++,
-                self::RESERVATION_TYPE_MORNING => $counts['morning']++,
-                self::RESERVATION_TYPE_LUNCH   => $counts['lunch']++,
-                self::RESERVATION_TYPE_DINNER  => $counts['dinner']++,
-                default                        => null,
-            };
-        }
-
-        return $counts;
     }
 
     /**
