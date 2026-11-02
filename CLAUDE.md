@@ -44,15 +44,18 @@ src/
 │   ├── Repository/        # インターフェースのみ
 │   └── Exception/
 ├── Application/
-│   ├── UseCase/           # {UseCaseName}/{Input,Output,UseCase}.php
-│   ├── Port/              # Repository 以外の外部への口（キャッシュ・トランザクション・ログなど）。実装は Infrastructure
+│   ├── UseCase/           # 書き込み。{UseCaseName}/{Input,Output,UseCase}.php
+│   ├── Query/             # 読み取りのインターフェース（〜QueryInterface）と、画面に渡す形の Dto/
+│   ├── Port/              # Repository 以外の外部への口（キャッシュ・トランザクション・監査ログ・通知など）。実装は Infrastructure
 │   └── Exception/
 ├── Infrastructure/
 │   ├── Repository/        # Domain/Repository/ の実装
+│   ├── Query/             # Application/Query/ の実装（Cake〜Query）
+│   ├── Notification/      # 通知（メール・Slack）の Port の実装
 │   ├── Persistence/       # CakePHP の Table/ と ORM の Entity/（探索先は Application::TABLE_LOCATION。ORM の Entity は CakePHP に依存するので Domain には置かない）
 │   └── ReservationUseCases.php # 予約の UseCase の組み立て口（services() から使う）
-└── Presentation/
-    └── Controller/
+├── Service/               # 下の「Service 層の位置づけ」を参照。新しい業務ロジックは足さない
+└── Controller/            # Presentation 層
 ```
 
 ---
@@ -65,7 +68,17 @@ src/
 
 **Infrastructure 層** — Domain の Repository Interface を必ず実装。CakePHP ORMへの依存はこの層に閉じ込める。
 
-**Presentation 層** — コントローラーは薄く保つ。UseCase を呼び出し結果をテンプレートに渡すだけ。ビジネスロジック・ORM直接記述は禁止。
+**Presentation 層** — コントローラーは薄く保つ。書き込みは UseCase、読み取りは Query を呼び、結果をテンプレートに渡すだけ。ビジネスロジック・ORM直接記述は禁止。
+- 例外（Table を Controller から読んでよい場合）: ① Paginator の並べ替え・ページ送りを使う一覧（ユーザー・部屋・監査ログ）、② Policy の判定にエンティティの中身が要るとき、③ FormHelper にエンティティを渡すフォーム。いずれも読み込みだけで、書き込みは必ず UseCase を通す。
+- 権限の判定のためだけに空のエンティティが要るときは、Table を使わず `new MUserInfo()` のように直接作る。
+- リクエストの値は `queryString()` / `dataString()`（AppController）で文字列として受け取る（配列が来ても警告を出さない）。
+
+**読み取り（Query）** — 画面・API の読み取りは Application の `〜QueryInterface` と `Dto/` に形を決め、Infrastructure の `Cake〜Query` で実装する。書き込みの UseCase とは分ける。キャッシュのキーと中身の形は、リリースをまたいでも読めるように変えない。「食べる」の判定は `ReservationDateRule::countedValue`、「部屋に所属」は `RoomMembershipRepository` / `RoomQueryInterface`（所属中かつ削除されていない部屋）に一本化している。
+
+**Service 層の位置づけ（`src/Service`）** — 新しい業務ロジック・DB の読み書きは足さない（Domain・Application・Infrastructure に置く）。残してよいのは次のものだけ。
+- DB を読まない画面の組み立て・小さな部品（`BulkReservationFormService`・`DashboardService`・`ReservationAddService`・`ApiResponseService`・`ReservationDatePolicy`。`RoomMemberOrderService` は Query が使う並び順の部品）
+- 監査ログの書き込みの本体（`AuditLogService`。Application からは `AuditLogInterface` 経由で使う）
+- 運用を止めている・対象外の機能（実食 `ActualMealManagementService`、承認 `ApprovalService`・`NotificationService`・`MealSummaryExportService` の未承認プレビュー、AI 集計 `AiStatsContextService`・`FeatureUsageSummaryService`）。これらを動かし直すときに同じ層構成へ移す。
 
 ---
 
