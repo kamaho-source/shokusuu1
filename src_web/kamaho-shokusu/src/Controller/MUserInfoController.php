@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Infrastructure\Persistence\Entity\MUserInfo;
 use App\Application\Port\AuditActor;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsInput;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
@@ -82,7 +83,7 @@ class MUserInfoController extends AppController
 
     public function importForm()
     {
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         try {
             $this->Authorization->authorize($resource, 'importForm');
         } catch (ForbiddenException $e) {
@@ -108,7 +109,7 @@ class MUserInfoController extends AppController
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         $this->Authorization->authorize($resource, 'importJson');
 
         $payload = $this->request->getData();
@@ -144,7 +145,7 @@ class MUserInfoController extends AppController
 
     public function index()
     {
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         try {
             $this->Authorization->authorize($resource, 'index');
         } catch (ForbiddenException $e) {
@@ -354,7 +355,7 @@ class MUserInfoController extends AppController
 
         try {
             // 権限の切替の認可は操作者の権限だけで決まる（対象の中身は見ない）
-            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), $policyAction);
+            $this->Authorization->authorize(new MUserInfo(), $policyAction);
         } catch (ForbiddenException $e) {
             return $apiResponse->error($this->response, $forbiddenMessage, 403);
         }
@@ -407,7 +408,7 @@ class MUserInfoController extends AppController
         }
 
         try {
-            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'updateReportAccess');
+            $this->Authorization->authorize(new MUserInfo(), 'updateReportAccess');
         } catch (ForbiddenException $e) {
             return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
         }
@@ -492,7 +493,7 @@ class MUserInfoController extends AppController
 
         try {
             // 削除の認可は操作者の権限だけで決まる（対象の中身は見ない）
-            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'delete');
+            $this->Authorization->authorize(new MUserInfo(), 'delete');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('あなたは削除権限がありません。'));
             return $this->redirect(['action' => 'index']);
@@ -603,7 +604,7 @@ class MUserInfoController extends AppController
     public function adminChangePassword(ChangePasswordUseCase $changePassword)
     {
         $this->request->allowMethod(['get', 'post', 'put']);
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         try {
             $this->Authorization->authorize($resource, 'adminChangePassword');
         } catch (ForbiddenException $e) {
@@ -724,7 +725,7 @@ class MUserInfoController extends AppController
 
         try {
             // 所属部屋の入れ替えの認可は操作者の権限だけで決まる（対象の中身は見ない）
-            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'addUserRooms');
+            $this->Authorization->authorize(new MUserInfo(), 'addUserRooms');
         } catch (ForbiddenException $e) {
             $this->set(['ok' => false, 'message' => '権限がありません', '_serialize' => ['ok', 'message']]);
             return;
@@ -759,7 +760,7 @@ class MUserInfoController extends AppController
 
         try {
             // 復元の認可は操作者の権限だけで決まる（対象の中身は見ない）
-            $this->Authorization->authorize($this->MUserInfo->newEmptyEntity(), 'restore');
+            $this->Authorization->authorize(new MUserInfo(), 'restore');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能は管理者のみ利用できます。'));
             return $this->redirect(['action' => 'index']);
