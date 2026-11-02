@@ -62,7 +62,7 @@ final class SaveChangeEditUseCase
     private function save(SaveChangeEditInput $input, ChronosDate $today, ChronosDate $target, bool $isAdmin): SaveChangeEditOutput
     {
         $roomId     = $input->roomId;
-        $canEditAll = ChangeEditPermission::canEditAll($input->loginAdmin, $input->isRoomManager, false);
+        $canEditAll = ChangeEditPermission::canEditAll($input->loginAdmin, $input->isBlockLeaderInRoom);
         $members    = array_fill_keys(array_map('intval', $input->memberIds), true);
         $targetIds  = array_values(array_unique(array_filter(
             array_map('intval', array_keys($input->usersData)),

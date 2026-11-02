@@ -13,12 +13,11 @@ class ChangeEditPermissionTest extends TestCase
 {
     public function testCanEditAll(): void
     {
-        $this->assertTrue(ChangeEditPermission::canEditAll(1, false, false), '管理者');
-        $this->assertTrue(ChangeEditPermission::canEditAll(3, false, false), 'システム管理者');
-        $this->assertTrue(ChangeEditPermission::canEditAll(0, true, false), '部屋の管理者');
-        $this->assertTrue(ChangeEditPermission::canEditAll(2, false, true), 'その部屋のブロック長');
-        $this->assertFalse(ChangeEditPermission::canEditAll(2, false, false), '部屋に所属しないブロック長');
-        $this->assertFalse(ChangeEditPermission::canEditAll(0, false, false));
+        $this->assertTrue(ChangeEditPermission::canEditAll(1, false), '管理者');
+        $this->assertTrue(ChangeEditPermission::canEditAll(3, false), 'システム管理者');
+        $this->assertTrue(ChangeEditPermission::canEditAll(2, true), 'その部屋のブロック長');
+        $this->assertFalse(ChangeEditPermission::canEditAll(2, false), '部屋に所属しないブロック長');
+        $this->assertFalse(ChangeEditPermission::canEditAll(0, false), '職員は全員を編集できない（所属部屋があっても）');
     }
 
     public function testCanEdit(): void
