@@ -19,23 +19,22 @@ final class ReplyToContactUseCase
     ) {}
 
     /**
-     * @return bool 保存してメールも送れたか（メールだけ失敗しても履歴は残る）
      * @throws NotFoundException 問い合わせが無い
      */
-    public function execute(int $contactId, string $replyBody): bool
+    public function execute(ReplyToContactInput $input): ReplyToContactOutput
     {
-        $contact = $this->contacts->find($contactId) ?? throw new NotFoundException('お問い合わせが見つかりません。');
-        $body = trim($replyBody);
-        if (!$this->contacts->addReply($contactId, $body, ContactReply::AUTHOR_ADMIN)['saved']) {
-            return false;
+        $contact = $this->contacts->find($input->contactId) ?? throw new NotFoundException('お問い合わせが見つかりません。');
+        $body = trim($input->replyBody);
+        if (!$this->contacts->addReply($input->contactId, $body, ContactReply::AUTHOR_ADMIN)['saved']) {
+            return new ReplyToContactOutput(false);
         }
 
         try {
             $this->notifier->replySent($contact, $body);
         } catch (\Throwable) {
-            return false;
+            return new ReplyToContactOutput(false);
         }
 
-        return true;
+        return new ReplyToContactOutput(true);
     }
 }

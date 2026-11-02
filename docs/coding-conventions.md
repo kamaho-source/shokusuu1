@@ -111,23 +111,22 @@ public function execute(RegisterMealCountInput $input): RegisterMealCountOutput
 ## 例外処理
 
 ```php
-// ✅ Good: 層ごとに例外を定義
+// ✅ Good: Domain 例外は DomainException を継承し、HTTP の状態を getStatusCode() で持つ
 namespace App\Domain\Exception;
-final class InvalidMealCountException extends \DomainException {}
+final class NotFoundException extends DomainException
+{
+    public function getStatusCode(): int { return 404; }
+}
 
-namespace App\Application\Exception;
-final class DuplicateMealCountException extends \RuntimeException {}
-
-// ✅ Good: ControllerでHTTPレスポンスに変換
+// ✅ Good: Controller で HTTP レスポンスに変換する（UseCase は HTTP の数値を返さない）
 try {
-    $output = $this->registerUseCase->execute($input);
-} catch (InvalidMealCountException $e) {
-    $this->response = $this->response->withStatus(400);
-    $this->set('error', $e->getMessage());
-    return;
+    $output = $useCase->execute($input);
+} catch (DomainException $e) {
+    return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
 }
 ```
 
+- 例外にするもの・Output の status で返すものの使い分けは CLAUDE.md §4「失敗の伝え方」を参照
 - `catch (\Exception $e)` で握りつぶすのは禁止
 - エラーメッセージは日本語で具体的に書く
 

@@ -5,18 +5,15 @@ namespace App\Policy;
 
 use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Query\CakeRoomQuery;
 
 use App\Infrastructure\Persistence\Entity\MUserInfo;
 use Authorization\IdentityInterface;
 
 class MUserInfoPolicy
 {
-    private RoomQueryInterface $roomAccessService;
-
-    public function __construct(?RoomQueryInterface $roomAccessService = null)
+    /** 所属の判定はコンテナから受け取る（Application::services() で登録） */
+    public function __construct(private readonly RoomQueryInterface $roomAccessService)
     {
-        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     public function canIndex(?IdentityInterface $user, MUserInfo $resource): bool

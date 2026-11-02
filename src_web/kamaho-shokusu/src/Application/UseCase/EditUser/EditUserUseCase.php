@@ -35,16 +35,6 @@ final class EditUserUseCase
     ) {}
 
     /**
-     * 編集画面で選べる部屋（編集する人が所属している、削除されていない部屋）。
-     *
-     * @return array<int, string> 部屋ID => 部屋名
-     */
-    public function roomChoices(int $actorId): array
-    {
-        return $this->rooms->selectableRooms($this->rooms->activeRoomIds($actorId));
-    }
-
-    /**
      * @throws NotFoundException 対象の利用者が居ない場合
      * @throws \Throwable DB の失敗（取り消して、失敗を監査ログに残してから投げ直す）
      */
@@ -87,7 +77,7 @@ final class EditUserUseCase
         $roomIds = $currentRoomIds;
         if ($input->canEditRooms && !$user->isDeleted()) {
             // 選べる部屋の中だけをチェックどおりにし、選べない部屋の所属は残す（画面に出ないので外せない・付けられない）
-            $choosable = array_keys($this->roomChoices($input->actor->id));
+            $choosable = array_keys($this->rooms->selectableRooms($this->rooms->activeRoomIds($input->actor->id)));
             $roomIds = array_values(array_unique(array_merge(
                 array_intersect(self::checkedRoomIds($posted), $choosable),
                 array_diff($currentRoomIds, $choosable),

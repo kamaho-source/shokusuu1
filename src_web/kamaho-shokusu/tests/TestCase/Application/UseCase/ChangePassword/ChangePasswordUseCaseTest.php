@@ -36,11 +36,6 @@ class ChangePasswordUseCaseTest extends TestCase
         return $this->useCase->execute(new ChangePasswordInput($userId, $new, $confirm, new AuditActor('管理者', 1, 'admin', '10.0.0.1'), $byAdmin));
     }
 
-    public function testSelectableUsers_excludesDeleted(): void
-    {
-        $this->assertSame([20 => '児童さん'], $this->useCase->selectableUsers());
-    }
-
     public function testAdminChange_savesAndRecordsTargetName(): void
     {
         $result = $this->change(20, 'new-pass', 'new-pass');

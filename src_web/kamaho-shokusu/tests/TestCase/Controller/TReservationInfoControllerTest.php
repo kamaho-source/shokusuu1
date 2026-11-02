@@ -31,7 +31,10 @@ class TReservationInfoControllerTest extends TestCase
     public function setUp(): void
     {
         parent::setUp();
-        $this->Controller = new TReservationInfoController(new ServerRequest());
+        // 依存はアプリのコンテナから組み立てる（本番と同じ登録を使う）
+        $container = (new \App\Application(CONFIG))->getContainer();
+        $container->add(ServerRequest::class, new ServerRequest());
+        $this->Controller = $container->get(TReservationInfoController::class);
         $this->Controller->initialize();
     }
 

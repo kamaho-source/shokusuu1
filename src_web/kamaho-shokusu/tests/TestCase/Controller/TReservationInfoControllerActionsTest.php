@@ -531,6 +531,8 @@ class TReservationInfoControllerActionsTest extends TestCase
         $body = $this->json();
         $this->assertSame('直前予約（個人）を更新しました。', $body['message']);
         $this->assertSame($date, $body['date']);
+        // date は data の後ろ（キーの順も以前のまま）
+        $this->assertSame(['ok', 'status', 'message', 'data', 'date'], array_keys($body));
         $this->assertNotNull($this->row(2, $date, 1));
     }
 

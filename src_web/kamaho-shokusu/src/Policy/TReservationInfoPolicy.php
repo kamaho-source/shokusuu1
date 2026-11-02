@@ -5,18 +5,15 @@ namespace App\Policy;
 
 use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Query\CakeRoomQuery;
 
 use App\Infrastructure\Persistence\Entity\TReservationInfo;
 use Authorization\IdentityInterface;
 
 class TReservationInfoPolicy
 {
-    private RoomQueryInterface $roomAccessService;
-
-    public function __construct(?RoomQueryInterface $roomAccessService = null)
+    /** 所属の判定はコンテナから受け取る（Application::services() で登録） */
+    public function __construct(private readonly RoomQueryInterface $roomAccessService)
     {
-        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     public function canAdd(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -346,8 +343,7 @@ class TReservationInfoPolicy
     /**
      * ログインユーザーがいずれかの部屋グループに所属しているか。
      *
-     * コントローラー側の早期チェック（TReservationInfoController::changeEdit）と
-     * 同じ判定基準（RoomQueryInterface::hasAnyAffiliation）を用いる。
+     * TReservationInfoController::changeEdit は、所属の無い人への専用の文言を出すため、この判定（canChangeEdit）を先に呼ぶ。
      */
     private function isRoomAffiliated(?IdentityInterface $user): bool
     {

@@ -19,21 +19,21 @@ final class CancelRoomTransferUseCase
     ) {}
 
     /**
-     * @return string|null 取り消せなかった理由（取り消せたら null）
      * @throws NotFoundException 予約が無い場合
      * @throws \Throwable DB の保存の失敗（変換せずにそのまま投げる）
      */
-    public function execute(int $scheduleId, string $actorName): ?string
+    public function execute(CancelRoomTransferInput $input): CancelRoomTransferOutput
     {
+        $scheduleId = $input->scheduleId;
         $schedule = $this->schedules->find($scheduleId);
         if ($schedule === null) {
             throw new NotFoundException('指定された予約が見つかりません。');
         }
         if (!$schedule->isPending()) {
-            return 'キャンセルできるのは予約中のスケジュールのみです。';
+            return CancelRoomTransferOutput::rejected('キャンセルできるのは予約中のスケジュールのみです。');
         }
-        $this->schedules->changeStatus($scheduleId, RoomTransferSchedule::STATUS_CANCELLED, $actorName, $this->clock->now()->format('Y-m-d H:i:s'));
+        $this->schedules->changeStatus($scheduleId, RoomTransferSchedule::STATUS_CANCELLED, $input->actorName, $this->clock->now()->format('Y-m-d H:i:s'));
 
-        return null;
+        return CancelRoomTransferOutput::cancelled();
     }
 }

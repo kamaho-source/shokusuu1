@@ -154,12 +154,6 @@ class EditUserUseCaseTest extends TestCase
         $this->assertSame([], $this->transaction->calls);
     }
 
-    public function testRoomChoices_onlyActorsRooms(): void
-    {
-        $this->assertSame([1 => '部屋1', 2 => '部屋2', 5 => '部屋5'], $this->useCase->roomChoices(1));
-        $this->assertSame([], $this->useCase->roomChoices(99), '所属部屋の無い人は選べる部屋が無い');
-    }
-
     /** 編集する人の所属外の部屋（3）の所属は残し、所属外の部屋（9）にチェックしても付けない */
     public function testRoomsOutsideActorsRooms_areKeptAndNotAdded(): void
     {

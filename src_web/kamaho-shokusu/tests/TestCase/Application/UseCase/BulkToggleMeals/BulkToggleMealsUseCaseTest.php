@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\UseCase\BulkToggleMeals;
 
+use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsInput;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Domain\Exception\PersistenceException;
 use App\Test\TestCase\Application\Fake\ReservationFixture;
@@ -19,11 +20,11 @@ class BulkToggleMealsUseCaseTest extends TestCase
         $f->reservations->add(10, 8, '2099-06-01', 3);
         $useCase = new BulkToggleMealsUseCase($f->toggleMeal(), $f->cache);
 
-        $results = $useCase->execute([
+        $results = $useCase->execute(new BulkToggleMealsInput([
             ['roomId' => 7, 'date' => '2099-06-01', 'meal' => 3, 'value' => 1],
             ['roomId' => 8, 'date' => '2099-06-01', 'meal' => 3, 'value' => 0],
             ['roomId' => 1, 'date' => '2099-06-02', 'meal' => 1, 'value' => 1],
-        ], 10, 'テスト');
+        ], 10, 'テスト'))->toArray();
 
         $this->assertSame([true, true, true], array_column($results, 'ok'));
         $this->assertSame([0, 1, 2], array_keys($results), '送った順番');
@@ -43,11 +44,11 @@ class BulkToggleMealsUseCaseTest extends TestCase
             }
         };
 
-        $results = (new BulkToggleMealsUseCase($f->toggleMeal(), $f->cache))->execute([
+        $results = (new BulkToggleMealsUseCase($f->toggleMeal(), $f->cache))->execute(new BulkToggleMealsInput([
             ['roomId' => 1, 'date' => '2099-06-01', 'meal' => 1, 'value' => 1],
             ['roomId' => 1, 'date' => '2099-06-01', 'meal' => 2, 'value' => 1],
             ['roomId' => 1, 'date' => '2020-01-01', 'meal' => 3, 'value' => 1],
-        ], 10, 'テスト');
+        ], 10, 'テスト'))->toArray();
 
         $this->assertTrue($results[0]['ok']);
         $this->assertStringContainsString('SYS-0000', $results[1]['message']);

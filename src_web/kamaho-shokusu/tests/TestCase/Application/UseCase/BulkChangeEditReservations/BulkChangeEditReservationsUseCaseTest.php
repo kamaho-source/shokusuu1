@@ -48,7 +48,7 @@ class BulkChangeEditReservationsUseCaseTest extends TestCase
      */
     private function edit(array $dayUsers, int $login = 10, bool $isAdmin = false, int $level = 0, array $snapshots = [], int $roomId = 1): array
     {
-        return $this->f->bulkChangeEdit()->execute(new BulkChangeEditReservationsInput($dayUsers, $roomId, '職員', $snapshots, $login, $isAdmin, $level));
+        return $this->f->bulkChangeEdit()->execute(new BulkChangeEditReservationsInput($dayUsers, $roomId, '職員', $snapshots, $login, $isAdmin, $level))->toArray();
     }
 
     public function testInputAndLoginUserAreRequired(): void

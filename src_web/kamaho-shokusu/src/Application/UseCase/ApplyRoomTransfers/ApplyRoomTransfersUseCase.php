@@ -35,11 +35,12 @@ final class ApplyRoomTransfersUseCase
     ) {}
 
     /**
-     * @param string $date 基準日（'Y-m-d'）。有効開始日がこの日以前の予約を適用する
-     * @param bool $dryRun true なら適用せずに取り消す（件数だけ数える）
+     * 1件ごとの失敗は Output の errors に入れる（例外にしない）。
      */
-    public function execute(string $date, bool $dryRun = false): ApplyRoomTransfersOutput
+    public function execute(ApplyRoomTransfersInput $input): ApplyRoomTransfersOutput
     {
+        $date   = $input->date;
+        $dryRun = $input->dryRun;
         $applied = 0;
         $errors  = [];
         foreach ($this->schedules->pendingUntil($date) as $schedule) {

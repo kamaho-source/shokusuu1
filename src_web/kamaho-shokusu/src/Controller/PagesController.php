@@ -16,8 +16,10 @@ declare(strict_types=1);
  */
 namespace App\Controller;
 
-use App\Infrastructure\Query\CakeDashboardQuery;
-use App\Infrastructure\Query\CakeNoticeQuery;
+use Cake\Http\ServerRequest;
+use App\Application\Query\RoomQueryInterface;
+use App\Application\Query\NoticeQueryInterface;
+use App\Application\Query\DashboardQueryInterface;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApprovalService;
 use App\Service\DashboardService;
@@ -50,6 +52,15 @@ use Cake\I18n\Date;
  */
 class PagesController extends AppController
 {
+    public function __construct(
+        ServerRequest $request,
+        private readonly DashboardQueryInterface $dashboardQuery,
+        private readonly NoticeQueryInterface $noticeQuery,
+        private readonly RoomQueryInterface $roomQuery,
+    ) {
+        parent::__construct($request);
+    }
+
     /**
      * 各アクション実行前に呼ばれるフィルター処理。
      *
@@ -196,22 +207,21 @@ class PagesController extends AppController
         $dashboardService = new DashboardService();
         // 承認機能が有効なときだけ承認待ち件数を集計する（オフ運用では件数クエリ自体を省く）。
         $approvalEnabled = (bool)Configure::read('Features.approval');
-        $approvalService = $approvalEnabled ? new ApprovalService() : null;
+        $approvalService = $approvalEnabled ? new ApprovalService($this->roomQuery) : null;
         $dateFrom = Date::today()->startOfWeek()->format('Y-m-d');
         $dateTo = Date::today()->endOfWeek()->format('Y-m-d');
 
         if ($user) {
             // ログイン済みの場合: ユーザーIDを取得してサービスを呼び出す
             $userId = (int)$user->get('i_id_user');
-            $dashboardQuery = new CakeDashboardQuery();
-            $adminLevel = $dashboardQuery->adminLevel($userId) ?? (int)($user->get('i_admin') ?? 0);
+            $adminLevel = $this->dashboardQuery->adminLevel($userId) ?? (int)($user->get('i_admin') ?? 0);
             $isAdmin = UserRole::isAdmin($adminLevel);
             $isBlockLeader = UserRole::isBlockLeader($adminLevel);
 
             // ログインユーザー自身の本日の予約レコード有無で申告済みを判定する
             // 「食べる」「食べない」どちらの申告でもレコードが作成されるため、
             // レコードが存在しない場合のみアラートを表示する
-            $hasTodayReport = $dashboardQuery->hasReservationOn($userId, Date::today('Asia/Tokyo')->format('Y-m-d'));
+            $hasTodayReport = $this->dashboardQuery->hasReservationOn($userId, Date::today('Asia/Tokyo')->format('Y-m-d'));
 
             // ダッシュボード画面の日付データ・週データを組み立てる
             $dashboard = $dashboardService->buildHomeContext($user);
@@ -242,7 +252,7 @@ class PagesController extends AppController
             ];
         }
 
-        $activeNotices = (new CakeNoticeQuery())->active();
+        $activeNotices = $this->noticeQuery->active();
 
         return compact('hasTodayReport', 'dashboard', 'activeNotices');
     }

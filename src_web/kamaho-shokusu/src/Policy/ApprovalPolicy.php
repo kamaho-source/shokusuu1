@@ -5,7 +5,6 @@ namespace App\Policy;
 
 use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Query\CakeRoomQuery;
 
 use Authorization\IdentityInterface;
 
@@ -16,11 +15,9 @@ use Authorization\IdentityInterface;
  */
 class ApprovalPolicy
 {
-    private RoomQueryInterface $roomAccessService;
-
-    public function __construct(?RoomQueryInterface $roomAccessService = null)
+    /** 所属の判定はコンテナから受け取る（Application::services() で登録） */
+    public function __construct(private readonly RoomQueryInterface $roomAccessService)
     {
-        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     /** ブロック長用承認一覧 */

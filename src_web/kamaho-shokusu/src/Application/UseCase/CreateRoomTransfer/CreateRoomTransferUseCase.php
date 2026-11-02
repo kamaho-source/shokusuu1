@@ -21,19 +21,18 @@ final class CreateRoomTransferUseCase
     ) {}
 
     /**
-     * @return string|null 登録できなかった理由（登録できたら null）
      * @throws \Throwable DB の保存の失敗（変換せずにそのまま投げる）
      */
-    public function execute(CreateRoomTransferInput $input): ?string
+    public function execute(CreateRoomTransferInput $input): CreateRoomTransferOutput
     {
         if (!$input->userId || !$input->roomToId || $input->effectiveDate === '') {
-            return 'ユーザー・異動先部屋・有効開始日は必須です。';
+            return CreateRoomTransferOutput::rejected('ユーザー・異動先部屋・有効開始日は必須です。');
         }
         if (!DatePeriodRule::isDate($input->effectiveDate)) {
-            return '有効開始日が正しくありません。';
+            return CreateRoomTransferOutput::rejected('有効開始日が正しくありません。');
         }
         if ($input->effectiveDate < $this->clock->now()->format('Y-m-d')) {
-            return '有効開始日は今日以降の日付を指定してください。';
+            return CreateRoomTransferOutput::rejected('有効開始日は今日以降の日付を指定してください。');
         }
         $errors = $this->schedules->create(
             [
@@ -46,9 +45,9 @@ final class CreateRoomTransferUseCase
             $this->clock->now()->format('Y-m-d H:i:s'),
         );
         if ($errors === []) {
-            return null;
+            return CreateRoomTransferOutput::created();
         }
 
-        return 'バリデーションエラー: ' . implode(' / ', array_map(fn(array $messages) => implode(', ', array_values($messages)), $errors));
+        return CreateRoomTransferOutput::rejected('バリデーションエラー: ' . implode(' / ', array_map(fn(array $messages) => implode(', ', array_values($messages)), $errors)));
     }
 }

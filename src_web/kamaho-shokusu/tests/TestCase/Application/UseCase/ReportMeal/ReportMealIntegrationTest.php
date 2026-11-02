@@ -34,7 +34,7 @@ class ReportMealIntegrationTest extends TestCase
     {
         parent::setUp();
         $this->reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $this->useCases         = new ReservationUseCases($this->reservationTable, TableRegistry::getTableLocator()->get('MUserInfo'));
+        $this->useCases         = new ReservationUseCases($this->reservationTable, TableRegistry::getTableLocator()->get('MUserInfo'), new \Cake\Chronos\ClockFactory('Asia/Tokyo'));
         $this->today            = Date::today('Asia/Tokyo')->format('Y-m-d');
 
         $db = ConnectionManager::get('test');

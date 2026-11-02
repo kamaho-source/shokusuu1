@@ -155,17 +155,6 @@ class EditUserIntegrationTest extends TestCase
         $this->assertNull($this->getTableLocator()->get('MUserInfo')->get(3)->i_id_staff);
     }
 
-    /** 選べる部屋は、管理者でも編集する人が所属している削除されていない部屋だけ */
-    public function testRoomChoices_onlyActorsActiveRooms(): void
-    {
-        $this->addRoom(3);
-        $this->addRoom(4, 1);
-        $this->join(1, 4);
-
-        $this->assertSame([1, 2], array_keys($this->useCase()->roomChoices(1)), '所属外の部屋 3・削除済みの部屋 4 は出ない');
-        $this->assertSame([], $this->useCase()->roomChoices(4), '所属部屋の無いシステム管理者は選べる部屋が無い');
-    }
-
     /**
      * 保存では選べる部屋だけチェックどおりにし、選べない部屋（所属外 3・削除済み 4）の既存の所属は残す。
      * 選べない部屋にチェックを送っても付与しない。

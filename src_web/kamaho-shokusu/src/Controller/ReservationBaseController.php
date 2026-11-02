@@ -7,13 +7,10 @@ use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\ReservationReadQueryInterface;
 use App\Application\Query\RoomQueryInterface;
 use App\Infrastructure\Persistence\Entity\TReservationInfo;
-use App\Infrastructure\Query\CakeCalendarQuery;
-use App\Infrastructure\Query\CakeReservationReadQuery;
-use App\Infrastructure\Query\CakeRoomQuery;
 use App\Service\ApiResponseService;
 use App\Service\ReservationDatePolicy;
 use Authorization\Exception\ForbiddenException;
-use Cake\Chronos\ClockFactory;
+use Cake\Http\ServerRequest;
 use Cake\Http\Response;
 
 /**
@@ -35,11 +32,20 @@ abstract class ReservationBaseController extends AppController
     /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable */
     protected $TIndividualReservationInfo;
 
-    protected CalendarQueryInterface $calendarQuery;
-    protected RoomQueryInterface $roomQuery;
-    protected ReservationReadQueryInterface $reservationRead;
     protected ReservationDatePolicy $datePolicy;
     protected ApiResponseService $apiResponseService;
+
+    /**
+     * 予約系の全アクションで使う読み取り（Query）は、コンテナからコンストラクタで受け取る（登録は Application::services()）。
+     */
+    public function __construct(
+        ServerRequest $request,
+        protected readonly CalendarQueryInterface $calendarQuery,
+        protected readonly RoomQueryInterface $roomQuery,
+        protected readonly ReservationReadQueryInterface $reservationRead,
+    ) {
+        parent::__construct($request);
+    }
 
     public function initialize(): void
     {
@@ -52,9 +58,6 @@ abstract class ReservationBaseController extends AppController
         $this->TIndividualReservationInfo = $this->fetchTable('TIndividualReservationInfo');
 
         $this->datePolicy       = new ReservationDatePolicy();
-        $this->calendarQuery    = new CakeCalendarQuery(new ClockFactory('Asia/Tokyo'));
-        $this->roomQuery        = new CakeRoomQuery();
-        $this->reservationRead  = new CakeReservationReadQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo'));
         $this->apiResponseService = new ApiResponseService();
 
         $this->viewBuilder()->setLayout('default');

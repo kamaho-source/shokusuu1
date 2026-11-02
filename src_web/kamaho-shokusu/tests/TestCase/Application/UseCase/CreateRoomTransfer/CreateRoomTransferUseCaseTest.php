@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Application\UseCase\CreateRoomTransfer;
 
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferOutput;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
 use App\Domain\Entity\RoomTransferSchedule;
 use App\Domain\Repository\RoomTransferScheduleRepositoryInterface;
@@ -60,7 +61,15 @@ class CreateRoomTransferUseCaseTest extends TestCase
 
     private function create(string $date): ?string
     {
-        return $this->useCase->execute(new CreateRoomTransferInput(2, 1, 3, $date, 'tester'));
+        return $this->useCase->execute(new CreateRoomTransferInput(2, 1, 3, $date, 'tester'))->message;
+    }
+
+    public function testOutput_statusTellsCreatedOrRejected(): void
+    {
+        $this->assertSame(CreateRoomTransferOutput::CREATED, $this->useCase->execute(new CreateRoomTransferInput(2, 1, 3, '2026-11-02', 'tester'))->status);
+        $rejected = $this->useCase->execute(new CreateRoomTransferInput(2, 1, 3, '2026-11-01', 'tester'));
+        $this->assertSame(CreateRoomTransferOutput::REJECTED, $rejected->status);
+        $this->assertSame('有効開始日は今日以降の日付を指定してください。', $rejected->message);
     }
 
     public function testYesterday_isRejectedAndNotSaved(): void

@@ -5,8 +5,11 @@ namespace App\Controller;
 
 use App\Application\Query\RoomTransferQueryInterface;
 use App\Infrastructure\Persistence\Entity\MRoomTransferSchedule;
+use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferInput;
+use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferOutput;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferOutput;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use Authorization\Exception\ForbiddenException;
@@ -71,19 +74,24 @@ class MRoomTransferScheduleController extends AppController
             $data     = $this->request->getData();
             $identity = $this->request->getAttribute('identity');
             try {
-                $error = $createTransfer->execute(new CreateRoomTransferInput(
+                $result = $createTransfer->execute(new CreateRoomTransferInput(
                     isset($data['i_id_user']) ? (int)$data['i_id_user'] : null,
                     isset($data['i_id_room_from']) && $data['i_id_room_from'] !== '' ? (int)$data['i_id_room_from'] : null,
                     isset($data['i_id_room_to']) ? (int)$data['i_id_room_to'] : null,
                     $this->dataString('d_effective_date'),
                     $identity ? (string)$identity->get('c_user_name') : '管理者',
                 ));
-                if ($error === null) {
+                // 想定外の status は UnhandledMatchError になり、下の \Throwable で「エラーが発生しました」を出す
+                $created = match ($result->status) {
+                    CreateRoomTransferOutput::CREATED => true,
+                    CreateRoomTransferOutput::REJECTED => false,
+                };
+                if ($created) {
                     $this->Flash->success(__('部屋異動予約を登録しました。'));
                     $this->redirect(['action' => 'index']);
                     return;
                 }
-                $this->Flash->error($error);
+                $this->Flash->error((string)$result->message);
             } catch (\RuntimeException $e) {
                 $this->Flash->error($e->getMessage());
             } catch (\Throwable $e) {
@@ -119,12 +127,12 @@ class MRoomTransferScheduleController extends AppController
 
         $identity = $this->request->getAttribute('identity');
         try {
-            $error = $cancelTransfer->execute($id, $identity ? (string)$identity->get('c_user_name') : '管理者');
-            if ($error === null) {
-                $this->Flash->success(__('異動予約をキャンセルしました。'));
-            } else {
-                $this->Flash->error($error);
-            }
+            $result = $cancelTransfer->execute(new CancelRoomTransferInput($id, $identity ? (string)$identity->get('c_user_name') : '管理者'));
+            // 想定外の status は UnhandledMatchError になり、下の \Throwable で「エラーが発生しました」を出す
+            match ($result->status) {
+                CancelRoomTransferOutput::CANCELLED => $this->Flash->success(__('異動予約をキャンセルしました。')),
+                CancelRoomTransferOutput::REJECTED => $this->Flash->error((string)$result->message),
+            };
         } catch (DomainNotFoundException $e) {
             throw new NotFoundException('指定された予約が見つかりません。');
         } catch (\RuntimeException $e) {

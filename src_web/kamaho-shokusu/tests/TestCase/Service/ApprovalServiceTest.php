@@ -55,7 +55,7 @@ class ApprovalServiceTest extends TestCase
             ->onlyMethods(['createRejectionNotifications'])
             ->getMock();
 
-        $this->service = new ApprovalService(null, $notificationMock);
+        $this->service = new ApprovalService(new \App\Infrastructure\Query\CakeRoomQuery(), $notificationMock);
         $this->individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
 
         // key2: 自己承認防止テスト用に、フィクスチャとは別ユーザー・別日付のレコードを追加する。
