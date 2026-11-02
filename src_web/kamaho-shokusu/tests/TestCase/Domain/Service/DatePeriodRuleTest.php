@@ -43,4 +43,12 @@ class DatePeriodRuleTest extends TestCase
         $this->assertSame(['2024-09-05'], DatePeriodRule::dates('2024-09-05', '2024-09-05'));
         $this->assertCount(31, DatePeriodRule::dates('2026-10-01', '2026-10-31'));
     }
+
+    public function testIsDate(): void
+    {
+        $this->assertTrue(DatePeriodRule::isDate('2026-03-01'));
+        $this->assertFalse(DatePeriodRule::isDate('2026-02-30'), '暦にない日');
+        $this->assertFalse(DatePeriodRule::isDate('2026-3-1'));
+        $this->assertFalse(DatePeriodRule::isDate("2026-03-01\0"), 'NUL バイトは ValueError にせず false');
+    }
 }

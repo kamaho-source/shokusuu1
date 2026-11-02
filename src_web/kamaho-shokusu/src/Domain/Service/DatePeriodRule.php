@@ -42,6 +42,10 @@ final class DatePeriodRule
     /** 暦にある YYYY-MM-DD か（2026-02-30 などは不可）。 */
     public static function isDate(string $s): bool
     {
+        // NUL バイトを含むと createFromFormat が ValueError を投げ、500 になる
+        if (str_contains($s, "\0")) {
+            return false;
+        }
         $d = \DateTimeImmutable::createFromFormat('!Y-m-d', $s);
 
         return $d !== false && $d->format('Y-m-d') === $s;
