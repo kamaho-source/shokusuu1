@@ -7,7 +7,10 @@ use App\Application\Query\ChangeEditQueryInterface;
 use App\Application\Query\Dto\ChangeEditContext;
 use App\Application\Query\Dto\ChangeEditMember;
 use App\Domain\Exception\NotFoundException;
+use App\Domain\Repository\RoomMembershipRepositoryInterface;
+use App\Domain\Service\ChangeEditPermission;
 use App\Domain\Service\ReservationDateRule;
+use App\Domain\ValueObject\UserRole;
 use App\Domain\ValueObject\MealType;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Service\RoomMemberOrderService;
@@ -21,8 +24,10 @@ use Psr\Clock\ClockInterface;
  */
 final class CakeChangeEditQuery implements ChangeEditQueryInterface
 {
-    public function __construct(private readonly ClockInterface $clock)
-    {
+    public function __construct(
+        private readonly ClockInterface $clock,
+        private readonly RoomMembershipRepositoryInterface $rooms,
+    ) {
     }
 
     private static function table(string $alias): Table
@@ -61,9 +66,14 @@ final class CakeChangeEditQuery implements ChangeEditQueryInterface
         return $room === null ? null : (string)$room->c_room_name;
     }
 
-    public function context(int $roomId, string $date): ChangeEditContext
+    public function context(int $roomId, string $date, int $loginUserId, int $loginAdmin, int $loginLevel): ChangeEditContext
     {
         $roomName = $this->roomName($roomId) ?? throw new NotFoundException('部屋が見つかりません。');
+        // その部屋に所属するブロック長は、部屋の全員の直前の予約を変えられる
+        $canEditAll = ChangeEditPermission::canEditAll(
+            $loginAdmin,
+            UserRole::isBlockLeader($loginAdmin) && $this->rooms->isActiveMember($loginUserId, $roomId),
+        );
 
         $memberIds = self::table('MUserGroup')->find()
             ->select(['i_id_user'])
@@ -82,7 +92,9 @@ final class CakeChangeEditQuery implements ChangeEditQueryInterface
             ->select(['i_id_user', 'c_user_name', 'i_user_level'])
             ->where(['i_id_user IN' => $memberIds ?: [-1], 'i_del_flag' => 0])
             ->all() as $u) {
-            $members[] = new ChangeEditMember((int)$u->i_id_user, (string)$u->c_user_name, (int)$u->i_user_level);
+            $id    = (int)$u->i_id_user;
+            $level = (int)$u->i_user_level;
+            $members[] = new ChangeEditMember($id, (string)$u->c_user_name, $level, ChangeEditPermission::canEdit($canEditAll, $loginUserId, $loginLevel, $id, $level));
         }
 
         $reservations = [];

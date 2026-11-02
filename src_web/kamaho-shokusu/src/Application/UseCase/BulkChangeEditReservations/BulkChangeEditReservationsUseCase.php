@@ -11,6 +11,7 @@ use App\Domain\Exception\ReservationValidationException;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Repository\UserRepositoryInterface;
+use App\Domain\Service\ChangeEditPermission;
 use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
@@ -184,9 +185,11 @@ final class BulkChangeEditReservationsUseCase
 
                     if ($existing !== null) {
                         // 職員の直前取消は認めない（toggle・change-room と同じく、管理者は例外）
-                        if (!$isAdmin && ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today)
-                            && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0
-                        ) {
+                        if ($changeFlag === 0 && ChangeEditPermission::isStaffLockedInLastMinute(
+                            $isAdmin,
+                            ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today),
+                            $targetUserLevel,
+                        )) {
                             // 昼食⇔弁当の入れ替えは取消を伴うので、理由を返して止める
                             $opponent = MealType::counterpartValue($mealType);
                             if ($opponent !== null && (int)($meals[$opponent] ?? 0) === 1 && $existing->isEffective($today)) {

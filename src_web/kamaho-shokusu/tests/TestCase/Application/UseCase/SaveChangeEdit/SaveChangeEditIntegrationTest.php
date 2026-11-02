@@ -20,6 +20,9 @@ use Cake\TestSuite\TestCase;
  */
 class SaveChangeEditIntegrationTest extends TestCase
 {
+    /** 全員を編集できる人として使う、部屋に所属させるブロック長（フィクスチャに無い利用者） */
+    private const BLOCK_LEADER_ID = 99;
+
     protected array $fixtures = [
         'app.MUserInfo',
         'app.MUserGroup',
@@ -35,6 +38,15 @@ class SaveChangeEditIntegrationTest extends TestCase
      */
     private function process(array $usersData, array $memberIds, string $date, int $roomId, ?object $login, Table $reservations, Table $users, bool $editsAll = false): array
     {
+        if ($editsAll) {
+            // 全員を編集できる人 = その部屋に所属するブロック長。UseCase が所属を見て決めるので、所属させてから渡す
+            ConnectionManager::get('test')->execute('DELETE FROM m_user_group WHERE i_id_user = ? AND i_id_room = ?', [self::BLOCK_LEADER_ID, $roomId]);
+            ConnectionManager::get('test')->insert('m_user_group', [
+                'i_id_user' => self::BLOCK_LEADER_ID, 'i_id_room' => $roomId, 'active_flag' => 0,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+            ]);
+            $login ??= $this->loginAs(self::BLOCK_LEADER_ID, 2, 0, 'system');
+        }
         $out = (new ReservationUseCases($reservations, $users, new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->saveChangeEdit()->execute(new SaveChangeEditInput(
             usersData: $usersData,
             memberIds: $memberIds,
@@ -44,7 +56,6 @@ class SaveChangeEditIntegrationTest extends TestCase
             loginUserName: (string)($login?->get('c_user_name') ?? 'system'),
             loginAdmin: (int)($login?->get('i_admin') ?? 0),
             loginLevel: (int)($login?->get('i_user_level') ?? -1),
-            isBlockLeaderInRoom: $editsAll,
         ));
 
         return ['updated' => $out->updated, 'created' => $out->created, 'skipped' => $out->skipped];
@@ -523,10 +534,73 @@ class SaveChangeEditIntegrationTest extends TestCase
         TableRegistry::getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => null], ['i_id_user' => 3]);
         $this->insertMeal(1, 1, 1);
 
-        $result = $this->process([3 => [1 => ['i_change_flag' => 0]]], [3], $this->nearDate(), 1, $this->loginAs(9, 0, 0), $this->resTable(), TableRegistry::getTableLocator()->get('MUserInfo'), true);
+        $result = $this->process([3 => [1 => ['i_change_flag' => 0]]], [3], $this->nearDate(), 1, null, $this->resTable(), TableRegistry::getTableLocator()->get('MUserInfo'), true);
 
         $this->assertSame([], $result['updated']);
         $this->assertStringContainsString('職員のため、直前編集でのキャンセルはできません', $result['skipped'][0] ?? '');
         $this->assertSame([1 => [1, 1]], $this->flagsByRoom());
+    }
+
+    // ----------------------------------------------------------------
+    // 全員を編集できるか（ブロック長の部屋所属）。段階5で判定が Controller から UseCase に移った
+    //
+    // 変更前（bab1386）は Controller が
+    //   UserRole::isBlockLeader(i_admin) && RoomQuery::isActiveMember(ログイン者, 部屋)
+    // を Input の isBlockLeaderInRoom で渡していた。RoomQuery::isActiveMember は
+    // CakeRoomMembershipRepository::isActiveMember をそのまま呼ぶので、UseCase が同じ式を
+    // RoomMembershipRepositoryInterface で計算する今の形と、判定の意味は同じ。
+    // ----------------------------------------------------------------
+
+    /** ブロック長（99）を部屋 1 に所属させる。active_flag=1 は退出済み */
+    private function joinRoom1(int $activeFlag): void
+    {
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => self::BLOCK_LEADER_ID, 'i_id_room' => 1, 'active_flag' => $activeFlag,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+    }
+
+    /** ログイン者 99（職員・i_admin を指定）が、職員(2)の予約を作ろうとする */
+    private function editOtherStaffAs(int $admin): array
+    {
+        return $this->runUpdate([2 => [1 => ['i_change_flag' => 1]]], [2], '2030-05-05', 1, $this->loginAs(self::BLOCK_LEADER_ID, $admin, 0));
+    }
+
+    public function testBlockLeaderInRoom_canEditOtherStaff(): void
+    {
+        $this->joinRoom1(0);
+
+        $result = $this->editOtherStaffAs(2);
+
+        $this->assertSame(['2:1'], $result['created']);
+        $this->assertSame([], $result['skipped']);
+    }
+
+    public function testBlockLeaderNotInRoom_otherStaffIsSkipped(): void
+    {
+        $result = $this->editOtherStaffAs(2);
+
+        $this->assertSame([], $result['created']);
+        $this->assertStringContainsString('権限がありません', $result['skipped'][0] ?? '');
+    }
+
+    public function testBlockLeaderExitedFromRoom_otherStaffIsSkipped(): void
+    {
+        $this->joinRoom1(1);
+
+        $result = $this->editOtherStaffAs(2);
+
+        $this->assertSame([], $result['created']);
+        $this->assertStringContainsString('権限がありません', $result['skipped'][0] ?? '');
+    }
+
+    public function testNormalStaffInRoom_otherStaffIsSkipped(): void
+    {
+        $this->joinRoom1(0);
+
+        $result = $this->editOtherStaffAs(0);
+
+        $this->assertSame([], $result['created']);
+        $this->assertStringContainsString('権限がありません', $result['skipped'][0] ?? '');
     }
 }

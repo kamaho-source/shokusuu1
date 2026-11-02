@@ -62,7 +62,9 @@ final class SaveChangeEditUseCase
     private function save(SaveChangeEditInput $input, ChronosDate $today, ChronosDate $target, bool $isAdmin): SaveChangeEditOutput
     {
         $roomId     = $input->roomId;
-        $canEditAll = ChangeEditPermission::canEditAll($input->loginAdmin, $input->isBlockLeaderInRoom);
+        // その部屋に所属するブロック長は、部屋の全員の直前の予約を変えられる
+        $isBlockLeaderInRoom = UserRole::isBlockLeader($input->loginAdmin) && $this->rooms->isActiveMember($input->loginUserId, $roomId);
+        $canEditAll = ChangeEditPermission::canEditAll($input->loginAdmin, $isBlockLeaderInRoom);
         $members    = array_fill_keys(array_map('intval', $input->memberIds), true);
         $targetIds  = array_values(array_unique(array_filter(
             array_map('intval', array_keys($input->usersData)),
@@ -102,7 +104,7 @@ final class SaveChangeEditUseCase
                 $skipped[] = "利用者ID {$userId} の予約を変更する権限がありません。";
                 continue;
             }
-            $isStaffTarget = $level !== null && UserRole::isStaffLevel($level);
+            $isStaffLocked = ChangeEditPermission::isStaffLockedInLastMinute($isAdmin, $isLastMinute, $level);
 
             foreach ((array)$meals as $mealTypeRaw => $flags) {
                 $mealType = (int)$mealTypeRaw;
@@ -128,11 +130,11 @@ final class SaveChangeEditUseCase
                 }
 
                 $eatsElsewhere = array_filter($rowsByRoom, static fn(MealReservation $r, int $rid): bool => $rid !== $roomId && $eats($r), ARRAY_FILTER_USE_BOTH);
-                if (!$isAdmin && $isLastMinute && $isStaffTarget && $changeFlag === 0) {
+                if ($isStaffLocked && $changeFlag === 0) {
                     $skipped[] = "利用者ID {$userId} は職員のため、直前編集でのキャンセルはできません。";
                     continue;
                 }
-                if (!$isAdmin && $isLastMinute && $isStaffTarget && $changeFlag === 1 && $eatsElsewhere !== []) {
+                if ($isStaffLocked && $changeFlag === 1 && $eatsElsewhere !== []) {
                     $skipped[] = "利用者ID {$userId} は職員のため、直前期間（14日以内）は部屋の変更はできません。";
                     continue;
                 }
