@@ -129,15 +129,15 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
             && ($roomId === null || $r->roomId === $roomId)));
     }
 
-    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor): bool
+    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor, ?int $roomId = null): bool
     {
         if ($this->onUpdate !== null && !($this->onUpdate)($row)) {
             return false;
         }
-        $this->updates[] = compact('row', 'changeFlag', 'eatFlag', 'actor');
+        $this->updates[] = compact('row', 'changeFlag', 'eatFlag', 'actor', 'roomId');
         foreach ($this->records as $i => $r) {
             if ($r->userId === $row->userId && $r->date === $row->date && $r->roomId === $row->roomId && $r->mealType === $row->mealType) {
-                $this->records[$i] = new MealReservation($r->userId, $r->date, $r->roomId, $r->mealType, $eatFlag ?? $r->eatFlag, $changeFlag, (int)$r->version + 1);
+                $this->records[$i] = new MealReservation($r->userId, $r->date, $roomId ?? $r->roomId, $r->mealType, $eatFlag ?? $r->eatFlag, $changeFlag, (int)$r->version + 1, $r->approvalStatus);
             }
         }
 

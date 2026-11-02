@@ -80,11 +80,12 @@ interface ReservationRepositoryInterface
      * 予約行を楽観的ロックつきで更新する（承認済みの行は更新しない）。
      *
      * @param int|null $eatFlag null なら当初予定（eat_flag）は変えない
+     * @param int|null $roomId null なら部屋は変えない（直前編集で部屋を移すときに渡す）
      * @return bool false = 楽観的ロック競合
      * @throws ConflictException 承認済みの行、または有効にすると別の部屋の予約・昼食と弁当の同時予約になるとき
      * @throws \RuntimeException それ以外の失敗（変換せずにそのまま投げる）
      */
-    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor): bool;
+    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor, ?int $roomId = null): bool;
 
     /**
      * 予約行を新しく保存する（version は 1）。

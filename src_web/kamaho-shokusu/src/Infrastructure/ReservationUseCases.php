@@ -13,6 +13,7 @@ use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUse
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Application\UseCase\ReportEat\ReportEatUseCase;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
+use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 use App\Infrastructure\Cache\ReservationCacheAdapter;
 use App\Infrastructure\Log\CakeLogger;
@@ -82,6 +83,11 @@ final class ReservationUseCases
     public function changeMealRoom(): ChangeMealRoomUseCase
     {
         return new ChangeMealRoomUseCase($this->toggleMeal(), $this->reservations, $this->rooms, $this->cache);
+    }
+
+    public function saveChangeEdit(): SaveChangeEditUseCase
+    {
+        return new SaveChangeEditUseCase($this->reservations, $this->rooms, $this->userRepository, $this->clock);
     }
 
     public function reportNoMeal(): ReportNoMealUseCase
