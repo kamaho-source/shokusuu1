@@ -386,11 +386,14 @@ class ReservationCopyControllerTest extends TestCase
             $reservations->onAdd = static fn() => throw $failure;
 
             return new \App\Application\UseCase\CopyReservations\CopyReservationsUseCase(
+                new \App\Application\UseCase\CopyReservations\ReservationCopyPlanner(
+                    $reservations,
+                    new \App\Test\TestCase\Application\Fake\FakeRoomMembershipRepository(['1:1'], [], [1 => '部屋1']),
+                    new \App\Test\TestCase\Application\Fake\FakeUserAccountRepository(),
+                    new \Cake\Chronos\ClockFactory('Asia/Tokyo'),
+                ),
                 $reservations,
-                new \App\Test\TestCase\Application\Fake\FakeRoomMembershipRepository(['1:1'], [], [1 => '部屋1']),
-                new \App\Test\TestCase\Application\Fake\FakeUserAccountRepository(),
                 new \App\Test\TestCase\Application\Fake\SpyTransaction(),
-                new \Cake\Chronos\ClockFactory('Asia/Tokyo'),
             );
         });
         $this->login();

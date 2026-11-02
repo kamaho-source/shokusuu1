@@ -50,6 +50,8 @@ use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
 use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
 use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
 use App\Application\UseCase\CopyReservations\CopyReservationsUseCase;
+use App\Application\UseCase\CopyReservations\PreviewReservationCopyUseCase;
+use App\Application\UseCase\CopyReservations\ReservationCopyPlanner;
 use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
 use App\Application\UseCase\CreateUser\CreateUserUseCase;
 use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
@@ -379,13 +381,18 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $clock(),
         ));
         $container->add(ApplyRoomTransferScheduleCommand::class)->addArgument(ApplyRoomTransfersUseCase::class);
-        $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
+        $container->add(ReservationCopyPlanner::class, static fn() => new ReservationCopyPlanner(
             new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
             new CakeRoomMembershipRepository(),
             $userAccounts(),
-            $userTransaction(),
             $clock(),
         ));
+        $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
+            $container->get(ReservationCopyPlanner::class),
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            $userTransaction(),
+        ));
+        $container->add(PreviewReservationCopyUseCase::class)->addArgument(ReservationCopyPlanner::class);
         $container->add(NoticeQueryInterface::class, CakeNoticeQuery::class);
         $container->add(MealPriceQueryInterface::class, CakeMealPriceQuery::class);
         $container->add(RoomTransferQueryInterface::class, CakeRoomTransferQuery::class);
