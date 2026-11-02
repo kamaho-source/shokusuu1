@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Query\ReservationHistoryQueryInterface;
-use App\Domain\Service\HistoryPeriodRule;
+use App\Domain\Service\DatePeriodRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\Query\CakeReservationHistoryQuery;
@@ -21,7 +21,7 @@ use Cake\I18n\DateTime;
  *   meals   … 予約状況（実食機能はオフのため「予約済み」かどうか）
  *   summary … 部屋集計
  *   log     … 変更の経緯
- * 読み取りは ReservationHistoryQueryInterface、期間の決まりは HistoryPeriodRule にある。
+ * 読み取りは ReservationHistoryQueryInterface、期間の決まりは DatePeriodRule にある。
  */
 class ReservationHistoryController extends AppController
 {
@@ -73,7 +73,7 @@ class ReservationHistoryController extends AppController
         // 既定の対象者はログインしている本人
         $targetId = (int)$this->queryString('user') ?: $actorId;
 
-        $error = HistoryPeriodRule::error($from, $to);
+        $error = DatePeriodRule::error($from, $to);
         $forbidden = null;
         $target = null;
         $meals = $logs = $summary = [];
@@ -111,7 +111,7 @@ class ReservationHistoryController extends AppController
 
         $mealLabels = MealType::labels(MealType::LABEL_SHORT_NIGHT);
         // 予約状況・部屋集計は、予約の無い日も含めて期間の全日付を並べる（初期は今月1日〜今月末日の1か月分）
-        $dates = $error === null ? HistoryPeriodRule::dates($from, $to) : [];
+        $dates = $error === null ? DatePeriodRule::dates($from, $to) : [];
         $this->set(compact(
             'from', 'to', 'tab', 'targets', 'targetId', 'target', 'actorId', 'error', 'forbidden',
             'meals', 'logs', 'logStart', 'summary', 'rooms', 'roomId', 'mealLabels', 'canViewSummary', 'dates'

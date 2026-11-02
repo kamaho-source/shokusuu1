@@ -12,7 +12,7 @@ use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * 予約履歴の読み取り（CakeReservationHistoryQuery）。旧 ReservationHistoryServiceTest を引き継ぐ（期間の決まりは HistoryPeriodRuleTest）。
+ * 予約履歴の読み取り（CakeReservationHistoryQuery）。旧 ReservationHistoryServiceTest を引き継ぐ（期間の決まりは DatePeriodRuleTest）。
  *
  * 見られる範囲・予約状況・経緯・集計を DB（フィクスチャ）で確かめる。
  */

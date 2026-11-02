@@ -6,7 +6,7 @@ namespace App\Test\TestCase\Service;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
-use App\Service\RoomUsageService;
+use App\Application\Query\RoomUsageQueryInterface;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -38,12 +38,12 @@ class AiStatsContextServiceTest extends TestCase
         $this->to   = date('Y-m-d', strtotime('+7 days'));
     }
 
-    private function service(?RoomUsageService $roomUsage = null): AiStatsContextService
+    private function service(?RoomUsageQueryInterface $roomUsage = null): AiStatsContextService
     {
         return new AiStatsContextService(
             new FeatureUsageSummaryService(),
             $this->tokenizer,
-            $roomUsage ?? $this->createMock(RoomUsageService::class)
+            $roomUsage ?? $this->createMock(RoomUsageQueryInterface::class)
         );
     }
 
@@ -194,10 +194,10 @@ class AiStatsContextServiceTest extends TestCase
 
     public function testRoomUsageRateSummary_rendersChildAndAdultGroups(): void
     {
-        $roomUsage = $this->createMock(RoomUsageService::class);
-        $roomUsage->method('getRoomUsage')->willReturnCallback(
-            static fn(?string $f, ?string $t, ?int $meal, ?int $level): array => $level === 1
-                ? [['room_id' => 1, 'usage_rate' => 62.5, 'user_count' => 4, 'eat_count' => 10, 'capacity' => 16]]
+        $roomUsage = $this->createMock(RoomUsageQueryInterface::class);
+        $roomUsage->method('roomUsage')->willReturnCallback(
+            static fn(string $f, string $t, ?int $meal, ?int $level): array => $level === 1
+                ? [new \App\Application\Query\Dto\RoomUsage(1, '部屋', 4, 16, 10, 62.5, [])]
                 : []
         );
 

@@ -4,9 +4,9 @@ declare(strict_types=1);
 namespace App\Domain\Service;
 
 /**
- * 予約履歴の期間の決まり。過去日も未来日も、期間の長さも制限しない（日付の形式と前後だけ確かめる）。
+ * 期間（開始日〜終了日）の決まり。予約履歴・部屋使用率で使う。過去日も未来日も、期間の長さも制限しない（日付の形式と前後だけ確かめる）。
  */
-final class HistoryPeriodRule
+final class DatePeriodRule
 {
     /**
      * 期間の問題。問題が無ければ null。

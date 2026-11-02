@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Application\Query\RoomUsageQueryInterface;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\AI\UserTokenizer;
@@ -43,7 +44,7 @@ final class AiStatsContextService
     public function __construct(
         private readonly FeatureUsageSummaryService $featureUsageSummaryService,
         private readonly UserTokenizer $userTokenizer,
-        private readonly RoomUsageService $roomUsageService,
+        private readonly RoomUsageQueryInterface $roomUsageQuery,
     ) {
     }
 
@@ -253,7 +254,7 @@ final class AiStatsContextService
     /**
      * 子供（児童）・大人（職員）別の部屋使用率を構築する。
      *
-     * 使用率の定義は既存の「部屋使用率」画面（RoomUsageService）と同一:
+     * 使用率の定義は既存の「部屋使用率」画面（RoomUsageQueryInterface）と同一:
      * 食べた回数 ÷（在籍人数 × 日数 × 食種数）× 100。
      * 部屋名は外部AIへ渡さず [R:<ハッシュ>] トークンで表す。
      */
@@ -270,7 +271,7 @@ final class AiStatsContextService
         ];
 
         foreach ($groups as $label => $level) {
-            $rows = $this->roomUsageService->getRoomUsage($dateFrom, $dateTo, null, $level);
+            $rows = $this->roomUsageQuery->roomUsage($dateFrom, $dateTo, null, $level);
             $lines[] = sprintf('#### %s', $label);
             if (empty($rows)) {
                 $lines[] = '- データなし';
@@ -279,11 +280,11 @@ final class AiStatsContextService
             foreach ($rows as $row) {
                 $lines[] = sprintf(
                     '- [R:%s]: 使用率%.1f%%（在籍%d人 / 食べた%d回 / 上限%d回）',
-                    $this->userTokenizer->tokenize((int)$row['room_id']),
-                    (float)$row['usage_rate'],
-                    (int)$row['user_count'],
-                    (int)$row['eat_count'],
-                    (int)$row['capacity']
+                    $this->userTokenizer->tokenize($row->roomId),
+                    $row->usageRate,
+                    $row->userCount,
+                    $row->eatCount,
+                    $row->capacity
                 );
             }
         }
