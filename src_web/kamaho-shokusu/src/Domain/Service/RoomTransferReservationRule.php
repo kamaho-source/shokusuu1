@@ -25,7 +25,8 @@ final class RoomTransferReservationRule
      */
     public static function plan(MealReservation $source, ?MealReservation $destination, ChronosDate $today): array
     {
-        $counted = $source->countedValue($today);
+        // 集計で数えるのは 1（食べる）だけ。0・1 以外の値が入っていても増減は ±1 まで（従来どおり）
+        $counted = $source->isEffective($today) ? 1 : 0;
         if ($destination === null) {
             return ['fromDelta' => -$counted, 'toDelta' => $counted, 'overwriteDestination' => false, 'createDestination' => true];
         }

@@ -26,6 +26,8 @@ class RoomTransferReservationRuleTest extends TestCase
             '異動先が取消・異動元も食べない'  => [$r(1, 0, 0), $r(2, 0, 0), ['fromDelta' => 0, 'toDelta' => 0, 'overwriteDestination' => false, 'createDestination' => false]],
             '直前期間に追加（eat0/chg1）'     => [$r(1, 0, 1, '2026-11-07'), null, ['fromDelta' => -1, 'toDelta' => 1, 'overwriteDestination' => false, 'createDestination' => true]],
             '直前期間で取消（eat1/chg0）'     => [$r(1, 1, 0, '2026-11-07'), null, ['fromDelta' => 0, 'toDelta' => 0, 'overwriteDestination' => false, 'createDestination' => true]],
+            '想定外の値（eat2）は数えない'    => [$r(1, 2, 2), null, ['fromDelta' => 0, 'toDelta' => 0, 'overwriteDestination' => false, 'createDestination' => true]],
+            '異動先が想定外の値（eat2）'      => [$r(1, 1, 1), $r(2, 2, 2), ['fromDelta' => -1, 'toDelta' => -1, 'overwriteDestination' => true, 'createDestination' => false]],
             '直前の変更なし（eat1/chgNULL）'  => [$r(1, 1, null, '2026-11-07'), $r(2, 0, 0, '2026-11-07'), ['fromDelta' => -1, 'toDelta' => 1, 'overwriteDestination' => true, 'createDestination' => false]],
         ];
     }
