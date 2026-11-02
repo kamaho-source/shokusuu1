@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Application\Query\NoticeQueryInterface;
 use App\Application\UseCase\CreateNotice\CreateNoticeInput;
 use App\Application\UseCase\CreateNotice\CreateNoticeUseCase;
+use App\Application\UseCase\DeleteNotice\DeleteNoticeInput;
 use App\Application\UseCase\DeleteNotice\DeleteNoticeUseCase;
 use App\Application\UseCase\UpdateNotice\UpdateNoticeInput;
 use App\Application\UseCase\UpdateNotice\UpdateNoticeUseCase;
@@ -153,7 +154,7 @@ class MNoticeController extends AppController
         }
 
         try {
-            $deleted = $deleteNotice->execute($id, $this->auditActor());
+            $deleted = $deleteNotice->execute(new DeleteNoticeInput($id, $this->auditActor()))->deleted;
         } catch (DomainNotFoundException $e) {
             throw new NotFoundException($e->getMessage(), null, $e);
         }

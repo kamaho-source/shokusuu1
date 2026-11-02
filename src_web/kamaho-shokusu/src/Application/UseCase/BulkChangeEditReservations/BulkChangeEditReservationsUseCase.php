@@ -11,6 +11,7 @@ use App\Domain\Exception\ReservationValidationException;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Repository\UserRepositoryInterface;
+use App\Domain\Service\ChangeEditPermission;
 use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
@@ -45,10 +46,11 @@ final class BulkChangeEditReservationsUseCase
     ) {}
 
     /**
-     * @return array{ok: bool, message?: string, updated?: int, created?: int, skipped?: list<string>, conflict_date?: string}
+     * 保存できなかった理由は Output の ok=false と message（競合は conflict_date も）で返す。
+     *
      * @throws \App\Domain\Exception\PersistenceException 部屋の読み取りに失敗した場合
      */
-    public function execute(BulkChangeEditReservationsInput $input): array
+    public function execute(BulkChangeEditReservationsInput $input): BulkChangeEditReservationsOutput
     {
         $dayUsers    = $input->dayUsers;
         $roomId      = $input->roomId;
@@ -56,26 +58,17 @@ final class BulkChangeEditReservationsUseCase
         $isAdmin     = $input->isAdmin;
 
         if (!$roomId || empty($dayUsers)) {
-            return [
-                'ok' => false,
-                'message' => '部屋または予約内容が指定されていません。',
-            ];
+            return BulkChangeEditReservationsOutput::failed('部屋または予約内容が指定されていません。');
         }
 
         // ログインユーザーを特定できない場合は権限判定できないため拒否する（fail-closed）
         if ($loginUserId <= 0) {
-            return [
-                'ok'      => false,
-                'message' => 'ログインユーザーを特定できないため処理を中断しました。',
-            ];
+            return BulkChangeEditReservationsOutput::failed('ログインユーザーを特定できないため処理を中断しました。');
         }
 
         // 存在しない・削除済みの部屋には、管理者でも書き込めない（管理者以外は有効な所属の判定で弾かれる）
         if ($isAdmin && !$this->rooms->isRoomAvailable($roomId)) {
-            return [
-                'ok'      => false,
-                'message' => '選択された部屋情報が不正です。画面を再読み込みして再実行してください。',
-            ];
+            return BulkChangeEditReservationsOutput::failed('選択された部屋情報が不正です。画面を再読み込みして再実行してください。');
         }
 
         // 過ぎた日（実績）は、管理者以外は書き換えさせない（数える値が i_change_flag のため、食数・控除表が変わる）。
@@ -86,15 +79,11 @@ final class BulkChangeEditReservationsUseCase
             $conflict = $this->support->conflictingSnapshotDate($roomId, $dayUsers, $input->snapshots);
             if ($conflict !== null) {
                 $this->transaction->rollback();
-                return [
-                    'ok' => false,
-                    'message' => '他のユーザーが同じ日付の予約を更新しました。最新の状態を読み込み直してください。',
-                    'conflict_date' => $conflict,
-                ];
+                return BulkChangeEditReservationsOutput::failed('他のユーザーが同じ日付の予約を更新しました。最新の状態を読み込み直してください。', $conflict);
             }
 
             $result = $this->applyChanges($input, new ChronosDate($this->clock->now()));
-            if ($result['ok'] === false) {
+            if (!$result->ok) {
                 $this->transaction->rollback();
                 return $result;
             }
@@ -106,50 +95,34 @@ final class BulkChangeEditReservationsUseCase
         } catch (ConflictException $e) {
             // 承認済み・別の部屋の予約と重なる・昼食と弁当の同時予約（有効にする更新）
             $this->transaction->rollback();
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-            ];
+            return BulkChangeEditReservationsOutput::failed($e->getMessage());
         } catch (ReservationValidationException $e) {
             // 新しい行の検証ルール（昼食と弁当の同時予約など）に当たった。理由を返す
             $this->transaction->rollback();
             $this->logger->error('bulkChangeEditSubmit validation error: ' . $e->getMessage());
-            return [
-                'ok' => false,
-                'message' => $e->lunchBentoMessage ?? self::SAVE_ERROR_MESSAGE,
-            ];
+            return BulkChangeEditReservationsOutput::failed($e->lunchBentoMessage ?? self::SAVE_ERROR_MESSAGE);
         } catch (\RuntimeException $e) {
             $this->transaction->rollback();
             if ($e->getMessage() === 'optimistic_conflict') {
-                return [
-                    'ok' => false,
-                    'message' => '他の操作と競合しました。画面を再読み込みして再実行してください。',
-                ];
+                return BulkChangeEditReservationsOutput::failed('他の操作と競合しました。画面を再読み込みして再実行してください。');
             }
             $this->logger->error('bulkChangeEditSubmit runtime error: ' . $e->getMessage());
-            return [
-                'ok' => false,
-                'message' => self::SAVE_ERROR_MESSAGE,
-            ];
+            return BulkChangeEditReservationsOutput::failed(self::SAVE_ERROR_MESSAGE);
         } catch (\Throwable $e) {
             $this->transaction->rollback();
             $this->logger->error('bulkChangeEditSubmit error: ' . $e->getMessage());
-            return [
-                'ok' => false,
-                'message' => self::SAVE_ERROR_MESSAGE,
-            ];
+            return BulkChangeEditReservationsOutput::failed(self::SAVE_ERROR_MESSAGE);
         }
     }
 
     /**
      * 変わる行を書く。止める理由があれば ok=false の結果を返す（書いた分は呼び出し側が取り消す）。
      *
-     * @return array{ok: bool, message?: string, updated?: int, created?: int, skipped?: list<string>}
      * @throws ConflictException 承認済み・別の部屋の予約と重なる場合
      * @throws ReservationValidationException 新しい行が検証ルールに当たった場合
      * @throws \RuntimeException 楽観的ロック競合（optimistic_conflict）・読み取りの失敗
      */
-    private function applyChanges(BulkChangeEditReservationsInput $input, ChronosDate $today): array
+    private function applyChanges(BulkChangeEditReservationsInput $input, ChronosDate $today): BulkChangeEditReservationsOutput
     {
         $dayUsers    = $input->dayUsers;
         $roomId      = $input->roomId;
@@ -212,16 +185,15 @@ final class BulkChangeEditReservationsUseCase
 
                     if ($existing !== null) {
                         // 職員の直前取消は認めない（toggle・change-room と同じく、管理者は例外）
-                        if (!$isAdmin && ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today)
-                            && $targetUserLevel !== null && UserRole::isStaffLevel($targetUserLevel) && $changeFlag === 0
-                        ) {
+                        if ($changeFlag === 0 && ChangeEditPermission::isStaffLockedInLastMinute(
+                            $isAdmin,
+                            ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today),
+                            $targetUserLevel,
+                        )) {
                             // 昼食⇔弁当の入れ替えは取消を伴うので、理由を返して止める
                             $opponent = MealType::counterpartValue($mealType);
                             if ($opponent !== null && (int)($meals[$opponent] ?? 0) === 1 && $existing->isEffective($today)) {
-                                return [
-                                    'ok'      => false,
-                                    'message' => "利用者ID {$userId} は職員のため、直前期間はお昼とお弁当を入れ替えられません（予約の取消になるため）。",
-                                ];
+                                return BulkChangeEditReservationsOutput::failed("利用者ID {$userId} は職員のため、直前期間はお昼とお弁当を入れ替えられません（予約の取消になるため）。");
                             }
                             // 画面は変わっていない行も送るので、実際に取り消そうとした（今は食べる）ときだけ理由を返す
                             if ($existing->countedValue($today) === 1) {
@@ -239,10 +211,7 @@ final class BulkChangeEditReservationsUseCase
                         // 権限チェックは値が実際に変わる行に限定する
                         // 取消（チェックOFF）は、対象が退出済みでも行えるよう所属を要求しない
                         if (!$this->support->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId, $changeFlag === 0)) {
-                            return [
-                                'ok'      => false,
-                                'message' => self::NO_PERMISSION_MESSAGE,
-                            ];
+                            return BulkChangeEditReservationsOutput::failed(self::NO_PERMISSION_MESSAGE);
                         }
                         // 権限の判定のあとで見る（権限のない操作を「過去日」として ok にしない）
                         if (!$isAdmin && self::isPastDate((string)$date, $today)) {
@@ -260,10 +229,7 @@ final class BulkChangeEditReservationsUseCase
                         continue;
                     }
                     if (!$this->support->canEditTargetUser($userId, $loginUserId, $isAdmin, $isLoginStaff, (int)($targetUserLevel ?? 0), $blockLeaderInRoom, $roomId)) {
-                        return [
-                            'ok'      => false,
-                            'message' => self::NO_PERMISSION_MESSAGE,
-                        ];
+                        return BulkChangeEditReservationsOutput::failed(self::NO_PERMISSION_MESSAGE);
                     }
                     // 権限の判定のあとで見る（権限のない操作を「過去日」として ok にしない）
                     if (!$isAdmin && self::isPastDate((string)$date, $today)) {
@@ -288,12 +254,7 @@ final class BulkChangeEditReservationsUseCase
             $this->reservations->addMany($newRows, $loginName);
         }
 
-        return [
-            'ok' => true,
-            'updated' => $updated,
-            'created' => $created,
-            'skipped' => array_values(array_unique($skipped)),
-        ];
+        return BulkChangeEditReservationsOutput::succeeded($updated, $created, array_values(array_unique($skipped)));
     }
 
     /** 今日より前の日か（日付として読めなければ false）。 */

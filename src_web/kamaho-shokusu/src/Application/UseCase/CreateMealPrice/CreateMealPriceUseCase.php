@@ -3,9 +3,7 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\CreateMealPrice;
 
-use App\Application\Port\AuditActor;
 use App\Application\Port\AuditLogInterface;
-use App\Domain\Entity\MealPrice;
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\Repository\MealPriceRepositoryInterface;
 use App\Domain\Service\MealPriceRule;
@@ -21,13 +19,12 @@ final class CreateMealPriceUseCase
     ) {}
 
     /**
-     * @param array<string, string> $values 'year'・'morning'・'lunch'・'dinner'・'bento' => 入力
-     * @return int 登録した単価の ID
      * @throws InvalidInputException 入力が不正・同じ年がある・保存できない
      */
-    public function execute(array $values, AuditActor $actor): int
+    public function execute(CreateMealPriceInput $input): CreateMealPriceOutput
     {
-        $price = MealPriceInput::toPrice(null, $values);
+        $actor = $input->actor;
+        $price = MealPriceInput::toPrice(null, $input->values);
         if ($this->prices->yearExists((int)$price->year)) {
             throw new InvalidInputException(MealPriceRule::duplicateYearMessage((int)$price->year), 400);
         }
@@ -38,6 +35,6 @@ final class CreateMealPriceUseCase
 
         $this->auditLog->record('master', 'meal_price_create', $actor, 'm_meal_price_info', (string)$id, null, true);
 
-        return $id;
+        return new CreateMealPriceOutput($id);
     }
 }

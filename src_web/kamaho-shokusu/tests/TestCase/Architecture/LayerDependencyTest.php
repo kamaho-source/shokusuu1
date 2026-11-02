@@ -129,4 +129,49 @@ class LayerDependencyTest extends TestCase
     {
         $this->assertSame([], array_merge(self::clockReads('Domain'), self::clockReads('Application')));
     }
+
+    /**
+     * Controller・Policy・Service で、読み取り（Query）・Repository・時計を new している箇所。
+     * これらはコンテナから受け取る（Application::services() で登録。#980）。
+     *
+     * @return list<string> "相対パス:行: クラス名"
+     */
+    private static function directInstantiations(string $layer): array
+    {
+        $root  = dirname(__DIR__, 3) . '/src/' . $layer;
+        $found = [];
+        $files = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+        foreach ($files as $file) {
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+            $path   = $layer . substr($file->getPathname(), strlen($root));
+            $tokens = array_values(array_filter(
+                token_get_all((string)file_get_contents($file->getPathname())),
+                static fn($t): bool => !is_array($t) || $t[0] !== T_WHITESPACE
+            ));
+            foreach ($tokens as $i => $t) {
+                $next = $tokens[$i + 1] ?? null;
+                if (!is_array($t) || $t[0] !== T_NEW || !is_array($next)) {
+                    continue;
+                }
+                $class = substr((string)strrchr('\\' . ltrim($next[1], '\\'), '\\'), 1);
+                if (preg_match('/^(Cake\w+(Query|Repository)|ClockFactory)$/', $class)) {
+                    $found[] = "{$path}:{$t[2]}: {$class}";
+                }
+            }
+        }
+        sort($found);
+
+        return $found;
+    }
+
+    public function testControllersPoliciesAndServicesReceiveQueriesAndClockFromContainer(): void
+    {
+        $this->assertSame([], array_merge(
+            self::directInstantiations('Controller'),
+            self::directInstantiations('Policy'),
+            self::directInstantiations('Service'),
+        ));
+    }
 }

@@ -63,7 +63,7 @@ class CreateDeleteRoomIntegrationTest extends TestCase
     public function testDelete_setsFlagUpdaterAndAudit(): void
     {
         $deleted = (new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')))
-            ->execute(new DeleteRoomInput(1, $this->actor()));
+            ->execute(new DeleteRoomInput(1, $this->actor()))->deleted;
 
         $this->assertTrue($deleted);
         $room = $this->getTableLocator()->get('MRoomInfo')->get(1);
@@ -75,7 +75,7 @@ class CreateDeleteRoomIntegrationTest extends TestCase
     public function testDelete_missingRoom_recordsFailure(): void
     {
         $deleted = (new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')))
-            ->execute(new DeleteRoomInput(999, $this->actor()));
+            ->execute(new DeleteRoomInput(999, $this->actor()))->deleted;
 
         $this->assertFalse($deleted);
         $this->assertSame(0, (int)$this->getTableLocator()->get('TAuditLog')->find()->where(['c_action' => 'room_delete'])->firstOrFail()->i_result);

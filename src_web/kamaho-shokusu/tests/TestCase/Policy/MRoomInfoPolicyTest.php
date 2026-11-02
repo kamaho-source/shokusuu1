@@ -11,7 +11,7 @@ class MRoomInfoPolicyTest extends TestCase
 {
     public function testCanIndexRequiresAuthentication(): void
     {
-        $policy = new MRoomInfoPolicy();
+        $policy = new MRoomInfoPolicy(new \App\Infrastructure\Query\CakeRoomQuery());
         $resource = new MRoomInfo();
 
         $this->assertFalse($policy->canIndex(null, $resource));
@@ -20,7 +20,7 @@ class MRoomInfoPolicyTest extends TestCase
 
     public function testCanAddRequiresAdmin(): void
     {
-        $policy = new MRoomInfoPolicy();
+        $policy = new MRoomInfoPolicy(new \App\Infrastructure\Query\CakeRoomQuery());
         $resource = new MRoomInfo();
 
         $admin = new PolicyTestIdentity(['i_id_user' => 1, 'i_admin' => 1]);

@@ -19,10 +19,9 @@ final class DeleteRoomUseCase
     ) {}
 
     /**
-     * @return bool 削除できたか
      * @throws \Throwable DB の失敗（変換せずにそのまま投げる）
      */
-    public function execute(DeleteRoomInput $input): bool
+    public function execute(DeleteRoomInput $input): DeleteRoomOutput
     {
         $room = $this->rooms->find($input->roomId);
         $deleted = $this->rooms->softDelete(
@@ -36,6 +35,6 @@ final class DeleteRoomUseCase
             $deleted ? null : '部屋マスタの削除に失敗しました（対象が存在しない、またはDBエラー）'
         );
 
-        return $deleted;
+        return new DeleteRoomOutput($deleted);
     }
 }

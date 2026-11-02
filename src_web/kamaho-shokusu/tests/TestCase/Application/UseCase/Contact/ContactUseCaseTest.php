@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\UseCase\Contact;
 
-use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
 use App\Application\UseCase\ReplyToContact\ReplyToContactUseCase;
 use App\Application\UseCase\SubmitContact\SubmitContactOutput;
 use App\Application\UseCase\SubmitContact\SubmitContactUseCase;
@@ -19,8 +18,8 @@ use Cake\TestSuite\TestCase;
  * 問い合わせの UseCase・Query・通知の判定。旧 ContactServiceTest を引き継ぐ
  *
  * - shouldSkipAdminNotification: 管理者通知メールのスキップ判定（宛先未設定時は送らない）
- * - addUserReply / getMyList / getDetailForUser: 問い合わせ者本人が自分の問い合わせへ
- *   追記返信できること、他人の問い合わせへはアクセスできないことを検証する。
+ * - getMyList / getDetailForUser: 問い合わせ者本人が自分の問い合わせを
+ *   見られること、他人の問い合わせは見られないことを検証する。
  */
 class ContactUseCaseTest extends TestCase
 {
@@ -32,11 +31,6 @@ class ContactUseCaseTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-    }
-
-    private function replies(): AddContactReplyUseCase
-    {
-        return new AddContactReplyUseCase(new CakeContactRepository(), new CakeContactNotifier());
     }
 
     public function testShouldSkip_whenDefaultPlaceholder(): void
@@ -59,29 +53,8 @@ class ContactUseCaseTest extends TestCase
     }
 
     // ----------------------------------------------------------------
-    // addUserReply / getMyList / getDetailForUser
+    // getMyList / getDetailForUser（本人の返信は AddContactReplyFromUser / FromEmail のテストへ移した）
     // ----------------------------------------------------------------
-
-    public function testAddUserReply_savesAsUserAuthorType(): void
-    {
-        $this->assertTrue($this->replies()->fromUser(1, 1, '追加で確認したいことがあります。'));
-
-        $repliesTable = TableRegistry::getTableLocator()->get('TContactReplies');
-        $latest = $repliesTable->find()
-            ->where(['contact_id' => 1])
-            ->orderByDesc('id')
-            ->first();
-
-        $this->assertSame('user', $latest->author_type);
-        $this->assertSame('追加で確認したいことがあります。', $latest->body);
-    }
-
-    public function testAddUserReply_wrongOwner_throwsRecordNotFound(): void
-    {
-        // contact_id=1 は user_id=1 の問い合わせ。user_id=2 が返信しようとすると拒否される。
-        $this->assertFalse($this->replies()->fromUser(1, 2, '他人の問い合わせに返信しようとする。'));
-        $this->assertFalse(TableRegistry::getTableLocator()->get('TContactReplies')->exists(['body' => '他人の問い合わせに返信しようとする。']));
-    }
 
     public function testGetMyList_scopesToOwner(): void
     {
@@ -110,7 +83,7 @@ class ContactUseCaseTest extends TestCase
     public function testSendReply_setsAdminAuthorType(): void
     {
         // メール送信の成否は問わない（通知失敗時も返信履歴は保存される既存仕様）。
-        (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute(2, '確認いたします。');
+        (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute(new \App\Application\UseCase\ReplyToContact\ReplyToContactInput(2, '確認いたします。'));
 
         $repliesTable = TableRegistry::getTableLocator()->get('TContactReplies');
         $latest = $repliesTable->find()
@@ -120,63 +93,5 @@ class ContactUseCaseTest extends TestCase
 
         $this->assertNotNull($latest);
         $this->assertSame('admin', $latest->author_type);
-    }
-
-    // ----------------------------------------------------------------
-    // addUserReplyByToken（受信メール経由の本人返信）
-    // ----------------------------------------------------------------
-
-    public function testAddUserReplyByToken_savesAsUserAuthorType(): void
-    {
-        $result = $this->replies()->fromEmail(
-            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            'メールから返信しました。',
-            'resend-email-id-001'
-        );
-
-        $this->assertTrue($result['success'], json_encode($result['errors']));
-
-        $repliesTable = TableRegistry::getTableLocator()->get('TContactReplies');
-        $latest = $repliesTable->find()
-            ->where(['contact_id' => 1])
-            ->orderByDesc('id')
-            ->first();
-
-        $this->assertSame('user', $latest->author_type);
-        $this->assertSame('メールから返信しました。', $latest->body);
-        $this->assertSame('resend-email-id-001', $latest->external_message_id);
-    }
-
-    public function testAddUserReplyByToken_unknownToken_returnsFailureWithoutThrowing(): void
-    {
-        $result = $this->replies()->fromEmail('not-a-real-token', '本文', 'resend-email-id-002');
-
-        $this->assertFalse($result['success']);
-        $this->assertArrayHasKey('token', $result['errors']);
-    }
-
-    public function testAddUserReplyByToken_duplicateExternalMessageId_isIdempotent(): void
-    {
-        $first = $this->replies()->fromEmail(
-            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            '1回目の返信。',
-            'resend-email-id-003'
-        );
-        $this->assertTrue($first['success']);
-
-        // Webhookの再送を模倣：同じ external_message_id で再度呼び出す。
-        $second = $this->replies()->fromEmail(
-            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            '1回目の返信。',
-            'resend-email-id-003'
-        );
-        $this->assertTrue($second['success']);
-
-        $repliesTable = TableRegistry::getTableLocator()->get('TContactReplies');
-        $count = $repliesTable->find()
-            ->where(['external_message_id' => 'resend-email-id-003'])
-            ->count();
-
-        $this->assertSame(1, $count);
     }
 }

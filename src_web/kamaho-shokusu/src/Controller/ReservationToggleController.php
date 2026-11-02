@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsInput;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealInput;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
@@ -134,7 +135,7 @@ class ReservationToggleController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $results = $bulkToggleMeals->execute($items, $loginUserId, $loginUserName);
+        $results = $bulkToggleMeals->execute(new BulkToggleMealsInput($items, $loginUserId, $loginUserName))->toArray();
 
         $okCount   = count(array_filter($results, static fn($r) => !empty($r['ok'])));
         $failCount = count($results) - $okCount;

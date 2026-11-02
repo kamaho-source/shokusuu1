@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\ServerRequest;
 use App\Infrastructure\Persistence\Entity\MRoomInfo;
 use App\Application\Query\RoomQueryInterface;
 use App\Application\UseCase\CreateRoom\CreateRoomInput;
@@ -12,7 +13,6 @@ use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
 use App\Application\UseCase\UpdateRoom\UpdateRoomInput;
 use App\Application\UseCase\UpdateRoom\UpdateRoomOutput;
 use App\Application\UseCase\UpdateRoom\UpdateRoomUseCase;
-use App\Infrastructure\Query\CakeRoomQuery;
 use Authorization\Exception\ForbiddenException;
 
 /**
@@ -22,7 +22,10 @@ use Authorization\Exception\ForbiddenException;
  */
 class MRoomInfoController extends AppController
 {
-    private RoomQueryInterface $roomQuery;
+    public function __construct(ServerRequest $request, private readonly RoomQueryInterface $roomQuery)
+    {
+        parent::__construct($request);
+    }
 
     public function initialize(): void
     {
@@ -30,8 +33,6 @@ class MRoomInfoController extends AppController
         $this->loadComponent('Authentication.Authentication');
         $this->viewBuilder()->setOption('serialize', true);
         $this->viewBuilder()->setLayout('default');
-
-        $this->roomQuery = new CakeRoomQuery();
     }
 
     /**
@@ -198,7 +199,7 @@ class MRoomInfoController extends AppController
             (int)$mRoomInfo->i_id_room,
             $this->auditActor(),
             $this->request->getAttribute('identity') !== null,
-        ));
+        ))->deleted;
         if ($deleted) {
             $this->Flash->success(__('部屋情報を削除しました。'));
         } else {

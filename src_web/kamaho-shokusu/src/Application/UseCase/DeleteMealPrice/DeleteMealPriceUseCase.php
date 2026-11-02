@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\DeleteMealPrice;
 
-use App\Application\Port\AuditActor;
 use App\Application\Port\AuditLogInterface;
 use App\Domain\Exception\NotFoundException;
 use App\Domain\Repository\MealPriceRepositoryInterface;
@@ -19,11 +18,11 @@ final class DeleteMealPriceUseCase
     ) {}
 
     /**
-     * @return bool 消せたか
      * @throws NotFoundException 単価が無い
      */
-    public function execute(int $id, AuditActor $actor): bool
+    public function execute(DeleteMealPriceInput $input): DeleteMealPriceOutput
     {
+        $id = $input->id;
         if ($this->prices->find($id) === null) {
             throw new NotFoundException('食事料金情報が見つかりません。');
         }
@@ -31,7 +30,7 @@ final class DeleteMealPriceUseCase
         $this->auditLog->record(
             'master',
             'meal_price_delete',
-            $actor,
+            $input->actor,
             'm_meal_price_info',
             (string)$id,
             null,
@@ -39,6 +38,6 @@ final class DeleteMealPriceUseCase
             $deleted ? null : '単価マスタの削除に失敗しました（対象が存在しない、またはDBエラー）',
         );
 
-        return $deleted;
+        return new DeleteMealPriceOutput($deleted);
     }
 }

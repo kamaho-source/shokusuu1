@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersInput;
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
 use Cake\Command\Command;
 use Cake\Console\Arguments;
@@ -65,7 +66,7 @@ class ApplyRoomTransferScheduleCommand extends Command
         }
 
         try {
-            $result = $this->applyRoomTransfers->execute($today, $dryRun);
+            $result = $this->applyRoomTransfers->execute(new ApplyRoomTransfersInput($today, $dryRun));
         } catch (\Throwable $e) {
             $io->err('致命的エラー: ' . $e->getMessage());
             return self::CODE_ERROR;

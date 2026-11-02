@@ -25,11 +25,13 @@ final class BulkToggleMealsUseCase
     ) {}
 
     /**
-     * @param array<int, array{roomId?:int,i_id_room?:int,userId?:int,date?:string,meal?:int,value?:int}> $items
-     * @return array<int, array{ok:bool,value?:bool,details?:array<mixed>,message?:string}> item と同じ順序の結果
+     * 1件ごとの失敗（DomainException）は結果の ok=false に入れる（例外にしない）。
      */
-    public function execute(array $items, int $loginUserId, string $loginUserName): array
+    public function execute(BulkToggleMealsInput $input): BulkToggleMealsOutput
     {
+        $items         = $input->items;
+        $loginUserId   = $input->loginUserId;
+        $loginUserName = $input->loginUserName;
         $results = [];
         /** @var array<string, list<int>> $usersByDate */
         $usersByDate = [];
@@ -71,6 +73,6 @@ final class BulkToggleMealsUseCase
         }
         ksort($results);
 
-        return $results;
+        return new BulkToggleMealsOutput($results);
     }
 }

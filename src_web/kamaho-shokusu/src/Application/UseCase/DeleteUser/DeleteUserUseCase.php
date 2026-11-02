@@ -33,12 +33,6 @@ final class DeleteUserUseCase
         private readonly ClockInterface $clock,
     ) {}
 
-    /** 対象の利用者（認可より先に 404 を返すため）。居なければ null。 */
-    public function target(int $userId): ?UserAccount
-    {
-        return $this->users->find($userId);
-    }
-
     /**
      * @throws NotFoundException 対象の利用者が居ない場合
      * @throws \Throwable DB の失敗（取り消して、失敗を監査ログに残してから投げ直す）
