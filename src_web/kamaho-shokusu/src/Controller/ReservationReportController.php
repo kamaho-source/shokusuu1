@@ -9,7 +9,11 @@ use App\Application\Query\Dto\RankMealCount;
 use App\Application\Query\Dto\RoomUserMealStatus;
 use App\Application\Query\MealReportQueryInterface;
 use App\Infrastructure\Query\CakeMealReportQuery;
-use App\Service\MealReportingService;
+use App\Application\UseCase\ReportEat\ReportEatInput;
+use App\Application\UseCase\ReportEat\ReportEatUseCase;
+use App\Application\UseCase\ReportNoMeal\ReportNoMealInput;
+use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
+use App\Domain\Exception\DomainException;
 use Cake\Chronos\ClockFactory;
 use Cake\Http\Response;
 use Cake\I18n\Date;
@@ -23,14 +27,12 @@ use Cake\Log\Log;
 class ReservationReportController extends ReservationBaseController
 {
     private MealReportQueryInterface $mealReport;
-    private MealReportingService $mealReportingService;
 
     public function initialize(): void
     {
         parent::initialize();
 
         $this->mealReport           = new CakeMealReportQuery(new ClockFactory('Asia/Tokyo'));
-        $this->mealReportingService = new MealReportingService();
 
         // fetch から直接 POST される API のため FormProtection のフォームトークン検証対象外にする。
         // CSRF は X-CSRF-Token ヘッダで別途検証される。
@@ -192,7 +194,7 @@ class ReservationReportController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function reportNoMeal(): ?Response
+    public function reportNoMeal(ReportNoMealUseCase $reportNoMealUseCase): ?Response
     {
         if ($denied = $this->authorizeReservation('reportNoMeal', [], true)) {
             return $denied;
@@ -208,18 +210,13 @@ class ReservationReportController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $result = $this->mealReportingService->reportNoMeal(
-            $this->TIndividualReservationInfo,
-            $this->MUserGroup,
-            $userId,
-            $userName
-        );
-
-        if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
+        try {
+            $output = $reportNoMealUseCase->execute(new ReportNoMealInput($userId, $userName));
+        } catch (DomainException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         }
 
-        return $this->apiResponseService->success($this->response, [], $result['message']);
+        return $this->apiResponseService->success($this->response, [], $output->message);
     }
 
     /**
@@ -227,7 +224,7 @@ class ReservationReportController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function reportEat(): ?Response
+    public function reportEat(ReportEatUseCase $reportEatUseCase): ?Response
     {
         if ($denied = $this->authorizeReservation('reportEat', [], true)) {
             return $denied;
@@ -243,18 +240,13 @@ class ReservationReportController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
         }
 
-        $result = $this->mealReportingService->reportEat(
-            $this->TIndividualReservationInfo,
-            $this->MUserGroup,
-            $userId,
-            $userName
-        );
-
-        if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], $result['status'] ?? 400);
+        try {
+            $output = $reportEatUseCase->execute(new ReportEatInput($userId, $userName));
+        } catch (DomainException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         }
 
-        return $this->apiResponseService->success($this->response, [], $result['message']);
+        return $this->apiResponseService->success($this->response, [], $output->message);
     }
 
     /**
