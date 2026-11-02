@@ -17,7 +17,9 @@ use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\Database\Exception\QueryException;
+use Cake\Datasource\EntityInterface;
 use Cake\ORM\Exception\PersistenceFailedException;
+use Cake\ORM\TableRegistry;
 
 /**
  * ReservationRepositoryInterface の CakePHP 実装（t_individual_reservation_info）。
@@ -265,6 +267,111 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
         }
 
         return $latest;
+    }
+
+    public function findFromDate(int $userId, int $roomId, string $fromDate): array
+    {
+        $rows = $this->reservations->find()
+            ->where(['i_id_user' => $userId, 'i_id_room' => $roomId, 'd_reservation_date >=' => $fromDate])
+            ->all();
+
+        $found = [];
+        foreach ($rows as $row) {
+            $found[] = self::toReservation($row);
+        }
+
+        return $found;
+    }
+
+    public function findOne(int $userId, int $roomId, string $date, int $mealType): ?MealReservation
+    {
+        $row = $this->row($userId, $roomId, $date, $mealType);
+
+        return $row === null ? null : self::toReservation($row);
+    }
+
+    public function moveForTransfer(MealReservation $source, int $toRoomId, bool $overwriteDestination, bool $createDestination, string $at): void
+    {
+        $old = $this->row($source->userId, $source->roomId, $source->date, $source->mealType);
+        if ($old === null) {
+            return;
+        }
+        $copied = [
+            // 従来どおり、当初予定は数値にする（NULL は 0）
+            'eat_flag'      => (int)$old->eat_flag,
+            // NULL（直前の変更なし）を 0 にすると、当初予定のある予約が取消扱いになるため、そのまま写す
+            'i_change_flag' => $old->i_change_flag === null ? null : (int)$old->i_change_flag,
+        ];
+        $destinationKey = ['i_id_user' => $source->userId, 'i_id_room' => $toRoomId, 'd_reservation_date' => $source->date, 'i_reservation_type' => $source->mealType];
+        if ($overwriteDestination) {
+            $destination = $this->row($source->userId, $toRoomId, $source->date, $source->mealType);
+            // 承認状態を引き継ぐ。版は上げて、古い画面からの更新を競合として止める
+            $this->reservations->updateAll($copied + [
+                'i_approval_status' => (int)($old->i_approval_status ?? 0),
+                'i_version'         => max((int)$destination?->i_version, (int)$old->i_version) + 1,
+                'c_update_user'     => 'batch',
+                'dt_update'         => $at,
+            ], $destinationKey);
+        }
+
+        $this->reservations->deleteAll(['i_id_user' => $source->userId, 'i_id_room' => $source->roomId, 'd_reservation_date' => $source->date, 'i_reservation_type' => $source->mealType]);
+
+        if ($createDestination) {
+            // 版（i_version）は受け取らない項目のため、従来どおり 1 から始まる
+            $new = $this->reservations->newEntity($destinationKey + $copied + [
+                'c_create_user' => (string)$old->c_create_user,
+                'dt_create'     => $old->dt_create,
+                'c_update_user' => 'batch',
+                'dt_update'     => $at,
+            ]);
+            // 異動は予約内容の変更ではないため承認状態を引き継ぐ（mass assign 不可のため個別に設定する）
+            $new->set('i_approval_status', (int)($old->i_approval_status ?? 0));
+            // 既存の行を部屋ごと移すだけで二重予約は増えないため、重複チェックは行わない
+            $this->reservations->saveOrFail($new, ['checkDuplicateRoom' => false]);
+        }
+    }
+
+    public function adjustRoomCount(string $date, int $roomId, int $mealType, int $delta, string $at): void
+    {
+        if ($delta === 0) {
+            return;
+        }
+        $counts = TableRegistry::getTableLocator()->get('TReservationInfo');
+        $key = ['d_reservation_date' => $date, 'i_id_room' => $roomId, 'c_reservation_type' => $mealType];
+        $row = $counts->find()->where($key)->first();
+        if ($row !== null) {
+            $counts->updateAll(['i_taberu_ninzuu' => max(0, (int)$row->i_taberu_ninzuu + $delta), 'dt_update' => $at, 'c_update_user' => 'batch'], $key);
+            return;
+        }
+        if ($delta > 0) {
+            $counts->saveOrFail($counts->newEntity($key + [
+                'i_taberu_ninzuu'  => 1,
+                'i_tabenai_ninzuu' => 0,
+                'dt_create'        => $at,
+                'c_create_user'    => 'batch',
+            ]));
+        }
+    }
+
+    private function row(int $userId, int $roomId, string $date, int $mealType): ?EntityInterface
+    {
+        /** @var \Cake\Datasource\EntityInterface|null */
+        return $this->reservations->find()
+            ->where(['i_id_user' => $userId, 'i_id_room' => $roomId, 'd_reservation_date' => $date, 'i_reservation_type' => $mealType])
+            ->first();
+    }
+
+    private static function toReservation(EntityInterface $row): MealReservation
+    {
+        return new MealReservation(
+            userId: (int)$row->get('i_id_user'),
+            date: self::dateString($row->get('d_reservation_date')),
+            roomId: (int)$row->get('i_id_room'),
+            mealType: (int)$row->get('i_reservation_type'),
+            eatFlag: $row->get('eat_flag') === null ? null : (int)$row->get('eat_flag'),
+            changeFlag: $row->get('i_change_flag') === null ? null : (int)$row->get('i_change_flag'),
+            version: $row->get('i_version') === null ? null : (int)$row->get('i_version'),
+        );
     }
 
     private static function dateString(Date|string|null $date): string

@@ -15,7 +15,11 @@ use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
+use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
+use App\Command\ApplyRoomTransferScheduleCommand;
 use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
@@ -48,7 +52,9 @@ use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
+use App\Infrastructure\Cache\ReservationCacheAdapter;
 use App\Infrastructure\Repository\CakeRoomRepository;
+use App\Infrastructure\Repository\CakeRoomTransferScheduleRepository;
 use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
@@ -289,6 +295,17 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(CreateRoomUseCase::class, static fn() => new CreateRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
         $container->add(UpdateRoomUseCase::class, static fn() => new UpdateRoomUseCase(new CakeRoomRepository(), $userTransaction(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
         $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
+        $container->add(CreateRoomTransferUseCase::class, static fn() => new CreateRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')));
+        $container->add(CancelRoomTransferUseCase::class, static fn() => new CancelRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')));
+        $container->add(ApplyRoomTransfersUseCase::class, static fn() => new ApplyRoomTransfersUseCase(
+            new CakeRoomTransferScheduleRepository(),
+            $userAccounts(),
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            $userTransaction(),
+            new ReservationCacheAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(ApplyRoomTransferScheduleCommand::class)->addArgument(ApplyRoomTransfersUseCase::class);
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
         $container->add(SystemReportService::class);

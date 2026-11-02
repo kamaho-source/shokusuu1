@@ -1,20 +1,27 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\ApplyRoomTransfers;
 
-use App\Service\RoomTransferScheduleService;
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersOutput;
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
+use App\Infrastructure\Cache\ReservationCacheAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
+use App\Infrastructure\Repository\CakeReservationRepository;
+use App\Infrastructure\Repository\CakeRoomTransferScheduleRepository;
+use App\Infrastructure\Repository\CakeUserAccountRepository;
+use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * RoomTransferScheduleService テスト。
- *
- * applyPending() が保留スケジュールのない状態で正しく動作することを検証する。
+ * 部屋異動の登録・適用を、本物の Repository・トランザクションにつないで確かめる（旧 RoomTransferScheduleServiceTest を引き継ぐ）。
  */
-class RoomTransferScheduleServiceTest extends TestCase
+class ApplyRoomTransfersIntegrationTest extends TestCase
 {
     protected array $fixtures = [
         'app.MRoomTransferSchedule',
@@ -25,65 +32,57 @@ class RoomTransferScheduleServiceTest extends TestCase
         'app.TReservationInfo',
     ];
 
-    private RoomTransferScheduleService $service;
-
-    protected function setUp(): void
+    private function apply(string $date, bool $dryRun = false): ApplyRoomTransfersOutput
     {
-        parent::setUp();
-        $this->service = new RoomTransferScheduleService();
+        $locator = TableRegistry::getTableLocator();
+        $useCase = new ApplyRoomTransfersUseCase(
+            new CakeRoomTransferScheduleRepository(),
+            new CakeUserAccountRepository($locator->get('MUserInfo')),
+            new CakeReservationRepository($locator->get('TIndividualReservationInfo')),
+            new CakeTransactionManager(ConnectionManager::get('test')),
+            new ReservationCacheAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        );
+
+        return $useCase->execute($date, $dryRun);
+    }
+
+    private function create(string $date): ?string
+    {
+        return (new CreateRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')))
+            ->execute(new CreateRoomTransferInput(1, null, 1, $date, 'tester'));
     }
 
     // ----------------------------------------------------------------
     // applyPending — 保留スケジュールなし
     // ----------------------------------------------------------------
 
-    public function testCreate_invalidInput_throwsValidationRuntimeException(): void
+    public function testCreate_missingRequired_isRejected(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessageMatches('/^バリデーションエラー: /');
-
-        (new RoomTransferScheduleService())->create(1, null, 1, '', 'tester');
+        $this->assertSame('ユーザー・異動先部屋・有効開始日は必須です。', $this->create(''));
     }
 
-    public function testCreate_invalidDate_throwsJapaneseMessage(): void
+    public function testCreate_invalidDate_returnsJapaneseMessage(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('バリデーションエラー: 有効開始日は YYYY-MM-DD の正しい日付で入力してください。');
+        $this->assertSame('バリデーションエラー: 有効開始日は YYYY-MM-DD の正しい日付で入力してください。', $this->create('2026-13-45'));
+    }
 
-        (new RoomTransferScheduleService())->create(1, null, 1, '2026-13-45', 'tester');
+    public function testCreate_valid_savesPendingSchedule(): void
+    {
+        $this->assertNull($this->create('2026-12-01'));
+        $row = TableRegistry::getTableLocator()->get('MRoomTransferSchedule')->find()->where(['c_create_user' => 'tester'])->firstOrFail();
+        $this->assertSame(0, (int)$row->i_status);
+        $this->assertNull($row->i_id_room_from);
     }
 
     public function testApplyPending_noPendingSchedules_returnsZeroApplied(): void
     {
-        $result = $this->service->applyPending(date('Y-m-d'));
+        $result = $this->apply(date('Y-m-d'));
 
-        $this->assertArrayHasKey('applied', $result);
-        $this->assertArrayHasKey('errors', $result);
-        $this->assertSame(0, $result['applied']);
-        $this->assertSame([], $result['errors']);
+        $this->assertSame(0, $result->applied);
+        $this->assertSame([], $result->errors);
     }
 
-    public function testApplyPending_dryRun_returnsRequiredKeys(): void
-    {
-        $result = $this->service->applyPending(date('Y-m-d'), dryRun: true);
-
-        $this->assertArrayHasKey('applied', $result);
-        $this->assertArrayHasKey('errors', $result);
-    }
-
-    public function testApplyPending_returnsAppliedAsInteger(): void
-    {
-        $result = $this->service->applyPending(date('Y-m-d'));
-
-        $this->assertIsInt($result['applied']);
-    }
-
-    public function testApplyPending_returnsErrorsAsArray(): void
-    {
-        $result = $this->service->applyPending(date('Y-m-d'));
-
-        $this->assertIsArray($result['errors']);
-    }
 
     // ----------------------------------------------------------------
     // 個人予約の移行（バグ6: 承認状態の引き継ぎ）
@@ -124,9 +123,9 @@ class RoomTransferScheduleServiceTest extends TestCase
             'c_create_user'    => 'test',
         ]);
 
-        $result = $this->service->applyPending($today);
+        $result = $this->apply($today);
 
-        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $this->assertSame(1, $result->applied, implode(' / ', $result->errors));
 
         $migrated = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
             ->where([
@@ -200,9 +199,9 @@ class RoomTransferScheduleServiceTest extends TestCase
         $this->insertReservation(2, $future, 0, 0);
         $this->scheduleTransfer($today);
 
-        $result = $this->service->applyPending($today);
+        $result = $this->apply($today);
 
-        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $this->assertSame(1, $result->applied, implode(' / ', $result->errors));
         $this->assertSame([2 => 1], $this->eatFlagsByRoom($future), '異動で予約が消えている');
     }
 
@@ -215,9 +214,9 @@ class RoomTransferScheduleServiceTest extends TestCase
         $this->insertReservation(3, $future, 1, 1);
         $this->scheduleTransfer($today);
 
-        $result = $this->service->applyPending($today);
+        $result = $this->apply($today);
 
-        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $this->assertSame(1, $result->applied, implode(' / ', $result->errors));
         $this->assertSame([2 => 1, 3 => 1], $this->eatFlagsByRoom($future));
     }
 
@@ -238,9 +237,9 @@ class RoomTransferScheduleServiceTest extends TestCase
         }
         $this->scheduleTransfer($today);
 
-        $result = $this->service->applyPending($today);
+        $result = $this->apply($today);
 
-        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $this->assertSame(1, $result->applied, implode(' / ', $result->errors));
         $counts = [];
         foreach (TableRegistry::getTableLocator()->get('TReservationInfo')->find()
             ->where(['d_reservation_date' => $future, 'c_reservation_type' => 1])->all() as $r) {
@@ -263,9 +262,9 @@ class RoomTransferScheduleServiceTest extends TestCase
         ]);
         $this->scheduleTransfer($today);
 
-        $result = $this->service->applyPending($today);
+        $result = $this->apply($today);
 
-        $this->assertSame(1, $result['applied'], implode(' / ', $result['errors']));
+        $this->assertSame(1, $result->applied, implode(' / ', $result->errors));
         $counts = [];
         foreach (TableRegistry::getTableLocator()->get('TReservationInfo')->find()
             ->where(['d_reservation_date' => $near, 'c_reservation_type' => 1])->all() as $r) {
@@ -286,7 +285,7 @@ class RoomTransferScheduleServiceTest extends TestCase
         ]);
         $this->scheduleTransfer($today);
 
-        $this->service->applyPending($today);
+        $this->apply($today);
 
         $row = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->find()
             ->where(['i_id_user' => 1, 'i_id_room' => 2, 'd_reservation_date' => $near, 'i_reservation_type' => 1])->firstOrFail();
@@ -303,10 +302,10 @@ class RoomTransferScheduleServiceTest extends TestCase
             'd_effective_date' => date('Y-m-d'), 'i_status' => 0, 'c_create_user' => 't', 'dt_create' => '2026-01-01 00:00:00',
         ]);
 
-        $result = $this->service->applyPending(date('Y-m-d'));
+        $result = $this->apply(date('Y-m-d'));
 
-        $this->assertSame(0, $result['applied']);
-        $this->assertSame([], $result['errors']);
+        $this->assertSame(0, $result->applied);
+        $this->assertSame([], $result->errors);
         $this->assertSame(0, (int)$db->execute('SELECT i_status FROM m_room_transfer_schedule WHERE i_id_user = 6')->fetchColumn(0), '未適用のまま残る');
         $this->assertSame(0, (int)$db->execute('SELECT COUNT(*) FROM m_user_group WHERE i_id_user = 6 AND i_id_room = 72')->fetchColumn(0), '削除済みの人が異動先に所属していない');
     }

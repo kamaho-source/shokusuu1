@@ -22,4 +22,10 @@ interface ReservationCacheInterface
      * @param bool $bumpVersion true ならレポートのバージョンを最後に1回だけ上げる
      */
     public function forgetDates(array $userIdsByDate, bool $bumpVersion = true): void;
+
+    /**
+     * 部屋異動を適用したあとのキャッシュを捨てる（基準日の食数・その利用者の基準日の報告済み印を消し、レポートのバージョンを上げる）。
+     * 基準日が今日でなくても報告済み印を消す（従来どおり）。
+     */
+    public function forgetAfterRoomTransfer(string $date, int $userId): void;
 }

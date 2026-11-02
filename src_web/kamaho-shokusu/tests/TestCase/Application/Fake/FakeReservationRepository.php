@@ -205,4 +205,33 @@ final class FakeReservationRepository implements ReservationRepositoryInterface,
     {
         return $this->savepoints !== [];
     }
+
+    public function findFromDate(int $userId, int $roomId, string $fromDate): array
+    {
+        return array_values(array_filter($this->records, fn(MealReservation $r) => $r->userId === $userId && $r->roomId === $roomId && $r->date >= $fromDate));
+    }
+
+    public function findOne(int $userId, int $roomId, string $date, int $mealType): ?MealReservation
+    {
+        return $this->find($userId, $date, $roomId, $mealType);
+    }
+
+    /** @var list<string> moveForTransfer・adjustRoomCount の呼び出し */
+    public array $transferOps = [];
+
+    /** moveForTransfer で例外を投げる */
+    public ?\Throwable $moveThrows = null;
+
+    public function moveForTransfer(MealReservation $source, int $toRoomId, bool $overwriteDestination, bool $createDestination, string $at): void
+    {
+        if ($this->moveThrows !== null) {
+            throw $this->moveThrows;
+        }
+        $this->transferOps[] = sprintf('move:%s:%d->%d:%s%s', $source->date, $source->roomId, $toRoomId, $overwriteDestination ? 'overwrite' : '', $createDestination ? 'create' : '');
+    }
+
+    public function adjustRoomCount(string $date, int $roomId, int $mealType, int $delta, string $at): void
+    {
+        $this->transferOps[] = sprintf('count:%s:%d:%+d', $date, $roomId, $delta);
+    }
 }

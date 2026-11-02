@@ -285,6 +285,31 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         return UserCreationResult::created((int)$user->get('i_id_user'));
     }
 
+    public function transferRoom(int $userId, ?int $fromRoomId, int $toRoomId, string $at): void
+    {
+        if ($fromRoomId !== null) {
+            $this->groups->updateAll(
+                ['active_flag' => 1, 'dt_update' => $at, 'c_update_user' => 'batch'],
+                ['i_id_user' => $userId, 'i_id_room' => $fromRoomId, 'active_flag' => 0]
+            );
+        }
+        $row = $this->groups->find()->where(['i_id_user' => $userId, 'i_id_room' => $toRoomId])->first();
+        if ($row !== null) {
+            $row->set('active_flag', 0);
+            $row->set('dt_update', $at);
+            $row->set('c_update_user', 'batch');
+            $this->groups->saveOrFail($row);
+            return;
+        }
+        $this->groups->saveOrFail($this->groups->newEntity([
+            'i_id_user'     => $userId,
+            'i_id_room'     => $toRoomId,
+            'active_flag'   => 0,
+            'dt_create'     => $at,
+            'c_create_user' => 'batch',
+        ]));
+    }
+
     /**
      * @param array<string, mixed> $fields
      */
