@@ -528,4 +528,28 @@ class ReservationActualMealControllerTest extends TestCase
         $this->assertSame([], $this->viewVariable('allRooms'));
         $this->assertSame([], $this->viewVariable('gridData')->rooms);
     }
+
+    /**
+     * 週の指定が配列・暦にない日付（以前は配列が TypeError で 500、2/30 は 3/2 の週に繰り越していた）
+     *
+     * @return array<string, array{string}>
+     */
+    public static function badWeekProvider(): array
+    {
+        return [
+            '配列'               => ['week[]=x'],
+            '暦にない日（2/30）' => ['week=2026-02-30'],
+        ];
+    }
+
+    /** @dataProvider badWeekProvider */
+    public function testMealCountGrid_invalidWeek_returns400(string $query): void
+    {
+        $this->login(1, 1);
+
+        $this->get('/TReservationInfo/meal-count-grid?' . $query);
+
+        $this->assertResponseCode(400);
+        $this->assertResponseContains('不正なリクエストです');
+    }
 }

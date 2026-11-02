@@ -34,7 +34,8 @@ final class BulkImportUsersUseCase
     public function execute(BulkImportUsersInput $input): BulkImportUsersOutput
     {
         $childOnly = !$input->actorIsAdmin;
-        $allowedRoomIds = $input->actorIsAdmin ? null : $this->rooms->activeRoomIds($input->actor->id);
+        // 登録先は管理者も含めて自分が所属している部屋だけ（#821。登録画面と同じ）
+        $allowedRoomIds = $this->rooms->activeRoomIds($input->actor->id);
         $createdBy = $input->actor->name;
         $nextDispNo = $this->users->nextDisplayNo();
         $created = $skipped = $failed = $processed = 0;
@@ -149,10 +150,10 @@ final class BulkImportUsersUseCase
     /**
      * 役職・登録先の部屋・職員IDの誤り。問題なければ null。確かめる順番は従来どおり。
      *
-     * @param list<int>|null $allowedRoomIds 登録できる部屋（管理者は null で制限なし）
+     * @param list<int> $allowedRoomIds 登録できる部屋（操作する人の所属部屋。管理者も同じ）
      * @param list<string> $roomNames
      */
-    private function rowError(?int $level, bool $childOnly, ?array $allowedRoomIds, array $roomNames, string $staffId): ?string
+    private function rowError(?int $level, bool $childOnly, array $allowedRoomIds, array $roomNames, string $staffId): ?string
     {
         if ($level === null) {
             return 'role の値が不正です（職員/児童/その他 または 0/1/3 を指定してください）。';
@@ -160,18 +161,17 @@ final class BulkImportUsersUseCase
         if ($childOnly && $level !== 1) {
             return '管理者以外は児童（role=児童）のみ登録できます。';
         }
-        if ($allowedRoomIds === []) {
+        // 部屋の指定が必須なのは管理者以外（管理者は部屋なしで登録できる。登録画面と同じ）
+        if ($childOnly && $allowedRoomIds === []) {
             return '所属している部屋がないため登録できません。';
         }
-        if ($allowedRoomIds !== null && $roomNames === []) {
+        if ($childOnly && $roomNames === []) {
             return '登録先の部屋（room_name1）が必要です。';
         }
-        if ($allowedRoomIds !== null) {
-            // 部屋名は重複し得るため、所属部屋の中から名前を解決する。見つからなければ拒否する
-            foreach ($roomNames as $roomName) {
-                if ($this->rooms->roomIdByName($roomName, $allowedRoomIds) === null) {
-                    return '自分が所属していない部屋、または存在しない部屋には登録できません。';
-                }
+        // 部屋名は重複し得るため、所属部屋の中から名前を解決する。見つからなければ拒否する
+        foreach ($roomNames as $roomName) {
+            if ($this->rooms->roomIdByName($roomName, $allowedRoomIds) === null) {
+                return '自分が所属していない部屋、または存在しない部屋には登録できません。';
             }
         }
         if ($level === UserProfileOptions::STAFF_LEVEL && $staffId === '') {

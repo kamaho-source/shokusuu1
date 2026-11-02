@@ -276,6 +276,10 @@ class TReservationInfoController extends ReservationBaseController
         $date       = $this->request->getParam('date')
             ?? $this->request->getParam('pass.0')
             ?? $this->request->getQuery('date');
+        // 暦にない日付・配列は入力の誤り（以前は 500、または翌月に繰り越して 200）
+        if ($date !== null && $date !== '' && (!is_string($date) || !DatePeriodRule::isDate($date))) {
+            throw new BadRequestException('日付が正しくありません。');
+        }
         $roomIdRaw  = $this->request->getData('room_id') ?? $this->request->getQuery('room_id');
         $day = $dayView->getDayView(
             (int)($this->request->getAttribute('identity')?->get('i_id_user') ?? 0),
@@ -305,7 +309,8 @@ class TReservationInfoController extends ReservationBaseController
             throw new BadRequestException('部屋ID、日付、または食事タイプが指定されていません。');
         }
 
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$date)) {
+        // 2026-02-30 のような暦にない日付も弾く（以前は DB エラーで 500）
+        if (!DatePeriodRule::isDate((string)$date)) {
             throw new BadRequestException('日付の形式が正しくありません。');
         }
 
@@ -348,7 +353,11 @@ class TReservationInfoController extends ReservationBaseController
             return $this->jsonErrorResponse(__('部屋IDが指定されていません。'));
         }
 
-        $date        = $this->request->getQuery('date');
+        try {
+            $date = $this->queryDate('date');
+        } catch (BadRequestException $e) {
+            return $this->jsonErrorResponse($e->getMessage());
+        }
         $usersByRoom = array_map(
             static fn(\App\Application\Query\Dto\RoomUserMeals $u) => $u->toArray(),
             $this->reservationRead->getUsersByRoom((int)$roomId, $date)
@@ -372,8 +381,12 @@ class TReservationInfoController extends ReservationBaseController
         $this->viewBuilder()->disableAutoLayout();
         $this->request->allowMethod(['get']);
 
-        $date = $this->request->getQuery('date');
-        if (empty($date)) {
+        try {
+            $date = $this->queryDate('date');
+        } catch (BadRequestException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), 400);
+        }
+        if ($date === null) {
             return $this->apiResponseService->error($this->response, '日付が指定されていません。', 400);
         }
 
@@ -384,7 +397,7 @@ class TReservationInfoController extends ReservationBaseController
         $userId   = $user->get('i_id_user');
         $userName = $user->get('c_user_name');
 
-        $output = $this->reservationRead->getPersonalReservation((int)$userId, (string)$userName, (string)$date)->toArray();
+        $output = $this->reservationRead->getPersonalReservation((int)$userId, (string)$userName, $date)->toArray();
 
         return $this->apiResponseService->success($this->response, $output);
     }
@@ -456,7 +469,7 @@ class TReservationInfoController extends ReservationBaseController
                 ->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
         }
 
-        $date = $this->request->getQuery('date') ?? Date::today()->format('Y-m-d');
+        $date = $this->queryDate('date') ?? Date::today()->format('Y-m-d');
 
         if (!$user) {
             $this->set('errorMessage', __('ログインが必要です。'));

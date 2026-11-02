@@ -39,7 +39,12 @@ class EditUserUseCaseTest extends TestCase
         $this->audit       = new SpyAuditLog();
         $this->useCase     = new EditUserUseCase(
             $this->users,
-            new FakeRoomMembershipRepository(['20:1', '20:2', '21:3', '22:4']),
+            // 編集する人（管理者 1）は部屋 1・2・5 に所属。部屋 3・4・9 は所属外（#821 で選べる部屋は編集する人の所属部屋だけ）
+            new FakeRoomMembershipRepository(
+                ['20:1', '20:2', '21:3', '22:4', '1:1', '1:2', '1:5'],
+                [],
+                [1 => '部屋1', 2 => '部屋2', 3 => '部屋3', 4 => '部屋4', 5 => '部屋5', 9 => '部屋9'],
+            ),
             $this->transaction,
             $this->audit,
             new ClockFactory('Asia/Tokyo'),
@@ -147,6 +152,20 @@ class EditUserUseCaseTest extends TestCase
         $this->assertSame(EditUserOutput::REJECTED, $result->status);
         $this->assertSame('性別・年代・役職の選択が正しくありません。', $result->message);
         $this->assertSame([], $this->transaction->calls);
+    }
+
+    public function testRoomChoices_onlyActorsRooms(): void
+    {
+        $this->assertSame([1 => '部屋1', 2 => '部屋2', 5 => '部屋5'], $this->useCase->roomChoices(1));
+        $this->assertSame([], $this->useCase->roomChoices(99), '所属部屋の無い人は選べる部屋が無い');
+    }
+
+    /** 編集する人の所属外の部屋（3）の所属は残し、所属外の部屋（9）にチェックしても付けない */
+    public function testRoomsOutsideActorsRooms_areKeptAndNotAdded(): void
+    {
+        $this->edit(21, ['c_user_name' => '職員さん', 'rooms' => ['1' => '1', '3' => '0', '9' => '1']]);
+
+        $this->assertSame(['freeze:21', 'replace:21:1,3'], $this->users->roomOps);
     }
 
     public function testDeletedUser_roomsAreNotChanged(): void

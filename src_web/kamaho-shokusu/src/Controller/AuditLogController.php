@@ -96,7 +96,7 @@ class AuditLogController extends AppController
         foreach ($logs as $log) {
             // 失敗理由は c_detail(JSON) の reason キーから抽出（失敗ログのみ）
             $reason = '';
-            if ($log->i_result !== 1 && $log->c_detail) {
+            if ((int)$log->i_result !== 1 && $log->c_detail) {
                 $decoded = json_decode((string)$log->c_detail, true);
                 if (is_array($decoded) && isset($decoded['reason']) && is_string($decoded['reason'])) {
                     $reason = $decoded['reason'];
@@ -114,7 +114,8 @@ class AuditLogController extends AppController
                 $log->c_actor_login_id,
                 AuditLogService::actorDisplayName($log, $failedLoginNames),
                 $log->c_ip_address,
-                $log->i_result === 1 ? '成功' : '失敗',
+                // i_result は boolean 型の列で true/false が返る。=== 1 では成功の行まで「失敗」と出ていた
+                (int)$log->i_result === 1 ? '成功' : '失敗',
                 $reason,
                 $log->c_detail,
                 $log->dt_create,
@@ -141,35 +142,41 @@ class AuditLogController extends AppController
     private function buildConditions(): array
     {
         $conditions = [];
-        $q = $this->request->getQueryParams();
+        // 値は文字列で受ける（配列だと警告や DB エラーになっていた）。日付は暦で確かめ、誤りは 400
+        $category = $this->queryString('category');
+        $actor    = $this->queryString('actor');
+        $targetId = $this->queryString('target_id');
+        $result   = $this->queryString('result');
+        $dateFrom = $this->queryDate('date_from');
+        $dateTo   = $this->queryDate('date_to');
 
-        if (!empty($q['category'])) {
-            $conditions['c_category'] = $q['category'];
+        if ($category !== '') {
+            $conditions['c_category'] = $category;
         }
-        $action = is_string($q['action'] ?? null) ? $q['action'] : '';
+        $action = $this->queryString('action');
         if ($action !== '') {
             // 選択肢（既知の種別）は完全一致。user_login が user_login_failed まで拾わないようにする
             $conditions[] = isset(AuditLogService::ACTION_LABELS[$action])
                 ? ['c_action' => $action]
                 : ['c_action LIKE' => '%' . $action . '%'];
         }
-        if (!empty($q['actor'])) {
+        if ($actor !== '') {
             $conditions['OR'] = [
-                'c_actor_user_name LIKE' => '%' . $q['actor'] . '%',
-                'c_actor_login_id LIKE'  => '%' . $q['actor'] . '%',
+                'c_actor_user_name LIKE' => '%' . $actor . '%',
+                'c_actor_login_id LIKE'  => '%' . $actor . '%',
             ];
         }
-        if (!empty($q['target_id'])) {
-            $conditions['c_target_id LIKE'] = '%' . $q['target_id'] . '%';
+        if ($targetId !== '') {
+            $conditions['c_target_id LIKE'] = '%' . $targetId . '%';
         }
-        if (isset($q['result']) && $q['result'] !== '') {
-            $conditions['i_result'] = (int)$q['result'];
+        if ($result !== '') {
+            $conditions['i_result'] = (int)$result;
         }
-        if (!empty($q['date_from'])) {
-            $conditions['dt_create >='] = $q['date_from'] . ' 00:00:00';
+        if ($dateFrom !== null) {
+            $conditions['dt_create >='] = $dateFrom . ' 00:00:00';
         }
-        if (!empty($q['date_to'])) {
-            $conditions['dt_create <='] = $q['date_to'] . ' 23:59:59';
+        if ($dateTo !== null) {
+            $conditions['dt_create <='] = $dateTo . ' 23:59:59';
         }
 
         return $conditions;

@@ -20,6 +20,8 @@ use Psr\Clock\ClockInterface;
  * - 役職・職員IDは管理者が他のユーザーを編集するときだけ。年代は管理者だけ。性別・ログインID・所属部屋は管理者・本人。
  *   職員は自分の職員IDを変えられる。職員・ブロック長が児童を編集するときは氏名のみ。
  * - 削除済みの人の所属部屋は変えない（復元すると削除前の所属に戻る）。
+ * - 所属部屋を付け外しできるのは、編集する人が所属している部屋だけ（管理者・システム管理者も同じ。#821）。
+ *   それ以外の部屋の所属は、画面に出さず、保存でもそのまま残す。
  * - プロフィールと所属部屋は1つのトランザクションで保存し、どちらかが失敗したら両方取り消す。
  */
 final class EditUserUseCase
@@ -33,13 +35,13 @@ final class EditUserUseCase
     ) {}
 
     /**
-     * 編集画面で選べる部屋。
+     * 編集画面で選べる部屋（編集する人が所属している、削除されていない部屋）。
      *
      * @return array<int, string> 部屋ID => 部屋名
      */
-    public function roomChoices(): array
+    public function roomChoices(int $actorId): array
     {
-        return $this->rooms->selectableRooms();
+        return $this->rooms->selectableRooms($this->rooms->activeRoomIds($actorId));
     }
 
     /**
@@ -81,9 +83,16 @@ final class EditUserUseCase
             return EditUserOutput::rejected($error);
         }
 
-        $roomIds = !$input->canEditRooms || $user->isDeleted()
-            ? $this->rooms->activeRoomIds($user->id)
-            : self::checkedRoomIds($posted);
+        $currentRoomIds = $this->rooms->activeRoomIds($user->id);
+        $roomIds = $currentRoomIds;
+        if ($input->canEditRooms && !$user->isDeleted()) {
+            // 選べる部屋の中だけをチェックどおりにし、選べない部屋の所属は残す（画面に出ないので外せない・付けられない）
+            $choosable = array_keys($this->roomChoices($input->actor->id));
+            $roomIds = array_values(array_unique(array_merge(
+                array_intersect(self::checkedRoomIds($posted), $choosable),
+                array_diff($currentRoomIds, $choosable),
+            )));
+        }
 
         $this->transaction->begin();
         try {

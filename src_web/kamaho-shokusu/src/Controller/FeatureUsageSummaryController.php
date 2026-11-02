@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Domain\Service\DatePeriodRule;
 use App\Service\FeatureUsageSummaryService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
@@ -38,12 +39,11 @@ class FeatureUsageSummaryController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $q         = $this->request->getQueryParams();
-        $yearMonth = $q['month'] ?? Date::today()->format('Y-m');
-        $category  = $q['category'] ?? null;
+        $yearMonth = $this->queryString('month');
+        $category  = $this->queryString('category');
 
-        // YYYY-MM 形式でない場合は今月にフォールバック
-        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+        // YYYY-MM 形式でない・暦にない月（13 月など）・配列は今月にする（以前は DB エラーや TypeError で 500）
+        if (!DatePeriodRule::isDate($yearMonth . '-01')) {
             $yearMonth = Date::today()->format('Y-m');
         }
 

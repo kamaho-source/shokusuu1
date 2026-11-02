@@ -897,10 +897,22 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => []]));
     }
 
-    /** 管理者は任意の部屋へ登録できる（従来どおり）。 */
-    public function testAdminCanRegisterToAnyRoom(): void
+    /**
+     * 管理者・システム管理者も、自分が所属していない部屋には登録できない（#821。以前は任意の部屋へ登録できた）。
+     * 自分が所属している部屋には登録できる。
+     */
+    public function testAdminCannotRegisterToRoomOutsideOwn(): void
     {
-        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => [['i_id_room' => 2]]]));
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '所属外の部屋'] + $rooms->get(1)->toArray());
+
+        foreach ([1 => 'reg_admin', 3 => 'reg_sysadmin'] as $iAdmin => $login) {
+            $this->enableRetainFlashMessages();
+            $this->assertSame(0, $this->postAddAs($iAdmin, 0, ['c_login_account' => $login, 'MUserGroup' => [['i_id_room' => 2]]]), "i_admin=$iAdmin");
+            $this->assertFlashMessage('自分が所属していない部屋には登録できません。', 'flash');
+        }
+        $this->assertSame(0, $this->getTableLocator()->get('MUserGroup')->find()->where(['i_id_room' => 2])->count());
+        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => [['i_id_room' => 1]]]), '所属している部屋には登録できる');
     }
 
     /** 管理者は職員も登録できる（従来どおり）。 */

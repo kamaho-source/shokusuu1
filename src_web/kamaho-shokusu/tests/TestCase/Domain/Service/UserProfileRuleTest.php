@@ -37,10 +37,17 @@ class UserProfileRuleTest extends TestCase
 
     public function testRoomsError(): void
     {
-        $this->assertNull(UserProfileRule::roomsError(null, []), '管理者は制限なし');
-        $this->assertStringStartsWith('所属している部屋がないため', (string)UserProfileRule::roomsError([], [1]));
-        $this->assertSame('登録先の部屋を選択してください。', UserProfileRule::roomsError([1], [0]));
-        $this->assertSame('自分が所属していない部屋には登録できません。', UserProfileRule::roomsError([1], [1, 2]));
-        $this->assertNull(UserProfileRule::roomsError([1, 2], [2]));
+        // 管理者以外（required = true）
+        $this->assertStringStartsWith('所属している部屋がないため', (string)UserProfileRule::roomsError([], [1], true));
+        $this->assertSame('登録先の部屋を選択してください。', UserProfileRule::roomsError([1], [0], true));
+        $this->assertSame('自分が所属していない部屋には登録できません。', UserProfileRule::roomsError([1], [1, 2], true));
+        $this->assertNull(UserProfileRule::roomsError([1, 2], [2], true));
+        // 管理者・システム管理者（required = false）: 部屋の選択は任意だが、所属外の部屋は拒否する（#821）
+        $this->assertNull(UserProfileRule::roomsError([1], [], false), '管理者は部屋を選ばなくてもよい');
+        $this->assertNull(UserProfileRule::roomsError([1], [0], false));
+        $this->assertNull(UserProfileRule::roomsError([], [], false), '所属部屋の無い管理者も部屋なしでは登録できる');
+        $this->assertNull(UserProfileRule::roomsError([1, 2], [2], false));
+        $this->assertSame('自分が所属していない部屋には登録できません。', UserProfileRule::roomsError([1], [2], false), '管理者でも所属外の部屋は拒否');
+        $this->assertSame('自分が所属していない部屋には登録できません。', UserProfileRule::roomsError([], [1], false), '所属部屋の無い管理者は部屋を選べない');
     }
 }

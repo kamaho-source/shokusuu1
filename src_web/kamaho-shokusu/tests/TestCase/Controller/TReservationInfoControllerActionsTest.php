@@ -662,6 +662,8 @@ class TReservationInfoControllerActionsTest extends TestCase
         return [
             '日付の形が誤り'       => ['/TReservationInfo/roomDetails/1/abc/1'],
             '存在しない日付'       => ['/TReservationInfo/roomDetails/1/2026-13-45/1'],
+            // 以前は形だけ見ていたため DB エラーで 500 になっていた
+            '暦にない日（2/30）'   => ['/TReservationInfo/roomDetails/1/2026-02-30/1'],
             '食事が数字でない'     => ['/TReservationInfo/roomDetails/1/2099-01-01/x'],
         ];
     }
@@ -677,6 +679,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->get($url);
 
         $this->assertResponseCode(400);
+        $this->assertResponseContains('不正なリクエストです');
     }
 
     /** 直前編集を部屋 ID なしで開いたときも、入力の誤り（400）にする（JSON と同じ） */
@@ -686,5 +689,62 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->get('/TReservationInfo/changeEdit?date=' . $this->day(3));
 
         $this->assertResponseCode(400);
+    }
+
+    /**
+     * 暦にない日付・配列の日付（以前は 500、または翌月に繰り越して 200）
+     *
+     * @return array<string, array{string}>
+     */
+    public static function badQueryDateProvider(): array
+    {
+        return [
+            '暦にない日（2/30）' => ['date=2026-02-30'],
+            '13 月'              => ['date=2026-13-01'],
+            '配列'               => ['date[]=x'],
+        ];
+    }
+
+    /** @dataProvider badQueryDateProvider */
+    public function testView_invalidDate_returns400(string $query): void
+    {
+        $this->loginAdmin();
+        $this->get('/TReservationInfo/view?room_id=1&' . $query);
+
+        // 例外の 400 は JSON 要求でも 400 の画面（メッセージは出さない）
+        $this->assertResponseCode(400);
+        $this->assertResponseContains('不正なリクエストです');
+    }
+
+    /** @dataProvider badQueryDateProvider */
+    public function testAdd_invalidDate_returns400(string $query): void
+    {
+        $this->loginAdmin(false);
+        $this->get('/TReservationInfo/add?' . $query);
+
+        $this->assertResponseCode(400);
+        $this->assertResponseContains('不正なリクエストです');
+    }
+
+    /** @dataProvider badQueryDateProvider */
+    public function testGetUsersByRoom_invalidDate_returns400Json(string $query): void
+    {
+        $this->loginAdmin();
+        $this->get('/TReservationInfo/getUsersByRoom/1?' . $query);
+
+        $this->assertResponseCode(400);
+        $this->assertFalse($this->json()['ok']);
+        $this->assertSame('日付が正しくありません。', $this->json()['message']);
+    }
+
+    /** @dataProvider badQueryDateProvider */
+    public function testGetPersonalReservation_invalidDate_returns400Json(string $query): void
+    {
+        $this->loginChild();
+        $this->get('/TReservationInfo/getPersonalReservation?' . $query);
+
+        $this->assertResponseCode(400);
+        $this->assertFalse($this->json()['ok']);
+        $this->assertSame('日付が正しくありません。', $this->json()['message']);
     }
 }

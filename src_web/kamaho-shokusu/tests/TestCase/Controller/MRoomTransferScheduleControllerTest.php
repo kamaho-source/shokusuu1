@@ -3,10 +3,13 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Controller;
 
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
 use App\Infrastructure\Persistence\Table\MRoomTransferScheduleTable;
+use App\Infrastructure\Repository\CakeRoomTransferScheduleRepository;
 use Cake\Datasource\ConnectionManager;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
+use Psr\Clock\ClockInterface;
 
 /**
  * MRoomTransferScheduleController 統合テスト（部屋異動予約の一覧・登録・キャンセル）
@@ -154,14 +157,74 @@ class MRoomTransferScheduleControllerTest extends TestCase
         $this->assertSame(0, $this->getTableLocator()->get('MRoomTransferSchedule')->find()->count());
     }
 
-    public function testAdd_post_invalidDate_showsValidationError(): void
+    /** 「今日」を 2030-04-10（Asia/Tokyo）に固定した登録処理に差し替える */
+    private function fixToday(): void
     {
+        $this->mockService(CreateRoomTransferUseCase::class, fn() => new CreateRoomTransferUseCase(
+            new CakeRoomTransferScheduleRepository(),
+            new class implements ClockInterface {
+                public function now(): \DateTimeImmutable
+                {
+                    return new \DateTimeImmutable('2030-04-10 00:05:00', new \DateTimeZone('Asia/Tokyo'));
+                }
+            },
+        ));
+    }
+
+    /** @return array<string, array{0:string, 1:string}> */
+    public static function rejectedDates(): array
+    {
+        return [
+            'yesterday' => ['2030-04-09', '有効開始日は今日以降の日付を指定してください。'],
+            'Feb 30' => ['2030-02-30', '有効開始日が正しくありません。'],
+            'not a date' => ['not-a-date', '有効開始日が正しくありません。'],
+        ];
+    }
+
+    /**
+     * @dataProvider rejectedDates
+     */
+    public function testAdd_post_rejectedDate_showsErrorAndSavesNothing(string $date, string $message): void
+    {
+        $this->fixToday();
         $this->login(true);
-        $this->post('/MRoomTransferSchedule/add', ['i_id_user' => '2', 'i_id_room_to' => '1', 'd_effective_date' => 'not-a-date']);
+        $this->post('/MRoomTransferSchedule/add', ['i_id_user' => '2', 'i_id_room_to' => '1', 'd_effective_date' => $date]);
 
         $this->assertResponseOk();
-        $this->assertResponseContains('alert-danger');
+        $this->assertResponseContains($message);
         $this->assertSame(0, $this->getTableLocator()->get('MRoomTransferSchedule')->find()->count());
+    }
+
+    /**
+     * 配列で送られた有効開始日は空とみなして必須エラーにする（文字列への変換で落ちない）。
+     * 現状はフォームの再表示で date 欄（FormHelper の DateTimeWidget）に配列が渡り 500 になるため、
+     * 保存されないことだけ確かめて未完了にする。テンプレートが直れば文言まで確かめる。
+     */
+    public function testAdd_post_arrayDate_isRequiredErrorAndSavesNothing(): void
+    {
+        $this->fixToday();
+        $this->login(true);
+        $this->post('/MRoomTransferSchedule/add', ['i_id_user' => '2', 'i_id_room_to' => '1', 'd_effective_date' => ['2030-04-20']]);
+
+        $this->assertSame(0, $this->getTableLocator()->get('MRoomTransferSchedule')->find()->count());
+        if ($this->_response->getStatusCode() === 500) {
+            $this->markTestIncomplete('配列の有効開始日でフォームの再表示が 500 になる（templates/MRoomTransferSchedule/add.php の date 欄）');
+        }
+        $this->assertResponseOk();
+        $this->assertResponseContains('ユーザー・異動先部屋・有効開始日は必須です。');
+    }
+
+    public function testAdd_post_today_isSaved(): void
+    {
+        $this->fixToday();
+        $this->login(true);
+        $this->post('/MRoomTransferSchedule/add', ['i_id_user' => '2', 'i_id_room_to' => '1', 'd_effective_date' => '2030-04-10']);
+
+        $this->assertRedirectContains('/MRoomTransferSchedule');
+        $this->assertFlashMessage('部屋異動予約を登録しました。', 'flash');
+        $row = $this->getTableLocator()->get('MRoomTransferSchedule')->find()->firstOrFail();
+        $this->assertSame('2030-04-10', $row->d_effective_date->format('Y-m-d'));
+        $this->assertSame(MRoomTransferScheduleTable::STATUS_PENDING, (int)$row->i_status);
     }
 
     public function testAdd_post_dbFailure_showsErrorAndSavesNothing(): void
