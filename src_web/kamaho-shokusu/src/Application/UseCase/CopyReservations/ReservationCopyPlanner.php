@@ -21,13 +21,6 @@ use Psr\Clock\ClockInterface;
  */
 final class ReservationCopyPlanner
 {
-    /** 写す */
-    public const COPY = 'copy';
-    /** スキップする */
-    public const SKIP = 'skip';
-    /** コピー先の日が無い・今日より前 */
-    public const INVALID_DATE = 'invalid_date';
-
     public function __construct(
         private readonly ReservationRepositoryInterface $reservations,
         private readonly RoomMembershipRepositoryInterface $rooms,
@@ -68,15 +61,15 @@ final class ReservationCopyPlanner
     }
 
     /**
-     * その行をどうするか（self::COPY・self::SKIP・self::INVALID_DATE）。
+     * その行をどうするか。
      */
-    public function verdict(MealReservation $source, ?ChronosDate $target, ChronosDate $today): string
+    public function verdict(MealReservation $source, ?ChronosDate $target, ChronosDate $today): CopyVerdict
     {
         if ($target === null || $target->lessThan($today)) {
-            return self::INVALID_DATE;
+            return CopyVerdict::InvalidDate;
         }
 
-        return $this->shouldSkip($source, $target->format('Y-m-d'), $today) ? self::SKIP : self::COPY;
+        return $this->shouldSkip($source, $target->format('Y-m-d'), $today) ? CopyVerdict::Skip : CopyVerdict::Copy;
     }
 
     public function today(): ChronosDate

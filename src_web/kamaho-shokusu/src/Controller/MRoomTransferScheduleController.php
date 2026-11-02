@@ -81,7 +81,12 @@ class MRoomTransferScheduleController extends AppController
                     $this->dataString('d_effective_date'),
                     $identity ? (string)$identity->get('c_user_name') : '管理者',
                 ));
-                if ($result->status === CreateRoomTransferOutput::CREATED) {
+                // 想定外の status は UnhandledMatchError になり、下の \Throwable で「エラーが発生しました」を出す
+                $created = match ($result->status) {
+                    CreateRoomTransferOutput::CREATED => true,
+                    CreateRoomTransferOutput::REJECTED => false,
+                };
+                if ($created) {
                     $this->Flash->success(__('部屋異動予約を登録しました。'));
                     $this->redirect(['action' => 'index']);
                     return;
@@ -123,12 +128,11 @@ class MRoomTransferScheduleController extends AppController
         $identity = $this->request->getAttribute('identity');
         try {
             $result = $cancelTransfer->execute(new CancelRoomTransferInput($id, $identity ? (string)$identity->get('c_user_name') : '管理者'));
-            if ($result->status === CancelRoomTransferOutput::CANCELLED) {
-                $this->Flash->success(__('異動予約をキャンセルしました。'));
-            }
-            if ($result->status === CancelRoomTransferOutput::REJECTED) {
-                $this->Flash->error((string)$result->message);
-            }
+            // 想定外の status は UnhandledMatchError になり、下の \Throwable で「エラーが発生しました」を出す
+            match ($result->status) {
+                CancelRoomTransferOutput::CANCELLED => $this->Flash->success(__('異動予約をキャンセルしました。')),
+                CancelRoomTransferOutput::REJECTED => $this->Flash->error((string)$result->message),
+            };
         } catch (DomainNotFoundException $e) {
             throw new NotFoundException('指定された予約が見つかりません。');
         } catch (\RuntimeException $e) {

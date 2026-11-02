@@ -381,17 +381,21 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $clock(),
         ));
         $container->add(ApplyRoomTransferScheduleCommand::class)->addArgument(ApplyRoomTransfersUseCase::class);
-        $container->add(ReservationCopyPlanner::class, static fn() => new ReservationCopyPlanner(
-            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+        $copyPlanner = static fn(CakeReservationRepository $reservations): ReservationCopyPlanner => new ReservationCopyPlanner(
+            $reservations,
             new CakeRoomMembershipRepository(),
             $userAccounts(),
             $clock(),
-        ));
-        $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
-            $container->get(ReservationCopyPlanner::class),
+        );
+        $container->add(ReservationCopyPlanner::class, static fn() => $copyPlanner(
             new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
-            $userTransaction(),
         ));
+        $container->add(CopyReservationsUseCase::class, static function () use ($copyPlanner, $userTransaction): CopyReservationsUseCase {
+            // 判定（Planner）と書き込みで同じリポジトリを使い、同じトランザクションの中で読み書きする
+            $reservations = new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo'));
+
+            return new CopyReservationsUseCase($copyPlanner($reservations), $reservations, $userTransaction());
+        });
         $container->add(PreviewReservationCopyUseCase::class)->addArgument(ReservationCopyPlanner::class);
         $container->add(NoticeQueryInterface::class, CakeNoticeQuery::class);
         $container->add(MealPriceQueryInterface::class, CakeMealPriceQuery::class);

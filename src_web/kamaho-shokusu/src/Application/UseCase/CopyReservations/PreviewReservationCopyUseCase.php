@@ -24,16 +24,12 @@ final class PreviewReservationCopyUseCase
         foreach ($rows as $row) {
             $verdict = $this->planner->verdict($row, $this->planner->targetDate($input, $row), $today);
             match ($verdict) {
-                ReservationCopyPlanner::COPY => $copy++,
-                ReservationCopyPlanner::SKIP => $skip++,
-                ReservationCopyPlanner::INVALID_DATE => $invalid++,
+                CopyVerdict::Copy => $copy++,
+                CopyVerdict::Skip => $skip++,
+                CopyVerdict::InvalidDate => $invalid++,
             };
         }
-        if ($input->isWeek()) {
-            // 従来どおり、週は今日より前の日もスキップに数える
-            return new ReservationCopyPreview($input->mode, count($rows), $copy, $skip + $invalid, 0);
-        }
 
-        return new ReservationCopyPreview($input->mode, count($rows), $copy, $skip, $invalid);
+        return ReservationCopyPreview::fromCounts($input->mode, count($rows), $copy, $skip, $invalid);
     }
 }

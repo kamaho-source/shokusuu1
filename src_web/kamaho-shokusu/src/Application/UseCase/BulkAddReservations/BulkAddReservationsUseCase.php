@@ -56,31 +56,16 @@ final class BulkAddReservationsUseCase
      */
     public function execute(BulkAddReservationsInput $input): BulkAddReservationsOutput
     {
-        return new BulkAddReservationsOutput($this->run($input));
-    }
-
-    /**
-     * @return array{ok: bool, message: string, redirect_url?: string, conflict_date?: string}
-     * @throws \RuntimeException 保存前の読み取りに失敗した場合
-     */
-    private function run(BulkAddReservationsInput $input): array
-    {
         $data            = $input->data;
         $userId          = $input->userId;
         $reservationType = $data['reservation_type'] ?? null;
         if (!$reservationType) {
-            return [
-                'ok' => false,
-                'message' => '予約タイプが選択されていません。',
-            ];
+            return BulkAddReservationsOutput::failed('予約タイプが選択されていません。');
         }
 
         // ログインユーザーを特定できない場合は権限判定できないため拒否する（fail-closed）
         if ($userId <= 0) {
-            return [
-                'ok'      => false,
-                'message' => 'ログインユーザーを特定できないため処理を中断しました。',
-            ];
+            return BulkAddReservationsOutput::failed('ログインユーザーを特定できないため処理を中断しました。');
         }
 
         $plan = match ($reservationType) {
@@ -92,7 +77,7 @@ final class BulkAddReservationsUseCase
             ],
         };
         if (isset($plan['ok'])) {
-            return $plan;
+            return BulkAddReservationsOutput::failed($plan['message'], $plan['conflict_date'] ?? null);
         }
 
         $saveError = $this->save($plan, $input->userName);
@@ -102,23 +87,22 @@ final class BulkAddReservationsUseCase
 
         $this->forgetCaches($plan, $userId);
 
-        return [
-            'ok' => true,
-            'message' => ($plan['skipped'] !== []
+        return BulkAddReservationsOutput::succeeded(
+            ($plan['skipped'] !== []
                 ? "一部の予約は既に存在していたためスキップされました。\n" . implode("\n", $plan['skipped'])
                 : 'すべての予約が正常に登録されました。')
                 . ($plan['swapped'] !== [] ? "\n" . implode("\n", $plan['swapped']) : ''),
-            'redirect_url' => './',
-        ];
+            './',
+        );
     }
 
     /**
      * 取消 → 有効化 → 新規保存を1トランザクションで行う。失敗したら取り消して ok=false の結果を返す。
      *
      * @param array<string, mixed> $plan
-     * @return array{ok: false, message: string}|null 成功なら null
+     * @return BulkAddReservationsOutput|null 成功なら null
      */
-    private function save(array $plan, string $userName): ?array
+    private function save(array $plan, string $userName): ?BulkAddReservationsOutput
     {
         if ($plan['deactivate'] === [] && $plan['activate'] === [] && $plan['create'] === []) {
             return null;
@@ -153,38 +137,23 @@ final class BulkAddReservationsUseCase
         } catch (ConflictException $e) {
             // 承認済み・別の部屋の予約と重なる・昼食と弁当の同時予約（有効にする更新）
             $this->transaction->rollback();
-            return [
-                'ok' => false,
-                'message' => $e->getMessage(),
-            ];
+            return BulkAddReservationsOutput::failed($e->getMessage());
         } catch (ReservationValidationException $e) {
             // 新しい行の検証ルール（昼食と弁当の同時予約など）に当たった。理由を返す
             $this->transaction->rollback();
             $this->logger->error('bulkAdd validation error: ' . $e->getMessage());
-            return [
-                'ok' => false,
-                'message' => $e->lunchBentoMessage ?? self::SAVE_ERROR_MESSAGE,
-            ];
+            return BulkAddReservationsOutput::failed($e->lunchBentoMessage ?? self::SAVE_ERROR_MESSAGE);
         } catch (\RuntimeException $e) {
             $this->transaction->rollback();
             if ($e->getMessage() === 'optimistic_conflict') {
-                return [
-                    'ok' => false,
-                    'message' => '他の操作と競合しました。画面を再読み込みして再実行してください。',
-                ];
+                return BulkAddReservationsOutput::failed('他の操作と競合しました。画面を再読み込みして再実行してください。');
             }
             $this->logger->error('bulkAdd runtime error: ' . $e->getMessage());
-            return [
-                'ok' => false,
-                'message' => self::SAVE_ERROR_MESSAGE,
-            ];
+            return BulkAddReservationsOutput::failed(self::SAVE_ERROR_MESSAGE);
         } catch (\Throwable $e) {
             $this->transaction->rollback();
             $this->logger->error('bulkAdd error: ' . $e->getMessage());
-            return [
-                'ok' => false,
-                'message' => self::SAVE_ERROR_MESSAGE,
-            ];
+            return BulkAddReservationsOutput::failed(self::SAVE_ERROR_MESSAGE);
         }
 
         return null;
