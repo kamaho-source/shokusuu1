@@ -3,10 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Infrastructure\Persistence\Table\MRoomTransferScheduleTable;
-use App\Service\RoomTransferScheduleService;
+use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
+use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use Authorization\Exception\ForbiddenException;
-use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\NotFoundException;
 
 /**
@@ -16,13 +17,10 @@ use Cake\Http\Exception\NotFoundException;
  */
 class MRoomTransferScheduleController extends AppController
 {
-    private RoomTransferScheduleService $transferService;
-
     public function initialize(): void
     {
         parent::initialize();
         $this->viewBuilder()->setLayout('default');
-        $this->transferService = new RoomTransferScheduleService();
     }
 
     /**
@@ -59,7 +57,7 @@ class MRoomTransferScheduleController extends AppController
     /**
      * 異動予約登録フォーム・保存
      */
-    public function add(): void
+    public function add(CreateRoomTransferUseCase $createTransfer): void
     {
         $this->request->allowMethod(['get', 'post']);
 
@@ -75,31 +73,26 @@ class MRoomTransferScheduleController extends AppController
         }
 
         if ($this->request->is('post')) {
-            $data = $this->request->getData();
-
-            $userId      = isset($data['i_id_user'])      ? (int)$data['i_id_user']      : null;
-            $roomFromId  = isset($data['i_id_room_from']) && $data['i_id_room_from'] !== ''
-                ? (int)$data['i_id_room_from']
-                : null;
-            $roomToId    = isset($data['i_id_room_to'])   ? (int)$data['i_id_room_to']   : null;
-            $effectiveDate = (string)($data['d_effective_date'] ?? '');
-
-            if (!$userId || !$roomToId || $effectiveDate === '') {
-                $this->Flash->error(__('ユーザー・異動先部屋・有効開始日は必須です。'));
-            } else {
-                $identity = $this->request->getAttribute('identity');
-                $actor    = $identity ? $identity->get('c_user_name') : '管理者';
-
-                try {
-                    $this->transferService->create($userId, $roomFromId, $roomToId, $effectiveDate, $actor);
+            $data     = $this->request->getData();
+            $identity = $this->request->getAttribute('identity');
+            try {
+                $error = $createTransfer->execute(new CreateRoomTransferInput(
+                    isset($data['i_id_user']) ? (int)$data['i_id_user'] : null,
+                    isset($data['i_id_room_from']) && $data['i_id_room_from'] !== '' ? (int)$data['i_id_room_from'] : null,
+                    isset($data['i_id_room_to']) ? (int)$data['i_id_room_to'] : null,
+                    (string)($data['d_effective_date'] ?? ''),
+                    $identity ? (string)$identity->get('c_user_name') : '管理者',
+                ));
+                if ($error === null) {
                     $this->Flash->success(__('部屋異動予約を登録しました。'));
                     $this->redirect(['action' => 'index']);
                     return;
-                } catch (\RuntimeException $e) {
-                    $this->Flash->error($e->getMessage());
-                } catch (\Throwable $e) {
-                    $this->Flash->error(__('登録処理中にエラーが発生しました。'));
                 }
+                $this->Flash->error($error);
+            } catch (\RuntimeException $e) {
+                $this->Flash->error($e->getMessage());
+            } catch (\Throwable $e) {
+                $this->Flash->error(__('登録処理中にエラーが発生しました。'));
             }
         }
 
@@ -131,7 +124,7 @@ class MRoomTransferScheduleController extends AppController
      *
      * @param int $id スケジュールID
      */
-    public function cancel(int $id): void
+    public function cancel(CancelRoomTransferUseCase $cancelTransfer, int $id): void
     {
         $this->request->allowMethod(['post']);
 
@@ -146,18 +139,16 @@ class MRoomTransferScheduleController extends AppController
             return;
         }
 
-        try {
-            $table->get($id);
-        } catch (\Cake\Datasource\Exception\RecordNotFoundException $e) {
-            throw new NotFoundException('指定された予約が見つかりません。');
-        }
-
         $identity = $this->request->getAttribute('identity');
-        $actor    = $identity ? $identity->get('c_user_name') : '管理者';
-
         try {
-            $this->transferService->cancel($id, $actor);
-            $this->Flash->success(__('異動予約をキャンセルしました。'));
+            $error = $cancelTransfer->execute($id, $identity ? (string)$identity->get('c_user_name') : '管理者');
+            if ($error === null) {
+                $this->Flash->success(__('異動予約をキャンセルしました。'));
+            } else {
+                $this->Flash->error($error);
+            }
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException('指定された予約が見つかりません。');
         } catch (\RuntimeException $e) {
             $this->Flash->error($e->getMessage());
         } catch (\Throwable $e) {

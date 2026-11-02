@@ -196,6 +196,11 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
         return UserCreationResult::created(700 + count($this->imported));
     }
 
+    public function transferRoom(int $userId, ?int $fromRoomId, int $toRoomId, string $at): void
+    {
+        $this->roomOps[] = 'transfer:' . $userId . ':' . ($fromRoomId ?? '-') . '->' . $toRoomId;
+    }
+
     private function setDelFlag(int $userId, int $flag): bool
     {
         if ($this->failSave || !isset($this->users[$userId])) {

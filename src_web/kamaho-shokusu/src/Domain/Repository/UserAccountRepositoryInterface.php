@@ -131,4 +131,12 @@ interface UserAccountRepositoryInterface
      * @param array<string, mixed> $data
      */
     public function importUser(array $data): UserCreationResult;
+
+    /**
+     * 部屋異動を所属に反映する。異動元（null なら無し）の所属を退出済みにし、異動先を所属中にする
+     * （異動先の行があれば所属中に戻し、無ければ作る）。更新者は 'batch'。保存できなければ例外を投げる。
+     *
+     * @param string $at 更新日時（'Y-m-d H:i:s'）
+     */
+    public function transferRoom(int $userId, ?int $fromRoomId, int $toRoomId, string $at): void;
 }
