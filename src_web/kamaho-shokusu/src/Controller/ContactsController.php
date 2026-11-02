@@ -92,7 +92,7 @@ class ContactsController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $replyBody = (string)($this->request->getData('reply_body') ?? '');
+        $replyBody = $this->dataString('reply_body');
         $result = $this->contactService->addUserReply($id, $userId, $replyBody);
 
         if ($result['success']) {
@@ -128,7 +128,7 @@ class ContactsController extends AppController
         $contact = $this->contactService->getDetail($id);
 
         if ($this->request->is('post')) {
-            $replyBody = (string)($this->request->getData('reply_body') ?? '');
+            $replyBody = $this->dataString('reply_body');
             $result = $this->contactService->sendReply($id, $replyBody);
 
             if ($result['success']) {

@@ -208,6 +208,15 @@ class TReservationInfoControllerTest extends TestCase
         $this->assertIsArray($responseJson['data']['events'] ?? null);
     }
 
+    /** 期間に配列が来ても警告を出さず、指定が無いときと同じ（今日の1日分）に扱う */
+    public function testCalendarEvents_arrayRange_treatedAsMissingWithoutWarning(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/TReservationInfo/calendarEvents?start[]=2026-01-01&end[]=2026-01-31');
+        $this->assertResponseOk();
+        $this->assertResponseNotContains('Array to string');
+    }
+
     public function testCalendarEventsInvalidRangeContract(): void
     {
         $this->setAuthenticatedSession();

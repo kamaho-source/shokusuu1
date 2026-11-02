@@ -8,12 +8,12 @@
  * @var string $tab
  * @var array<int, string> $targets
  * @var int $targetId
- * @var array|null $target
+ * @var \App\Application\Query\Dto\HistoryViewer|null $target
  * @var int $actorId
  * @var string|null $error
  * @var string|null $forbidden
  * @var array<string, array<int, true>> $meals
- * @var array<int, array{at:string, date:string, meal:int, kind:string, actor:string}> $logs
+ * @var list<\App\Application\Query\Dto\HistoryLogEntry> $logs
  * @var string|null $logStart
  * @var array<string, array<int, int>> $summary
  * @var array<int, string> $rooms
@@ -120,7 +120,7 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
                 </table>
             </div>
     <?php elseif ($tab === 'log'): ?>
-        <p class="small text-muted">対象：<?= h($target['name'] ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
+        <p class="small text-muted">対象：<?= h($target?->name ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
         <?php if ($logStart === null || $from < $logStart): ?>
             <div class="alert alert-info small"><?= $logStart === null ? '変更の経緯はまだ記録されていません。' : h($logStart) . ' より前の変更の経緯は記録されていません。' ?></div>
         <?php endif; ?>
@@ -130,17 +130,17 @@ $tabUrl = fn(string $t): string => $this->Url->build(['action' => 'index', '?' =
             <ul class="list-group">
                 <?php foreach ($logs as $l): ?>
                     <li class="list-group-item">
-                        <div class="small text-muted"><?= h($l['at']) ?>（対象日 <?= h($l['date']) ?>）</div>
-                        <span class="badge <?= h($kindClass[$l['kind']] ?? 'text-bg-secondary') ?>"><?= h($kindLabels[$l['kind']] ?? '') ?></span>
-                        <?= h($mealLabels[$l['meal']] ?? '') ?>
-                        <span class="small text-muted ms-2">操作：<?= h($l['actor']) ?></span>
+                        <div class="small text-muted"><?= h($l->at) ?>（対象日 <?= h($l->date) ?>）</div>
+                        <span class="badge <?= h($kindClass[$l->kind] ?? 'text-bg-secondary') ?>"><?= h($kindLabels[$l->kind] ?? '') ?></span>
+                        <?= h($mealLabels[$l->meal] ?? '') ?>
+                        <span class="small text-muted ms-2">操作：<?= h($l->actor) ?></span>
                     </li>
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
         <p class="small text-muted mt-2">記録されている操作だけを表示します。代理による一括登録など、対象者が記録されていない操作は含まれません。</p>
     <?php else: ?>
-        <p class="small text-muted">対象：<?= h($target['name'] ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
+        <p class="small text-muted">対象：<?= h($target?->name ?? '') ?><?= $targetId !== $actorId ? '（代理で閲覧）' : '' ?></p>
         <?php if (!$meals): ?>
             <div class="alert alert-secondary">この期間の予約はありません。</div>
         <?php endif; ?>

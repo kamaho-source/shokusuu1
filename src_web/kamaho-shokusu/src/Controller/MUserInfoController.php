@@ -554,7 +554,7 @@ class MUserInfoController extends AppController
             $status = $result ? $result->getStatus() : 'Result is null';
             $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
-            $loginAccount = (string)($this->request->getData('c_login_account') ?? '');
+            $loginAccount = $this->dataString('c_login_account');
             // 操作者は、入力されたログインIDのアカウント（無ければ「該当アカウントなし」）
             $account = $loginAccount === '' ? null : $this->MUserInfo->find()
                 ->select(['i_id_user', 'c_user_name'])

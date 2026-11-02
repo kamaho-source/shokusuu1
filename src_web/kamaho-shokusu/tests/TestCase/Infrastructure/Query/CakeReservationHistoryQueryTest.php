@@ -1,18 +1,22 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Infrastructure\Query;
 
-use App\Service\ReservationHistoryService;
+use App\Application\Query\Dto\HistoryLogEntry;
+use App\Domain\ValueObject\MealType;
+use App\Infrastructure\Query\CakeReservationHistoryQuery;
+use App\Infrastructure\Query\CakeRoomQuery;
+use Cake\Chronos\ClockFactory;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * ReservationHistoryService テスト
+ * 予約履歴の読み取り（CakeReservationHistoryQuery）。旧 ReservationHistoryServiceTest を引き継ぐ（期間の決まりは HistoryPeriodRuleTest）。
  *
- * 期間の検証は外部依存なし。見られる範囲・予約状況・経緯・集計は DB（フィクスチャ）で確かめる。
+ * 見られる範囲・予約状況・経緯・集計を DB（フィクスチャ）で確かめる。
  */
-class ReservationHistoryServiceTest extends TestCase
+class CakeReservationHistoryQueryTest extends TestCase
 {
     protected array $fixtures = [
         'app.MUserInfo',
@@ -22,42 +26,15 @@ class ReservationHistoryServiceTest extends TestCase
         'app.MRoomInfo',
     ];
 
-    private ReservationHistoryService $svc;
+    private CakeReservationHistoryQuery $svc;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = new ReservationHistoryService();
+        $this->svc = new CakeReservationHistoryQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo'));
         // フィクスチャの既存行（2024-09-07）と混ざらないよう、テスト用の予約・監査ログは別の日付・ユーザーで入れる
         TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->deleteAll([]);
         TableRegistry::getTableLocator()->get('TAuditLog')->deleteAll([]);
-    }
-
-    // ---- validatePeriod ----
-
-    /**
-     * @return array<string, array{string, string, ?string}>
-     */
-    public static function periodProvider(): array
-    {
-        return [
-            '過去日' => ['2026-10-01', '2026-10-29', null],
-            '1日だけ' => ['2026-10-29', '2026-10-29', null],
-            '1年を超える期間' => ['2025-01-01', '2026-10-29', null],
-            '開始が終了より後' => ['2026-10-20', '2026-10-10', '開始日が終了日より後になっています。'],
-            '今日を含む' => ['2026-10-01', '2026-10-30', null],
-            '未来日' => ['2030-11-01', '2030-12-31', null],
-            '日付でない' => ['abc', '2026-10-29', '日付の形式が正しくありません。'],
-            '存在しない日付' => ['2026-02-30', '2026-10-29', '日付の形式が正しくありません。'],
-        ];
-    }
-
-    /**
-     * @dataProvider periodProvider
-     */
-    public function testValidatePeriod(string $from, string $to, ?string $expected): void
-    {
-        $this->assertSame($expected, $this->svc->validatePeriod($from, $to));
     }
 
     // ---- selectableTargets（見られる範囲） ----
@@ -92,7 +69,7 @@ class ReservationHistoryServiceTest extends TestCase
     /** @return list<int> */
     private function targetsOf(int $userId): array
     {
-        $actor = $this->svc->findUser($userId);
+        $actor = $this->svc->findViewer($userId);
         $this->assertNotNull($actor);
 
         return array_keys($this->svc->selectableTargets($actor));
@@ -127,16 +104,9 @@ class ReservationHistoryServiceTest extends TestCase
         $this->assertSame([3], $this->targetsOf(3));
     }
 
-    public function testPeriodDates_allDaysInclusive(): void
-    {
-        $this->assertSame(['2024-02-27', '2024-02-28', '2024-02-29', '2024-03-01'], $this->svc->periodDates('2024-02-27', '2024-03-01'));
-        $this->assertSame(['2024-09-05'], $this->svc->periodDates('2024-09-05', '2024-09-05'));
-        $this->assertCount(31, $this->svc->periodDates('2026-10-01', '2026-10-31'));
-    }
+    // ---- bookedMeals ----
 
-    // ---- mealRows ----
-
-    public function testMealRows_bookedByLastMinuteFlag(): void
+    public function testBookedMeals_bookedByLastMinuteFlag(): void
     {
         $t = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $row = fn(string $d, int $type, ?int $eat, ?int $chg, int $room = 1) => $t->save($t->newEntity([
@@ -151,13 +121,13 @@ class ReservationHistoryServiceTest extends TestCase
         $row('2024-09-04', 1, 1, 0);      // 取消だけの日 → 行を出さない
         $row('2024-08-31', 1, 1, 1);      // 期間外
 
-        $rows = $this->svc->mealRows(3, '2024-09-01', '2024-09-30');
+        $rows = $this->svc->bookedMeals(3, '2024-09-01', '2024-09-30');
 
         $this->assertSame([
             '2024-09-02' => [1 => true],
             '2024-09-03' => [1 => true, 2 => true],
         ], $rows);
-        $this->assertSame([], $this->svc->mealRows(2, '2024-09-01', '2024-09-30'), '他の人の分は出ない');
+        $this->assertSame([], $this->svc->bookedMeals(2, '2024-09-01', '2024-09-30'), '他の人の分は出ない');
     }
 
     // ---- roomSummary ----
@@ -178,9 +148,24 @@ class ReservationHistoryServiceTest extends TestCase
         $this->assertSame([], $this->svc->roomSummary(9, '2024-09-01', '2024-09-30'));
     }
 
-    // ---- logRows ----
+    /** 同じ日・同じ食事の予約済みは人数を足し、日付順に並べる（DB の読み取り順に関係なく） */
+    public function testRoomSummary_sumsPeopleAndSortsByDate(): void
+    {
+        $t = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
+        foreach ([['2024-09-10', 2], ['2024-09-03', 2], ['2024-09-10', 3], ['2024-09-10', 1]] as [$date, $user]) {
+            $t->save($t->newEntity([
+                'i_id_user' => $user, 'd_reservation_date' => $date, 'i_reservation_type' => 3, 'i_id_room' => 1,
+                'eat_flag' => 1, 'i_change_flag' => 1, 'i_version' => 1,
+            ], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+        }
 
-    public function testLogRows_targetDetectionAndRoleLabels(): void
+        $this->assertSame(['2024-09-03' => [3 => 1], '2024-09-10' => [3 => 3]], $this->svc->roomSummary(1, '2024-09-01', '2024-09-30'));
+        $this->assertSame(['2024-09-03', '2024-09-10'], array_keys($this->svc->bookedMeals(2, '2024-09-01', '2024-09-30')));
+    }
+
+    // ---- changeLog ----
+
+    public function testChangeLog_targetDetectionAndRoleLabels(): void
     {
         $t = TableRegistry::getTableLocator()->get('TAuditLog');
         $log = fn(string $action, ?string $targetId, int $actor, string $actorName, array $detail, string $at, int $result = 1) => $t->save($t->newEntity([
@@ -198,15 +183,49 @@ class ReservationHistoryServiceTest extends TestCase
         $log('reservation_toggle', 'room:1', 2, '職員', ['date' => '2024-09-05', 'meal' => 1, 'value' => 1, 'user_id' => 33], '2024-08-25 09:00:00'); // ユーザー33（3ではない）
         $log('actual_meal_save', '33:2024-09-05:1:1', 2, '職員', ['checked' => true, 'meal_type' => 1], '2024-09-06 11:00:00');
 
-        $rows = $this->svc->logRows(3, '2024-09-01', '2024-09-30');
+        $rows = $this->svc->changeLog(3, '2024-09-01', '2024-09-30', false);
 
         // 新しい順。実食機能はオフのため実食保存は出さない
-        $this->assertSame(['cancel', 'reserve', 'reserve'], array_column($rows, 'kind'));
-        $this->assertSame(['管理者', '代理', '本人'], array_column($rows, 'actor'));
-        $this->assertSame('夜', ReservationHistoryService::MEAL_LABELS[$rows[0]['meal']]);
+        $this->assertSame([HistoryLogEntry::CANCEL, HistoryLogEntry::RESERVE, HistoryLogEntry::RESERVE], array_map(static fn(HistoryLogEntry $l) => $l->kind, $rows));
+        $this->assertSame(['管理者', '代理', '本人'], array_map(static fn(HistoryLogEntry $l) => $l->actor, $rows));
+        $this->assertSame(['2024-08-22 09:00', '2024-09-05', 3], [$rows[0]->at, $rows[0]->date, $rows[0]->meal]);
+        $this->assertSame('夜', MealType::labels(MealType::LABEL_SHORT_NIGHT)[$rows[0]->meal]);
         // 名前は指定したときだけ（IP・失敗理由は含まない）
-        $withName = $this->svc->logRows(3, '2024-09-01', '2024-09-30', true);
-        $this->assertSame('代理（職員）', $withName[1]['actor']);
+        $withName = $this->svc->changeLog(3, '2024-09-01', '2024-09-30', true);
+        $this->assertSame('代理（職員）', $withName[1]->actor);
+    }
+
+    // ---- findViewer ----
+
+    public function testFindViewer_returnsRoleInfoAndSkipsDeleted(): void
+    {
+        $v = $this->svc->findViewer(3);
+        $this->assertNotNull($v);
+        $this->assertSame([3, 0, 1, '一般ユーザー'], [$v->id, $v->admin, $v->level, $v->name]);
+        $this->assertNull($this->svc->findViewer(6), '削除済み');
+        $this->assertNull($this->svc->findViewer(9999));
+    }
+
+    // ---- summaryRooms ----
+
+    /** 事務所ユーザーは有効な全部屋、それ以外は有効な所属部屋 */
+    public function testSummaryRooms_officeSeesAllActiveRoomsOthersOwnRooms(): void
+    {
+        $rooms = TableRegistry::getTableLocator()->get('MRoomInfo');
+        foreach ([[70, '事務所', 0], [71, '別の部屋', 0], [72, '削除済み', 1]] as [$id, $name, $del]) {
+            $rooms->save($rooms->newEntity(
+                ['i_id_room' => $id, 'c_room_name' => $name, 'i_disp_no' => $id, 'i_enable' => 1, 'i_del_flg' => $del],
+                ['validate' => false, 'accessibleFields' => ['*' => true]]
+            ));
+        }
+        $groups = TableRegistry::getTableLocator()->get('MUserGroup');
+        $groups->save($groups->newEntity(['i_id_user' => 5, 'i_id_room' => 70, 'active_flag' => 0], ['validate' => false, 'accessibleFields' => ['*' => true]]));
+
+        $office = array_keys($this->svc->summaryRooms(5));
+        $this->assertContains(71, $office);
+        $this->assertContains(1, $office);
+        $this->assertNotContains(72, $office);
+        $this->assertSame([1], array_keys($this->svc->summaryRooms(2)), '職員2は所属する部屋1だけ');
     }
 
     public function testLogStartDate(): void

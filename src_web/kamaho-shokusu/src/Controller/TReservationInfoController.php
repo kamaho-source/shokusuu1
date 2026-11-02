@@ -160,8 +160,8 @@ class TReservationInfoController extends ReservationBaseController
 
         $this->request->allowMethod(['get']);
 
-        $start = (string)$this->request->getQuery('start');
-        $end   = (string)$this->request->getQuery('end');
+        $start = $this->queryString('start');
+        $end   = $this->queryString('end');
 
         if ($start === '' || $end === '') {
             return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
@@ -227,8 +227,8 @@ class TReservationInfoController extends ReservationBaseController
         $userId = (int)$authUser->get('i_id_user');
         $user   = $this->MUserInfo->get($userId);
 
-        $start = (string)$this->request->getQuery('start');
-        $end   = (string)$this->request->getQuery('end');
+        $start = $this->queryString('start');
+        $end   = $this->queryString('end');
 
         try {
             $startDate = new Date($start);
@@ -655,7 +655,7 @@ class TReservationInfoController extends ReservationBaseController
             $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId')   ?? $this->request->getData('i_id_room');
             $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date')     ?? $this->request->getData('d_reservation_date');
 
-            $isModalShell = $this->request->is('get') && ((string)$this->request->getQuery('modal') === '1');
+            $isModalShell = $this->request->is('get') && ($this->queryString('modal') === '1');
 
             $loginUser = $this->request->getAttribute('identity');
             $loginUid  = $loginUser?->get('i_id_user');

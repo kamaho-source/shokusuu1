@@ -222,8 +222,8 @@ final class SystemReportController extends AppController
      */
     private function resolveDateRange(): array
     {
-        $dateFrom = (string)($this->request->getQuery('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d'));
-        $dateTo   = (string)($this->request->getQuery('date_to') ?: Date::today()->format('Y-m-d'));
+        $dateFrom = $this->queryString('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d');
+        $dateTo   = $this->queryString('date_to') ?: Date::today()->format('Y-m-d');
 
         if (!$this->isValidYmd($dateFrom) || !$this->isValidYmd($dateTo)) {
             throw new BadRequestException('日付は YYYY-MM-DD 形式で指定してください。');
