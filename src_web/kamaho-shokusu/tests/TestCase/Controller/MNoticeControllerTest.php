@@ -266,7 +266,8 @@ class MNoticeControllerTest extends TestCase
         $this->assertSame('編集後', $saved->c_title);
         $this->assertNull($saved->c_body);
         $this->assertSame(1, (int)$saved->i_importance);
-        $this->assertSame(1, (int)$saved->i_type, '管理者は既存の種別を変更できない');        $this->assertSame('管理者ユーザー', $saved->c_update_user, '更新した人（ログイン中の利用者）を残す');
+        $this->assertSame(1, (int)$saved->i_type, '管理者は既存の種別を変更できない');
+        $this->assertSame('管理者ユーザー', $saved->c_update_user, '更新した人（ログイン中の利用者）を残す');
 
         $log = $this->getTableLocator()->get('TAuditLog')->find()->where(['c_action' => 'notice_edit'])->firstOrFail();
         $this->assertSame([(string)$id, 'm_notice'], [$log->c_target_id, $log->c_target_table], '更新も監査ログに残す');

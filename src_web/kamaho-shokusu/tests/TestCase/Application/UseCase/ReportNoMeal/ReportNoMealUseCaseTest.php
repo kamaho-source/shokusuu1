@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Application\UseCase\ReportMeal;
+namespace App\Test\TestCase\Application\UseCase\ReportNoMeal;
 
 use App\Application\UseCase\ReportNoMeal\ReportNoMealInput;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
@@ -19,7 +19,7 @@ use Psr\Log\NullLogger;
  *
  * 利用者 1 は部屋 5・3（削除済み）・8 に所属する。代表部屋は削除されていない部屋のうち小さい 5。
  */
-class ReportMealUseCaseTest extends TestCase
+class ReportNoMealUseCaseTest extends TestCase
 {
     private const TODAY = '2026-11-02';
 

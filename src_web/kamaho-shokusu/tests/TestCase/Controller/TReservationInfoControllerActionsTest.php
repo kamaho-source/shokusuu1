@@ -421,8 +421,11 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->get('/TReservationInfo/changeEdit?modal=1&date=' . $date);
         $this->assertResponseCode(400);
 
+        $reservations = $this->getTableLocator()->get('TIndividualReservationInfo');
+        $before = $reservations->find()->count();
         $this->post('/TReservationInfo/change-edit/1/' . $date, ['users' => [3 => [1 => ['i_change_flag' => 1]]]]);
         $this->assertResponseCode(400);
+        $this->assertSame($before, $reservations->find()->count(), '不正な日付では何も保存しない');
     }
 
     /** 職員は他の職員の直前の予約を変えられない（予約カレンダー・エクセル食数予約と同じ。以前は所属部屋があれば変えられた） */

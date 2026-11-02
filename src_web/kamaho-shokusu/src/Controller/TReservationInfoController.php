@@ -7,6 +7,7 @@ use App\Application\Query\CalendarEventBuilder;
 use App\Application\Query\ChangeEditQueryInterface;
 use App\Application\Query\Dto\ChangeEditMember;
 use App\Domain\Service\ChangeEditPermission;
+use App\Domain\Service\DatePeriodRule;
 use App\Infrastructure\Query\CakeChangeEditQuery;
 use Cake\Chronos\ClockFactory;
 use App\Application\Query\DayViewQueryInterface;
@@ -657,8 +658,7 @@ class TReservationInfoController extends ReservationBaseController
             $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date')     ?? $this->request->getData('d_reservation_date');
 
             // 暦にない日付は、以前は画面によって 200（空の表）・500 とばらばらだった。ここで 400 にそろえる
-            if ($date !== null && $date !== '' && (!is_string($date)
-                || (\DateTimeImmutable::createFromFormat('!Y-m-d', $date) ?: null)?->format('Y-m-d') !== $date)) {
+            if ($date !== null && $date !== '' && (!is_string($date) || !DatePeriodRule::isDate($date))) {
                 throw new \InvalidArgumentException('日付が正しくありません。');
             }
 
