@@ -22,12 +22,6 @@ final class ChangeUserRoleUseCase
         private readonly AuditLogInterface $auditLog,
     ) {}
 
-    /** 対象の利用者が居るか（認可より先に 404 を返すため）。 */
-    public function targetExists(int $userId): bool
-    {
-        return $this->users->find($userId) !== null;
-    }
-
     /**
      * @throws NotFoundException 対象の利用者が居ない場合
      * @throws \Throwable DB の失敗（変換せずにそのまま投げる）

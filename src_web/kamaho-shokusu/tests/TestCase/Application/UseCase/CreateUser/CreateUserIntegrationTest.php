@@ -8,7 +8,6 @@ use App\Application\UseCase\CreateUser\CreateUserInput;
 use App\Application\UseCase\CreateUser\CreateUserOutput;
 use App\Application\UseCase\CreateUser\CreateUserUseCase;
 use App\Infrastructure\Log\AuditLogAdapter;
-use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Repository\CakeUserAccountRepository;
 use Authentication\PasswordHasher\DefaultPasswordHasher;
 use Cake\Chronos\Chronos;
@@ -38,7 +37,6 @@ class CreateUserIntegrationTest extends TestCase
     {
         return new CreateUserUseCase(
             new CakeUserAccountRepository($this->getTableLocator()->get('MUserInfo')),
-            new CakeRoomMembershipRepository(),
             new AuditLogAdapter(),
             new ClockFactory('Asia/Tokyo'),
         );
@@ -167,25 +165,5 @@ class CreateUserIntegrationTest extends TestCase
         $this->assertSame(CreateUserOutput::CREATED, $this->create(['MUserGroup' => []], false, [])->status);
         $id = (int)$this->savedUser()['i_id_user'];
         $this->assertSame(0, (int)ConnectionManager::get('test')->execute('SELECT COUNT(*) FROM m_user_group WHERE i_id_user = ?', [$id])->fetchColumn(0));
-    }
-
-    /**
-     * 登録できる部屋・選べる部屋は、管理者・システム管理者も含めて自分が所属している削除されていない部屋だけ（#821）。
-     */
-    public function testRoomChoicesAndAllowedRooms(): void
-    {
-        $db = ConnectionManager::get('test');
-        $base = ['i_disp_no' => 9, 'i_enable' => 1];
-        $db->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '所属外の部屋', 'i_del_flg' => 0] + $base);
-        $db->insert('m_room_info', ['i_id_room' => 3, 'c_room_name' => '削除済みの部屋', 'i_del_flg' => 1] + $base);
-        $db->insert('m_user_group', ['i_id_user' => 1, 'i_id_room' => 3, 'active_flag' => 0]);
-        $db->insert('m_user_group', ['i_id_user' => 1, 'i_id_room' => 2, 'active_flag' => 1]);
-
-        $useCase = $this->useCase();
-        $this->assertSame([1], $useCase->allowedRoomIds(1), '管理者も所属している部屋だけ（削除済み・異動で外れた部屋は除く）');
-        $this->assertSame([1], array_keys($useCase->roomChoices(1)));
-        $this->assertSame([1], $useCase->allowedRoomIds(2), '職員は自分が所属している部屋だけ');
-        $this->assertSame([], $useCase->allowedRoomIds(4), '所属部屋の無いシステム管理者は登録できる部屋が無い');
-        $this->assertSame([], $useCase->roomChoices(4));
     }
 }

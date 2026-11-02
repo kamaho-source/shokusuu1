@@ -20,10 +20,10 @@ final class CreateNoticeUseCase
     ) {}
 
     /**
-     * @return int 登録したお知らせの ID
+     * @return CreateNoticeOutput 登録したお知らせ（ID）
      * @throws InvalidInputException 入力が不正・保存できない（タイトルが空など）
      */
-    public function execute(CreateNoticeInput $input): int
+    public function execute(CreateNoticeInput $input): CreateNoticeOutput
     {
         $error = NoticeRule::error($input->importance, $input->type, $input->startDate, $input->endDate);
         if ($error !== null) {
@@ -46,6 +46,6 @@ final class CreateNoticeUseCase
 
         $this->auditLog->record('notice', 'notice_add', $input->actor, 'm_notice', (string)$id, ['title' => $notice->title], true);
 
-        return $id;
+        return new CreateNoticeOutput($id);
     }
 }

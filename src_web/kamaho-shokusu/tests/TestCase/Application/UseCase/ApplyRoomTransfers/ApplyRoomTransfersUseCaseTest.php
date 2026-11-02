@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\UseCase\ApplyRoomTransfers;
 
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersInput;
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
 use App\Domain\Entity\RoomTransferSchedule;
 use App\Domain\Entity\UserAccount;
@@ -58,7 +59,7 @@ class ApplyRoomTransfersUseCaseTest extends TestCase
         $this->reservations->record(20, '2026-11-20', 1, 1);
         $this->reservations->record(20, '2026-11-20', 2, 2, 0, 0);
 
-        $result = $this->useCase()->execute('2026-11-10');
+        $result = $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-10'));
 
         $this->assertSame(1, $result->applied, '有効開始日が基準日より後の予約は適用しない');
         $this->assertSame(['transfer:20:1->2'], $this->users->roomOps);
@@ -73,7 +74,7 @@ class ApplyRoomTransfersUseCaseTest extends TestCase
         $this->schedules->schedules[1] = new RoomTransferSchedule(1, 20, null, 2, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
         $this->reservations->record(20, '2026-11-20', 1, 1);
 
-        $this->assertSame(1, $this->useCase()->execute('2026-11-02')->applied);
+        $this->assertSame(1, $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02'))->applied);
         $this->assertSame(['transfer:20:-->2'], $this->users->roomOps);
         $this->assertSame([], $this->reservations->transferOps);
     }
@@ -82,7 +83,7 @@ class ApplyRoomTransfersUseCaseTest extends TestCase
     {
         $this->schedules->schedules[1] = new RoomTransferSchedule(1, 21, 1, 2, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
 
-        $result = $this->useCase()->execute('2026-11-02');
+        $result = $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02'));
 
         $this->assertSame(0, $result->applied);
         $this->assertSame([], $result->errors);
@@ -94,7 +95,7 @@ class ApplyRoomTransfersUseCaseTest extends TestCase
     {
         $this->schedules->schedules[1] = new RoomTransferSchedule(1, 20, 1, 2, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
 
-        $this->assertSame(1, $this->useCase()->execute('2026-11-02', dryRun: true)->applied);
+        $this->assertSame(1, $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02', dryRun: true))->applied);
         $this->assertSame(['begin', 'rollback'], $this->transaction->calls);
         $this->assertSame([], $this->cache->afterTransfer);
     }
@@ -106,7 +107,7 @@ class ApplyRoomTransfersUseCaseTest extends TestCase
         $this->reservations->record(20, '2026-11-20', 1, 1);
         $this->reservations->moveThrows = new \RuntimeException('接続断');
 
-        $result = $this->useCase()->execute('2026-11-02');
+        $result = $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02'));
 
         $this->assertSame(1, $result->applied);
         $this->assertSame(['スケジュールID=1: 接続断'], $result->errors);

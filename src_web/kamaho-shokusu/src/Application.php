@@ -19,7 +19,8 @@ use App\Application\Query\DayViewQueryInterface;
 use App\Application\Query\MealPriceQueryInterface;
 use App\Application\Query\ContactQueryInterface;
 use App\Application\Query\NoticeQueryInterface;
-use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
+use App\Application\UseCase\AddContactReplyFromEmail\AddContactReplyFromEmailUseCase;
+use App\Application\UseCase\AddContactReplyFromUser\AddContactReplyFromUserUseCase;
 use App\Application\UseCase\ReplyToContact\ReplyToContactUseCase;
 use App\Application\UseCase\SubmitContact\SubmitContactUseCase;
 use App\Application\Query\RoomTransferQueryInterface;
@@ -49,6 +50,8 @@ use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
 use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
 use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
 use App\Application\UseCase\CopyReservations\CopyReservationsUseCase;
+use App\Application\UseCase\CopyReservations\PreviewReservationCopyUseCase;
+use App\Application\UseCase\CopyReservations\ReservationCopyPlanner;
 use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
 use App\Application\UseCase\CreateUser\CreateUserUseCase;
 use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
@@ -85,6 +88,7 @@ use App\Infrastructure\Query\CakeRoomUsageQuery;
 use App\Infrastructure\Query\CakeSystemReportQuery;
 use App\Infrastructure\Query\CakeRoomMealDetailQuery;
 use App\Infrastructure\Query\CakeRoomQuery;
+use App\Infrastructure\Query\CakeUserQuery;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Infrastructure\Cache\ReservationCacheAdapter;
 use App\Infrastructure\Repository\CakeRoomRepository;
@@ -101,6 +105,7 @@ use App\Application\Query\MealReportQueryInterface;
 use App\Application\Query\ReservationHistoryQueryInterface;
 use App\Application\Query\ReservationReadQueryInterface;
 use App\Application\Query\RoomQueryInterface;
+use App\Application\Query\UserQueryInterface;
 use App\Controller\ApprovalController;
 use App\Controller\MRoomInfoController;
 use App\Controller\PagesController;
@@ -343,7 +348,6 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(RestoreUserUseCase::class, static fn() => new RestoreUserUseCase($userAccounts(), $userTransaction(), new AuditLogAdapter()));
         $container->add(CreateUserUseCase::class, static fn() => new CreateUserUseCase(
             $userAccounts(),
-            new CakeRoomMembershipRepository(),
             new AuditLogAdapter(),
             $clock(),
         ));
@@ -362,6 +366,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $clock(),
         ));
         $container->add(ChangePasswordUseCase::class, static fn() => new ChangePasswordUseCase($userAccounts(), new AuditLogAdapter()));
+        $container->add(UserQueryInterface::class, static fn() => new CakeUserQuery($userAccounts(), new CakeRoomMembershipRepository()));
         $container->add(CreateRoomUseCase::class, static fn() => new CreateRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), $clock()));
         $container->add(UpdateRoomUseCase::class, static fn() => new UpdateRoomUseCase(new CakeRoomRepository(), $userTransaction(), new AuditLogAdapter(), $clock()));
         $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), $clock()));
@@ -376,20 +381,26 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $clock(),
         ));
         $container->add(ApplyRoomTransferScheduleCommand::class)->addArgument(ApplyRoomTransfersUseCase::class);
-        $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
+        $container->add(ReservationCopyPlanner::class, static fn() => new ReservationCopyPlanner(
             new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
             new CakeRoomMembershipRepository(),
             $userAccounts(),
-            $userTransaction(),
             $clock(),
         ));
+        $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
+            $container->get(ReservationCopyPlanner::class),
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            $userTransaction(),
+        ));
+        $container->add(PreviewReservationCopyUseCase::class)->addArgument(ReservationCopyPlanner::class);
         $container->add(NoticeQueryInterface::class, CakeNoticeQuery::class);
         $container->add(MealPriceQueryInterface::class, CakeMealPriceQuery::class);
         $container->add(RoomTransferQueryInterface::class, CakeRoomTransferQuery::class);
         $container->add(ContactQueryInterface::class, CakeContactQuery::class);
         $container->add(SubmitContactUseCase::class, static fn() => new SubmitContactUseCase(new CakeContactRepository(), new CakeContactNotifier()));
         $container->add(ReplyToContactUseCase::class, static fn() => new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()));
-        $container->add(AddContactReplyUseCase::class, static fn() => new AddContactReplyUseCase(new CakeContactRepository(), new CakeContactNotifier()));
+        $container->add(AddContactReplyFromUserUseCase::class, static fn() => new AddContactReplyFromUserUseCase(new CakeContactRepository(), new CakeContactNotifier()));
+        $container->add(AddContactReplyFromEmailUseCase::class, static fn() => new AddContactReplyFromEmailUseCase(new CakeContactRepository(), new CakeContactNotifier()));
         $container->add(CreateMealPriceUseCase::class, static fn() => new CreateMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
         $container->add(UpdateMealPriceUseCase::class, static fn() => new UpdateMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
         $container->add(DeleteMealPriceUseCase::class, static fn() => new DeleteMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));

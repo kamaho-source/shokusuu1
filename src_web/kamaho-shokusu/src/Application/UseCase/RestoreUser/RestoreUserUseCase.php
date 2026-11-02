@@ -5,7 +5,6 @@ namespace App\Application\UseCase\RestoreUser;
 
 use App\Application\Port\AuditLogInterface;
 use App\Application\Port\TransactionManagerInterface;
-use App\Domain\Entity\UserAccount;
 use App\Domain\Exception\NotFoundException;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 
@@ -23,12 +22,6 @@ final class RestoreUserUseCase
         private readonly TransactionManagerInterface $transaction,
         private readonly AuditLogInterface $auditLog,
     ) {}
-
-    /** 対象の利用者（認可より先に 404 を返す・削除済みかを確かめるため）。居なければ null。 */
-    public function target(int $userId): ?UserAccount
-    {
-        return $this->users->find($userId);
-    }
 
     /**
      * @throws NotFoundException 対象の利用者が居ない場合

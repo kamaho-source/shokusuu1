@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\ExportMealSummary;
 
-use App\Application\Port\AuditActor;
 use App\Application\Port\AuditLogInterface;
 use App\Application\Query\MealSummaryQueryInterface;
 use App\Domain\Exception\InvalidInputException;
@@ -24,11 +23,12 @@ final class ExportMealSummaryUseCase
     ) {}
 
     /**
-     * @return list<array{name: string, staff_id: int|string|null, meal_counts: array{bento: int, morning: int, lunch: int, dinner: int}, total_price: int}>
      * @throws InvalidInputException 年・月が不正（400）・その年の単価が無い（422）
      */
-    public function execute(int $year, int $month, AuditActor $actor): array
+    public function execute(ExportMealSummaryInput $input): ExportMealSummaryOutput
     {
+        $year  = $input->year;
+        $month = $input->month;
         if ($year < 1 || $year > 9999 || $month < 1 || $month > 12) {
             throw new InvalidInputException('年・月の指定が正しくありません。', 400);
         }
@@ -44,8 +44,8 @@ final class ExportMealSummaryUseCase
             ];
         }
 
-        $this->auditLog->record('master', 'meal_price_excel_export', $actor, 'm_meal_price_info', null, ['year' => $year, 'month' => $month], true);
+        $this->auditLog->record('master', 'meal_price_excel_export', $input->actor, 'm_meal_price_info', null, ['year' => $year, 'month' => $month], true);
 
-        return $rows;
+        return new ExportMealSummaryOutput($rows);
     }
 }

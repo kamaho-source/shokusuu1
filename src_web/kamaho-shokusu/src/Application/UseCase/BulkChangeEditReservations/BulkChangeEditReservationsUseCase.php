@@ -45,10 +45,20 @@ final class BulkChangeEditReservationsUseCase
     ) {}
 
     /**
+     * 保存できなかった理由は Output の ok=false と message（競合は conflict_date も）で返す。
+     *
+     * @throws \App\Domain\Exception\PersistenceException 部屋の読み取りに失敗した場合
+     */
+    public function execute(BulkChangeEditReservationsInput $input): BulkChangeEditReservationsOutput
+    {
+        return new BulkChangeEditReservationsOutput($this->run($input));
+    }
+
+    /**
      * @return array{ok: bool, message?: string, updated?: int, created?: int, skipped?: list<string>, conflict_date?: string}
      * @throws \App\Domain\Exception\PersistenceException 部屋の読み取りに失敗した場合
      */
-    public function execute(BulkChangeEditReservationsInput $input): array
+    private function run(BulkChangeEditReservationsInput $input): array
     {
         $dayUsers    = $input->dayUsers;
         $roomId      = $input->roomId;

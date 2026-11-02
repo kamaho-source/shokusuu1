@@ -80,11 +80,4 @@ class AssignUserRoomsUseCaseTest extends TestCase
         }
         $this->assertSame(['begin', 'rollback'], $this->transaction->calls);
     }
-
-    public function testIsActiveUser_excludesDeletedAndMissing(): void
-    {
-        $this->assertTrue($this->useCase->isActiveUser(20));
-        $this->assertFalse($this->useCase->isActiveUser(21));
-        $this->assertFalse($this->useCase->isActiveUser(999));
-    }
 }

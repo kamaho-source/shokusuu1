@@ -12,7 +12,7 @@ use Cake\TestSuite\TestCase;
  * WebhooksController::resendInbound の統合テスト。
  *
  * 実際のResend APIへのネットワーク呼び出しが発生する「本文取得→スレッド登録」までの
- * 真のハッピーパスは Service層（ContactUseCaseTest::fromEmail）で
+ * 真のハッピーパスは Service層（AddContactReplyFromEmailUseCaseTest）で
  * ネットワーク非依存に検証済み。ここではWebhookエンドポイント自体の
  * 署名検証・対象外イベントの扱いなど、ネットワーク呼び出しに到達しない範囲を検証する。
  */

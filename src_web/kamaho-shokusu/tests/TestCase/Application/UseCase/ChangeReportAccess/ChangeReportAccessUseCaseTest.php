@@ -56,7 +56,6 @@ class ChangeReportAccessUseCaseTest extends TestCase
 
     public function testMissingUser_isNotFound(): void
     {
-        $this->assertFalse($this->useCase->targetExists(999));
         $this->expectException(NotFoundException::class);
         $this->change(999, true);
     }

@@ -199,7 +199,7 @@ class MRoomInfoController extends AppController
             (int)$mRoomInfo->i_id_room,
             $this->auditActor(),
             $this->request->getAttribute('identity') !== null,
-        ));
+        ))->deleted;
         if ($deleted) {
             $this->Flash->success(__('部屋情報を削除しました。'));
         } else {

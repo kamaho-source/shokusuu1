@@ -214,7 +214,7 @@ class ReservationBulkController extends ReservationBaseController
             isAdmin: UserRole::isAdmin((int)($loginUser?->get('i_admin') ?? 0)),
             loginUserLevel: (int)($loginUser?->get('i_user_level') ?? 0),
             isBlockLeader: UserRole::isBlockLeader((int)($loginUser?->get('i_admin') ?? 0)),
-        ));
+        ))->toArray();
 
         if (!$result['ok']) {
             $conflictDate = $result['conflict_date'] ?? null;
@@ -263,7 +263,7 @@ class ReservationBulkController extends ReservationBaseController
                 isAdmin: UserRole::isAdmin((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
                 loginUserLevel: (int)($this->request->getAttribute('identity')->get('i_user_level') ?? 0),
                 isBlockLeader: UserRole::isBlockLeader((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
-            ));
+            ))->toArray();
 
             if (!$result['ok']) {
                 $conflictDate = $result['conflict_date'] ?? null;

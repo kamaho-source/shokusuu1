@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Application\UseCase\ApplyRoomTransfers;
 
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersOutput;
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersInput;
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
@@ -44,13 +45,13 @@ class ApplyRoomTransfersIntegrationTest extends TestCase
             new ClockFactory('Asia/Tokyo'),
         );
 
-        return $useCase->execute($date, $dryRun);
+        return $useCase->execute(new ApplyRoomTransfersInput($date, $dryRun));
     }
 
     private function create(string $date): ?string
     {
         return (new CreateRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')))
-            ->execute(new CreateRoomTransferInput(1, null, 1, $date, 'tester'));
+            ->execute(new CreateRoomTransferInput(1, null, 1, $date, 'tester'))->message;
     }
 
     // ----------------------------------------------------------------

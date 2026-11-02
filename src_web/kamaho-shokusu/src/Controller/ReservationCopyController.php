@@ -3,9 +3,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\UseCase\CopyReservations\CopyReservationsInput;
 use App\Application\UseCase\CopyReservations\CopyReservationsUseCase;
+use App\Application\UseCase\CopyReservations\PreviewReservationCopyUseCase;
 use App\Domain\Exception\ConflictException;
+use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\ReservationValidationException;
+use App\Domain\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\Log\Log;
 
@@ -21,16 +25,6 @@ class ReservationCopyController extends ReservationBaseController
         parent::initialize();
 
         $this->FormProtection->setConfig('unlockedActions', ['copy', 'copyPreview']);
-    }
-
-    /**
-     * コピー対象の部屋が無いときの理由。部屋を選んだか（所属外）、所属全部屋か（所属部屋なし）で分ける。
-     */
-    private function copyRoomDeniedMessage(?int $requestedRoomId): string
-    {
-        return $requestedRoomId !== null
-            ? '所属していない部屋はコピーできません。'
-            : '所属している部屋がないため、コピーできません。';
     }
 
     /**
@@ -63,36 +57,12 @@ class ReservationCopyController extends ReservationBaseController
         }
 
         try {
-            $user = $this->request->getAttribute('identity') ?: null;
-            $norm = $copyReservations->normalizeCopyParams($data);
-            if (!$norm['ok']) {
-                return $this->apiResponseService->error(
-                    $this->response,
-                    (string)$norm['message'],
-                    (int)($norm['status'] ?? 422)
-                );
-            }
+            $output = $copyReservations->execute($this->copyInput($data));
+            $msg = $output->mode === CopyReservationsInput::WEEK ? '週コピーが完了しました。' : '月コピーが完了しました。';
 
-            $roomIds = $copyReservations->resolveTargetRoomIds($norm['roomId'], (int)($user?->get('i_id_user') ?? 0));
-            if ($roomIds === null) {
-                return $this->apiResponseService->error($this->response, $this->copyRoomDeniedMessage($norm['roomId']), 403);
-            }
-
-            $actorName = $user ? (string)$user->get('c_user_name') : null;
-            $result = ($norm['mode'] === 'week')
-                ? $copyReservations->copyWeek($norm['src'], $norm['dst'], $roomIds, $actorName, $norm['onlyChildren'])
-                : $copyReservations->copyMonth($norm['src'], $norm['dst'], $roomIds, $actorName, $norm['onlyChildren']);
-
-            $msg = ($norm['mode'] === 'week') ? '週コピーが完了しました。' : '月コピーが完了しました。';
-
-            return $this->apiResponseService->success($this->response, [
-                'mode'         => $norm['mode'],
-                'total'        => $result['total']        ?? 0,
-                'copied'       => $result['copied']       ?? 0,
-                'skipped'      => $result['skipped']      ?? 0,
-                'invalid_date' => $result['invalid_date'] ?? 0,
-                'affected'     => $result['copied']       ?? 0,
-            ], $msg);
+            return $this->apiResponseService->success($this->response, $output->toArray(), $msg);
+        } catch (InvalidInputException | UnauthorizedException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         } catch (ConflictException $e) {
             // 二重予約・昼食と弁当の同時予約になる行があると、コピー全体を取り消す。理由（誰の・いつの・どの食事か）を返す
             return $this->apiResponseService->error($this->response, 'コピーできませんでした。' . $e->getMessage(), 409);
@@ -113,7 +83,7 @@ class ReservationCopyController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function copyPreview(CopyReservationsUseCase $copyReservations): ?Response
+    public function copyPreview(PreviewReservationCopyUseCase $previewCopy): ?Response
     {
         if ($denied = $this->authorizeReservation('copy', [], true)) {
             return $denied;
@@ -141,29 +111,31 @@ class ReservationCopyController extends ReservationBaseController
         }
 
         try {
-            $norm = $copyReservations->normalizeCopyParams($data);
-            if (!$norm['ok']) {
-                return $this->apiResponseService->error(
-                    $this->response,
-                    (string)$norm['message'],
-                    (int)($norm['status'] ?? 422)
-                );
-            }
+            $preview = $previewCopy->execute($this->copyInput($data));
 
-            $user    = $this->request->getAttribute('identity') ?: null;
-            $roomIds = $copyReservations->resolveTargetRoomIds($norm['roomId'], (int)($user?->get('i_id_user') ?? 0));
-            if ($roomIds === null) {
-                return $this->apiResponseService->error($this->response, $this->copyRoomDeniedMessage($norm['roomId']), 403);
-            }
-
-            $preview = ($norm['mode'] === 'week')
-                ? $copyReservations->previewWeek($norm['src'], $norm['dst'], $roomIds, $norm['onlyChildren'])
-                : $copyReservations->previewMonth($norm['src'], $norm['dst'], $roomIds, $norm['onlyChildren']);
-
-            return $this->apiResponseService->success($this->response, ['preview' => $preview]);
+            return $this->apiResponseService->success($this->response, ['preview' => $preview->toArray()]);
+        } catch (InvalidInputException | UnauthorizedException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         } catch (\Throwable $e) {
             Log::error(sprintf('Reservation copy preview failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
             return $this->apiResponseService->error($this->response, 'プレビュー取得中にエラーが発生しました。', 500);
         }
+    }
+
+    /**
+     * 送られた値とログインしている人から、コピーの入力を作る。
+     *
+     * @param array<array-key, mixed> $data
+     * @throws InvalidInputException mode・日付の誤り（422）
+     */
+    private function copyInput(array $data): CopyReservationsInput
+    {
+        $user = $this->request->getAttribute('identity') ?: null;
+
+        return CopyReservationsInput::fromRequest(
+            $data,
+            (int)($user?->get('i_id_user') ?? 0),
+            $user ? (string)$user->get('c_user_name') : null,
+        );
     }
 }
