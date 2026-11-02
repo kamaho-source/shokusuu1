@@ -16,6 +16,7 @@ use Authorization\Policy\MapResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
 use App\Application\Query\DayViewQueryInterface;
+use App\Application\Query\SystemReportQueryInterface;
 use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
@@ -48,7 +49,6 @@ use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
 use App\Controller\StatsAiController;
 use App\Controller\SystemReportController;
-use App\Service\SystemReportService;
 use App\Infrastructure\AI\SystemPromptProvider;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Infrastructure\Authentication\UserIdSessionAuthenticator;
@@ -57,6 +57,7 @@ use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
 use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Query\CakeDayViewQuery;
+use App\Infrastructure\Query\CakeSystemReportQuery;
 use App\Infrastructure\Query\CakeRoomMealDetailQuery;
 use App\Infrastructure\Query\CakeRoomQuery;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
@@ -327,9 +328,9 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(RoomMealDetailQueryInterface::class, static fn() => new CakeRoomMealDetailQuery(new ClockFactory('Asia/Tokyo')));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
-        $container->add(SystemReportService::class);
+        $container->add(SystemReportQueryInterface::class, static fn() => new CakeSystemReportQuery(new ClockFactory('Asia/Tokyo')));
         $container->add(SystemReportController::class)
-            ->addArgument(SystemReportService::class)
+            ->addArgument(SystemReportQueryInterface::class)
             ->addArgument(ServerRequest::class);
     }
 
