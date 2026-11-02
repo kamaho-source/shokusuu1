@@ -11,7 +11,6 @@ use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
-use App\Application\UseCase\ReportEat\ReportEatUseCase;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
 use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
@@ -93,11 +92,6 @@ final class ReservationUseCases
     public function reportNoMeal(): ReportNoMealUseCase
     {
         return new ReportNoMealUseCase($this->reservations, $this->rooms, $this->cache, $this->clock, $this->logger);
-    }
-
-    public function reportEat(): ReportEatUseCase
-    {
-        return new ReportEatUseCase($this->reservations, $this->rooms, $this->cache, $this->clock, $this->logger);
     }
 
     public function directRegisterMeals(): DirectRegisterMealsUseCase
