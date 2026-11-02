@@ -138,7 +138,7 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
         }
         $rows = $this->reservations->find()
             ->enableAutoFields(false)
-            ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version'])
+            ->select(['i_id_user', 'd_reservation_date', 'i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag', 'i_version', 'i_approval_status'])
             ->where($where)
             ->all();
 
@@ -152,6 +152,7 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
                 eatFlag: $row->eat_flag === null ? null : (int)$row->eat_flag,
                 changeFlag: $row->i_change_flag === null ? null : (int)$row->i_change_flag,
                 version: $row->i_version === null ? null : (int)$row->i_version,
+                approvalStatus: $row->i_approval_status === null ? null : (int)$row->i_approval_status,
             );
         }
 
