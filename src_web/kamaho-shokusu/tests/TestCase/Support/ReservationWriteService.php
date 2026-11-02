@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Test\TestCase\Support;
 
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomInput;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
@@ -13,6 +13,9 @@ use App\Infrastructure\Persistence\SystemError;
 use App\Infrastructure\ReservationUseCases;
 use Cake\ORM\Table;
 
+/**
+ * テスト用: 予約の UseCase を以前のサービスと同じ引数で呼ぶ（本番のコードからは使わない）。
+ */
 class ReservationWriteService
 {
     public function __construct(

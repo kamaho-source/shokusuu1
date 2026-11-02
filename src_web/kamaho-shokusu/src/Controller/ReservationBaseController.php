@@ -6,6 +6,7 @@ namespace App\Controller;
 use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\ReservationReadQueryInterface;
 use App\Application\Query\RoomQueryInterface;
+use App\Infrastructure\Persistence\Entity\TReservationInfo;
 use App\Infrastructure\Query\CakeCalendarQuery;
 use App\Infrastructure\Query\CakeReservationReadQuery;
 use App\Infrastructure\Query\CakeRoomQuery;
@@ -69,7 +70,7 @@ abstract class ReservationBaseController extends AppController
      */
     protected function authorizeReservation(string $action, array $context = [], bool $asJson = false): ?Response
     {
-        $resource = $this->TReservationInfo->newEmptyEntity();
+        $resource = new TReservationInfo();
         if ($context) {
             $resource->set($context, ['guard' => false]);
         }

@@ -6,7 +6,7 @@ namespace App\Test\TestCase\Infrastructure\Query;
 use App\Application\Query\Dto\RoomUserMealStatus;
 use App\Infrastructure\Cache\ReservationCache;
 use App\Infrastructure\Query\CakeMealReportQuery;
-use App\Service\ReservationWriteService;
+use App\Test\TestCase\Support\ReservationWriteService;
 use Cake\Cache\Cache;
 use Cake\Chronos\ClockFactory;
 use Cake\Datasource\ConnectionManager;
