@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\Service\ReservationDateRule;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\Http\Exception\NotFoundException;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
@@ -41,7 +42,7 @@ class ReservationRoomDetailService
             'TIndividualReservationInfo.d_reservation_date' => $date,
             'TIndividualReservationInfo.i_reservation_type' => $mealType,
             'MUserInfo.i_del_flag'                          => 0,
-            'MUserGroup.active_flag'                        => 0,
+            ...MUserGroupTable::activeCondition(),
         ];
 
         // 食べる・食べないは ReservationDatePolicy::countedValue で分ける（境界日以前は i_change_flag、
@@ -74,7 +75,7 @@ class ReservationRoomDetailService
             ->where([
                 'MUserGroup.i_id_room'   => $roomId,
                 'MUserInfo.i_del_flag'   => 0,
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
             ]);
         $allUsers = RoomMemberOrderService::orderMembers($allUsers)->all();
 

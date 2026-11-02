@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Domain\ValueObject\RoomMembershipStatus;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -24,7 +25,7 @@ class RoomService
     {
         $userGroups = array_filter(
             $roomInfo->m_user_group ?: [],
-            fn($group) => (int)$group->active_flag === 0
+            fn($group) => RoomMembershipStatus::isActive($group->active_flag)
         );
 
         $userIds = array_map(

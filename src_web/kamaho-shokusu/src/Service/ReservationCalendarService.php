@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
 
@@ -28,7 +29,7 @@ class ReservationCalendarService
         $userGroups = $userGroupTable->find()
             ->select(['MUserGroup.i_id_room'])
             ->innerJoin(['MRoomInfo' => 'm_room_info'], ['MRoomInfo.i_id_room = MUserGroup.i_id_room'])
-            ->where(['MUserGroup.i_id_user' => $userId, 'MUserGroup.active_flag' => 0, 'MRoomInfo.i_del_flg' => 0])
+            ->where(['MUserGroup.i_id_user' => $userId, ...MUserGroupTable::activeCondition(), 'MRoomInfo.i_del_flg' => 0])
             ->toArray();
 
         $roomIds = [];
@@ -59,7 +60,7 @@ class ReservationCalendarService
             )
             ->where([
                 'MUserGroup.i_id_user' => $userId,
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MRoomInfo.i_del_flg' => 0,
                 'MRoomInfo.c_room_name LIKE' => '%事務所%',
                 'MRoomInfo.i_del_flg' => 0, // 削除済みの事務所の所属では事務所ユーザーにしない

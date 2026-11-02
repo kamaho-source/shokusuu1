@@ -6,6 +6,7 @@ namespace App\Infrastructure\Repository;
 use App\Domain\Entity\Room;
 use App\Domain\Entity\RoomSaveResult;
 use App\Domain\Repository\RoomRepositoryInterface;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Service\RoomMemberOrderService;
 use Cake\Datasource\EntityInterface;
 use Cake\ORM\Table;
@@ -112,7 +113,7 @@ final class CakeRoomRepository implements RoomRepositoryInterface
                 ->innerJoin(['MUserInfo' => 'm_user_info'], ['MUserInfo.i_id_user = MUserGroup.i_id_user'])
                 ->where([
                     'MUserGroup.i_id_room'   => $roomId,
-                    'MUserGroup.active_flag' => 0,
+                    ...MUserGroupTable::activeCondition(),
                     'MUserInfo.i_del_flag'   => 0,
                 ])
                 ->enableHydration(false)

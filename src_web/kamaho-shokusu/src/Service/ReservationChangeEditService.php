@@ -5,9 +5,10 @@ namespace App\Service;
 
 use App\Domain\Exception\InvalidInputException;
 use App\Domain\ValueObject\MealType;
-use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use App\Domain\ValueObject\UserRole;
 use App\Exception\OptimisticLockConflictException;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
+use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
 
@@ -31,7 +32,7 @@ class ReservationChangeEditService
 
         $allowedRooms = $this->roomAccessService->getAccessibleRooms($roomTable, $loginUid);
 
-        if (empty($allowedRooms) && $roomId && $this->roomAccessService->userCanAccessRoom($loginUid, $roomId)) {
+        if (empty($allowedRooms) && $roomId && $this->roomAccessService->isActiveMember($loginUid, $roomId)) {
             $one = $roomTable->find()
                 ->select(['i_id_room', 'c_room_name'])
                 ->where(['i_id_room' => $roomId])
@@ -97,7 +98,7 @@ class ReservationChangeEditService
             ->contain(['MUserInfo'])
             ->where([
                 'MUserGroup.i_id_room'   => $roomId,
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MUserInfo.i_del_flag'   => 0,
             ])
             ->enableHydration(false)->all()->extract('i_id_user')->toList();

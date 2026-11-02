@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use Cake\Log\Log;
 use Cake\ORM\Table;
@@ -25,7 +26,7 @@ class RoomAccessService
             $table = TableRegistry::getTableLocator()->get('MUserGroup');
             $rows = $table->find()
                 ->select(['i_id_room'])
-                ->where(['i_id_user' => $userId, 'active_flag' => 0])
+                ->where(['i_id_user' => $userId, ...MUserGroupTable::activeCondition('')])
                 ->all();
 
             $roomIds = [];
@@ -59,7 +60,7 @@ class RoomAccessService
                 )
                 ->where([
                     'MUserGroup.i_id_user' => $userId,
-                    'MUserGroup.active_flag' => 0,
+                    ...MUserGroupTable::activeCondition(),
                     'MRoomInfo.c_room_name LIKE' => '%' . self::OFFICE_ROOM_KEYWORD . '%',
                     'MRoomInfo.i_del_flg' => 0, // 削除済みの事務所の所属では事務所ユーザーにしない
                 ])
@@ -68,16 +69,6 @@ class RoomAccessService
             Log::error(sprintf('RoomAccessService#isOfficeUser failed: %s: %s (userId=%d)', get_class($e), $e->getMessage(), $userId));
             return false;
         }
-    }
-
-    public function userCanAccessRoom(int $userId, int $roomId): bool
-    {
-        if ($userId <= 0 || $roomId <= 0) {
-            return false;
-        }
-
-        // 画面の選択肢と同じ基準（退出済み・削除済み部屋は不可）
-        return $this->isActiveMember($userId, $roomId);
     }
 
     /**
@@ -90,9 +81,9 @@ class RoomAccessService
     }
 
     /**
-     * 有効な所属か（所属が退出済み(active_flag=1)でなく、部屋が削除済み(i_del_flg=1)でもない）。
+     * 有効な所属か（所属中で、部屋が削除済み(i_del_flg=1)でもない）。判定は RoomMembershipRepository に1つだけある。
      *
-     * 予約の書き込み可否の判定に使う。画面の選択肢（active_flag=0 の所属のみ）と基準を揃える。
+     * 予約の書き込み可否・部屋に入れるかの判定に使う。画面の選択肢（所属中の部屋のみ）と基準を揃える。
      */
     public function isActiveMember(int $userId, int $roomId): bool
     {
@@ -123,7 +114,7 @@ class RoomAccessService
             )
             ->where([
                 'MUserGroup.i_id_user' => $userId,
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MRoomInfo.i_del_flg' => 0,
             ])
             ->distinct(['MRoomInfo.i_id_room', 'MRoomInfo.c_room_name', 'MRoomInfo.i_disp_no'])
@@ -159,7 +150,7 @@ class RoomAccessService
                 )
                 ->where([
                     'MUserGroup.i_id_user' => $userId,
-                    'MUserGroup.active_flag' => 0,
+                    ...MUserGroupTable::activeCondition(),
                     'MRoomInfo.c_room_name LIKE' => '%' . self::OFFICE_ROOM_KEYWORD . '%',
                 ])
                 ->all();

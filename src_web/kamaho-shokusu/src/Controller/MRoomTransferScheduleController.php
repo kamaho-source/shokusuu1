@@ -7,6 +7,7 @@ use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
 
@@ -108,7 +109,7 @@ class MRoomTransferScheduleController extends AppController
 
         $userRoomRows = $this->fetchTable('MUserGroup')->find()
             ->select(['i_id_user', 'i_id_room'])
-            ->where(['active_flag' => 0])
+            ->where(MUserGroupTable::activeCondition(''))
             ->toArray();
 
         $userRoomMap = [];

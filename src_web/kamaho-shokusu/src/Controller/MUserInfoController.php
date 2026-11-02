@@ -27,6 +27,7 @@ use App\Application\UseCase\EditUser\EditUserUseCase;
 use App\Application\UseCase\RestoreUser\RestoreUserInput;
 use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Domain\Service\DeletedMembershipRule;
+use App\Domain\ValueObject\RoomMembershipStatus;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
@@ -261,7 +262,7 @@ class MUserInfoController extends AppController
         $selectedRooms = [];
         foreach ($mUserInfo->m_user_group ?? [] as $group) {
             // active_flag=1 は部屋異動で無効化された旧所属。選択済みに含めると保存で復活する。
-            if ((int)$group->active_flag === 0) {
+            if (RoomMembershipStatus::isActive($group->active_flag)) {
                 $selectedRooms[] = $group->i_id_room;
             }
         }
@@ -458,7 +459,7 @@ class MUserInfoController extends AppController
 
         $names = [];
         foreach ($groups as $group) {
-            $isLeft = (int)($group->active_flag ?? 0) !== 0;
+            $isLeft = !RoomMembershipStatus::isActive($group->active_flag);
             if ($isDeletedUser) {
                 $show = DeletedMembershipRule::isLeftByDeletion(
                     $group->active_flag === null ? null : (int)$group->active_flag,

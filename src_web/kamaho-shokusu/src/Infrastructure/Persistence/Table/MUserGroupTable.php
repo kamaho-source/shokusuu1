@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence\Table;
 
+use App\Domain\ValueObject\RoomMembershipStatus;
 use Cake\ORM\Table;
 use Cake\Validation\Validator;
 
@@ -24,6 +25,17 @@ class MUserGroupTable extends Table
         ]);
     }
 
+    /**
+     * 「部屋に所属している」（所属中）のクエリ条件。
+     *
+     * @param string $alias m_user_group の別名（'' なら別名なしの列名）
+     * @return array<string, int>
+     */
+    public static function activeCondition(string $alias = 'MUserGroup'): array
+    {
+        return [($alias === '' ? '' : $alias . '.') . 'active_flag' => RoomMembershipStatus::ACTIVE];
+    }
+
     public function validationDefault(Validator $validator): Validator
     {
         $validator
@@ -43,7 +55,7 @@ class MUserGroupTable extends Table
             ->integer('active_flag')
             ->requirePresence('active_flag', 'create')
             ->notEmptyString('active_flag', 'アクティブフラグを入力してください。')
-            ->inList('active_flag', [0, 1], 'アクティブフラグは0または1を指定してください.');
+            ->inList('active_flag', [RoomMembershipStatus::ACTIVE, RoomMembershipStatus::LEFT], 'アクティブフラグは0または1を指定してください.');
 
         // 利用者の削除で外した所属なら 1（復元で所属中に戻す）。それ以外は NULL
         $validator

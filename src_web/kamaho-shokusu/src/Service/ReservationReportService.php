@@ -5,6 +5,7 @@ namespace App\Service;
 
 use App\Domain\ValueObject\MealType;
 use App\Infrastructure\Cache\ReservationCache;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\Cache\Cache;
 use Cake\I18n\Date;
 use Cake\ORM\Table;
@@ -78,7 +79,7 @@ class ReservationReportService
             ->enableAutoFields(false)
             ->select(['i_id_user', 'i_id_room', 'MUserInfo.c_user_name'])
             // 異動で抜けた所属(active_flag≠0)と削除済みユーザーは含めない
-            ->where(['MUserGroup.i_id_room' => $roomId, 'MUserGroup.active_flag' => 0, 'MUserInfo.i_del_flag' => 0])
+            ->where(['MUserGroup.i_id_room' => $roomId, ...MUserGroupTable::activeCondition(), 'MUserInfo.i_del_flag' => 0])
             ->contain(['MUserInfo'])
             ->toArray();
 

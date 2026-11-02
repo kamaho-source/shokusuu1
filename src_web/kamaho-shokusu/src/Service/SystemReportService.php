@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -43,7 +44,7 @@ final class SystemReportService
         $masterRows = $userGroupTable->find()
             ->contain(['MUserInfo', 'MRoomInfo'])
             ->where([
-                'MUserGroup.active_flag' => 0,
+                ...MUserGroupTable::activeCondition(),
                 'MUserInfo.i_del_flag'   => 0,
                 'MRoomInfo.i_del_flg'    => 0,
             ])

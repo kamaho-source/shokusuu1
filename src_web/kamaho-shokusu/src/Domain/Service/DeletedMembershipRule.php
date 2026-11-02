@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Service;
 
+use App\Domain\ValueObject\RoomMembershipStatus;
+
 /**
  * 利用者の削除で外した所属かどうかのルール（復元で所属中に戻す部屋・削除済みの人の「削除前の所属」の表示）。
  *
@@ -30,7 +32,7 @@ final class DeletedMembershipRule
         ?\DateTimeInterface $groupUpdated,
         ?\DateTimeInterface $userUpdated,
     ): bool {
-        if ($activeFlag !== 1) {
+        if ($activeFlag !== RoomMembershipStatus::LEFT) {
             return false;
         }
         if ($userHasMarks) {

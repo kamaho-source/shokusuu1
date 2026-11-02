@@ -93,13 +93,13 @@ class RoomAccessServiceTest extends TestCase
 
     public function testUserCanAccessAllAssignedRooms(): void
     {
-        $this->assertTrue($this->service->userCanAccessRoom(10, 2));
-        $this->assertTrue($this->service->userCanAccessRoom(10, 3));
+        $this->assertTrue($this->service->isActiveMember(10, 2));
+        $this->assertTrue($this->service->isActiveMember(10, 3));
     }
 
     public function testUserCannotAccessUnassignedRoom(): void
     {
-        $this->assertFalse($this->service->userCanAccessRoom(10, 99));
+        $this->assertFalse($this->service->isActiveMember(10, 99));
     }
 
     public function testGetRoomsByIdsReturnsMatchingRooms(): void
@@ -218,8 +218,8 @@ class RoomAccessServiceTest extends TestCase
     {
         $this->addMembership(10, 24, 0, 1);
 
-        $this->assertFalse($this->service->userCanAccessRoom(10, 24));
-        $this->assertTrue($this->service->userCanAccessRoom(10, 2));
+        $this->assertFalse($this->service->isActiveMember(10, 24));
+        $this->assertTrue($this->service->isActiveMember(10, 2));
     }
 
     public function testIsRoomAvailable_deletedAndMissing(): void
@@ -274,8 +274,8 @@ class RoomAccessServiceTest extends TestCase
 
     public function testUserCanAccessRoom_invalidIds(): void
     {
-        $this->assertFalse($this->service->userCanAccessRoom(0, 2));
-        $this->assertFalse($this->service->userCanAccessRoom(10, 0));
+        $this->assertFalse($this->service->isActiveMember(0, 2));
+        $this->assertFalse($this->service->isActiveMember(10, 0));
     }
 
     public function testIsRoomAvailable_zeroId(): void

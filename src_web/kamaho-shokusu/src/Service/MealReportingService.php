@@ -6,11 +6,12 @@ namespace App\Service;
 use App\Domain\ValueObject\MealType;
 use App\Exception\DuplicateMealReservationException;
 use App\Infrastructure\Cache\ReservationCache;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
 use Cake\Database\Exception\QueryException;
 use Cake\I18n\Date;
-use Cake\Log\Log;
 use Cake\I18n\DateTime;
+use Cake\Log\Log;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\Table;
 
@@ -268,7 +269,7 @@ class MealReportingService
                 ['MRoomInfo' => 'm_room_info'],
                 ['MRoomInfo.i_id_room = MUserGroup.i_id_room']
             )
-            ->where(['MUserGroup.i_id_user' => $userId, 'MUserGroup.active_flag' => 0, 'MRoomInfo.i_del_flg' => 0])
+            ->where(['MUserGroup.i_id_user' => $userId, ...MUserGroupTable::activeCondition(), 'MRoomInfo.i_del_flg' => 0])
             ->orderAsc('MUserGroup.i_id_room')
             ->first();
 

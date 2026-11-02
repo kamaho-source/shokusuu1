@@ -8,6 +8,8 @@ use App\Domain\Entity\UserCreationResult;
 use App\Domain\Entity\UserUpdateResult;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 use App\Domain\Service\DeletedMembershipRule;
+use App\Domain\ValueObject\RoomMembershipStatus;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\Datasource\EntityInterface;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
@@ -67,7 +69,7 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
             $groups[] = $this->groups->newEntity([
                 'i_id_user'     => $userId,
                 'i_id_room'     => (int)$roomId,
-                'active_flag'   => 0,
+                'active_flag'   => RoomMembershipStatus::ACTIVE,
                 'dt_create'     => DateTime::now()->format('Y-m-d H:i:s'),
                 'c_create_user' => $createdBy,
             ]);
@@ -120,18 +122,18 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
 
     public function leaveAllRooms(int $userId, string $updatedBy): void
     {
-        $rows = $this->groups->find()->where(['i_id_user' => $userId, 'active_flag' => 0])->all();
+        $rows = $this->groups->find()->where(['i_id_user' => $userId, ...MUserGroupTable::activeCondition('')])->all();
         foreach ($rows as $row) {
-            $this->setUpdated($row, ['active_flag' => 1], $updatedBy);
+            $this->setUpdated($row, ['active_flag' => RoomMembershipStatus::LEFT], $updatedBy);
             $this->groups->save($row);
         }
     }
 
     public function leaveAllRoomsForDeletion(int $userId, string $updatedBy, string $at): bool
     {
-        $rows = $this->groups->find()->where(['i_id_user' => $userId, 'active_flag' => 0])->all();
+        $rows = $this->groups->find()->where(['i_id_user' => $userId, ...MUserGroupTable::activeCondition('')])->all();
         foreach ($rows as $row) {
-            $this->setUpdated($row, ['active_flag' => 1, 'i_left_by_deletion' => 1], $updatedBy, $at);
+            $this->setUpdated($row, ['active_flag' => RoomMembershipStatus::LEFT, 'i_left_by_deletion' => 1], $updatedBy, $at);
             if (!$this->groups->save($row)) {
                 return false;
             }
@@ -192,7 +194,7 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         }
         $rows = $this->groups->find()->where(['i_id_user' => $userId, 'i_id_room IN' => $roomIds])->all();
         foreach ($rows as $row) {
-            $this->setUpdated($row, ['active_flag' => 0, 'i_left_by_deletion' => null], $updatedBy);
+            $this->setUpdated($row, ['active_flag' => RoomMembershipStatus::ACTIVE, 'i_left_by_deletion' => null], $updatedBy);
             if (!$this->groups->save($row)) {
                 return false;
             }
@@ -206,7 +208,7 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         $row = $this->groups->newEntity([
             'i_id_user'     => $userId,
             'i_id_room'     => $roomId,
-            'active_flag'   => 0,
+            'active_flag'   => RoomMembershipStatus::ACTIVE,
             'dt_create'     => DateTime::now()->format('Y-m-d H:i:s'),
             'c_create_user' => $createdBy,
         ]);
@@ -232,9 +234,9 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
     public function replaceActiveRooms(int $userId, array $roomIds, string $updatedBy): bool
     {
         // 部屋異動で外れた旧部屋の行(active_flag=1)まで消して作り直すと、保存のたびに旧部屋の所属が復活して食数が二重になる
-        $conditions = ['active_flag' => 0];
+        $conditions = MUserGroupTable::activeCondition('');
         if ($roomIds !== []) {
-            $conditions = ['OR' => ['active_flag' => 0, 'i_id_room IN' => array_map('intval', $roomIds)]];
+            $conditions = ['OR' => [...MUserGroupTable::activeCondition(''), 'i_id_room IN' => array_map('intval', $roomIds)]];
         }
         $this->groups->deleteAll(['i_id_user' => $userId] + $conditions);
 
@@ -244,7 +246,7 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
             $rows[] = $this->groups->newEntity([
                 'i_id_user'     => $userId,
                 'i_id_room'     => (int)$roomId,
-                'active_flag'   => 0,
+                'active_flag'   => RoomMembershipStatus::ACTIVE,
                 'dt_create'     => $now,
                 'dt_update'     => $now,
                 'c_update_user' => $updatedBy,
@@ -289,13 +291,13 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
     {
         if ($fromRoomId !== null) {
             $this->groups->updateAll(
-                ['active_flag' => 1, 'dt_update' => $at, 'c_update_user' => 'batch'],
-                ['i_id_user' => $userId, 'i_id_room' => $fromRoomId, 'active_flag' => 0]
+                ['active_flag' => RoomMembershipStatus::LEFT, 'dt_update' => $at, 'c_update_user' => 'batch'],
+                ['i_id_user' => $userId, 'i_id_room' => $fromRoomId, ...MUserGroupTable::activeCondition('')]
             );
         }
         $row = $this->groups->find()->where(['i_id_user' => $userId, 'i_id_room' => $toRoomId])->first();
         if ($row !== null) {
-            $row->set('active_flag', 0);
+            $row->set('active_flag', RoomMembershipStatus::ACTIVE);
             $row->set('dt_update', $at);
             $row->set('c_update_user', 'batch');
             $this->groups->saveOrFail($row);
@@ -304,7 +306,7 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         $this->groups->saveOrFail($this->groups->newEntity([
             'i_id_user'     => $userId,
             'i_id_room'     => $toRoomId,
-            'active_flag'   => 0,
+            'active_flag'   => RoomMembershipStatus::ACTIVE,
             'dt_create'     => $at,
             'c_create_user' => 'batch',
         ]));

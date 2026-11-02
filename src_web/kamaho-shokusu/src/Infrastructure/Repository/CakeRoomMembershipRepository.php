@@ -5,6 +5,7 @@ namespace App\Infrastructure\Repository;
 
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Infrastructure\Persistence\SystemError;
+use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\ORM\TableRegistry;
 
 /**
@@ -35,7 +36,7 @@ final class CakeRoomMembershipRepository implements RoomMembershipRepositoryInte
                 ->where([
                     'MUserGroup.i_id_user'   => $userId,
                     'MUserGroup.i_id_room'   => $roomId,
-                    'MUserGroup.active_flag' => 0,
+                    ...MUserGroupTable::activeCondition(),
                     'MRoomInfo.i_del_flg'    => 0,
                 ])
                 ->count() > 0
@@ -105,7 +106,7 @@ final class CakeRoomMembershipRepository implements RoomMembershipRepositoryInte
     {
         $ids = TableRegistry::getTableLocator()->get('MUserGroup')->find()
             ->select(['i_id_room'])
-            ->where(['i_id_user' => $userId, 'active_flag' => 0])
+            ->where(['i_id_user' => $userId, ...MUserGroupTable::activeCondition('')])
             ->all()
             ->map(static fn($g): int => (int)$g->get('i_id_room'))
             ->toList();
