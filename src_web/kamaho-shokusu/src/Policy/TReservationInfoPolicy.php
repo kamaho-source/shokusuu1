@@ -181,15 +181,6 @@ class TReservationInfoPolicy
         return $this->isAuthenticated($user);
     }
 
-    /**
-     * 実食あり報告はログインユーザー自身にのみ作用する。
-     * Trait 実装が identity から userId を強制取得するため IDOR 不可。
-     */
-    public function canReportEat(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isAuthenticated($user);
-    }
-
     public function canGetAllRoomsMealCounts(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAdmin($user);

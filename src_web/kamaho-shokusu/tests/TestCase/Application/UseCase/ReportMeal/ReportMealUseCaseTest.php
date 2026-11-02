@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\UseCase\ReportMeal;
 
-use App\Application\UseCase\ReportEat\ReportEatInput;
-use App\Application\UseCase\ReportEat\ReportEatUseCase;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealInput;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
 use App\Domain\Entity\MealReservation;
@@ -49,10 +47,6 @@ class ReportMealUseCaseTest extends TestCase
         return new ReportNoMealUseCase($this->reservations, $this->rooms, $this->cache, $this->clock, new NullLogger());
     }
 
-    private function eat(): ReportEatUseCase
-    {
-        return new ReportEatUseCase($this->reservations, $this->rooms, $this->cache, $this->clock, new NullLogger());
-    }
 
     /** @return array<string, array{int|null, int|null}> "部屋:食事" => [eat_flag, i_change_flag] */
     private function flags(): array
@@ -118,71 +112,9 @@ class ReportMealUseCaseTest extends TestCase
         $this->assertSame([], $this->cache->forgotten);
     }
 
-    public function testEat_addsBreakfastLunchDinnerToPrimaryRoom(): void
-    {
-        $out = $this->eat()->execute(new ReportEatInput(1, 'U'));
 
-        $this->assertSame('食べるで報告しました。', $out->message);
-        $this->assertSame(['5:1' => [0, 1], '5:2' => [0, 1], '5:3' => [0, 1]], $this->flags());
-        $this->assertCount(1, $this->cache->forgotten);
-    }
 
-    /** 弁当がある日は昼食を付けず、別の部屋で食べる食事は代表部屋に付けず、代表部屋の既存行は i_change_flag だけ 1 にする */
-    public function testEat_respectsBentoOtherRoomsAndExistingRows(): void
-    {
-        $this->reservations->records = [
-            new MealReservation(1, self::TODAY, 8, 4, 1, 1),    // 弁当（部屋8）
-            new MealReservation(1, self::TODAY, 8, 3, 0, 1),    // 夕食は部屋8で食べる
-            new MealReservation(1, self::TODAY, 5, 1, 1, 0),    // 朝食は代表部屋に取消済みの行
-            new MealReservation(1, self::TODAY, 8, 1, 0, 0),    // 朝食は部屋8に食べない行（止めない）
-        ];
 
-        $this->eat()->execute(new ReportEatInput(1, 'U'));
 
-        $this->assertSame(['5:1' => [1, 1], '8:1' => [0, 0], '8:3' => [0, 1], '8:4' => [1, 1]], $this->flags());
-        $this->assertSame([], $this->reservations->added);
-    }
 
-    /** 代表部屋ですでに食べる行も、以前と同じく i_change_flag=1 で更新する（版を上げる） */
-    public function testEat_alreadyEffectivePrimaryRowIsStillUpdated(): void
-    {
-        $this->reservations->records = [new MealReservation(1, self::TODAY, 5, 1, 1, 1)];
-
-        $this->eat()->execute(new ReportEatInput(1, 'U'));
-
-        $this->assertSame([[1, 1]], array_map(static fn($u) => [$u['row']->mealType, $u['changeFlag']], $this->reservations->updates));
-        $this->assertSame(2, $this->reservations->records[0]->version);
-    }
-
-    public function testEat_approvedPrimaryRowIsKeptAndReported(): void
-    {
-        $this->reservations->records = [new MealReservation(1, self::TODAY, 5, 1, 0, 0, 1, 1)];
-
-        $out = $this->eat()->execute(new ReportEatInput(1, 'U'));
-
-        $this->assertSame('食べるで報告しました。承認済みの食事は変更されていません。', $out->message);
-        $this->assertTrue($out->approvedUnchanged);
-        $this->assertSame([5 => [0, 0]], [5 => $this->flags()['5:1']]);
-    }
-
-    /** 承認済みでもすでに食べる行なら、「変更されていません」とは言わない */
-    public function testEat_approvedEffectiveRowIsNotMentioned(): void
-    {
-        $this->reservations->records = [new MealReservation(1, self::TODAY, 5, 1, 1, 1, 1, 2)];
-
-        $this->assertFalse($this->eat()->execute(new ReportEatInput(1, 'U'))->approvedUnchanged);
-    }
-
-    public function testEat_versionConflict_throwsAndAddsNothing(): void
-    {
-        $this->reservations->records = [new MealReservation(1, self::TODAY, 5, 1, 0, 0)];
-        $this->reservations->onUpdate = static fn(): bool => false;
-
-        $this->expectException(ConflictException::class);
-        try {
-            $this->eat()->execute(new ReportEatInput(1, 'U'));
-        } finally {
-            $this->assertSame([], $this->reservations->added);
-        }
-    }
 }

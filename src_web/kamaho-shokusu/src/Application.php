@@ -42,7 +42,6 @@ use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
-use App\Application\UseCase\ReportEat\ReportEatUseCase;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
 use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
 use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
@@ -289,7 +288,6 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             BulkAddReservationsUseCase::class          => 'bulkAddReservations',
             BulkChangeEditReservationsUseCase::class   => 'bulkChangeEditReservations',
             ReportNoMealUseCase::class                 => 'reportNoMeal',
-            ReportEatUseCase::class                    => 'reportEat',
             SaveChangeEditUseCase::class               => 'saveChangeEdit',
         ] as $useCase => $factory) {
             $container->add($useCase, static fn() => $container->get(ReservationUseCases::class)->{$factory}());

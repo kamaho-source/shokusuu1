@@ -9,7 +9,7 @@ use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use Psr\Log\LoggerInterface;
 
 /**
- * 今日の食事の報告（「食べない」「食べる」）で共通の決まり。
+ * 今日の「食べない」報告の決まり（代表部屋・メッセージ・DB 失敗の扱い）。
  */
 final class ReportMealSupport
 {

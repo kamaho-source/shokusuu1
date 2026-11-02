@@ -668,7 +668,6 @@ class TReservationInfoController extends ReservationBaseController
             $loginUid  = $loginUser?->get('i_id_user');
 
             $allowedRooms = $this->roomQuery->getAccessibleRooms((int)$loginUid);
-            $isRoomManager = !empty($allowedRooms);
             $isBlockLeaderForEdit = $loginUser && UserRole::isBlockLeader((int)($loginUser->get('i_admin') ?? 0));
 
             if ($isModalShell) {
@@ -771,12 +770,13 @@ class TReservationInfoController extends ReservationBaseController
             }
 
             $context = $this->changeEditQuery->context((int)$roomId, (string)$date);
+            // その部屋に所属するブロック長は、部屋の全員の直前の予約を変えられる
+            $isBlockLeaderInRoom = $isBlockLeaderForEdit && $this->roomQuery->isActiveMember((int)$loginUid, (int)$roomId);
             $room    = ['id' => $context->roomId, 'name' => $context->roomName];
 
             if ($this->request->is('get')) {
                 if ($wantsJson) {
-                    $isBlockLeaderInRoom = $isBlockLeaderForEdit && $this->roomQuery->isActiveMember((int)$loginUid, (int)$roomId);
-                    $canEditAll = ChangeEditPermission::canEditAll((int)($loginUser?->get('i_admin') ?? 0), $isRoomManager, $isBlockLeaderInRoom);
+                    $canEditAll = ChangeEditPermission::canEditAll((int)($loginUser?->get('i_admin') ?? 0), $isBlockLeaderInRoom);
                     $loginLevel = (int)($loginUser?->get('i_user_level') ?? -1);
                     $usersForJson = array_map(
                         static fn(ChangeEditMember $m): array => $m->toJson(ChangeEditPermission::canEdit($canEditAll, (int)$loginUid, $loginLevel, $m->id, $m->level)),
@@ -823,7 +823,7 @@ class TReservationInfoController extends ReservationBaseController
                         loginUserName: (string)($loginUser?->get('c_user_name') ?? 'system'),
                         loginAdmin: (int)($loginUser?->get('i_admin') ?? 0),
                         loginLevel: (int)($loginUser?->get('i_user_level') ?? -1),
-                        isRoomManager: $isRoomManager,
+                        isBlockLeaderInRoom: $isBlockLeaderInRoom,
                     ));
 
                     $payload = [

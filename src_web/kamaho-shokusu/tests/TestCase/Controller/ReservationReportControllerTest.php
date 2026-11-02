@@ -238,7 +238,7 @@ class ReservationReportControllerTest extends TestCase
         $this->assertResponseCode(500);
     }
 
-    // ---- reportNoMeal / reportEat ----
+    // ---- reportNoMeal ----
 
     public function testReportNoMeal_cancelsTodaysReservation(): void
     {
@@ -271,25 +271,7 @@ class ReservationReportControllerTest extends TestCase
         $this->assertResponseError();
     }
 
-    public function testReportEat_createsTodaysMeals(): void
-    {
-        $this->login(3);
-        $this->post('/TReservationInfo/reportEat');
 
-        $this->assertResponseOk();
-        $this->assertTrue($this->json()['ok']);
-        $count = $this->getTableLocator()->get('TIndividualReservationInfo')->find()
-            ->where(['i_id_user' => 3, 'd_reservation_date' => date('Y-m-d'), 'i_change_flag' => 1])->count();
-        $this->assertGreaterThanOrEqual(1, $count);
-    }
-
-    public function testReportEat_userWithoutRoom_returns400(): void
-    {
-        ConnectionManager::get('test')->delete('m_user_group', ['i_id_user' => 3]);
-        $this->login(3);
-        $this->post('/TReservationInfo/reportEat');
-        $this->assertResponseCode(400);
-    }
 
     // ---- getAllRoomsMealCounts ----
 

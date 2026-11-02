@@ -33,7 +33,7 @@ class SaveChangeEditIntegrationTest extends TestCase
      *
      * @return array{updated: list<string>, created: list<string>, skipped: list<string>}
      */
-    private function process(array $usersData, array $memberIds, string $date, int $roomId, ?object $login, Table $reservations, Table $users, bool $isRoomManager = false): array
+    private function process(array $usersData, array $memberIds, string $date, int $roomId, ?object $login, Table $reservations, Table $users, bool $editsAll = false): array
     {
         $out = (new ReservationUseCases($reservations, $users))->saveChangeEdit()->execute(new SaveChangeEditInput(
             usersData: $usersData,
@@ -44,7 +44,7 @@ class SaveChangeEditIntegrationTest extends TestCase
             loginUserName: (string)($login?->get('c_user_name') ?? 'system'),
             loginAdmin: (int)($login?->get('i_admin') ?? 0),
             loginLevel: (int)($login?->get('i_user_level') ?? -1),
-            isRoomManager: $isRoomManager,
+            isBlockLeaderInRoom: $editsAll,
         ));
 
         return ['updated' => $out->updated, 'created' => $out->created, 'skipped' => $out->skipped];
@@ -87,7 +87,7 @@ class SaveChangeEditIntegrationTest extends TestCase
                 null,
                 $reservationTable,
                 $userTable,
-                true // isRoomManager
+                true // 全員を編集できる人（その部屋のブロック長）
             );
         } finally {
             $row = $reservationTable->find()

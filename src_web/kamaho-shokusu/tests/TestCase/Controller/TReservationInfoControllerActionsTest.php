@@ -425,6 +425,38 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertResponseCode(400);
     }
 
+    /** 職員は他の職員の直前の予約を変えられない（予約カレンダー・エクセル食数予約と同じ。以前は所属部屋があれば変えられた） */
+    public function testChangeEdit_staffCannotEditOtherStaff(): void
+    {
+        $date = $this->day(3);
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 0], ['i_id_user' => 1]);
+        $this->loginStaff();
+        $this->get('/TReservationInfo/change-edit/1/' . $date);
+        $allow = array_column($this->json()['data']['users'], 'allowEdit', 'id');
+        $this->assertFalse($allow[1], '他の職員');
+        $this->assertTrue($allow[2], '本人');
+        $this->assertTrue($allow[3], '子ども');
+
+        $this->loginStaff();
+        $this->post('/TReservationInfo/change-edit/1/' . $date, ['users' => [1 => [1 => ['i_change_flag' => 1]], 3 => [1 => ['i_change_flag' => 1]]]]);
+        $this->assertResponseOk();
+        $this->assertStringContainsString('利用者ID 1 の予約を変更する権限がありません。', implode('|', $this->json()['data']['skipped']));
+        $this->assertNull($this->row(1, $date, 1));
+        $this->assertNotNull($this->row(3, $date, 1));
+    }
+
+    /** その部屋に所属するブロック長は、職員の直前の予約も変えられる */
+    public function testChangeEdit_blockLeaderInRoomCanEditStaff(): void
+    {
+        $date = $this->day(3);
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => 2], ['i_id_user' => 2]);
+        $this->login(2, 'staff_user', 2, 0);
+        $this->post('/TReservationInfo/change-edit/1/' . $date, ['users' => [1 => [1 => ['i_change_flag' => 1]]]]);
+        $this->assertResponseOk();
+        $this->assertSame([], $this->json()['data']['skipped']);
+        $this->assertNotNull($this->row(1, $date, 1));
+    }
+
     public function testChangeEdit_getHtmlRendersEditScreen(): void
     {
         $date = $this->day(3);

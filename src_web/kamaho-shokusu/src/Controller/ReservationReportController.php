@@ -9,8 +9,6 @@ use App\Application\Query\Dto\RankMealCount;
 use App\Application\Query\Dto\RoomUserMealStatus;
 use App\Application\Query\MealReportQueryInterface;
 use App\Infrastructure\Query\CakeMealReportQuery;
-use App\Application\UseCase\ReportEat\ReportEatInput;
-use App\Application\UseCase\ReportEat\ReportEatUseCase;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealInput;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
 use App\Domain\Exception\DomainException;
@@ -22,7 +20,7 @@ use Cake\Log\Log;
 /**
  * 食数レポート・エクスポート専用コントローラー。
  *
- * 食数取得API・JSONエクスポート・欠食/実食報告を担当する。
+ * 食数取得API・JSONエクスポート・欠食報告を担当する。
  */
 class ReservationReportController extends ReservationBaseController
 {
@@ -38,7 +36,6 @@ class ReservationReportController extends ReservationBaseController
         // CSRF は X-CSRF-Token ヘッダで別途検証される。
         $this->FormProtection->setConfig('unlockedActions', [
             'reportNoMeal',
-            'reportEat',
         ]);
     }
 
@@ -212,36 +209,6 @@ class ReservationReportController extends ReservationBaseController
 
         try {
             $output = $reportNoMealUseCase->execute(new ReportNoMealInput($userId, $userName));
-        } catch (DomainException $e) {
-            return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
-        }
-
-        return $this->apiResponseService->success($this->response, [], $output->message);
-    }
-
-    /**
-     * 実食報告API。
-     *
-     * @return Response|null
-     */
-    public function reportEat(ReportEatUseCase $reportEatUseCase): ?Response
-    {
-        if ($denied = $this->authorizeReservation('reportEat', [], true)) {
-            return $denied;
-        }
-
-        $this->request->allowMethod(['post']);
-
-        $loginUser = $this->request->getAttribute('identity');
-        $userId    = (int)($loginUser?->get('i_id_user') ?? 0);
-        $userName  = (string)($loginUser?->get('c_user_name') ?? $userId);
-
-        if ($userId <= 0) {
-            return $this->apiResponseService->error($this->response, 'Unauthorized', 401);
-        }
-
-        try {
-            $output = $reportEatUseCase->execute(new ReportEatInput($userId, $userName));
         } catch (DomainException $e) {
             return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         }
