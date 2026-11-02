@@ -589,4 +589,36 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertResponseCode(400);
         $this->assertSame('直前予約の取得中にエラーが発生しました。', $this->json()['message']);
     }
+
+    /** @return array<string, array{string}> */
+    public static function badRoomDetailsUrls(): array
+    {
+        return [
+            '日付の形が誤り'       => ['/TReservationInfo/roomDetails/1/abc/1'],
+            '存在しない日付'       => ['/TReservationInfo/roomDetails/1/2026-13-45/1'],
+            '食事が数字でない'     => ['/TReservationInfo/roomDetails/1/2099-01-01/x'],
+        ];
+    }
+
+    /**
+     * 部屋の詳細を誤った URL で開いたときは、システムエラー（500）ではなく入力の誤り（400）にする。
+     *
+     * @dataProvider badRoomDetailsUrls
+     */
+    public function testRoomDetails_badInput_returns400(string $url): void
+    {
+        $this->loginAdmin(false);
+        $this->get($url);
+
+        $this->assertResponseCode(400);
+    }
+
+    /** 直前編集を部屋 ID なしで開いたときも、入力の誤り（400）にする（JSON と同じ） */
+    public function testChangeEdit_withoutRoom_returns400(): void
+    {
+        $this->loginAdmin(false);
+        $this->get('/TReservationInfo/changeEdit?date=' . $this->day(3));
+
+        $this->assertResponseCode(400);
+    }
 }
