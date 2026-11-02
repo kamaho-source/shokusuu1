@@ -4,7 +4,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Query\ContactQueryInterface;
-use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
+use App\Application\UseCase\AddContactReplyFromUser\AddContactReplyFromUserInput;
+use App\Application\UseCase\AddContactReplyFromUser\AddContactReplyFromUserUseCase;
 use App\Application\UseCase\ReplyToContact\ReplyToContactUseCase;
 use App\Application\UseCase\SubmitContact\SubmitContactUseCase;
 use App\Domain\Entity\Contact;
@@ -72,7 +73,7 @@ class ContactsController extends AppController
     /**
      * 問い合わせ者本人：自分の問い合わせへ追加の返信を送信する
      */
-    public function reply(AddContactReplyUseCase $addReply, ContactQueryInterface $contactQuery, int $id): ?Response
+    public function reply(AddContactReplyFromUserUseCase $addReply, ContactQueryInterface $contactQuery, int $id): ?Response
     {
         $this->request->allowMethod(['post']);
 
@@ -95,7 +96,7 @@ class ContactsController extends AppController
         }
 
         $replyBody = $this->dataString('reply_body');
-        if ($addReply->fromUser($id, $userId, $replyBody)) {
+        if ($addReply->execute(new AddContactReplyFromUserInput($id, $userId, $replyBody))->saved) {
             $this->Flash->success('返信を送信しました。');
         } else {
             $this->Flash->error('返信の送信に失敗しました。入力内容を確認してください。');

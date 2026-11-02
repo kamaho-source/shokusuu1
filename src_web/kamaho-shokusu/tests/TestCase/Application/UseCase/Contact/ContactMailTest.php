@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\UseCase\Contact;
 
-use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
 use App\Application\UseCase\ReplyToContact\ReplyToContactUseCase;
 use App\Application\UseCase\SubmitContact\SubmitContactOutput;
 use App\Application\UseCase\SubmitContact\SubmitContactUseCase;
@@ -22,7 +21,7 @@ use Cake\TestSuite\EmailTrait;
 use Cake\TestSuite\TestCase;
 
 /**
- * 問い合わせの保存・メール送信・Slack通知・一覧取得（SubmitContact・ReplyToContact・AddContactReply・CakeContactQuery）。旧 ContactServiceMailTest を引き継ぐ。
+ * 問い合わせの保存・メール送信・Slack通知・一覧取得（SubmitContact・ReplyToContact・CakeContactQuery）。旧 ContactServiceMailTest を引き継ぐ。
  *
  * メールは EmailTrait のデバッグトランスポート、Slack は Http\Client のモックレスポンスで
  * 受け、実際の通信は行わない。
@@ -62,11 +61,6 @@ class ContactMailTest extends TestCase
     private function sendReply(int $contactId, string $body): bool
     {
         return (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute($contactId, $body);
-    }
-
-    private function replies(): AddContactReplyUseCase
-    {
-        return new AddContactReplyUseCase(new CakeContactRepository(), new CakeContactNotifier());
     }
 
     private function latestContact(): \App\Infrastructure\Persistence\Entity\TContact
@@ -234,51 +228,5 @@ class ContactMailTest extends TestCase
         $this->assertFalse($this->sendReply(1, '返信です'), 'メールが送れなかったことを返す');
         $replies = $this->getTableLocator()->get('TContactReplies');
         $this->assertTrue($replies->exists(['contact_id' => 1, 'body' => '返信です', 'author_type' => 'admin']));
-    }
-
-    public function testAddUserReply_notifiesAdminAndRejectsEmptyBody(): void
-    {
-        $this->assertTrue($this->replies()->fromUser(1, 1, '追加の質問です'));
-        $this->assertMailCount(1);
-        $this->assertMailSentTo('ops@example.com');
-        $this->assertMailSubjectContains('お問い合わせに返信がありました：使い方の質問');
-        $this->assertMailContainsText('追加の質問です');
-
-        $this->assertFalse($this->replies()->fromUser(1, 1, '  '));
-    }
-
-    public function testAddUserReply_adminMailFailureStillSucceeds(): void
-    {
-        $this->failingTransport();
-
-        $this->assertTrue($this->replies()->fromUser(1, 1, '追加の質問です'));
-    }
-
-    public function testAddUserReplyByToken_notifiesAdmin(): void
-    {
-        $result = $this->replies()->fromEmail('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'メールからの返信', 'ext-mail-1');
-
-        $this->assertTrue($result['success']);
-        $this->assertMailCount(1);
-        $this->assertMailSentTo('ops@example.com');
-        $this->assertMailContainsText('メールからの返信');
-    }
-
-    public function testAddUserReplyByToken_emptyBody_returnsValidationErrors(): void
-    {
-        $result = $this->replies()->fromEmail('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '', 'ext-mail-2');
-
-        $this->assertFalse($result['success']);
-        $this->assertArrayHasKey('body', $result['errors']);
-        $this->assertFalse($this->getTableLocator()->get('TContactReplies')->exists(['external_message_id' => 'ext-mail-2']));
-    }
-
-    public function testAddUserReplyByToken_adminMailFailureStillSucceeds(): void
-    {
-        $this->failingTransport();
-
-        $result = $this->replies()->fromEmail('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', '返信', 'ext-mail-3');
-
-        $this->assertTrue($result['success']);
     }
 }
