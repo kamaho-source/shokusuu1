@@ -90,6 +90,14 @@ class ReservationReportControllerTest extends TestCase
         $this->assertSame(2, $byType[1]);
     }
 
+    /** 形は合っていても存在しない日付は 400（以前は 500） */
+    public function testGetMealCounts_nonexistentDate_returns400(): void
+    {
+        $this->login(1);
+        $this->get('/TReservationInfo/getMealCounts/2026-13-45');
+        $this->assertResponseCode(400);
+    }
+
     public function testGetMealCounts_child_forbidden(): void
     {
         $this->login(3);
@@ -294,6 +302,16 @@ class ReservationReportControllerTest extends TestCase
         $this->assertArrayHasKey('result', $this->json()['data']);
     }
 
+    /** 期間が日付として読めないときは 400（以前は黙って空・または 500） */
+    public function testGetAllRoomsMealCounts_badRange_returns400(): void
+    {
+        $this->login(1);
+        $this->get('/TReservationInfo/getAllRoomsMealCounts?from=abc&to=2026-03-31');
+        $this->assertResponseCode(400);
+        $this->get('/TReservationInfo/getAllRoomsMealCounts?from=2026-03-01&to=2026-02-30');
+        $this->assertResponseCode(400);
+    }
+
     public function testGetAllRoomsMealCounts_defaultRange_returnsOk(): void
     {
         $this->login(1);
@@ -364,6 +382,34 @@ class ReservationReportControllerTest extends TestCase
         $this->get('/TReservationInfo/getRoomMealCounts');
         $this->assertResponseCode(400);
         $this->assertStringContainsString('所属部屋', $this->json()['message']);
+    }
+
+    /** 異動で抜けた部屋は、自分の所属部屋に数えない（他の画面と同じ基準） */
+    public function testGetRoomMealCounts_leftRoomOnly_returns400(): void
+    {
+        ConnectionManager::get('test')->update('m_user_group', ['active_flag' => 1], ['i_id_user' => 2]);
+        $this->login(2);
+        $this->get('/TReservationInfo/getRoomMealCounts');
+        $this->assertResponseCode(400);
+        $this->assertStringContainsString('所属部屋', $this->json()['message']);
+    }
+
+    /** 自分の所属部屋の予約だけを数える */
+    public function testGetRoomMealCounts_noRoomInPath_countsOnlyOwnRooms(): void
+    {
+        $this->insertReservation(2, 1, '2026-03-02', 0, 1);
+        $this->insertReservation(2, 1, '2026-03-02', 0, 1, 99);
+        $this->login(2);
+        $this->get('/TReservationInfo/getRoomMealCounts?from=2026-03-01&to=2026-03-31');
+        $this->assertResponseOk();
+        $this->assertSame(1, $this->json()['data']['result'][0]['total']);
+    }
+
+    public function testGetRoomMealCounts_badRange_returns400(): void
+    {
+        $this->login(2);
+        $this->get('/TReservationInfo/getRoomMealCounts/1?from=2026-03-01&to=x');
+        $this->assertResponseCode(400);
     }
 
     public function testGetRoomMealCounts_otherRoom_forbidden(): void

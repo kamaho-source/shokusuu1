@@ -175,7 +175,7 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         $context = (new \App\Service\ReservationChangeEditService())->buildContext(1, '2026-05-11', $this->getTableLocator()->get('MRoomInfo'), $groups, $users, $reservations);
         $this->assertSame($expected, $context['userIdList'], '予約変更');
 
-        $this->assertSame($expected, array_column((new \App\Service\ReservationReportService())->getUsersByRoomForEdit($groups, $reservations, 1, '2026-05-11'), 'id'), '直前編集API');
+        $this->assertSame($expected, array_map(static fn($u) => $u->userId, (new \App\Infrastructure\Query\CakeMealReportQuery(new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->getUsersByRoomForEdit(1, '2026-05-11')), '直前編集API');
         $this->assertSame([2, 1], array_column((new \App\Service\ActualMealManagementService())->getAdultUsers($groups, $users, 1), 'id'), '実績管理');
     }
 
