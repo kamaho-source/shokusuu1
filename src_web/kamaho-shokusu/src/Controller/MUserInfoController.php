@@ -243,7 +243,8 @@ class MUserInfoController extends AppController
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
 
-        $mUserInfo = $this->MUserInfo->get($id, ['contain' => ['MUserGroup']]);
+        // ID なしは見つからない（404）。null のまま渡すと InvalidPrimaryKeyException で 500 になる
+        $mUserInfo = $this->MUserInfo->get((int)$id, ['contain' => ['MUserGroup']]);
 
         try {
             $this->Authorization->authorize($mUserInfo, 'edit');
@@ -422,7 +423,7 @@ class MUserInfoController extends AppController
 
     public function view($id = null)
     {
-        $mUserInfo = $this->MUserInfo->get($id, [
+        $mUserInfo = $this->MUserInfo->get((int)$id, [
             'contain' => ['MUserGroup' => ['MRoomInfo']],
         ]);
         try {

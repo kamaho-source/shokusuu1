@@ -155,6 +155,16 @@ class MUserInfoControllerTest extends TestCase
         $this->assertResponseOk();
     }
 
+    /** ID なしは 404（以前は InvalidPrimaryKeyException で 500） */
+    public function testViewAndEdit_withoutId_return404(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view');
+        $this->assertResponseCode(404);
+        $this->get('/MUserInfo/edit');
+        $this->assertResponseCode(404);
+    }
+
     /**
      * 詳細画面に所属部屋が表示される。退出済みの部屋は表示しない。
      */

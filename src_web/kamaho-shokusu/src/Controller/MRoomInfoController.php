@@ -71,7 +71,8 @@ class MRoomInfoController extends AppController
      */
     public function view($id = null)
     {
-        $mRoomInfo = $this->MRoomInfo->get($id, ['contain' => ['MUserGroup']]);
+        // ID なしは見つからない（404）。null のまま渡すと InvalidPrimaryKeyException で 500 になる
+        $mRoomInfo = $this->MRoomInfo->get((int)$id, ['contain' => ['MUserGroup']]);
         try {
             $this->Authorization->authorize($mRoomInfo, 'view');
         } catch (ForbiddenException $e) {
@@ -131,7 +132,7 @@ class MRoomInfoController extends AppController
     public function edit(UpdateRoomUseCase $updateRoom, $id = null)
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
-        $mRoomInfo = $this->MRoomInfo->get($id, contain: ['MUserGroup']);
+        $mRoomInfo = $this->MRoomInfo->get((int)$id, contain: ['MUserGroup']);
         // 部屋名の変更は管理者だけ。所属メンバーの並び替え（#871）は所属部屋のブロック長も、この画面で行う
         $canEditRoom = $this->Authorization->can($mRoomInfo, 'edit');
         $canReorder = (int)($mRoomInfo->i_del_flg ?? 0) === 0 && $this->Authorization->can($mRoomInfo, 'reorderMembers');

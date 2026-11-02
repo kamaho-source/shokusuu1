@@ -27,7 +27,7 @@
 <div id="calRoomSelectorWrap" style="display:none; align-items:center; gap:6px;">
     <form method="get" id="calRoomFilterForm" style="display:inline-flex; align-items:center; gap:4px; margin:0;">
         <?php foreach ($this->request->getQueryParams() as $qk => $qv):
-            if ($qk === 'cal_room_id') continue; ?>
+            if ($qk === 'cal_room_id' || !is_string($qv)) continue; ?>
         <input type="hidden" name="<?= h($qk) ?>" value="<?= h($qv) ?>">
         <?php endforeach; ?>
         <select name="cal_room_id" class="form-select form-select-sm cal-room-select" aria-label="部屋フィルタ" onchange="this.form.submit()">
