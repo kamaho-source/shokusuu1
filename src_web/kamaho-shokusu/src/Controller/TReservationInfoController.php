@@ -3,23 +3,28 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\CalendarEventBuilder;
+use App\Application\Query\ChangeEditQueryInterface;
+use App\Application\Query\Dto\ChangeEditMember;
+use App\Domain\Service\ChangeEditPermission;
+use App\Domain\Service\DatePeriodRule;
+use App\Infrastructure\Query\CakeChangeEditQuery;
+use Cake\Chronos\ClockFactory;
+use App\Application\Query\DayViewQueryInterface;
+use App\Application\Query\RoomMealDetailQueryInterface;
+use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
+use App\Application\UseCase\SaveChangeEdit\SaveChangeEditInput;
+use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
 use App\Domain\ValueObject\UserRole;
+use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Service\ReservationRoomDetailService;
-use App\Service\ReservationViewService;
-use App\Exception\ApprovedReservationException;
-use App\Exception\DuplicateMealReservationException;
-use App\Exception\OptimisticLockConflictException;
-use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
-use Cake\ORM\Exception\PersistenceFailedException;
-use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
 use Cake\Routing\Router;
 
@@ -38,9 +43,7 @@ use Cake\Routing\Router;
 class TReservationInfoController extends ReservationBaseController
 {
     private ReservationAddService $addService;
-    private ReservationChangeEditService $changeEditService;
-    private ReservationRoomDetailService $roomDetailService;
-    private ReservationViewService $viewService;
+    private ChangeEditQueryInterface $changeEditQuery;
 
     /**
      * initialize メソッド
@@ -50,9 +53,7 @@ class TReservationInfoController extends ReservationBaseController
         parent::initialize();
 
         $this->addService        = new ReservationAddService();
-        $this->changeEditService = new ReservationChangeEditService();
-        $this->roomDetailService = new ReservationRoomDetailService();
-        $this->viewService       = new ReservationViewService($this->datePolicy);
+        $this->changeEditQuery   = new CakeChangeEditQuery(new ClockFactory('Asia/Tokyo'));
 
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
@@ -81,24 +82,20 @@ class TReservationInfoController extends ReservationBaseController
         $today    = Date::today();
 
         // 有効な所属部屋（退出済み・削除済みを除く）。既定の部屋もこの中から選ぶ
-        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
-            $this->MRoomInfo,
-            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
-            false
-        ));
-        $userRoomId  = $this->calendarService->getPrimaryRoomId($userRoomIds);
+        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds((int)$userId), false));
+        $userRoomId  = $userRoomIds !== [] ? (int)$userRoomIds[0] : null;
 
         $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
         $isBlockLeader = UserRole::isBlockLeader((int)($user->i_admin ?? 0));
-        $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
+        $isOfficeUser  = $this->roomQuery->isOfficeUser((int)$userId);
         // 管理者・システム管理者も所属部屋のみ（#821）。全部屋の集計を見られるのは事務所ユーザーだけ。
         $canViewAllRooms = $isOfficeUser;
-        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false, $isOfficeUser, $isBlockLeader);
+        $rooms         = $this->calendarQuery->getRoomsForUser($userRoomIds, false, $isOfficeUser);
         $authorizedRooms = $rooms;
 
         // カレンダーの予約ポップアップで選べる部屋。管理者も所属外の部屋には予約できないため（#821）、
         // 役割を問わず「所属していて削除されていない部屋」に限る
-        $pickerRooms = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false);
+        $pickerRooms = $this->calendarQuery->getRoomsForUser($userRoomIds, false);
 
         // 選べない部屋（所属外など）を指定されたときは、指定なしと同じ既定の部屋にする（選択欄の表示と集計を揃える）
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
@@ -119,38 +116,20 @@ class TReservationInfoController extends ReservationBaseController
             ? [$calRoomId]
             : $this->countableRoomIds($canViewAllRooms, $userRoomIds);
 
-        $mealDataArray = $this->calendarService->buildMealCountsByDate(
-            $this->TIndividualReservationInfo,
-            $calRoomFilter,
-            $viewStart,
-            $viewEnd
-        );
+        $mealDataArray        = $this->calendarQuery->getMealCountsByDate($calRoomFilter, $viewStart, $viewEnd);
+        $myReservationDetails = $this->calendarQuery->getMyReservationDays((int)$userId, $viewStart, $viewEnd);
+        $myReservationDates   = CalendarEventBuilder::reservedDates($myReservationDetails);
 
-        $myReservationDetails = $this->calendarService->buildMyReservationDetails(
-            $this->TIndividualReservationInfo,
-            (int)$userId,
-            $viewStart,
-            $viewEnd
-        );
-        $myReservationDates = $this->calendarService->buildMyReservationDates($myReservationDetails);
-        $staff_user = $this->calendarService->getStaffUserInfo($this->MUserGroup, (int)$userId);
-
-        // 予約に登場する部屋IDを収集し、部屋名マップを取得
+        // 予約に登場する部屋の名前
         $reservationRoomIds = [];
-        foreach ($myReservationDetails as $dayDetail) {
-            foreach (['breakfastRoom', 'lunchRoom', 'dinnerRoom', 'bentoRoom'] as $rKey) {
-                if (!empty($dayDetail[$rKey])) {
-                    $reservationRoomIds[(int)$dayDetail[$rKey]] = true;
+        foreach ($myReservationDetails as $day) {
+            foreach ([$day->breakfastRoom, $day->lunchRoom, $day->dinnerRoom, $day->bentoRoom] as $roomId) {
+                if (!empty($roomId)) {
+                    $reservationRoomIds[(int)$roomId] = true;
                 }
             }
         }
-        $reservationRoomNames = [];
-        if (!empty($reservationRoomIds)) {
-            $reservationRoomNames = $this->MRoomInfo->find('list', [
-                'keyField'   => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])->where(['i_id_room IN' => array_keys($reservationRoomIds)])->toArray();
-        }
+        $reservationRoomNames = $this->calendarQuery->getRoomNames(array_keys($reservationRoomIds));
 
         $this->set(compact(
             'mealDataArray',
@@ -163,7 +142,6 @@ class TReservationInfoController extends ReservationBaseController
             'authorizedRooms',
             'pickerRooms',
             'today',
-            'staff_user',
             'isAdmin',
             'canViewAllRooms',
             'calRoomId'
@@ -184,8 +162,8 @@ class TReservationInfoController extends ReservationBaseController
 
         $this->request->allowMethod(['get']);
 
-        $start = (string)$this->request->getQuery('start');
-        $end   = (string)$this->request->getQuery('end');
+        $start = $this->queryString('start');
+        $end   = $this->queryString('end');
 
         if ($start === '' || $end === '') {
             return $this->apiResponseService->error($this->response, 'Invalid date range', 400);
@@ -205,20 +183,12 @@ class TReservationInfoController extends ReservationBaseController
         // 合計は有効な所属部屋のみ（管理者も同じ。#821）。全部屋の合計は事務所ユーザーだけ
         $userId  = (int)$this->Authentication->getIdentity()?->get('i_id_user');
         $roomIds = $this->countableRoomIds(
-            $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId),
-            array_keys($this->calendarService->getRoomsForUser(
-                $this->MRoomInfo,
-                $this->calendarService->getUserRoomIds($this->MUserGroup, $userId),
-                false
-            ))
+            $this->roomQuery->isOfficeUser($userId),
+            array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds($userId), false))
         );
 
-        $events = $this->calendarService->buildTotalEvents(
-            $this->TIndividualReservationInfo,
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d'),
-            null,
-            $roomIds
+        $events = CalendarEventBuilder::totalEvents(
+            $this->calendarQuery->getTotalCountsByDate($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $roomIds)
         );
 
         return $this->apiResponseService->success($this->response, ['events' => $events]);
@@ -234,7 +204,7 @@ class TReservationInfoController extends ReservationBaseController
     private function countableRoomIds(bool $isOfficeUser, array $validUserRoomIds): array
     {
         $roomIds = $isOfficeUser
-            ? array_keys($this->calendarService->getRoomsForUser($this->MRoomInfo, [], true))
+            ? array_keys($this->calendarQuery->getRoomsForUser([], true))
             : $validUserRoomIds;
 
         return $roomIds ?: [0];
@@ -247,7 +217,7 @@ class TReservationInfoController extends ReservationBaseController
      */
     public function calendarEvents(): Response
     {
-        $resource = $this->TReservationInfo->newEmptyEntity();
+        $resource = new \App\Infrastructure\Persistence\Entity\TReservationInfo();
         $this->Authorization->authorize($resource, 'calendarEvents');
         $this->request->allowMethod(['get']);
 
@@ -259,8 +229,8 @@ class TReservationInfoController extends ReservationBaseController
         $userId = (int)$authUser->get('i_id_user');
         $user   = $this->MUserInfo->get($userId);
 
-        $start = (string)$this->request->getQuery('start');
-        $end   = (string)$this->request->getQuery('end');
+        $start = $this->queryString('start');
+        $end   = $this->queryString('end');
 
         try {
             $startDate = new Date($start);
@@ -278,32 +248,14 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $canViewAllRooms = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
+        $canViewAllRooms = $this->roomQuery->isOfficeUser((int)$userId);
 
         // 集計は有効な所属部屋（削除済みの部屋を除く）だけ。index と同じ基準
-        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
-            $this->MRoomInfo,
-            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
-            false
-        ));
+        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds((int)$userId), false));
 
-        $mealDataArray = $this->calendarService->buildMealCountsByDate(
-            $this->TIndividualReservationInfo,
-            $this->countableRoomIds($canViewAllRooms, $userRoomIds),
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
-        );
-
-        $myReservationDetails = $this->calendarService->buildMyReservationDetails(
-            $this->TIndividualReservationInfo,
-            (int)$userId,
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
-        );
-
-        $events = $this->calendarService->buildCalendarEvents(
-            $mealDataArray,
-            $myReservationDetails,
+        $events = CalendarEventBuilder::calendarEvents(
+            $this->calendarQuery->getMealCountsByDate($this->countableRoomIds($canViewAllRooms, $userRoomIds), $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
+            $this->calendarQuery->getMyReservationDays((int)$userId, $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
             $startDate,
             $endDate
         );
@@ -317,25 +269,25 @@ class TReservationInfoController extends ReservationBaseController
      *
      * @return Response|null|void ビューをレンダリングする
      */
-    public function view(): ?Response
+    public function view(DayViewQueryInterface $dayView): ?Response
     {
         $this->authorizeReservation('view');
 
         $date       = $this->request->getParam('date')
             ?? $this->request->getParam('pass.0')
             ?? $this->request->getQuery('date');
+        // 暦にない日付・配列は入力の誤り（以前は 500、または翌月に繰り越して 200）
+        if ($date !== null && $date !== '' && (!is_string($date) || !DatePeriodRule::isDate($date))) {
+            throw new BadRequestException('日付が正しくありません。');
+        }
         $roomIdRaw  = $this->request->getData('room_id') ?? $this->request->getQuery('room_id');
-        $context    = $this->viewService->buildViewContext(
-            $this->request->getAttribute('identity'),
+        $day = $dayView->getDayView(
+            (int)($this->request->getAttribute('identity')?->get('i_id_user') ?? 0),
             $date,
-            $roomIdRaw !== null ? (int)$roomIdRaw : null,
-            $this->MRoomInfo,
-            $this->MUserGroup,
-            $this->TIndividualReservationInfo,
-            $this->queryService
+            $roomIdRaw !== null ? (int)$roomIdRaw : null
         );
 
-        $this->set($context);
+        $this->set(compact('day'));
         return null;
     }
 
@@ -347,41 +299,38 @@ class TReservationInfoController extends ReservationBaseController
      * @param int $mealType 食事タイプ
      * @return Response|null|void ビューをレンダリングする
      */
-    public function roomDetails($roomId, $date, $mealType): ?Response
+    public function roomDetails(RoomMealDetailQueryInterface $roomMealDetail, $roomId, $date, $mealType): ?Response
     {
         $this->authorizeReservation('roomDetails', ['i_id_room' => (int)$roomId]);
 
         $this->log(sprintf('roomId: %d, date: %s, mealType: %d', (int)$roomId, preg_replace('/[\r\n\t]/', '', (string)$date), (int)$mealType), 'debug');
 
         if (empty($roomId) || empty($date) || empty($mealType)) {
-            throw new \InvalidArgumentException('部屋ID、日付、または食事タイプが指定されていません。');
+            throw new BadRequestException('部屋ID、日付、または食事タイプが指定されていません。');
         }
 
-        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$date)) {
-            throw new \InvalidArgumentException('日付の形式が正しくありません。');
+        // 2026-02-30 のような暦にない日付も弾く（以前は DB エラーで 500）
+        if (!DatePeriodRule::isDate((string)$date)) {
+            throw new BadRequestException('日付の形式が正しくありません。');
         }
 
         if (!is_numeric($mealType)) {
-            throw new \InvalidArgumentException('食事タイプは整数である必要があります。');
+            throw new BadRequestException('食事タイプは整数である必要があります。');
         }
 
-        $detail = $this->roomDetailService->getRoomDetails(
-            (int)$roomId,
-            (string)$date,
-            (int)$mealType,
-            $this->MRoomInfo,
-            $this->TIndividualReservationInfo,
-            $this->MUserGroup
-        );
+        try {
+            $detail = $roomMealDetail->getRoomMealDetail((int)$roomId, (string)$date, (int)$mealType);
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException(__('部屋が見つかりません。'));
+        } catch (\InvalidArgumentException $e) {
+            // 形は合っていても存在しない日付（例：2026-13-45）は、入力の誤りとして返す
+            throw new BadRequestException($e->getMessage());
+        }
 
         $this->set([
-            'room'            => $detail['room'],
-            'date'            => $date,
-            'mealType'        => $mealType,
-            'eatUsers'        => $detail['eatUsers'],
-            'noEatUsers'      => $detail['noEatUsers'],
-            'otherRoomEaters' => $detail['otherRoomEaters'],
-            'useChangeFlag'   => $detail['useChangeFlag'],
+            'detail'   => $detail,
+            'date'     => $date,
+            'mealType' => $mealType,
         ]);
         return null;
     }
@@ -404,12 +353,14 @@ class TReservationInfoController extends ReservationBaseController
             return $this->jsonErrorResponse(__('部屋IDが指定されていません。'));
         }
 
-        $date        = $this->request->getQuery('date');
-        $usersByRoom = $this->queryService->getUsersByRoom(
-            $this->MUserGroup,
-            $this->TIndividualReservationInfo,
-            (int)$roomId,
-            $date
+        try {
+            $date = $this->queryDate('date');
+        } catch (BadRequestException $e) {
+            return $this->jsonErrorResponse($e->getMessage());
+        }
+        $usersByRoom = array_map(
+            static fn(\App\Application\Query\Dto\RoomUserMeals $u) => $u->toArray(),
+            $this->reservationRead->getUsersByRoom((int)$roomId, $date)
         );
 
         return $this->apiResponseService->success($this->response, ['usersByRoom' => $usersByRoom]);
@@ -430,8 +381,12 @@ class TReservationInfoController extends ReservationBaseController
         $this->viewBuilder()->disableAutoLayout();
         $this->request->allowMethod(['get']);
 
-        $date = $this->request->getQuery('date');
-        if (empty($date)) {
+        try {
+            $date = $this->queryDate('date');
+        } catch (BadRequestException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), 400);
+        }
+        if ($date === null) {
             return $this->apiResponseService->error($this->response, '日付が指定されていません。', 400);
         }
 
@@ -442,14 +397,7 @@ class TReservationInfoController extends ReservationBaseController
         $userId   = $user->get('i_id_user');
         $userName = $user->get('c_user_name');
 
-        $output = $this->queryService->getPersonalReservationData(
-            $this->TIndividualReservationInfo,
-            $this->MRoomInfo,
-            $this->MUserGroup,
-            (int)$userId,
-            (string)$userName,
-            (string)$date
-        );
+        $output = $this->reservationRead->getPersonalReservation((int)$userId, (string)$userName, $date)->toArray();
 
         return $this->apiResponseService->success($this->response, $output);
     }
@@ -479,8 +427,7 @@ class TReservationInfoController extends ReservationBaseController
             );
         }
 
-        $isDuplicate = $this->queryService->hasDuplicateReservation(
-            $this->TIndividualReservationInfo,
+        $isDuplicate = $this->reservationRead->hasDuplicateReservation(
             (string)$data['d_reservation_date'],
             (int)$data['i_id_room'],
             (int)$data['reservation_type']
@@ -522,7 +469,7 @@ class TReservationInfoController extends ReservationBaseController
                 ->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
         }
 
-        $date = $this->request->getQuery('date') ?? Date::today()->format('Y-m-d');
+        $date = $this->queryDate('date') ?? Date::today()->format('Y-m-d');
 
         if (!$user) {
             $this->set('errorMessage', __('ログインが必要です。'));
@@ -536,15 +483,11 @@ class TReservationInfoController extends ReservationBaseController
 
         $userLevel = $user->i_user_level;
         $userId    = $user->get('i_id_user');
-        $rooms     = $this->queryService->getAuthorizedRooms(
-            $this->MRoomInfo,
-            $this->MUserGroup,
-            $userId
-        );
+        $rooms     = (new \App\Infrastructure\Query\CakeRoomQuery())->getAccessibleRooms((int)$userId);
 
         if ($this->request->is('get')) {
             $validation = $addService->validateDate((string)$date, $this->datePolicy);
-            $roomList   = $addService->buildRoomList($this->MRoomInfo);
+            $roomList   = $this->roomQuery->getAllActiveRooms();
 
             $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
 
@@ -569,7 +512,7 @@ class TReservationInfoController extends ReservationBaseController
             return $this->redirect(['action' => 'index', '?' => ['date' => $date]]);
         }
 
-        $roomList = $addService->buildRoomList($this->MRoomInfo);
+        $roomList = $this->roomQuery->getAllActiveRooms();
 
         if (!$roomList) {
             if ($this->request->is('ajax')) {
@@ -691,7 +634,7 @@ class TReservationInfoController extends ReservationBaseController
      * @param string|null $date YYYY-MM-DD
      * @param int|null $mealType 1=朝,2=昼,3=夜,4=弁当
      */
-    public function changeEdit(RegisterIndividualReservationUseCase $registerIndividual, $roomId = null, $date = null, $mealType = null): ?Response
+    public function changeEdit(RegisterIndividualReservationUseCase $registerIndividual, SaveChangeEditUseCase $saveChangeEdit, $roomId = null, $date = null, $mealType = null): ?Response
     {
         $wantsJson =
             $this->request->is('ajax') ||
@@ -705,7 +648,7 @@ class TReservationInfoController extends ReservationBaseController
             $isStaff  = UserRole::isStaffLevel((int)($loginUser->get('i_user_level') ?? -1));
             if (!$isAdmin && !$isStaff) {
                 $loginUidEarly = (int)($loginUser->get('i_id_user') ?? 0);
-                $hasAffiliation = $loginUidEarly > 0 && $this->changeEditService->userHasRoomAccess($loginUidEarly);
+                $hasAffiliation = $loginUidEarly > 0 && $this->roomQuery->hasAnyAffiliation($loginUidEarly);
                 if (!$hasAffiliation) {
                     $this->Authorization->skipAuthorization();
                     $reason = '直前編集は職員・管理者・所属グループがある方のみ使用できます。予約変更は通常の予約画面からご利用ください。';
@@ -727,19 +670,17 @@ class TReservationInfoController extends ReservationBaseController
             $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId')   ?? $this->request->getData('i_id_room');
             $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date')     ?? $this->request->getData('d_reservation_date');
 
-            $isModalShell = $this->request->is('get') && ((string)$this->request->getQuery('modal') === '1');
+            // 暦にない日付は、以前は画面によって 200（空の表）・500 とばらばらだった。ここで 400 にそろえる
+            if ($date !== null && $date !== '' && (!is_string($date) || !DatePeriodRule::isDate($date))) {
+                throw new \InvalidArgumentException('日付が正しくありません。');
+            }
+
+            $isModalShell = $this->request->is('get') && ($this->queryString('modal') === '1');
 
             $loginUser = $this->request->getAttribute('identity');
             $loginUid  = $loginUser?->get('i_id_user');
 
-            $changeEditService = $this->changeEditService;
-            $allowedRooms = $changeEditService->getAllowedRooms(
-                $loginUser,
-                $roomId ? (int)$roomId : null,
-                $this->MUserGroup,
-                $this->MRoomInfo
-            );
-            $isRoomManager = !empty($allowedRooms);
+            $allowedRooms = $this->roomQuery->getAccessibleRooms((int)$loginUid);
             $isBlockLeaderForEdit = $loginUser && UserRole::isBlockLeader((int)($loginUser->get('i_admin') ?? 0));
 
             if ($isModalShell) {
@@ -747,33 +688,18 @@ class TReservationInfoController extends ReservationBaseController
                 $room  = null;
 
                 if (!$roomId && $date && !empty($rooms)) {
-                    $roomId = $changeEditService->resolveDefaultRoomId(
-                        $rooms,
-                        (string)$date,
-                        $this->TIndividualReservationInfo
-                    );
+                    $roomId = $this->changeEditQuery->defaultRoomId($rooms, (string)$date);
                 }
 
                 if ($roomId && isset($rooms[(int)$roomId])) {
-                    $room = $this->MRoomInfo->find()
-                        ->select(['i_id_room', 'c_room_name'])
-                        ->where(['i_id_room' => $roomId])
-                        ->first();
+                    $name = $this->changeEditQuery->roomName((int)$roomId);
+                    $room = $name === null ? null : ['id' => (int)$roomId, 'name' => $name];
                 }
                 if (empty($rooms)) {
                     $this->log('changeEdit modal: No rooms available for user ' . $loginUid, 'warning');
                 }
-                $users = new \Cake\Collection\Collection([]);
-                $userReservations = [];
-                $individualReservations = [];
-                if ($loginUid && $date) {
-                    $allIndiv = $this->TIndividualReservationInfo->find()
-                        ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
-                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date])
-                        ->toArray();
-                    $individualReservations = array_values(array_filter($allIndiv, fn($r) => $this->datePolicy->countedValue((string)$date, $r->eat_flag, $r->i_change_flag) === 1));
-                }
-                $this->set(compact('room', 'rooms', 'date', 'users', 'userReservations', 'individualReservations'));
+                $individualReservations = $loginUid && $date ? $this->changeEditQuery->ownMeals((int)$loginUid, (string)$date) : [];
+                $this->set(compact('room', 'rooms', 'date', 'individualReservations'));
                 return $this->render('change_edit');
             }
 
@@ -856,23 +782,19 @@ class TReservationInfoController extends ReservationBaseController
                 return $this->redirect(['action' => 'index']);
             }
 
-            $context = $changeEditService->buildContext(
-                (int)$roomId,
-                (string)$date,
-                $this->MRoomInfo,
-                $this->MUserGroup,
-                $this->MUserInfo,
-                $this->TIndividualReservationInfo
-            );
-            $room             = $context['room'];
-            $users            = $context['users'];
-            $userReservations = $context['userReservations'];
-            $userIdList       = $context['userIdList'];
+            $context = $this->changeEditQuery->context((int)$roomId, (string)$date);
+            // その部屋に所属するブロック長は、部屋の全員の直前の予約を変えられる
+            $isBlockLeaderInRoom = $isBlockLeaderForEdit && $this->roomQuery->isActiveMember((int)$loginUid, (int)$roomId);
+            $room    = ['id' => $context->roomId, 'name' => $context->roomName];
 
             if ($this->request->is('get')) {
                 if ($wantsJson) {
-                    $isBlockLeaderInRoom = $isBlockLeaderForEdit && $roomId && (new \App\Service\RoomAccessService())->isActiveMember((int)$loginUid, (int)$roomId);
-                    $usersForJson = $changeEditService->buildUsersForJson($users, $loginUser, $isRoomManager, $isBlockLeaderInRoom);
+                    $canEditAll = ChangeEditPermission::canEditAll((int)($loginUser?->get('i_admin') ?? 0), $isBlockLeaderInRoom);
+                    $loginLevel = (int)($loginUser?->get('i_user_level') ?? -1);
+                    $usersForJson = array_map(
+                        static fn(ChangeEditMember $m): array => $m->toJson(ChangeEditPermission::canEdit($canEditAll, (int)$loginUid, $loginLevel, $m->id, $m->level)),
+                        $context->members
+                    );
 
                     return $this->response->withType('application/json')
                         ->withStringBody(json_encode([
@@ -880,24 +802,17 @@ class TReservationInfoController extends ReservationBaseController
                             'status' => 'success',
                             'message' => null,
                             'data'   => [
-                                'contextRoom'      => ['id' => (int)$room->i_id_room, 'name' => (string)$room->c_room_name],
+                                'contextRoom'      => $room,
                                 'date'             => $date,
                                 'users'            => $usersForJson,
-                                'userReservations' => $userReservations,
+                                'userReservations' => $context->reservations,
                             ],
                         ], JSON_UNESCAPED_UNICODE));
                 }
 
                 $rooms = $allowedRooms;
-                $individualReservations = [];
-                if ($loginUid && $date) {
-                    $allIndiv = $this->TIndividualReservationInfo->find()
-                        ->select(['i_reservation_type', 'i_id_room', 'eat_flag', 'i_change_flag'])
-                        ->where(['i_id_user' => $loginUid, 'd_reservation_date' => $date])
-                        ->toArray();
-                    $individualReservations = array_values(array_filter($allIndiv, fn($r) => $this->datePolicy->countedValue((string)$date, $r->eat_flag, $r->i_change_flag) === 1));
-                }
-                $this->set(compact('room', 'rooms', 'date', 'users', 'userReservations', 'individualReservations'));
+                $individualReservations = $loginUid && $date ? $this->changeEditQuery->ownMeals((int)$loginUid, (string)$date) : [];
+                $this->set(compact('room', 'rooms', 'date', 'individualReservations'));
                 return $this->render('change_edit');
             }
 
@@ -912,84 +827,42 @@ class TReservationInfoController extends ReservationBaseController
                 $usersData = (isset($data['users']) && is_array($data['users'])) ? $data['users'] : [];
 
                 try {
-                    $result = $changeEditService->processUpdate(
-                        $usersData,
-                        $userIdList,
-                        (string)$date,
-                        (int)$roomId,
-                        $loginUser,
-                        $this->TIndividualReservationInfo,
-                        $this->MUserInfo,
-                        $isRoomManager
-                    );
-
-                    $updated = $result['updated'] ?? [];
-                    $created = $result['created'] ?? [];
-                    $skipped = $result['skipped'] ?? [];
+                    $output = $saveChangeEdit->execute(new SaveChangeEditInput(
+                        usersData: $usersData,
+                        memberIds: $context->memberIds(),
+                        date: (string)$date,
+                        roomId: (int)$roomId,
+                        loginUserId: (int)$loginUid,
+                        loginUserName: (string)($loginUser?->get('c_user_name') ?? 'system'),
+                        loginAdmin: (int)($loginUser?->get('i_admin') ?? 0),
+                        loginLevel: (int)($loginUser?->get('i_user_level') ?? -1),
+                        isBlockLeaderInRoom: $isBlockLeaderInRoom,
+                    ));
 
                     $payload = [
                         'ok'      => true,
                         'status'  => 'success',
                         'message' => '直前予約を更新しました。',
-                        'data'    => ['updated' => $updated, 'created' => $created, 'skipped' => $skipped],
+                        'data'    => ['updated' => $output->updated, 'created' => $output->created, 'skipped' => $output->skipped],
                     ];
                     if ($wantsJson) {
                         return $this->response->withType('application/json')->withStringBody(json_encode($payload));
                     }
                     $this->Flash->success(__($payload['message']));
                     return $this->redirect(['action' => 'index']);
-
-                } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
-                    $this->log('直前編集 変更拒否: ' . $e->getMessage(), 'warning');
-                    if ($wantsJson) {
-                        return $this->response->withStatus(409)->withType('application/json')
-                            ->withStringBody(json_encode([
-                                'ok'      => false,
-                                'status'  => $e instanceof DuplicateMealReservationException ? 'conflict' : 'approved',
-                                'message' => $e->getMessage(),
-                                'data'    => [],
-                            ], JSON_UNESCAPED_UNICODE));
-                    }
-                    $this->Flash->error(__($e->getMessage()));
                 } catch (\App\Domain\Exception\DomainException $e) {
-                    // 入力・権限の拒否（過去日など）。理由をそのまま返す
+                    [$status, $state, $message] = self::changeEditFailure($e);
+                    $this->log('直前編集 変更拒否: ' . $e->getMessage(), $status >= 500 ? 'error' : 'warning');
                     if ($wantsJson) {
-                        return $this->response->withStatus($e->getStatusCode())->withType('application/json')
+                        return $this->response->withStatus($status)->withType('application/json')
                             ->withStringBody(json_encode([
                                 'ok'      => false,
-                                'status'  => 'error',
-                                'message' => $e->getMessage(),
-                                'data'    => [],
-                            ], JSON_UNESCAPED_UNICODE));
-                    }
-                    $this->Flash->error(__($e->getMessage()));
-                } catch (PersistenceFailedException $e) {
-                    // 新しい行の検証ルール（昼食と弁当の同時予約など）。昼食と弁当なら理由を返し、それ以外は下と同じ扱い
-                    $reason = TIndividualReservationInfoTable::lunchBentoViolation($e);
-                    $this->log('直前編集 検証エラー: ' . json_encode($e->getEntity()->getErrors(), JSON_UNESCAPED_UNICODE), 'warning');
-                    $message = $reason ?? '直前予約の更新中にエラーが発生しました。';
-                    if ($wantsJson) {
-                        return $this->response->withStatus($reason !== null ? 409 : 500)->withType('application/json')
-                            ->withStringBody(json_encode([
-                                'ok'      => false,
-                                'status'  => $reason !== null ? 'conflict' : 'error',
+                                'status'  => $state,
                                 'message' => $message,
                                 'data'    => [],
                             ], JSON_UNESCAPED_UNICODE));
                     }
                     $this->Flash->error(__($message));
-                } catch (OptimisticLockConflictException $e) {
-                    $this->log('直前編集 競合: ' . $e->getMessage(), 'warning');
-                    if ($wantsJson) {
-                        return $this->response->withStatus(409)->withType('application/json')
-                            ->withStringBody(json_encode([
-                                'ok'      => false,
-                                'status'  => 'conflict',
-                                'message' => $e->getMessage(),
-                                'data'    => [],
-                            ], JSON_UNESCAPED_UNICODE));
-                    }
-                    $this->Flash->error(__($e->getMessage()));
                 } catch (\Throwable $e) {
                     $this->log('直前編集エラー: ' . $e->getMessage(), 'error');
                     if ($wantsJson) {
@@ -1006,13 +879,7 @@ class TReservationInfoController extends ReservationBaseController
             }
 
             $rooms = $allowedRooms;
-            if (!isset($users)) {
-                $users = [];
-            }
-            if (!isset($userReservations)) {
-                $userReservations = [];
-            }
-            $this->set(compact('room', 'rooms', 'date', 'users', 'userReservations'));
+            $this->set(compact('room', 'rooms', 'date'));
             return $this->render('change_edit');
 
         } catch (\Throwable $e) {
@@ -1021,7 +888,7 @@ class TReservationInfoController extends ReservationBaseController
             if ($wantsJson) {
                 if ($e instanceof \InvalidArgumentException) {
                     $status = 400;
-                } elseif ($e instanceof NotFoundException) {
+                } elseif ($e instanceof NotFoundException || $e instanceof DomainNotFoundException) {
                     $status = 404;
                 } else {
                     $status = 500;
@@ -1037,9 +904,36 @@ class TReservationInfoController extends ReservationBaseController
                         'data'    => [],
                     ], JSON_UNESCAPED_UNICODE));
             }
+            // 部屋・日付が無いなどの入力の誤りは、画面でも 400 で返す（JSON と同じ）
+            if ($e instanceof \InvalidArgumentException) {
+                throw new BadRequestException($e->getMessage(), null, $e);
+            }
+            if ($e instanceof DomainNotFoundException) {
+                throw new NotFoundException($e->getMessage(), null, $e);
+            }
 
             throw $e;
         }
+    }
+
+    /**
+     * 直前編集の保存の失敗を、応答（HTTP の状態・status・利用者に出す文言）にする。
+     *
+     * @return array{0: int, 1: string, 2: string}
+     */
+    private static function changeEditFailure(\App\Domain\Exception\DomainException $e): array
+    {
+        return match (true) {
+            $e instanceof \App\Domain\Exception\ApprovedReservationChangeException => [409, 'approved', $e->getMessage()],
+            $e instanceof \App\Domain\Exception\ConflictException => [409, 'conflict', $e->getMessage()],
+            // 新しい行の検証ルール。昼食と弁当なら理由を返し、それ以外はシステムの失敗として扱う
+            $e instanceof \App\Domain\Exception\ReservationValidationException => $e->lunchBentoMessage !== null
+                ? [409, 'conflict', $e->lunchBentoMessage]
+                : [500, 'error', '直前予約の更新中にエラーが発生しました。'],
+            $e instanceof \App\Domain\Exception\PersistenceException => [500, 'error', '直前予約の更新中にエラーが発生しました。'],
+            // 入力・権限の拒否（過去日など）。理由をそのまま返す
+            default => [$e->getStatusCode(), 'error', $e->getMessage()],
+        };
     }
 
     private function validateReservationDate(?string $reservationDate): string|bool

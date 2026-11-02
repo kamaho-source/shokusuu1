@@ -1,9 +1,8 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var object $contact
+ * @var \App\Domain\Entity\Contact $contact
  */
-/** @var \App\Infrastructure\Persistence\Entity\TContact $contact */
 $this->assign('title', 'お問い合わせ詳細');
 ?>
 
@@ -20,7 +19,7 @@ $this->assign('title', 'お問い合わせ詳細');
 <div class="card mb-4">
     <div class="card-header bg-light">
         <span class="badge bg-secondary me-2"><?= h($contact->category) ?></span>
-        <span class="text-muted small"><?= h($contact->created->format('Y-m-d H:i')) ?></span>
+        <span class="text-muted small"><?= h($contact->createdAt?->format('Y-m-d H:i')) ?></span>
     </div>
     <div class="card-body">
         <dl class="row mb-0">
@@ -39,10 +38,10 @@ $this->assign('title', 'お問い合わせ詳細');
 </div>
 
 <!-- 返信履歴 -->
-<?php if (!empty($contact->t_contact_replies)): ?>
+<?php if (!empty($contact->replies)): ?>
     <h6 class="fw-semibold mb-2">返信履歴</h6>
-    <?php foreach ($contact->t_contact_replies as $reply): ?>
-        <?php $isUserReply = $reply->author_type === 'user'; ?>
+    <?php foreach ($contact->replies as $reply): ?>
+        <?php $isUserReply = $reply->authorType === 'user'; ?>
         <div class="card mb-2 border-start border-3 <?= $isUserReply ? 'border-warning' : 'border-primary' ?>">
             <div class="card-body py-2">
                 <div class="text-muted small mb-1">
@@ -55,7 +54,7 @@ $this->assign('title', 'お問い合わせ詳細');
                             <i class="bi bi-headset"></i> 管理者返信
                         </span>
                     <?php endif; ?>
-                    <?= h($reply->sent_at->format('Y-m-d H:i')) ?> 送信
+                    <?= h($reply->sentAt?->format('Y-m-d H:i')) ?> 送信
                 </div>
                 <div style="white-space: pre-wrap;"><?= h($reply->body) ?></div>
             </div>

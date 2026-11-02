@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Service;
 
-use App\Service\ReservationBulkService;
+use App\Test\TestCase\Support\ReservationBulkService;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -1019,7 +1019,7 @@ class ReservationBulkServiceTest extends TestCase
     {
         $date = self::d(5);
         $this->insertReservation(['i_id_user' => 3, 'd_reservation_date' => $date, 'dt_update' => date('Y-01-01 00:00:00')]);
-        $snapshot = (new \App\Service\ReservationQueryService())->getReservationSnapshots($this->reservationTable, 1, [$date])[$date];
+        $snapshot = (new \App\Infrastructure\Query\CakeReservationReadQuery(new \App\Infrastructure\Query\CakeRoomQuery(), new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->getReservationSnapshots(1, [$date])[$date];
         $this->reservationTable->updateAll(['dt_update' => date('Y-01-02 00:00:00')], ['i_id_user' => 3, 'd_reservation_date' => $date]);
 
         $result = $this->service->processBulkChangeEdit(

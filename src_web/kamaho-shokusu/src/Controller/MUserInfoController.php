@@ -3,36 +3,48 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Infrastructure\Persistence\Entity\MUserInfo;
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\AssignUserRooms\AssignUserRoomsInput;
+use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
+use App\Application\UseCase\BulkImportUsers\BulkImportUsersInput;
+use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
+use App\Application\UseCase\ChangePassword\ChangePasswordInput;
+use App\Application\UseCase\ChangePassword\ChangePasswordOutput;
+use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
+use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessInput;
+use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleInput;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleOutput;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
+use App\Application\UseCase\CreateUser\CreateUserInput;
+use App\Application\UseCase\CreateUser\CreateUserOutput;
+use App\Application\UseCase\CreateUser\CreateUserUseCase;
+use App\Application\UseCase\DeleteUser\DeleteUserInput;
+use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
+use App\Application\UseCase\EditUser\EditUserInput;
+use App\Application\UseCase\EditUser\EditUserOutput;
+use App\Application\UseCase\EditUser\EditUserUseCase;
+use App\Application\UseCase\RestoreUser\RestoreUserInput;
+use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
+use App\Domain\Service\DeletedMembershipRule;
+use App\Domain\Service\RoomAffiliationLabel;
+use App\Domain\ValueObject\RoomMembershipStatus;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Query\CakeRoomQuery;
 use App\Service\ApiResponseService;
-use App\Service\AuditLogService;
-use App\Service\RoomService;
-use App\Service\UserBulkImportService;
-use App\Service\UserCreateService;
-use App\Service\UserDeletionService;
-use App\Service\UserEditService;
-use App\Service\UserPermissionService;
-use App\Service\UserRestoreService;
-use App\Service\UserRoomAssignmentService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
-use Cake\I18n\DateTime;
+use Cake\Http\Exception\NotFoundException;
 
 class MUserInfoController extends AppController
 {
     protected $MUserInfo;
     protected $MRoomInfo;
 
-    private UserBulkImportService   $userBulkImportService;
-    private UserCreateService       $userCreateService;
-    private UserDeletionService     $userDeletionService;
-    private UserEditService         $userEditService;
-    private UserPermissionService   $userPermissionService;
-    private UserRestoreService      $userRestoreService;
-    private UserRoomAssignmentService $userRoomAssignmentService;
 
     public function initialize(): void
     {
@@ -44,13 +56,6 @@ class MUserInfoController extends AppController
         $this->MUserInfo = $this->fetchTable('MUserInfo');
         $this->MRoomInfo = $this->fetchTable('MRoomInfo');
 
-        $this->userBulkImportService    = new UserBulkImportService();
-        $this->userCreateService        = new UserCreateService();
-        $this->userDeletionService      = new UserDeletionService();
-        $this->userEditService          = new UserEditService();
-        $this->userPermissionService    = new UserPermissionService();
-        $this->userRestoreService       = new UserRestoreService();
-        $this->userRoomAssignmentService = new UserRoomAssignmentService();
 
         // これらのアクションは FormProtection のフォームトークン検証対象外にする。
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
@@ -78,7 +83,7 @@ class MUserInfoController extends AppController
 
     public function importForm()
     {
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         try {
             $this->Authorization->authorize($resource, 'importForm');
         } catch (ForbiddenException $e) {
@@ -100,11 +105,11 @@ class MUserInfoController extends AppController
     /**
      * クライアント（ブラウザ）でパース済みの JSON を受け取り登録します。
      */
-    public function importJson()
+    public function importJson(BulkImportUsersUseCase $bulkImportUsers)
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         $this->Authorization->authorize($resource, 'importJson');
 
         $payload = $this->request->getData();
@@ -124,21 +129,12 @@ class MUserInfoController extends AppController
             throw new BadRequestException('records 配列が必要です。');
         }
 
-        $identity   = $this->request->getAttribute('identity');
-        $createUser = $identity ? $identity->get('c_user_name') : 'インポート';
-        $actorId    = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId    = (string)($identity?->get('c_login_account') ?? '');
-
         try {
-            $results = $this->userBulkImportService->import(
+            $results = $bulkImportUsers->execute(new BulkImportUsersInput(
                 $records,
-                $createUser,
-                $actorId,
-                $this->getClientIp(),
-                $loginId,
-                !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0)),
-                $this->allowedRoomIdsForRegistration($identity)
-            );
+                $this->auditActor(),
+                UserRole::isAdmin((int)($this->request->getAttribute('identity')?->get('i_admin') ?? 0)),
+            ))->toArray();
         } catch (\Throwable $e) {
             $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
             throw new BadRequestException('インポート処理中にエラーが発生しました。');
@@ -149,7 +145,7 @@ class MUserInfoController extends AppController
 
     public function index()
     {
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         try {
             $this->Authorization->authorize($resource, 'index');
         } catch (ForbiddenException $e) {
@@ -175,14 +171,13 @@ class MUserInfoController extends AppController
 
         $userRooms = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], (int)$u->i_del_flag === 1);
+            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], $u);
         }
 
-        $roomService      = new RoomService();
-        $totalActiveRooms = $roomService->countActiveRooms();
+        $totalActiveRooms = (new CakeRoomQuery())->countActiveRooms();
         $userRoomLabels   = [];
         foreach ($userRooms as $uid => $roomNames) {
-            $userRoomLabels[$uid] = $roomService->buildAffiliationLabel($roomNames, $totalActiveRooms);
+            $userRoomLabels[$uid] = RoomAffiliationLabel::build($roomNames, $totalActiveRooms);
         }
 
         $canRegisterUsers = $this->Authorization->can($resource, 'add');
@@ -190,13 +185,11 @@ class MUserInfoController extends AppController
         $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted', 'canRegisterUsers'));
     }
 
-    public function add()
+    public function add(CreateUserUseCase $createUser)
     {
         $this->request->allowMethod(['get', 'post']);
 
-        $maxDispNo  = $this->userCreateService->nextDisplayNo();
-        $mUserInfo  = $this->MUserInfo->newEmptyEntity();
-
+        $mUserInfo = $this->MUserInfo->newEmptyEntity();
         try {
             $this->Authorization->authorize($mUserInfo, 'add');
         } catch (ForbiddenException $e) {
@@ -204,123 +197,54 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $mUserInfo->i_del_flag   = 0;
-        $mUserInfo->dt_create    = DateTime::now()->format('Y-m-d H:i:s');
-        $mUserInfo->i_enable     = 0;
-        $mUserInfo->i_disp_no    = $maxDispNo;
-        $mUserInfo->i_user_age   = (int)$this->request->getData('age');
-        // 管理者以外（職員・ブロック長）は児童のみ登録できる
-        $identityForRole = $this->request->getAttribute('identity');
-        $childOnly       = !UserRole::isAdmin((int)($identityForRole?->get('i_admin') ?? 0));
-        $mUserInfo->i_user_level = $childOnly ? 1 : (int)$this->request->getData('role');
-        if ($mUserInfo->i_user_level === 0) {
-            $mUserInfo->i_id_staff = $this->request->getData('staff_id');
-        }
-        $mUserInfo->i_user_gender = (int)$this->request->getData('i_user_gender');
-        $mUserInfo->i_user_rank   = (int)$this->request->getData('age_group');
+        // 管理者以外（職員・ブロック長）は児童のみ。登録先は管理者も含めて自分が所属している部屋だけ（#821）
+        $identity  = $this->request->getAttribute('identity');
+        $childOnly = !UserRole::isAdmin((int)($identity?->get('i_admin') ?? 0));
+        $actorId   = (int)($identity?->get('i_id_user') ?? 0);
+        $allowedRoomIds = $createUser->allowedRoomIds($actorId);
 
         if ($this->request->is('post')) {
-            $data = $this->request->getData();
-
-            $allowedRoomIds = $this->allowedRoomIdsForRegistration($identityForRole);
-            $postedRoomIds  = array_map(
-                static fn($g) => (int)($g['i_id_room'] ?? 0),
-                array_filter((array)($data['MUserGroup'] ?? []), 'is_array')
-            );
-
-            $age = (int)($data['age'] ?? 0);
-            if ($childOnly && (string)($data['role'] ?? '') !== '1') {
-                $this->Flash->error(__('管理者以外は児童のみ登録できます。'));
-            } elseif ($age < UserProfileOptions::MIN_AGE || $age > UserProfileOptions::MAX_AGE
-                || !isset(UserProfileOptions::AGE_GROUPS[(int)($data['age_group'] ?? 0)])
-                || !isset(UserProfileOptions::GENDERS[(int)($data['i_user_gender'] ?? 0)])
-            ) {
-                $this->Flash->error(__('性別・年代・年齢を選択してください。'));
-            } elseif ($mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL
-                && !$this->isValidStaffId(trim((string)($data['staff_id'] ?? '')))
-            ) {
-                $this->Flash->error(__('職員IDは9桁以内の数字で入力してください。'));
-            } elseif ($allowedRoomIds !== null && $allowedRoomIds === []) {
-                $this->Flash->error(__('所属している部屋がないため、ユーザーを登録できません。管理者に所属部屋の設定を依頼してください。'));
-            } elseif ($allowedRoomIds !== null && array_filter($postedRoomIds) === []) {
-                $this->Flash->error(__('登録先の部屋を選択してください。'));
-            } elseif ($allowedRoomIds !== null && array_diff(array_filter($postedRoomIds), $allowedRoomIds) !== []) {
-                $this->Flash->error(__('自分が所属していない部屋には登録できません。'));
-            } elseif ($this->userCreateService->loginAccountExists($data['c_login_account'])) {
-                $this->Flash->error(__('このログインIDは既に使用されています。他のIDをお試しください。'));
-            } else {
-                $user              = $this->request->getAttribute('identity');
-                $data['c_create_user'] = $user ? $user->get('c_user_name') : '不明なユーザー';
-
-                try {
-                    // 管理者以外も登録できるため、権限・状態系の項目は POST から受け取らない
-                    $mUserInfo = $this->MUserInfo->patchEntity($mUserInfo, $data, [
-                        'fields' => ['c_login_account', 'c_login_passwd', 'c_user_name', 'c_create_user'],
-                    ]);
-
-                    if ($mUserInfo->hasErrors()) {
-                        throw new \Exception('バリデーションエラーが発生しました。');
-                    }
-
-                    $groupData = $data['MUserGroup'] ?? [];
-                    $createdBy = $user ? $user->get('c_user_name') : '不明なユーザー';
-                    $actorId   = $user ? (int)$user->get('i_id_user') : 0;
-                    $loginId   = (string)($user?->get('c_login_account') ?? '');
-
-                    if ($this->userCreateService->saveWithRooms($mUserInfo, $groupData, $createdBy, $actorId, $this->getClientIp(), $loginId)) {
+            try {
+                $result = $createUser->execute(new CreateUserInput(
+                    (array)$this->request->getData(),
+                    $childOnly,
+                    $allowedRoomIds,
+                    $this->auditActor(),
+                ));
+                switch ($result->status) {
+                    case CreateUserOutput::CREATED:
                         $this->Flash->success(__('ユーザー情報が保存されました。'));
                         return $this->redirect(['action' => 'index']);
-                    }
-                    $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
-                } catch (\Exception $e) {
-                    $this->log('userCreate error: ' . $e->getMessage(), 'error');
-                    $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
+                    case CreateUserOutput::REJECTED:
+                        $this->Flash->error(__((string)$result->message));
+                        break;
+                    case CreateUserOutput::INVALID_FIELDS:
+                        // 項目ごとの理由はフォームの各欄に出す（従来どおり、上には定型文）
+                        $mUserInfo->setErrors($result->fieldErrors);
+                        $this->log('userCreate error: バリデーションエラーが発生しました。', 'error');
+                        $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
+                        break;
+                    default:
+                        $this->Flash->error(__('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
                 }
+            } catch (\Exception $e) {
+                $this->log('userCreate error: ' . $e->getMessage(), 'error');
+                $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
 
-        $roomsQuery = $this->MRoomInfo->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ])->where(['i_del_flg' => 0]);
-        $allowedForView = $this->allowedRoomIdsForRegistration($identityForRole);
-        if ($allowedForView !== null) {
-            $roomsQuery->where(['i_id_room IN' => $allowedForView ?: [0]]);
-        }
-        $rooms = $roomsQuery->toArray();
-
+        $rooms = $createUser->roomChoices($actorId);
         $ages  = range(UserProfileOptions::MIN_AGE, UserProfileOptions::MAX_AGE);
         $roles = $childOnly ? [1 => UserProfileOptions::USER_LEVELS[1]] : UserProfileOptions::USER_LEVELS;
         $this->set(compact('mUserInfo', 'rooms', 'ages', 'roles'));
     }
 
-    /**
-     * ユーザー登録で選べる部屋ID。管理者・システム管理者は制限なし(null)、
-     * それ以外（職員・ブロック長）は自分が所属中(active_flag=0)の部屋のみ。
-     *
-     * @return list<int>|null
-     */
-    private function allowedRoomIdsForRegistration(?object $identity): ?array
-    {
-        if ($identity === null || UserRole::isAdmin((int)($identity->get('i_admin') ?? 0))) {
-            return null;
-        }
-
-        $ids = $this->fetchTable('MUserGroup')->find()
-            ->select(['i_id_room'])
-            ->where(['i_id_user' => (int)$identity->get('i_id_user'), 'active_flag' => 0])
-            ->all()
-            ->map(static fn($g) => (int)$g->i_id_room)
-            ->toList();
-
-        return array_values(array_unique($ids));
-    }
-
-    public function edit($id = null)
+    public function edit(EditUserUseCase $editUser, $id = null)
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
 
-        $mUserInfo = $this->MUserInfo->get($id, ['contain' => ['MUserGroup']]);
+        // ID なしは見つからない（404）。null のまま渡すと InvalidPrimaryKeyException で 500 になる
+        $mUserInfo = $this->MUserInfo->get((int)$id, ['contain' => ['MUserGroup']]);
 
         try {
             $this->Authorization->authorize($mUserInfo, 'edit');
@@ -331,268 +255,127 @@ class MUserInfoController extends AppController
 
         $canChangeRole = $this->Authorization->can($mUserInfo, 'changeRole');
         // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、所属部屋を変更できない
-        $canEditRooms = $this->Authorization->can($mUserInfo, 'changeRole')
+        $canEditRooms = $canChangeRole
             || (int)$this->request->getAttribute('identity')?->get('i_id_user') === (int)$mUserInfo->i_id_user;
+        // 削除済みの人は所属部屋を変えられない（所属中になると「削除済みなのに所属中」になる）。復元すると削除前の所属に戻る
+        $roomsLocked = (int)$mUserInfo->i_del_flag === 1;
+
+        $selectedRooms = [];
+        foreach ($mUserInfo->m_user_group ?? [] as $group) {
+            // active_flag=1 は部屋異動で無効化された旧所属。選択済みに含めると保存で復活する。
+            if (RoomMembershipStatus::isActive($group->active_flag)) {
+                $selectedRooms[] = $group->i_id_room;
+            }
+        }
 
         if ($this->request->is(['patch', 'post', 'put'])) {
-            $posted = $this->request->getData();
-            $user   = $this->request->getAttribute('identity');
-            // 権限・状態系の項目を POST から受け取らないよう、編集できる項目だけを取り出す
-            // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、氏名のみ変更できる（ログインIDは認証情報のため）
-            $data = [
-                'c_login_account' => $canEditRooms
-                    ? ($posted['c_login_account'] ?? $mUserInfo->c_login_account)
-                    : $mUserInfo->c_login_account,
-                'c_user_name'     => $posted['c_user_name'] ?? $mUserInfo->c_user_name,
-                'c_update_user'   => $user ? $user->get('c_user_name') : '不明なユーザー',
-                'dt_update'       => DateTime::now()->format('Y-m-d H:i:s'),
-            ];
-
-            $roomIds = [];
-            if (!$canEditRooms) {
-                foreach ($mUserInfo->m_user_group ?? [] as $group) {
-                    if ((int)$group->active_flag === 0) {
-                        $roomIds[] = (int)$group->i_id_room;
-                    }
-                }
-            } elseif (!empty($posted['rooms'])) {
-                foreach ($posted['rooms'] as $roomId => $activeFlag) {
-                    if ($activeFlag === '1') {
-                        $roomIds[] = (int)$roomId;
-                    }
-                }
-            }
-
-            $updatedBy = $user ? $user->get('c_user_name') : '不明なユーザー';
-            $actorId   = $user ? (int)$user->get('i_id_user') : 0;
-            $loginId   = (string)($user?->get('c_login_account') ?? '');
-
-            // 年齢・権限・状態は誰も編集画面からは変えられない。
-            // 役職・職員IDは、管理者が他のユーザーを編集するときだけ（$canChangeRole）。年代は管理者だけ。
-            // 役職(i_user_level)は権限判定に、年代は食数の区分に使うため、本人は変えられない。
-            // 性別は管理者・本人。職員は自分の職員IDを変えられる。職員・ブロック長が児童を編集するときは氏名のみ。
-            $fields = ['c_login_account', 'c_user_name', 'c_update_user', 'dt_update'];
-            $isAdminActor = UserRole::isAdmin((int)($user?->get('i_admin') ?? 0));
-            if ($canEditRooms) {
-                $fields[] = 'i_user_gender';
-                $data += array_intersect_key($posted, ['i_user_gender' => 1, 'i_id_staff' => 1]);
-            }
-            if ($isAdminActor && $canEditRooms) {
-                $fields[] = 'i_user_rank';
-                $data += array_intersect_key($posted, ['i_user_rank' => 1]);
-            }
-            if ($canChangeRole) {
-                $fields = array_merge($fields, ['i_user_level', 'i_id_staff']);
-                $data += array_intersect_key($posted, ['i_user_level' => 1]);
-            }
-            [$data, $profileError] = $this->normalizeProfileForEdit($data, $mUserInfo->i_user_level);
-            if (!$canChangeRole && $canEditRooms && $profileError === null && (int)$mUserInfo->i_user_level === UserProfileOptions::STAFF_LEVEL) {
-                $fields[] = 'i_id_staff';
-                [$data, $profileError] = $this->normalizeOwnStaffId($data);
-            }
-
             try {
-                if ($profileError === null && $this->userEditService->updateWithRooms($mUserInfo, $data, $roomIds, $updatedBy, $actorId, $this->getClientIp(), $loginId, $fields)) {
+                $result = $editUser->execute(new EditUserInput(
+                    (int)$mUserInfo->i_id_user,
+                    (array)$this->request->getData(),
+                    $this->auditActor(),
+                    $canChangeRole,
+                    $canEditRooms,
+                    UserRole::isAdmin((int)($this->request->getAttribute('identity')?->get('i_admin') ?? 0)),
+                ));
+                if ($result->status === EditUserOutput::UPDATED) {
                     $this->Flash->success(__('ユーザー情報が更新されました。'));
                     return $this->redirect(['action' => 'index']);
                 }
+                if ($result->status === EditUserOutput::SAVE_FAILED) {
+                    // 入力欄の下に理由を出し、選んだ部屋はチェックしたまま出し直す
+                    $mUserInfo->setErrors($result->fieldErrors);
+                    $selectedRooms = $result->roomIds;
+                }
                 // 入力の誤りはその理由だけを出す（汎用の「保存に失敗」を重ねない）
-                $this->Flash->error($profileError ?? __('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
+                $this->Flash->error($result->message ?? __('ユーザー情報の保存に失敗しました。もう一度お試しください。'));
             } catch (\Exception $e) {
                 $this->log('userEdit error: ' . $e->getMessage(), 'error');
                 $this->Flash->error(__('予期しないエラーが発生しました。もう一度お試しください。'));
             }
         }
 
-        $rooms = $this->MRoomInfo->find('list', ['keyField' => 'i_id_room', 'valueField' => 'c_room_name'])->where(['i_del_flg' => 0])->toArray();
+        $rooms = $editUser->roomChoices((int)($this->request->getAttribute('identity')?->get('i_id_user') ?? 0));
 
-        $selectedRooms = [];
-        if (!empty($mUserInfo->m_user_group)) {
-            foreach ($mUserInfo->m_user_group as $group) {
-                // active_flag=1 は部屋異動で無効化された旧所属。選択済みに含めると保存で復活する。
-                if ((int)$group->active_flag !== 0) {
-                    continue;
-                }
-                $selectedRooms[] = $group->i_id_room;
-            }
-        }
+        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms', 'roomsLocked'));
+    }
 
-        $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms'));
+    public function updateAdminStatus(ChangeUserRoleUseCase $changeRole)
+    {
+        return $this->changeRole($changeRole, 'i_admin', 'ユーザーIDまたは管理者権限が指定されていません。', 'updateAdminStatus',
+            'この操作は管理者のみ実行できます。', UserRole::ADMIN, false, '管理者権限');
+    }
+
+    public function updateSystemAdminStatus(ChangeUserRoleUseCase $changeRole)
+    {
+        return $this->changeRole($changeRole, 'i_system_admin', 'ユーザーIDまたはシステム管理者権限が指定されていません。', 'updateSystemAdminStatus',
+            'この操作はシステム管理者のみ実行できます。', UserRole::SYSTEM_ADMIN, true, 'システム管理者権限');
+    }
+
+    public function updateUserLevel(ChangeUserRoleUseCase $changeRole)
+    {
+        // ブロック長の切替も、認可は管理者権限の切替と同じ
+        return $this->changeRole($changeRole, 'i_admin', 'ユーザーIDまたは権限レベルが指定されていません。', 'updateAdminStatus',
+            'この操作は管理者のみ実行できます。', UserRole::BLOCK_LEADER, false, 'ブロック長権限');
     }
 
     /**
-     * 編集画面の性別・年代・役職・職員IDを確かめる（管理者が保存するとき）。
-     * 「未設定」（空）で保存したときは、その項目を変えない（既存ユーザーには未入力の人がいるため）。
-     * 役職が職員以外なら職員IDは持たない（新規登録と同じ扱い）。
-     * 職員IDの入力を求めるのは、役職を職員に変えたときだけ（職員IDの無い既存の職員も保存できるように）。
+     * 権限（管理者・ブロック長・システム管理者）の切替の共通処理。
+     * 確かめる順番は、指定が無い（400）→ 対象が居ない（404）→ 認可（403）→ 値・競合（403・409）。
      *
-     * @param array<string, mixed> $data
-     * @param int|null $currentLevel 保存前の役職
-     * @return array{0: array<string, mixed>, 1: string|null} [整えたデータ, エラー文]
+     * @param string $valueKey      リクエストの値のキー
+     * @param int    $offTargetRole この画面が切り替える権限（解除のときに、他の権限を消さないために使う）
+     * @param bool   $isSystemAdmin システム管理者の画面か（送られる値は 1/0 で、1 なら 3 を付ける）
      */
-    private function normalizeProfileForEdit(array $data, ?int $currentLevel): array
-    {
-        foreach ([
-            'i_user_gender' => UserProfileOptions::GENDERS,
-            'i_user_rank'   => UserProfileOptions::AGE_GROUPS,
-            'i_user_level'  => UserProfileOptions::USER_LEVELS,
-        ] as $field => $options) {
-            if (!array_key_exists($field, $data)) {
-                continue;
-            }
-            if ($data[$field] === '') {
-                // 「未設定」のまま保存したときは変更しない（年代は空にできないテーブルの検証があるため、消すことはしない）
-                unset($data[$field]);
-                continue;
-            }
-            if (!is_scalar($data[$field]) || !ctype_digit((string)$data[$field]) || !isset($options[(int)$data[$field]])) {
-                return [$data, __('性別・年代・役職の選択が正しくありません。')];
-            }
-        }
-
-        if (!array_key_exists('i_user_level', $data)) {
-            return [$data, null];
-        }
-        if ((int)$data['i_user_level'] !== UserProfileOptions::STAFF_LEVEL) {
-            $data['i_id_staff'] = null;
-            return [$data, null];
-        }
-        $staffId = trim((string)($data['i_id_staff'] ?? ''));
-        if ($staffId === '') {
-            if ($currentLevel !== UserProfileOptions::STAFF_LEVEL) {
-                return [$data, __('役職が職員のときは職員IDを入力してください。')];
-            }
-            return [$data, null];
-        }
-        if (!$this->isValidStaffId($staffId)) {
-            return [$data, __('職員IDは9桁以内の数字で入力してください。')];
-        }
-
-        return [$data, null];
-    }
-
-    /**
-     * 本人（職員）が自分の職員IDを保存するときの確認。空なら変えない。
-     *
-     * @param array<string, mixed> $data
-     * @return array{0: array<string, mixed>, 1: string|null} [整えたデータ, エラー文]
-     */
-    private function normalizeOwnStaffId(array $data): array
-    {
-        $staffId = trim((string)($data['i_id_staff'] ?? ''));
-        if ($staffId === '') {
-            unset($data['i_id_staff']);
-            return [$data, null];
-        }
-        if (!$this->isValidStaffId($staffId)) {
-            return [$data, __('職員IDは9桁以内の数字で入力してください。')];
-        }
-
-        return [$data, null];
-    }
-
-    /**
-     * 職員IDとして保存できるか。列は数値（int）なので、数字以外は黙って空で保存され、
-     * 大きすぎる値は SQL エラーになる。9桁以内の数字に限る（新規登録・編集で共通）。
-     */
-    private function isValidStaffId(string $staffId): bool
-    {
-        return ctype_digit($staffId) && strlen($staffId) <= 9;
-    }
-
-    public function updateAdminStatus()
-    {
+    private function changeRole(
+        ChangeUserRoleUseCase $changeRole,
+        string $valueKey,
+        string $missingMessage,
+        string $policyAction,
+        string $forbiddenMessage,
+        int $offTargetRole,
+        bool $isSystemAdmin,
+        string $roleLabel,
+    ): \Cake\Http\Response {
         $this->request->allowMethod(['post']);
         $apiResponse = new ApiResponseService();
 
         $data   = $this->request->getData();
         $userId = $data['i_id_user'] ?? null;
-        $isAdmin = $data['i_admin'] ?? null;
+        $value  = $data[$valueKey] ?? null;
 
-        if (is_null($userId) || is_null($isAdmin)) {
+        if (is_null($userId) || is_null($value)) {
             $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, 'ユーザーIDまたは管理者権限が指定されていません。', 400);
+            return $apiResponse->error($this->response, $missingMessage, 400);
         }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
+        if (!$changeRole->targetExists((int)$userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
         try {
-            $this->Authorization->authorize($user, 'updateAdminStatus');
+            // 権限の切替の認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize(new MUserInfo(), $policyAction);
         } catch (ForbiddenException $e) {
-            return $apiResponse->error($this->response, 'この操作は管理者のみ実行できます。', 403);
+            return $apiResponse->error($this->response, $forbiddenMessage, 403);
         }
 
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
+        $newRole = $isSystemAdmin ? ((int)$value === 1 ? UserRole::SYSTEM_ADMIN : UserRole::GENERAL) : (int)$value;
+        $result  = $changeRole->execute(new ChangeUserRoleInput(
+            (int)$userId,
+            $newRole,
+            $offTargetRole,
+            $this->isOverwriteConfirmed($data),
+            $isSystemAdmin,
+            $this->auditActor(),
+        ));
 
-        // システム管理者(3)や範囲外の値は updatePermission() が拒否する（監査ログにも残る）
-        $isAllowedValue = in_array((int)$isAdmin, [0, 1, 2], true);
-        if ($isAllowedValue) {
-            $conflict = $this->userPermissionService->findRoleConflict(
-                (int)$user->i_admin, (int)$isAdmin, 1, $this->isOverwriteConfirmed($data)
-            );
-            if ($conflict !== null) {
-                return $apiResponse->error($this->response, $conflict, 409);
-            }
-        }
-
-        if ($this->userPermissionService->updatePermission($user, (int)$isAdmin, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
-            return $apiResponse->success($this->response, [], '管理者権限が正常に更新されました。');
-        }
-        if (!$isAllowedValue) {
-            return $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403);
-        }
-        return $apiResponse->error($this->response, '管理者権限の更新に失敗しました。', 500);
-    }
-
-    public function updateSystemAdminStatus()
-    {
-        $this->request->allowMethod(['post']);
-        $apiResponse = new ApiResponseService();
-
-        $data          = $this->request->getData();
-        $userId        = $data['i_id_user'] ?? null;
-        $isSystemAdmin = $data['i_system_admin'] ?? null;
-
-        if (is_null($userId) || is_null($isSystemAdmin)) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, 'ユーザーIDまたはシステム管理者権限が指定されていません。', 400);
-        }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
-        }
-
-        try {
-            $this->Authorization->authorize($user, 'updateSystemAdminStatus');
-        } catch (ForbiddenException $e) {
-            return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
-        }
-
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
-
-        $value = (int)$isSystemAdmin === 1 ? 3 : 0;
-        $conflict = $this->userPermissionService->findRoleConflict(
-            (int)$user->i_admin, $value, 3, $this->isOverwriteConfirmed($data)
-        );
-        if ($conflict !== null) {
-            return $apiResponse->error($this->response, $conflict, 409);
-        }
-        if ($this->userPermissionService->updatePermission($user, $value, $updatedBy, $actorId, $this->getClientIp(), $loginId, true)) {
-            return $apiResponse->success($this->response, [], 'システム管理者権限が正常に更新されました。');
-        }
-        return $apiResponse->error($this->response, 'システム管理者権限の更新に失敗しました。', 500);
+        return match ($result->status) {
+            ChangeUserRoleOutput::CHANGED        => $apiResponse->success($this->response, [], $roleLabel . 'が正常に更新されました。'),
+            ChangeUserRoleOutput::CONFLICT       => $apiResponse->error($this->response, (string)$result->message, 409),
+            ChangeUserRoleOutput::NOT_ASSIGNABLE => $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403),
+            default                              => $apiResponse->error($this->response, $roleLabel . 'の更新に失敗しました。', 500),
+        };
     }
 
     /**
@@ -605,115 +388,42 @@ class MUserInfoController extends AppController
         return filter_var($data['overwrite'] ?? false, FILTER_VALIDATE_BOOLEAN);
     }
 
-    public function updateReportAccess()
+
+    public function updateReportAccess(ChangeReportAccessUseCase $changeReportAccess)
     {
         $this->request->allowMethod(['post']);
         $apiResponse = new ApiResponseService();
 
-        $data           = $this->request->getData();
-        $userId         = $data['i_id_user'] ?? null;
-        $reportAccess   = $data['i_report_access'] ?? null;
+        $data         = $this->request->getData();
+        $userId       = $data['i_id_user'] ?? null;
+        $reportAccess = $data['i_report_access'] ?? null;
 
         if (is_null($userId) || is_null($reportAccess)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
         }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
+        if (!$changeReportAccess->targetExists((int)$userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
 
         try {
-            $this->Authorization->authorize($user, 'updateReportAccess');
+            $this->Authorization->authorize(new MUserInfo(), 'updateReportAccess');
         } catch (ForbiddenException $e) {
             return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
         }
 
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
-        $value     = (int)$reportAccess === 1 ? 1 : 0;
-
-        $table            = $this->MUserInfo;
-        $user->i_report_access = $value;
-        $user->dt_update       = DateTime::now()->format('Y-m-d H:i:s');
-        $user->c_update_user   = $updatedBy;
-
-        if ($table->save($user)) {
-            AuditLogService::record(
-                'user',
-                'user_report_access_change',
-                $updatedBy,
-                $actorId,
-                'm_user_info',
-                (string)$user->i_id_user,
-                ['target_user_name' => $user->c_user_name, 'i_report_access' => $value],
-                $this->getClientIp() ?: null,
-                1,
-                $loginId
-            );
+        $result = $changeReportAccess->execute(new ChangeReportAccessInput((int)$userId, (int)$reportAccess === 1, $this->auditActor()));
+        if ($result->saved) {
             return $apiResponse->success($this->response, [], 'レポートアクセス権を更新しました。');
         }
+
         return $apiResponse->error($this->response, 'レポートアクセス権の更新に失敗しました。', 500);
-    }
-
-    public function updateUserLevel()
-    {
-        $this->request->allowMethod(['post']);
-        $apiResponse = new ApiResponseService();
-
-        $data   = $this->request->getData();
-        $userId = $data['i_id_user'] ?? null;
-        $level  = $data['i_admin'] ?? null;
-
-        if (is_null($userId) || is_null($level)) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, 'ユーザーIDまたは権限レベルが指定されていません。', 400);
-        }
-
-        $user = $this->MUserInfo->find()->where(['i_id_user' => (int)$userId])->first();
-        if (!$user) {
-            $this->Authorization->skipAuthorization();
-            return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
-        }
-
-        try {
-            $this->Authorization->authorize($user, 'updateAdminStatus');
-        } catch (ForbiddenException $e) {
-            return $apiResponse->error($this->response, 'この操作は管理者のみ実行できます。', 403);
-        }
-
-        $identity  = $this->request->getAttribute('identity');
-        $updatedBy = $identity ? $identity->get('c_user_name') : '不明なユーザー';
-        $actorId   = $identity ? (int)$identity->get('i_id_user') : 0;
-        $loginId   = (string)($identity?->get('c_login_account') ?? '');
-
-        // システム管理者(3)や範囲外の値は updatePermission() が拒否する（監査ログにも残る）
-        $isAllowedValue = in_array((int)$level, [0, 1, 2], true);
-        if ($isAllowedValue) {
-            $conflict = $this->userPermissionService->findRoleConflict(
-                (int)$user->i_admin, (int)$level, 2, $this->isOverwriteConfirmed($data)
-            );
-            if ($conflict !== null) {
-                return $apiResponse->error($this->response, $conflict, 409);
-            }
-        }
-
-        if ($this->userPermissionService->updatePermission($user, (int)$level, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
-            return $apiResponse->success($this->response, [], 'ブロック長権限が正常に更新されました。');
-        }
-        if (!$isAllowedValue) {
-            return $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403);
-        }
-        return $apiResponse->error($this->response, 'ブロック長権限の更新に失敗しました。', 500);
     }
 
     public function view($id = null)
     {
-        $mUserInfo = $this->MUserInfo->get($id, [
+        $mUserInfo = $this->MUserInfo->get((int)$id, [
             'contain' => ['MUserGroup' => ['MRoomInfo']],
         ]);
         try {
@@ -723,28 +433,46 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], (int)$mUserInfo->i_del_flag === 1);
+        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], $mUserInfo);
         $canEdit   = $this->Authorization->can($mUserInfo, 'edit');
 
         $this->set(compact('mUserInfo', 'userRooms', 'canEdit'));
     }
 
     /**
-     * 現在所属している部屋名の一覧。既定では、退出済み(active_flag=1)と削除済み部屋は含めない。
+     * 所属している部屋名の一覧。退出済み(active_flag=1)と削除済み部屋は含めない。
      * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
-     * 削除済みユーザーは、削除時に所属が全て退出済みになるため、削除前の所属を見られるよう退出済みも含める。
-     * 削除前に異動で退出していた部屋と区別できないため、それも含まれる（復元で全所属が戻る挙動と同じ集合）。
+     * 削除済みユーザーは、削除の直前に所属していた部屋（削除で外した所属）を出す。復元で所属中に戻る部屋と同じ集合
+     * （部屋異動で外れた昔の部屋は出さない。見分け方は DeletedMembershipRule）。
      *
      * @param iterable<\App\Infrastructure\Persistence\Entity\MUserGroup> $groups
-     * @param bool $includeLeft 退出済み(active_flag=1)の部屋も含めるか
+     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $user 所属の持ち主
      * @return list<string>
      */
-    private function activeRoomNames(iterable $groups, bool $includeLeft = false): array
+    private function activeRoomNames(iterable $groups, \App\Infrastructure\Persistence\Entity\MUserInfo $user): array
     {
+        $isDeletedUser = (int)$user->i_del_flag === 1;
+        $groups        = is_array($groups) ? $groups : iterator_to_array($groups);
+        $hasMarks      = false;
+        foreach ($groups as $group) {
+            $hasMarks = $hasMarks || (int)($group->i_left_by_deletion ?? 0) === 1;
+        }
+
         $names = [];
         foreach ($groups as $group) {
-            $isLeft = (int)($group->active_flag ?? 0) !== 0;
-            if (($isLeft && !$includeLeft)
+            $isLeft = !RoomMembershipStatus::isActive($group->active_flag);
+            if ($isDeletedUser) {
+                $show = DeletedMembershipRule::isLeftByDeletion(
+                    $group->active_flag === null ? null : (int)$group->active_flag,
+                    $group->i_left_by_deletion === null ? null : (int)$group->i_left_by_deletion,
+                    $hasMarks,
+                    $group->dt_update,
+                    $user->dt_update,
+                );
+            } else {
+                $show = !$isLeft;
+            }
+            if (!$show
                 || empty($group->m_room_info)
                 || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
             ) {
@@ -756,24 +484,22 @@ class MUserInfoController extends AppController
         return $names;
     }
 
-    public function delete($id = null)
+    public function delete(DeleteUserUseCase $deleteUser, $id = null)
     {
         $this->request->allowMethod(['post', 'delete']);
-        $mUserInfo = $this->MUserInfo->get($id);
+        if ($deleteUser->target((int)$id) === null) {
+            throw new NotFoundException(__('ユーザーが見つかりません。'));
+        }
 
         try {
-            $this->Authorization->authorize($mUserInfo, 'delete');
+            // 削除の認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize(new MUserInfo(), 'delete');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('あなたは削除権限がありません。'));
             return $this->redirect(['action' => 'index']);
         }
 
-        $user      = $this->request->getAttribute('identity');
-        $updatedBy = $user ? $user->get('c_user_name') : '不明なユーザー';
-        $actorId   = $user ? (int)$user->get('i_id_user') : 0;
-        $loginId   = (string)($user?->get('c_login_account') ?? '');
-
-        if ($this->userDeletionService->softDelete($mUserInfo, $updatedBy, $actorId, $this->getClientIp(), $loginId)) {
+        if ($deleteUser->execute(new DeleteUserInput((int)$id, $this->auditActor()))->deleted) {
             $this->Flash->success(__('ユーザー情報が削除されました。'));
         } else {
             $this->Flash->error(__('ユーザー情報を削除できませんでした。'));
@@ -829,7 +555,7 @@ class MUserInfoController extends AppController
             $status = $result ? $result->getStatus() : 'Result is null';
             $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
-            $loginAccount = (string)($this->request->getData('c_login_account') ?? '');
+            $loginAccount = $this->dataString('c_login_account');
             // 操作者は、入力されたログインIDのアカウント（無ければ「該当アカウントなし」）
             $account = $loginAccount === '' ? null : $this->MUserInfo->find()
                 ->select(['i_id_user', 'c_user_name'])
@@ -875,10 +601,10 @@ class MUserInfoController extends AppController
         return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
 
-    public function adminChangePassword()
+    public function adminChangePassword(ChangePasswordUseCase $changePassword)
     {
         $this->request->allowMethod(['get', 'post', 'put']);
-        $resource = $this->MUserInfo->newEmptyEntity();
+        $resource = new MUserInfo();
         try {
             $this->Authorization->authorize($resource, 'adminChangePassword');
         } catch (ForbiddenException $e) {
@@ -886,70 +612,48 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $users = $this->fetchTable('MUserInfo')->find('list', [
-            'keyField'   => 'i_id_user',
-            'valueField' => 'c_user_name',
-        ])->where(['i_del_flag' => 0])->toArray();
-
-        $selectedUser = null;
+        $users = $changePassword->selectableUsers();
+        $selectedUserId = null;
 
         if ($this->request->is(['post', 'put'])) {
-            $data            = $this->request->getData();
-            $userId          = $data['user_id'] ?? null;
-            $newPassword     = $data['new_password'] ?? '';
-            $confirmPassword = $data['confirm_password'] ?? '';
-
-            if (!$userId || !isset($users[$userId])) {
-                $this->Flash->error(__('ユーザーを選択してください。'));
-                return $this->redirect(['action' => 'adminChangePassword']);
-            }
-
-            $selectedUser = $this->fetchTable('MUserInfo')->get($userId);
-
-            if ($newPassword !== $confirmPassword) {
-                $this->Flash->error(__('新しいパスワードが一致しません。'));
-                return $this->redirect(['action' => 'adminChangePassword']);
-            }
-
-            if (strlen($newPassword) < 2) {
-                $this->Flash->error(__('新しいパスワードは2文字以上にしてください。'));
-                return $this->redirect(['action' => 'adminChangePassword']);
-            }
-
-            $selectedUser->c_login_passwd = $newPassword;
-
-            $actorIdentity = $this->request->getAttribute('identity');
-            if ($this->fetchTable('MUserInfo')->save($selectedUser)) {
-                \App\Service\AuditLogService::record(
-                    'user',
-                    'user_password_change_admin',
-                    $actorIdentity?->get('c_user_name') ?? '不明',
-                    $actorIdentity ? (int)$actorIdentity->get('i_id_user') : 0,
-                    'm_user_info',
-                    (string)$selectedUser->i_id_user,
-                    ['target_user_name' => $selectedUser->c_user_name],
-                    $this->getClientIp(),
-                    1,
-                    (string)($actorIdentity?->get('c_login_account') ?? '')
-                );
+            $data   = $this->request->getData();
+            $userId = $this->userIdParam($data['user_id'] ?? null);
+            $result = $changePassword->execute(new ChangePasswordInput(
+                $userId,
+                (string)($data['new_password'] ?? ''),
+                (string)($data['confirm_password'] ?? ''),
+                $this->auditActor(),
+                true,
+            ));
+            if ($result->status === ChangePasswordOutput::CHANGED) {
                 $this->Flash->success(__('パスワードを変更しました。'));
                 return $this->redirect(['action' => 'index']);
             }
-
+            if ($result->status === ChangePasswordOutput::REJECTED) {
+                $this->Flash->error((string)$result->message);
+                return $this->redirect(['action' => 'adminChangePassword']);
+            }
+            $selectedUserId = $userId;
             $this->Flash->error(__('パスワードの変更に失敗しました。'));
         } elseif ($this->request->is('get')) {
             // 編集画面の「パスワード変更」リンクから ?user_id= 付きで遷移してきた場合、対象ユーザーを事前選択する。
             // 存在しない・削除済みユーザーIDは無視し、通常の未選択状態にフォールバックする。
-            $queryUserId = $this->request->getQuery('user_id');
+            $queryUserId = $this->userIdParam($this->request->getQuery('user_id'));
             if ($queryUserId !== null && isset($users[$queryUserId])) {
-                $selectedUser = $this->fetchTable('MUserInfo')->get((int)$queryUserId);
+                $selectedUserId = $queryUserId;
             }
         }
 
-        $this->set(compact('users', 'selectedUser'));
+        $this->set(compact('users', 'selectedUserId'));
     }
 
-    public function generalPasswordReset(): ?\Cake\Http\Response
+    /** 送られた利用者 ID（数字の文字列だけを受け取る。'01' や '1abc' は選ばれていない扱い）。 */
+    private function userIdParam(string|int|array|null $value): ?int
+    {
+        return is_scalar($value) && (string)(int)$value === (string)$value && (int)$value > 0 ? (int)$value : null;
+    }
+
+    public function generalPasswordReset(ChangePasswordUseCase $changePassword): ?\Cake\Http\Response
     {
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
         $identity = $this->request->getAttribute('identity');
@@ -959,8 +663,7 @@ class MUserInfoController extends AppController
         }
 
         $userId = $identity->getIdentifier() ?? $identity->get('i_id_user');
-        $Users  = $this->fetchTable('MUserInfo');
-        $user   = $Users->get($userId);
+        $user   = $this->MUserInfo->get($userId);
 
         try {
             $this->Authorization->authorize($user, 'generalPasswordReset');
@@ -970,39 +673,23 @@ class MUserInfoController extends AppController
         }
 
         if ($this->request->is(['post', 'put', 'patch'])) {
-            $data            = (array)$this->request->getData();
-            $newPassword     = (string)($data['new_password'] ?? '');
-            $confirmPassword = (string)($data['confirm_password'] ?? '');
-
-            if ($newPassword !== $confirmPassword) {
-                $this->Flash->error('新しいパスワードが一致しません。');
-                return $this->redirect($this->request->getRequestTarget());
-            }
-            if (mb_strlen($newPassword) < 2) {
-                $this->Flash->error('新しいパスワードは2文字以上にしてください。');
-                return $this->redirect($this->request->getRequestTarget());
-            }
-
-            $user->c_login_passwd = $newPassword;
-
-            if ($Users->save($user)) {
+            $data   = (array)$this->request->getData();
+            $result = $changePassword->execute(new ChangePasswordInput(
+                (int)$user->i_id_user,
+                (string)($data['new_password'] ?? ''),
+                (string)($data['confirm_password'] ?? ''),
+                $this->auditActor(),
+                false,
+            ));
+            if ($result->status === ChangePasswordOutput::CHANGED) {
                 $this->request->getSession()->renew();
-                \App\Service\AuditLogService::record(
-                    'user',
-                    'user_password_change_self',
-                    $user->c_user_name ?? '不明',
-                    (int)$user->i_id_user,
-                    'm_user_info',
-                    (string)$user->i_id_user,
-                    null,
-                    $this->getClientIp(),
-                    1,
-                    (string)($user->c_login_account ?? '')
-                );
                 $this->Flash->success('パスワードを変更しました。');
                 return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
             }
-
+            if ($result->status === ChangePasswordOutput::REJECTED) {
+                $this->Flash->error((string)$result->message);
+                return $this->redirect($this->request->getRequestTarget());
+            }
             $this->Flash->error('パスワードの変更に失敗しました。');
         }
 
@@ -1015,7 +702,7 @@ class MUserInfoController extends AppController
      * POST: i_id_user, room_names[]
      * 既存所属はactive_flag=1に更新し、新規所属をactive_flag=0で登録（最大2部屋）
      */
-    public function addUserRooms()
+    public function addUserRooms(AssignUserRoomsUseCase $assignRooms)
     {
         $this->request->allowMethod(['post']);
         $this->viewBuilder()->setClassName('Json');
@@ -1030,30 +717,29 @@ class MUserInfoController extends AppController
         }
 
         $userId = (int)$userId;
-        $user   = $this->MUserInfo->find()->where(['i_id_user' => $userId, 'i_del_flag' => 0])->first();
-
-        if (!$user) {
+        if (!$assignRooms->isActiveUser($userId)) {
             $this->Authorization->skipAuthorization();
             $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok', 'message']]);
             return;
         }
 
         try {
-            $this->Authorization->authorize($user, 'addUserRooms');
+            // 所属部屋の入れ替えの認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize(new MUserInfo(), 'addUserRooms');
         } catch (ForbiddenException $e) {
             $this->set(['ok' => false, 'message' => '権限がありません', '_serialize' => ['ok', 'message']]);
             return;
         }
 
         $identity = $this->request->getAttribute('identity');
-        $actor    = $identity ? $identity->get('c_user_name') : 'API';
+        $actor    = $identity ? (string)$identity->get('c_user_name') : 'API';
 
         try {
-            $result = $this->userRoomAssignmentService->assign($userId, $roomNames, $actor);
+            $result = $assignRooms->execute(new AssignUserRoomsInput($userId, array_values($roomNames), $actor));
             $this->set([
                 'ok'      => true,
-                'created' => $result['created'],
-                'errors'  => $result['errors'],
+                'created' => $result->created,
+                'errors'  => $result->errors,
                 '_serialize' => ['ok', 'created', 'errors'],
             ]);
         } catch (\Throwable $e) {
@@ -1064,31 +750,41 @@ class MUserInfoController extends AppController
     /**
      * 削除済みユーザーを復元する（管理者のみ）
      */
-    public function restore($id = null)
+    public function restore(RestoreUserUseCase $restoreUser, $id = null)
     {
         $this->request->allowMethod(['post', 'put']);
-        $user     = $this->MUserInfo->get($id);
-        $identity = $this->request->getAttribute('identity');
+        $user = $restoreUser->target((int)$id);
+        if ($user === null) {
+            throw new NotFoundException(__('ユーザーが見つかりません。'));
+        }
 
         try {
-            $this->Authorization->authorize($user, 'restore');
+            // 復元の認可は操作者の権限だけで決まる（対象の中身は見ない）
+            $this->Authorization->authorize(new MUserInfo(), 'restore');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能は管理者のみ利用できます。'));
             return $this->redirect(['action' => 'index']);
         }
 
-        if ($user->i_del_flag !== 1) {
+        if (!$user->isDeleted()) {
             $this->Flash->error(__('このユーザーは削除されていません。'));
             return $this->redirect(['action' => 'index', '?' => ['show_deleted' => '1']]);
         }
 
-        $updatedBy = $identity->get('c_user_name') ?? 'admin';
-        $actorId   = (int)($identity->get('i_id_user') ?? 0);
-        $loginId   = (string)($identity->get('c_login_account') ?? '');
+        $identity = $this->request->getAttribute('identity');
+        $actor    = new AuditActor(
+            (string)($identity->get('c_user_name') ?? 'admin'),
+            (int)($identity->get('i_id_user') ?? 0),
+            (string)($identity->get('c_login_account') ?? ''),
+            $this->getClientIp(),
+        );
 
         try {
-            $this->userRestoreService->restore($user, $updatedBy, $actorId, $this->getClientIp(), $loginId);
-            $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->c_user_name));
+            $result = $restoreUser->execute(new RestoreUserInput($user->id, $actor));
+            $this->Flash->success(__('ユーザー「{0}」を復元しました。', $user->name));
+            if ($result->restoredRoomCount === 0) {
+                $this->Flash->warning(__('削除前の所属部屋が分からないため、所属部屋なしで復元しました。必要に応じて編集画面で所属部屋を設定してください。'));
+            }
             return $this->redirect(['action' => 'index']);
         } catch (\Exception $e) {
             $this->log('userRestore error: ' . $e->getMessage(), 'error');

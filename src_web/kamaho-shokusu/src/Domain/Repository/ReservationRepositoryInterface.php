@@ -80,11 +80,12 @@ interface ReservationRepositoryInterface
      * 予約行を楽観的ロックつきで更新する（承認済みの行は更新しない）。
      *
      * @param int|null $eatFlag null なら当初予定（eat_flag）は変えない
+     * @param int|null $roomId null なら部屋は変えない（直前編集で部屋を移すときに渡す）
      * @return bool false = 楽観的ロック競合
      * @throws ConflictException 承認済みの行、または有効にすると別の部屋の予約・昼食と弁当の同時予約になるとき
      * @throws \RuntimeException それ以外の失敗（変換せずにそのまま投げる）
      */
-    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor): bool;
+    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor, ?int $roomId = null): bool;
 
     /**
      * 予約行を新しく保存する（version は 1）。
@@ -98,6 +99,11 @@ interface ReservationRepositoryInterface
     public function addMany(array $rows, string $actor, bool $validate = true): void;
 
     /**
+     * 利用者の、指定日より後の未承認の予約を消す（その日と過去日は実績として残す）。
+     */
+    public function deleteUnapprovedAfter(int $userId, string $date): void;
+
+    /**
      * 部屋の日付ごとの最終更新日時（更新が無ければ作成日時）。'Y-m-d H:i:s' の文字列。
      *
      * @param list<string> $dates
@@ -105,4 +111,39 @@ interface ReservationRepositoryInterface
      * @throws \RuntimeException 読み取りに失敗したとき
      */
     public function latestUpdateByDate(int $roomId, array $dates): array;
+
+    /**
+     * 利用者のその部屋の、指定日以降の予約行（部屋異動で移す行）。
+     *
+     * @return list<MealReservation>
+     */
+    public function findFromDate(int $userId, int $roomId, string $fromDate): array;
+
+    /** その利用者・部屋・日・食事の予約行。無ければ null。 */
+    public function findOne(int $userId, int $roomId, string $date, int $mealType): ?MealReservation;
+
+    /**
+     * 部屋異動で、予約行を異動先の部屋へ移す（RoomTransferReservationRule の決めたとおりに）。
+     * 異動元の行は消す。異動先の行を作るときは、作成者・作成日時・承認状態を引き継ぐ（版は 1 から。二重予約の確認はしない）。
+     * 異動先の行に写すときは、承認状態を引き継ぎ、版を上げる。保存できなければ例外を投げる。
+     *
+     * @param string $at 更新日時（'Y-m-d H:i:s'）
+     */
+    public function moveForTransfer(MealReservation $source, int $toRoomId, bool $overwriteDestination, bool $createDestination, string $at): void;
+
+    /**
+     * 部屋の集計（t_reservation_info の食べる人数）を増減する（0 未満にはしない）。行が無く、増やすときは作る。
+     *
+     * @param string $at 更新日時（'Y-m-d H:i:s'）
+     */
+    public function adjustRoomCount(string $date, int $roomId, int $mealType, int $delta, string $at): void;
+
+    /**
+     * 期間内の予約行（部屋・利用者で絞れる。空の配列は渡さない）。並びは DB の読み取り順のまま。予約のコピーの元に使う。
+     *
+     * @param list<int>|null $roomIds
+     * @param list<int>|null $userIds
+     * @return list<MealReservation>
+     */
+    public function findInDateRange(string $from, string $to, ?array $roomIds = null, ?array $userIds = null): array;
 }

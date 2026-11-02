@@ -3,19 +3,20 @@ declare(strict_types=1);
 
 namespace App\Policy;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\UserRole;
+use App\Infrastructure\Query\CakeRoomQuery;
 
 use App\Infrastructure\Persistence\Entity\TReservationInfo;
-use App\Service\RoomAccessService;
 use Authorization\IdentityInterface;
 
 class TReservationInfoPolicy
 {
-    private RoomAccessService $roomAccessService;
+    private RoomQueryInterface $roomAccessService;
 
-    public function __construct(?RoomAccessService $roomAccessService = null)
+    public function __construct(?RoomQueryInterface $roomAccessService = null)
     {
-        $this->roomAccessService = $roomAccessService ?? new RoomAccessService();
+        $this->roomAccessService = $roomAccessService ?? new CakeRoomQuery();
     }
 
     public function canAdd(?IdentityInterface $user, TReservationInfo $resource): bool
@@ -176,15 +177,6 @@ class TReservationInfoPolicy
      * Trait 実装が identity から userId を強制取得するため IDOR 不可。
      */
     public function canReportNoMeal(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isAuthenticated($user);
-    }
-
-    /**
-     * 実食あり報告はログインユーザー自身にのみ作用する。
-     * Trait 実装が identity から userId を強制取得するため IDOR 不可。
-     */
-    public function canReportEat(?IdentityInterface $user, TReservationInfo $resource): bool
     {
         return $this->isAuthenticated($user);
     }
@@ -354,8 +346,8 @@ class TReservationInfoPolicy
     /**
      * ログインユーザーがいずれかの部屋グループに所属しているか。
      *
-     * コントローラー側の早期チェック（ReservationChangeEditService::userHasRoomAccess）と
-     * 同じ判定基準（RoomAccessService::hasAnyAffiliation）を用いる。
+     * コントローラー側の早期チェック（TReservationInfoController::changeEdit）と
+     * 同じ判定基準（RoomQueryInterface::hasAnyAffiliation）を用いる。
      */
     private function isRoomAffiliated(?IdentityInterface $user): bool
     {
@@ -385,7 +377,7 @@ class TReservationInfoPolicy
             return false;
         }
 
-        return $this->roomAccessService->userCanAccessRoom($userId, $requestedRoomId);
+        return $this->roomAccessService->isActiveMember($userId, $requestedRoomId);
     }
 
     private function getUserId(?IdentityInterface $user): int

@@ -74,6 +74,42 @@ class FeatureUsageSummaryControllerTest extends TestCase
         $this->assertSame(date('Y-m'), $this->viewVariable('yearMonth'));
     }
 
+    /**
+     * 暦にない月・配列の月は今月にする（以前は DB エラーや TypeError で 500）
+     *
+     * @return array<string, array{string}>
+     */
+    public static function badMonthProvider(): array
+    {
+        return [
+            '13 月'  => ['month=2026-13'],
+            '0 月'   => ['month=2026-00'],
+            '配列'   => ['month[]=x'],
+        ];
+    }
+
+    /** @dataProvider badMonthProvider */
+    public function testIndex_badMonth_fallsBackToCurrentMonth(string $query): void
+    {
+        $this->login(4, 'system_admin_user');
+        $this->get('/FeatureUsageSummary?' . $query);
+
+        $this->assertResponseOk();
+        $this->assertSame(date('Y-m'), $this->viewVariable('yearMonth'));
+    }
+
+    /** カテゴリが配列なら絞り込まない（以前は 500） */
+    public function testIndex_arrayCategory_isIgnored(): void
+    {
+        $this->login(4, 'system_admin_user');
+        $this->get('/FeatureUsageSummary?month=2026-06&category[]=approval');
+
+        $this->assertResponseOk();
+        $this->assertSame('2026-06', $this->viewVariable('yearMonth'));
+        $this->assertSame('', $this->viewVariable('category'));
+        $this->assertSame(2, $this->viewVariable('summary')['total_operations'], '全カテゴリの件数');
+    }
+
     public function testIndex_defaultsToCurrentMonth(): void
     {
         $this->login(4, 'system_admin_user');

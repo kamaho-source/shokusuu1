@@ -1,7 +1,7 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var \App\Infrastructure\Persistence\Entity\MMealPriceInfo $mMealPriceInfo
+ * @var array{schema: array<string, array{type: string}>, defaults: array<string, int|string|null>} $mealPriceForm
  */
 $this->assign('title', __('新しい食事単価情報の追加'));
 $this->Html->script('realtime-validation.js', ['block' => true]);
@@ -28,7 +28,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                 <div class="card-body">
                     <h5 class="card-title"><?= __('新しい食事単価情報を追加') ?></h5>
 
-                    <?= $this->Form->create($mMealPriceInfo, ['id' => 'meal-price-form']) ?>
+                    <?= $this->Form->create($mealPriceForm, ['id' => 'meal-price-form']) ?>
                     <fieldset>
                         <legend class="mb-4"><?= __('必要な情報を入力してください') ?></legend>
                         <div class="row g-3">
@@ -47,6 +47,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 500',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>
@@ -57,6 +58,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 800',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>
@@ -67,6 +69,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 1000',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>
@@ -77,6 +80,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                                     'class' => 'form-control',
                                     'placeholder' => '例: 700',
                                     'data-validate' => 'required non-negative',
+                                    'max' => \App\Domain\Service\MealPriceRule::MAX_PRICE,
                                     'data-msg-non-negative' => '0 以上の整数（円）を入力してください。',
                                 ]) ?>
                                 <div class="invalid-feedback"></div>

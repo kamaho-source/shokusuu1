@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Service\RoomTransferScheduleService;
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
 use Cake\Command\Command;
 use Cake\Console\Arguments;
 use Cake\Console\ConsoleIo;
@@ -23,6 +23,11 @@ use Cake\I18n\DateTime;
  */
 class ApplyRoomTransferScheduleCommand extends Command
 {
+    public function __construct(private readonly ApplyRoomTransfersUseCase $applyRoomTransfers)
+    {
+        parent::__construct();
+    }
+
     public static function defaultName(): string
     {
         return 'apply_room_transfer_schedule';
@@ -59,20 +64,18 @@ class ApplyRoomTransferScheduleCommand extends Command
             $io->out('部屋異動予約の適用を開始します。基準日: ' . $today);
         }
 
-        $service = new RoomTransferScheduleService();
-
         try {
-            $result = $service->applyPending($today, $dryRun);
+            $result = $this->applyRoomTransfers->execute($today, $dryRun);
         } catch (\Throwable $e) {
             $io->err('致命的エラー: ' . $e->getMessage());
             return self::CODE_ERROR;
         }
 
         $prefix = $dryRun ? '[DRY-RUN] ' : '';
-        $io->out(sprintf('%s適用%s: %d件', $prefix, $dryRun ? '予定' : '完了', $result['applied']));
+        $io->out(sprintf('%s適用%s: %d件', $prefix, $dryRun ? '予定' : '完了', $result->applied));
 
-        if (!empty($result['errors'])) {
-            foreach ($result['errors'] as $err) {
+        if ($result->errors !== []) {
+            foreach ($result->errors as $err) {
                 $io->err('エラー: ' . $err);
             }
             return self::CODE_ERROR;

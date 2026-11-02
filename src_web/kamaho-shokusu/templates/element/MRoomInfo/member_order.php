@@ -6,7 +6,7 @@
  *
  * @var \App\View\AppView $this
  * @var \App\Infrastructure\Persistence\Entity\MRoomInfo $mRoomInfo
- * @var array $users
+ * @var list<\App\Application\Query\Dto\RoomMemberView> $users
  * @var bool $canReorder
  */
 ?>
@@ -48,22 +48,22 @@
                 <tbody>
                 <?php // ※ ループ変数にはログインユーザーの $user と別名を使う（シャドーイング防止） ?>
                 <?php foreach (array_values($users) as $i => $member): ?>
-                    <tr data-user-id="<?= (int)$member->i_id_user ?>" data-age="<?= $member->i_user_age === null ? '' : (int)$member->i_user_age ?>"<?= $member->i_user_level === 1 ? ' data-child="1"' : '' ?>>
+                    <tr data-user-id="<?= $member->userId ?>" data-age="<?= $member->age ?? '' ?>"<?= $member->level === 1 ? ' data-child="1"' : '' ?>>
                         <td class="grip" title="<?= __('ドラッグして移動') ?>">⋮⋮</td>
                         <td class="rh"><?= $i + 1 ?></td>
                         <td class="num ord">
                             <?php if ($canReorder): ?>
-                                <input type="hidden" name="user_ids[]" value="<?= (int)$member->i_id_user ?>">
+                                <input type="hidden" name="user_ids[]" value="<?= $member->userId ?>">
                                 <input type="number" class="member-order-input" step="1" min="1" max="<?= count($users) ?>" value="<?= $i + 1 ?>"
-                                       aria-label="<?= h($member->c_user_name) ?> の順番">
+                                       aria-label="<?= h($member->name) ?> の順番">
                             <?php else: ?>
                                 <?= $i + 1 ?>
                             <?php endif; ?>
                         </td>
-                        <td><?= h(\App\Domain\ValueObject\UserRole::levelLabel($member->i_user_level === null ? null : (int)$member->i_user_level)) ?></td>
-                        <td><?= h($member->c_user_name) ?></td>
-                        <td class="age"><?= $member->i_user_age === null ? '' : (int)$member->i_user_age . '歳' ?></td>
-                        <td class="num"><?= (int)$member->i_id_user ?></td>
+                        <td><?= h(\App\Domain\ValueObject\UserRole::levelLabel($member->level)) ?></td>
+                        <td><?= h($member->name) ?></td>
+                        <td class="age"><?= $member->age === null ? '' : $member->age . '歳' ?></td>
+                        <td class="num"><?= $member->userId ?></td>
                         <td class="chgmark"></td>
                     </tr>
                 <?php endforeach; ?>

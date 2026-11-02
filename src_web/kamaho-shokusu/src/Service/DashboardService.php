@@ -4,8 +4,6 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Domain\Service\ReservationDateRule;
-use Cake\I18n\Date;
-use Cake\ORM\Table;
 use Cake\I18n\DateTime;
 
 /**
@@ -100,27 +98,5 @@ class DashboardService
             'thirdNormalWeekMonday'  => $thirdNormalWeekMonday,
             'fmtWeekRange'           => $fmtWeekRange,
         ];
-    }
-
-    /**
-     * 指定ユーザーが本日の予約レコードを持つかを判定する。
-     *
-     * 「食べる」「食べない」どちらの申告でも TIndividualReservationInfo に
-     * レコードが作成されるため、レコードの有無だけで判定する。
-     * レコードが存在する = 申告済み(アラート非表示)。
-     * レコードが存在しない = 未申告(アラート表示)。
-     *
-     * @param int   $userId           ログイン中ユーザーの i_id_user
-     * @param Table $reservationTable TIndividualReservationInfo テーブルオブジェクト
-     * @return bool true = 本日の予約レコードあり / false = 本日の予約レコードなし
-     */
-    public function hasTodayReport(int $userId, Table $reservationTable): bool
-    {
-        $today = Date::today('Asia/Tokyo');
-
-        return $reservationTable->exists([
-            'i_id_user'          => $userId,
-            'd_reservation_date' => $today,
-        ]);
     }
 }

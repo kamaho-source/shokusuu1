@@ -3,18 +3,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use Cake\ORM\Table;
-
 class ReservationAddService
 {
-    public function buildRoomList(Table $roomTable): array
-    {
-        return $roomTable->find('list', [
-            'keyField'   => 'i_id_room',
-            'valueField' => 'c_room_name',
-        ])->toArray();
-    }
-
     public function ensureReservationDate(array $data, string $date): array
     {
         if (empty($data['d_reservation_date'])) {

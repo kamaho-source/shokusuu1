@@ -9,6 +9,7 @@ use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservation
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Domain\ValueObject\UserRole;
 use App\Service\BulkReservationFormService;
+use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Response;
 
 /**
@@ -47,7 +48,11 @@ class ReservationBulkController extends ReservationBaseController
             return $denied;
         }
 
-        $date  = $this->request->getQuery('date');
+        try {
+            $date = $this->queryDate('date');
+        } catch (BadRequestException $e) {
+            return $this->apiResponseService->error($this->response, $e->getMessage(), 400);
+        }
         $page  = (int)$this->request->getQuery('page', 1);
         $limit = (int)$this->request->getQuery('limit', 100);
         if ($page < 1) {
@@ -55,14 +60,7 @@ class ReservationBulkController extends ReservationBaseController
         }
         $limit = max(1, min(500, $limit));
 
-        $payload = $this->queryService->getUsersByRoomForBulk(
-            $this->MUserGroup,
-            $this->TIndividualReservationInfo,
-            (int)$roomId,
-            $date,
-            $page,
-            $limit
-        );
+        $payload = $this->reservationRead->getUsersByRoomForBulk((int)$roomId, $date, $page, $limit)->toArray();
 
         return $this->apiResponseService->success($this->response, $payload);
     }
@@ -88,11 +86,7 @@ class ReservationBulkController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'room_id または dates が不足しています。', 400);
         }
 
-        $map = $this->queryService->getReservationSnapshots(
-            $this->TIndividualReservationInfo,
-            $roomId,
-            $dates
-        );
+        $map = $this->reservationRead->getReservationSnapshots($roomId, $dates);
 
         return $this->apiResponseService->success($this->response, ['snapshots' => $map], 'ok');
     }
@@ -106,25 +100,26 @@ class ReservationBulkController extends ReservationBaseController
     {
         $this->authorizeReservation('bulkAddForm');
 
-        $selectedDate = $this->request->getQuery('date');
-        if (!$selectedDate) {
+        // 配列（?date[]=x）や暦にない日付は、画面の決まりどおり「無効な日付」で一覧に戻す（以前は TypeError で 500、または翌月に繰り越し）
+        try {
+            $selectedDate = $this->queryDate('date');
+        } catch (BadRequestException) {
+            $this->Flash->error(__('無効な日付が指定されました。'));
+            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
+        }
+        if ($selectedDate === null) {
             $this->Flash->error(__('日付が指定されていません。'));
             return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
 
-        try {
-            $startDate = new \DateTime($selectedDate);
-            $startDate->modify('monday this week');
-        } catch (\Exception $e) {
-            $this->Flash->error(__('無効な日付が指定されました。'));
-            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
-        }
+        $startDate = new \DateTime($selectedDate);
+        $startDate->modify('monday this week');
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
-        $baseWeekParam  = $this->request->getQuery('base_week');
+        $baseWeekParam  = $this->queryString('base_week') ?: null;
         $formData       = $this->bulkFormService->buildBulkAddData((string)$selectedDate, $baseWeekParam);
         $canGroup       = (UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'))
             || UserRole::isStaffLevel((int)$this->request->getAttribute('identity')->get('i_user_level')));
@@ -148,17 +143,23 @@ class ReservationBulkController extends ReservationBaseController
     {
         $this->authorizeReservation('bulkChangeEditForm');
 
-        $selectedDate = $this->request->getQuery('date');
-        if (!$selectedDate) {
+        // 配列（?date[]=x）や暦にない日付は、画面の決まりどおり「無効な日付」で一覧に戻す（以前は TypeError で 500、または翌月に繰り越し）
+        try {
+            $selectedDate = $this->queryDate('date');
+        } catch (BadRequestException) {
+            $this->Flash->error(__('無効な日付が指定されました。'));
+            return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
+        }
+        if ($selectedDate === null) {
             $this->Flash->error(__('日付が指定されていません。'));
             return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         }
 
         $userId = $this->request->getAttribute('identity')->get('i_id_user');
-        $rooms  = $this->bulkFormService->getRoomsForUser($this->MRoomInfo, (int)$userId);
+        $rooms  = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         $selectedRoomId = $this->request->getQuery('room_id') ?? '';
-        $baseWeekParam  = $this->request->getQuery('base_week');
+        $baseWeekParam  = $this->queryString('base_week') ?: null;
         $formData       = $this->bulkFormService->buildBulkChangeEditData((string)$selectedDate, $baseWeekParam);
         $isAdmin        = UserRole::isAdmin((int)$this->request->getAttribute('identity')->get('i_admin'));
         $isBlockLeader  = UserRole::isBlockLeader((int)$this->request->getAttribute('identity')->get('i_admin'));

@@ -28,4 +28,11 @@ final class ReservationCacheAdapter implements ReservationCacheInterface
             ReservationCache::bumpVersion();
         }
     }
+
+    public function forgetAfterRoomTransfer(string $date, int $userId): void
+    {
+        ReservationCache::forgetMealCounts($date);
+        ReservationCache::forgetTodayReport($userId, $date);
+        ReservationCache::bumpVersion();
+    }
 }

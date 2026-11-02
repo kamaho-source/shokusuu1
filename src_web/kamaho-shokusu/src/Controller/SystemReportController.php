@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Service\SystemReportService;
+use App\Domain\Service\DatePeriodRule;
+use App\Application\Query\Dto\DailyChildCount;
+use App\Application\Query\Dto\RoomUsageStat;
+use App\Application\Query\SystemReportQueryInterface;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Response;
@@ -26,7 +29,7 @@ final class SystemReportController extends AppController
     private const MAX_RANGE_DAYS = 366;
 
     public function __construct(
-        private SystemReportService $reportService,
+        private SystemReportQueryInterface $reportQuery,
         ServerRequest $request
     ) {
         parent::__construct($request);
@@ -52,7 +55,7 @@ final class SystemReportController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $allUsers       = $this->reportService->getAllUsers();
+        $allUsers       = $this->reportQuery->userOptions();
         $session        = $this->request->getSession();
         $excludeUserIds = $session->read('SystemReport.excludeUserIds') ?? [];
 
@@ -83,7 +86,7 @@ final class SystemReportController extends AppController
         $session->write('SystemReport.excludeUserIds', $excludeUserIds);
 
         try {
-            $roomStats = $this->reportService->getRoomStats($excludeUserIds, $dateFrom, $dateTo);
+            $roomStats = array_map(static fn(RoomUsageStat $s) => $s->toArray(), $this->reportQuery->roomStats($excludeUserIds, $dateFrom, $dateTo));
         } catch (\Throwable $e) {
             Log::error('SystemReport#data failed: ' . $e->getMessage());
             return $this->jsonError('集計処理に失敗しました。', 500);
@@ -108,7 +111,7 @@ final class SystemReportController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'dashboard']);
         }
 
-        $allUsers       = $this->reportService->getAllUsers();
+        $allUsers       = $this->reportQuery->userOptions();
         $session        = $this->request->getSession();
         $excludeUserIds = $session->read('SystemReport.excludeChildIds') ?? [];
 
@@ -139,7 +142,7 @@ final class SystemReportController extends AppController
         $session->write('SystemReport.excludeChildIds', $excludeUserIds);
 
         try {
-            $stats = $this->reportService->getDailyChildrenStats($excludeUserIds, $dateFrom, $dateTo);
+            $stats = array_map(static fn(DailyChildCount $c) => $c->toArray(), $this->reportQuery->dailyChildCounts($excludeUserIds, $dateFrom, $dateTo));
         } catch (\Throwable $e) {
             Log::error('SystemReport#dailyChildrenData failed: ' . $e->getMessage());
             return $this->jsonError('集計処理に失敗しました。', 500);
@@ -187,15 +190,15 @@ final class SystemReportController extends AppController
         }
 
         try {
-            $stats = $this->reportService->getLoginStats($dateFrom, $dateTo);
+            $stats = $this->reportQuery->loginReport($dateFrom, $dateTo);
         } catch (\Throwable $e) {
             Log::error('SystemReport#loginReportData failed: ' . $e->getMessage());
             return $this->jsonError('集計処理に失敗しました。', 500);
         }
 
         return $this->jsonResponse([
-            'daily'     => $stats['daily'],
-            'logs'      => $stats['logs'],
+            'daily'     => $stats->daily,
+            'logs'      => $stats->logs,
             'date_from' => $dateFrom,
             'date_to'   => $dateTo,
         ]);
@@ -222,8 +225,8 @@ final class SystemReportController extends AppController
      */
     private function resolveDateRange(): array
     {
-        $dateFrom = (string)($this->request->getQuery('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d'));
-        $dateTo   = (string)($this->request->getQuery('date_to') ?: Date::today()->format('Y-m-d'));
+        $dateFrom = $this->queryString('date_from') ?: Date::today()->startOfMonth()->format('Y-m-d');
+        $dateTo   = $this->queryString('date_to') ?: Date::today()->format('Y-m-d');
 
         if (!$this->isValidYmd($dateFrom) || !$this->isValidYmd($dateTo)) {
             throw new BadRequestException('日付は YYYY-MM-DD 形式で指定してください。');
@@ -245,8 +248,8 @@ final class SystemReportController extends AppController
 
     private function isValidYmd(string $value): bool
     {
-        $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
-        return $dt !== false && $dt->format('Y-m-d') === $value;
+        // NUL バイトを含む値でも 500 にしないよう、共通の判定を使う
+        return DatePeriodRule::isDate($value);
     }
 
     private function jsonResponse(array $data, int $status = 200): Response

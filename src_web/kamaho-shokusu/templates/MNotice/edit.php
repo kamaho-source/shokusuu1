@@ -3,15 +3,15 @@
  * お知らせ編集
  *
  * @var \App\View\AppView $this
- * @var \App\Infrastructure\Persistence\Entity\MNotice $notice
+ * @var \App\Domain\Entity\Notice $notice
  * @var bool $isSysAdmin
  */
 
 $this->assign('title', 'お知らせ編集');
 $this->Html->script('realtime-validation.js', ['block' => true]);
 
-$startVal = $notice->d_start ? $notice->d_start->format('Y-m-d') : '';
-$endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
+$startVal = $notice->startDate ?? '';
+$endVal   = $notice->endDate ?? '';
 ?>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
@@ -22,7 +22,7 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
 
     <?= $this->Flash->render() ?>
 
-    <?= $this->Form->create(null, ['url' => ['action' => 'edit', $notice->i_id], 'method' => 'post', 'id' => 'notice-form']) ?>
+    <?= $this->Form->create(null, ['url' => ['action' => 'edit', $notice->id], 'method' => 'post', 'id' => 'notice-form']) ?>
 
     <div class="mb-3">
         <label for="c_title" class="form-label fw-bold">タイトル <span class="text-danger">*</span></label>
@@ -30,7 +30,7 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
             'id'            => 'c_title',
             'class'         => 'form-control',
             'maxlength'     => 200,
-            'value'         => $notice->c_title,
+            'value'         => $notice->title,
             'data-validate' => 'required maxlength:200',
         ]) ?>
         <div class="invalid-feedback"></div>
@@ -42,7 +42,7 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
             'id'    => 'c_body',
             'class' => 'form-control',
             'rows'  => 4,
-            'value' => $notice->c_body ?? '',
+            'value' => $notice->body ?? '',
         ]) ?>
     </div>
 
@@ -69,12 +69,12 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
         <div class="d-flex gap-3">
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="i_importance" id="imp_normal" value="0"
-                    <?= (int)$notice->i_importance === 0 ? 'checked' : '' ?>>
+                    <?= $notice->importance === 0 ? 'checked' : '' ?>>
                 <label class="form-check-label" for="imp_normal">通常</label>
             </div>
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="i_importance" id="imp_high" value="1"
-                    <?= (int)$notice->i_importance === 1 ? 'checked' : '' ?>>
+                    <?= $notice->importance === 1 ? 'checked' : '' ?>>
                 <label class="form-check-label" for="imp_high">重要</label>
             </div>
         </div>
@@ -87,12 +87,12 @@ $endVal   = $notice->d_end   ? $notice->d_end->format('Y-m-d')   : '';
         <div class="d-flex gap-3">
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="i_type" id="type_normal" value="0"
-                    <?= (int)$notice->i_type === 0 ? 'checked' : '' ?>>
+                    <?= $notice->type === 0 ? 'checked' : '' ?>>
                 <label class="form-check-label" for="type_normal">通常お知らせ</label>
             </div>
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="i_type" id="type_release" value="1"
-                    <?= (int)$notice->i_type === 1 ? 'checked' : '' ?>>
+                    <?= $notice->type === 1 ? 'checked' : '' ?>>
                 <label class="form-check-label" for="type_release">🚀 リリースノート</label>
             </div>
         </div>

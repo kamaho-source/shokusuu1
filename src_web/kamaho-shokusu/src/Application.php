@@ -15,32 +15,90 @@ use Authorization\Middleware\AuthorizationMiddleware;
 use Authorization\Policy\MapResolver;
 use Authorization\Policy\ResolverCollection;
 use App\Application\AI\SystemPromptProviderInterface;
+use App\Application\Query\DayViewQueryInterface;
+use App\Application\Query\MealPriceQueryInterface;
+use App\Application\Query\ContactQueryInterface;
+use App\Application\Query\NoticeQueryInterface;
+use App\Application\UseCase\AddContactReply\AddContactReplyUseCase;
+use App\Application\UseCase\ReplyToContact\ReplyToContactUseCase;
+use App\Application\UseCase\SubmitContact\SubmitContactUseCase;
+use App\Application\Query\RoomTransferQueryInterface;
+use App\Application\UseCase\CreateMealPrice\CreateMealPriceUseCase;
+use App\Application\UseCase\DeleteMealPrice\DeleteMealPriceUseCase;
+use App\Application\UseCase\ExportMealSummary\ExportMealSummaryUseCase;
+use App\Application\UseCase\UpdateMealPrice\UpdateMealPriceUseCase;
+use App\Application\UseCase\CreateNotice\CreateNoticeUseCase;
+use App\Application\UseCase\DeleteNotice\DeleteNoticeUseCase;
+use App\Application\UseCase\UpdateNotice\UpdateNoticeUseCase;
+use App\Application\Query\RoomUsageQueryInterface;
+use App\Application\Query\SystemReportQueryInterface;
+use App\Application\Query\RoomMealDetailQueryInterface;
+use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
+use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
+use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
+use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
+use App\Command\ApplyRoomTransferScheduleCommand;
 use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
 use App\Application\UseCase\BulkChangeEditReservations\BulkChangeEditReservationsUseCase;
 use App\Application\UseCase\BulkToggleMeals\BulkToggleMealsUseCase;
 use App\Application\UseCase\ChangeMealRoom\ChangeMealRoomUseCase;
+use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
+use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
+use App\Application\UseCase\ChangeReportAccess\ChangeReportAccessUseCase;
+use App\Application\UseCase\ChangeUserRole\ChangeUserRoleUseCase;
+use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
+use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
+use App\Application\UseCase\CopyReservations\CopyReservationsUseCase;
+use App\Application\UseCase\CreateRoom\CreateRoomUseCase;
+use App\Application\UseCase\CreateUser\CreateUserUseCase;
+use App\Application\UseCase\DeleteRoom\DeleteRoomUseCase;
+use App\Application\UseCase\UpdateRoom\UpdateRoomUseCase;
+use App\Application\UseCase\DeleteUser\DeleteUserUseCase;
+use App\Application\UseCase\EditUser\EditUserUseCase;
 use App\Application\UseCase\DirectRegisterMeals\DirectRegisterMealsUseCase;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
+use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 use App\Controller\AiAssistantController;
 use App\Controller\RoomUsageController;
 use App\Controller\StatsAiController;
 use App\Controller\SystemReportController;
-use App\Service\SystemReportService;
 use App\Infrastructure\AI\SystemPromptProvider;
 use App\Infrastructure\AI\UserTokenizer;
 use App\Infrastructure\Authentication\UserIdSessionAuthenticator;
+use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\ReservationUseCases;
+use App\Infrastructure\Repository\CakeReservationRepository;
+use App\Infrastructure\Query\CakeDayViewQuery;
+use App\Infrastructure\Query\CakeMealPriceQuery;
+use App\Infrastructure\Query\CakeMealSummaryQuery;
+use App\Infrastructure\Notification\CakeContactNotifier;
+use App\Infrastructure\Query\CakeContactQuery;
+use App\Infrastructure\Query\CakeNoticeQuery;
+use App\Infrastructure\Repository\CakeContactRepository;
+use App\Infrastructure\Query\CakeRoomTransferQuery;
+use App\Infrastructure\Repository\CakeMealPriceRepository;
+use App\Infrastructure\Repository\CakeNoticeRepository;
+use App\Infrastructure\Query\CakeRoomUsageQuery;
+use App\Infrastructure\Query\CakeSystemReportQuery;
+use App\Infrastructure\Query\CakeRoomMealDetailQuery;
+use App\Infrastructure\Query\CakeRoomQuery;
+use App\Infrastructure\Repository\CakeRoomMembershipRepository;
+use App\Infrastructure\Cache\ReservationCacheAdapter;
+use App\Infrastructure\Repository\CakeRoomRepository;
+use App\Infrastructure\Repository\CakeRoomTransferScheduleRepository;
+use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
-use App\Service\RoomUsageService;
 use App\Policy\PersistenceOrmResolver;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Cake\Chronos\ClockFactory;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
@@ -197,9 +255,9 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArgument(SystemPromptProviderInterface::class)
             ->addArgument(ServerRequest::class);
 
-        $container->add(RoomUsageService::class);
+        $container->add(RoomUsageQueryInterface::class, static fn() => new CakeRoomUsageQuery(new ClockFactory('Asia/Tokyo')));
         $container->add(RoomUsageController::class)
-            ->addArgument(RoomUsageService::class)
+            ->addArgument(RoomUsageQueryInterface::class)
             ->addArgument(ServerRequest::class);
 
         $container->add(UserTokenizer::class);
@@ -207,7 +265,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(AiStatsContextService::class)
             ->addArgument(FeatureUsageSummaryService::class)
             ->addArgument(UserTokenizer::class)
-            ->addArgument(RoomUsageService::class);
+            ->addArgument(RoomUsageQueryInterface::class);
         $container->add(StatsAiController::class)
             ->addArgument(AiStatsContextService::class)
             ->addArgument(UserTokenizer::class)
@@ -229,13 +287,88 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             RegisterGroupReservationUseCase::class     => 'registerGroupReservation',
             BulkAddReservationsUseCase::class          => 'bulkAddReservations',
             BulkChangeEditReservationsUseCase::class   => 'bulkChangeEditReservations',
+            ReportNoMealUseCase::class                 => 'reportNoMeal',
+            SaveChangeEditUseCase::class               => 'saveChangeEdit',
         ] as $useCase => $factory) {
             $container->add($useCase, static fn() => $container->get(ReservationUseCases::class)->{$factory}());
         }
 
-        $container->add(SystemReportService::class);
+        // 利用者の管理の UseCase（Controller はアクションの引数で受け取る）
+        $userAccounts = static fn(): CakeUserAccountRepository => new CakeUserAccountRepository(FactoryLocator::get('Table')->get('MUserInfo'));
+        $container->add(ChangeUserRoleUseCase::class, static fn() => new ChangeUserRoleUseCase($userAccounts(), new AuditLogAdapter()));
+        $container->add(ChangeReportAccessUseCase::class, static fn() => new ChangeReportAccessUseCase($userAccounts(), new AuditLogAdapter()));
+        $userTransaction = static fn(): CakeTransactionManager => new CakeTransactionManager(FactoryLocator::get('Table')->get('MUserInfo')->getConnection());
+        $container->add(DeleteUserUseCase::class, static fn() => new DeleteUserUseCase(
+            $userAccounts(),
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            $userTransaction(),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(RestoreUserUseCase::class, static fn() => new RestoreUserUseCase($userAccounts(), $userTransaction(), new AuditLogAdapter()));
+        $container->add(CreateUserUseCase::class, static fn() => new CreateUserUseCase(
+            $userAccounts(),
+            new CakeRoomMembershipRepository(),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(EditUserUseCase::class, static fn() => new EditUserUseCase(
+            $userAccounts(),
+            new CakeRoomMembershipRepository(),
+            $userTransaction(),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(BulkImportUsersUseCase::class, static fn() => new BulkImportUsersUseCase(
+            $userAccounts(),
+            new CakeRoomMembershipRepository(),
+            $userTransaction(),
+            new AuditLogAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(ChangePasswordUseCase::class, static fn() => new ChangePasswordUseCase($userAccounts(), new AuditLogAdapter()));
+        $container->add(CreateRoomUseCase::class, static fn() => new CreateRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
+        $container->add(UpdateRoomUseCase::class, static fn() => new UpdateRoomUseCase(new CakeRoomRepository(), $userTransaction(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
+        $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
+        $container->add(CreateRoomTransferUseCase::class, static fn() => new CreateRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')));
+        $container->add(CancelRoomTransferUseCase::class, static fn() => new CancelRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')));
+        $container->add(ApplyRoomTransfersUseCase::class, static fn() => new ApplyRoomTransfersUseCase(
+            new CakeRoomTransferScheduleRepository(),
+            $userAccounts(),
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            $userTransaction(),
+            new ReservationCacheAdapter(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(ApplyRoomTransferScheduleCommand::class)->addArgument(ApplyRoomTransfersUseCase::class);
+        $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
+            new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
+            new CakeRoomMembershipRepository(),
+            $userAccounts(),
+            $userTransaction(),
+            new ClockFactory('Asia/Tokyo'),
+        ));
+        $container->add(NoticeQueryInterface::class, CakeNoticeQuery::class);
+        $container->add(MealPriceQueryInterface::class, CakeMealPriceQuery::class);
+        $container->add(RoomTransferQueryInterface::class, CakeRoomTransferQuery::class);
+        $container->add(ContactQueryInterface::class, CakeContactQuery::class);
+        $container->add(SubmitContactUseCase::class, static fn() => new SubmitContactUseCase(new CakeContactRepository(), new CakeContactNotifier()));
+        $container->add(ReplyToContactUseCase::class, static fn() => new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()));
+        $container->add(AddContactReplyUseCase::class, static fn() => new AddContactReplyUseCase(new CakeContactRepository(), new CakeContactNotifier()));
+        $container->add(CreateMealPriceUseCase::class, static fn() => new CreateMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
+        $container->add(UpdateMealPriceUseCase::class, static fn() => new UpdateMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
+        $container->add(DeleteMealPriceUseCase::class, static fn() => new DeleteMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
+        $container->add(ExportMealSummaryUseCase::class, static fn() => new ExportMealSummaryUseCase(new CakeMealPriceRepository(), new CakeMealSummaryQuery(new ClockFactory('Asia/Tokyo')), new AuditLogAdapter()));
+        $container->add(CreateNoticeUseCase::class, static fn() => new CreateNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
+        $container->add(UpdateNoticeUseCase::class, static fn() => new UpdateNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
+        $container->add(DeleteNoticeUseCase::class, static fn() => new DeleteNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
+        $container->add(DayViewQueryInterface::class, static fn() => new CakeDayViewQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo')));
+        $container->add(RoomMealDetailQueryInterface::class, static fn() => new CakeRoomMealDetailQuery(new ClockFactory('Asia/Tokyo')));
+        $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
+
+        $container->add(SystemReportQueryInterface::class, static fn() => new CakeSystemReportQuery(new ClockFactory('Asia/Tokyo')));
         $container->add(SystemReportController::class)
-            ->addArgument(SystemReportService::class)
+            ->addArgument(SystemReportQueryInterface::class)
             ->addArgument(ServerRequest::class);
     }
 

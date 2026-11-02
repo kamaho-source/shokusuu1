@@ -77,10 +77,4 @@ final class ReservationCache
 
         return (is_int($v) && $v > 0) ? $v : 1;
     }
-
-    /** 今日の食事報告済みの印を付ける。 */
-    public static function markTodayReported(int $userId, string $date): void
-    {
-        Cache::write(self::todayReportKey($userId, $date), 1, self::CONFIG);
-    }
 }

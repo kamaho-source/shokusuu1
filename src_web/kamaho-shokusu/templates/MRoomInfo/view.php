@@ -2,7 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var \App\Infrastructure\Persistence\Entity\MRoomInfo $mRoomInfo
- * @var array $users
+ * @var list<\App\Application\Query\Dto\RoomMemberView> $users
  * @var bool $canReorder
  * @var object $user
  */
@@ -53,22 +53,14 @@ $this->assign('title', __('部屋情報') . ' ' . h($mRoomInfo->c_room_name));
                             </tr>
                             </thead>
                             <tbody>
-                            <?php
-                            // i_del_flag が 0 のユーザーのみを抽出
-                            // ※ ループ変数にはログインユーザーの $user と別名を使う（シャドーイング防止）
-                            $filteredUsers = array_filter($users, function ($member) {
-                                return $member->i_del_flag === 0;
-                            });
-
-                            // 並びは取得順（RoomMemberOrderService::orderMembers）のまま。区分では分けない
-                            ?>
-                            <?php foreach ($filteredUsers as $member): ?>
+                            <?php // $users は削除されていない所属メンバーだけ。並びは取得順のまま（区分では分けない）。ループ変数はログインユーザーの $user と別名にする ?>
+                            <?php foreach ($users as $member): ?>
                                 <tr>
-                                    <td><?= $this->Number->format($member->i_id_user) ?></td>
-                                    <td><?= h($member->c_user_name) ?></td>
-                                    <td><?= $member->i_disp_no === null ? '' : $this->Number->format($member->i_disp_no) ?></td>
+                                    <td><?= $this->Number->format($member->userId) ?></td>
+                                    <td><?= h($member->name) ?></td>
+                                    <td><?= $member->displayNo === null ? '' : $this->Number->format($member->displayNo) ?></td>
                                     <td>
-                                        <?= h(\App\Domain\ValueObject\UserRole::levelLabel($member->i_user_level === null ? null : (int)$member->i_user_level)) ?>
+                                        <?= h(\App\Domain\ValueObject\UserRole::levelLabel($member->level)) ?>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

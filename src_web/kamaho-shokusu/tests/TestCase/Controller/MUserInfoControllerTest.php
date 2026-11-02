@@ -97,7 +97,7 @@ class MUserInfoControllerTest extends TestCase
 
     /**
      * 削除済みユーザーの所属を作る。部屋1(現役)、部屋2(別の現役)、部屋3(削除済み)。
-     * ユーザー6は部屋1・部屋3に所属していたが、削除時に全て退出済みになっている。
+     * ユーザー6は部屋1・部屋3に所属していたが、削除時に全て退出済みになり、「削除で外した」印が付いている。
      */
     private function prepareDeletedUserRooms(): void
     {
@@ -111,8 +111,8 @@ class MUserInfoControllerTest extends TestCase
         $groups = $this->getTableLocator()->get('MUserGroup');
         $groupBase = $groups->find()->where(['i_id_user' => 6])->firstOrFail()->toArray();
         unset($groupBase['i_id_group'], $groupBase['id']);
-        $groups->updateAll(['active_flag' => 1], ['i_id_user' => 6]);
-        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 3, 'active_flag' => 1] + $groupBase);
+        $groups->updateAll(['active_flag' => 1, 'i_left_by_deletion' => 1], ['i_id_user' => 6]);
+        $groups->getConnection()->insert('m_user_group', ['i_id_room' => 3, 'active_flag' => 1, 'i_left_by_deletion' => 1] + $groupBase);
         $this->getTableLocator()->get('MUserInfo')->updateAll(['i_del_flag' => 1], ['i_id_user' => 6]);
     }
 
@@ -153,6 +153,16 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession();
         $this->get('/MUserInfo/view/1');
         $this->assertResponseOk();
+    }
+
+    /** ID なしは 404（以前は InvalidPrimaryKeyException で 500） */
+    public function testViewAndEdit_withoutId_return404(): void
+    {
+        $this->setAuthenticatedSession();
+        $this->get('/MUserInfo/view');
+        $this->assertResponseCode(404);
+        $this->get('/MUserInfo/edit');
+        $this->assertResponseCode(404);
     }
 
     /**
@@ -658,9 +668,8 @@ class MUserInfoControllerTest extends TestCase
         $this->get('/MUserInfo/admin_change_password?user_id=2');
         $this->assertResponseOk();
 
-        $selectedUser = $this->viewVariable('selectedUser');
-        $this->assertNotNull($selectedUser);
-        $this->assertSame(2, (int)$selectedUser->i_id_user);
+        $this->assertSame(2, $this->viewVariable('selectedUserId'));
+        $this->assertMatchesRegularExpression('/<option value="2" selected="selected">/', (string)$this->_response->getBody());
     }
 
     /**
@@ -674,7 +683,8 @@ class MUserInfoControllerTest extends TestCase
         $this->setAuthenticatedSession(true);
         $this->get('/MUserInfo/admin_change_password?user_id=99999');
         $this->assertResponseOk();
-        $this->assertNull($this->viewVariable('selectedUser'));
+        $this->assertNull($this->viewVariable('selectedUserId'));
+        $this->assertStringNotContainsString('selected="selected"', (string)$this->_response->getBody());
     }
 
     /**
@@ -689,7 +699,8 @@ class MUserInfoControllerTest extends TestCase
         // fixture の i_id_user=6 (deleted_user) は i_del_flag=1（削除済み）
         $this->get('/MUserInfo/admin_change_password?user_id=6');
         $this->assertResponseOk();
-        $this->assertNull($this->viewVariable('selectedUser'));
+        $this->assertNull($this->viewVariable('selectedUserId'));
+        $this->assertStringNotContainsString('selected="selected"', (string)$this->_response->getBody());
     }
 
     /**
@@ -896,10 +907,22 @@ class MUserInfoControllerTest extends TestCase
         $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => []]));
     }
 
-    /** 管理者は任意の部屋へ登録できる（従来どおり）。 */
-    public function testAdminCanRegisterToAnyRoom(): void
+    /**
+     * 管理者・システム管理者も、自分が所属していない部屋には登録できない（#821。以前は任意の部屋へ登録できた）。
+     * 自分が所属している部屋には登録できる。
+     */
+    public function testAdminCannotRegisterToRoomOutsideOwn(): void
     {
-        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => [['i_id_room' => 2]]]));
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $rooms->getConnection()->insert('m_room_info', ['i_id_room' => 2, 'c_room_name' => '所属外の部屋'] + $rooms->get(1)->toArray());
+
+        foreach ([1 => 'reg_admin', 3 => 'reg_sysadmin'] as $iAdmin => $login) {
+            $this->enableRetainFlashMessages();
+            $this->assertSame(0, $this->postAddAs($iAdmin, 0, ['c_login_account' => $login, 'MUserGroup' => [['i_id_room' => 2]]]), "i_admin=$iAdmin");
+            $this->assertFlashMessage('自分が所属していない部屋には登録できません。', 'flash');
+        }
+        $this->assertSame(0, $this->getTableLocator()->get('MUserGroup')->find()->where(['i_id_room' => 2])->count());
+        $this->assertSame(1, $this->postAddAs(1, 0, ['MUserGroup' => [['i_id_room' => 1]]]), '所属している部屋には登録できる');
     }
 
     /** 管理者は職員も登録できる（従来どおり）。 */

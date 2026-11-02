@@ -51,6 +51,7 @@ return [
             'i_id_user' => ['type' => 'integer', 'null' => false],
             'i_id_room' => ['type' => 'integer', 'null' => false],
             'active_flag' => ['type' => 'integer', 'null' => true],
+            'i_left_by_deletion' => ['type' => 'integer', 'null' => true],
             'dt_create' => ['type' => 'datetime', 'null' => true],
             'c_create_user' => ['type' => 'string', 'length' => 50, 'null' => true],
             'dt_update' => ['type' => 'datetime', 'null' => true],

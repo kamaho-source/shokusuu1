@@ -2,7 +2,7 @@
 /**
  * @var \App\View\AppView $this
  * @var \App\Infrastructure\Persistence\Entity\MRoomInfo $mRoomInfo
- * @var array $users
+ * @var list<\App\Application\Query\Dto\RoomMemberView> $users
  * @var bool $canEditRoom
  * @var bool $canReorder
  */

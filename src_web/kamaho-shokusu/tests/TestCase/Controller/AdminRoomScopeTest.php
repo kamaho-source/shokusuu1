@@ -96,8 +96,9 @@ class AdminRoomScopeTest extends TestCase
         $this->get('/TReservationInfo/view/' . date('Y-m-d') . '?room_id=71');
 
         $this->assertResponseOk();
-        $this->assertSame($expectedRoomIds, array_keys($this->viewVariable('authorizedRooms')));
-        $this->assertSame($expectedRoomIds[0], $this->viewVariable('activeRoomId'));
+        $day = $this->viewVariable('day');
+        $this->assertSame($expectedRoomIds, array_keys($day->authorizedRooms));
+        $this->assertSame($expectedRoomIds[0], $day->activeRoomId);
     }
 
     /** @dataProvider adminProvider */
