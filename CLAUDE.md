@@ -42,12 +42,11 @@ src/
 │   ├── ValueObject/
 │   ├── Service/           # ドメインサービス（エンティティに属さない純粋な業務ルール。例: ReservationDateRule）
 │   ├── Repository/        # インターフェースのみ
-│   └── Exception/
+│   └── Exception/         # 業務の例外（DomainException の子。getStatusCode() で HTTP が決まる。Application 層も同じものを使う）
 ├── Application/
 │   ├── UseCase/           # 書き込み。{UseCaseName}/{Input,Output,UseCase}.php
 │   ├── Query/             # 読み取りのインターフェース（〜QueryInterface）と、画面に渡す形の Dto/
-│   ├── Port/              # Repository 以外の外部への口（キャッシュ・トランザクション・監査ログ・通知など）。実装は Infrastructure
-│   └── Exception/
+│   └── Port/              # Repository 以外の外部への口（キャッシュ・トランザクション・監査ログ・通知など）。実装は Infrastructure
 ├── Infrastructure/
 │   ├── Repository/        # Domain/Repository/ の実装
 │   ├── Query/             # Application/Query/ の実装（Cake〜Query）
