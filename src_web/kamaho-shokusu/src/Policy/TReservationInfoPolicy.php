@@ -355,7 +355,7 @@ class TReservationInfoPolicy
     /**
      * ログインユーザーがいずれかの部屋グループに所属しているか。
      *
-     * コントローラー側の早期チェック（ReservationChangeEditService::userHasRoomAccess）と
+     * コントローラー側の早期チェック（TReservationInfoController::changeEdit）と
      * 同じ判定基準（RoomQueryInterface::hasAnyAffiliation）を用いる。
      */
     private function isRoomAffiliated(?IdentityInterface $user): bool

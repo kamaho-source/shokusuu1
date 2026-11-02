@@ -395,6 +395,36 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertNotEmpty($data['users']);
     }
 
+    /**
+     * 暦にない日付は 400（以前は一覧の取得は 200 の空の表、保存は 500、モーダルは画面が出ていた）
+     *
+     * @return array<string, array{string}>
+     */
+    public static function badChangeEditDateProvider(): array
+    {
+        return [
+            '存在しない日' => ['2026-02-30'],
+            '日付でない' => ['abc'],
+            '桁が足りない' => ['2026-1-5'],
+        ];
+    }
+
+    /**
+     * @dataProvider badChangeEditDateProvider
+     */
+    public function testChangeEdit_invalidDate_returns400(string $date): void
+    {
+        $this->loginStaff();
+        $this->get('/TReservationInfo/change-edit/1/' . $date);
+        $this->assertResponseCode(400);
+
+        $this->get('/TReservationInfo/changeEdit?modal=1&date=' . $date);
+        $this->assertResponseCode(400);
+
+        $this->post('/TReservationInfo/change-edit/1/' . $date, ['users' => [3 => [1 => ['i_change_flag' => 1]]]]);
+        $this->assertResponseCode(400);
+    }
+
     public function testChangeEdit_getHtmlRendersEditScreen(): void
     {
         $date = $this->day(3);
