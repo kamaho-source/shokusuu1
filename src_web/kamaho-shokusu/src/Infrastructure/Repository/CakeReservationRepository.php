@@ -159,9 +159,10 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
         return $found;
     }
 
-    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor): bool
+    public function updateWithVersion(MealReservation $row, int $changeFlag, ?int $eatFlag, string $actor, ?int $roomId = null): bool
     {
         $fields = ['i_change_flag' => $changeFlag]
+            + ($roomId === null ? [] : ['i_id_room' => $roomId])
             + ($eatFlag === null ? [] : ['eat_flag' => $eatFlag])
             + ['c_update_user' => $actor, 'dt_update' => DateTime::now('Asia/Tokyo')];
 

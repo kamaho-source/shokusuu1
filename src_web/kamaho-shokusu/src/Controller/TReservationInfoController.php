@@ -16,18 +16,14 @@ use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInp
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
+use App\Application\UseCase\SaveChangeEdit\SaveChangeEditInput;
+use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
 use App\Domain\ValueObject\UserRole;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Exception\ApprovedReservationException;
-use App\Exception\DuplicateMealReservationException;
-use App\Exception\OptimisticLockConflictException;
-use App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable;
-use Cake\ORM\Exception\PersistenceFailedException;
-use App\Service\ReservationChangeEditService;
 use App\Service\ReservationAddService;
 use Cake\Routing\Router;
 
@@ -46,7 +42,6 @@ use Cake\Routing\Router;
 class TReservationInfoController extends ReservationBaseController
 {
     private ReservationAddService $addService;
-    private ReservationChangeEditService $changeEditService;
     private ChangeEditQueryInterface $changeEditQuery;
 
     /**
@@ -57,7 +52,6 @@ class TReservationInfoController extends ReservationBaseController
         parent::initialize();
 
         $this->addService        = new ReservationAddService();
-        $this->changeEditService = new ReservationChangeEditService();
         $this->changeEditQuery   = new CakeChangeEditQuery(new ClockFactory('Asia/Tokyo'));
 
         $this->FormProtection->setConfig('unlockedActions', [
@@ -626,7 +620,7 @@ class TReservationInfoController extends ReservationBaseController
      * @param string|null $date YYYY-MM-DD
      * @param int|null $mealType 1=朝,2=昼,3=夜,4=弁当
      */
-    public function changeEdit(RegisterIndividualReservationUseCase $registerIndividual, $roomId = null, $date = null, $mealType = null): ?Response
+    public function changeEdit(RegisterIndividualReservationUseCase $registerIndividual, SaveChangeEditUseCase $saveChangeEdit, $roomId = null, $date = null, $mealType = null): ?Response
     {
         $wantsJson =
             $this->request->is('ajax') ||
@@ -673,7 +667,6 @@ class TReservationInfoController extends ReservationBaseController
             $loginUser = $this->request->getAttribute('identity');
             $loginUid  = $loginUser?->get('i_id_user');
 
-            $changeEditService = $this->changeEditService;
             $allowedRooms = $this->roomQuery->getAccessibleRooms((int)$loginUid);
             $isRoomManager = !empty($allowedRooms);
             $isBlockLeaderForEdit = $loginUser && UserRole::isBlockLeader((int)($loginUser->get('i_admin') ?? 0));
@@ -821,84 +814,42 @@ class TReservationInfoController extends ReservationBaseController
                 $usersData = (isset($data['users']) && is_array($data['users'])) ? $data['users'] : [];
 
                 try {
-                    $result = $changeEditService->processUpdate(
-                        $usersData,
-                        $context->memberIds(),
-                        (string)$date,
-                        (int)$roomId,
-                        $loginUser,
-                        $this->TIndividualReservationInfo,
-                        $this->MUserInfo,
-                        $isRoomManager
-                    );
-
-                    $updated = $result['updated'] ?? [];
-                    $created = $result['created'] ?? [];
-                    $skipped = $result['skipped'] ?? [];
+                    $output = $saveChangeEdit->execute(new SaveChangeEditInput(
+                        usersData: $usersData,
+                        memberIds: $context->memberIds(),
+                        date: (string)$date,
+                        roomId: (int)$roomId,
+                        loginUserId: (int)$loginUid,
+                        loginUserName: (string)($loginUser?->get('c_user_name') ?? 'system'),
+                        loginAdmin: (int)($loginUser?->get('i_admin') ?? 0),
+                        loginLevel: (int)($loginUser?->get('i_user_level') ?? -1),
+                        isRoomManager: $isRoomManager,
+                    ));
 
                     $payload = [
                         'ok'      => true,
                         'status'  => 'success',
                         'message' => '直前予約を更新しました。',
-                        'data'    => ['updated' => $updated, 'created' => $created, 'skipped' => $skipped],
+                        'data'    => ['updated' => $output->updated, 'created' => $output->created, 'skipped' => $output->skipped],
                     ];
                     if ($wantsJson) {
                         return $this->response->withType('application/json')->withStringBody(json_encode($payload));
                     }
                     $this->Flash->success(__($payload['message']));
                     return $this->redirect(['action' => 'index']);
-
-                } catch (ApprovedReservationException | DuplicateMealReservationException $e) {
-                    $this->log('直前編集 変更拒否: ' . $e->getMessage(), 'warning');
-                    if ($wantsJson) {
-                        return $this->response->withStatus(409)->withType('application/json')
-                            ->withStringBody(json_encode([
-                                'ok'      => false,
-                                'status'  => $e instanceof DuplicateMealReservationException ? 'conflict' : 'approved',
-                                'message' => $e->getMessage(),
-                                'data'    => [],
-                            ], JSON_UNESCAPED_UNICODE));
-                    }
-                    $this->Flash->error(__($e->getMessage()));
                 } catch (\App\Domain\Exception\DomainException $e) {
-                    // 入力・権限の拒否（過去日など）。理由をそのまま返す
+                    [$status, $state, $message] = self::changeEditFailure($e);
+                    $this->log('直前編集 変更拒否: ' . $e->getMessage(), $status >= 500 ? 'error' : 'warning');
                     if ($wantsJson) {
-                        return $this->response->withStatus($e->getStatusCode())->withType('application/json')
+                        return $this->response->withStatus($status)->withType('application/json')
                             ->withStringBody(json_encode([
                                 'ok'      => false,
-                                'status'  => 'error',
-                                'message' => $e->getMessage(),
-                                'data'    => [],
-                            ], JSON_UNESCAPED_UNICODE));
-                    }
-                    $this->Flash->error(__($e->getMessage()));
-                } catch (PersistenceFailedException $e) {
-                    // 新しい行の検証ルール（昼食と弁当の同時予約など）。昼食と弁当なら理由を返し、それ以外は下と同じ扱い
-                    $reason = TIndividualReservationInfoTable::lunchBentoViolation($e);
-                    $this->log('直前編集 検証エラー: ' . json_encode($e->getEntity()->getErrors(), JSON_UNESCAPED_UNICODE), 'warning');
-                    $message = $reason ?? '直前予約の更新中にエラーが発生しました。';
-                    if ($wantsJson) {
-                        return $this->response->withStatus($reason !== null ? 409 : 500)->withType('application/json')
-                            ->withStringBody(json_encode([
-                                'ok'      => false,
-                                'status'  => $reason !== null ? 'conflict' : 'error',
+                                'status'  => $state,
                                 'message' => $message,
                                 'data'    => [],
                             ], JSON_UNESCAPED_UNICODE));
                     }
                     $this->Flash->error(__($message));
-                } catch (OptimisticLockConflictException $e) {
-                    $this->log('直前編集 競合: ' . $e->getMessage(), 'warning');
-                    if ($wantsJson) {
-                        return $this->response->withStatus(409)->withType('application/json')
-                            ->withStringBody(json_encode([
-                                'ok'      => false,
-                                'status'  => 'conflict',
-                                'message' => $e->getMessage(),
-                                'data'    => [],
-                            ], JSON_UNESCAPED_UNICODE));
-                    }
-                    $this->Flash->error(__($e->getMessage()));
                 } catch (\Throwable $e) {
                     $this->log('直前編集エラー: ' . $e->getMessage(), 'error');
                     if ($wantsJson) {
@@ -950,6 +901,26 @@ class TReservationInfoController extends ReservationBaseController
 
             throw $e;
         }
+    }
+
+    /**
+     * 直前編集の保存の失敗を、応答（HTTP の状態・status・利用者に出す文言）にする。
+     *
+     * @return array{0: int, 1: string, 2: string}
+     */
+    private static function changeEditFailure(\App\Domain\Exception\DomainException $e): array
+    {
+        return match (true) {
+            $e instanceof \App\Domain\Exception\ApprovedReservationChangeException => [409, 'approved', $e->getMessage()],
+            $e instanceof \App\Domain\Exception\ConflictException => [409, 'conflict', $e->getMessage()],
+            // 新しい行の検証ルール。昼食と弁当なら理由を返し、それ以外はシステムの失敗として扱う
+            $e instanceof \App\Domain\Exception\ReservationValidationException => $e->lunchBentoMessage !== null
+                ? [409, 'conflict', $e->lunchBentoMessage]
+                : [500, 'error', '直前予約の更新中にエラーが発生しました。'],
+            $e instanceof \App\Domain\Exception\PersistenceException => [500, 'error', '直前予約の更新中にエラーが発生しました。'],
+            // 入力・権限の拒否（過去日など）。理由をそのまま返す
+            default => [$e->getStatusCode(), 'error', $e->getMessage()],
+        };
     }
 
     private function validateReservationDate(?string $reservationDate): string|bool

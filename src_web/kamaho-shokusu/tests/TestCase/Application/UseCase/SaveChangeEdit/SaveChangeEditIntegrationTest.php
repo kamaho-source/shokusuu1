@@ -1,21 +1,24 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\SaveChangeEdit;
 
-use App\Exception\ApprovedReservationException;
-use App\Service\ReservationChangeEditService;
+use App\Application\UseCase\SaveChangeEdit\SaveChangeEditInput;
+use App\Domain\Exception\ApprovedReservationChangeException;
+use App\Domain\Exception\ConflictException;
+use App\Infrastructure\ReservationUseCases;
+use Cake\ORM\Table;
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * ReservationChangeEditService テスト。
+ * 直前編集の保存（SaveChangeEditUseCase）を実際の DB で確かめる。旧 ReservationChangeEditServiceTest を引き継ぐ。
  *
- * 直前編集の保存（processUpdate）を検証する。画面の読み取りは CakeChangeEditQueryTest、権限は ChangeEditPermissionTest。
+ * 画面の読み取りは CakeChangeEditQueryTest、権限は ChangeEditPermissionTest。
  */
-class ReservationChangeEditServiceTest extends TestCase
+class SaveChangeEditIntegrationTest extends TestCase
 {
     protected array $fixtures = [
         'app.MUserInfo',
@@ -25,12 +28,26 @@ class ReservationChangeEditServiceTest extends TestCase
         'app.TAuditLog',
     ];
 
-    private ReservationChangeEditService $service;
-
-    protected function setUp(): void
+    /**
+     * 以前の processUpdate と同じ引数で保存し、同じ形の結果を返す。
+     *
+     * @return array{updated: list<string>, created: list<string>, skipped: list<string>}
+     */
+    private function process(array $usersData, array $memberIds, string $date, int $roomId, ?object $login, Table $reservations, Table $users, bool $isRoomManager = false): array
     {
-        parent::setUp();
-        $this->service = new ReservationChangeEditService();
+        $out = (new ReservationUseCases($reservations, $users))->saveChangeEdit()->execute(new SaveChangeEditInput(
+            usersData: $usersData,
+            memberIds: $memberIds,
+            date: $date,
+            roomId: $roomId,
+            loginUserId: (int)($login?->get('i_id_user') ?? 0),
+            loginUserName: (string)($login?->get('c_user_name') ?? 'system'),
+            loginAdmin: (int)($login?->get('i_admin') ?? 0),
+            loginLevel: (int)($login?->get('i_user_level') ?? -1),
+            isRoomManager: $isRoomManager,
+        ));
+
+        return ['updated' => $out->updated, 'created' => $out->created, 'skipped' => $out->skipped];
     }
 
     // ----------------------------------------------------------------
@@ -59,10 +76,10 @@ class ReservationChangeEditServiceTest extends TestCase
             'c_create_user'      => 'test',
         ]);
 
-        $this->expectException(ApprovedReservationException::class);
+        $this->expectException(ApprovedReservationChangeException::class);
 
         try {
-            $this->service->processUpdate(
+            $this->process(
                 [3 => [1 => ['i_change_flag' => 0]]],
                 [3],
                 $date,
@@ -113,7 +130,7 @@ class ReservationChangeEditServiceTest extends TestCase
 
     private function eatInRoom(int $roomId, ?string $date = null): void
     {
-        $this->service->processUpdate(
+        $this->process(
             [3 => [1 => ['i_change_flag' => 1]]],
             [3],
             $date ?? $this->nearDate(),
@@ -200,7 +217,7 @@ class ReservationChangeEditServiceTest extends TestCase
         ]);
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
 
-        $this->service->processUpdate(
+        $this->process(
             [2 => [1 => ['i_change_flag' => 1]]],
             [2],
             $date,
@@ -232,7 +249,7 @@ class ReservationChangeEditServiceTest extends TestCase
         }
         $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
 
-        $this->service->processUpdate(
+        $this->process(
             [3 => [2 => ['i_change_flag' => 1], 4 => ['i_change_flag' => 0]]],
             [3],
             $date,
@@ -255,7 +272,7 @@ class ReservationChangeEditServiceTest extends TestCase
 
         $this->expectException(\App\Domain\Exception\InvalidInputException::class);
         $this->expectExceptionMessage('過去日の予約は変更できません。');
-        $this->service->processUpdate(
+        $this->process(
             [3 => [1 => ['i_change_flag' => 0]]], [3], $date, 1, null,
             TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
             TableRegistry::getTableLocator()->get('MUserInfo'),
@@ -275,7 +292,7 @@ class ReservationChangeEditServiceTest extends TestCase
             }
         };
 
-        $this->service->processUpdate(
+        $this->process(
             [3 => [1 => ['i_change_flag' => 0]]], [3], $date, 1, $admin,
             TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
             TableRegistry::getTableLocator()->get('MUserInfo'),
@@ -294,7 +311,7 @@ class ReservationChangeEditServiceTest extends TestCase
         $conn->insert('m_user_group', ['i_id_user' => 3, 'i_id_room' => 8, 'active_flag' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't']);
         $this->insertMeal(8, 0, 1);
 
-        $result = $this->service->processUpdate(
+        $result = $this->process(
             [3 => [1 => ['i_change_flag' => 1]]], [3], $date, 1, null,
             TableRegistry::getTableLocator()->get('TIndividualReservationInfo'),
             TableRegistry::getTableLocator()->get('MUserInfo'),
@@ -339,7 +356,7 @@ class ReservationChangeEditServiceTest extends TestCase
 
     private function runUpdate(array $data, array $ids, string $date, int $room, ?object $login, bool $manager = false): array
     {
-        return $this->service->processUpdate(
+        return $this->process(
             $data,
             $ids,
             $date,
@@ -469,10 +486,11 @@ class ReservationChangeEditServiceTest extends TestCase
             ->getMock();
         $table->method('updateRowWithVersion')->willReturn(false);
 
-        $this->expectException(\App\Exception\OptimisticLockConflictException::class);
+        $this->expectException(ConflictException::class);
+        $this->expectExceptionMessage('他のユーザーが先に保存しました。ページを再読込して再試行してください。');
 
         try {
-            $this->service->processUpdate(
+            $this->process(
                 [3 => [1 => ['i_change_flag' => 0]]],
                 [3],
                 $this->nearDate(),
@@ -485,5 +503,30 @@ class ReservationChangeEditServiceTest extends TestCase
         } finally {
             $this->assertSame([1 => [1, 1]], $this->flagsByRoom());
         }
+    }
+
+    /** 先の日（15日以降）は、i_change_flag が同じでも eat_flag がずれていればそろえる（そろえないと数える値が変わらない） */
+    public function testFarDate_alignsEatFlagWhenOnlyItDiffers(): void
+    {
+        $far = Date::today()->addDays(30)->format('Y-m-d');
+        $this->insertMeal(1, 0, 1, $far);
+
+        $result = $this->process([3 => [1 => ['i_change_flag' => 1]]], [3], $far, 1, null, $this->resTable(), TableRegistry::getTableLocator()->get('MUserInfo'), true);
+
+        $this->assertSame(['3:1'], $result['updated']);
+        $this->assertSame([1 => [1, 1]], $this->flagsByRoom($far));
+    }
+
+    /** 区分が NULL の人は、以前どおり職員として扱う（直前期間の取消は管理者以外できない） */
+    public function testNullLevelTarget_isTreatedAsStaff(): void
+    {
+        TableRegistry::getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => null], ['i_id_user' => 3]);
+        $this->insertMeal(1, 1, 1);
+
+        $result = $this->process([3 => [1 => ['i_change_flag' => 0]]], [3], $this->nearDate(), 1, $this->loginAs(9, 0, 0), $this->resTable(), TableRegistry::getTableLocator()->get('MUserInfo'), true);
+
+        $this->assertSame([], $result['updated']);
+        $this->assertStringContainsString('職員のため、直前編集でのキャンセルはできません', $result['skipped'][0] ?? '');
+        $this->assertSame([1 => [1, 1]], $this->flagsByRoom());
     }
 }
