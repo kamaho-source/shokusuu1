@@ -20,8 +20,10 @@ final class SubmitContactUseCase
     /**
      * @param array<string, string> $data 'category'・'name'・'email'・'body'
      */
-    public function execute(array $data, ?int $userId): SubmitContactOutput
+    public function execute(SubmitContactInput $input): SubmitContactOutput
     {
+        $data   = $input->data;
+        $userId = $input->userId;
         $category = $data['category'] ?? '';
         $name     = trim($data['name'] ?? '');
         $email    = trim($data['email'] ?? '');

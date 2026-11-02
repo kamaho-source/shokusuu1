@@ -83,7 +83,7 @@ class ContactUseCaseTest extends TestCase
     public function testSendReply_setsAdminAuthorType(): void
     {
         // メール送信の成否は問わない（通知失敗時も返信履歴は保存される既存仕様）。
-        (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute(2, '確認いたします。');
+        (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute(new \App\Application\UseCase\ReplyToContact\ReplyToContactInput(2, '確認いたします。'));
 
         $repliesTable = TableRegistry::getTableLocator()->get('TContactReplies');
         $latest = $repliesTable->find()

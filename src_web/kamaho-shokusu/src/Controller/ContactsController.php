@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\UseCase\SubmitContact\SubmitContactInput;
+use App\Application\UseCase\ReplyToContact\ReplyToContactInput;
 use App\Application\Query\ContactQueryInterface;
 use App\Application\UseCase\AddContactReplyFromUser\AddContactReplyFromUserInput;
 use App\Application\UseCase\AddContactReplyFromUser\AddContactReplyFromUserUseCase;
@@ -51,7 +53,7 @@ class ContactsController extends AppController
                 $data[$field] = $this->dataString($field);
             }
 
-            $result = $submitContact->execute($data, $userId);
+            $result = $submitContact->execute(new SubmitContactInput($data, $userId));
 
             if ($result->saved) {
                 $this->Flash->success('お問い合わせを送信しました。ありがとうございます。');
@@ -132,7 +134,7 @@ class ContactsController extends AppController
         if ($this->request->is('post')) {
             $replyBody = $this->dataString('reply_body');
             try {
-                $sent = $replyToContact->execute($id, $replyBody);
+                $sent = $replyToContact->execute(new ReplyToContactInput($id, $replyBody))->sent;
             } catch (DomainNotFoundException $e) {
                 throw new NotFoundException($e->getMessage(), null, $e);
             }

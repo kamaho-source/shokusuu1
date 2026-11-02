@@ -55,12 +55,12 @@ class ContactMailTest extends TestCase
 
     private function submit(array $data, ?int $userId): SubmitContactOutput
     {
-        return (new SubmitContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute($data, $userId);
+        return (new SubmitContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute(new \App\Application\UseCase\SubmitContact\SubmitContactInput($data, $userId));
     }
 
     private function sendReply(int $contactId, string $body): bool
     {
-        return (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute($contactId, $body);
+        return (new ReplyToContactUseCase(new CakeContactRepository(), new CakeContactNotifier()))->execute(new \App\Application\UseCase\ReplyToContact\ReplyToContactInput($contactId, $body))->sent;
     }
 
     private function latestContact(): \App\Infrastructure\Persistence\Entity\TContact
