@@ -27,7 +27,7 @@ class CakeChangeEditQueryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->query = new CakeChangeEditQuery(new ClockFactory('Asia/Tokyo'));
+        $this->query = new CakeChangeEditQuery(new ClockFactory('Asia/Tokyo'), new \App\Infrastructure\Repository\CakeRoomMembershipRepository());
     }
 
     private function insertRoom(int $id): void

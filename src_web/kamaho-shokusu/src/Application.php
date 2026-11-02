@@ -416,7 +416,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(RoomQueryInterface::class, CakeRoomQuery::class);
         $container->add(CalendarQueryInterface::class, static fn() => new CakeCalendarQuery($clock()));
         $container->add(ReservationReadQueryInterface::class, static fn() => new CakeReservationReadQuery($container->get(RoomQueryInterface::class), $clock()));
-        $container->add(ChangeEditQueryInterface::class, static fn() => new CakeChangeEditQuery($clock()));
+        $container->add(ChangeEditQueryInterface::class, static fn() => new CakeChangeEditQuery($clock(), new CakeRoomMembershipRepository()));
         $container->add(MealReportQueryInterface::class, static fn() => new CakeMealReportQuery($clock()));
         $container->add(MealCountGridQueryInterface::class, static fn() => new CakeMealCountGridQuery($clock()));
         $container->add(ReservationHistoryQueryInterface::class, static fn() => new CakeReservationHistoryQuery($container->get(RoomQueryInterface::class), $clock()));

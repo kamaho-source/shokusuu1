@@ -7,10 +7,10 @@ use App\Application\Query\ChangeEditQueryInterface;
 use App\Application\Query\Dto\ChangeEditContext;
 use App\Application\Query\Dto\ChangeEditMember;
 use App\Domain\Exception\NotFoundException;
+use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Service\ChangeEditPermission;
 use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Repository\CakeRoomMembershipRepository;
 use App\Domain\ValueObject\MealType;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Service\RoomMemberOrderService;
@@ -24,8 +24,10 @@ use Psr\Clock\ClockInterface;
  */
 final class CakeChangeEditQuery implements ChangeEditQueryInterface
 {
-    public function __construct(private readonly ClockInterface $clock)
-    {
+    public function __construct(
+        private readonly ClockInterface $clock,
+        private readonly RoomMembershipRepositoryInterface $rooms,
+    ) {
     }
 
     private static function table(string $alias): Table
@@ -70,7 +72,7 @@ final class CakeChangeEditQuery implements ChangeEditQueryInterface
         // その部屋に所属するブロック長は、部屋の全員の直前の予約を変えられる
         $canEditAll = ChangeEditPermission::canEditAll(
             $loginAdmin,
-            UserRole::isBlockLeader($loginAdmin) && (new CakeRoomMembershipRepository())->isActiveMember($loginUserId, $roomId),
+            UserRole::isBlockLeader($loginAdmin) && $this->rooms->isActiveMember($loginUserId, $roomId),
         );
 
         $memberIds = self::table('MUserGroup')->find()

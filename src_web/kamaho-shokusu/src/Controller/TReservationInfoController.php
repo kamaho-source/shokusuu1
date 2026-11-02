@@ -45,6 +45,8 @@ use Cake\Routing\Router;
  */
 class TReservationInfoController extends ReservationBaseController
 {
+    use JsonResponseTrait;
+
     private ReservationAddService $addService;
 
     public function __construct(
@@ -646,6 +648,7 @@ class TReservationInfoController extends ReservationBaseController
      * @param int|null $mealType 1=朝,2=昼,3=夜,4=弁当
      * @throws BadRequestException 画面で、部屋・日付が無い・日付が正しくない
      * @throws NotFoundException 画面で、部屋が無い
+     * @throws \Throwable 画面で、それ以外の失敗（changeEditError がそのまま投げ直す）
      */
     public function changeEdit(RegisterIndividualReservationUseCase $registerIndividual, SaveChangeEditUseCase $saveChangeEdit, $roomId = null, $date = null, $mealType = null): ?Response
     {
@@ -682,7 +685,7 @@ class TReservationInfoController extends ReservationBaseController
             }
             if (!isset($rooms[(int)$roomId])) {
                 if ($wantsJson) {
-                    return $this->changeEditJson(403, 'error', 'この部屋を操作する権限がありません。', []);
+                    return $this->changeEditJson(403, 'error', 'この部屋を操作する権限がありません。', data: []);
                 }
                 $this->Flash->error(__('この部屋を操作する権限がありません。'));
                 return $this->redirect(['action' => 'index']);
@@ -693,6 +696,7 @@ class TReservationInfoController extends ReservationBaseController
             if ($this->request->is('get')) {
                 return $wantsJson ? $this->changeEditTableJson($context, $date) : $this->changeEditScreen($room, $rooms, $date, true);
             }
+            // ここに来るのは GET 以外。保存するのは POST/PUT だけで、それ以外（DELETE など）は保存せずにそのまま画面を出す
             if ($this->request->is(['post', 'put'])) {
                 $saved = $this->saveChangeEditBulk($saveChangeEdit, $data, $context, $date, $wantsJson);
                 if ($saved !== null) {
@@ -730,6 +734,7 @@ class TReservationInfoController extends ReservationBaseController
      *
      * @param array<int, string> $rooms 使える部屋
      * @param int|string|null $roomId 指定された部屋（リクエストのまま）
+     * @param string|null $date YYYY-MM-DD（形式は changeEdit で確認済み）。無ければ null
      */
     private function changeEditModalShell(array $rooms, $roomId, ?string $date): Response
     {
@@ -753,6 +758,7 @@ class TReservationInfoController extends ReservationBaseController
      *
      * @param array{id: int, name: string}|null $room
      * @param array<int, string> $rooms
+     * @param string|null $date YYYY-MM-DD（形式は changeEdit で確認済み）。無ければ null で、本人の予約も空にする
      */
     private function changeEditScreen(?array $room, array $rooms, ?string $date, bool $withOwnMeals): Response
     {
@@ -824,7 +830,8 @@ class TReservationInfoController extends ReservationBaseController
             ))->toArray($this->reservationIndexUrl());
             $message = '直前予約（個人）を更新しました。';
             if ($wantsJson) {
-                return $this->changeEditJson(200, 'success', $message, $result, ['date' => $postDate]);
+                // 個人の保存だけ、data の後ろに date を付ける（以前のまま）
+                return $this->jsonResponse(self::changeEditBody('success', $message, $result) + ['date' => $postDate]);
             }
             $this->Flash->success($message);
             return $this->redirect(['action' => 'index']);
@@ -871,16 +878,16 @@ class TReservationInfoController extends ReservationBaseController
             $this->Flash->success(__($message));
             return $this->redirect(['action' => 'index']);
         } catch (\App\Domain\Exception\DomainException $e) {
-            [$status, $state, $message] = self::changeEditFailure($e);
-            $this->log('直前編集 変更拒否: ' . $e->getMessage(), $status >= 500 ? 'error' : 'warning');
+            [$httpStatus, $status, $message] = self::changeEditFailure($e);
+            $this->log('直前編集 変更拒否: ' . $e->getMessage(), $httpStatus >= 500 ? 'error' : 'warning');
             if ($wantsJson) {
-                return $this->changeEditJson($status, $state, $message, []);
+                return $this->changeEditJson($httpStatus, $status, $message, data: []);
             }
             $this->Flash->error(__($message));
         } catch (\Throwable $e) {
             $this->log('直前編集エラー: ' . $e->getMessage(), 'error');
             if ($wantsJson) {
-                return $this->changeEditJson(500, 'error', '直前予約の更新中にエラーが発生しました。', []);
+                return $this->changeEditJson(500, 'error', '直前予約の更新中にエラーが発生しました。', data: []);
             }
             $this->Flash->error(__('直前予約の更新中にエラーが発生しました。'));
         }
@@ -900,12 +907,12 @@ class TReservationInfoController extends ReservationBaseController
     {
         $this->log('changeEdit error: ' . $e->getMessage(), 'error');
         if ($wantsJson) {
-            $status = match (true) {
+            $httpStatus = match (true) {
                 $e instanceof \InvalidArgumentException => 400,
                 $e instanceof NotFoundException, $e instanceof DomainNotFoundException => 404,
                 default => 500,
             };
-            return $this->changeEditJson($status, 'error', '直前予約の取得中にエラーが発生しました。', []);
+            return $this->changeEditJson($httpStatus, 'error', '直前予約の取得中にエラーが発生しました。', data: []);
         }
         // 部屋・日付が無いなどの入力の誤りは、画面でも 400 で返す（JSON と同じ）
         if ($e instanceof \InvalidArgumentException) {
@@ -919,20 +926,31 @@ class TReservationInfoController extends ReservationBaseController
     }
 
     /**
-     * 直前編集の JSON 応答（ok・status・message、data があれば data、その後に $extra）。ok は status が success のときだけ true。
+     * 直前編集の JSON 応答。本文は changeEditBody。
+     *
+     * @param int $httpStatus HTTP の状態コード
+     * @param string $status 本文の status（success・error・forbidden・conflict・approved）
+     * @param array<array-key, mixed>|null $data null なら data キーを付けない。空でも付けるときは data: [] と書く
+     */
+    private function changeEditJson(int $httpStatus, string $status, ?string $message, ?array $data = null): Response
+    {
+        return $this->jsonResponse(self::changeEditBody($status, $message, $data), $httpStatus);
+    }
+
+    /**
+     * 直前編集の JSON 本文（ok・status・message、data があれば data）。ok は status が success のときだけ true。
      *
      * @param array<array-key, mixed>|null $data null なら data キーを付けない
-     * @param array<string, mixed> $extra data の後ろに付けるキー
+     * @return array<string, bool|string|array<array-key, mixed>|null>
      */
-    private function changeEditJson(int $status, string $state, ?string $message, ?array $data = null, array $extra = []): Response
+    private static function changeEditBody(string $status, ?string $message, ?array $data = null): array
     {
-        $body = ['ok' => $state === 'success', 'status' => $state, 'message' => $message];
+        $body = ['ok' => $status === 'success', 'status' => $status, 'message' => $message];
         if ($data !== null) {
             $body['data'] = $data;
         }
 
-        return $this->response->withStatus($status)->withType('application/json')
-            ->withStringBody(json_encode($body + $extra, JSON_UNESCAPED_UNICODE));
+        return $body;
     }
 
     /**

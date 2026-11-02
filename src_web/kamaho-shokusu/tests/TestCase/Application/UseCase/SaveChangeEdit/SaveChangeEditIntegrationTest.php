@@ -540,4 +540,67 @@ class SaveChangeEditIntegrationTest extends TestCase
         $this->assertStringContainsString('職員のため、直前編集でのキャンセルはできません', $result['skipped'][0] ?? '');
         $this->assertSame([1 => [1, 1]], $this->flagsByRoom());
     }
+
+    // ----------------------------------------------------------------
+    // 全員を編集できるか（ブロック長の部屋所属）。段階5で判定が Controller から UseCase に移った
+    //
+    // 変更前（bab1386）は Controller が
+    //   UserRole::isBlockLeader(i_admin) && RoomQuery::isActiveMember(ログイン者, 部屋)
+    // を Input の isBlockLeaderInRoom で渡していた。RoomQuery::isActiveMember は
+    // CakeRoomMembershipRepository::isActiveMember をそのまま呼ぶので、UseCase が同じ式を
+    // RoomMembershipRepositoryInterface で計算する今の形と、判定の意味は同じ。
+    // ----------------------------------------------------------------
+
+    /** ブロック長（99）を部屋 1 に所属させる。active_flag=1 は退出済み */
+    private function joinRoom1(int $activeFlag): void
+    {
+        ConnectionManager::get('test')->insert('m_user_group', [
+            'i_id_user' => self::BLOCK_LEADER_ID, 'i_id_room' => 1, 'active_flag' => $activeFlag,
+            'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+    }
+
+    /** ログイン者 99（職員・i_admin を指定）が、職員(2)の予約を作ろうとする */
+    private function editOtherStaffAs(int $admin): array
+    {
+        return $this->runUpdate([2 => [1 => ['i_change_flag' => 1]]], [2], '2030-05-05', 1, $this->loginAs(self::BLOCK_LEADER_ID, $admin, 0));
+    }
+
+    public function testBlockLeaderInRoom_canEditOtherStaff(): void
+    {
+        $this->joinRoom1(0);
+
+        $result = $this->editOtherStaffAs(2);
+
+        $this->assertSame(['2:1'], $result['created']);
+        $this->assertSame([], $result['skipped']);
+    }
+
+    public function testBlockLeaderNotInRoom_otherStaffIsSkipped(): void
+    {
+        $result = $this->editOtherStaffAs(2);
+
+        $this->assertSame([], $result['created']);
+        $this->assertStringContainsString('権限がありません', $result['skipped'][0] ?? '');
+    }
+
+    public function testBlockLeaderExitedFromRoom_otherStaffIsSkipped(): void
+    {
+        $this->joinRoom1(1);
+
+        $result = $this->editOtherStaffAs(2);
+
+        $this->assertSame([], $result['created']);
+        $this->assertStringContainsString('権限がありません', $result['skipped'][0] ?? '');
+    }
+
+    public function testNormalStaffInRoom_otherStaffIsSkipped(): void
+    {
+        $this->joinRoom1(0);
+
+        $result = $this->editOtherStaffAs(0);
+
+        $this->assertSame([], $result['created']);
+        $this->assertStringContainsString('権限がありません', $result['skipped'][0] ?? '');
+    }
 }
