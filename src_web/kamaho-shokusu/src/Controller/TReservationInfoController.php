@@ -3,16 +3,18 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\RoomMealDetailQueryInterface;
+use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Domain\ValueObject\UserRole;
+use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Service\ReservationRoomDetailService;
 use App\Service\ReservationViewService;
 use App\Exception\ApprovedReservationException;
 use App\Exception\DuplicateMealReservationException;
@@ -39,7 +41,6 @@ class TReservationInfoController extends ReservationBaseController
 {
     private ReservationAddService $addService;
     private ReservationChangeEditService $changeEditService;
-    private ReservationRoomDetailService $roomDetailService;
     private ReservationViewService $viewService;
 
     /**
@@ -51,7 +52,6 @@ class TReservationInfoController extends ReservationBaseController
 
         $this->addService        = new ReservationAddService();
         $this->changeEditService = new ReservationChangeEditService();
-        $this->roomDetailService = new ReservationRoomDetailService();
         $this->viewService       = new ReservationViewService($this->datePolicy);
 
         $this->FormProtection->setConfig('unlockedActions', [
@@ -347,41 +347,37 @@ class TReservationInfoController extends ReservationBaseController
      * @param int $mealType 食事タイプ
      * @return Response|null|void ビューをレンダリングする
      */
-    public function roomDetails($roomId, $date, $mealType): ?Response
+    public function roomDetails(RoomMealDetailQueryInterface $roomMealDetail, $roomId, $date, $mealType): ?Response
     {
         $this->authorizeReservation('roomDetails', ['i_id_room' => (int)$roomId]);
 
         $this->log(sprintf('roomId: %d, date: %s, mealType: %d', (int)$roomId, preg_replace('/[\r\n\t]/', '', (string)$date), (int)$mealType), 'debug');
 
         if (empty($roomId) || empty($date) || empty($mealType)) {
-            throw new \InvalidArgumentException('部屋ID、日付、または食事タイプが指定されていません。');
+            throw new BadRequestException('部屋ID、日付、または食事タイプが指定されていません。');
         }
 
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$date)) {
-            throw new \InvalidArgumentException('日付の形式が正しくありません。');
+            throw new BadRequestException('日付の形式が正しくありません。');
         }
 
         if (!is_numeric($mealType)) {
-            throw new \InvalidArgumentException('食事タイプは整数である必要があります。');
+            throw new BadRequestException('食事タイプは整数である必要があります。');
         }
 
-        $detail = $this->roomDetailService->getRoomDetails(
-            (int)$roomId,
-            (string)$date,
-            (int)$mealType,
-            $this->MRoomInfo,
-            $this->TIndividualReservationInfo,
-            $this->MUserGroup
-        );
+        try {
+            $detail = $roomMealDetail->getRoomMealDetail((int)$roomId, (string)$date, (int)$mealType);
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException(__('部屋が見つかりません。'));
+        } catch (\InvalidArgumentException $e) {
+            // 形は合っていても存在しない日付（例：2026-13-45）は、入力の誤りとして返す
+            throw new BadRequestException($e->getMessage());
+        }
 
         $this->set([
-            'room'            => $detail['room'],
-            'date'            => $date,
-            'mealType'        => $mealType,
-            'eatUsers'        => $detail['eatUsers'],
-            'noEatUsers'      => $detail['noEatUsers'],
-            'otherRoomEaters' => $detail['otherRoomEaters'],
-            'useChangeFlag'   => $detail['useChangeFlag'],
+            'detail'   => $detail,
+            'date'     => $date,
+            'mealType' => $mealType,
         ]);
         return null;
     }
@@ -1036,6 +1032,10 @@ class TReservationInfoController extends ReservationBaseController
                         'message' => '直前予約の取得中にエラーが発生しました。',
                         'data'    => [],
                     ], JSON_UNESCAPED_UNICODE));
+            }
+            // 部屋・日付が無いなどの入力の誤りは、画面でも 400 で返す（JSON と同じ）
+            if ($e instanceof \InvalidArgumentException) {
+                throw new BadRequestException($e->getMessage(), null, $e);
             }
 
             throw $e;

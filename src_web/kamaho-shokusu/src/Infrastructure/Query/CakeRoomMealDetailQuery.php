@@ -1,24 +1,37 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Infrastructure\Query;
 
+use App\Application\Query\Dto\OtherRoomEater;
+use App\Application\Query\Dto\RoomMealDetail;
+use App\Application\Query\RoomMealDetailQueryInterface;
+use App\Domain\Exception\NotFoundException;
 use App\Domain\Service\ReservationDateRule;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
-use Cake\Http\Exception\NotFoundException;
+use App\Service\RoomMemberOrderService;
+use Cake\Chronos\ChronosDate;
 use Cake\I18n\Date;
-use Cake\ORM\Table;
+use Cake\ORM\TableRegistry;
+use Psr\Clock\ClockInterface;
 
-class ReservationRoomDetailService
+/**
+ * RoomMealDetailQueryInterface の CakePHP 実装。
+ */
+final class CakeRoomMealDetailQuery implements RoomMealDetailQueryInterface
 {
-    public function getRoomDetails(
-        int $roomId,
-        string $date,
-        int $mealType,
-        Table $roomTable,
-        Table $reservationTable,
-        Table $userGroupTable
-    ): array {
+    public function __construct(private readonly ClockInterface $clock)
+    {
+    }
+
+    public function getRoomMealDetail(int $roomId, string $date, int $mealType): RoomMealDetail
+    {
+        $locator          = TableRegistry::getTableLocator();
+        $roomTable        = $locator->get('MRoomInfo');
+        $reservationTable = $locator->get('TIndividualReservationInfo');
+        $userGroupTable   = $locator->get('MUserGroup');
+        $today            = new ChronosDate($this->clock->now());
+
         try {
             $targetDate = new Date($date);
         } catch (\Exception $e) {
@@ -26,7 +39,7 @@ class ReservationRoomDetailService
         }
 
         // 境界日（今日+14日）以前は i_change_flag を見る（予約の日付ルール）
-        $useChangeFlag = ReservationDateRule::usesChangeFlag($targetDate, Date::today('Asia/Tokyo'));
+        $useChangeFlag = ReservationDateRule::usesChangeFlag($targetDate, $today);
 
         $room = $roomTable->find()
             ->select(['c_room_name'])
@@ -34,7 +47,7 @@ class ReservationRoomDetailService
             ->first();
 
         if (!$room) {
-            throw new NotFoundException(__('部屋が見つかりません。'));
+            throw new NotFoundException('部屋が見つかりません。');
         }
 
         $baseConditions = [
@@ -45,9 +58,8 @@ class ReservationRoomDetailService
             ...MUserGroupTable::activeCondition(),
         ];
 
-        // 食べる・食べないは ReservationDatePolicy::countedValue で分ける（境界日以前は i_change_flag、
+        // 食べる・食べないは ReservationDateRule::countedValue で分ける（境界日以前は i_change_flag、
         // NULL なら eat_flag。列だけで絞ると、i_change_flag が NULL の行が「未登録」に落ちるため）
-        $datePolicy = new ReservationDatePolicy();
         $eaters = [];
         $nonEaters = [];
         $rows = $reservationTable->find()
@@ -62,7 +74,7 @@ class ReservationRoomDetailService
             ->where($baseConditions);
         $rows = RoomMemberOrderService::orderMembers($rows)->all();
         foreach ($rows as $row) {
-            if ($datePolicy->countedValue($date, $row->eat_flag, $row->i_change_flag) === 1) {
+            if (ReservationDateRule::countedValue($targetDate, $row->eat_flag === null ? null : (int)$row->eat_flag, $row->i_change_flag === null ? null : (int)$row->i_change_flag, $today) === 1) {
                 $eaters[] = $row;
                 continue;
             }
@@ -126,19 +138,16 @@ class ReservationRoomDetailService
                     ->first();
 
                 $roomName = $otherRoomRoom ? $otherRoomRoom->c_room_name : '不明な部屋';
-                $otherRoomEaters[] = [
-                    'user_name' => $eater->m_user_info->c_user_name,
-                    'room_name' => $roomName,
-                ];
+                $otherRoomEaters[] = new OtherRoomEater($eater->m_user_info->c_user_name, (string)$roomName);
             }
         }
 
-        return [
-            'room' => $room,
-            'eatUsers' => $eatUsers,
-            'noEatUsers' => $noEatUsers,
-            'otherRoomEaters' => $otherRoomEaters,
-            'useChangeFlag' => $useChangeFlag,
-        ];
+        return new RoomMealDetail(
+            $room->c_room_name === null ? null : (string)$room->c_room_name,
+            array_values($eatUsers),
+            array_values($noEatUsers),
+            $otherRoomEaters,
+            $useChangeFlag,
+        );
     }
 }

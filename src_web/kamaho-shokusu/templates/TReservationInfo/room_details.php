@@ -1,17 +1,17 @@
 <?php
 /**
  * @var \App\View\AppView $this
- * @var mixed $date
- * @var mixed $eatUsers
- * @var mixed $mealType
- * @var mixed $noEatUsers
- * @var object $room
+ * @var \App\Application\Query\Dto\RoomMealDetail $detail
+ * @var string $date
+ * @var int|string $mealType
  */
+$eatUsers   = $detail->eatUsers;
+$noEatUsers = $detail->noEatUsers;
 ?>
 <?php $this->assign('title', '部屋詳細'); ?>
 <div class="container">
     <h1>部屋詳細</h1>
-    <h2>部屋名: <?= h($room->c_room_name) ?></h2> <!-- 部屋名 -->
+    <h2>部屋名: <?= h($detail->roomName) ?></h2> <!-- 部屋名 -->
     <p>日付: <?= h($date) ?></p>
     <p>食事タイプ:
         <?php
