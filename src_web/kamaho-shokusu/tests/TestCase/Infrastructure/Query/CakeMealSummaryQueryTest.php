@@ -136,10 +136,11 @@ class CakeMealSummaryQueryTest extends TestCase
         Configure::write('Features.approval', false);
         $this->seedStaffAndMeals();
         $db = ConnectionManager::get('test');
-        foreach ([['2026-09-11', 1], ['2026-09-12', 4], ['2026-09-13', 4], ['2026-09-14', 9]] as [$d, $t]) {
+        // 9/16 の夕食は直前に取り消し（i_change_flag=0）たので数えない
+        foreach ([['2026-09-11', 1, 1, null], ['2026-09-12', 4, 1, null], ['2026-09-13', 4, 1, null], ['2026-09-14', 9, 1, null], ['2026-09-16', 3, 1, 0]] as [$d, $t, $eat, $chg]) {
             $db->insert('t_individual_reservation_info', [
                 'i_id_user' => 2, 'd_reservation_date' => $d, 'i_reservation_type' => $t, 'i_id_room' => 1,
-                'eat_flag' => 1, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
+                'eat_flag' => $eat, 'i_change_flag' => $chg, 'i_version' => 1, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 't',
             ]);
         }
         $row = array_values(array_filter($this->aggregate(2026, 9), static fn($r) => (int)$r['staff_id'] === 9002))[0];

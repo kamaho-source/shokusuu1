@@ -303,7 +303,7 @@ class MMealPriceInfoControllerTest extends TestCase
         $db = \Cake\Datasource\ConnectionManager::get('test');
         $db->execute('UPDATE m_user_info SET i_id_staff = NULL');
         $db->update('m_user_info', ['i_id_staff' => 9002], ['i_id_user' => 2]);
-        foreach ([['2024-09-02', 1], ['2024-09-03', 2], ['2024-09-04', 4]] as [$d, $t]) {
+        foreach ([['2024-09-02', 1], ['2024-09-03', 2], ['2024-09-04', 4], ['2024-09-05', 3]] as [$d, $t]) {
             $db->insert('t_individual_reservation_info', ['i_id_user' => 2, 'd_reservation_date' => $d, 'i_reservation_type' => $t, 'i_id_room' => 1, 'eat_flag' => 1, 'i_version' => 1, 'dt_create' => '2024-01-01 00:00:00', 'c_create_user' => 't']);
         }
         $this->setAuthenticatedSession();
@@ -312,7 +312,7 @@ class MMealPriceInfoControllerTest extends TestCase
 
         $this->assertResponseOk();
         $rows = json_decode((string)$this->_response->getBody(), true)['data']['rows'];
-        $this->assertSame([['name' => '職員ユーザー', 'staff_id' => 9002, 'meal_counts' => ['bento' => 1, 'morning' => 1, 'lunch' => 1, 'dinner' => 0], 'total_price' => 300 + 500 + 450]], $rows);
+        $this->assertSame([['name' => '職員ユーザー', 'staff_id' => 9002, 'meal_counts' => ['bento' => 1, 'morning' => 1, 'lunch' => 1, 'dinner' => 1], 'total_price' => 300 + 500 + 450 + 600]], $rows);
         $this->assertSame(1, $this->getTableLocator()->get('TAuditLog')->find()->where(['c_action' => 'meal_price_excel_export'])->count(), '出力を監査ログに残す');
     }
 
