@@ -77,11 +77,11 @@ class ReservationActualMealController extends ReservationBaseController
         $userId  = (int)$authUser->get('i_id_user');
         $isAdmin = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
         $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
-        $isOfficeUser = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId);
+        $isOfficeUser = $this->roomQuery->isOfficeUser($userId);
 
         // 管理者・システム管理者も所属部屋のみ（#821）
-        $userRoomIds    = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
-        $rooms          = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false, $isOfficeUser, $isBlockLeader);
+        $userRoomIds    = $this->roomQuery->getUserRoomIds($userId);
+        $rooms          = $this->calendarQuery->getRoomsForUser($userRoomIds, false, $isOfficeUser);
 
         $selectedRoomId = $this->request->getQuery('room_id')
             ? (int)$this->request->getQuery('room_id')
@@ -176,7 +176,7 @@ class ReservationActualMealController extends ReservationBaseController
         $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
         $canProxyActualMeal = $isAdmin || $isBlockLeader;
 
-        $userRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $userId);
+        $userRoomIds = $this->roomQuery->getUserRoomIds($userId);
         $rooms       = [];
         if (!empty($userRoomIds)) {
             $rooms = $this->MRoomInfo->find()
@@ -456,7 +456,7 @@ class ReservationActualMealController extends ReservationBaseController
         $loginStaffId  = $authUser->get('i_id_staff');
         $hasStaffId    = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
         $isStaffUser   = UserRole::isStaffLevel((int)($authUser->get('i_user_level') ?? -1));
-        $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $loginUserId);
+        $isOfficeUser  = $this->roomQuery->isOfficeUser($loginUserId);
         $canViewAll    = $isAdmin || $isOfficeUser;
         $canViewRoom   = $canViewAll || $isBlockLeader || $isStaffUser;
         $canUseAllMode = $canViewAll || $isBlockLeader || $isStaffUser;
@@ -474,21 +474,11 @@ class ReservationActualMealController extends ReservationBaseController
         }
 
         // 有効な所属部屋（退出済み・削除済みを除く）。管理者以外の編集可否（loginRoomIds）はこれで判定する
-        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
-            $this->MRoomInfo,
-            $this->calendarService->getUserRoomIds($this->MUserGroup, $loginUserId),
-            false
-        ));
+        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds($loginUserId), false));
         // 全部屋（削除済みを除く）を扱えるのは管理者・システム管理者と事務所ユーザー。
         // 他の予約画面と違い、エクセル食数予約だけは管理者が全部屋を閲覧・編集できる。
         // 事務所ユーザーの所属外の部屋の行は閲覧のみ（#821）
-        $allRooms    = $this->calendarService->getRoomsForUser(
-            $this->MRoomInfo,
-            $userRoomIds,
-            $canViewAll,
-            $isOfficeUser,
-            $isBlockLeader
-        );
+        $allRooms    = $this->calendarQuery->getRoomsForUser($userRoomIds, $canViewAll, $isOfficeUser);
 
         // 事務所ユーザーの部屋・全部屋モードは所属部屋のみ（#821）。管理者は全部屋
         if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
@@ -538,7 +528,7 @@ class ReservationActualMealController extends ReservationBaseController
         }
 
         if ($viewMode === 'individual') {
-            $targetUserRoomIds = $this->calendarService->getUserRoomIds($this->MUserGroup, $selectedUserId);
+            $targetUserRoomIds = $this->roomQuery->getUserRoomIds($selectedUserId);
             $targetRooms = array_intersect_key($allRooms, array_flip($targetUserRoomIds));
         } elseif ($viewMode === 'room') {
             $targetRooms = ($selectedRoomId !== null && isset($allRooms[$selectedRoomId]))

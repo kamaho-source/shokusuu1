@@ -63,9 +63,10 @@ $getUsersByRoomTpl = $getUsersByRoomTpl ?? $this->Url->build(
 $today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 // 今日の予約情報（参考用）
 $myReservationDates   = $myReservationDates   ?? [];
-$myReservationDetails = $myReservationDetails ?? [];
+// 画面（JS・子ども向け表示）では従来の形（日付 => ['breakfast' => …]）で使う
+$myReservationDetails = array_map(static fn(\App\Application\Query\Dto\MyReservationDay $d) => $d->toArray(), $myReservationDetails ?? []);
 $reservationRoomNames = $reservationRoomNames ?? [];
-$mealDataArray = $mealDataArray ?? [];
+$mealDataArray = array_map(static fn(\App\Application\Query\Dto\DayMealCounts $d) => $d->toArray(), $mealDataArray ?? []);
 
 $todayReservation = $myReservationDetails[$today] ?? [];
 $hasTodayReservation = !empty($todayReservation) && (

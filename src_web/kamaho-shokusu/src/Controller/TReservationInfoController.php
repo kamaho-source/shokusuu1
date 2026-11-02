@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\CalendarEventBuilder;
 use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
@@ -81,24 +82,20 @@ class TReservationInfoController extends ReservationBaseController
         $today    = Date::today();
 
         // 有効な所属部屋（退出済み・削除済みを除く）。既定の部屋もこの中から選ぶ
-        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
-            $this->MRoomInfo,
-            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
-            false
-        ));
-        $userRoomId  = $this->calendarService->getPrimaryRoomId($userRoomIds);
+        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds((int)$userId), false));
+        $userRoomId  = $userRoomIds !== [] ? (int)$userRoomIds[0] : null;
 
         $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
         $isBlockLeader = UserRole::isBlockLeader((int)($user->i_admin ?? 0));
-        $isOfficeUser  = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
+        $isOfficeUser  = $this->roomQuery->isOfficeUser((int)$userId);
         // 管理者・システム管理者も所属部屋のみ（#821）。全部屋の集計を見られるのは事務所ユーザーだけ。
         $canViewAllRooms = $isOfficeUser;
-        $rooms         = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false, $isOfficeUser, $isBlockLeader);
+        $rooms         = $this->calendarQuery->getRoomsForUser($userRoomIds, false, $isOfficeUser);
         $authorizedRooms = $rooms;
 
         // カレンダーの予約ポップアップで選べる部屋。管理者も所属外の部屋には予約できないため（#821）、
         // 役割を問わず「所属していて削除されていない部屋」に限る
-        $pickerRooms = $this->calendarService->getRoomsForUser($this->MRoomInfo, $userRoomIds, false);
+        $pickerRooms = $this->calendarQuery->getRoomsForUser($userRoomIds, false);
 
         // 選べない部屋（所属外など）を指定されたときは、指定なしと同じ既定の部屋にする（選択欄の表示と集計を揃える）
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
@@ -119,38 +116,20 @@ class TReservationInfoController extends ReservationBaseController
             ? [$calRoomId]
             : $this->countableRoomIds($canViewAllRooms, $userRoomIds);
 
-        $mealDataArray = $this->calendarService->buildMealCountsByDate(
-            $this->TIndividualReservationInfo,
-            $calRoomFilter,
-            $viewStart,
-            $viewEnd
-        );
+        $mealDataArray        = $this->calendarQuery->getMealCountsByDate($calRoomFilter, $viewStart, $viewEnd);
+        $myReservationDetails = $this->calendarQuery->getMyReservationDays((int)$userId, $viewStart, $viewEnd);
+        $myReservationDates   = CalendarEventBuilder::reservedDates($myReservationDetails);
 
-        $myReservationDetails = $this->calendarService->buildMyReservationDetails(
-            $this->TIndividualReservationInfo,
-            (int)$userId,
-            $viewStart,
-            $viewEnd
-        );
-        $myReservationDates = $this->calendarService->buildMyReservationDates($myReservationDetails);
-        $staff_user = $this->calendarService->getStaffUserInfo($this->MUserGroup, (int)$userId);
-
-        // 予約に登場する部屋IDを収集し、部屋名マップを取得
+        // 予約に登場する部屋の名前
         $reservationRoomIds = [];
-        foreach ($myReservationDetails as $dayDetail) {
-            foreach (['breakfastRoom', 'lunchRoom', 'dinnerRoom', 'bentoRoom'] as $rKey) {
-                if (!empty($dayDetail[$rKey])) {
-                    $reservationRoomIds[(int)$dayDetail[$rKey]] = true;
+        foreach ($myReservationDetails as $day) {
+            foreach ([$day->breakfastRoom, $day->lunchRoom, $day->dinnerRoom, $day->bentoRoom] as $roomId) {
+                if (!empty($roomId)) {
+                    $reservationRoomIds[(int)$roomId] = true;
                 }
             }
         }
-        $reservationRoomNames = [];
-        if (!empty($reservationRoomIds)) {
-            $reservationRoomNames = $this->MRoomInfo->find('list', [
-                'keyField'   => 'i_id_room',
-                'valueField' => 'c_room_name',
-            ])->where(['i_id_room IN' => array_keys($reservationRoomIds)])->toArray();
-        }
+        $reservationRoomNames = $this->calendarQuery->getRoomNames(array_keys($reservationRoomIds));
 
         $this->set(compact(
             'mealDataArray',
@@ -163,7 +142,6 @@ class TReservationInfoController extends ReservationBaseController
             'authorizedRooms',
             'pickerRooms',
             'today',
-            'staff_user',
             'isAdmin',
             'canViewAllRooms',
             'calRoomId'
@@ -205,20 +183,12 @@ class TReservationInfoController extends ReservationBaseController
         // 合計は有効な所属部屋のみ（管理者も同じ。#821）。全部屋の合計は事務所ユーザーだけ
         $userId  = (int)$this->Authentication->getIdentity()?->get('i_id_user');
         $roomIds = $this->countableRoomIds(
-            $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, $userId),
-            array_keys($this->calendarService->getRoomsForUser(
-                $this->MRoomInfo,
-                $this->calendarService->getUserRoomIds($this->MUserGroup, $userId),
-                false
-            ))
+            $this->roomQuery->isOfficeUser($userId),
+            array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds($userId), false))
         );
 
-        $events = $this->calendarService->buildTotalEvents(
-            $this->TIndividualReservationInfo,
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d'),
-            null,
-            $roomIds
+        $events = CalendarEventBuilder::totalEvents(
+            $this->calendarQuery->getTotalCountsByDate($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $roomIds)
         );
 
         return $this->apiResponseService->success($this->response, ['events' => $events]);
@@ -234,7 +204,7 @@ class TReservationInfoController extends ReservationBaseController
     private function countableRoomIds(bool $isOfficeUser, array $validUserRoomIds): array
     {
         $roomIds = $isOfficeUser
-            ? array_keys($this->calendarService->getRoomsForUser($this->MRoomInfo, [], true))
+            ? array_keys($this->calendarQuery->getRoomsForUser([], true))
             : $validUserRoomIds;
 
         return $roomIds ?: [0];
@@ -278,32 +248,14 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $canViewAllRooms = $this->calendarService->isOfficeUser($this->MUserGroup, $this->MRoomInfo, (int)$userId);
+        $canViewAllRooms = $this->roomQuery->isOfficeUser((int)$userId);
 
         // 集計は有効な所属部屋（削除済みの部屋を除く）だけ。index と同じ基準
-        $userRoomIds = array_keys($this->calendarService->getRoomsForUser(
-            $this->MRoomInfo,
-            $this->calendarService->getUserRoomIds($this->MUserGroup, (int)$userId),
-            false
-        ));
+        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds((int)$userId), false));
 
-        $mealDataArray = $this->calendarService->buildMealCountsByDate(
-            $this->TIndividualReservationInfo,
-            $this->countableRoomIds($canViewAllRooms, $userRoomIds),
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
-        );
-
-        $myReservationDetails = $this->calendarService->buildMyReservationDetails(
-            $this->TIndividualReservationInfo,
-            (int)$userId,
-            $startDate->format('Y-m-d'),
-            $endDate->format('Y-m-d')
-        );
-
-        $events = $this->calendarService->buildCalendarEvents(
-            $mealDataArray,
-            $myReservationDetails,
+        $events = CalendarEventBuilder::calendarEvents(
+            $this->calendarQuery->getMealCountsByDate($this->countableRoomIds($canViewAllRooms, $userRoomIds), $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
+            $this->calendarQuery->getMyReservationDays((int)$userId, $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
             $startDate,
             $endDate
         );
