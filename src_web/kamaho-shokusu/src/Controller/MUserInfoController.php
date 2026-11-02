@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Application\Query\RoomQueryInterface;
 use App\Infrastructure\Persistence\Entity\MUserInfo;
 use App\Application\Port\AuditActor;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsInput;
@@ -32,7 +33,6 @@ use App\Domain\Service\RoomAffiliationLabel;
 use App\Domain\ValueObject\RoomMembershipStatus;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Query\CakeRoomQuery;
 use App\Service\ApiResponseService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
@@ -143,7 +143,7 @@ class MUserInfoController extends AppController
         $this->set(['ok' => true, 'summary' => $results, '_serialize' => ['ok', 'summary']]);
     }
 
-    public function index()
+    public function index(RoomQueryInterface $roomQuery)
     {
         $resource = new MUserInfo();
         try {
@@ -174,7 +174,7 @@ class MUserInfoController extends AppController
             $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], $u);
         }
 
-        $totalActiveRooms = (new CakeRoomQuery())->countActiveRooms();
+        $totalActiveRooms = $roomQuery->countActiveRooms();
         $userRoomLabels   = [];
         foreach ($userRooms as $uid => $roomNames) {
             $userRoomLabels[$uid] = RoomAffiliationLabel::build($roomNames, $totalActiveRooms);

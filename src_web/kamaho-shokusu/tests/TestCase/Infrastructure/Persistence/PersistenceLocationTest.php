@@ -35,7 +35,8 @@ class PersistenceLocationTest extends TestCase
 
     public function testEntityPoliciesAreResolvedFromPersistenceNamespace(): void
     {
-        $resolver = new PersistenceOrmResolver();
+        // Policy の依存（RoomQuery）は本番と同じくアプリのコンテナから渡す
+        $resolver = new PersistenceOrmResolver('App', [], (new \App\Application(CONFIG))->getContainer());
 
         $this->assertInstanceOf(MUserInfoPolicy::class, $resolver->getPolicy(new MUserInfo()));
         $this->assertInstanceOf(TReservationInfoPolicy::class, $resolver->getPolicy(new TReservationInfo()));

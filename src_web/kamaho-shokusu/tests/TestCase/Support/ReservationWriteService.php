@@ -105,7 +105,7 @@ class ReservationWriteService
         /** @var \App\Infrastructure\Persistence\Table\TIndividualReservationInfoTable $reservations */
         $reservations = $this->reservationTable;
 
-        return $this->useCases ??= new ReservationUseCases($reservations, $this->userTable);
+        return $this->useCases ??= new ReservationUseCases($reservations, $this->userTable, new \Cake\Chronos\ClockFactory('Asia/Tokyo'));
     }
 
     /**

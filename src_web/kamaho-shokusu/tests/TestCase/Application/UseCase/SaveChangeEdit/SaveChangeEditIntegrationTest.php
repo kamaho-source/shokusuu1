@@ -35,7 +35,7 @@ class SaveChangeEditIntegrationTest extends TestCase
      */
     private function process(array $usersData, array $memberIds, string $date, int $roomId, ?object $login, Table $reservations, Table $users, bool $editsAll = false): array
     {
-        $out = (new ReservationUseCases($reservations, $users))->saveChangeEdit()->execute(new SaveChangeEditInput(
+        $out = (new ReservationUseCases($reservations, $users, new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->saveChangeEdit()->execute(new SaveChangeEditInput(
             usersData: $usersData,
             memberIds: $memberIds,
             date: $date,

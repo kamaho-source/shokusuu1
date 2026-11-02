@@ -3,17 +3,19 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\ServerRequest;
+use App\Application\Query\ReservationReadQueryInterface;
+use App\Application\Query\RoomQueryInterface;
+use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\Dto\DailyMealCount;
 use App\Application\Query\Dto\MealTypeCount;
 use App\Application\Query\Dto\RankMealCount;
 use App\Application\Query\Dto\RoomUserMealStatus;
 use App\Application\Query\MealReportQueryInterface;
-use App\Infrastructure\Query\CakeMealReportQuery;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealInput;
 use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
 use App\Domain\Exception\DomainException;
 use App\Domain\Service\DatePeriodRule;
-use Cake\Chronos\ClockFactory;
 use Cake\Http\Response;
 use Cake\I18n\Date;
 use Cake\Log\Log;
@@ -25,13 +27,19 @@ use Cake\Log\Log;
  */
 class ReservationReportController extends ReservationBaseController
 {
-    private MealReportQueryInterface $mealReport;
+    public function __construct(
+        ServerRequest $request,
+        CalendarQueryInterface $calendarQuery,
+        RoomQueryInterface $roomQuery,
+        ReservationReadQueryInterface $reservationRead,
+        private readonly MealReportQueryInterface $mealReport,
+    ) {
+        parent::__construct($request, $calendarQuery, $roomQuery, $reservationRead);
+    }
 
     public function initialize(): void
     {
         parent::initialize();
-
-        $this->mealReport           = new CakeMealReportQuery(new ClockFactory('Asia/Tokyo'));
 
         // fetch から直接 POST される API のため FormProtection のフォームトークン検証対象外にする。
         // CSRF は X-CSRF-Token ヘッダで別途検証される。

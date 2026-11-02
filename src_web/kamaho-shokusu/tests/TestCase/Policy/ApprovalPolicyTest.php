@@ -13,7 +13,7 @@ class ApprovalPolicyTest extends TestCase
 {
     public function testBlockLeaderActionsAllowBlockLeaderAndAdmin(): void
     {
-        $policy = new ApprovalPolicy();
+        $policy = new ApprovalPolicy(new \App\Infrastructure\Query\CakeRoomQuery());
         $resource = $this->createMock(ApprovalController::class);
 
         $admin = new ApprovalTestIdentity(['i_id_user' => 1, 'i_admin' => 1]);
@@ -36,7 +36,7 @@ class ApprovalPolicyTest extends TestCase
 
     public function testAdminActionsAllowOnlyAdmin(): void
     {
-        $policy = new ApprovalPolicy();
+        $policy = new ApprovalPolicy(new \App\Infrastructure\Query\CakeRoomQuery());
         $resource = $this->createMock(ApprovalController::class);
 
         $admin = new ApprovalTestIdentity(['i_id_user' => 1, 'i_admin' => 1]);

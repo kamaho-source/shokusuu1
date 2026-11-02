@@ -3,13 +3,15 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\ServerRequest;
+use App\Application\Query\ReservationReadQueryInterface;
+use App\Application\Query\RoomQueryInterface;
+use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\CalendarEventBuilder;
 use App\Application\Query\ChangeEditQueryInterface;
 use App\Application\Query\Dto\ChangeEditMember;
 use App\Domain\Service\ChangeEditPermission;
 use App\Domain\Service\DatePeriodRule;
-use App\Infrastructure\Query\CakeChangeEditQuery;
-use Cake\Chronos\ClockFactory;
 use App\Application\Query\DayViewQueryInterface;
 use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
@@ -43,7 +45,16 @@ use Cake\Routing\Router;
 class TReservationInfoController extends ReservationBaseController
 {
     private ReservationAddService $addService;
-    private ChangeEditQueryInterface $changeEditQuery;
+
+    public function __construct(
+        ServerRequest $request,
+        CalendarQueryInterface $calendarQuery,
+        RoomQueryInterface $roomQuery,
+        ReservationReadQueryInterface $reservationRead,
+        private readonly ChangeEditQueryInterface $changeEditQuery,
+    ) {
+        parent::__construct($request, $calendarQuery, $roomQuery, $reservationRead);
+    }
 
     /**
      * initialize メソッド
@@ -53,7 +64,6 @@ class TReservationInfoController extends ReservationBaseController
         parent::initialize();
 
         $this->addService        = new ReservationAddService();
-        $this->changeEditQuery   = new CakeChangeEditQuery(new ClockFactory('Asia/Tokyo'));
 
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
@@ -483,7 +493,7 @@ class TReservationInfoController extends ReservationBaseController
 
         $userLevel = $user->i_user_level;
         $userId    = $user->get('i_id_user');
-        $rooms     = (new \App\Infrastructure\Query\CakeRoomQuery())->getAccessibleRooms((int)$userId);
+        $rooms     = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         if ($this->request->is('get')) {
             $validation = $addService->validateDate((string)$date, $this->datePolicy);

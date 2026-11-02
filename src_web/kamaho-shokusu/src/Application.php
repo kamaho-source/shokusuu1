@@ -93,12 +93,43 @@ use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
 use App\Policy\PersistenceOrmResolver;
+use App\Application\Query\CalendarQueryInterface;
+use App\Application\Query\ChangeEditQueryInterface;
+use App\Application\Query\DashboardQueryInterface;
+use App\Application\Query\MealCountGridQueryInterface;
+use App\Application\Query\MealReportQueryInterface;
+use App\Application\Query\ReservationHistoryQueryInterface;
+use App\Application\Query\ReservationReadQueryInterface;
+use App\Application\Query\RoomQueryInterface;
+use App\Controller\ApprovalController;
+use App\Controller\MRoomInfoController;
+use App\Controller\PagesController;
+use App\Controller\ReservationActualMealController;
+use App\Controller\ReservationBulkController;
+use App\Controller\ReservationCopyController;
+use App\Controller\ReservationDirectRegisterController;
+use App\Controller\ReservationHistoryController;
+use App\Controller\ReservationReportController;
+use App\Controller\ReservationToggleController;
+use App\Controller\TReservationInfoController;
+use App\Infrastructure\Query\CakeCalendarQuery;
+use App\Infrastructure\Query\CakeChangeEditQuery;
+use App\Infrastructure\Query\CakeDashboardQuery;
+use App\Infrastructure\Query\CakeMealCountGridQuery;
+use App\Infrastructure\Query\CakeMealReportQuery;
+use App\Infrastructure\Query\CakeReservationHistoryQuery;
+use App\Infrastructure\Query\CakeReservationReadQuery;
+use App\Policy\ApprovalPolicy;
+use App\Policy\MRoomInfoPolicy;
+use App\Policy\MUserInfoPolicy;
+use App\Policy\TReservationInfoPolicy;
 use Cake\Http\ServerRequest;
 use Cake\Routing\Router;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Cake\Chronos\ClockFactory;
+use Psr\Clock\ClockInterface;
 use Cake\Core\Configure;
 use Cake\Core\ContainerInterface;
 use Cake\Datasource\FactoryLocator;
@@ -249,13 +280,17 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
     public function services(ContainerInterface $container): void
     {
+        // 時計は1つだけ（Asia/Tokyo。Chronos::setTestNow に従う）。各所で new せず、ここから受け取る
+        $container->addShared(ClockInterface::class, static fn(): ClockInterface => new ClockFactory('Asia/Tokyo'));
+        $clock = static fn(): ClockInterface => $container->get(ClockInterface::class);
+
         $container->add(SystemPromptProviderInterface::class, SystemPromptProvider::class);
 
         $container->add(AiAssistantController::class)
             ->addArgument(SystemPromptProviderInterface::class)
             ->addArgument(ServerRequest::class);
 
-        $container->add(RoomUsageQueryInterface::class, static fn() => new CakeRoomUsageQuery(new ClockFactory('Asia/Tokyo')));
+        $container->add(RoomUsageQueryInterface::class, static fn() => new CakeRoomUsageQuery($clock()));
         $container->add(RoomUsageController::class)
             ->addArgument(RoomUsageQueryInterface::class)
             ->addArgument(ServerRequest::class);
@@ -273,10 +308,10 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
         // 予約の書き込みの UseCase（Controller はアクションの引数で受け取る）。
         // Repository を共有するため、組み立て口（ReservationUseCases）は1リクエストに1つにする
-        $container->addShared(ReservationUseCases::class, static function (): ReservationUseCases {
+        $container->addShared(ReservationUseCases::class, static function () use ($container): ReservationUseCases {
             $tables = FactoryLocator::get('Table');
 
-            return new ReservationUseCases($tables->get('TIndividualReservationInfo'), $tables->get('MUserInfo'));
+            return new ReservationUseCases($tables->get('TIndividualReservationInfo'), $tables->get('MUserInfo'), $container->get(ClockInterface::class));
         });
         foreach ([
             ToggleMealUseCase::class                   => 'toggleMeal',
@@ -303,42 +338,42 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
             $userTransaction(),
             new AuditLogAdapter(),
-            new ClockFactory('Asia/Tokyo'),
+            $clock(),
         ));
         $container->add(RestoreUserUseCase::class, static fn() => new RestoreUserUseCase($userAccounts(), $userTransaction(), new AuditLogAdapter()));
         $container->add(CreateUserUseCase::class, static fn() => new CreateUserUseCase(
             $userAccounts(),
             new CakeRoomMembershipRepository(),
             new AuditLogAdapter(),
-            new ClockFactory('Asia/Tokyo'),
+            $clock(),
         ));
         $container->add(EditUserUseCase::class, static fn() => new EditUserUseCase(
             $userAccounts(),
             new CakeRoomMembershipRepository(),
             $userTransaction(),
             new AuditLogAdapter(),
-            new ClockFactory('Asia/Tokyo'),
+            $clock(),
         ));
         $container->add(BulkImportUsersUseCase::class, static fn() => new BulkImportUsersUseCase(
             $userAccounts(),
             new CakeRoomMembershipRepository(),
             $userTransaction(),
             new AuditLogAdapter(),
-            new ClockFactory('Asia/Tokyo'),
+            $clock(),
         ));
         $container->add(ChangePasswordUseCase::class, static fn() => new ChangePasswordUseCase($userAccounts(), new AuditLogAdapter()));
-        $container->add(CreateRoomUseCase::class, static fn() => new CreateRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
-        $container->add(UpdateRoomUseCase::class, static fn() => new UpdateRoomUseCase(new CakeRoomRepository(), $userTransaction(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
-        $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo')));
-        $container->add(CreateRoomTransferUseCase::class, static fn() => new CreateRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')));
-        $container->add(CancelRoomTransferUseCase::class, static fn() => new CancelRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), new ClockFactory('Asia/Tokyo')));
+        $container->add(CreateRoomUseCase::class, static fn() => new CreateRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), $clock()));
+        $container->add(UpdateRoomUseCase::class, static fn() => new UpdateRoomUseCase(new CakeRoomRepository(), $userTransaction(), new AuditLogAdapter(), $clock()));
+        $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), $clock()));
+        $container->add(CreateRoomTransferUseCase::class, static fn() => new CreateRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), $clock()));
+        $container->add(CancelRoomTransferUseCase::class, static fn() => new CancelRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), $clock()));
         $container->add(ApplyRoomTransfersUseCase::class, static fn() => new ApplyRoomTransfersUseCase(
             new CakeRoomTransferScheduleRepository(),
             $userAccounts(),
             new CakeReservationRepository(FactoryLocator::get('Table')->get('TIndividualReservationInfo')),
             $userTransaction(),
             new ReservationCacheAdapter(),
-            new ClockFactory('Asia/Tokyo'),
+            $clock(),
         ));
         $container->add(ApplyRoomTransferScheduleCommand::class)->addArgument(ApplyRoomTransfersUseCase::class);
         $container->add(CopyReservationsUseCase::class, static fn() => new CopyReservationsUseCase(
@@ -346,7 +381,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             new CakeRoomMembershipRepository(),
             $userAccounts(),
             $userTransaction(),
-            new ClockFactory('Asia/Tokyo'),
+            $clock(),
         ));
         $container->add(NoticeQueryInterface::class, CakeNoticeQuery::class);
         $container->add(MealPriceQueryInterface::class, CakeMealPriceQuery::class);
@@ -358,15 +393,50 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(CreateMealPriceUseCase::class, static fn() => new CreateMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
         $container->add(UpdateMealPriceUseCase::class, static fn() => new UpdateMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
         $container->add(DeleteMealPriceUseCase::class, static fn() => new DeleteMealPriceUseCase(new CakeMealPriceRepository(), new AuditLogAdapter()));
-        $container->add(ExportMealSummaryUseCase::class, static fn() => new ExportMealSummaryUseCase(new CakeMealPriceRepository(), new CakeMealSummaryQuery(new ClockFactory('Asia/Tokyo')), new AuditLogAdapter()));
+        $container->add(ExportMealSummaryUseCase::class, static fn() => new ExportMealSummaryUseCase(new CakeMealPriceRepository(), new CakeMealSummaryQuery($clock()), new AuditLogAdapter()));
         $container->add(CreateNoticeUseCase::class, static fn() => new CreateNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
         $container->add(UpdateNoticeUseCase::class, static fn() => new UpdateNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
         $container->add(DeleteNoticeUseCase::class, static fn() => new DeleteNoticeUseCase(new CakeNoticeRepository(), new AuditLogAdapter()));
-        $container->add(DayViewQueryInterface::class, static fn() => new CakeDayViewQuery(new CakeRoomQuery(), new ClockFactory('Asia/Tokyo')));
-        $container->add(RoomMealDetailQueryInterface::class, static fn() => new CakeRoomMealDetailQuery(new ClockFactory('Asia/Tokyo')));
+        $container->add(DayViewQueryInterface::class, static fn() => new CakeDayViewQuery($container->get(RoomQueryInterface::class), $clock()));
+        $container->add(RoomMealDetailQueryInterface::class, static fn() => new CakeRoomMealDetailQuery($clock()));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
-        $container->add(SystemReportQueryInterface::class, static fn() => new CakeSystemReportQuery(new ClockFactory('Asia/Tokyo')));
+        // 読み取り（Query）。Controller・Policy は new せず、ここから受け取る
+        $container->add(RoomQueryInterface::class, CakeRoomQuery::class);
+        $container->add(CalendarQueryInterface::class, static fn() => new CakeCalendarQuery($clock()));
+        $container->add(ReservationReadQueryInterface::class, static fn() => new CakeReservationReadQuery($container->get(RoomQueryInterface::class), $clock()));
+        $container->add(ChangeEditQueryInterface::class, static fn() => new CakeChangeEditQuery($clock()));
+        $container->add(MealReportQueryInterface::class, static fn() => new CakeMealReportQuery($clock()));
+        $container->add(MealCountGridQueryInterface::class, static fn() => new CakeMealCountGridQuery($clock()));
+        $container->add(ReservationHistoryQueryInterface::class, static fn() => new CakeReservationHistoryQuery($container->get(RoomQueryInterface::class), $clock()));
+        $container->add(DashboardQueryInterface::class, CakeDashboardQuery::class);
+
+        // Controller のコンストラクタ注入（全アクションで使う依存。アクションだけで使うものはアクションの引数で受け取る）
+        foreach ([
+            ReservationBulkController::class,
+            ReservationCopyController::class,
+            ReservationDirectRegisterController::class,
+            ReservationToggleController::class,
+            ReservationActualMealController::class,
+        ] as $reservationController) {
+            $container->add($reservationController)
+                ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class]);
+        }
+        $container->add(TReservationInfoController::class)
+            ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class, ChangeEditQueryInterface::class]);
+        $container->add(ReservationReportController::class)
+            ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class, MealReportQueryInterface::class]);
+        $container->add(ReservationHistoryController::class)->addArguments([ServerRequest::class, ReservationHistoryQueryInterface::class]);
+        $container->add(MRoomInfoController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class]);
+        $container->add(ApprovalController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class]);
+        $container->add(PagesController::class)->addArguments([ServerRequest::class, DashboardQueryInterface::class, NoticeQueryInterface::class, RoomQueryInterface::class]);
+
+        // Policy（Resolver がコンテナから作る）
+        foreach ([TReservationInfoPolicy::class, MRoomInfoPolicy::class, MUserInfoPolicy::class, ApprovalPolicy::class] as $policy) {
+            $container->add($policy)->addArgument(RoomQueryInterface::class);
+        }
+
+        $container->add(SystemReportQueryInterface::class, static fn() => new CakeSystemReportQuery($clock()));
         $container->add(SystemReportController::class)
             ->addArgument(SystemReportQueryInterface::class)
             ->addArgument(ServerRequest::class);
@@ -375,6 +445,8 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
     public function getAuthorizationService(ServerRequestInterface $request): AuthorizationServiceInterface
     {
         // コントローラークラス → ポリシークラスの明示マッピング
+        // Policy の依存（RoomQuery など）はコンテナから渡す
+        $container = $this->getContainer();
         $mapResolver = new MapResolver([
             \App\Controller\ApprovalController::class     => \App\Policy\ApprovalPolicy::class,
             \App\Controller\NotificationsController::class => \App\Policy\NotificationPolicy::class,
@@ -386,10 +458,10 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             \App\Controller\StatsAiController::class          => \App\Policy\StatsAiPolicy::class,
             \App\Controller\SystemReportController::class     => \App\Policy\SystemReportPolicy::class,
             \App\Controller\ReservationHistoryController::class => \App\Policy\ReservationHistoryPolicy::class,
-        ]);
+        ], $container);
 
         // MapResolver で解決できない場合は、永続化層のエンティティ・テーブル→ポリシーにフォールバック
-        $resolver = new ResolverCollection([$mapResolver, new PersistenceOrmResolver()]);
+        $resolver = new ResolverCollection([$mapResolver, new PersistenceOrmResolver('App', [], $container)]);
 
         return new AuthorizationService($resolver);
     }
