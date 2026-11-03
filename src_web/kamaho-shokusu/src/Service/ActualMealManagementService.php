@@ -261,11 +261,26 @@ class ActualMealManagementService
                 if (!$reservationTable->save($newEntity, ['checkDuplicateRoom' => false])) {
                     return ['ok' => false, 'message' => '保存に失敗しました。'];
                 }
-                return ['ok' => true, 'message' => '保存しました。', 'version' => 1];
             } catch (\Exception $e) {
                 // 同時実行による一意制約違反などの場合は、既にデータが存在する可能性があるため再取得を促す
                 return ['ok' => false, 'message' => 'データの状態が変わりました。画面を再読み込みしてください。'];
             }
+
+            // 更新と同じ形で残す。新規作成であることは detail.created で区別する
+            AuditLogService::record(
+                'actual_meal',
+                'actual_meal_save',
+                $actor,
+                $userId,
+                't_individual_reservation_info',
+                "{$userId}:{$date}:{$roomId}:{$mealType}",
+                ['checked' => $checked, 'meal_type' => $mealType, 'created' => true],
+                null,
+                1,
+                $actorLoginId
+            );
+
+            return ['ok' => true, 'message' => '保存しました。', 'version' => 1];
         }
 
         // 楽観的ロック付き更新

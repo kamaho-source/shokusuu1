@@ -237,7 +237,8 @@ final class GroupBulkAddPlanner
         $rowsToActivate  = [];
 
         $users   = isset($input->data['users']) && is_array($input->data['users']) ? $input->data['users'] : [];
-        $userIds = array_keys($users);
+        // 利用者キーは day_users と同じく int にそろえる（数字でないキーをそのまま DB の検索に渡すと 500 になる。#989）
+        $userIds = array_values(array_unique(array_map('intval', array_keys($users))));
         $selectedDates = [];
         foreach ($dates as $date => $checkedDate) {
             if ($checkedDate) {

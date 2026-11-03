@@ -116,7 +116,7 @@ class ApprovalServiceTest extends TestCase
     {
         $this->setStatus(ApprovalService::STATUS_PENDING);
 
-        $result = $this->service->blockLeaderApprove([$this->key1], 99, 'tester');
+        $result = $this->service->blockLeaderApprove([$this->key1], 99, 'tester', null);
 
         $this->assertTrue($result);
         $this->assertSame(ApprovalService::STATUS_BLOCK_LEADER, $this->getStatus());
@@ -126,7 +126,7 @@ class ApprovalServiceTest extends TestCase
     {
         $this->setStatus(ApprovalService::STATUS_ADMIN);
 
-        $result = $this->service->blockLeaderApprove([$this->key1], 99, 'tester');
+        $result = $this->service->blockLeaderApprove([$this->key1], 99, 'tester', null);
 
         $this->assertFalse($result);
         $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), 'ステータスが変更されていないこと');
@@ -167,7 +167,7 @@ class ApprovalServiceTest extends TestCase
     {
         $this->setStatus(ApprovalService::STATUS_PENDING);
 
-        $result = $this->service->reject([$this->key1], 99, 'tester', '理由');
+        $result = $this->service->reject([$this->key1], 99, 'tester', '理由', null);
 
         $this->assertTrue($result);
         $this->assertSame(ApprovalService::STATUS_REJECTED, $this->getStatus());
@@ -177,7 +177,7 @@ class ApprovalServiceTest extends TestCase
     {
         $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER);
 
-        $result = $this->service->reject([$this->key1], 99, 'tester', '理由');
+        $result = $this->service->reject([$this->key1], 99, 'tester', '理由', null);
 
         $this->assertTrue($result);
         $this->assertSame(ApprovalService::STATUS_REJECTED, $this->getStatus());
@@ -187,7 +187,7 @@ class ApprovalServiceTest extends TestCase
     {
         $this->setStatus(ApprovalService::STATUS_ADMIN);
 
-        $result = $this->service->reject([$this->key1], 99, 'tester', '理由');
+        $result = $this->service->reject([$this->key1], 99, 'tester', '理由', null);
 
         $this->assertFalse($result);
         $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), '最終承認済みは差し戻せないこと');
@@ -207,7 +207,7 @@ class ApprovalServiceTest extends TestCase
         $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
 
         // 承認者(approverId=1) は key1 の予約者本人
-        $result = $this->service->blockLeaderApprove([$this->key1, $this->key2], 1, 'tester');
+        $result = $this->service->blockLeaderApprove([$this->key1, $this->key2], 1, 'tester', null);
 
         $this->assertTrue($result, '他ユーザーの予約が承認されるため全体としては成功する');
         $this->assertSame(
@@ -259,7 +259,7 @@ class ApprovalServiceTest extends TestCase
         $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
 
         // ブロック長(approverId=1, excludeUserId=1) は key1 の予約者本人
-        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由', '', '', 1);
+        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由', null, '', '', 1);
 
         $this->assertTrue($result, '他ユーザーの予約が却下されるため全体としては成功する');
         $this->assertSame(
@@ -289,7 +289,7 @@ class ApprovalServiceTest extends TestCase
         $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
 
         // 管理者(approverId=1) は key1 の予約者本人。excludeUserId は渡さない。
-        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由');
+        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由', null);
 
         $this->assertTrue($result);
         $this->assertSame(

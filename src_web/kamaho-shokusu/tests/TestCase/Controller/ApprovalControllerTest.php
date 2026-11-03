@@ -52,13 +52,13 @@ class ApprovalControllerTest extends TestCase
         parent::tearDown();
     }
 
-    private function addReservation(int $userId, string $date, int $type, int $status = 0): void
+    private function addReservation(int $userId, string $date, int $type, int $status = 0, int $roomId = 1): void
     {
         $table = $this->getTableLocator()->get('TIndividualReservationInfo');
         $table->saveOrFail($table->newEntity([
             'i_id_user' => $userId,
             'd_reservation_date' => $date,
-            'i_id_room' => 1,
+            'i_id_room' => $roomId,
             'i_reservation_type' => $type,
             'eat_flag' => 1,
             'dt_create' => '2024-09-01 00:00:00',
@@ -69,15 +69,15 @@ class ApprovalControllerTest extends TestCase
         $table->updateAll(['i_approval_status' => $status], [
             'i_id_user' => $userId,
             'd_reservation_date' => $date,
-            'i_id_room' => 1,
+            'i_id_room' => $roomId,
             'i_reservation_type' => $type,
         ]);
     }
 
-    private function approvalStatus(int $userId, string $date, int $type): int
+    private function approvalStatus(int $userId, string $date, int $type, int $roomId = 1): int
     {
         return (int)$this->getTableLocator()->get('TIndividualReservationInfo')->find()
-            ->where(['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_reservation_type' => $type])
+            ->where(['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_reservation_type' => $type, 'i_id_room' => $roomId])
             ->firstOrFail()
             ->i_approval_status;
     }
@@ -109,9 +109,55 @@ class ApprovalControllerTest extends TestCase
     /**
      * @return array{i_id_user: int, d_reservation_date: string, i_id_room: int, i_reservation_type: int}
      */
-    private function key(int $userId, string $date, int $type): array
+    private function key(int $userId, string $date, int $type, int $roomId = 1): array
     {
-        return ['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_id_room' => 1, 'i_reservation_type' => $type];
+        return ['i_id_user' => $userId, 'd_reservation_date' => $date, 'i_id_room' => $roomId, 'i_reservation_type' => $type];
+    }
+
+    /**
+     * ブロック長(ユーザー2)の担当外の部屋を用意し、ユーザー1の未承認予約(朝)をそれぞれに置く（日付は outDate()）。
+     *   2 = 所属なし / 3 = 退出済み(active_flag=1) / 4 = 所属中だが部屋が削除済み
+     *
+     * @return list<int> 担当外の部屋ID
+     */
+    private function addOutOfScopeRooms(): array
+    {
+        $rooms = $this->getTableLocator()->get('MRoomInfo');
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        foreach ([2 => 0, 3 => 0, 4 => 1] as $roomId => $deleted) {
+            $rooms->saveOrFail($rooms->newEntity([
+                'i_id_room' => $roomId, 'c_room_name' => '担当外' . $roomId, 'i_disp_no' => $roomId, 'i_enable' => 1, 'i_del_flg' => $deleted,
+                'dt_create' => '2024-09-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2024-09-01 00:00:00', 'c_update_user' => 't',
+            ], ['accessibleFields' => ['*' => true]]));
+            $this->addReservation(1, $this->outDate($roomId), 1, 0, $roomId);
+        }
+        foreach ([3 => 1, 4 => 0] as $roomId => $activeFlag) {
+            $groups->saveOrFail($groups->newEntity([
+                'i_id_user' => 2, 'i_id_room' => $roomId, 'active_flag' => $activeFlag,
+                'dt_create' => '2024-09-01 00:00:00', 'c_create_user' => 't', 'dt_update' => '2024-09-01 00:00:00', 'c_update_user' => 't',
+            ]));
+        }
+
+        return [2, 3, 4];
+    }
+
+    /** 同じ人・日・食種は1部屋にしか予約できないため、担当外の部屋ごとに日をずらす */
+    private function outDate(int $roomId): string
+    {
+        return '2024-09-2' . $roomId;
+    }
+
+    /**
+     * @return array{target_id: string, count: int}
+     */
+    private function lastAudit(string $action): array
+    {
+        $row = $this->getTableLocator()->get('TAuditLog')->find()
+            ->where(['c_action' => $action])
+            ->orderBy(['i_id_audit' => 'DESC'])
+            ->firstOrFail();
+
+        return ['target_id' => (string)$row->c_target_id, 'count' => (int)((json_decode((string)$row->c_detail, true) ?? [])['count'] ?? 0)];
     }
 
     // ----------------------------------------------------------------- index
@@ -207,6 +253,53 @@ class ApprovalControllerTest extends TestCase
         $this->assertSame(0, $this->approvalStatus(2, '2024-09-14', 3));
     }
 
+    /** #989 不具合2: 担当外（所属なし・退出済み・削除済みの部屋）の予約は承認されない */
+    public function testBlockLeaderApprove_outOfScopeRooms_areNotApproved(): void
+    {
+        $outOfScope = $this->addOutOfScopeRooms();
+        $this->login(2);
+
+        $this->post('/Approval/blockLeaderApprove', ['keys' => array_map(fn(int $r) => $this->key(1, $this->outDate($r), 1, $r), $outOfScope)]);
+
+        $this->assertResponseOk();
+        $this->assertSame(['success' => false], $this->json());
+        foreach ($outOfScope as $roomId) {
+            $this->assertSame(0, $this->approvalStatus(1, $this->outDate($roomId), 1, $roomId), "部屋{$roomId}は担当外");
+        }
+        $this->assertSame(0, $this->getTableLocator()->get('TApprovalLog')->find()->count());
+    }
+
+    /** #989 不具合2: 担当部屋と担当外を混ぜると、担当部屋の分だけ承認され、件数・監査ログも担当部屋の分だけ */
+    public function testBlockLeaderApprove_mixedKeys_approvesOnlyOwnRooms(): void
+    {
+        $this->addOutOfScopeRooms();
+        $this->login(2);
+
+        $this->post('/Approval/blockLeaderApprove', ['keys' => [
+            $this->key(1, '2024-09-07', 1),
+            $this->key(1, $this->outDate(2), 1, 2),
+        ]]);
+
+        $this->assertSame(['success' => true], $this->json());
+        $this->assertSame(1, $this->approvalStatus(1, '2024-09-07', 1));
+        $this->assertSame(0, $this->approvalStatus(1, $this->outDate(2), 1, 2));
+        $this->assertSame(['target_id' => '1:2024-09-07', 'count' => 1], $this->lastAudit('approval_block_leader'));
+        $this->assertSame(1, $this->getTableLocator()->get('TApprovalLog')->find()->count());
+    }
+
+    /** #989 不具合2: 管理者は従来どおり全部屋を承認できる */
+    public function testBlockLeaderApprove_admin_canApproveAnyRoom(): void
+    {
+        $this->addOutOfScopeRooms();
+        $this->addReservation(2, '2024-09-21', 1, 0, 2);
+        $this->login(1);
+
+        $this->post('/Approval/blockLeaderApprove', ['keys' => [$this->key(2, '2024-09-21', 1, 2)]]);
+
+        $this->assertSame(['success' => true], $this->json());
+        $this->assertSame(1, $this->approvalStatus(2, '2024-09-21', 1, 2));
+    }
+
     public function testBlockLeaderApprove_emptyKeys_returns400(): void
     {
         $this->login(2);
@@ -260,6 +353,38 @@ class ApprovalControllerTest extends TestCase
         $notice = $this->getTableLocator()->get('TNotification')->find()->firstOrFail();
         $this->assertSame(1, (int)$notice->i_id_user);
         $this->assertStringContainsString('人数が合いません', $notice->c_message);
+    }
+
+    /** #989 不具合2: 差し戻しも担当部屋の分だけ。担当外は状態・通知・件数に入らない */
+    public function testBlockLeaderReject_mixedKeys_rejectsOnlyOwnRooms(): void
+    {
+        $outOfScope = $this->addOutOfScopeRooms();
+        $this->login(2);
+
+        $this->post('/Approval/blockLeaderReject', [
+            'keys' => [$this->key(1, '2024-09-07', 1), ...array_map(fn(int $r) => $this->key(1, $this->outDate($r), 1, $r), $outOfScope)],
+            'reason' => 'x',
+        ]);
+
+        $this->assertSame(['success' => true], $this->json());
+        $this->assertSame(3, $this->approvalStatus(1, '2024-09-07', 1));
+        foreach ($outOfScope as $roomId) {
+            $this->assertSame(0, $this->approvalStatus(1, $this->outDate($roomId), 1, $roomId), "部屋{$roomId}は担当外");
+        }
+        $this->assertSame(['target_id' => '1:2024-09-07', 'count' => 1], $this->lastAudit('approval_rejected'));
+        $this->assertSame(1, $this->getTableLocator()->get('TNotification')->find()->count());
+    }
+
+    /** #989 不具合2: 担当外だけを差し戻そうとしても変わらない */
+    public function testBlockLeaderReject_outOfScopeOnly_reportsNotSuccessful(): void
+    {
+        $this->addOutOfScopeRooms();
+        $this->login(2);
+
+        $this->post('/Approval/blockLeaderReject', ['keys' => [$this->key(1, $this->outDate(2), 1, 2)], 'reason' => 'x']);
+
+        $this->assertSame(['success' => false], $this->json());
+        $this->assertSame(0, $this->approvalStatus(1, $this->outDate(2), 1, 2));
     }
 
     public function testBlockLeaderReject_emptyKeys_returns400(): void

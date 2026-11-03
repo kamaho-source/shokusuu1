@@ -31,6 +31,7 @@ use App\Application\UseCase\RestoreUser\RestoreUserInput;
 use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Domain\Service\DeletedMembershipRule;
 use App\Domain\Service\RoomAffiliationLabel;
+use App\Domain\ValueObject\AccountStatus;
 use App\Domain\ValueObject\RoomMembershipStatus;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
@@ -40,6 +41,7 @@ use Cake\Event\EventInterface;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\GoneException;
 use Cake\Http\Exception\NotFoundException;
+use Cake\Http\Response;
 
 class MUserInfoController extends AppController
 {
@@ -184,6 +186,46 @@ class MUserInfoController extends AppController
         $canRegisterUsers = $this->Authorization->can($resource, 'add');
 
         $this->set(compact('mUserInfo', 'userRooms', 'userRoomLabels', 'isAdmin', 'isSystemAdmin', 'currentUserId', 'showDeleted', 'canRegisterUsers'));
+    }
+
+    /**
+     * 登録画面のログインID重複チェック（GET ?c_login_account=...）。応答は {"unique": bool}。
+     * 認可は add と同じ（登録できる人だけ）。判定は送信時の CreateUserUseCase と同じく削除済みの人も含む。
+     * 空・配列の入力は 400、登録の権限が無ければ 403。
+     *
+     * @throws \Cake\Http\Exception\MethodNotAllowedException GET 以外のとき
+     */
+    public function checkUniqueLoginId(UserQueryInterface $userQuery): Response
+    {
+        $this->request->allowMethod(['get']);
+        // $this->Authorization は PHPStan が型を知らない（baseline 入り）ため、型付きで受け取る
+        /** @var \Authorization\Controller\Component\AuthorizationComponent $authorization */
+        $authorization = $this->components()->get('Authorization');
+        try {
+            $authorization->authorize(new MUserInfo(), 'add');
+        } catch (ForbiddenException $e) {
+            return $this->loginIdCheckResponse(['success' => false, 'error' => 'この機能を利用する権限がありません。'], 403);
+        }
+
+        $loginAccount = $this->request->getQuery('c_login_account');
+        if (!is_string($loginAccount) || trim($loginAccount) === '') {
+            return $this->loginIdCheckResponse(['success' => false, 'error' => 'c_login_account を指定してください。'], 400);
+        }
+
+        return $this->loginIdCheckResponse(['unique' => !$userQuery->loginAccountExists($loginAccount)], 200);
+    }
+
+    /**
+     * @param array<string, bool|string> $data
+     */
+    private function loginIdCheckResponse(array $data, int $status): Response
+    {
+        return $this->response
+            ->withStatus($status)
+            ->withType('application/json')
+            // ログインIDの有無を返すので、ブラウザ・中継にキャッシュさせない
+            ->withHeader('Cache-Control', 'no-store')
+            ->withStringBody((string)json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
     public function add(CreateUserUseCase $createUser, UserQueryInterface $userQuery)
@@ -519,7 +561,7 @@ class MUserInfoController extends AppController
         if ($result && $result->isValid()) {
             $user = $result->getData();
 
-            if ($user->i_del_flag === 1 || $user->i_enable === 1) {
+            if (AccountStatus::isDisabled($user->i_del_flag, $user->i_enable)) {
                 $this->Authentication->logout();
                 $this->Flash->error(__('このアカウントは無効化されています。'));
                 return $this->redirect(['action' => 'login']);
@@ -553,7 +595,7 @@ class MUserInfoController extends AppController
             return $this->redirect($redirect);
         }
 
-        if ($this->request->is('post') && !$result->isValid()) {
+        if ($this->request->is('post') && ($result === null || !$result->isValid())) {
             $status = $result ? $result->getStatus() : 'Result is null';
             $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
             $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
@@ -583,7 +625,7 @@ class MUserInfoController extends AppController
     {
         $this->Authorization->skipAuthorization();
         $result = $this->Authentication->getResult();
-        if ($result->isValid()) {
+        if ($result !== null && $result->isValid()) {
             $identity = $this->request->getAttribute('identity');
             \App\Service\AuditLogService::record(
                 'user',

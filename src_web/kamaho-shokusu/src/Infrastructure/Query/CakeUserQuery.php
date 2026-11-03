@@ -28,6 +28,11 @@ final class CakeUserQuery implements UserQueryInterface
         return $this->users->find($userId) !== null;
     }
 
+    public function loginAccountExists(string $loginAccount): bool
+    {
+        return $this->users->loginAccountExists($loginAccount);
+    }
+
     public function isActive(int $userId): bool
     {
         $user = $this->users->find($userId);

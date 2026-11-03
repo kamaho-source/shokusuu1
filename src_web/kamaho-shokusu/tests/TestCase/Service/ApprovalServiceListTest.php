@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ApprovalService;
+use App\Infrastructure\Persistence\Table\TReservationInfoTable;
+use Cake\Datasource\ConnectionManager;
 use Cake\ORM\Table;
 use Cake\TestSuite\TestCase;
 
@@ -201,5 +203,57 @@ class ApprovalServiceListTest extends TestCase
         $this->assertSame([0, 0], $this->service->reflectToReservation(99, null, null, 'a'));
         $this->assertSame([0, 0], $this->service->reflectToReservation(null, '2030-01-01', '2030-12-31', 'a'));
         $this->assertSame($before, $reservation->find()->count());
+    }
+
+    /**
+     * 集計(t_reservation_info)の保存を失敗させる。$throw=true は DB エラー、false は save() が false を返す（検証エラーなど）。
+     */
+    private function failReservationSave(bool $throw): void
+    {
+        $mock = $this->getMockBuilder(TReservationInfoTable::class)
+            ->onlyMethods(['save'])
+            ->setConstructorArgs([['connection' => ConnectionManager::get('test'), 'alias' => 'TReservationInfo', 'table' => 't_reservation_info']])
+            ->getMock();
+        $save = $mock->method('save');
+        $throw ? $save->willThrowException(new \RuntimeException('db down')) : $save->willReturn(false);
+        $this->getTableLocator()->set('TReservationInfo', $mock);
+    }
+
+    /**
+     * #989 不具合3: 集計への反映で失敗したら、承認状態・承認ログも取り消され、監査ログに「成功」が残らない。
+     *
+     * @return array<string, array{bool}>
+     */
+    public static function reflectFailureProvider(): array
+    {
+        return ['例外' => [true], 'save が false' => [false]];
+    }
+
+    /**
+     * @dataProvider reflectFailureProvider
+     */
+    public function testAdminApprove_reflectFailure_rollsBackApproval(bool $throw): void
+    {
+        $this->failReservationSave($throw);
+        $key = ['i_id_user' => 2, 'd_reservation_date' => '2024-09-08', 'i_id_room' => 1, 'i_reservation_type' => 3];
+
+        try {
+            $this->service->adminApprove([$key], 1, 'admin');
+            $this->fail('反映の失敗は例外で知らせるはず');
+        } catch (\RuntimeException $e) {
+            // 想定どおり
+        }
+
+        $row = $this->individual->find()->where($key)->firstOrFail();
+        $this->assertSame(1, (int)$row->i_approval_status, '承認状態は元のまま（ブロック長承認済）');
+        $this->assertSame(0, $this->getTableLocator()->get('TApprovalLog')->find()->count(), '承認ログも取り消される');
+        $this->assertFalse(
+            $this->getTableLocator()->get('TAuditLog')->exists(['c_action' => 'approval_admin', 'i_result' => 1]),
+            '監査ログに成功と記録しない'
+        );
+        $this->assertTrue(
+            $this->getTableLocator()->get('TAuditLog')->exists(['c_action' => 'approval_admin', 'i_result' => 0]),
+            '取り消したことは失敗として監査ログに残す'
+        );
     }
 }
