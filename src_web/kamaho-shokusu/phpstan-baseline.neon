@@ -511,26 +511,8 @@ parameters:
 			path: src/Controller/ReservationActualMealController.php
 
 		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_reject_reason\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Controller/ReservationActualMealController.php
-
-		-
 			message: '#^Method App\\Controller\\ReservationActualMealController\:\:beforeFilter\(\) has parameter \$event with generic interface Cake\\Event\\EventInterface but does not specify its types\: TSubject$#'
 			identifier: missingType.generics
-			count: 1
-			path: src/Controller/ReservationActualMealController.php
-
-		-
-			message: '#^Strict comparison using \!\=\= between int\<min, \-1\>\|int\<1, max\> and null will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
-			count: 1
-			path: src/Controller/ReservationActualMealController.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>c_user_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
 			count: 1
 			path: src/Controller/ReservationActualMealController.php
 
@@ -2459,96 +2441,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/Policy/TReservationInfoPolicy.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_create_user\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_approval_status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_version\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
-			identifier: cake.entity.arrayAccess
-			count: 7
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Call to function method_exists\(\) with DateTimeInterface and ''format'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Method App\\Service\\ActualMealManagementService\:\:buildWeekGrid\(\) has parameter \$users with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Method App\\Service\\ActualMealManagementService\:\:buildWeekGrid\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Service/ActualMealManagementService.php
-
-		-
-			message: '#^Method App\\Service\\ActualMealManagementService\:\:requestApproval\(\) has parameter \$keys with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Service/ActualMealManagementService.php
 
 		-
 			message: '#^Method App\\Service\\ApiResponseService\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'

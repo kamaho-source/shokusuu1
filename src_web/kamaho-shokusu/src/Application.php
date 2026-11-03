@@ -40,6 +40,8 @@ use App\Application\UseCase\ApproveByAdmin\ApproveByAdminUseCase;
 use App\Application\UseCase\ApproveByBlockLeader\ApproveByBlockLeaderUseCase;
 use App\Application\UseCase\ReflectApprovedToReservation\ReflectApprovedToReservationUseCase;
 use App\Application\UseCase\RejectApproval\RejectApprovalUseCase;
+use App\Application\UseCase\RequestActualMealApproval\RequestActualMealApprovalUseCase;
+use App\Application\UseCase\SaveActualMeal\SaveActualMealUseCase;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
@@ -87,6 +89,7 @@ use App\Infrastructure\Query\CakeMealPriceQuery;
 use App\Infrastructure\Query\CakeMealSummaryQuery;
 use App\Infrastructure\Notification\CakeApprovalNotifier;
 use App\Infrastructure\Notification\CakeContactNotifier;
+use App\Infrastructure\Repository\CakeActualMealRepository;
 use App\Infrastructure\Repository\CakeApprovalRepository;
 use App\Service\NotificationService;
 use App\Infrastructure\Query\CakeContactQuery;
@@ -108,6 +111,7 @@ use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
 use App\Policy\PersistenceOrmResolver;
+use App\Application\Query\ActualMealQueryInterface;
 use App\Application\Query\ApprovalQueryInterface;
 use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\ChangeEditQueryInterface;
@@ -132,6 +136,7 @@ use App\Controller\ReservationHistoryController;
 use App\Controller\ReservationReportController;
 use App\Controller\ReservationToggleController;
 use App\Controller\TReservationInfoController;
+use App\Infrastructure\Query\CakeActualMealQuery;
 use App\Infrastructure\Query\CakeApprovalQuery;
 use App\Infrastructure\Query\CakeCalendarQuery;
 use App\Infrastructure\Query\CakeChangeEditQuery;
@@ -448,6 +453,12 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         ));
         $container->add(ReflectApprovedToReservationUseCase::class, static fn() => new ReflectApprovedToReservationUseCase($approvalWriter(), $approvalTransaction()));
 
+        // 実食（Features.actualMeal）
+        $container->add(SaveActualMealUseCase::class, static fn() => new SaveActualMealUseCase(
+            new CakeActualMealRepository(), $container->get(RoomQueryInterface::class), new AuditLogAdapter(), $clock(),
+        ));
+        $container->add(RequestActualMealApprovalUseCase::class, static fn() => new RequestActualMealApprovalUseCase(new CakeActualMealRepository(), new AuditLogAdapter(), $clock()));
+
         // 読み取り（Query）。Controller・Policy は new せず、ここから受け取る
         $container->add(RoomQueryInterface::class, CakeRoomQuery::class);
         $container->add(CalendarQueryInterface::class, static fn() => new CakeCalendarQuery($clock()));
@@ -458,6 +469,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(ReservationHistoryQueryInterface::class, static fn() => new CakeReservationHistoryQuery($container->get(RoomQueryInterface::class), $clock()));
         $container->add(DashboardQueryInterface::class, CakeDashboardQuery::class);
         $container->add(ApprovalQueryInterface::class, static fn() => new CakeApprovalQuery($container->get(RoomQueryInterface::class), $clock()));
+        $container->add(ActualMealQueryInterface::class, static fn() => new CakeActualMealQuery($clock()));
 
         // Controller のコンストラクタ注入（全アクションで使う依存。アクションだけで使うものはアクションの引数で受け取る）
         foreach ([

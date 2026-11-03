@@ -74,6 +74,34 @@ class MealGridWeekRuleTest extends TestCase
         $this->assertSame('2026-12-14', MealGridWeekRule::adminOldestMonday(new \DateTimeImmutable('2027-02-15'))->format('Y-m-d'));
     }
 
+    /**
+     * 実食入力の最古の週（旧 ActualMealManagementService::getAdminOldestAllowedMonday の期待値）。
+     * 月末でも翌月へ繰り上がらない（#919）
+     */
+    public function testAdminOldestMonday_doesNotOverflowOnMonthEnd(): void
+    {
+        $cases = [
+            '2026-12-31' => '2026-10-26',
+            '2026-04-30' => '2026-02-23', // 繰り上がると 3/2 の週になる
+            '2026-11-02' => '2026-08-31',
+        ];
+        foreach ($cases as $today => $expected) {
+            $monday = MealGridWeekRule::adminOldestMonday(new \DateTimeImmutable($today . ' 00:00:00', new \DateTimeZone('Asia/Tokyo')));
+            $this->assertSame($expected, $monday->format('Y-m-d'), $today);
+            $this->assertSame('1', $monday->format('N'), $today);
+        }
+    }
+
+    /** 今日から見て、だいたい 2 か月前（±7 日）の月曜日 */
+    public function testAdminOldestMonday_isMondayAboutTwoMonthsAgo(): void
+    {
+        $now    = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
+        $result = MealGridWeekRule::adminOldestMonday($now);
+
+        $this->assertSame('1', $result->format('N'));
+        $this->assertLessThanOrEqual(7, abs((int)$result->diff($now->modify('-2 months'))->days));
+    }
+
     // ---- resolve ----
 
     public function testResolve_noParam_returnsCurrentWeekWithSurroundingWeeks(): void
@@ -124,6 +152,15 @@ class MealGridWeekRuleTest extends TestCase
         $this->assertSame('2026-06-08', $week->mondayString());
         $this->assertFalse($week->canGoNext);
         $this->assertTrue(MealGridWeekRule::resolve('2026-06-01', false, $this->thisMonday)->canGoNext);
+    }
+
+    /** 実食入力（prevOnlyForAdmin）は、管理者以外は先の週を見ていても前の週へ移れない。管理者は今までどおり */
+    public function testResolve_prevOnlyForAdmin(): void
+    {
+        $this->assertTrue(MealGridWeekRule::resolve('2026-05-18', false, $this->thisMonday)->canGoPrev);
+        $this->assertFalse(MealGridWeekRule::resolve('2026-05-18', false, $this->thisMonday, true)->canGoPrev);
+        $this->assertTrue(MealGridWeekRule::resolve('2026-05-04', true, $this->thisMonday, true)->canGoPrev);
+        $this->assertFalse(MealGridWeekRule::resolve('2026-03-09', true, $this->thisMonday, true)->canGoPrev);
     }
 
     public function testResolve_invalidString_fallsBackToCurrentWeek(): void
