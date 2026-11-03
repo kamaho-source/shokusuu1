@@ -102,7 +102,7 @@ $canGroup = $canGroup ?? false;
     <?php endif; ?>
 
     <div class="excel-card mt-3 p-3">
-        <form action="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'bulkAddSubmit']) ?>" method="post" id="reservation-form">
+        <form action="<?= $this->Url->build(['action' => 'bulkAddSubmit']) ?>" method="post" id="reservation-form">
             <input type="hidden" name="_csrfToken" value="<?= h($this->request->getAttribute('csrfToken')) ?>">
             <input type="hidden" name="reservation_type" value="group">
             <input type="hidden" name="i_id_room" id="i_id_room">
@@ -161,7 +161,6 @@ $canGroup = $canGroup ?? false;
             $isActive = ($ws->format('Y-m-d') === $activeWeekDate);
             $isOverLimit = ($ws > $maxWeek);
             $href = $this->Url->build([
-                'controller' => 'TReservationInfo',
                 'action' => 'bulkAddForm',
                 '?' => [
                     'date' => $ws->format('Y-m-d'),

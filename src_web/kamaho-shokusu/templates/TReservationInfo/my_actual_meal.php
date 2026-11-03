@@ -181,7 +181,7 @@ if (!empty($dates)) {
             <div class="week-nav-bar">
                 <?php if ($canGoPrev): ?>
                     <a class="btn btn-outline-secondary btn-sm"
-                       href="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'myActualMeal', '?' => ['room_id' => $selectedRoomId, 'user_id' => $selectedUserId, 'week' => $prevMonday->format('Y-m-d')]]) ?>">
+                       href="<?= $this->Url->build(['action' => 'myActualMeal', '?' => ['room_id' => $selectedRoomId, 'user_id' => $selectedUserId, 'week' => $prevMonday->format('Y-m-d')]]) ?>">
                         &laquo; 前週
                     </a>
                 <?php else: ?>
@@ -193,7 +193,7 @@ if (!empty($dates)) {
                 </div>
                 <?php if ($canGoNext): ?>
                     <a class="btn btn-outline-secondary btn-sm"
-                       href="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'myActualMeal', '?' => ['room_id' => $selectedRoomId, 'user_id' => $selectedUserId, 'week' => $nextMonday->format('Y-m-d')]]) ?>">
+                       href="<?= $this->Url->build(['action' => 'myActualMeal', '?' => ['room_id' => $selectedRoomId, 'user_id' => $selectedUserId, 'week' => $nextMonday->format('Y-m-d')]]) ?>">
                         次週 &raquo;
                     </a>
                 <?php else: ?>

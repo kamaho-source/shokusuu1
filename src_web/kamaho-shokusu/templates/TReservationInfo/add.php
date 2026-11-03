@@ -53,7 +53,7 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
                 <?= $this->Html->link(__('食数予約一覧に戻る'), ['controller' => 'TReservationInfo', 'action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
 
                 <?php if (date('N', strtotime($date)) == 1): ?>
-                    <?= $this->Html->link(__('週の一括予約'), ['controller' => 'TReservationInfo', 'action' => 'bulkAddForm', '?' => ['date' => $date]], ['class' => 'list-group-item list-group-item-action']) ?>
+                    <?= $this->Html->link(__('週の一括予約'), ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm', '?' => ['date' => $date]], ['class' => 'list-group-item list-group-item-action']) ?>
                 <?php endif; ?>
             </div>
         </aside>

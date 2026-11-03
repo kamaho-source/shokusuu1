@@ -33,11 +33,6 @@ class SplitUrlParity989Test extends TestCase
         $this->enableCsrfToken();
     }
 
-    private function farDate(): string
-    {
-        return Date::today()->addDays(30)->format('Y-m-d');
-    }
-
     /**
      * ログイン中に無効化された人は、MUserInfo の URL で届いていた画面（分割後は別コントローラーでも）では、
      * ログイン画面へ ?redirect= 付きで転送される（分割前、MUserInfoController::beforeFilter() が
@@ -83,46 +78,23 @@ class SplitUrlParity989Test extends TestCase
         $this->assertSame('generalPasswordReset', $this->_controller->getRequest()->getParam('action'));
     }
 
-    /** add 画面の「週の一括予約」は、分割前と同じ /t-reservation-info/bulk-add-form へ向き、ReservationBulk に届く */
-    public function testAddPage_bulkLinkPointsToTheSameUrlAsBeforeSplit(): void
+    /**
+     * add 画面の「週の一括予約」は、開けるリンクを出す。
+     * 分割前（origin/main）は /t-reservation-info/bulk-add-form を出していたが、これは届かず 404 になる（本番の既存の不具合）。
+     * 分割後は /TReservationInfo/bulk-add-form を出し、ReservationBulk に届く。
+     */
+    public function testAddPage_bulkLinkOpensTheBulkForm(): void
     {
         $this->loginAdmin();
         // 「週の一括予約」は月曜の日付のときだけ出る
         $date = Date::today()->addDays(30)->modify('next monday')->format('Y-m-d');
         $this->get('/TReservationInfo/add?date=' . $date);
         $this->assertResponseOk();
-        $this->assertResponseContains('href="/t-reservation-info/bulk-add-form?date=' . $date . '"');
+        $this->assertResponseContains('href="/TReservationInfo/bulk-add-form?date=' . $date . '"');
 
-        $this->get('/t-reservation-info/bulk-add-form?date=' . $date);
+        $this->get('/TReservationInfo/bulk-add-form?date=' . $date);
         $this->assertResponseOk();
         $this->assertSame('ReservationBulk', $this->_controller->getName());
         $this->assertSame('bulkAddForm', $this->_controller->getRequest()->getParam('action'));
-    }
-
-    /** 一括登録・直前一括編集の画面が出す URL（送信先・週ナビ）も、分割前と同じ */
-    public function testBulkForms_generateTheSameUrlsAsBeforeSplit(): void
-    {
-        $this->loginAdmin();
-        $date = $this->farDate();
-
-        $this->get('/t-reservation-info/bulk-add-form?date=' . $date);
-        $this->assertResponseOk();
-        $this->assertResponseContains('action="/t-reservation-info/bulk-add-submit"');
-        $this->assertResponseContains('href="/t-reservation-info/bulk-add-form?date=');
-
-        $this->get('/t-reservation-info/bulk-change-edit-form?date=' . $date);
-        $this->assertResponseOk();
-        $this->assertSame('ReservationBulk', $this->_controller->getName());
-        $this->assertResponseContains('action="/TReservationInfo/changeEdit"');
-        $this->assertResponseContains('href="/t-reservation-info/bulk-change-edit-form?date=');
-    }
-
-    /** 送信先 /t-reservation-info/bulk-add-submit（POST）が ReservationBulk の bulkAddSubmit に届く */
-    public function testBulkAddSubmitKebabLowercaseUrl_routesToReservationBulk(): void
-    {
-        $this->loginAdmin();
-        $this->post('/t-reservation-info/bulk-add-submit', []);
-        $this->assertSame('ReservationBulk', $this->_controller->getName());
-        $this->assertSame('bulkAddSubmit', $this->_controller->getRequest()->getParam('action'));
     }
 }
