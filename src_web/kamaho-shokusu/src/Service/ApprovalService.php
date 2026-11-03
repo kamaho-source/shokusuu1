@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Application\Query\RoomQueryInterface;
+use App\Domain\ValueObject\ApprovalStatus;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
@@ -26,10 +27,10 @@ use Cake\ORM\TableRegistry;
 class ApprovalService
 {
     // 承認ステータス定数
-    public const STATUS_PENDING          = 0;
-    public const STATUS_BLOCK_LEADER     = 1;
-    public const STATUS_ADMIN            = 2;
-    public const STATUS_REJECTED         = 3;
+    public const STATUS_PENDING          = ApprovalStatus::PENDING;
+    public const STATUS_BLOCK_LEADER     = ApprovalStatus::BLOCK_LEADER;
+    public const STATUS_ADMIN            = ApprovalStatus::ADMIN;
+    public const STATUS_REJECTED         = ApprovalStatus::REJECTED;
 
     /** 承認対象を特定するキーの項目 */
     private const KEY_FIELDS = ['i_id_user', 'd_reservation_date', 'i_id_room', 'i_reservation_type'];

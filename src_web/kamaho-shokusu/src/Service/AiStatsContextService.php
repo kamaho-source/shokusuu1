@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Application\Query\RoomUsageQueryInterface;
+use App\Domain\ValueObject\ApprovalStatus;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\AI\UserTokenizer;
@@ -34,12 +35,7 @@ final class AiStatsContextService
     private const LEVEL_STAFF = 0;
 
     /** @var array<int, string> 承認ステータス → ラベル */
-    private const APPROVAL_LABELS = [
-        ApprovalService::STATUS_PENDING      => '未承認',
-        ApprovalService::STATUS_BLOCK_LEADER => 'ブロック長承認済',
-        ApprovalService::STATUS_ADMIN        => '管理者承認済',
-        ApprovalService::STATUS_REJECTED     => '差し戻し',
-    ];
+    private const APPROVAL_LABELS = ApprovalStatus::LABELS;
 
     public function __construct(
         private readonly FeatureUsageSummaryService $featureUsageSummaryService,

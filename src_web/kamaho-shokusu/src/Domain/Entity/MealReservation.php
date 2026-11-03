@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Domain\Entity;
 
 use App\Domain\Service\ReservationDateRule;
+use App\Domain\ValueObject\ApprovalStatus;
 use Cake\Chronos\ChronosDate;
 
 /**
@@ -26,12 +27,12 @@ final class MealReservation
     ) {}
 
     /** 承認済み（1・2）の i_approval_status。承認済みの行は変更しない。 */
-    public const APPROVED_STATUSES = [1, 2];
+    public const APPROVED_STATUSES = ApprovalStatus::APPROVED;
 
     /** 承認済みか（NULL は未承認）。 */
     public function isApproved(): bool
     {
-        return in_array($this->approvalStatus, self::APPROVED_STATUSES, true);
+        return ApprovalStatus::isApproved($this->approvalStatus);
     }
 
     /** 食数として数える値（1=食べる）。 */
