@@ -603,7 +603,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property App\\Controller\\ReservationActualMealController\:\:\$Authentication\.$#'
 			identifier: property.notFound
-			count: 5
+			count: 4
 			path: src/Controller/ReservationActualMealController.php
 
 		-
