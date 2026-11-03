@@ -1,22 +1,32 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\Approval;
 
-use App\Service\ApprovalService;
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\Approval\ApprovalWriter;
+use App\Application\UseCase\ApproveByAdmin\ApproveByAdminInput;
+use App\Application\UseCase\ApproveByAdmin\ApproveByAdminUseCase;
+use App\Application\UseCase\ReflectApprovedToReservation\ReflectApprovedToReservationInput;
+use App\Application\UseCase\ReflectApprovedToReservation\ReflectApprovedToReservationUseCase;
+use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
+use App\Infrastructure\Repository\CakeApprovalRepository;
+use Cake\Chronos\ClockFactory;
 use App\Infrastructure\Persistence\Table\TReservationInfoTable;
 use Cake\Datasource\ConnectionManager;
 use Cake\ORM\Table;
 use Cake\TestSuite\TestCase;
 
 /**
- * ApprovalService の予約情報への反映のテスト（一覧・件数・集計は CakeApprovalQueryTest）。
+ * 最終承認済みの集計への反映（ReflectApprovedToReservationUseCase）と、管理者の承認での反映の失敗のテスト
+ * （旧 ApprovalServiceListTest を引き継ぐ。期待値は同じ。一覧・件数・集計は CakeApprovalQueryTest）。
  *
  * 前提データ（setUp で投入。日付はすべて過去日なので eat_flag がそのまま数えられる）:
  *   - ユーザー1,2 は大人(i_user_level=7)、ユーザー3 は子ども(i_user_level=1) = 一覧に出ない
  *   - ユーザー1,2,3,6 はブロック1に所属（ユーザー6は削除済み）
  */
-class ApprovalServiceListTest extends TestCase
+class ReflectApprovedToReservationIntegrationTest extends TestCase
 {
     protected array $fixtures = [
         'app.TIndividualReservationInfo',
@@ -28,13 +38,11 @@ class ApprovalServiceListTest extends TestCase
         'app.TAuditLog',
     ];
 
-    private ApprovalService $service;
     private Table $individual;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new ApprovalService(new \App\Infrastructure\Query\CakeRoomQuery());
         $this->individual = $this->getTableLocator()->get('TIndividualReservationInfo');
 
         $this->getTableLocator()->get('MUserInfo')->updateAll(['i_user_level' => 7], ['i_id_user IN' => [1, 2]]);
@@ -48,6 +56,41 @@ class ApprovalServiceListTest extends TestCase
         $this->add(2, '2024-09-11', 1, 4, 2);          // 最終承認済 弁当
         $this->add(3, '2024-09-09', 1, 1, 0);          // 子ども（対象外）
         $this->add(6, '2024-09-09', 1, 1, 2);          // 削除済みユーザー（反映対象外）
+    }
+
+    private function writer(): ApprovalWriter
+    {
+        return new ApprovalWriter(new CakeApprovalRepository(), new ClockFactory('Asia/Tokyo'));
+    }
+
+    private function transaction(): CakeTransactionManager
+    {
+        return new CakeTransactionManager($this->getTableLocator()->get('TIndividualReservationInfo')->getConnection());
+    }
+
+    /**
+     * 旧 ApprovalService::reflectToReservation と同じ呼び方。
+     *
+     * @return array{0: int, 1: int} [グループ数, 個別レコード件数]
+     */
+    private function reflectToReservation(?int $roomId, ?string $dateFrom, ?string $dateTo, string $actor): array
+    {
+        $output = (new ReflectApprovedToReservationUseCase($this->writer(), $this->transaction()))
+            ->execute(new ReflectApprovedToReservationInput($roomId, $dateFrom, $dateTo, $actor));
+
+        return [$output->groupCount, $output->recordCount];
+    }
+
+    /**
+     * 旧 ApprovalService::adminApprove と同じ呼び方。
+     *
+     * @param array<int, array<string, int|string>> $keys
+     */
+    private function adminApprove(array $keys, int $approverId, string $actor): bool
+    {
+        $useCase = new ApproveByAdminUseCase($this->writer(), $this->transaction(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo'));
+
+        return $useCase->execute(new ApproveByAdminInput($keys, new AuditActor($actor, $approverId, '', '')))->succeeded();
     }
 
     private function add(int $userId, string $date, int $roomId, int $type, int $status, int $eat = 1): void
@@ -74,7 +117,7 @@ class ApprovalServiceListTest extends TestCase
 
     public function testReflectToReservation_upsertsCountsExcludingDeletedUsers(): void
     {
-        [$groups, $records] = $this->service->reflectToReservation(null, null, null, 'actor');
+        [$groups, $records] = $this->reflectToReservation(null, null, null, 'actor');
 
         // 最終承認済みのうち削除済みユーザー(6)を除く 5 件 / 2024-09-09朝,夕・09-10昼・09-11弁当 の 4 グループ
         $this->assertSame(5, $records);
@@ -89,10 +132,10 @@ class ApprovalServiceListTest extends TestCase
 
     public function testReflectToReservation_secondRunUpdatesExistingRows(): void
     {
-        $this->service->reflectToReservation(1, '2024-09-09', '2024-09-09', 'first');
+        $this->reflectToReservation(1, '2024-09-09', '2024-09-09', 'first');
         $this->individual->updateAll(['eat_flag' => 0], ['i_id_user' => 1, 'd_reservation_date' => '2024-09-09', 'i_reservation_type' => 1]);
 
-        [$groups, $records] = $this->service->reflectToReservation(1, '2024-09-09', '2024-09-09', 'second');
+        [$groups, $records] = $this->reflectToReservation(1, '2024-09-09', '2024-09-09', 'second');
         $this->assertSame(2, $groups);
         $this->assertSame(3, $records);
 
@@ -114,8 +157,8 @@ class ApprovalServiceListTest extends TestCase
         $reservation = $this->getTableLocator()->get('TReservationInfo');
         $before = $reservation->find()->count();
 
-        $this->assertSame([0, 0], $this->service->reflectToReservation(99, null, null, 'a'));
-        $this->assertSame([0, 0], $this->service->reflectToReservation(null, '2030-01-01', '2030-12-31', 'a'));
+        $this->assertSame([0, 0], $this->reflectToReservation(99, null, null, 'a'));
+        $this->assertSame([0, 0], $this->reflectToReservation(null, '2030-01-01', '2030-12-31', 'a'));
         $this->assertSame($before, $reservation->find()->count());
     }
 
@@ -152,7 +195,7 @@ class ApprovalServiceListTest extends TestCase
         $key = ['i_id_user' => 2, 'd_reservation_date' => '2024-09-08', 'i_id_room' => 1, 'i_reservation_type' => 3];
 
         try {
-            $this->service->adminApprove([$key], 1, 'admin');
+            $this->adminApprove([$key], 1, 'admin');
             $this->fail('反映の失敗は例外で知らせるはず');
         } catch (\RuntimeException $e) {
             // 想定どおり
