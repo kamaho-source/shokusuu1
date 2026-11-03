@@ -7,9 +7,9 @@ use App\Domain\ValueObject\MealGridWeek;
 use Cake\Chronos\ChronosDate;
 
 /**
- * エクセル食数予約の表示期間の決まり。
+ * エクセル食数予約・実食入力の表示期間の決まり。
  *
- * - 表示は月曜始まりの 28 日（4 週）
+ * - 表示は月曜始まりの 28 日（4 週）。実食入力は 7 日（dateRange の日数で指定）
  * - 管理者は 2 か月前の週まで戻れる。それ以外は今週より前に戻れない
  * - 先へ進めるのは今週から 4 週先まで
  */
@@ -64,8 +64,10 @@ final class MealGridWeekRule
 
     /**
      * 指定の週（どの曜日でもよい。読めなければ今週）を、移れる範囲に収めて返す。
+     *
+     * @param bool $prevOnlyForAdmin true なら管理者以外は前の週へ移れない（実食入力。今週より先を見ていても戻れない）
      */
-    public static function resolve(?string $weekParam, bool $isAdmin, \DateTimeImmutable $today): MealGridWeek
+    public static function resolve(?string $weekParam, bool $isAdmin, \DateTimeImmutable $today, bool $prevOnlyForAdmin = false): MealGridWeek
     {
         $thisMonday   = self::mondayOf($today);
         $oldestMonday = $isAdmin ? self::adminOldestMonday($today) : $thisMonday;
@@ -95,7 +97,7 @@ final class MealGridWeekRule
             $weekMonday,
             $prevMonday,
             $nextMonday,
-            $prevMonday >= $oldestMonday,
+            ($isAdmin || !$prevOnlyForAdmin) && $prevMonday >= $oldestMonday,
             $nextMonday <= $futureMonday,
         );
     }

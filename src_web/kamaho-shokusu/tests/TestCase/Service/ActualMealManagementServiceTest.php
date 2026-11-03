@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Test\TestCase\Service;
 
 use App\Service\ActualMealManagementService;
-use Cake\I18n\DateTime;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
@@ -29,110 +28,6 @@ class ActualMealManagementServiceTest extends TestCase
     {
         parent::setUp();
         $this->service = new ActualMealManagementService();
-    }
-
-    // ----------------------------------------------------------------
-    // getAdminOldestAllowedMonday — DB不要
-    // ----------------------------------------------------------------
-
-    public function testGetAdminOldestAllowedMonday_returnsDateTimeImmutable(): void
-    {
-        $result = $this->service->getAdminOldestAllowedMonday();
-        $this->assertInstanceOf(\DateTimeImmutable::class, $result);
-    }
-
-    public function testGetAdminOldestAllowedMonday_returnsMonday(): void
-    {
-        $result = $this->service->getAdminOldestAllowedMonday();
-        // ISO weekday: 1 = Monday
-        $this->assertSame('1', $result->format('N'));
-    }
-
-    public function testGetAdminOldestAllowedMonday_isApproximatelyTwoMonthsAgo(): void
-    {
-        $result = $this->service->getAdminOldestAllowedMonday();
-        $now    = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
-
-        // 2ヶ月前 ±7日の範囲内であること
-        $twoMonthsAgo = $now->modify('-2 months');
-        $diff = abs((int)$result->diff($twoMonthsAgo)->days);
-        $this->assertLessThanOrEqual(7, $diff);
-    }
-
-    // ----------------------------------------------------------------
-    // getAdultUsers — DB使用
-    // ----------------------------------------------------------------
-
-    public function testGetAdultUsers_returnsArray(): void
-    {
-        $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
-        $userTable      = TableRegistry::getTableLocator()->get('MUserInfo');
-
-        $result = $this->service->getAdultUsers($userGroupTable, $userTable, 1);
-
-        $this->assertIsArray($result);
-    }
-
-    public function testGetAdultUsers_returnsExpectedKeys(): void
-    {
-        $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
-        $userTable      = TableRegistry::getTableLocator()->get('MUserInfo');
-
-        $result = $this->service->getAdultUsers($userGroupTable, $userTable, 1);
-
-        // フィクスチャのユーザーは i_id_staff が null なので staff_id 未設定ユーザーは除外され空配列が返る
-        $this->assertSame([], $result);
-    }
-
-    public function testGetAdultUsers_nonExistentRoom_returnsEmpty(): void
-    {
-        $userGroupTable = TableRegistry::getTableLocator()->get('MUserGroup');
-        $userTable      = TableRegistry::getTableLocator()->get('MUserInfo');
-
-        $result = $this->service->getAdultUsers($userGroupTable, $userTable, 9999);
-
-        $this->assertSame([], $result);
-    }
-
-    // ----------------------------------------------------------------
-    // buildWeekGrid — DB使用
-    // ----------------------------------------------------------------
-
-    public function testBuildWeekGrid_returnsRequiredKeys(): void
-    {
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $monday = (new \DateTimeImmutable('monday this week'))->format('Y-m-d');
-
-        $result = $this->service->buildWeekGrid($reservationTable, [], $monday);
-
-        $this->assertArrayHasKey('dates', $result);
-        $this->assertArrayHasKey('meals', $result);
-        $this->assertArrayHasKey('grid', $result);
-        $this->assertArrayHasKey('versions', $result);
-        $this->assertArrayHasKey('statuses', $result);
-    }
-
-    public function testBuildWeekGrid_emptyUsers_returnSevenDates(): void
-    {
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $monday = (new \DateTimeImmutable('monday this week'))->format('Y-m-d');
-
-        $result = $this->service->buildWeekGrid($reservationTable, [], $monday);
-
-        $this->assertCount(7, $result['dates']);
-        $this->assertSame([], $result['grid']);
-    }
-
-    public function testBuildWeekGrid_mealsHasThreeTypes(): void
-    {
-        $reservationTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
-        $monday = (new \DateTimeImmutable('monday this week'))->format('Y-m-d');
-
-        $result = $this->service->buildWeekGrid($reservationTable, [], $monday);
-
-        $this->assertArrayHasKey(1, $result['meals']);
-        $this->assertArrayHasKey(2, $result['meals']);
-        $this->assertArrayHasKey(3, $result['meals']);
     }
 
     // ----------------------------------------------------------------
@@ -215,55 +110,6 @@ class ActualMealManagementServiceTest extends TestCase
         $this->assertIsArray($row);
 
         return $row;
-    }
-
-    public function testGetAdultUsers_returnsOnlyActiveStaffInRoomSortedByName(): void
-    {
-        $this->insertStaffUser(101, 'ブ職員', 'S2', 1);
-        $this->insertStaffUser(102, 'ア職員', 'S1', 1);
-        $this->insertStaffUser(103, '退出済み', 'S3', 1, 1);
-        $this->insertStaffUser(104, '削除済み', 'S4', 1, 0, 1);
-        $this->insertStaffUser(105, '空ID', '', 1);
-        $this->insertStaffUser(106, '別部屋', 'S6', 2);
-
-        $result = $this->service->getAdultUsers(
-            TableRegistry::getTableLocator()->get('MUserGroup'),
-            TableRegistry::getTableLocator()->get('MUserInfo'),
-            1
-        );
-
-        $this->assertSame(
-            [
-                ['id' => 102, 'name' => 'ア職員', 'staff_id' => 'S1'],
-                ['id' => 101, 'name' => 'ブ職員', 'staff_id' => 'S2'],
-            ],
-            $result
-        );
-    }
-
-    public function testBuildWeekGrid_usesChangeFlagForPastAndEatFlagForFarFuture(): void
-    {
-        // 過去週(2000-01-03 月曜): i_change_flag が実効値。eat=1/change=0 → false
-        $this->insertReservation(101, '2000-01-03', 1, 1, 0, 0, 5);
-        $this->insertReservation(101, '2000-01-04', 2, 0, 1, 1, 3);
-        $users = [['id' => 101, 'name' => 'a', 'staff_id' => 'S']];
-
-        $past = $this->service->buildWeekGrid($this->resTable(), $users, '2000-01-03');
-
-        $this->assertSame(['2000-01-03', '2000-01-04', '2000-01-05', '2000-01-06', '2000-01-07', '2000-01-08', '2000-01-09'], $past['dates']);
-        $this->assertFalse($past['grid'][101]['2000-01-03'][1]);
-        $this->assertSame(5, $past['versions'][101]['2000-01-03'][1]);
-        $this->assertTrue($past['grid'][101]['2000-01-04'][2]);
-        $this->assertSame(1, $past['statuses'][101]['2000-01-04'][2]);
-        // 予約なしは false / version 1 / status 0
-        $this->assertFalse($past['grid'][101]['2000-01-05'][3]);
-        $this->assertSame(1, $past['versions'][101]['2000-01-05'][3]);
-        $this->assertSame(0, $past['statuses'][101]['2000-01-05'][3]);
-
-        // 遠い未来: eat_flag が実効値。eat=1/change=0 → true
-        $this->insertReservation(101, '2099-01-05', 1, 1, 0);
-        $future = $this->service->buildWeekGrid($this->resTable(), $users, '2099-01-05');
-        $this->assertTrue($future['grid'][101]['2099-01-05'][1]);
     }
 
     public function testSaveActualMeal_createsNewRecordWhenMissing(): void
@@ -438,39 +284,5 @@ class ActualMealManagementServiceTest extends TestCase
         $keys = [['user_id' => 999, 'room_id' => 1, 'date' => '2000-01-03', 'meal_type' => 1]];
 
         $this->assertSame(0, $this->service->requestApproval($this->resTable(), $keys, 'tester'));
-    }
-
-    public function testNormalizeDateString_handlesVariousInputs(): void
-    {
-        $m = new \ReflectionMethod($this->service, 'normalizeDateString');
-        $m->setAccessible(true);
-
-        $this->assertSame('2026-03-02', $m->invoke($this->service, new \Cake\I18n\Date('2026-03-02')));
-        $this->assertSame('2026-03-02', $m->invoke($this->service, new \DateTimeImmutable('2026-03-02 10:00:00')));
-        $this->assertSame('2026-03-02', $m->invoke($this->service, '2026-03-02 10:00:00'));
-        $this->assertNull($m->invoke($this->service, ''));
-        $this->assertNull($m->invoke($this->service, 'not a date'));
-        $this->assertNull($m->invoke($this->service, null));
-    }
-
-    /**
-     * 管理者が遡れる最古の週は「2か月前の日を含む週の月曜」。月末でも翌月へ繰り上がらない（#919）
-     */
-    public function testGetAdminOldestAllowedMonday_doesNotOverflowOnMonthEnd(): void
-    {
-        $cases = [
-            '2026-12-31' => '2026-10-26', // 2か月前 = 10/31(土) → その週の月曜
-            '2026-04-30' => '2026-02-23', // 2か月前 = 2/28(土)。繰り上がると 3/2 の週になる
-            '2026-11-02' => '2026-08-31', // 2か月前 = 9/2(水)
-        ];
-        try {
-            foreach ($cases as $today => $expected) {
-                DateTime::setTestNow(new DateTime($today . ' 09:00:00', 'Asia/Tokyo'));
-                $monday = (new ActualMealManagementService())->getAdminOldestAllowedMonday();
-                $this->assertSame($expected, $monday->format('Y-m-d'), $today);
-            }
-        } finally {
-            DateTime::setTestNow(null);
-        }
     }
 }

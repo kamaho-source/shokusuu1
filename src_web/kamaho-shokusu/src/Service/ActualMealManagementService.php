@@ -3,9 +3,6 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Domain\ValueObject\MealType;
-use App\Infrastructure\Persistence\Table\MUserGroupTable;
-use Cake\I18n\Date;
 use Cake\I18n\DateTime;
 use Cake\ORM\Table;
 
@@ -14,179 +11,10 @@ use Cake\ORM\Table;
  *
  * 実食確認管理（大人限定）機能のビジネスロジックを担当するサービスクラス。
  *
- * 責務:
- *   - 大人ユーザー（i_id_staff を保持するユーザー）の取得
- *   - 週単位の実食グリッドデータ構築（i_change_flag を参照）
- *   - 実食実績の保存（i_change_flag の更新）
- *
- * ControlHeader ロジック:
- *   - 今日 <= 14日以内: i_change_flag を実効値として使用
- *   - 今日 > 14日先: eat_flag を実効値として使用
+ * 責務: 実食実績の保存（i_change_flag の更新）と承認申請。読み取りは ActualMealQueryInterface。
  */
 class ActualMealManagementService
 {
-    /** 管理者が遡れる最大月数 */
-    private const ADMIN_LOOKBACK_MONTHS = 2;
-
-    /**
-     * 指定部屋の大人ユーザー（i_id_staff を保持するユーザー）一覧を返す。
-     *
-     * @param Table $userGroupTable m_user_group テーブル
-     * @param Table $userTable      m_user_info テーブル
-     * @param int   $roomId         対象部屋ID
-     * @return array<int, array{id:int, name:string, staff_id:string}>
-     */
-    public function getAdultUsers(Table $userGroupTable, Table $userTable, int $roomId): array
-    {
-        $rows = $userGroupTable->find()
-            ->enableAutoFields(false)
-            ->select([
-                'i_id_user'  => 'MUserGroup.i_id_user',
-                'user_name'  => 'MUserInfo.c_user_name',
-                'staff_id'   => 'MUserInfo.i_id_staff',
-            ])
-            ->innerJoin(
-                ['MUserInfo' => 'm_user_info'],
-                ['MUserInfo.i_id_user = MUserGroup.i_id_user']
-            )
-            ->where([
-                'MUserGroup.i_id_room'   => $roomId,
-                ...MUserGroupTable::activeCondition(),
-                'MUserInfo.i_del_flag'   => 0,
-            ])
-            ->andWhere(['MUserInfo.i_id_staff IS NOT' => null])
-            ->andWhere(['MUserInfo.i_id_staff !=' => ''])
-            ->enableHydration(false);
-        $rows = RoomMemberOrderService::orderMembers($rows)->all();
-
-        $result = [];
-        foreach ($rows as $row) {
-            $result[] = [
-                'id'       => (int)$row['i_id_user'],
-                'name'     => (string)$row['user_name'],
-                'staff_id' => (string)($row['staff_id'] ?? ''),
-            ];
-        }
-
-        return $result;
-    }
-
-    /**
-     * 週グリッドデータを構築する。
-     *
-     * 返却するグリッドの構造:
-     *   [
-     *     'dates'   => ['2026-03-02', '2026-03-03', ...],  // 月〜日の7日間
-     *     'meals'   => [1 => '朝', 2 => '昼', 3 => '夜'],  // 食事タイプマップ
-     *     'grid'    => [                                     // userId => date => mealType => bool
-     *       userId => ['2026-03-02' => [1 => true, 2 => false, 3 => true], ...]
-     *     ],
-     *     'versions' => [userId => date => mealType => version],
-     *   ]
-     *
-     * @param Table  $reservationTable TIndividualReservationInfo テーブル
-     * @param array  $users            getAdultUsers() の返却値
-     * @param string $weekMonday       週の月曜日 (YYYY-MM-DD)
-     * @return array
-     */
-    public function buildWeekGrid(Table $reservationTable, array $users, string $weekMonday): array
-    {
-        $today = Date::today('Asia/Tokyo');
-
-        // 月曜〜日曜の7日間の日付を生成する
-        $baseDate = new \DateTimeImmutable($weekMonday);
-        $dates = [];
-        for ($i = 0; $i < 7; $i++) {
-            $dates[] = $baseDate->modify("+{$i} days")->format('Y-m-d');
-        }
-
-        $meals = MealType::labels(MealType::LABEL_SHORT_NIGHT, false);
-
-        if (empty($users)) {
-            return [
-                'dates'    => $dates,
-                'meals'    => $meals,
-                'grid'     => [],
-                'versions' => [],
-                'statuses' => [],
-            ];
-        }
-
-        $userIds = array_column($users, 'id');
-
-        // 当該週の予約レコードを取得する
-        $rows = $reservationTable->find()
-            ->enableAutoFields(false)
-            ->select([
-                'i_id_user',
-                'd_reservation_date',
-                'i_reservation_type',
-                'eat_flag',
-                'i_change_flag',
-                'i_approval_status',
-                'i_version',
-            ])
-            ->where([
-                'i_id_user IN'           => $userIds,
-                'd_reservation_date IN'  => $dates,
-                'i_reservation_type IN'  => [1, 2, 3],
-            ])
-            ->enableHydration(false)
-            ->all();
-
-        // (userId, date, mealType) => row のマップを構築する
-        $map = [];
-        foreach ($rows as $row) {
-            $uid  = (int)$row['i_id_user'];
-            $date = $this->normalizeDateString($row['d_reservation_date']);
-            if ($date === null) {
-                continue;
-            }
-            $type = (int)$row['i_reservation_type'];
-            $map[$uid][$date][$type] = $row;
-        }
-
-        // グリッドと版数を組み立てる
-        $grid     = [];
-        $versions = [];
-        $statuses = [];
-        foreach ($users as $u) {
-            $uid = (int)$u['id'];
-            $grid[$uid]     = [];
-            $versions[$uid] = [];
-            $statuses[$uid] = [];
-
-            foreach ($dates as $date) {
-                $grid[$uid][$date]     = [];
-                $versions[$uid][$date] = [];
-                $statuses[$uid][$date] = [];
-
-                foreach (array_keys($meals) as $mealType) {
-                    $row = $map[$uid][$date][$mealType] ?? null;
-                    if ($row === null) {
-                        $grid[$uid][$date][$mealType]     = false;
-                        $versions[$uid][$date][$mealType] = 1;
-                        $statuses[$uid][$date][$mealType] = 0;
-                    } else {
-                        // 実効値の判定は ReservationDatePolicy::countedValue に一本化（境界日以前は i_change_flag）
-                        $effective = (new ReservationDatePolicy())->countedValue((string)$date, $row['eat_flag'], $row['i_change_flag']) === 1;
-                        $grid[$uid][$date][$mealType]     = $effective;
-                        $versions[$uid][$date][$mealType] = (int)($row['i_version'] ?? 1);
-                        $statuses[$uid][$date][$mealType] = (int)($row['i_approval_status'] ?? 0);
-                    }
-                }
-            }
-        }
-
-        return [
-            'dates'    => $dates,
-            'meals'    => $meals,
-            'grid'     => $grid,
-            'versions' => $versions,
-            'statuses' => $statuses,
-        ];
-    }
-
     /**
      * 実食実績を保存する（i_change_flag を更新する）。
      *
@@ -368,44 +196,5 @@ class ActualMealManagementService
         }
 
         return $affectedTotal;
-    }
-
-    /**
-     * 管理者が選択可能な最も古い週の月曜日を返す（過去2ヶ月）。
-     *
-     * @return \DateTimeImmutable
-     */
-    public function getAdminOldestAllowedMonday(): \DateTimeImmutable
-    {
-        $today = DateTime::now('Asia/Tokyo');
-        $oldest = $today->subMonths(self::ADMIN_LOOKBACK_MONTHS);
-
-        return (int)$oldest->format('N') === 1
-            ? $oldest
-            : $oldest->modify('monday this week');
-    }
-
-    /**
-     * 日付の正規化（YYYY-MM-DD 文字列に変換する）。
-     */
-    private function normalizeDateString(\DateTimeInterface|Date|string|int|null $value): ?string
-    {
-        if ($value instanceof Date) {
-            return $value->format('Y-m-d');
-        }
-        if (is_object($value) && method_exists($value, 'format')) {
-            try {
-                return (string)$value->format('Y-m-d');
-            } catch (\Throwable) {
-                // fall through
-            }
-        }
-        if (is_string($value) && $value !== '') {
-            $ts = strtotime($value);
-            if ($ts !== false) {
-                return date('Y-m-d', $ts);
-            }
-        }
-        return null;
     }
 }

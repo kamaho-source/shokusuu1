@@ -119,7 +119,7 @@ class ReservationActualMealControllerTest extends TestCase
 
         $this->get('/TReservationInfo/actual-meal-management?week=2000-01-05');
         $this->assertResponseOk();
-        $oldest = (new \App\Service\ActualMealManagementService())->getAdminOldestAllowedMonday()->format('Y-m-d');
+        $oldest = \App\Domain\Service\MealGridWeekRule::adminOldestMonday(new \DateTimeImmutable($this->thisMonday()))->format('Y-m-d');
         $this->assertSame($oldest, $this->viewVariable('weekMondayStr'));
         $this->assertFalse($this->viewVariable('canGoPrev'));
 
@@ -242,7 +242,7 @@ class ReservationActualMealControllerTest extends TestCase
         $this->login(1, 1);
 
         $this->get('/TReservationInfo/my-actual-meal?week=2000-01-05');
-        $oldest = (new \App\Service\ActualMealManagementService())->getAdminOldestAllowedMonday()->format('Y-m-d');
+        $oldest = \App\Domain\Service\MealGridWeekRule::adminOldestMonday(new \DateTimeImmutable($this->thisMonday()))->format('Y-m-d');
         $this->assertSame($oldest, $this->viewVariable('weekMondayStr'));
 
         $this->get('/TReservationInfo/my-actual-meal?week=2099-01-05');
