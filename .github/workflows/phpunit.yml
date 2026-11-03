@@ -7,9 +7,19 @@ on:
       - develop
   workflow_dispatch:
 
+# 同じブランチ・PR に続けて push したら、古い実行は取り消す
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   phpunit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 時刻に依存するテストをローカル（コンテナ）と同じ条件にする。
+    # RESEND_WEBHOOK_SECRET は設定しない（設定すると WebhooksControllerTest が落ちる。既知）
+    env:
+      TZ: Asia/Tokyo
     defaults:
       run:
         working-directory: src_web/kamaho-shokusu
@@ -26,6 +36,17 @@ jobs:
           coverage: none
           tools: composer:2
 
+      - name: Composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('src_web/kamaho-shokusu/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
       - name: Validate Composer
         run: composer validate --no-check-publish
 
@@ -33,10 +54,49 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run PHPUnit
-        run: vendor/bin/phpunit --configuration phpunit.xml.dist tests/TestCase/Policy tests/TestCase/Service --colors=never
+        # 対象は phpunit.xml.dist の testsuite（tests/TestCase/ 全体）で決まる。ディレクトリで絞らない
+        run: vendor/bin/phpunit --configuration phpunit.xml.dist --colors=never
+
+  phpstan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: src_web/kamaho-shokusu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, pdo_sqlite
+          coverage: none
+          tools: composer:2
+
+      - name: Composer cache
+        id: composer-cache-stan
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Composer cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache-stan.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ hashFiles('src_web/kamaho-shokusu/composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      # 既存のエラーは phpstan-baseline.neon で許容し、新しいエラーだけを落とす
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
 
   jest:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: src_web/kamaho-shokusu
