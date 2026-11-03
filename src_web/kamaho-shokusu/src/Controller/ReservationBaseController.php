@@ -106,4 +106,10 @@ abstract class ReservationBaseController extends AppController
         }
         return $this->apiResponseService->success($this->response, $data, $message, $status);
     }
+
+    /** 予約の書き込みのあとに戻る一覧の URL（Ajax の JS 向けの文字列）。 */
+    protected function reservationIndexUrl(): string
+    {
+        return (string)($this->request->getAttribute('webroot') ?? '') . 'TReservationInfo/';
+    }
 }

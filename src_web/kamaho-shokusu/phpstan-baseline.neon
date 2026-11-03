@@ -169,12 +169,6 @@ parameters:
 			path: src/Controller/ApprovalController.php
 
 		-
-			message: '#^Method App\\Controller\\ApprovalController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/ApprovalController.php
-
-		-
 			message: '#^Access to an undefined property App\\Controller\\AuditLogController\:\:\$Authorization\.$#'
 			identifier: property.notFound
 			count: 2
@@ -577,12 +571,6 @@ parameters:
 			path: src/Controller/NotificationsController.php
 
 		-
-			message: '#^Method App\\Controller\\NotificationsController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/NotificationsController.php
-
-		-
 			message: '#^Access to an undefined property App\\Controller\\PagesController\:\:\$Authentication\.$#'
 			identifier: property.notFound
 			count: 2
@@ -727,12 +715,6 @@ parameters:
 			path: src/Controller/RoomUsageController.php
 
 		-
-			message: '#^Method App\\Controller\\RoomUsageController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/RoomUsageController.php
-
-		-
 			message: '#^Access to an undefined property App\\Controller\\StatsAiController\:\:\$Authorization\.$#'
 			identifier: property.notFound
 			count: 2
@@ -781,33 +763,9 @@ parameters:
 			path: src/Controller/TReservationInfoController.php
 
 		-
-			message: '#^Access to an undefined property App\\Controller\\TReservationInfoController\:\:\$Authorization\.$#'
-			identifier: property.notFound
-			count: 3
-			path: src/Controller/TReservationInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\TReservationInfoController\:\:add\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/TReservationInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\TReservationInfoController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/TReservationInfoController.php
-
-		-
 			message: '#^PHPDoc tag @return with type Cake\\Http\\Response\|void\|null is not subtype of native type Cake\\Http\\Response\|null\.$#'
 			identifier: return.phpDocType
 			count: 4
-			path: src/Controller/TReservationInfoController.php
-
-		-
-			message: '#^Parameter \#1 \$singular of function __ expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
 			path: src/Controller/TReservationInfoController.php
 
 		-

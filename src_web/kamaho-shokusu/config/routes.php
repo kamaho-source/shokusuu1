@@ -28,7 +28,10 @@ return function (RouteBuilder $routes): void {
         // TReservationInfo（一覧など）
         $builder->connect('/TReservationInfo', ['controller' => 'TReservationInfo', 'action' => 'index']);
         $builder->connect('/TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
-        $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
+        $builder->connect('/TReservationInfo/add', ['controller' => 'ReservationAdd', 'action' => 'add']);
+        // 以前は fallbacks で届いていた形（/t-reservation-info/add・/TReservationInfo/add/…）も同じ ReservationAddController へ
+        $builder->connect('/TReservationInfo/add/*', ['controller' => 'ReservationAdd', 'action' => 'add']);
+        $builder->connect('/t-reservation-info/add/*', ['controller' => 'ReservationAdd', 'action' => 'add']);
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
 
         // ── 一括予約（ReservationBulkController） ──
@@ -98,10 +101,10 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'ReservationBulk', 'action' => 'getReservationSnapshots']
         )->setMethods(['POST']);
 
-        $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
+        $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']);
         $builder->connect(
             '/TReservationInfo/changeEdit/{roomId}/{date}/{mealType}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
             ->setPatterns([
@@ -113,7 +116,7 @@ return function (RouteBuilder $routes): void {
         // ce-change-edit.js が生成するURLはダッシュ区切りアクション名を使うため明示的にルートを登録する
         $builder->connect(
             '/TReservationInfo/change-edit/{roomId}/{date}/{mealType}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
             ->setPatterns([
@@ -125,7 +128,7 @@ return function (RouteBuilder $routes): void {
 
         $builder->connect(
             '/TReservationInfo/change-edit/{roomId}/{date}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date'])
             ->setPatterns([
@@ -136,10 +139,10 @@ return function (RouteBuilder $routes): void {
 
         // ===== 小文字パス（API） =====
         // 3セグメント版（従来：{roomId}/{date}/{mealType}）
-        // ※ changeEdit は TReservationInfoController に実装されているため controller を揃える
+        // ※ changeEdit は ReservationChangeEditController に実装されているため controller を揃える
         $builder->connect(
             '/t-individual-reservation-info/change-edit/{roomId}/{date}/{mealType}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
             ->setPatterns([
@@ -153,7 +156,7 @@ return function (RouteBuilder $routes): void {
         // Accept: application/json 付きの GET は JSON を返却。拡張子なしアクセスにも対応。
         $builder->connect(
             '/t-individual-reservation-info/change-edit/{roomId}/{date}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date'])
             ->setPatterns([
@@ -161,6 +164,12 @@ return function (RouteBuilder $routes): void {
                 'date'   => '\d{4}-\d{2}-\d{2}',
             ])
             ->setMethods(['GET', 'POST']);
+
+        // 以前は fallbacks で TReservationInfoController::changeEdit に届いていた形（上のパターンに合わない引数・メソッド、
+        // ケバブ・スネークケースの書き方）も、同じ ReservationChangeEditController へ
+        foreach (['/TReservationInfo/change-edit/*', '/TReservationInfo/change_edit/*', '/t-reservation-info/changeEdit/*', '/t-reservation-info/change-edit/*', '/t-reservation-info/change_edit/*'] as $path) {
+            $builder->connect($path, ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']);
+        }
 
         // MMealPriceInfo
         $builder->connect('/MMealPriceInfo', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);

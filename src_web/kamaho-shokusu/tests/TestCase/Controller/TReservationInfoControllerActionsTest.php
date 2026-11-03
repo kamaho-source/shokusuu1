@@ -280,6 +280,23 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertNull($this->viewVariable('errorMessage'));
     }
 
+    /** 分割後も、以前は fallbacks で届いていた書き方（ケバブ・スネークケース）で新規登録・直前編集の画面が開く（#989） */
+    public function testSplitControllers_kebabCaseAddUrlStillReachesAction(): void
+    {
+        $this->loginStaff(false);
+        $this->get('/t-reservation-info/add?date=' . $this->day(30));
+        $this->assertResponseOk();
+        $this->assertTemplate('add');
+    }
+
+    public function testSplitControllers_snakeCaseChangeEditUrlStillReachesAction(): void
+    {
+        $this->loginStaff(false);
+        $this->get('/TReservationInfo/change_edit?modal=1&date=' . $this->day(3));
+        $this->assertResponseOk();
+        $this->assertTemplate('change_edit');
+    }
+
     public function testAdd_modalRendersWithoutLayoutAndFrameHeaders(): void
     {
         $this->loginAdmin(false);
@@ -612,7 +629,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/change-edit/1/' . $date, ['users' => [3 => [1 => ['i_change_flag' => 1]]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertNotNull($this->row(3, $date, 1));
     }
 
@@ -645,7 +662,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/changeEdit', ['reservation_type' => '1', 'meals' => [1 => [1 => 1]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashMessage('日付が指定されていません。');
     }
 
@@ -666,7 +683,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/change-edit/1/' . $this->day(-3), ['reservation_type' => '1', 'meals' => [1 => [1 => 1]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashElement('flash/error');
     }
 
@@ -740,7 +757,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->get('/TReservationInfo/change-edit/99/' . $this->day(3));
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashElement('flash/error');
     }
 

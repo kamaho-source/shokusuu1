@@ -110,7 +110,9 @@ use App\Controller\ApprovalController;
 use App\Controller\MRoomInfoController;
 use App\Controller\PagesController;
 use App\Controller\ReservationActualMealController;
+use App\Controller\ReservationAddController;
 use App\Controller\ReservationBulkController;
+use App\Controller\ReservationChangeEditController;
 use App\Controller\ReservationCopyController;
 use App\Controller\ReservationDirectRegisterController;
 use App\Controller\ReservationHistoryController;
@@ -428,6 +430,8 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
 
         // Controller のコンストラクタ注入（全アクションで使う依存。アクションだけで使うものはアクションの引数で受け取る）
         foreach ([
+            TReservationInfoController::class,
+            ReservationAddController::class,
             ReservationBulkController::class,
             ReservationCopyController::class,
             ReservationDirectRegisterController::class,
@@ -437,7 +441,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $container->add($reservationController)
                 ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class]);
         }
-        $container->add(TReservationInfoController::class)
+        $container->add(ReservationChangeEditController::class)
             ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class, ChangeEditQueryInterface::class]);
         $container->add(ReservationReportController::class)
             ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class, MealReportQueryInterface::class]);
