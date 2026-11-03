@@ -359,6 +359,22 @@ class ReservationActualMealControllerTest extends TestCase
         $this->assertSame(2, $this->rowVersion(1, '2024-09-07', 1, 1));
     }
 
+    public function testSave_newRow_recordsAuditLogLikeUpdate(): void
+    {
+        $this->login(1, 1);
+        $countLogs = fn(): int => (int)ConnectionManager::get('test')
+            ->execute("SELECT COUNT(*) FROM t_audit_log WHERE c_action = 'actual_meal_save'")->fetchColumn(0);
+
+        $this->save(['room_id' => 1, 'date' => '2024-09-20', 'meal_type' => 2, 'user_id' => 1, 'checked' => 1, 'version' => 1]);
+        $this->assertResponseOk();
+        $this->assertSame(1, $this->rowVersion(1, '2024-09-20', 1, 2), '新規作成された');
+        $this->assertSame(1, $countLogs(), '新規作成でも監査ログが1件残る');
+
+        $this->save(['room_id' => 1, 'date' => '2024-09-20', 'meal_type' => 2, 'user_id' => 1, 'checked' => 0, 'version' => 1]);
+        $this->assertResponseOk();
+        $this->assertSame(2, $countLogs(), '更新は従来どおり1件残る');
+    }
+
     public function testSave_userWhoLeftTheRoom_canOnlyUpdateExistingRows(): void
     {
         // 子ども(user 3)が部屋1を退出済み。既存の行の更新はできるが、新しい行は作れない

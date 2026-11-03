@@ -343,6 +343,78 @@ class ActualMealManagementServiceTest extends TestCase
         $this->assertSame(['ok' => false, 'message' => '保存に失敗しました。'], $result);
     }
 
+    /**
+     * 実食保存の監査ログ（actual_meal_save）を古い順に返す。
+     *
+     * @return list<array<string, string|int|null>>
+     */
+    private function actualMealSaveLogs(): array
+    {
+        return \Cake\Datasource\ConnectionManager::get('test')->execute(
+            "SELECT * FROM t_audit_log WHERE c_action = 'actual_meal_save' ORDER BY i_id_audit"
+        )->fetchAll('assoc');
+    }
+
+    public function testSaveActualMeal_create_recordsOneAuditLog(): void
+    {
+        $result = $this->service->saveActualMeal($this->resTable(), 101, 1, '2000-01-03', 1, true, 1, 'tester', 'login1');
+
+        $this->assertTrue($result['ok']);
+        $logs = $this->actualMealSaveLogs();
+        $this->assertCount(1, $logs);
+        $this->assertSame('actual_meal', $logs[0]['c_category']);
+        $this->assertSame('t_individual_reservation_info', $logs[0]['c_target_table']);
+        $this->assertSame('101:2000-01-03:1:1', $logs[0]['c_target_id']);
+        $this->assertSame(1, (int)$logs[0]['i_result']);
+        $this->assertSame('login1', $logs[0]['c_actor_login_id']);
+        $this->assertSame(
+            ['checked' => true, 'meal_type' => 1, 'created' => true],
+            json_decode((string)$logs[0]['c_detail'], true)
+        );
+    }
+
+    public function testSaveActualMeal_update_recordsAuditLogAsBefore(): void
+    {
+        $this->insertReservation(101, '2000-01-03', 2, 1, 1, 0, 4);
+
+        $this->service->saveActualMeal($this->resTable(), 101, 1, '2000-01-03', 2, false, 4, 'tester', 'login1');
+
+        $logs = $this->actualMealSaveLogs();
+        $this->assertCount(1, $logs);
+        $this->assertSame('101:2000-01-03:1:2', $logs[0]['c_target_id']);
+        $this->assertSame(['checked' => false, 'meal_type' => 2], json_decode((string)$logs[0]['c_detail'], true));
+    }
+
+    public function testSaveActualMeal_createFails_recordsNoAuditLog(): void
+    {
+        foreach (['returnFalse', 'throw'] as $mode) {
+            $table = $this->getMockBuilder(\Cake\ORM\Table::class)
+                ->onlyMethods(['save'])
+                ->setConstructorArgs([['table' => 't_individual_reservation_info', 'alias' => 'TIndividualReservationInfo']])
+                ->getMock();
+            if ($mode === 'throw') {
+                $table->method('save')->willThrowException(new \RuntimeException('duplicate'));
+            }
+            if ($mode === 'returnFalse') {
+                $table->method('save')->willReturn(false);
+            }
+
+            $result = $this->service->saveActualMeal($table, 101, 1, '2000-01-03', 1, true, 1, 'tester');
+
+            $this->assertFalse($result['ok'], $mode);
+        }
+        $this->assertSame([], $this->actualMealSaveLogs());
+    }
+
+    public function testSaveActualMeal_staleVersion_recordsNoAuditLog(): void
+    {
+        $this->insertReservation(101, '2000-01-03', 2, 1, 1, 0, 4);
+
+        $this->service->saveActualMeal($this->resTable(), 101, 1, '2000-01-03', 2, false, 3, 'tester');
+
+        $this->assertSame([], $this->actualMealSaveLogs());
+    }
+
     public function testRequestApproval_resetsOnlyPendingOrRejected(): void
     {
         $this->insertReservation(101, '2000-01-03', 1, 1, 1, 3); // 差し戻し
