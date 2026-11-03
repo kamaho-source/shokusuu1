@@ -40,6 +40,13 @@ class CakeUserQueryTest extends TestCase
         $this->assertFalse($this->query()->exists(999));
     }
 
+    public function testFindByLoginAccount_includesDeletedAndNullForMissing(): void
+    {
+        $this->assertSame(1, $this->query()->findByLoginAccount('admin_user')?->id);
+        $this->assertSame('削除済みユーザー', $this->query()->findByLoginAccount('deleted_user')?->name);
+        $this->assertNull($this->query()->findByLoginAccount('no_such_account'));
+    }
+
     public function testIsActive_excludesDeletedAndMissing(): void
     {
         $this->assertTrue($this->query()->isActive(1));

@@ -91,7 +91,7 @@ class UserPasswordController extends AppController
         $identity = $this->request->getAttribute('identity');
         if (!$identity) {
             $this->Flash->error('ログインしてください。');
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+            return $this->redirect(['controller' => 'Auth', 'action' => 'login']);
         }
 
         $userId = $identity->getIdentifier() ?? $identity->get('i_id_user');

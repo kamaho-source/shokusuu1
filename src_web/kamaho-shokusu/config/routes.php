@@ -179,20 +179,21 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'UserRole', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-report-access', ['controller' => 'UserRole', 'action' => 'updateReportAccess'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'UserPassword', 'action' => 'generalPasswordReset']);
-        $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
+        $builder->connect('/MUserInfo/login', ['controller' => 'Auth', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/check-unique-login-id', ['controller' => 'MUserInfo', 'action' => 'checkUniqueLoginId']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
         $builder->connect('/MUserInfo/delete/*', ['controller' => 'MUserInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
-        $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
+        $builder->connect('/MUserInfo/logout', ['controller' => 'Auth', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
         // MUserInfo から分けたアクション（#989）。以前 fallbacks で届いていた形（/m-user-info/import-form・/MUserInfo/importJson など）も
         // 同じアクションへつなぐ。逆引き（['controller' => 'UserImport', ...]）が以前と同じ URL になるよう /m-user-info/{dashed} を先にする
         foreach ([
-            'UserImport' => ['importForm', 'importJson', 'import'],
+            'Auth'         => ['login', 'logout'],
+            'UserImport'   => ['importForm', 'importJson', 'import'],
             'UserPassword' => ['adminChangePassword', 'generalPasswordReset'],
-            'UserRole'   => ['updateAdminStatus', 'updateSystemAdminStatus', 'updateUserLevel', 'updateReportAccess'],
+            'UserRole'     => ['updateAdminStatus', 'updateSystemAdminStatus', 'updateUserLevel', 'updateReportAccess'],
         ] as $splitController => $splitActions) {
             foreach ($splitActions as $splitAction) {
                 $dashed = Inflector::dasherize($splitAction);

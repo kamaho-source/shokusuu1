@@ -21,12 +21,10 @@ use App\Application\UseCase\RestoreUser\RestoreUserInput;
 use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
 use App\Domain\Service\DeletedMembershipRule;
 use App\Domain\Service\RoomAffiliationLabel;
-use App\Domain\ValueObject\AccountStatus;
 use App\Domain\ValueObject\RoomMembershipStatus;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use Authorization\Exception\ForbiddenException;
-use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
 
@@ -39,7 +37,6 @@ class MUserInfoController extends AppController
     public function initialize(): void
     {
         parent::initialize();
-        $this->loadComponent('Authentication.Authentication');
         $this->viewBuilder()->setLayout('default');
         $this->viewBuilder()->setOption('serialize', true);
 
@@ -49,21 +46,12 @@ class MUserInfoController extends AppController
 
         // これらのアクションは FormProtection のフォームトークン検証対象外にする。
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
-        // login/logout: セッション切れや複数タブでトークンが失効し「不正なアクセス」になるため除外。
         // add: 年齢セレクトが Form ヘルパー外の生 HTML のためトークン不一致になるため除外。
         // addUserRooms: JSON を返す AJAX エンドポイントのため除外。
         $this->FormProtection->setConfig('unlockedActions', [
-            'login',
-            'logout',
             'add',
             'addUserRooms',
         ]);
-    }
-
-    public function beforeFilter(EventInterface $event)
-    {
-        parent::beforeFilter($event);
-        $this->Authentication->addUnauthenticatedActions(['login']);
     }
 
     public function index(RoomQueryInterface $roomQuery)
@@ -73,7 +61,7 @@ class MUserInfoController extends AppController
             $this->Authorization->authorize($resource, 'index');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('あなたは閲覧権限がありません。'));
-            return $this->redirect(['action' => 'login']);
+            return $this->redirect(['controller' => 'Auth', 'action' => 'login']);
         }
 
         $user          = $this->request->getAttribute('identity');
@@ -348,99 +336,6 @@ class MUserInfoController extends AppController
         }
 
         return $this->redirect(['action' => 'index']);
-    }
-
-    public function login()
-    {
-        $this->Authorization->skipAuthorization();
-        $this->request->allowMethod(['get', 'post']);
-        $result = $this->Authentication->getResult();
-
-        if ($result && $result->isValid()) {
-            $user = $result->getData();
-
-            if (AccountStatus::isDisabled($user->i_del_flag, $user->i_enable)) {
-                $this->Authentication->logout();
-                $this->Flash->error(__('このアカウントは無効化されています。'));
-                return $this->redirect(['action' => 'login']);
-            }
-
-            // セッション固定化攻撃対策：ログイン成功時にセッションIDを再生成する
-            $this->request->getSession()->renew();
-
-            \App\Service\AuditLogService::record(
-                'user',
-                'user_login',
-                $user->c_user_name ?? $user->c_login_account ?? '不明',
-                (int)$user->i_id_user,
-                'm_user_info',
-                (string)$user->i_id_user,
-                null,
-                $this->getClientIp(),
-                1,
-                (string)($user->c_login_account ?? '')
-            );
-
-            if (UserRole::isAdmin((int)$user->i_admin)) {
-                $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
-            } elseif ((int)$user->i_user_level === 1) {
-                $defaultRedirect = ['controller' => 'TReservationInfo', 'action' => 'index'];
-            } else {
-                $defaultRedirect = ['controller' => 'Pages', 'action' => 'display', 'home'];
-            }
-            $redirectParam = $this->request->getQuery('redirect');
-            $redirect = $this->isSafeRedirect($redirectParam) ? $redirectParam : $defaultRedirect;
-            return $this->redirect($redirect);
-        }
-
-        if ($this->request->is('post') && ($result === null || !$result->isValid())) {
-            $status = $result ? $result->getStatus() : 'Result is null';
-            $this->log('Login failed. status=' . preg_replace('/[\r\n\t]/', ' ', (string)$status), 'debug');
-            $this->Flash->error(__('ユーザー名またはパスワードが正しくありません。'));
-            $loginAccount = $this->dataString('c_login_account');
-            // 操作者は、入力されたログインIDのアカウント（無ければ「該当アカウントなし」）
-            $account = $loginAccount === '' ? null : $this->MUserInfo->find()
-                ->select(['i_id_user', 'c_user_name'])
-                ->where(['c_login_account' => $loginAccount])
-                ->first();
-            \App\Service\AuditLogService::record(
-                'user',
-                'user_login_failed',
-                $account ? (string)$account->c_user_name : \App\Service\AuditLogService::UNKNOWN_ACCOUNT_NAME,
-                $account ? (int)$account->i_id_user : 0,
-                'm_user_info',
-                null,
-                ['login_account' => $loginAccount],
-                $this->getClientIp(),
-                0,
-                $loginAccount,
-                'ユーザー名またはパスワードが一致しません'
-            );
-        }
-    }
-
-    public function logout()
-    {
-        $this->Authorization->skipAuthorization();
-        $result = $this->Authentication->getResult();
-        if ($result !== null && $result->isValid()) {
-            $identity = $this->request->getAttribute('identity');
-            \App\Service\AuditLogService::record(
-                'user',
-                'user_logout',
-                $identity?->get('c_user_name') ?? '不明',
-                $identity ? (int)$identity->get('i_id_user') : 0,
-                'm_user_info',
-                $identity ? (string)$identity->get('i_id_user') : null,
-                null,
-                $this->getClientIp(),
-                1,
-                (string)($identity?->get('c_login_account') ?? '')
-            );
-            $this->Authentication->logout();
-            $this->Flash->success('正常にログアウトされました。');
-        }
-        return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
     }
 
     /**

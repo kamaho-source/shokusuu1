@@ -211,12 +211,12 @@ $recentNotifications     = $recentNotifications ?? [];
                                     <li><?= $this->Html->link('🔑 管理者：パスワード変更', ['controller' => 'UserPassword', 'action' => 'adminChangePassword'], ['class' => 'dropdown-item']) ?></li>
                                 <?php endif; ?>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><?= $this->Html->link('🚪 ログアウト', ['controller' => 'MUserInfo', 'action' => 'logout'], ['class' => 'dropdown-item text-danger']) ?></li>
+                                <li><?= $this->Html->link('🚪 ログアウト', ['controller' => 'Auth', 'action' => 'logout'], ['class' => 'dropdown-item text-danger']) ?></li>
                             </ul>
                         </li>
                     <?php else: ?>
                         <li class="nav-item">
-                            <?= $this->Html->link('ログイン', ['controller' => 'MUserInfo', 'action' => 'login'], ['class' => 'btn btn-outline-info rounded-pill px-4']) ?>
+                            <?= $this->Html->link('ログイン', ['controller' => 'Auth', 'action' => 'login'], ['class' => 'btn btn-outline-info rounded-pill px-4']) ?>
                         </li>
                     <?php endif; ?>
                 </ul>

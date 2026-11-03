@@ -403,15 +403,9 @@ parameters:
 			path: src/Controller/MRoomTransferScheduleController.php
 
 		-
-			message: '#^Access to an undefined property App\\Controller\\MUserInfoController\:\:\$Authentication\.$#'
-			identifier: property.notFound
-			count: 5
-			path: src/Controller/MUserInfoController.php
-
-		-
 			message: '#^Access to an undefined property App\\Controller\\MUserInfoController\:\:\$Authorization\.$#'
 			identifier: property.notFound
-			count: 14
+			count: 12
 			path: src/Controller/MUserInfoController.php
 
 		-
@@ -458,18 +452,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controller\\MUserInfoController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:login\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:logout\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
 			path: src/Controller/MUserInfoController.php
