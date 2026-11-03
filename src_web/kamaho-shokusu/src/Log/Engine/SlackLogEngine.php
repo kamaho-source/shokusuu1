@@ -17,7 +17,7 @@ final class SlackLogEngine extends BaseLog
     private Client $httpClient;
 
     /**
-     * @param array $config 設定配列。'httpClient' キーでテスト用クライアントを注入可能。
+     * @param array<string, mixed> $config 設定配列。'httpClient' キーでテスト用クライアントを注入可能。
      */
     public function __construct(array $config = [])
     {
@@ -28,12 +28,12 @@ final class SlackLogEngine extends BaseLog
     /**
      * @param string $level ログレベル
      * @param string $message ログメッセージ
-     * @param array $context コンテキスト情報
+     * @param array<string, mixed> $context コンテキスト情報
      */
     public function log($level, $message, array $context = []): void
     {
         $webhookUrl = env('SLACK_ERROR_WEBHOOK', '');
-        if ($webhookUrl === '') {
+        if (!is_string($webhookUrl) || $webhookUrl === '') {
             return;
         }
 
