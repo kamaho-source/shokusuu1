@@ -3,10 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use App\Domain\Service\MealGridWeekRule;
 use App\Domain\ValueObject\UserRole;
-use App\Application\Query\MealCountGridQueryInterface;
-use Cake\Chronos\ChronosDate;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use App\Service\ActualMealManagementService;
 use Cake\Core\Configure;
@@ -16,23 +13,13 @@ use Cake\Http\Response;
 use Cake\I18n\DateTime;
 
 /**
- * 実食確認管理・食数グリッド専用コントローラー。
+ * 実食確認管理専用コントローラー。
  *
- * 大人向け実食入力・承認申請・食数予約Excelグリッド表示を担当する。
+ * 大人向け実食入力・承認申請を担当する。全アクションが実食機能(Features.actualMeal)の対象。
+ * エクセル食数予約（mealCountGrid）は予約機能なので MealCountGridController にある。
  */
 class ReservationActualMealController extends ReservationBaseController
 {
-    /**
-     * 実食機能(Features.actualMeal)が無効のとき無効化するアクション。
-     * mealCountGrid（食数一括管理）は予約機能なので対象外。
-     */
-    private const ACTUAL_MEAL_ACTIONS = [
-        'actualMealManagement',
-        'actualMealSave',
-        'actualMealRequestApproval',
-        'myActualMeal',
-    ];
-
     public function initialize(): void
     {
         parent::initialize();
@@ -44,7 +31,7 @@ class ReservationActualMealController extends ReservationBaseController
     }
 
     /**
-     * 実食機能が無効のときは対象アクションを 404 にする。
+     * 実食機能が無効のときは全アクションを 404 にする。
      * （ダッシュボードから導線を隠しているが、直接URLアクセスも塞ぐ）
      *
      * @param \Cake\Event\EventInterface $event
@@ -54,10 +41,7 @@ class ReservationActualMealController extends ReservationBaseController
     {
         parent::beforeFilter($event);
 
-        $action = (string)$this->request->getParam('action');
-        if (in_array($action, self::ACTUAL_MEAL_ACTIONS, true)
-            && !Configure::read('Features.actualMeal')
-        ) {
+        if (!Configure::read('Features.actualMeal')) {
             throw new NotFoundException('実食入力機能は現在無効です。');
         }
     }
@@ -435,165 +419,5 @@ class ReservationActualMealController extends ReservationBaseController
             ['count' => $affectedTotal],
             '承認申請しました。'
         );
-    }
-
-    /**
-     * 食数予約Excelグリッド画面（28日）。
-     *
-     * @return Response|null
-     */
-    public function mealCountGrid(MealCountGridQueryInterface $gridQuery): ?Response
-    {
-        $this->authorizeReservation('mealCountGrid');
-
-        $authUser = $this->Authentication->getIdentity();
-        if (!$authUser) {
-            throw new \Cake\Http\Exception\UnauthorizedException('ログインが必要です。');
-        }
-
-        $loginUserId   = (int)$authUser->get('i_id_user');
-        $loginName     = (string)($authUser->get('c_user_name') ?? '');
-        $isAdmin       = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
-        $isBlockLeader = UserRole::isBlockLeader((int)($authUser->get('i_admin') ?? 0));
-        $loginStaffId  = $authUser->get('i_id_staff');
-        $hasStaffId    = $loginStaffId !== null && $loginStaffId !== '' && $loginStaffId !== 0;
-        $isStaffUser   = UserRole::isStaffLevel((int)($authUser->get('i_user_level') ?? -1));
-        $isOfficeUser  = $this->roomQuery->isOfficeUser($loginUserId);
-        $canViewAll    = $isAdmin || $isOfficeUser;
-        $canViewRoom   = $canViewAll || $isBlockLeader || $isStaffUser;
-        $canUseAllMode = $canViewAll || $isBlockLeader || $isStaffUser;
-
-        $session      = $this->request->getSession();
-        $viewMode     = $this->request->getQuery('mode') ?? $session->read('mealCountGrid.mode') ?? 'individual';
-        if (!in_array($viewMode, ['individual', 'room', 'all'], true)) {
-            $viewMode = 'individual';
-        }
-        if (!$canUseAllMode && $viewMode === 'all') {
-            $viewMode = $canViewRoom ? 'room' : 'individual';
-        }
-        if (!$canViewRoom && $viewMode !== 'individual') {
-            $viewMode = 'individual';
-        }
-
-        // 有効な所属部屋（退出済み・削除済みを除く）。管理者以外の編集可否（loginRoomIds）はこれで判定する
-        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds($loginUserId), false));
-        // 全部屋（削除済みを除く）を扱えるのは管理者・システム管理者と事務所ユーザー。
-        // 他の予約画面と違い、エクセル食数予約だけは管理者が全部屋を閲覧・編集できる。
-        // 事務所ユーザーの所属外の部屋の行は閲覧のみ（#821）
-        $allRooms    = $this->calendarQuery->getRoomsForUser($userRoomIds, $canViewAll, $isOfficeUser);
-
-        // 事務所ユーザーの部屋・全部屋モードは所属部屋のみ（#821）。管理者は全部屋
-        if (!$isAdmin && ($viewMode === 'room' || $viewMode === 'all')) {
-            $allRooms = array_intersect_key($allRooms, array_flip($userRoomIds));
-        }
-
-        $roomIdQuery    = $this->request->getQuery('room_id');
-        $sessionRoomId  = $session->read('mealCountGrid.roomId');
-        $selectedRoomId = $roomIdQuery
-            ? (int)$roomIdQuery
-            : ($sessionRoomId !== null ? (int)$sessionRoomId : (!empty($allRooms) ? (int)array_key_first($allRooms) : null));
-        if ($selectedRoomId !== null && !isset($allRooms[$selectedRoomId])) {
-            $selectedRoomId = !empty($allRooms) ? (int)array_key_first($allRooms) : null;
-        }
-
-        $today     = DateTime::now('Asia/Tokyo');
-
-        $weekParam     = $this->queryDate('week') ?? $session->read('mealCountGrid.week');
-        $week          = MealGridWeekRule::resolve($weekParam, $isAdmin, $today);
-        $weekMondayStr = $week->mondayString();
-        $dates         = MealGridWeekRule::dateRange($weekMondayStr);
-        $periodLabel   = MealGridWeekRule::periodLabel($dates);
-
-        $userIdQuery    = $this->request->getQuery('user_id');
-        $selectedUserId = $userIdQuery
-            ? (int)$userIdQuery
-            : ($canViewAll ? (int)($session->read('mealCountGrid.userId') ?? $loginUserId) : $loginUserId);
-        if (!$canViewAll) {
-            $selectedUserId = $loginUserId;
-        }
-
-        // 選べる利用者。管理者・システム管理者と事務所ユーザーは全員
-        $selectableUsers = [];
-        if ($canViewAll) {
-            $selectableUsers = $gridQuery->getSelectableUsers();
-            if (!isset($selectableUsers[$selectedUserId])) {
-                $selectedUserId = $loginUserId;
-            }
-        }
-
-        if ($viewMode === 'individual') {
-            $targetUserRoomIds = $this->roomQuery->getUserRoomIds($selectedUserId);
-            $targetRooms = array_intersect_key($allRooms, array_flip($targetUserRoomIds));
-        } elseif ($viewMode === 'room') {
-            $targetRooms = ($selectedRoomId !== null && isset($allRooms[$selectedRoomId]))
-                ? [$selectedRoomId => $allRooms[$selectedRoomId]]
-                : [];
-        } else {
-            $targetRooms = $allRooms;
-        }
-
-        // 部屋ごとにクエリを投げると部屋数ぶんの N+1 になるため、まとめて1回で引く
-        $roomUsers = $gridQuery->getRoomUsers(array_keys($targetRooms));
-        if ($viewMode === 'individual') {
-            // 個人モードは権限にかかわらず選択ユーザーのみ表示する
-            // （非 canViewAll は $selectedUserId がログインユーザーに固定済み。
-            //   部屋内の子供の管理は「部屋」モードで行う）
-            foreach ($roomUsers as $roomId => $users) {
-                $roomUsers[$roomId] = array_values(
-                    array_filter($users, fn($u) => $u->id === $selectedUserId)
-                );
-            }
-        }
-
-        $gridData       = $gridQuery->getGrid($targetRooms, $roomUsers, $dates);
-        $monthlyTotals  = $gridData->totalsByMeal();
-        $dateCategories = MealGridWeekRule::dateCategories($dates, new ChronosDate($today));
-
-        $nameList = [];
-        if ($viewMode === 'individual') {
-            if ($canViewAll) {
-                $nameList = $selectableUsers;
-            } else {
-                $nameList[$loginUserId] = $loginName;
-            }
-        }
-
-        $session->write('mealCountGrid.week', $weekMondayStr);
-        $session->write('mealCountGrid.mode', $viewMode);
-        $session->write('mealCountGrid.roomId', $selectedRoomId);
-        if ($canViewAll) {
-            $session->write('mealCountGrid.userId', $selectedUserId);
-        }
-
-        $this->set([
-            'allRooms'       => $allRooms,
-            'selectedRoomId' => $selectedRoomId,
-            'nameList'        => $nameList,
-            'selectedUserId'  => $selectedUserId,
-            'viewMode'        => $viewMode,
-            'gridData'        => $gridData,
-            'monthlyTotals'   => $monthlyTotals,
-            'dateCategories'  => $dateCategories,
-            'weekMondayStr'   => $weekMondayStr,
-            'periodLabel'     => $periodLabel,
-            'prevMonday'      => $week->prevMonday,
-            'nextMonday'      => $week->nextMonday,
-            'canGoPrev'       => $week->canGoPrev,
-            'canGoNext'       => $week->canGoNext,
-            'isAdmin'         => $isAdmin,
-            'isBlockLeader'   => $isBlockLeader,
-            'canViewAll'      => $canViewAll,
-            'canViewRoom'     => $canViewRoom,
-            'canUseAllMode'   => $canUseAllMode,
-            'hasStaffId'      => $hasStaffId,
-            'loginUserId'     => $loginUserId,
-            'loginName'       => $loginName,
-            // 編集できる部屋。管理者は全部屋（エクセル食数予約のみ）
-            'loginRoomIds'    => $isAdmin ? array_keys($allRooms) : $userRoomIds,
-        ]);
-
-        $this->viewBuilder()->setLayout('default');
-        $this->viewBuilder()->setTemplatePath('TReservationInfo');
-        return null;
     }
 }

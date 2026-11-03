@@ -107,6 +107,7 @@ use App\Application\Query\ReservationReadQueryInterface;
 use App\Application\Query\RoomQueryInterface;
 use App\Application\Query\UserQueryInterface;
 use App\Controller\ApprovalController;
+use App\Controller\MealCountGridController;
 use App\Controller\MRoomInfoController;
 use App\Controller\PagesController;
 use App\Controller\ReservationActualMealController;
@@ -433,6 +434,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ReservationDirectRegisterController::class,
             ReservationToggleController::class,
             ReservationActualMealController::class,
+            MealCountGridController::class,
         ] as $reservationController) {
             $container->add($reservationController)
                 ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class]);
