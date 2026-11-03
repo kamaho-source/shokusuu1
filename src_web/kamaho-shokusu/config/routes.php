@@ -30,7 +30,6 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
         $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
-        $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
 
         // ── 一括予約（ReservationBulkController） ──
         $builder->connect(

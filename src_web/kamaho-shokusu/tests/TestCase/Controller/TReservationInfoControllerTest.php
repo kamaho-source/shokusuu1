@@ -45,48 +45,6 @@ class TReservationInfoControllerTest extends TestCase
     }
 
     /**
-     * validateReservationDateのテスト
-     */
-    public function testValidateReservationDate()
-    {
-        // 予約日未入力
-        $result = $this->invokeMethod($this->Controller, 'validateReservationDate', ['']);
-        $this->assertSame('予約日が指定されていません。', $result);
-
-        // 無効な日付フォーマット
-        $result = $this->invokeMethod($this->Controller, 'validateReservationDate', ['not-a-date']);
-        $this->assertSame('無効な日付フォーマットです。', $result);
-
-        // 今日 < 15日後 の日付（15日未満なのでエラー）
-        $today = Date::today();
-        $in2weeks = $today->addDays(14)->format('Y-m-d');
-        $result = $this->invokeMethod($this->Controller, 'validateReservationDate', [$in2weeks]);
-        $minDate = $today->addDays(15)->format('Y-m-d');
-        $this->assertSame(
-            sprintf('通常発注は「きょうから15日目以降」のみ登録できます（%s 以降）。', $minDate),
-            $result
-        );
-
-        // ちょうど1ヶ月後（予約可能）
-        $oneMonthLater = $today->addMonths(1)->format('Y-m-d');
-        $result = $this->invokeMethod($this->Controller, 'validateReservationDate', [$oneMonthLater]);
-        $this->assertTrue($result);
-
-        // 1ヶ月より後（予約可能）
-        $overMonth = $today->addMonths(1)->addDays(1)->format('Y-m-d');
-        $result = $this->invokeMethod($this->Controller, 'validateReservationDate', [$overMonth]);
-        $this->assertTrue($result);
-    }
-
-    /* コントローラのprivate/protected メソッドを呼び出すためのヘルパー */
-    private function invokeMethod(&$object, $methodName, array $parameters = [])
-    {
-        $reflection = new \ReflectionClass(get_class($object));
-        $method = $reflection->getMethod($methodName);
-        return $method->invokeArgs($object, $parameters);
-    }
-
-    /**
      * indexアクションのテスト
      */
     public function testIndex()
@@ -745,34 +703,6 @@ class TReservationInfoControllerTest extends TestCase
                 403,
             ],
         ];
-    }
-
-    /**
-     * formatDuplicateMessageメソッドのテスト
-     */
-    public function testFormatDuplicateMessage()
-    {
-        $duplicates = [
-            [
-                'user_name' => 'ユーザー1',
-                'meal_type' => '朝',
-                'room_name' => '第1室',
-            ],
-            [
-                'user_name' => 'ユーザー2',
-                'meal_type' => '昼',
-                'room_name' => '第2室',
-            ],
-        ];
-
-        $result = $this->invokeMethod($this->Controller, 'formatDuplicateMessage', [$duplicates]);
-
-        $this->assertStringContainsString('朝', $result);
-        $this->assertStringContainsString('昼', $result);
-        $this->assertStringContainsString('ユーザー1', $result);
-        $this->assertStringContainsString('ユーザー2', $result);
-        $this->assertStringContainsString('第1室', $result);
-        $this->assertStringContainsString('第2室', $result);
     }
 
     private function setAuthenticatedSession(bool $isAdmin = true, int $userLevel = 0): void

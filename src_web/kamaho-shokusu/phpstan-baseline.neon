@@ -793,20 +793,8 @@ parameters:
 			path: src/Controller/TReservationInfoController.php
 
 		-
-			message: '#^Method App\\Controller\\TReservationInfoController\:\:formatDuplicateMessage\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: src/Controller/TReservationInfoController.php
-
-		-
 			message: '#^Method App\\Controller\\TReservationInfoController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/TReservationInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\TReservationInfoController\:\:validateReservationDate\(\) is unused\.$#'
-			identifier: method.unused
 			count: 1
 			path: src/Controller/TReservationInfoController.php
 
@@ -817,19 +805,7 @@ parameters:
 			path: src/Controller/TReservationInfoController.php
 
 		-
-			message: '#^Parameter \#1 \$roomIds of method App\\Application\\Query\\CalendarQueryInterface\:\:getMealCountsByDate\(\) expects list\<int\>\|null, array\<int\> given\.$#'
-			identifier: argument.type
-			count: 2
-			path: src/Controller/TReservationInfoController.php
-
-		-
 			message: '#^Parameter \#1 \$singular of function __ expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/Controller/TReservationInfoController.php
-
-		-
-			message: '#^Parameter \#3 \$roomIds of method App\\Application\\Query\\CalendarQueryInterface\:\:getTotalCountsByDate\(\) expects list\<int\>\|null, array\<int\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: src/Controller/TReservationInfoController.php

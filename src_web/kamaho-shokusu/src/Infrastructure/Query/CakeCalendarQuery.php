@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Infrastructure\Query;
 
 use App\Application\Query\CalendarQueryInterface;
+use App\Application\Query\Dto\CalendarRoomScope;
 use App\Application\Query\Dto\DayMealCounts;
 use App\Application\Query\Dto\MyReservationDay;
 use App\Domain\Service\ReservationDateRule;
@@ -142,6 +143,47 @@ final class CakeCalendarQuery implements CalendarQueryInterface
         return self::table('MRoomInfo')->find('list', keyField: 'i_id_room', valueField: 'c_room_name')
             ->where(['i_id_room IN' => $roomIds])
             ->toArray();
+    }
+
+    public function roomScope(array $userRoomIds, bool $isOfficeUser, ?int $requestedCalRoomId): CalendarRoomScope
+    {
+        // 有効な所属部屋（退出済み・削除済みを除く）。既定の部屋もこの中から選ぶ。
+        // 予約ポップアップで選べる部屋も同じ（管理者も所属外の部屋には予約できない。#821）
+        $pickerRooms = $this->getRoomsForUser($userRoomIds, false);
+        $validIds    = array_keys($pickerRooms);
+        $userRoomId  = $validIds[0] ?? null;
+        $rooms       = $isOfficeUser ? $this->getRoomsForUser($validIds, false, true) : $pickerRooms;
+
+        // 選べない部屋（所属外など）を指定されたときは、指定なしと同じ既定の部屋にする（選択欄の表示と集計を揃える）
+        $calRoomId = null;
+        if ($requestedCalRoomId !== null && isset($rooms[$requestedCalRoomId])) {
+            $calRoomId = $requestedCalRoomId;
+        } elseif (!$isOfficeUser && $userRoomId !== null && isset($rooms[$userRoomId])) {
+            $calRoomId = $userRoomId;
+        }
+
+        return new CalendarRoomScope(
+            $validIds,
+            $userRoomId,
+            $rooms,
+            $pickerRooms,
+            $calRoomId,
+            $calRoomId !== null ? [$calRoomId] : $this->countableRoomIds($isOfficeUser, $validIds),
+        );
+    }
+
+    public function countableRoomIds(bool $isOfficeUser, array $userRoomIds): array
+    {
+        $roomIds = array_keys($isOfficeUser ? $this->getRoomsForUser([], true) : $this->getRoomsForUser($userRoomIds, false));
+
+        return $roomIds ?: [0];
+    }
+
+    public function initialViewRange(): array
+    {
+        $firstOfMonth = $this->today()->startOfMonth();
+
+        return [$firstOfMonth->subMonths(1)->format('Y-m-d'), $firstOfMonth->addMonths(3)->format('Y-m-d')];
     }
 
     private static function table(string $alias): Table
