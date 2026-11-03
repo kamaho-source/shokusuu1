@@ -113,7 +113,8 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->login(3, 0);
         $this->get('/m-user-info/import-form');
-        $this->assertRedirect(['action' => 'index']);
+        // 一括登録は UserImportController に分けたので、行き先（利用者一覧）はコントローラー名を付けて書く（#989）
+        $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']);
         $this->assertFlashMessage('この機能を利用する権限がありません。', 'flash');
     }
 
@@ -725,7 +726,7 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->get('/MUserInfo/admin_change_password');
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']); // UserPasswordController に分けたため、行き先をコントローラー名付きで書く（#989）
         $this->assertFlashMessage('この機能は管理者のみ利用できます。', 'flash');
     }
 
@@ -751,7 +752,7 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->post('/MUserInfo/admin_change_password', ['user_id' => 2, 'new_password' => 'new-pass-1', 'confirm_password' => 'new-pass-1']);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']); // 同上（#989）
         $this->assertFlashMessage('パスワードを変更しました。', 'flash');
         $hash = (string)$this->getTableLocator()->get('MUserInfo')->get(2)->c_login_passwd;
         $this->assertTrue((new DefaultPasswordHasher())->check('new-pass-1', $hash));

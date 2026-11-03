@@ -184,7 +184,7 @@ class AppController extends Controller
 
     /**
      * 削除済み(i_del_flag=1)または無効(i_enable=1)のユーザーか。
-     * 判定は AccountStatus に1つだけあり、MUserInfoController::login() も同じものを使う。
+     * 判定は AccountStatus に1つだけあり、AuthController::login() も同じものを使う。
      */
     private function isDisabledIdentity(\Authentication\IdentityInterface $user): bool
     {
@@ -215,7 +215,7 @@ class AppController extends Controller
             }
             $this->Flash->error(__('このアカウントは無効化されています。'));
 
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+            return $this->redirect(['controller' => 'Auth', 'action' => 'login']);
         }
 
         $this->set('user', $user);

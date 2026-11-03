@@ -35,6 +35,9 @@ interface UserAccountRepositoryInterface
     /** 利用者。居なければ null（削除済みも含めて探す）。 */
     public function find(int $userId): ?UserAccount;
 
+    /** このログインIDの利用者。居なければ null（削除済みも含めて探す。同じログインIDが複数あれば最初の1件）。 */
+    public function findByLoginAccount(string $loginAccount): ?UserAccount;
+
     /**
      * 権限（i_admin）を変える。保存できなければ false（利用者が居ない場合も false）。
      */

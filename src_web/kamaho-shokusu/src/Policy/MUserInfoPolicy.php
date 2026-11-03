@@ -76,6 +76,15 @@ class MUserInfoPolicy
     }
 
     /**
+     * 所属部屋（とログインID・性別）を変えられるか。役職を変えられる管理者と本人だけ。
+     * 職員・ブロック長が児童を編集する場合は変えられない（氏名などだけ）。
+     */
+    public function canEditRooms(?IdentityInterface $user, MUserInfo $resource): bool
+    {
+        return $this->canChangeRole($user, $resource) || $this->isOwner($user, $resource);
+    }
+
+    /**
      * 職員(i_user_level=0)またはブロック長が、同じ部屋に現在所属している児童を編集できるか。
      * 管理者以外は児童のみ登録できる、というユーザー登録の考え方に合わせる。
      */

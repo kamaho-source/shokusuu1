@@ -48,7 +48,7 @@ class AuditLogService
     public const REASON_FALLBACK = '原因不明（詳細はサーバーログを参照）';
 
     /** ログイン失敗で、入力されたログインIDに該当するアカウントが無いときの操作者名 */
-    public const UNKNOWN_ACCOUNT_NAME = '（該当アカウントなし）';
+    public const UNKNOWN_ACCOUNT_NAME = \App\Application\Port\AuditActor::UNKNOWN_ACCOUNT_NAME;
 
     /** @var array<string, string> カテゴリ → 表示名 */
     public const CATEGORY_LABELS = [

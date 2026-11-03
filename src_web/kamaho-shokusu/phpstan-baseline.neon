@@ -397,24 +397,6 @@ parameters:
 			path: src/Controller/MRoomTransferScheduleController.php
 
 		-
-			message: '#^Access to an undefined property App\\Controller\\MUserInfoController\:\:\$Authentication\.$#'
-			identifier: property.notFound
-			count: 5
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Access to an undefined property App\\Controller\\MUserInfoController\:\:\$Authorization\.$#'
-			identifier: property.notFound
-			count: 24
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Access to an undefined property App\\Infrastructure\\Persistence\\Entity\\MUserGroup\:\:\$i_left_by_deletion\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
 			message: '#^Method App\\Controller\\MUserInfoController\:\:add\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -422,12 +404,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controller\\MUserInfoController\:\:addUserRooms\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:adminChangePassword\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
 			path: src/Controller/MUserInfoController.php
@@ -457,37 +433,7 @@ parameters:
 			path: src/Controller/MUserInfoController.php
 
 		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:import\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:importForm\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:importJson\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
 			message: '#^Method App\\Controller\\MUserInfoController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:login\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:logout\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
 			path: src/Controller/MUserInfoController.php
@@ -505,36 +451,6 @@ parameters:
 			path: src/Controller/MUserInfoController.php
 
 		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateAdminStatus\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateReportAccess\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateSystemAdminStatus\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateUserLevel\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:userIdParam\(\) has parameter \$value with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
 			message: '#^Method App\\Controller\\MUserInfoController\:\:view\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -543,12 +459,6 @@ parameters:
 		-
 			message: '#^Method App\\Controller\\MUserInfoController\:\:view\(\) has parameter \$id with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Property App\\Controller\\MUserInfoController\:\:\$MRoomInfo has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: src/Controller/MUserInfoController.php
 
