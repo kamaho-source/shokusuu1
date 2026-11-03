@@ -125,9 +125,12 @@ final class MealGridWeekRule
         return $categories;
     }
 
+    /** その週の月曜日の 0:00（時刻は落とす。月曜だけ時刻が残ると、今週の月曜との比較がずれる） */
     private static function mondayOf(\DateTimeImmutable $date): \DateTimeImmutable
     {
-        return (int)$date->format('N') === 1 ? $date : $date->modify('monday this week');
+        $day = $date->setTime(0, 0);
+
+        return (int)$day->format('N') === 1 ? $day : $day->modify('monday this week');
     }
 
     private function __construct() {}

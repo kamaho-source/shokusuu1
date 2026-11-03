@@ -163,6 +163,41 @@ class MealGridWeekRuleTest extends TestCase
         $this->assertFalse(MealGridWeekRule::resolve('2026-03-09', true, $this->thisMonday, true)->canGoPrev);
     }
 
+    /**
+     * 今日に時刻が付いていても、週の境界は日付だけで決まる。
+     * 月曜だけ時刻が残り、管理者以外が翌週を見ると「前の週へ」が false になっていた（エクセル食数予約）
+     */
+    public function testResolve_timeOfDayDoesNotAffectWeekBoundary(): void
+    {
+        $tz = new \DateTimeZone('Asia/Tokyo');
+        // 月曜 10:00 / 水曜 10:00 / 日曜 23:59（どれも 2026-05-11 の週）
+        foreach (['2026-05-11 10:00:00', '2026-05-13 10:00:00', '2026-05-17 23:59:59'] as $now) {
+            $today = new \DateTimeImmutable($now, $tz);
+
+            $nextWeek = MealGridWeekRule::resolve('2026-05-18', false, $today);
+            $this->assertSame('2026-05-18', $nextWeek->mondayString(), $now);
+            $this->assertTrue($nextWeek->canGoPrev, $now . ' 管理者以外でも翌週から今週へ戻れる');
+            $this->assertTrue($nextWeek->canGoNext, $now);
+
+            $thisWeek = MealGridWeekRule::resolve(null, false, $today);
+            $this->assertSame('2026-05-11', $thisWeek->mondayString(), $now);
+            $this->assertFalse($thisWeek->canGoPrev, $now . ' 管理者以外は今週より前へ戻れない');
+
+            $this->assertSame('2026-06-08', MealGridWeekRule::resolve('2026-07-20', false, $today)->mondayString(), $now);
+            $this->assertFalse(MealGridWeekRule::resolve('2026-06-08', false, $today)->canGoNext, $now);
+            $this->assertTrue(MealGridWeekRule::resolve('2026-06-01', false, $today)->canGoNext, $now);
+
+            $admin = MealGridWeekRule::resolve('2026-03-16', true, $today);
+            $this->assertTrue($admin->canGoPrev, $now);
+            $this->assertSame('2026-03-09', MealGridWeekRule::resolve('2026-01-05', true, $today)->mondayString(), $now);
+            $this->assertFalse(MealGridWeekRule::resolve('2026-03-09', true, $today)->canGoPrev, $now);
+
+            // 実食入力（prevOnlyForAdmin）: 管理者以外は戻れない、管理者は戻れる
+            $this->assertFalse(MealGridWeekRule::resolve('2026-05-18', false, $today, true)->canGoPrev, $now);
+            $this->assertTrue(MealGridWeekRule::resolve('2026-05-18', true, $today, true)->canGoPrev, $now);
+        }
+    }
+
     public function testResolve_invalidString_fallsBackToCurrentWeek(): void
     {
         $this->assertSame('2026-05-11', MealGridWeekRule::resolve('not-a-date', true, $this->thisMonday)->mondayString());

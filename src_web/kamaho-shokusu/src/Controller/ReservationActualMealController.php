@@ -194,8 +194,7 @@ class ReservationActualMealController extends ReservationBaseController
     {
         $week = $this->request->getQuery('week');
 
-        // 週の境界は日付だけで比べる（時刻が残ると、同じ月曜日でも前後の判定がずれる）
-        return MealGridWeekRule::resolve(is_string($week) ? $week : null, $isAdmin, $clock->now()->setTime(0, 0), true);
+        return MealGridWeekRule::resolve(is_string($week) ? $week : null, $isAdmin, $clock->now(), true);
     }
 
     /**
