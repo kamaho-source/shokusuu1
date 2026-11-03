@@ -47,7 +47,7 @@ final class CopyReservationsUseCase
                 match ($this->planner->verdict($r, $dst, $today)) {
                     CopyVerdict::InvalidDate => $invalid++,
                     CopyVerdict::Skip => $skipped++,
-                    CopyVerdict::Copy => $this->copyRow($r, $dst, $today, $actor),
+                    CopyVerdict::Copy => $this->copyRow($r, $dst ?? throw new \LogicException('コピー先の日がありません。'), $today, $actor),
                 };
             }
             $this->transaction->commit();
