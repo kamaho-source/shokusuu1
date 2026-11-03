@@ -23,7 +23,6 @@ use Cake\Http\Response;
  */
 class UserRoleController extends AppController
 {
-    use DropsDisabledIdentityResponseTrait;
 
     public function initialize(): void
     {

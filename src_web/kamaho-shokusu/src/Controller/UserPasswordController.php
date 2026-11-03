@@ -19,7 +19,6 @@ use Cake\Http\Response;
  */
 class UserPasswordController extends AppController
 {
-    use DropsDisabledIdentityResponseTrait;
 
     public function initialize(): void
     {

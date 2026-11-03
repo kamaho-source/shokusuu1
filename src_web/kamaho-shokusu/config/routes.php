@@ -340,10 +340,7 @@ return function (RouteBuilder $routes): void {
         )->setMethods(['GET']);
 
         // ── エクセル食数予約（MealCountGridController） ──
-        // 以前 fallbacks で TReservationInfo に届いていた別名（/t-reservation-info/meal-count-grid・/TReservationInfo/mealCountGrid など）も同じアクションへ（#989）
-        foreach (['/TReservationInfo/meal-count-grid', '/TReservationInfo/mealCountGrid', '/TReservationInfo/meal_count_grid', '/t-reservation-info/meal-count-grid', '/t-reservation-info/mealCountGrid', '/t-reservation-info/meal_count_grid'] as $gridPath) {
-            $builder->connect($gridPath, ['controller' => 'MealCountGrid', 'action' => 'mealCountGrid'])->setMethods(['GET']);
-        }
+        $builder->connect('/TReservationInfo/meal-count-grid', ['controller' => 'MealCountGrid', 'action' => 'mealCountGrid'])->setMethods(['GET']);
 
         // ── 予約コピー（ReservationCopyController） ──
         // メソッド制限をルーターで行わずコントローラーの allowMethod() に委ねる（405 を正しく返すため）

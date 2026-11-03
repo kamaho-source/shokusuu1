@@ -19,7 +19,6 @@ use Cake\Http\Response;
  */
 class UserImportController extends AppController
 {
-    use DropsDisabledIdentityResponseTrait;
 
     public function initialize(): void
     {

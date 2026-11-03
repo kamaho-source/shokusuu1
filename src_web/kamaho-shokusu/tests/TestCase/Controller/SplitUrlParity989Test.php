@@ -34,24 +34,24 @@ class SplitUrlParity989Test extends TestCase
     }
 
     /**
-     * ログイン中に無効化された人は、MUserInfo の URL で届いていた画面（分割後は別コントローラーでも）では、
-     * ログイン画面へ ?redirect= 付きで転送される（分割前、MUserInfoController::beforeFilter() が
-     * AppController の転送を返さず、認証ミドルウェアの転送に任せていたため）。他のコントローラーは付かない。
+     * ログイン中に無効化された人は、どの画面でも、?redirect= なしでログイン画面へ転送される。
+     * （分割前の本番は、MUserInfo の URL だけ ?redirect= 付きだった。MUserInfoController::beforeFilter() が親の転送を返し忘れていた
+     *  結果で、狙った仕様ではないため、分割で揃えた。無効化された人は再ログインできないので、元の画面へ戻る必要がない。）
      *
-     * @return array<string, array{string, string, string}>
+     * @return array<string, array{string, string}>
      */
     public static function disabledIdentityProvider(): array
     {
         return [
-            'MUserInfo'    => ['/MUserInfo/view/1', 'get', '/MUserInfo/login?redirect=%2FMUserInfo%2Fview%2F1'],
-            'UserPassword' => ['/MUserInfo/generalPasswordReset', 'get', '/MUserInfo/login?redirect=%2FMUserInfo%2FgeneralPasswordReset'],
-            'UserImport'   => ['/MUserInfo/importForm', 'get', '/MUserInfo/login?redirect=%2FMUserInfo%2FimportForm'],
-            'その他'        => ['/TReservationInfo', 'get', '/MUserInfo/login'],
+            'MUserInfo'    => ['/MUserInfo/view/1', 'get'],
+            'UserPassword' => ['/MUserInfo/generalPasswordReset', 'get'],
+            'UserImport'   => ['/MUserInfo/importForm', 'get'],
+            'その他'        => ['/TReservationInfo', 'get'],
         ];
     }
 
     /** @dataProvider disabledIdentityProvider */
-    public function testDisabledWhileLoggedIn_redirectKeepsOriginalUrlLikeBeforeSplit(string $url, string $method, string $expected): void
+    public function testDisabledWhileLoggedIn_redirectsToLoginWithoutRedirectParam(string $url, string $method): void
     {
         $this->session(['Auth' => 2]);
         $this->enableCsrfToken();
@@ -60,7 +60,7 @@ class SplitUrlParity989Test extends TestCase
         $method === 'post' ? $this->post($url, []) : $this->get($url);
 
         $this->assertResponseCode(302);
-        $this->assertStringEndsWith($expected, $this->_response->getHeaderLine('Location'));
+        $this->assertStringEndsWith('/MUserInfo/login', $this->_response->getHeaderLine('Location'));
         $this->assertSessionNotHasKey('Auth');
     }
 

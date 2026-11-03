@@ -45,28 +45,38 @@ class MealCountGridRoomsTest extends TestCase
         ]]);
     }
 
+    /** 画面が出す URL は、分けた MealCountGridController に届く（#989） */
+    public function testMealCountGridUrlReachesController(): void
+    {
+        $this->loginAs(0);
+        $this->get('/TReservationInfo/meal-count-grid');
+
+        $this->assertResponseOk();
+        $this->assertSame('MealCountGrid', $this->_controller->getName());
+    }
+
     /**
-     * 以前 fallbacks で届いていた別名の URL も、分けた MealCountGridController に届く（#989）
+     * 画面から出ていない古い別名の URL は、分割前から届いていた・いなかったにかかわらず、今は届かない（#989 でユーザーが削除を決めた）。
      *
-     * @dataProvider aliasUrls
+     * @dataProvider legacyAliasUrls
      */
-    public function testAliasUrlsReachMealCountGrid(string $url): void
+    public function testLegacyAliasUrlsAreGone(string $url): void
     {
         $this->loginAs(0);
         $this->get($url);
 
-        $this->assertResponseOk();
+        $this->assertResponseCode(404);
     }
 
     /** @return array<string, array{0: string}> */
-    public static function aliasUrls(): array
+    public static function legacyAliasUrls(): array
     {
         return [
-            'meal-count-grid'               => ['/TReservationInfo/meal-count-grid'],
             'キャメルケース'                => ['/TReservationInfo/mealCountGrid'],
             'スネークケース'                => ['/TReservationInfo/meal_count_grid'],
             'ダッシュの名前'                => ['/t-reservation-info/meal-count-grid'],
             'ダッシュの名前＋キャメルケース' => ['/t-reservation-info/mealCountGrid'],
+            '実食コントローラー'             => ['/ReservationActualMeal/mealCountGrid'],
         ];
     }
 
