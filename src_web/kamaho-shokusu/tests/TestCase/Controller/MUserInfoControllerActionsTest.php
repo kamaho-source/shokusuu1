@@ -113,7 +113,8 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->login(3, 0);
         $this->get('/m-user-info/import-form');
-        $this->assertRedirect(['action' => 'index']);
+        // 一括登録は UserImportController に分けたので、行き先（利用者一覧）はコントローラー名を付けて書く（#989）
+        $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']);
         $this->assertFlashMessage('この機能を利用する権限がありません。', 'flash');
     }
 

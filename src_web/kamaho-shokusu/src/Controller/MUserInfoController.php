@@ -9,8 +9,6 @@ use App\Infrastructure\Persistence\Entity\MUserInfo;
 use App\Application\Port\AuditActor;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsInput;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
-use App\Application\UseCase\BulkImportUsers\BulkImportUsersInput;
-use App\Application\UseCase\BulkImportUsers\BulkImportUsersUseCase;
 use App\Application\UseCase\ChangePassword\ChangePasswordInput;
 use App\Application\UseCase\ChangePassword\ChangePasswordOutput;
 use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
@@ -38,8 +36,6 @@ use App\Domain\ValueObject\UserRole;
 use App\Service\ApiResponseService;
 use Authorization\Exception\ForbiddenException;
 use Cake\Event\EventInterface;
-use Cake\Http\Exception\BadRequestException;
-use Cake\Http\Exception\GoneException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
 
@@ -64,12 +60,11 @@ class MUserInfoController extends AppController
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
         // login/logout: セッション切れや複数タブでトークンが失効し「不正なアクセス」になるため除外。
         // add: 年齢セレクトが Form ヘルパー外の生 HTML のためトークン不一致になるため除外。
-        // importJson 等: JSON ボディを受け取る AJAX エンドポイントのため除外。
+        // updateAdminStatus 等: JSON ボディを受け取る AJAX エンドポイントのため除外。
         $this->FormProtection->setConfig('unlockedActions', [
             'login',
             'logout',
             'add',
-            'importJson',
             'updateAdminStatus',
             'updateUserLevel',
             'updateSystemAdminStatus',
@@ -82,68 +77,6 @@ class MUserInfoController extends AppController
     {
         parent::beforeFilter($event);
         $this->Authentication->addUnauthenticatedActions(['login']);
-    }
-
-    public function importForm()
-    {
-        $resource = new MUserInfo();
-        try {
-            $this->Authorization->authorize($resource, 'importForm');
-        } catch (ForbiddenException $e) {
-            $this->Flash->error(__('この機能を利用する権限がありません。'));
-            return $this->redirect(['action' => 'index']);
-        }
-
-        $this->viewBuilder()->setLayout('default');
-        $this->viewBuilder()->setOption('serialize', true);
-        $this->set('title', 'ユーザー一括登録');
-    }
-
-    public function import()
-    {
-        $this->request->allowMethod(['post']);
-        throw new GoneException('このエンドポイントは廃止されました。importJson を利用してください。');
-    }
-
-    /**
-     * クライアント（ブラウザ）でパース済みの JSON を受け取り登録します。
-     */
-    public function importJson(BulkImportUsersUseCase $bulkImportUsers)
-    {
-        $this->request->allowMethod(['post']);
-        $this->viewBuilder()->setClassName('Json');
-        $resource = new MUserInfo();
-        $this->Authorization->authorize($resource, 'importJson');
-
-        $payload = $this->request->getData();
-        if (empty($payload)) {
-            $raw = (string)$this->request->getBody();
-            if ($raw !== '') {
-                try {
-                    $payload = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
-                } catch (\JsonException $e) {
-                    throw new BadRequestException('リクエストボディが不正な JSON です。');
-                }
-            }
-            $payload = is_array($payload) ? $payload : [];
-        }
-        $records = $payload['records'] ?? null;
-        if (!is_array($records)) {
-            throw new BadRequestException('records 配列が必要です。');
-        }
-
-        try {
-            $results = $bulkImportUsers->execute(new BulkImportUsersInput(
-                $records,
-                $this->auditActor(),
-                UserRole::isAdmin((int)($this->request->getAttribute('identity')?->get('i_admin') ?? 0)),
-            ))->toArray();
-        } catch (\Throwable $e) {
-            $this->log('userBulkImport error: ' . $e->getMessage(), 'error');
-            throw new BadRequestException('インポート処理中にエラーが発生しました。');
-        }
-
-        $this->set(['ok' => true, 'summary' => $results, '_serialize' => ['ok', 'summary']]);
     }
 
     public function index(RoomQueryInterface $roomQuery)

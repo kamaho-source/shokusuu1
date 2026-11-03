@@ -6,6 +6,7 @@
 use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
 use Cake\Routing\Router;
+use Cake\Utility\Inflector;
 
 return function (RouteBuilder $routes): void {
 
@@ -186,6 +187,18 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
         $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
+        // MUserInfo から分けたアクション（#989）。以前 fallbacks で届いていた形（/m-user-info/import-form・/MUserInfo/importJson など）も
+        // 同じアクションへつなぐ。逆引き（['controller' => 'UserImport', ...]）が以前と同じ URL になるよう /m-user-info/{dashed} を先にする
+        foreach ([
+            'UserImport' => ['importForm', 'importJson', 'import'],
+        ] as $splitController => $splitActions) {
+            foreach ($splitActions as $splitAction) {
+                $dashed = Inflector::dasherize($splitAction);
+                foreach (array_unique(["/m-user-info/{$dashed}", "/MUserInfo/{$dashed}", "/MUserInfo/{$splitAction}", "/m-user-info/{$splitAction}"]) as $path) {
+                    $builder->connect($path, ['controller' => $splitController, 'action' => $splitAction]);
+                }
+            }
+        }
 
         // 監査ログ（システム管理者専用）
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
