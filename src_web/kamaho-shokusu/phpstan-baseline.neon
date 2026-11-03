@@ -411,7 +411,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property App\\Controller\\MUserInfoController\:\:\$Authorization\.$#'
 			identifier: property.notFound
-			count: 22
+			count: 16
 			path: src/Controller/MUserInfoController.php
 
 		-
@@ -489,30 +489,6 @@ parameters:
 		-
 			message: '#^Method App\\Controller\\MUserInfoController\:\:restore\(\) has parameter \$id with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateAdminStatus\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateReportAccess\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateSystemAdminStatus\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/Controller/MUserInfoController.php
-
-		-
-			message: '#^Method App\\Controller\\MUserInfoController\:\:updateUserLevel\(\) has no return type specified\.$#'
-			identifier: missingType.return
 			count: 1
 			path: src/Controller/MUserInfoController.php
 
