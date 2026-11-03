@@ -29,6 +29,12 @@ final class ApprovalKey
         if (array_diff(self::FIELDS, array_keys($key)) !== []) {
             throw new \InvalidArgumentException('承認対象のキーが不正です。');
         }
+        // 値が配列などだと (string) で 'Array' になり、別のキーとして扱われてしまうので断る
+        foreach (self::FIELDS as $field) {
+            if (!is_scalar($key[$field])) {
+                throw new \InvalidArgumentException('承認対象のキーが不正です。');
+            }
+        }
 
         return new self(
             (int)$key['i_id_user'],

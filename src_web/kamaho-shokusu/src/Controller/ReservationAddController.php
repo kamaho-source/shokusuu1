@@ -71,7 +71,10 @@ class ReservationAddController extends ReservationBaseController
 
             if ($validation !== true) {
                 $this->set('errorMessage', __((string)$validation));
-            } elseif (!$roomList) {
+
+                return null;
+            }
+            if (!$roomList) {
                 $this->set('errorMessage', __('部屋が見つかりません。'));
             }
 

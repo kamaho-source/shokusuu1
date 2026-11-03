@@ -45,6 +45,31 @@ class MealCountGridRoomsTest extends TestCase
         ]]);
     }
 
+    /**
+     * 以前 fallbacks で届いていた別名の URL も、分けた MealCountGridController に届く（#989）
+     *
+     * @dataProvider aliasUrls
+     */
+    public function testAliasUrlsReachMealCountGrid(string $url): void
+    {
+        $this->loginAs(0);
+        $this->get($url);
+
+        $this->assertResponseOk();
+    }
+
+    /** @return array<string, array{0: string}> */
+    public static function aliasUrls(): array
+    {
+        return [
+            'meal-count-grid'               => ['/TReservationInfo/meal-count-grid'],
+            'キャメルケース'                => ['/TReservationInfo/mealCountGrid'],
+            'スネークケース'                => ['/TReservationInfo/meal_count_grid'],
+            'ダッシュの名前'                => ['/t-reservation-info/meal-count-grid'],
+            'ダッシュの名前＋キャメルケース' => ['/t-reservation-info/mealCountGrid'],
+        ];
+    }
+
     /** @return array<string, array{0: int, 1: string}> */
     public static function cases(): array
     {

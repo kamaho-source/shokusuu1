@@ -273,11 +273,12 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        if ($deleteUser->execute(new DeleteUserInput((int)$id, $this->auditActor()))->deleted) {
-            $this->Flash->success(__('ユーザー情報が削除されました。'));
-        } else {
+        if (!$deleteUser->execute(new DeleteUserInput((int)$id, $this->auditActor()))->deleted) {
             $this->Flash->error(__('ユーザー情報を削除できませんでした。'));
+
+            return $this->redirect(['action' => 'index']);
         }
+        $this->Flash->success(__('ユーザー情報が削除されました。'));
 
         return $this->redirect(['action' => 'index']);
     }

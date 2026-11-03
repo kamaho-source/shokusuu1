@@ -155,12 +155,11 @@ final class CakeCalendarQuery implements CalendarQueryInterface
         $rooms       = $isOfficeUser ? $this->getRoomsForUser($validIds, false, true) : $pickerRooms;
 
         // 選べない部屋（所属外など）を指定されたときは、指定なしと同じ既定の部屋にする（選択欄の表示と集計を揃える）
-        $calRoomId = null;
-        if ($requestedCalRoomId !== null && isset($rooms[$requestedCalRoomId])) {
-            $calRoomId = $requestedCalRoomId;
-        } elseif (!$isOfficeUser && $userRoomId !== null && isset($rooms[$userRoomId])) {
-            $calRoomId = $userRoomId;
-        }
+        $calRoomId = match (true) {
+            $requestedCalRoomId !== null && isset($rooms[$requestedCalRoomId]) => $requestedCalRoomId,
+            !$isOfficeUser && $userRoomId !== null && isset($rooms[$userRoomId]) => $userRoomId,
+            default => null,
+        };
 
         return new CalendarRoomScope(
             $validIds,

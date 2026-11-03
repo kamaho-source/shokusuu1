@@ -212,5 +212,9 @@ class ReflectApprovedToReservationIntegrationTest extends TestCase
             $this->getTableLocator()->get('TAuditLog')->exists(['c_action' => 'approval_admin', 'i_result' => 0]),
             '取り消したことは失敗として監査ログに残す'
         );
+        $this->assertTrue(
+            $this->getTableLocator()->get('TAuditLog')->exists(['c_action' => 'approval_admin', 'i_result' => 0, 'c_detail LIKE' => '%集計への反映に失敗したため、承認を取り消しました%']),
+            '理由は「集計への反映に失敗」'
+        );
     }
 }

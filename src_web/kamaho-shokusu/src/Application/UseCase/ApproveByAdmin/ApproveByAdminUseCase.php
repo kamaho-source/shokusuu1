@@ -34,7 +34,11 @@ final class ApproveByAdminUseCase
             $changed = $this->approveAndReflect($input);
         } catch (\Throwable $e) {
             // 取り消した事実は監査ログに残す（成功とは記録しない）。例外はそのまま返す
-            $this->auditLog->record('approval', 'approval_admin', $input->actor, 't_individual_reservation_info', null, ['count' => 0, 'error' => $e->getMessage()], false, '集計への反映に失敗したため、承認を取り消しました');
+            // 理由は例外の種類で分ける（キーが崩れているときに「反映に失敗」と残さない）
+            $reason = $e instanceof \InvalidArgumentException
+                ? '承認対象のキーが不正なため、承認しませんでした'
+                : '集計への反映に失敗したため、承認を取り消しました';
+            $this->auditLog->record('approval', 'approval_admin', $input->actor, 't_individual_reservation_info', null, ['count' => 0, 'error' => $e->getMessage()], false, $reason);
             throw $e;
         }
 
