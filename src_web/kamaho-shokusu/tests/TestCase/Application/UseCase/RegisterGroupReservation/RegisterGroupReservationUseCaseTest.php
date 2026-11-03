@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\UseCase\RegisterGroupReservation;
 
+use App\Application\Port\AuditActor;
 use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
+use App\Domain\Exception\InvalidInputException;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\PersistenceException;
 use App\Domain\Exception\UnauthorizedException;
@@ -186,5 +188,27 @@ class RegisterGroupReservationUseCaseTest extends TestCase
         }
         $this->assertSame(0, $this->f->reservations->find(20, self::FAR, 1, 1)?->eatFlag, '先に有効にした朝食も取り消される');
         $this->assertSame([], $this->f->cache->forgotten);
+    }
+
+    /** 予約の新規登録：通常予約の基準で UseCase が日付を弾き、成功・失敗の監査ログを残す */
+    public function testNormalOrderDateAndAudit(): void
+    {
+        $actor = new AuditActor('職員', 10, 'staff', '127.0.0.1');
+        $input = fn(string $date) => new RegisterGroupReservationInput(
+            $date, ['i_id_room' => 1, 'users' => [20 => [1 => 1]]], [1 => '部屋1'], 'テスト', loginUserId: 10, checkNormalOrderDate: true, auditActor: $actor,
+        );
+        try {
+            $this->f->registerGroup()->execute($input(self::NEAR));
+            $this->fail('例外が出ていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame('通常発注は「きょうから15日目以降」のみ登録できます（2026-11-16 以降）。', $e->getMessage());
+        }
+        $this->f->registerGroup()->execute($input(self::FAR));
+
+        $this->assertSame(
+            [['reservation_group_save', self::NEAR, ['date' => self::NEAR], false], ['reservation_group_save', self::FAR, ['date' => self::FAR], true]],
+            array_map(static fn(array $r): array => [$r['action'], $r['targetId'], $r['detail'], $r['succeeded']], $this->f->auditLog->records)
+        );
+        $this->assertCount(1, $this->f->reservations->added);
     }
 }

@@ -3037,24 +3037,6 @@ parameters:
 			path: src/Service/NotificationService.php
 
 		-
-			message: '#^Method App\\Service\\ReservationAddService\:\:ensureReservationDate\(\) has parameter \$data with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Service/ReservationAddService.php
-
-		-
-			message: '#^Method App\\Service\\ReservationAddService\:\:ensureReservationDate\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Service/ReservationAddService.php
-
-		-
-			message: '#^Method App\\Service\\ReservationAddService\:\:validateLunchBento\(\) has parameter \$data with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Service/ReservationAddService.php
-
-		-
 			message: '#^Method App\\Service\\ReservationDatePolicy\:\:changeBoundaryDate\(\) should return Cake\\I18n\\Date but returns Cake\\Chronos\\ChronosDate\.$#'
 			identifier: return.type
 			count: 1

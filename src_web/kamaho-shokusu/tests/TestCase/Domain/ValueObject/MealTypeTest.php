@@ -56,4 +56,12 @@ class MealTypeTest extends TestCase
         $this->assertFalse(MealType::hasExclusiveConflict([1, 3, 4]));
         $this->assertFalse(MealType::hasExclusiveConflict([]));
     }
+
+    public function testExclusiveSelectionError_onlyWhenBothSelected(): void
+    {
+        $this->assertSame('昼食と弁当は同時に予約できません。どちらか一方を選択してください。', MealType::exclusiveSelectionError(true, true));
+        $this->assertNull(MealType::exclusiveSelectionError(true, false));
+        $this->assertNull(MealType::exclusiveSelectionError(false, true));
+        $this->assertNull(MealType::exclusiveSelectionError(false, false));
+    }
 }

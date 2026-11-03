@@ -21,6 +21,7 @@ use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualRese
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
 use App\Application\UseCase\SaveChangeEdit\SaveChangeEditInput;
 use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
+use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\Persistence\Entity\TReservationInfo;
 use Cake\Http\Exception\BadRequestException;
@@ -28,7 +29,6 @@ use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Service\ReservationAddService;
 use Cake\Routing\Router;
 
 /**
@@ -47,8 +47,6 @@ class TReservationInfoController extends ReservationBaseController
 {
     use JsonResponseTrait;
 
-    private ReservationAddService $addService;
-
     public function __construct(
         ServerRequest $request,
         CalendarQueryInterface $calendarQuery,
@@ -65,8 +63,6 @@ class TReservationInfoController extends ReservationBaseController
     public function initialize(): void
     {
         parent::initialize();
-
-        $this->addService        = new ReservationAddService();
 
         $this->FormProtection->setConfig('unlockedActions', [
             'add',
@@ -434,7 +430,6 @@ class TReservationInfoController extends ReservationBaseController
 
         $user       = $this->request->getAttribute('identity');
         $isModal    = ($this->request->getQuery('modal') === '1');
-        $addService = $this->addService;
 
         if ($isModal) {
             $this->viewBuilder()->disableAutoLayout();
@@ -451,7 +446,7 @@ class TReservationInfoController extends ReservationBaseController
             $this->set('rooms', []);
             $this->set('roomList', []);
             $this->set('userLevel', null);
-            $this->set('tReservationInfo', $this->TReservationInfo->newEmptyEntity());
+            $this->set('tReservationInfo', new TReservationInfo([], ['source' => 'TReservationInfo']));
             return null;
         }
 
@@ -460,10 +455,10 @@ class TReservationInfoController extends ReservationBaseController
         $rooms     = $this->roomQuery->getAccessibleRooms((int)$userId);
 
         if ($this->request->is('get')) {
-            $validation = $addService->validateDate((string)$date, $this->datePolicy);
+            $validation = $this->datePolicy->validateReservationDate((string)$date);
             $roomList   = $this->roomQuery->getAllActiveRooms();
 
-            $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
+            $tReservationInfo = new TReservationInfo([], ['source' => 'TReservationInfo']);
 
             $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomList', 'userLevel'));
 
@@ -476,7 +471,7 @@ class TReservationInfoController extends ReservationBaseController
             return null;
         }
 
-        $validation = $addService->validateDate((string)$date, $this->datePolicy);
+        $validation = $this->datePolicy->validateReservationDate((string)$date);
         if ($validation !== true) {
             $msg = __((string)$validation);
             if ($this->request->is('ajax')) {
@@ -496,12 +491,15 @@ class TReservationInfoController extends ReservationBaseController
             return $this->redirect(['action' => 'index', '?' => ['date' => $date]]);
         }
 
-        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
+        $tReservationInfo = new TReservationInfo([], ['source' => 'TReservationInfo']);
 
         if ($this->request->is('post')) {
-            $data = $addService->ensureReservationDate($this->request->getData(), (string)$date);
+            $data = $this->request->getData();
+            if (empty($data['d_reservation_date'])) {
+                $data['d_reservation_date'] = (string)$date;
+            }
 
-            $conflict = $addService->validateLunchBento($data);
+            $conflict = MealType::exclusiveSelectionError(!empty($data['lunch']), !empty($data['bento']));
             if ($conflict) {
                 if ($this->request->is('ajax')) {
                     return $this->jsonErrorResponse(__($conflict), 409);
@@ -511,12 +509,10 @@ class TReservationInfoController extends ReservationBaseController
             }
 
             $reservationType = $data['reservation_type'] ?? '1';
-            $auditSuccess = 0;
             $output = null;
             $errorMessage = '';
             try {
-                $dateValidation = $this->datePolicy->validateReservationDate((string)$data['d_reservation_date']);
-                $dateError      = $dateValidation === true ? null : (string)$dateValidation;
+                // 日付の検証（通常予約の基準）と監査ログは UseCase が行う
                 $output = ((string)$reservationType === '1')
                     ? $registerIndividual->execute(new RegisterIndividualReservationInput(
                         reservationDate: $data['d_reservation_date'],
@@ -524,20 +520,21 @@ class TReservationInfoController extends ReservationBaseController
                         rooms: $rooms,
                         userId: (int)$userId,
                         userName: (string)$user->get('c_user_name'),
-                        dateError: $dateError,
+                        checkNormalOrderDate: true,
+                        auditActor: $this->auditActor(),
                     ))
                     : $registerGroup->execute(new RegisterGroupReservationInput(
                         reservationDate: $data['d_reservation_date'],
                         data: $data,
                         rooms: $rooms,
                         creatorName: (string)$user->get('c_user_name'),
-                        dateError: $dateError,
                         loginUserId: (int)$userId,
                         isAdmin: UserRole::isAdmin((int)$user->get('i_admin')),
                         loginUserLevel: (int)$user->get('i_user_level'),
                         isBlockLeader: UserRole::isBlockLeader((int)$user->get('i_admin')),
+                        checkNormalOrderDate: true,
+                        auditActor: $this->auditActor(),
                     ));
-                $auditSuccess = 1;
                 $result = $output->toArray($this->reservationIndexUrl());
                 $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
             } catch (\App\Domain\Exception\DomainException $e) {
@@ -548,19 +545,6 @@ class TReservationInfoController extends ReservationBaseController
                 $errorMessage = '内部エラーが発生しました。';
                 $resultResponse = $this->jsonErrorResponse($errorMessage, 500);
             }
-
-            \App\Service\AuditLogService::record(
-                'reservation',
-                (string)$reservationType === '1' ? 'reservation_individual_save' : 'reservation_group_save',
-                (string)$user->get('c_user_name'),
-                (int)$userId,
-                't_reservation_info',
-                $data['d_reservation_date'] ?? null,
-                ['date' => $data['d_reservation_date'] ?? null],
-                $this->getClientIp(),
-                $auditSuccess,
-                (string)($user->get('c_login_account') ?? '')
-            );
 
             if ($this->request->is('ajax')) {
                 return $resultResponse;

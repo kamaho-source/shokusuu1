@@ -89,4 +89,20 @@ final class ReservationDateRule
 
         return null;
     }
+
+    /**
+     * 通常予約（予約の新規登録）の予約日の検証。予約日が空・日付として読めない・最小受付日より前なら理由を返す（通るなら null）。
+     */
+    public static function normalOrderDateError(string $reservationDate, ChronosDate $today): ?string
+    {
+        if ($reservationDate === '' || $reservationDate === '0') {
+            return '予約日が指定されていません。';
+        }
+        $target = self::parse($reservationDate);
+        if ($target === null) {
+            return '無効な日付フォーマットです。';
+        }
+
+        return self::normalOrderError($target, $today);
+    }
 }

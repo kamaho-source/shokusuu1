@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Test\TestCase\Application\UseCase\RegisterIndividualReservation;
 
+use App\Application\Port\AuditActor;
 use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
 use App\Domain\Exception\ConflictException;
 use App\Domain\Exception\InvalidInputException;
@@ -260,5 +261,40 @@ class RegisterIndividualReservationUseCaseTest extends TestCase
         $this->expectExceptionMessage('システムエラーが発生しました。');
 
         $this->register([1 => [1 => 0]]);
+    }
+
+    /** 予約の新規登録：通常予約の基準（きょうから15日目以降）で UseCase が日付を弾き、失敗の監査ログを残す */
+    public function testNormalOrderDate_nearDateIsRejectedAndAuditedAsFailure(): void
+    {
+        $actor = new AuditActor('職員', 10, 'staff', '127.0.0.1');
+        try {
+            $this->f->registerIndividual()->execute(new RegisterIndividualReservationInput(
+                self::NEAR, ['meals' => [1 => [1 => 1]]], self::ROOMS, 20, 'テスト', checkNormalOrderDate: true, auditActor: $actor,
+            ));
+            $this->fail('例外が出ていない');
+        } catch (InvalidInputException $e) {
+            $this->assertSame('通常発注は「きょうから15日目以降」のみ登録できます（2026-11-16 以降）。', $e->getMessage());
+        }
+        $this->assertSame([], $this->f->reservations->added);
+        $this->assertSame([[
+            'category' => 'reservation', 'action' => 'reservation_individual_save', 'actor' => $actor,
+            'targetTable' => 't_reservation_info', 'targetId' => self::NEAR, 'detail' => ['date' => self::NEAR],
+            'succeeded' => false, 'failureReason' => null,
+        ]], $this->f->auditLog->records);
+    }
+
+    /** 予約の新規登録：保存できたら成功の監査ログを残す。操作者を渡さない（直前編集）なら残さない */
+    public function testAudit_successOnlyWhenActorGiven(): void
+    {
+        $actor = new AuditActor('職員', 10, 'staff', '127.0.0.1');
+        $this->f->registerIndividual()->execute(new RegisterIndividualReservationInput(
+            self::FAR, ['meals' => [1 => [1 => 1]]], self::ROOMS, 20, 'テスト', checkNormalOrderDate: true, auditActor: $actor,
+        ));
+        $this->register([3 => [1 => 1]]);
+
+        $this->assertCount(1, $this->f->auditLog->records);
+        $this->assertSame(['reservation_individual_save', self::FAR, true], [
+            $this->f->auditLog->records[0]['action'], $this->f->auditLog->records[0]['targetId'], $this->f->auditLog->records[0]['succeeded'],
+        ]);
     }
 }
