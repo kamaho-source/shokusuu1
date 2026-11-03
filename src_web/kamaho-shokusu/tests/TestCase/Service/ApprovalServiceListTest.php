@@ -251,5 +251,9 @@ class ApprovalServiceListTest extends TestCase
             $this->getTableLocator()->get('TAuditLog')->exists(['c_action' => 'approval_admin', 'i_result' => 1]),
             '監査ログに成功と記録しない'
         );
+        $this->assertTrue(
+            $this->getTableLocator()->get('TAuditLog')->exists(['c_action' => 'approval_admin', 'i_result' => 0]),
+            '取り消したことは失敗として監査ログに残す'
+        );
     }
 }

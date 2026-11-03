@@ -2905,18 +2905,6 @@ parameters:
 			path: src/Service/ApprovalService.php
 
 		-
-			message: '#^Method App\\Service\\ApprovalService\:\:updateApprovalStatus\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/Service/ApprovalService.php
-
-		-
-			message: '#^PHPDoc tag @return with type array\<int, array\<string, int\|string\>\> is incompatible with native type App\\Service\\ReservationDatePolicy\.$#'
-			identifier: return.phpDocType
-			count: 1
-			path: src/Service/ApprovalService.php
-
-		-
 			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_action\.$#'
 			identifier: property.notFound
 			count: 1

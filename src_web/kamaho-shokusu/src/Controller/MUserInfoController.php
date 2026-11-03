@@ -223,6 +223,8 @@ class MUserInfoController extends AppController
         return $this->response
             ->withStatus($status)
             ->withType('application/json')
+            // ログインIDの有無を返すので、ブラウザ・中継にキャッシュさせない
+            ->withHeader('Cache-Control', 'no-store')
             ->withStringBody((string)json_encode($data, JSON_UNESCAPED_UNICODE));
     }
 
