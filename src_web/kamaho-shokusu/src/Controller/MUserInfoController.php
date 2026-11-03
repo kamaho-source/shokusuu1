@@ -19,20 +19,23 @@ use App\Application\UseCase\EditUser\EditUserOutput;
 use App\Application\UseCase\EditUser\EditUserUseCase;
 use App\Application\UseCase\RestoreUser\RestoreUserInput;
 use App\Application\UseCase\RestoreUser\RestoreUserUseCase;
-use App\Domain\Service\DeletedMembershipRule;
 use App\Domain\Service\RoomAffiliationLabel;
-use App\Domain\ValueObject\RoomMembershipStatus;
 use App\Domain\ValueObject\UserProfileOptions;
 use App\Domain\ValueObject\UserRole;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Response;
 
+/**
+ * 利用者の一覧・詳細・登録・編集・削除・復元・所属部屋。
+ * ログイン・ログアウトは AuthController、パスワードは UserPasswordController、権限の切替は UserRoleController、
+ * 一括登録は UserImportController（#989 で分けた。URL は /MUserInfo/... のまま）。
+ *
+ * @property \Authorization\Controller\Component\AuthorizationComponent $Authorization
+ */
 class MUserInfoController extends AppController
 {
     protected $MUserInfo;
-    protected $MRoomInfo;
-
 
     public function initialize(): void
     {
@@ -41,7 +44,6 @@ class MUserInfoController extends AppController
         $this->viewBuilder()->setOption('serialize', true);
 
         $this->MUserInfo = $this->fetchTable('MUserInfo');
-        $this->MRoomInfo = $this->fetchTable('MRoomInfo');
 
 
         // これらのアクションは FormProtection のフォームトークン検証対象外にする。
@@ -54,7 +56,7 @@ class MUserInfoController extends AppController
         ]);
     }
 
-    public function index(RoomQueryInterface $roomQuery)
+    public function index(RoomQueryInterface $roomQuery, UserQueryInterface $userQuery)
     {
         $resource = new MUserInfo();
         try {
@@ -71,8 +73,7 @@ class MUserInfoController extends AppController
         $showDeleted   = ($isAdmin || $isSystemAdmin) && $this->request->getQuery('show_deleted') === '1';
 
         $query = $this->MUserInfo->find()
-            ->where(['i_del_flag' => $showDeleted ? 1 : 0])
-            ->contain(['MUserGroup' => ['MRoomInfo']]);
+            ->where(['i_del_flag' => $showDeleted ? 1 : 0]);
 
         if (!$isAdmin && !$isSystemAdmin) {
             $query->where(['i_id_user' => $currentUserId]);
@@ -80,10 +81,11 @@ class MUserInfoController extends AppController
 
         $mUserInfo = $this->paginate($query, ['limit' => 200, 'maxLimit' => 200]);
 
-        $userRooms = [];
+        $userIds = [];
         foreach ($mUserInfo as $u) {
-            $userRooms[$u->i_id_user] = $this->activeRoomNames($u->m_user_group ?? [], $u);
+            $userIds[] = (int)$u->i_id_user;
         }
+        $userRooms = $userQuery->activeRoomNames($userIds);
 
         $totalActiveRooms = $roomQuery->countActiveRooms();
         $userRoomLabels   = [];
@@ -106,11 +108,8 @@ class MUserInfoController extends AppController
     public function checkUniqueLoginId(UserQueryInterface $userQuery): Response
     {
         $this->request->allowMethod(['get']);
-        // $this->Authorization は PHPStan が型を知らない（baseline 入り）ため、型付きで受け取る
-        /** @var \Authorization\Controller\Component\AuthorizationComponent $authorization */
-        $authorization = $this->components()->get('Authorization');
         try {
-            $authorization->authorize(new MUserInfo(), 'add');
+            $this->Authorization->authorize(new MUserInfo(), 'add');
         } catch (ForbiddenException $e) {
             return $this->loginIdCheckResponse(['success' => false, 'error' => 'この機能を利用する権限がありません。'], 403);
         }
@@ -195,7 +194,7 @@ class MUserInfoController extends AppController
         $this->request->allowMethod(['get', 'post', 'put', 'patch']);
 
         // ID なしは見つからない（404）。null のまま渡すと InvalidPrimaryKeyException で 500 になる
-        $mUserInfo = $this->MUserInfo->get((int)$id, ['contain' => ['MUserGroup']]);
+        $mUserInfo = $this->MUserInfo->get((int)$id);
 
         try {
             $this->Authorization->authorize($mUserInfo, 'edit');
@@ -205,19 +204,11 @@ class MUserInfoController extends AppController
         }
 
         $canChangeRole = $this->Authorization->can($mUserInfo, 'changeRole');
-        // 管理者・本人以外（職員・ブロック長が児童を編集する場合）は、所属部屋を変更できない
-        $canEditRooms = $canChangeRole
-            || (int)$this->request->getAttribute('identity')?->get('i_id_user') === (int)$mUserInfo->i_id_user;
+        $canEditRooms  = $this->Authorization->can($mUserInfo, 'editRooms');
         // 削除済みの人は所属部屋を変えられない（所属中になると「削除済みなのに所属中」になる）。復元すると削除前の所属に戻る
-        $roomsLocked = (int)$mUserInfo->i_del_flag === 1;
-
-        $selectedRooms = [];
-        foreach ($mUserInfo->m_user_group ?? [] as $group) {
-            // active_flag=1 は部屋異動で無効化された旧所属。選択済みに含めると保存で復活する。
-            if (RoomMembershipStatus::isActive($group->active_flag)) {
-                $selectedRooms[] = $group->i_id_room;
-            }
-        }
+        $roomsLocked   = $userQuery->find((int)$mUserInfo->i_id_user)?->isDeleted() ?? false;
+        // 部屋異動で無効化された旧所属（active_flag=1）は含めない。選択済みに含めると保存で復活する
+        $selectedRooms = $userQuery->currentRoomIds((int)$mUserInfo->i_id_user);
 
         if ($this->request->is(['patch', 'post', 'put'])) {
             try {
@@ -251,11 +242,9 @@ class MUserInfoController extends AppController
         $this->set(compact('mUserInfo', 'rooms', 'selectedRooms', 'canChangeRole', 'canEditRooms', 'roomsLocked'));
     }
 
-    public function view($id = null)
+    public function view(UserQueryInterface $userQuery, $id = null)
     {
-        $mUserInfo = $this->MUserInfo->get((int)$id, [
-            'contain' => ['MUserGroup' => ['MRoomInfo']],
-        ]);
+        $mUserInfo = $this->MUserInfo->get((int)$id);
         try {
             $this->Authorization->authorize($mUserInfo, 'view');
         } catch (ForbiddenException $e) {
@@ -263,55 +252,10 @@ class MUserInfoController extends AppController
             return $this->redirect(['action' => 'index']);
         }
 
-        $userRooms = $this->activeRoomNames($mUserInfo->m_user_group ?? [], $mUserInfo);
+        $userRooms = $userQuery->activeRoomNames([(int)$mUserInfo->i_id_user])[(int)$mUserInfo->i_id_user] ?? [];
         $canEdit   = $this->Authorization->can($mUserInfo, 'edit');
 
         $this->set(compact('mUserInfo', 'userRooms', 'canEdit'));
-    }
-
-    /**
-     * 所属している部屋名の一覧。退出済み(active_flag=1)と削除済み部屋は含めない。
-     * 一覧・詳細の表示と「全部屋所属」の判定で共通に使う。編集画面でチェックが付く部屋と同じ基準。
-     * 削除済みユーザーは、削除の直前に所属していた部屋（削除で外した所属）を出す。復元で所属中に戻る部屋と同じ集合
-     * （部屋異動で外れた昔の部屋は出さない。見分け方は DeletedMembershipRule）。
-     *
-     * @param iterable<\App\Infrastructure\Persistence\Entity\MUserGroup> $groups
-     * @param \App\Infrastructure\Persistence\Entity\MUserInfo $user 所属の持ち主
-     * @return list<string>
-     */
-    private function activeRoomNames(iterable $groups, \App\Infrastructure\Persistence\Entity\MUserInfo $user): array
-    {
-        $isDeletedUser = (int)$user->i_del_flag === 1;
-        $groups        = is_array($groups) ? $groups : iterator_to_array($groups);
-        $hasMarks      = false;
-        foreach ($groups as $group) {
-            $hasMarks = $hasMarks || (int)($group->i_left_by_deletion ?? 0) === 1;
-        }
-
-        $names = [];
-        foreach ($groups as $group) {
-            $isLeft = !RoomMembershipStatus::isActive($group->active_flag);
-            if ($isDeletedUser) {
-                $show = DeletedMembershipRule::isLeftByDeletion(
-                    $group->active_flag === null ? null : (int)$group->active_flag,
-                    $group->i_left_by_deletion === null ? null : (int)$group->i_left_by_deletion,
-                    $hasMarks,
-                    $group->dt_update,
-                    $user->dt_update,
-                );
-            } else {
-                $show = !$isLeft;
-            }
-            if (!$show
-                || empty($group->m_room_info)
-                || (int)($group->m_room_info->i_del_flg ?? 0) !== 0
-            ) {
-                continue;
-            }
-            $names[] = $group->m_room_info->c_room_name;
-        }
-
-        return $names;
     }
 
     public function delete(DeleteUserUseCase $deleteUser, UserQueryInterface $userQuery, $id = null)
