@@ -31,6 +31,9 @@ class ApprovalService
     public const STATUS_ADMIN            = 2;
     public const STATUS_REJECTED         = 3;
 
+    /** 承認対象を特定するキーの項目 */
+    private const KEY_FIELDS = ['i_id_user', 'd_reservation_date', 'i_id_room', 'i_reservation_type'];
+
     private NotificationService $notificationService;
     private ?ReservationDatePolicy $datePolicy = null;
 
@@ -291,11 +294,12 @@ class ApprovalService
      * @param int   $approverId
      * @param string $actor
      * @param string $ipAddress 操作元IPアドレス
+     * @param int|null $roomScopeUserId 指定すると、この利用者が所属している部屋の予約だけを承認する（ブロック長。管理者は null で全部屋）
      * @return bool
      */
-    public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
+    public function blockLeaderApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = '', ?int $roomScopeUserId = null): bool
     {
-        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId);
+        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_BLOCK_LEADER, $approverId, $actor, null, [self::STATUS_PENDING], $approverId, $roomScopeUserId);
         $result = !empty($successKeys);
         AuditLogService::record(
             'approval',
@@ -323,24 +327,32 @@ class ApprovalService
      * @param string $actor
      * @param string $ipAddress
      * @return bool
+     * @throws \Cake\ORM\Exception\PersistenceFailedException 集計への反映で保存に失敗したとき（承認も取り消される）
      */
     public function adminApprove(array $keys, int $approverId, string $actor, string $ipAddress = '', string $actorLoginId = ''): bool
     {
-        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
-        $result = !empty($successKeys);
+        // 状態の更新・承認ログ・集計への反映を1つのトランザクションにする。反映で失敗したら承認も取り消す（#989）
+        $successKeys = TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->getConnection()->transactional(
+            function () use ($keys, $approverId, $actor): array {
+                $successKeys = $this->updateApprovalStatus($keys, self::STATUS_ADMIN, $approverId, $actor, null, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER]);
+                if ($successKeys === []) {
+                    return [];
+                }
 
-        if ($result) {
-            // 承認成功時、自動的に予約情報へ反映
-            // successKeys から対象となる roomId と 日付範囲を抽出して効率的に反映する
-            $roomIds = array_unique(array_column($successKeys, 'i_id_room'));
-            $dates = array_column($successKeys, 'd_reservation_date');
-            $dateFrom = min($dates);
-            $dateTo = max($dates);
+                // successKeys から対象となる roomId と 日付範囲を抽出して効率的に反映する
+                $roomIds = array_unique(array_column($successKeys, 'i_id_room'));
+                $dates = array_column($successKeys, 'd_reservation_date');
+                $dateFrom = min($dates);
+                $dateTo = max($dates);
 
-            foreach ($roomIds as $roomId) {
-                $this->reflectToReservation((int)$roomId, $dateFrom, $dateTo, $actor);
+                foreach ($roomIds as $roomId) {
+                    $this->reflectToReservation((int)$roomId, $dateFrom, $dateTo, $actor);
+                }
+
+                return $successKeys;
             }
-        }
+        );
+        $result = !empty($successKeys);
 
         AuditLogService::record(
             'approval',
@@ -373,11 +385,12 @@ class ApprovalService
      * @param string      $ipAddress
      * @param string      $actorLoginId
      * @param int|null    $excludeUserId 自己承認防止のため除外するユーザーID（ブロック長の却下時のみ指定）
+     * @param int|null    $roomScopeUserId 指定すると、この利用者が所属している部屋の予約だけを差し戻す（ブロック長。管理者は null で全部屋）
      * @return bool
      */
-    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = '', ?int $excludeUserId = null): bool
+    public function reject(array $keys, int $approverId, string $actor, ?string $reason, string $ipAddress = '', string $actorLoginId = '', ?int $excludeUserId = null, ?int $roomScopeUserId = null): bool
     {
-        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER], $excludeUserId);
+        $successKeys = $this->updateApprovalStatus($keys, self::STATUS_REJECTED, $approverId, $actor, $reason, [self::STATUS_PENDING, self::STATUS_BLOCK_LEADER], $excludeUserId, $roomScopeUserId);
         $result = !empty($successKeys);
         AuditLogService::record(
             'approval',
@@ -403,8 +416,20 @@ class ApprovalService
      * @param string|null $dateTo    日付範囲 終了 (YYYY-MM-DD)
      * @param string      $actor
      * @return array{0: int, 1: int}  [グループ数（upsert行数）, 個別レコード件数]
+     * @throws \Cake\ORM\Exception\PersistenceFailedException 保存に失敗したとき（途中まで書いた分も取り消す）
      */
     public function reflectToReservation(?int $roomId, ?string $dateFrom, ?string $dateTo, string $actor): array
+    {
+        return TableRegistry::getTableLocator()->get('TReservationInfo')->getConnection()->transactional(
+            fn(): array => $this->writeReflection($roomId, $dateFrom, $dateTo, $actor)
+        );
+    }
+
+    /**
+     * @return array{0: int, 1: int}
+     * @throws \Cake\ORM\Exception\PersistenceFailedException
+     */
+    private function writeReflection(?int $roomId, ?string $dateFrom, ?string $dateTo, string $actor): array
     {
         $individualTable  = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $userTable        = TableRegistry::getTableLocator()->get('MUserInfo');
@@ -470,7 +495,7 @@ class ApprovalService
                     'dt_update'        => $now,
                     'c_update_user'    => $actor,
                 ]);
-                $reservationTable->save($existing);
+                $reservationTable->saveOrFail($existing);
             } else {
                 $entity = $reservationTable->newEntity(array_merge($data, [
                     'dt_create'    => $now,
@@ -478,7 +503,7 @@ class ApprovalService
                     'dt_update'    => $now,
                     'c_update_user' => $actor,
                 ]));
-                $reservationTable->save($entity);
+                $reservationTable->saveOrFail($entity);
             }
             $groupCount++;
         }
@@ -492,8 +517,9 @@ class ApprovalService
 
     /**
      * @return array<int, array{i_id_user: int, d_reservation_date: string, i_id_room: int, i_reservation_type: int}>
-     *         実際に更新に成功したキーのみを返す（自己承認除外・ステータス不一致でスキップした
+     *         実際に更新に成功したキーのみを返す（自己承認除外・担当外の部屋・ステータス不一致でスキップした
      *         ものは含まない）。呼び出し元は監査ログの対象件数・IDにはこの戻り値を使うこと。
+     *         キーの項目が足りないときは \InvalidArgumentException を投げる。
      */
     private function datePolicy(): ReservationDatePolicy
     {
@@ -507,21 +533,32 @@ class ApprovalService
         string $actor,
         ?string $reason,
         array $allowedFromStatuses,
-        ?int $excludeUserId = null
+        ?int $excludeUserId = null,
+        ?int $roomScopeUserId = null
     ): array {
         $individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
         $logTable        = TableRegistry::getTableLocator()->get('TApprovalLog');
         $now             = DateTime::now();
+        // 担当部屋は一覧(getBlockLeaderList)と同じ基準（所属中で、部屋が削除されていない）
+        $scopeRoomIds    = $roomScopeUserId === null ? null : $this->roomAccessService->getUserRoomIds($roomScopeUserId);
 
         return $individualTable->getConnection()->transactional(
-            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $individualTable, $logTable, $now): array {
+            function () use ($keys, $newStatus, $approverId, $actor, $reason, $allowedFromStatuses, $excludeUserId, $scopeRoomIds, $individualTable, $logTable, $now): array {
                 $successKeys = [];
 
                 foreach ($keys as $k) {
+                    // 形の崩れたキーは黙ってスキップせず失敗にする（担当外のスキップと区別するため）
+                    if (!is_array($k) || array_diff(self::KEY_FIELDS, array_keys($k)) !== []) {
+                        throw new \InvalidArgumentException('承認対象のキーが不正です。');
+                    }
                     // excludeUserId が指定されている場合のみ、そのユーザー自身の予約を
                     // 自己承認防止のためスキップする（ブロック長の承認・却下で使用。
                     // 管理者は自己承認を許可するため excludeUserId を渡さない）
                     if ($excludeUserId !== null && (int)$k['i_id_user'] === $excludeUserId) {
+                        continue;
+                    }
+                    // 担当外の部屋の予約はスキップする（ブロック長の承認・却下。#989）
+                    if ($scopeRoomIds !== null && !in_array((int)$k['i_id_room'], $scopeRoomIds, true)) {
                         continue;
                     }
                     $affected = $individualTable->updateAll(

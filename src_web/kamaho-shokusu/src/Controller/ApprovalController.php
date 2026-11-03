@@ -130,13 +130,15 @@ class ApprovalController extends AppController
         $actor        = (string)($user->get('c_user_name') ?? '不明');
         $actorLoginId = (string)($user->get('c_login_account') ?? '');
         $keys         = (array)($this->request->getData('keys') ?? []);
+        // ブロック長は所属している部屋だけ承認・差し戻しできる。管理者は全部屋（null）（#989）
+        $roomScope    = UserRole::isAdmin((int)($user->get('i_admin') ?? 0)) ? null : $approver;
 
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor, $this->getClientIp(), $actorLoginId);
+            $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor, $this->getClientIp(), $actorLoginId, $roomScope);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderApprove error: ' . $e->getMessage(), 'error');
@@ -157,6 +159,8 @@ class ApprovalController extends AppController
         $actor        = (string)($user->get('c_user_name') ?? '不明');
         $actorLoginId = (string)($user->get('c_login_account') ?? '');
         $keys         = (array)($this->request->getData('keys') ?? []);
+        // ブロック長は所属している部屋だけ承認・差し戻しできる。管理者は全部屋（null）（#989）
+        $roomScope    = UserRole::isAdmin((int)($user->get('i_admin') ?? 0)) ? null : $approver;
         $reason       = $this->request->getData('reason');
 
         if (empty($keys)) {
@@ -164,7 +168,7 @@ class ApprovalController extends AppController
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId, $approver);
+            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $this->getClientIp(), $actorLoginId, $approver, $roomScope);
             return $this->jsonResponse(['success' => $ok]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
