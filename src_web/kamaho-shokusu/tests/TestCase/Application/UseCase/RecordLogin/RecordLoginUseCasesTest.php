@@ -70,6 +70,17 @@ class RecordLoginUseCasesTest extends TestCase
         $this->assertSame(AuditActor::UNKNOWN_ACCOUNT_NAME, $this->audit->records[0]['actor']->name);
     }
 
+    public function testLoginFailure_longInputIsTruncatedInTheAuditLog(): void
+    {
+        $users = $this->createStub(UserQueryInterface::class);
+        $long = str_repeat('あ', 300);
+        (new RecordLoginFailureUseCase($users, $this->audit))->execute(new RecordLoginFailureInput($long, '10.0.0.2'));
+
+        $record = $this->audit->records[0];
+        $this->assertSame(str_repeat('あ', 255), $record['detail']['login_account'], '入力は 255 文字までしか残さない');
+        $this->assertSame(str_repeat('あ', 255), $record['actor']->loginId);
+    }
+
     public function testLogout_recordsSuccess(): void
     {
         $useCase = new RecordLogoutUseCase($this->audit);

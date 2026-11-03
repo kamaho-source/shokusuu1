@@ -191,7 +191,11 @@ class AppController extends Controller
         return AccountStatus::isDisabled($user->get('i_del_flag'), $user->get('i_enable'));
     }
 
-    public function beforeFilter(EventInterface $event)
+    /**
+     * 全コントローラー共通の前処理。ログイン中に削除・無効化された人は、ここで締め出す応答（401 の JSON、またはログイン画面への転送）を返す。
+     * beforeFilter を上書きするコントローラーは、この戻り値を必ず返すこと（捨てると、締め出しが認証ミドルウェアの副作用頼みになる）。
+     */
+    public function beforeFilter(EventInterface $event): ?Response
     {
         parent::beforeFilter($event);
         $this->Authentication->allowUnauthenticated(['login']);
@@ -227,6 +231,8 @@ class AppController extends Controller
             $this->set('notificationUnreadCount', 0);
             $this->set('recentNotifications', []);
         }
+
+        return null;
     }
 
 }

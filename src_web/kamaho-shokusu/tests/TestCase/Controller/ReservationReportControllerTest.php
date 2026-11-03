@@ -169,6 +169,8 @@ class ReservationReportControllerTest extends TestCase
             'missing' => ['', '開始日・終了日を指定してください'],
             'garbage' => ['?from=not-a-date&to=2026-03-01', '日付の形式が正しくありません'],
             'reversed' => ['?from=2026-03-05&to=2026-03-01', '開始日は終了日以前'],
+            // 配列（?from[]=x）は、以前は new DateTimeImmutable の TypeError で 500 だった
+            'array' => ['?from[]=x&to[]=y', '開始日・終了日を指定してください'],
         ];
     }
 

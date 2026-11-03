@@ -115,18 +115,6 @@ parameters:
 			path: src/Controller/AppController.php
 
 		-
-			message: '#^Method App\\Controller\\AppController\:\:beforeFilter\(\) with return type void returns Cake\\Http\\Response but should not return anything\.$#'
-			identifier: return.void
-			count: 1
-			path: src/Controller/AppController.php
-
-		-
-			message: '#^Method App\\Controller\\AppController\:\:beforeFilter\(\) with return type void returns Cake\\Http\\Response\|null but should not return anything\.$#'
-			identifier: return.void
-			count: 1
-			path: src/Controller/AppController.php
-
-		-
 			message: '#^Method App\\Controller\\AppController\:\:isSafeRedirect\(\) has parameter \$url with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -160,12 +148,6 @@ parameters:
 			message: '#^Method App\\Controller\\ApprovalController\:\:index\(\) should return Cake\\Http\\Response but returns Cake\\Http\\Response\|null\.$#'
 			identifier: return.type
 			count: 3
-			path: src/Controller/ApprovalController.php
-
-		-
-			message: '#^Method App\\Controller\\ApprovalController\:\:jsonForbidden\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
 			path: src/Controller/ApprovalController.php
 
 		-

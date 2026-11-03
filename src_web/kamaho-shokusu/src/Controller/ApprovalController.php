@@ -46,15 +46,20 @@ class ApprovalController extends AppController
      * （ダッシュボードから導線を隠しているが、直接URLアクセスも塞ぐ）
      *
      * @param \Cake\Event\EventInterface $event
-     * @return void
+     * @return Response|null 無効化された人の締め出しなど、親が返した応答
      */
-    public function beforeFilter(EventInterface $event)
+    public function beforeFilter(EventInterface $event): ?Response
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if ($response !== null) {
+            return $response;
+        }
 
         if (!Configure::read('Features.approval')) {
             throw new NotFoundException('予約承認機能は現在無効です。');
         }
+
+        return null;
     }
 
     public function initialize(): void
@@ -292,11 +297,6 @@ class ApprovalController extends AppController
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
-
-    private function jsonForbidden(): Response
-    {
-        return $this->jsonError('権限がありません', 403);
-    }
 
     /** 承認者（ログイン中の利用者）。名前が無ければ「不明」（承認の更新者・監査ログの操作者に使う）。 */
     private function approver(): AuditActor

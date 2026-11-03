@@ -30,10 +30,16 @@ class MNoticeController extends AppController
         $this->viewBuilder()->setLayout('default');
     }
 
-    public function beforeFilter(EventInterface $event): void
+    public function beforeFilter(EventInterface $event): ?Response
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if ($response !== null) {
+            return $response;
+        }
+
         $this->FormProtection->setConfig('unlockedFields', ['i_importance', 'i_type', 'd_start', 'd_end']);
+
+        return null;
     }
 
     /**

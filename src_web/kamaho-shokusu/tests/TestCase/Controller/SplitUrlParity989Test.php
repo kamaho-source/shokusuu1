@@ -47,6 +47,10 @@ class SplitUrlParity989Test extends TestCase
             'UserPassword' => ['/MUserInfo/generalPasswordReset', 'get'],
             'UserImport'   => ['/MUserInfo/importForm', 'get'],
             'その他'        => ['/TReservationInfo', 'get'],
+            // beforeFilter を上書きしているコントローラーも、親の締め出し（転送）をそのまま返す
+            'Contacts'     => ['/Contacts', 'get'],
+            'MNotice'      => ['/MNotice', 'get'],
+            'Pages'        => ['/pages/dashboard', 'get'],
         ];
     }
 

@@ -115,10 +115,11 @@ class ReservationReportController extends ReservationBaseController
         }
 
         try {
-            $from = $this->request->getQuery('from');
-            $to   = $this->request->getQuery('to');
+            // 配列（?from[]=x など）は空として扱う（以前は new DateTimeImmutable の TypeError で 500）
+            $from = $this->queryString('from');
+            $to   = $this->queryString('to');
 
-            if (!$from || !$to) {
+            if ($from === '' || $to === '') {
                 throw new \InvalidArgumentException('開始日・終了日を指定してください (例: from=2025-07-01&to=2025-07-15)');
             }
 

@@ -44,15 +44,20 @@ class ReservationActualMealController extends ReservationBaseController
      * （ダッシュボードから導線を隠しているが、直接URLアクセスも塞ぐ）
      *
      * @param \Cake\Event\EventInterface $event
-     * @return void
+     * @return Response|null 無効化された人の締め出しなど、親が返した応答
      */
-    public function beforeFilter(EventInterface $event)
+    public function beforeFilter(EventInterface $event): ?Response
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if ($response !== null) {
+            return $response;
+        }
 
         if (!Configure::read('Features.actualMeal')) {
             throw new NotFoundException('実食入力機能は現在無効です。');
         }
+
+        return null;
     }
 
     /**

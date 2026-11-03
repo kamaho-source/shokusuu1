@@ -69,12 +69,18 @@ class PagesController extends AppController
      * テンプレート側でログイン促進メッセージを表示できる。
      *
      * @param EventInterface $event CakePHP イベントオブジェクト
-     * @return void
+     * @return Response|null 無効化された人の締め出しなど、親が返した応答
      */
-    public function beforeFilter(EventInterface $event): void
+    public function beforeFilter(EventInterface $event): ?Response
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if ($response !== null) {
+            return $response;
+        }
+
         $this->Authentication->allowUnauthenticated(['display', 'dashboard']);
+
+        return null;
     }
 
     /**
