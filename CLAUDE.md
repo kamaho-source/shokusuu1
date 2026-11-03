@@ -164,10 +164,14 @@ public function services(ContainerInterface $container): void
 - テストディレクトリは `src/` の層構成をミラーリングする
 - **Domain・Application 層のテストは必須**（外部依存なしで単体テスト可能）
 - Infrastructure 層はリポジトリインターフェースをモックして UseCase をテストする
+- **CI（`.github/workflows/phpunit.yml`）と本番デプロイ前（`deployment.yml`）は全テストを実行する。** 対象は `phpunit.xml.dist` の testsuite で決まるので、workflow でディレクトリを絞らない。CI 環境だけで落ちるテストは原因を直し、skip や対象外にして通さない
+- **静的解析（PHPStan、level 8）も CI で実行する。** 既存のエラーは `phpstan-baseline.neon` で許容し、新しいコードではエラーを出さない。baseline に載っている箇所を直したら `--generate-baseline` で作り直して減らす（増やさない）
 
 ```bash
 vendor/bin/phpunit                          # 全テスト
 vendor/bin/phpunit tests/TestCase/Domain/   # 層ごと
+vendor/bin/phpstan analyse                  # 静的解析（composer stan でも可）
+vendor/bin/phpstan analyse --generate-baseline phpstan-baseline.neon  # baseline の作り直し
 ```
 
 ---
