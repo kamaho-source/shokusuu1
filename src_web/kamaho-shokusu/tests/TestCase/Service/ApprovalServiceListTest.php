@@ -10,7 +10,7 @@ use Cake\ORM\Table;
 use Cake\TestSuite\TestCase;
 
 /**
- * ApprovalService の一覧・件数・集計・予約情報への反映のテスト。
+ * ApprovalService の予約情報への反映のテスト（一覧・件数・集計は CakeApprovalQueryTest）。
  *
  * 前提データ（setUp で投入。日付はすべて過去日なので eat_flag がそのまま数えられる）:
  *   - ユーザー1,2 は大人(i_user_level=7)、ユーザー3 は子ども(i_user_level=1) = 一覧に出ない
@@ -70,92 +70,6 @@ class ApprovalServiceListTest extends TestCase
             'i_id_room' => $roomId,
             'i_reservation_type' => $type,
         ]);
-    }
-
-    /**
-     * @param array<int, object> $rows
-     * @return list<string> 「ユーザーID:日付:食種」
-     */
-    private function ids(array $rows): array
-    {
-        return array_map(
-            fn($r) => $r->i_id_user . ':' . $r->d_reservation_date->format('Y-m-d') . ':' . $r->i_reservation_type,
-            $rows
-        );
-    }
-
-    public function testGetBlockLeaderList_defaultsToPendingAdultsInOwnRooms(): void
-    {
-        $this->assertSame(['1:2024-09-07:1', '2:2024-09-07:1'], $this->ids($this->service->getBlockLeaderList(1)));
-    }
-
-    public function testGetBlockLeaderList_filtersByStatusAndDateRange(): void
-    {
-        $this->assertSame(['2:2024-09-08:3'], $this->ids($this->service->getBlockLeaderList(1, null, null, null, 1)));
-        $this->assertCount(2, $this->service->getBlockLeaderList(1, null, '2024-09-07', '2024-09-07', 0));
-        $this->assertSame([], $this->service->getBlockLeaderList(1, null, '2024-09-08', '2024-09-30'));
-        $this->assertSame([], $this->service->getBlockLeaderList(1, null, '2024-08-01', '2024-09-06'));
-    }
-
-    public function testGetBlockLeaderList_roomFilterOnlyAppliesToOwnRooms(): void
-    {
-        $this->assertCount(2, $this->service->getBlockLeaderList(1, 1));
-        // 担当外のブロック指定は無視して担当ブロック全体を返す（他ブロックへ広げない）
-        $this->assertCount(2, $this->service->getBlockLeaderList(1, 99));
-    }
-
-    public function testGetBlockLeaderList_userWithoutRooms_returnsEmpty(): void
-    {
-        $this->assertSame([], $this->service->getBlockLeaderList(4));
-        $this->assertSame(0, $this->service->countBlockLeaderPending(4));
-    }
-
-    public function testGetAdminList_filtersAndExcludesChildren(): void
-    {
-        $this->assertCount(8, $this->service->getAdminList());
-        $this->assertCount(5, $this->service->getAdminList(null, null, null, 2));
-        $this->assertCount(0, $this->service->getAdminList(99));
-        $this->assertCount(8, $this->service->getAdminList(1));
-        $this->assertSame(
-            ['1:2024-09-09:1', '1:2024-09-09:3', '2:2024-09-09:1'],
-            $this->ids($this->service->getAdminList(1, '2024-09-09', '2024-09-09'))
-        );
-    }
-
-    public function testCountBlockLeaderPending_countsPendingAdultsWithinRange(): void
-    {
-        $this->assertSame(2, $this->service->countBlockLeaderPending(1));
-        $this->assertSame(0, $this->service->countBlockLeaderPending(1, '2024-09-08'));
-        $this->assertSame(0, $this->service->countBlockLeaderPending(1, null, '2024-09-06'));
-        $this->assertSame(2, $this->service->countBlockLeaderPending(1, '2024-09-07', '2024-09-07'));
-    }
-
-    public function testCountAdminPending_countsBlockLeaderApprovedOnly(): void
-    {
-        $this->assertSame(1, $this->service->countAdminPending());
-        $this->assertSame(1, $this->service->countAdminPending('2024-09-08', '2024-09-08'));
-        $this->assertSame(0, $this->service->countAdminPending('2024-09-09'));
-        $this->assertSame(0, $this->service->countAdminPending(null, '2024-09-07'));
-    }
-
-    public function testGetAdminSummary_countsOnlyEatingFinalApprovedPerDayAndRoom(): void
-    {
-        $room = 'Lorem ipsum dolor sit amet';
-
-        // 09-09 の朝食は user1・user6 の 2 件（user2 は食べない）。サマリは削除済みユーザーを除外しない
-        $this->assertSame([
-            ['reservation_date' => '2024-09-09', 'room_name' => $room, 'breakfast' => 2, 'lunch' => 0, 'dinner' => 1, 'bento' => 0],
-            ['reservation_date' => '2024-09-10', 'room_name' => $room, 'breakfast' => 0, 'lunch' => 1, 'dinner' => 0, 'bento' => 0],
-            ['reservation_date' => '2024-09-11', 'room_name' => $room, 'breakfast' => 0, 'lunch' => 0, 'dinner' => 0, 'bento' => 1],
-        ], $this->service->getAdminSummary());
-    }
-
-    public function testGetAdminSummary_dateRange(): void
-    {
-        $summary = $this->service->getAdminSummary('2024-09-10', '2024-09-10');
-        $this->assertCount(1, $summary);
-        $this->assertSame(1, $summary[0]['lunch']);
-        $this->assertSame([], $this->service->getAdminSummary('2025-01-01'));
     }
 
     public function testReflectToReservation_upsertsCountsExcludingDeletedUsers(): void

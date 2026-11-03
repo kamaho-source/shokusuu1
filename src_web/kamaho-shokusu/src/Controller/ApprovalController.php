@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Cake\Http\ServerRequest;
+use App\Application\Query\ApprovalQueryInterface;
 use App\Application\Query\RoomQueryInterface;
 use App\Domain\ValueObject\UserRole;
 use App\Service\ApprovalService;
@@ -25,8 +26,11 @@ class ApprovalController extends AppController
 
     private ApprovalService $approvalService;
 
-    public function __construct(ServerRequest $request, private readonly RoomQueryInterface $roomAccessService)
-    {
+    public function __construct(
+        ServerRequest $request,
+        private readonly RoomQueryInterface $roomAccessService,
+        private readonly ApprovalQueryInterface $approvalQuery,
+    ) {
         parent::__construct($request);
     }
 
@@ -107,7 +111,7 @@ class ApprovalController extends AppController
         $dateFrom = $this->request->getQuery('date_from') ?? Date::today()->startOfWeek()->format('Y-m-d');
         $dateTo   = $this->request->getQuery('date_to')   ?? Date::today()->endOfWeek()->format('Y-m-d');
 
-        $records = $this->approvalService->getBlockLeaderList(
+        $records = $this->approvalQuery->getBlockLeaderList(
             $userId, $filterRoomId, $dateFrom, $dateTo, $filterStatus
         );
 
@@ -194,8 +198,8 @@ class ApprovalController extends AppController
         $dateFrom = $this->request->getQuery('date_from') ?? Date::today()->startOfWeek()->format('Y-m-d');
         $dateTo   = $this->request->getQuery('date_to')   ?? Date::today()->endOfWeek()->format('Y-m-d');
 
-        $records = $this->approvalService->getAdminList($filterRoomId, $dateFrom, $dateTo, $filterStatus);
-        $summary = $this->approvalService->getAdminSummary($dateFrom, $dateTo);
+        $records = $this->approvalQuery->getAdminList($filterRoomId, $dateFrom, $dateTo, $filterStatus);
+        $summary = $this->approvalQuery->getAdminSummary($dateFrom, $dateTo);
 
         $rooms = $this->roomAccessService->getAllActiveRooms();
 
@@ -296,25 +300,8 @@ class ApprovalController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
         }
 
-        $query = $this->fetchTable('TApprovalLog')->find()
-            ->contain(['MUserInfo', 'MRoomInfo', 'Approvers']);
-
-        // ブロック長の場合は自分が担当する部屋のログ、または自分が承認したログのみに制限
-        if (!$isAdmin && $isBlockLeader) {
-            $myRoomIds = $this->roomAccessService->getUserRoomIds((int)$user->get('i_id_user'));
-            $query->where([
-                'OR' => [
-                    'TApprovalLog.i_id_room IN' => $myRoomIds,
-                    'TApprovalLog.i_approver_id' => (int)$user->get('i_id_user'),
-                ]
-            ]);
-        }
-
-        $query->orderBy(['TApprovalLog.dt_create' => 'DESC']);
-
-        $logs = $this->paginate($query, [
-            'limit' => 50,
-        ]);
+        // ブロック長は担当部屋の履歴か、自分が承認・差し戻しした履歴だけ
+        $logs = $this->approvalQuery->approvalLogs((int)$user->get('i_id_user'), $isAdmin, $this->request->getQueryParams());
 
         $this->set(compact('logs'));
         return null;

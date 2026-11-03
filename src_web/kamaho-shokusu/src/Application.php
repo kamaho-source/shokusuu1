@@ -97,6 +97,7 @@ use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
 use App\Policy\PersistenceOrmResolver;
+use App\Application\Query\ApprovalQueryInterface;
 use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\ChangeEditQueryInterface;
 use App\Application\Query\DashboardQueryInterface;
@@ -117,6 +118,7 @@ use App\Controller\ReservationHistoryController;
 use App\Controller\ReservationReportController;
 use App\Controller\ReservationToggleController;
 use App\Controller\TReservationInfoController;
+use App\Infrastructure\Query\CakeApprovalQuery;
 use App\Infrastructure\Query\CakeCalendarQuery;
 use App\Infrastructure\Query\CakeChangeEditQuery;
 use App\Infrastructure\Query\CakeDashboardQuery;
@@ -425,6 +427,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(MealCountGridQueryInterface::class, static fn() => new CakeMealCountGridQuery($clock()));
         $container->add(ReservationHistoryQueryInterface::class, static fn() => new CakeReservationHistoryQuery($container->get(RoomQueryInterface::class), $clock()));
         $container->add(DashboardQueryInterface::class, CakeDashboardQuery::class);
+        $container->add(ApprovalQueryInterface::class, static fn() => new CakeApprovalQuery($container->get(RoomQueryInterface::class), $clock()));
 
         // Controller のコンストラクタ注入（全アクションで使う依存。アクションだけで使うものはアクションの引数で受け取る）
         foreach ([
@@ -443,8 +446,8 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class, MealReportQueryInterface::class]);
         $container->add(ReservationHistoryController::class)->addArguments([ServerRequest::class, ReservationHistoryQueryInterface::class]);
         $container->add(MRoomInfoController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class]);
-        $container->add(ApprovalController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class]);
-        $container->add(PagesController::class)->addArguments([ServerRequest::class, DashboardQueryInterface::class, NoticeQueryInterface::class, RoomQueryInterface::class]);
+        $container->add(ApprovalController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class, ApprovalQueryInterface::class]);
+        $container->add(PagesController::class)->addArguments([ServerRequest::class, DashboardQueryInterface::class, NoticeQueryInterface::class, ApprovalQueryInterface::class]);
 
         // Policy（Resolver がコンテナから作る）
         foreach ([TReservationInfoPolicy::class, MRoomInfoPolicy::class, MUserInfoPolicy::class, ApprovalPolicy::class] as $policy) {
