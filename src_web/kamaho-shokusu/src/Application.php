@@ -40,6 +40,8 @@ use App\Application\UseCase\ApproveByAdmin\ApproveByAdminUseCase;
 use App\Application\UseCase\ApproveByBlockLeader\ApproveByBlockLeaderUseCase;
 use App\Application\UseCase\ReflectApprovedToReservation\ReflectApprovedToReservationUseCase;
 use App\Application\UseCase\RejectApproval\RejectApprovalUseCase;
+use App\Application\UseCase\RequestActualMealApproval\RequestActualMealApprovalUseCase;
+use App\Application\UseCase\SaveActualMeal\SaveActualMealUseCase;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
@@ -84,6 +86,7 @@ use App\Infrastructure\Query\CakeMealPriceQuery;
 use App\Infrastructure\Query\CakeMealSummaryQuery;
 use App\Infrastructure\Notification\CakeApprovalNotifier;
 use App\Infrastructure\Notification\CakeContactNotifier;
+use App\Infrastructure\Repository\CakeActualMealRepository;
 use App\Infrastructure\Repository\CakeApprovalRepository;
 use App\Service\NotificationService;
 use App\Infrastructure\Query\CakeContactQuery;
@@ -441,6 +444,12 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             $approvalWriter(), $container->get(RoomQueryInterface::class), $approvalTransaction(), new CakeApprovalNotifier(new NotificationService()), new AuditLogAdapter(), $clock(),
         ));
         $container->add(ReflectApprovedToReservationUseCase::class, static fn() => new ReflectApprovedToReservationUseCase($approvalWriter(), $approvalTransaction()));
+
+        // 実食（Features.actualMeal）
+        $container->add(SaveActualMealUseCase::class, static fn() => new SaveActualMealUseCase(
+            new CakeActualMealRepository(), $container->get(RoomQueryInterface::class), new AuditLogAdapter(), $clock(),
+        ));
+        $container->add(RequestActualMealApprovalUseCase::class, static fn() => new RequestActualMealApprovalUseCase(new CakeActualMealRepository(), new AuditLogAdapter(), $clock()));
 
         // 読み取り（Query）。Controller・Policy は new せず、ここから受け取る
         $container->add(RoomQueryInterface::class, CakeRoomQuery::class);

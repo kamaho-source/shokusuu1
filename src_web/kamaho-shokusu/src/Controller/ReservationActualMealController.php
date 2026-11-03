@@ -4,10 +4,15 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Query\ActualMealQueryInterface;
+use App\Application\UseCase\RequestActualMealApproval\RequestActualMealApprovalInput;
+use App\Application\UseCase\RequestActualMealApproval\RequestActualMealApprovalUseCase;
+use App\Application\UseCase\SaveActualMeal\SaveActualMealInput;
+use App\Application\UseCase\SaveActualMeal\SaveActualMealOutput;
+use App\Application\UseCase\SaveActualMeal\SaveActualMealUseCase;
 use App\Domain\Service\MealGridWeekRule;
+use App\Domain\ValueObject\ApprovalKey;
 use App\Domain\ValueObject\MealGridWeek;
 use App\Domain\ValueObject\UserRole;
-use App\Service\ActualMealManagementService;
 use Authentication\IdentityInterface;
 use Cake\Core\Configure;
 use Cake\Event\EventInterface;
@@ -231,17 +236,17 @@ class ReservationActualMealController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function actualMealSave(): ?Response
+    public function actualMealSave(SaveActualMealUseCase $saveActualMeal): ?Response
     {
         $this->request->allowMethod(['post']);
 
-        $data     = $this->request->getData();
-        $roomId   = (int)($data['room_id']   ?? 0);
-        $date     = (string)($data['date']   ?? '');
-        $mealType = (int)($data['meal_type'] ?? 0);
-        $targetUid = (int)($data['user_id']  ?? 0);
+        $data      = $this->request->getData();
+        $roomId    = (int)($data['room_id']   ?? 0);
+        $date      = (string)($data['date']   ?? '');
+        $mealType  = (int)($data['meal_type'] ?? 0);
+        $targetUid = (int)($data['user_id']   ?? 0);
         $checked   = (bool)((int)($data['checked'] ?? 0));
-        $version   = (int)($data['version']  ?? 1);
+        $version   = (int)($data['version']   ?? 1);
 
         if (!$roomId || !$date || !$mealType || !$targetUid) {
             $this->Authorization->skipAuthorization();
@@ -259,46 +264,20 @@ class ReservationActualMealController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, '日付の形式が正しくありません。', 400);
         }
 
-        $authUser     = $this->Authentication->getIdentity();
-        $actor        = (string)($authUser?->get('c_user_name') ?? 'system');
-        $actorLoginId = (string)($authUser?->get('c_login_account') ?? '');
-
-        // 存在しない・削除済みの部屋には、管理者でも書き込めない。
-        // 対象ユーザーが部屋に有効所属していること（既に行がある場合の更新は除く）。管理者も同じ（#821）。
-        $roomAccess = $this->roomQuery;
-        if (!$roomAccess->isRoomAvailable($roomId)) {
-            return $this->apiResponseService->error($this->response, '選択された部屋は利用できません。', 403);
-        }
-        if (!$roomAccess->isActiveMember($targetUid, $roomId)) {
-            $hasRow = $this->TIndividualReservationInfo->exists([
-                'i_id_user'          => $targetUid,
-                'd_reservation_date' => $date,
-                'i_id_room'          => $roomId,
-                'i_reservation_type' => $mealType,
-            ]);
-            if (!$hasRow) {
-                return $this->apiResponseService->error($this->response, '対象ユーザーは指定された部屋に所属していません。', 403);
-            }
-        }
-
-        $service = new ActualMealManagementService();
-        $result  = $service->saveActualMeal(
-            $this->TIndividualReservationInfo,
-            $targetUid,
-            $roomId,
-            $date,
-            $mealType,
+        $authUser = $this->Authentication->getIdentity();
+        $result   = $saveActualMeal->execute(new SaveActualMealInput(
+            new ApprovalKey($targetUid, $date, $roomId, $mealType),
             $checked,
             $version,
-            $actor,
-            $actorLoginId
-        );
+            (string)($authUser?->get('c_user_name') ?? 'system'),
+            (string)($authUser?->get('c_login_account') ?? ''),
+        ));
 
-        if (!$result['ok']) {
-            return $this->apiResponseService->error($this->response, $result['message'], 409);
-        }
-
-        return $this->apiResponseService->success($this->response, ['version' => $result['version'] ?? 1], $result['message']);
+        return match ($result->status) {
+            SaveActualMealOutput::SAVED     => $this->apiResponseService->success($this->response, ['version' => $result->version], $result->message),
+            SaveActualMealOutput::FORBIDDEN => $this->apiResponseService->error($this->response, $result->message, 403),
+            default                         => $this->apiResponseService->error($this->response, $result->message, 409),
+        };
     }
 
     /**
@@ -306,7 +285,7 @@ class ReservationActualMealController extends ReservationBaseController
      *
      * @return Response|null
      */
-    public function actualMealRequestApproval(): ?Response
+    public function actualMealRequestApproval(RequestActualMealApprovalUseCase $requestApproval): ?Response
     {
         if ($denied = $this->authorizeReservation('actualMealRequestApproval', [], true)) {
             return $denied;
@@ -319,10 +298,7 @@ class ReservationActualMealController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, '申請対象が指定されていません。', 400);
         }
 
-        $authUser     = $this->Authentication->getIdentity();
-        $actor        = (string)($authUser?->get('c_user_name') ?? 'system');
-        $actorLoginId = (string)($authUser?->get('c_login_account') ?? '');
-
+        $approvalKeys    = [];
         $authorizedPairs = [];
         foreach ($keys as $key) {
             $targetUid = (int)($key['user_id']  ?? 0);
@@ -333,6 +309,7 @@ class ReservationActualMealController extends ReservationBaseController
             if (!$targetUid || !$roomId || !$mealType || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
                 return $this->apiResponseService->error($this->response, '申請対象の形式が正しくありません。', 400);
             }
+            $approvalKeys[] = new ApprovalKey($targetUid, $date, $roomId, $mealType);
 
             // 認可の結果は部屋と対象者だけで決まるため、同じ組は1回だけ問い合わせる
             $authKey = $roomId . ':' . $targetUid;
@@ -348,12 +325,16 @@ class ReservationActualMealController extends ReservationBaseController
             $authorizedPairs[$authKey] = true;
         }
 
-        $service       = new ActualMealManagementService();
-        $affectedTotal = $service->requestApproval($this->TIndividualReservationInfo, $keys, $actor, $actorLoginId);
+        $authUser = $this->Authentication->getIdentity();
+        $result   = $requestApproval->execute(new RequestActualMealApprovalInput(
+            $approvalKeys,
+            (string)($authUser?->get('c_user_name') ?? 'system'),
+            (string)($authUser?->get('c_login_account') ?? ''),
+        ));
 
         return $this->apiResponseService->success(
             $this->response,
-            ['count' => $affectedTotal],
+            ['count' => $result->count],
             '承認申請しました。'
         );
     }
