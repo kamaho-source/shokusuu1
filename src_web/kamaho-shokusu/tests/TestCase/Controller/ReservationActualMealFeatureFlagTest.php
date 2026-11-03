@@ -11,7 +11,7 @@ use Cake\TestSuite\TestCase;
  * ReservationActualMealController 機能フラグ(Features.actualMeal) ガードの統合テスト
  *
  * - 実食機能オフ: 実食系URLは 404
- * - 食数一括管理(mealCountGrid)は実食機能とは独立のため、実食オフでも 404 にならない
+ * - 食数一括管理(mealCountGrid)は実食機能とは独立（MealCountGridController）のため、実食オフでも 404 にならない
  */
 class ReservationActualMealFeatureFlagTest extends TestCase
 {

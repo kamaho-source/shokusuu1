@@ -338,9 +338,10 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'ReservationActualMeal', 'action' => 'myActualMeal']
         )->setMethods(['GET']);
 
+        // ── エクセル食数予約（MealCountGridController） ──
         $builder->connect(
             '/TReservationInfo/meal-count-grid',
-            ['controller' => 'ReservationActualMeal', 'action' => 'mealCountGrid']
+            ['controller' => 'MealCountGrid', 'action' => 'mealCountGrid']
         )->setMethods(['GET']);
 
         // ── 予約コピー（ReservationCopyController） ──
