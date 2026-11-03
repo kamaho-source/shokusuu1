@@ -206,9 +206,9 @@ $recentNotifications     = $recentNotifications ?? [];
                                     <?= !empty($user->i_id_staff) ? '職員ID: ' . h($user->i_id_staff) : 'ユーザー' ?>
                                 </li>
                                 <li><?= $this->Html->link('👤 プロフィール', ['controller' => 'MUserInfo', 'action' => 'view', $user->i_id_user], ['class' => 'dropdown-item']) ?></li>
-                                <li><?= $this->Html->link('🔑 パスワード変更', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset'], ['class' => 'dropdown-item']) ?></li>
+                                <li><?= $this->Html->link('🔑 パスワード変更', ['controller' => 'UserPassword', 'action' => 'generalPasswordReset'], ['class' => 'dropdown-item']) ?></li>
                                 <?php if ($isAdmin): ?>
-                                    <li><?= $this->Html->link('🔑 管理者：パスワード変更', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword'], ['class' => 'dropdown-item']) ?></li>
+                                    <li><?= $this->Html->link('🔑 管理者：パスワード変更', ['controller' => 'UserPassword', 'action' => 'adminChangePassword'], ['class' => 'dropdown-item']) ?></li>
                                 <?php endif; ?>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><?= $this->Html->link('🚪 ログアウト', ['controller' => 'MUserInfo', 'action' => 'logout'], ['class' => 'dropdown-item text-danger']) ?></li>

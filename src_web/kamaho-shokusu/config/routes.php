@@ -173,12 +173,12 @@ return function (RouteBuilder $routes): void {
 
         // MUserInfo
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
-        $builder->connect('/MUserInfo/admin_change_password', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
+        $builder->connect('/MUserInfo/admin_change_password', ['controller' => 'UserPassword', 'action' => 'adminChangePassword']);
         $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'UserRole', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-user-level', ['controller' => 'UserRole', 'action' => 'updateUserLevel'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'UserRole', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
         $builder->connect('/MUserInfo/update-report-access', ['controller' => 'UserRole', 'action' => 'updateReportAccess'])->setMethods(['POST']);
-        $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset']);
+        $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'UserPassword', 'action' => 'generalPasswordReset']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/check-unique-login-id', ['controller' => 'MUserInfo', 'action' => 'checkUniqueLoginId']);
@@ -191,6 +191,7 @@ return function (RouteBuilder $routes): void {
         // 同じアクションへつなぐ。逆引き（['controller' => 'UserImport', ...]）が以前と同じ URL になるよう /m-user-info/{dashed} を先にする
         foreach ([
             'UserImport' => ['importForm', 'importJson', 'import'],
+            'UserPassword' => ['adminChangePassword', 'generalPasswordReset'],
             'UserRole'   => ['updateAdminStatus', 'updateSystemAdminStatus', 'updateUserLevel', 'updateReportAccess'],
         ] as $splitController => $splitActions) {
             foreach ($splitActions as $splitAction) {

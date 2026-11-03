@@ -6,7 +6,7 @@
  */
 ?>
 <?php $this->assign('title', '管理者：パスワード変更'); ?>
-<?= $this->Form->create(null, ['url' => ['action' => 'adminChangePassword'], 'class' => 'needs-validation']) ?>
+<?= $this->Form->create(null, ['url' => ['controller' => 'UserPassword', 'action' => 'adminChangePassword'], 'class' => 'needs-validation']) ?>
 <fieldset>
     <legend class="mb-4">ユーザーのパスワード変更</legend>
     <?= $this->Flash->render() ?>
