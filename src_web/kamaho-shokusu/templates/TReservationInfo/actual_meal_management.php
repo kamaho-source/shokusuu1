@@ -107,7 +107,7 @@ if (!empty($dates)) {
             <div class="d-flex align-items-center week-nav ms-auto">
                 <?php if ($canGoPrev): ?>
                     <a class="btn btn-outline-secondary btn-sm"
-                       href="<?= $this->Url->build(['action' => 'actualMealManagement', '?' => ['room_id' => $selectedRoomId, 'week' => $prevMonday->format('Y-m-d')]]) ?>">
+                       href="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'actualMealManagement', '?' => ['room_id' => $selectedRoomId, 'week' => $prevMonday->format('Y-m-d')]]) ?>">
                         &laquo; 前週
                     </a>
                 <?php else: ?>
@@ -116,7 +116,7 @@ if (!empty($dates)) {
                 <span class="fw-semibold mx-2 text-nowrap"><?= h($weekRangeLabel) ?></span>
                 <?php if ($canGoNext): ?>
                     <a class="btn btn-outline-secondary btn-sm"
-                       href="<?= $this->Url->build(['action' => 'actualMealManagement', '?' => ['room_id' => $selectedRoomId, 'week' => $nextMonday->format('Y-m-d')]]) ?>">
+                       href="<?= $this->Url->build(['controller' => 'TReservationInfo', 'action' => 'actualMealManagement', '?' => ['room_id' => $selectedRoomId, 'week' => $nextMonday->format('Y-m-d')]]) ?>">
                         次週 &raquo;
                     </a>
                 <?php else: ?>

@@ -35,6 +35,8 @@ use Cake\Http\Response;
  */
 class MUserInfoController extends AppController
 {
+    use DropsDisabledIdentityResponseTrait;
+
     protected $MUserInfo;
 
     public function initialize(): void

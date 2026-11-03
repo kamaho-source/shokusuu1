@@ -50,6 +50,12 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/TReservationInfo/bulk-add-form', ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-form', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditForm']);
         $builder->connect('/TReservationInfo/bulk-change-edit-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditSubmit'])->setMethods(['POST']);
+        // 画面が出すリンク・送信先は分割前と同じ /t-reservation-info/...（小文字ケバブ）。以前は fallbacks で届いていたので、同じアクションへつなぐ
+        $builder->connect('/t-reservation-info/bulk-add-form', ['controller' => 'ReservationBulk', 'action' => 'bulkAddForm']);
+        $builder->connect('/t-reservation-info/bulk-add-submit', ['controller' => 'ReservationBulk', 'action' => 'bulkAddSubmit'])->setMethods(['POST']);
+        $builder->connect('/t-reservation-info/bulk-change-edit-form', ['controller' => 'ReservationBulk', 'action' => 'bulkChangeEditForm']);
+        $builder->connect('/t-reservation-info/actual-meal-management', ['controller' => 'ReservationActualMeal', 'action' => 'actualMealManagement'])->setMethods(['GET']);
+        $builder->connect('/t-reservation-info/my-actual-meal', ['controller' => 'ReservationActualMeal', 'action' => 'myActualMeal'])->setMethods(['GET']);
 
         $builder->connect(
             '/TReservationInfo/getUsersByRoomForBulk/{roomId}',

@@ -13,7 +13,7 @@ $this->assign('title', 'パスワード変更');
                     <span class="fw-bold">パスワード変更</span>
                 </div>
                 <div class="card-body">
-                    <?= $this->Form->create(null, ['url' => ['controller' => 'UserPassword', 'action' => 'generalPasswordReset']]) ?>
+                    <?= $this->Form->create(null, ['url' => ['controller' => 'MUserInfo', 'action' => 'general_password_reset']]) ?>
                     <div class="mb-3">
                         <?= $this->Form->label('new_password', '新しいパスワード', ['class' => 'form-label']) ?>
                         <?= $this->Form->control('new_password', [
