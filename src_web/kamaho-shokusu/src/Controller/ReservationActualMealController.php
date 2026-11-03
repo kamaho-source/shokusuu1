@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Domain\Service\MealGridWeekRule;
+use App\Domain\ValueObject\ApprovalStatus;
 use App\Domain\ValueObject\UserRole;
 use App\Application\Query\MealCountGridQueryInterface;
 use Cake\Chronos\ChronosDate;
@@ -279,7 +280,7 @@ class ReservationActualMealController extends ReservationBaseController
             ->contain(['Approvers'])
             ->where([
                 'TApprovalLog.i_id_user'          => $selectedUserId,
-                'TApprovalLog.i_approval_status'   => 3,
+                'TApprovalLog.i_approval_status'   => ApprovalStatus::REJECTED,
                 'TApprovalLog.d_reservation_date >=' => $weekMondayStr,
                 'TApprovalLog.d_reservation_date <=' => $weekSundayStr,
             ])

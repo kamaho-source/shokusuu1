@@ -6,6 +6,7 @@ namespace App\Infrastructure\Query;
 use App\Application\Query\Dto\StaffMealCount;
 use App\Application\Query\MealSummaryQueryInterface;
 use App\Domain\Service\ReservationDateRule;
+use App\Domain\ValueObject\ApprovalStatus;
 use App\Domain\ValueObject\MealType;
 use Cake\Chronos\ChronosDate;
 use Cake\Core\Configure;
@@ -17,7 +18,7 @@ use Psr\Clock\ClockInterface;
  */
 final class CakeMealSummaryQuery implements MealSummaryQueryInterface
 {
-    private const APPROVAL_STATUS_APPROVED = 2;
+    private const APPROVAL_STATUS_APPROVED = ApprovalStatus::ADMIN;
 
     public function __construct(private readonly ClockInterface $clock)
     {

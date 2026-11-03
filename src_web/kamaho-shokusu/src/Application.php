@@ -35,6 +35,11 @@ use App\Application\Query\RoomUsageQueryInterface;
 use App\Application\Query\SystemReportQueryInterface;
 use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Application\UseCase\ApplyRoomTransfers\ApplyRoomTransfersUseCase;
+use App\Application\UseCase\Approval\ApprovalWriter;
+use App\Application\UseCase\ApproveByAdmin\ApproveByAdminUseCase;
+use App\Application\UseCase\ApproveByBlockLeader\ApproveByBlockLeaderUseCase;
+use App\Application\UseCase\ReflectApprovedToReservation\ReflectApprovedToReservationUseCase;
+use App\Application\UseCase\RejectApproval\RejectApprovalUseCase;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
@@ -80,7 +85,10 @@ use App\Infrastructure\Repository\CakeReservationRepository;
 use App\Infrastructure\Query\CakeDayViewQuery;
 use App\Infrastructure\Query\CakeMealPriceQuery;
 use App\Infrastructure\Query\CakeMealSummaryQuery;
+use App\Infrastructure\Notification\CakeApprovalNotifier;
 use App\Infrastructure\Notification\CakeContactNotifier;
+use App\Infrastructure\Repository\CakeApprovalRepository;
+use App\Service\NotificationService;
 use App\Infrastructure\Query\CakeContactQuery;
 use App\Infrastructure\Query\CakeNoticeQuery;
 use App\Infrastructure\Repository\CakeContactRepository;
@@ -100,6 +108,7 @@ use App\Infrastructure\Repository\CakeUserAccountRepository;
 use App\Service\AiStatsContextService;
 use App\Service\FeatureUsageSummaryService;
 use App\Policy\PersistenceOrmResolver;
+use App\Application\Query\ApprovalQueryInterface;
 use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\ChangeEditQueryInterface;
 use App\Application\Query\DashboardQueryInterface;
@@ -122,6 +131,7 @@ use App\Controller\ReservationHistoryController;
 use App\Controller\ReservationReportController;
 use App\Controller\ReservationToggleController;
 use App\Controller\TReservationInfoController;
+use App\Infrastructure\Query\CakeApprovalQuery;
 use App\Infrastructure\Query\CakeCalendarQuery;
 use App\Infrastructure\Query\CakeChangeEditQuery;
 use App\Infrastructure\Query\CakeDashboardQuery;
@@ -150,6 +160,7 @@ use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\Http\Middleware\SecurityHeadersMiddleware;
 use Cake\Http\MiddlewareQueue;
 use Cake\ORM\Locator\TableLocator;
+use Cake\ORM\TableRegistry;
 use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 
@@ -424,6 +435,18 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(RoomMealDetailQueryInterface::class, static fn() => new CakeRoomMealDetailQuery($clock()));
         $container->add(AssignUserRoomsUseCase::class, static fn() => new AssignUserRoomsUseCase($userAccounts(), new CakeRoomMembershipRepository(), $userTransaction()));
 
+        // 承認の UseCase（ApprovalController がアクションの引数で受け取る）
+        $approvalWriter = static fn(): ApprovalWriter => new ApprovalWriter(new CakeApprovalRepository(), $clock());
+        $approvalTransaction = static fn(): CakeTransactionManager => new CakeTransactionManager(TableRegistry::getTableLocator()->get('TIndividualReservationInfo')->getConnection());
+        $container->add(ApproveByBlockLeaderUseCase::class, static fn() => new ApproveByBlockLeaderUseCase(
+            $approvalWriter(), $container->get(RoomQueryInterface::class), $approvalTransaction(), new AuditLogAdapter(), $clock(),
+        ));
+        $container->add(ApproveByAdminUseCase::class, static fn() => new ApproveByAdminUseCase($approvalWriter(), $approvalTransaction(), new AuditLogAdapter(), $clock()));
+        $container->add(RejectApprovalUseCase::class, static fn() => new RejectApprovalUseCase(
+            $approvalWriter(), $container->get(RoomQueryInterface::class), $approvalTransaction(), new CakeApprovalNotifier(new NotificationService()), new AuditLogAdapter(), $clock(),
+        ));
+        $container->add(ReflectApprovedToReservationUseCase::class, static fn() => new ReflectApprovedToReservationUseCase($approvalWriter(), $approvalTransaction()));
+
         // 読み取り（Query）。Controller・Policy は new せず、ここから受け取る
         $container->add(RoomQueryInterface::class, CakeRoomQuery::class);
         $container->add(CalendarQueryInterface::class, static fn() => new CakeCalendarQuery($clock()));
@@ -433,6 +456,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(MealCountGridQueryInterface::class, static fn() => new CakeMealCountGridQuery($clock()));
         $container->add(ReservationHistoryQueryInterface::class, static fn() => new CakeReservationHistoryQuery($container->get(RoomQueryInterface::class), $clock()));
         $container->add(DashboardQueryInterface::class, CakeDashboardQuery::class);
+        $container->add(ApprovalQueryInterface::class, static fn() => new CakeApprovalQuery($container->get(RoomQueryInterface::class), $clock()));
 
         // Controller のコンストラクタ注入（全アクションで使う依存。アクションだけで使うものはアクションの引数で受け取る）
         foreach ([
@@ -453,8 +477,8 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
             ->addArguments([ServerRequest::class, CalendarQueryInterface::class, RoomQueryInterface::class, ReservationReadQueryInterface::class, MealReportQueryInterface::class]);
         $container->add(ReservationHistoryController::class)->addArguments([ServerRequest::class, ReservationHistoryQueryInterface::class]);
         $container->add(MRoomInfoController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class]);
-        $container->add(ApprovalController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class]);
-        $container->add(PagesController::class)->addArguments([ServerRequest::class, DashboardQueryInterface::class, NoticeQueryInterface::class, RoomQueryInterface::class]);
+        $container->add(ApprovalController::class)->addArguments([ServerRequest::class, RoomQueryInterface::class, ApprovalQueryInterface::class]);
+        $container->add(PagesController::class)->addArguments([ServerRequest::class, DashboardQueryInterface::class, NoticeQueryInterface::class, ApprovalQueryInterface::class]);
 
         // Policy（Resolver がコンテナから作る）
         foreach ([TReservationInfoPolicy::class, MRoomInfoPolicy::class, MUserInfoPolicy::class, ApprovalPolicy::class] as $policy) {

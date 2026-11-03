@@ -17,11 +17,10 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Cake\Http\ServerRequest;
-use App\Application\Query\RoomQueryInterface;
+use App\Application\Query\ApprovalQueryInterface;
 use App\Application\Query\NoticeQueryInterface;
 use App\Application\Query\DashboardQueryInterface;
 use App\Domain\ValueObject\UserRole;
-use App\Service\ApprovalService;
 use App\Service\DashboardService;
 use Cake\Core\Configure;
 use Cake\Event\EventInterface;
@@ -56,7 +55,7 @@ class PagesController extends AppController
         ServerRequest $request,
         private readonly DashboardQueryInterface $dashboardQuery,
         private readonly NoticeQueryInterface $noticeQuery,
-        private readonly RoomQueryInterface $roomQuery,
+        private readonly ApprovalQueryInterface $approvalQuery,
     ) {
         parent::__construct($request);
     }
@@ -207,7 +206,6 @@ class PagesController extends AppController
         $dashboardService = new DashboardService();
         // 承認機能が有効なときだけ承認待ち件数を集計する（オフ運用では件数クエリ自体を省く）。
         $approvalEnabled = (bool)Configure::read('Features.approval');
-        $approvalService = $approvalEnabled ? new ApprovalService($this->roomQuery) : null;
         $dateFrom = Date::today()->startOfWeek()->format('Y-m-d');
         $dateTo = Date::today()->endOfWeek()->format('Y-m-d');
 
@@ -229,11 +227,11 @@ class PagesController extends AppController
                 'isAdmin' => $isAdmin,
                 'isBlockLeader' => $isBlockLeader,
             ];
-            $dashboard['approvalCounts'] = $approvalService !== null
+            $dashboard['approvalCounts'] = $approvalEnabled
                 ? [
-                    'blockLeader' => $approvalService->countBlockLeaderPending($userId, $dateFrom, $dateTo),
+                    'blockLeader' => $this->approvalQuery->countBlockLeaderPending($userId, $dateFrom, $dateTo),
                     'admin' => $isAdmin
-                        ? $approvalService->countAdminPending($dateFrom, $dateTo)
+                        ? $this->approvalQuery->countAdminPending($dateFrom, $dateTo)
                         : 0,
                 ]
                 : ['blockLeader' => 0, 'admin' => 0];
