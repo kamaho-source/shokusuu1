@@ -217,8 +217,11 @@ class ReservationReportController extends ReservationBaseController
         try {
             $output = $reportNoMealUseCase->execute(new ReportNoMealInput($userId, $userName));
         } catch (DomainException $e) {
+            $this->recordReservationAudit('reservation_no_meal_report', null, [], false, $e->getMessage());
+
             return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         }
+        $this->recordReservationAudit('reservation_no_meal_report', null, [], true);
 
         return $this->apiResponseService->success($this->response, [], $output->message);
     }

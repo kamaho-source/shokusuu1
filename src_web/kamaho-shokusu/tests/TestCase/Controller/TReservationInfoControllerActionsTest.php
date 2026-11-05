@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Controller;
 
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
+use App\Test\TestCase\Support\AuditRowAssertions;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -15,6 +16,7 @@ use Cake\TestSuite\TestCase;
  */
 class TReservationInfoControllerActionsTest extends TestCase
 {
+    use AuditRowAssertions;
     use IntegrationTestTrait;
 
     protected array $fixtures = [
@@ -570,6 +572,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertResponseOk();
         $this->assertSame([], $this->json()['data']['skipped']);
         $this->assertNotNull($this->row(1, $date, 1));
+        $this->assertAudited('reservation_change_edit', 1, 2);
     }
 
     public function testChangeEdit_getHtmlRendersEditScreen(): void
@@ -646,6 +649,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         // date は data の後ろ（キーの順も以前のまま）
         $this->assertSame(['ok', 'status', 'message', 'data', 'date'], array_keys($body));
         $this->assertNotNull($this->row(2, $date, 1));
+        $this->assertAudited('reservation_change_edit', 1, 2);
     }
 
     public function testChangeEdit_postIndividualWithoutDateReturns422(): void
@@ -676,6 +680,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertTrue($this->_response->getStatusCode() >= 400);
         $this->assertFalse($this->json()['ok']);
         $this->assertNull($this->row(2, $date, 1));
+        $this->assertAudited('reservation_change_edit', 0, 2);
     }
 
     public function testChangeEdit_postIndividualDomainErrorRedirectsWhenNotJson(): void

@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Controller;
 
 use Cake\Cache\Cache;
 use Cake\Datasource\ConnectionManager;
+use App\Test\TestCase\Support\AuditRowAssertions;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -13,6 +14,7 @@ use Cake\TestSuite\TestCase;
  */
 class ReservationReportControllerTest extends TestCase
 {
+    use AuditRowAssertions;
     use IntegrationTestTrait;
 
     protected array $fixtures = [
@@ -263,6 +265,7 @@ class ReservationReportControllerTest extends TestCase
             ->where(['i_id_user' => 3, 'i_reservation_type' => 1, 'd_reservation_date' => $today])->firstOrFail();
         // 当日は直前期間なので、i_change_flag だけを 0 にし、当初の予定（eat_flag）は残す
         $this->assertSame([1, 0], [(int)$row->eat_flag, (int)$row->i_change_flag]);
+        $this->assertAudited('reservation_no_meal_report', 1, 3);
     }
 
     public function testReportNoMeal_userWithoutRoom_returns400(): void
@@ -272,6 +275,7 @@ class ReservationReportControllerTest extends TestCase
         $this->post('/TReservationInfo/reportNoMeal');
         $this->assertResponseCode(400);
         $this->assertStringContainsString('所属部屋', $this->json()['message']);
+        $this->assertAudited('reservation_no_meal_report', 0, 3);
     }
 
     public function testReportNoMeal_get_notAllowed(): void

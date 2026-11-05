@@ -237,6 +237,7 @@ class ReservationChangeEditController extends ReservationBaseController
                 // 直前編集は14日以内を扱う。過ぎた日（実績）は書き換えさせない（予約の新規登録 add とは基準が違うので、ここで決める）
                 dateError: $this->datePolicy->isPastDate((string)$postDate) ? '過去日の予約は変更できません。' : null,
             ))->toArray($this->reservationIndexUrl());
+            $this->recordReservationAudit('reservation_change_edit', (string)$postDate, ['date' => (string)$postDate, 'type' => 'individual'], true);
             $message = '直前予約（個人）を更新しました。';
             if ($wantsJson) {
                 // 個人の保存だけ、data の後ろに date を付ける（以前のまま）
@@ -246,6 +247,7 @@ class ReservationChangeEditController extends ReservationBaseController
             return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         } catch (\App\Domain\Exception\DomainException $e) {
             $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'warning');
+            $this->recordReservationAudit('reservation_change_edit', (string)$postDate, ['date' => (string)$postDate, 'type' => 'individual'], false, $e->getMessage());
             if ($wantsJson) {
                 return $this->changeEditJson($e->getStatusCode(), 'error', $e->getMessage());
             }
@@ -253,6 +255,7 @@ class ReservationChangeEditController extends ReservationBaseController
             return $this->redirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         } catch (\Throwable $e) {
             $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'error');
+            $this->recordReservationAudit('reservation_change_edit', (string)$postDate, ['date' => (string)$postDate, 'type' => 'individual'], false, '予期しないエラーで保存できませんでした');
             if ($wantsJson) {
                 return $this->changeEditJson(500, 'error', '予約の更新中にエラーが発生しました。');
             }
@@ -280,6 +283,9 @@ class ReservationChangeEditController extends ReservationBaseController
                 loginAdmin: (int)($login?->get('i_admin') ?? 0),
                 loginLevel: (int)($login?->get('i_user_level') ?? -1),
             ));
+            $this->recordReservationAudit('reservation_change_edit', 'room:' . $context->roomId, [
+                'date' => $date, 'type' => 'room', 'updated_count' => count($output->updated), 'created_count' => count($output->created), 'skipped_count' => count($output->skipped),
+            ], true);
             $message = '直前予約を更新しました。';
             if ($wantsJson) {
                 return $this->changeEditJson(200, 'success', $message, ['updated' => $output->updated, 'created' => $output->created, 'skipped' => $output->skipped]);
@@ -289,12 +295,14 @@ class ReservationChangeEditController extends ReservationBaseController
         } catch (\App\Domain\Exception\DomainException $e) {
             [$httpStatus, $status, $message] = self::changeEditFailure($e);
             $this->log('直前編集 変更拒否: ' . $e->getMessage(), $httpStatus >= 500 ? 'error' : 'warning');
+            $this->recordReservationAudit('reservation_change_edit', 'room:' . $context->roomId, ['date' => $date, 'type' => 'room'], false, $message);
             if ($wantsJson) {
                 return $this->changeEditJson($httpStatus, $status, $message, data: []);
             }
             $this->Flash->error(__($message));
         } catch (\Throwable $e) {
             $this->log('直前編集エラー: ' . $e->getMessage(), 'error');
+            $this->recordReservationAudit('reservation_change_edit', 'room:' . $context->roomId, ['date' => $date, 'type' => 'room'], false, '予期しないエラーで保存できませんでした');
             if ($wantsJson) {
                 return $this->changeEditJson(500, 'error', '直前予約の更新中にエラーが発生しました。', data: []);
             }

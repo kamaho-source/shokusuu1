@@ -59,21 +59,27 @@ class ReservationCopyController extends ReservationBaseController
         try {
             $output = $copyReservations->execute($this->copyInput($data));
             $msg = $output->mode === CopyReservationsInput::WEEK ? '週コピーが完了しました。' : '月コピーが完了しました。';
+            $this->recordReservationAudit('reservation_copy', null, $output->toArray(), true);
 
             return $this->apiResponseService->success($this->response, $output->toArray(), $msg);
         } catch (InvalidInputException | UnauthorizedException $e) {
+            $this->recordReservationAudit('reservation_copy', null, ['mode' => $data['mode'] ?? null], false, $e->getMessage());
+
             return $this->apiResponseService->error($this->response, $e->getMessage(), $e->getStatusCode());
         } catch (ConflictException $e) {
+            $this->recordReservationAudit('reservation_copy', null, ['mode' => $data['mode'] ?? null], false, $e->getMessage());
             // 二重予約・昼食と弁当の同時予約になる行があると、コピー全体を取り消す。理由（誰の・いつの・どの食事か）を返す
             return $this->apiResponseService->error($this->response, 'コピーできませんでした。' . $e->getMessage(), 409);
         } catch (ReservationValidationException $e) {
             // コピー先の検証ルール（昼食と弁当の同時予約など）に当たった。昼食と弁当なら理由を返す
             Log::error('Reservation copy rejected: ' . $e->getMessage());
+            $this->recordReservationAudit('reservation_copy', null, ['mode' => $data['mode'] ?? null], false, $e->lunchBentoMessage ?? 'コピー先の検証ルールに当たり、コピーできませんでした');
             return $e->lunchBentoMessage !== null
                 ? $this->apiResponseService->error($this->response, 'コピーできませんでした。' . $e->lunchBentoMessage, 409)
                 : $this->apiResponseService->error($this->response, 'コピー処理中にエラーが発生しました。', 500);
         } catch (\Throwable $e) {
             Log::error(sprintf('Reservation copy failed: %s in %s:%d', $e->getMessage(), $e->getFile(), $e->getLine()));
+            $this->recordReservationAudit('reservation_copy', null, ['mode' => $data['mode'] ?? null], false, '予期しないエラーでコピーできませんでした');
             return $this->apiResponseService->error($this->response, 'コピー処理中にエラーが発生しました。', 500);
         }
     }

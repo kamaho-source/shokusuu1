@@ -216,8 +216,11 @@ class ReservationBulkController extends ReservationBaseController
             isBlockLeader: UserRole::isBlockLeader((int)($loginUser?->get('i_admin') ?? 0)),
         ));
 
+        $auditTarget = 'room:' . (int)$roomId;
         if (!$result->ok) {
             $conflictDate = $result->conflictDate;
+            $this->recordReservationAudit('reservation_bulk_change_edit', $auditTarget, ['conflict_date' => $conflictDate], false, $result->message ?? '直前編集の保存に失敗しました');
+
             return $this->apiResponseService->error(
                 $this->response,
                 $result->message ?? '直前編集の保存中にエラーが発生しました。',
@@ -225,6 +228,10 @@ class ReservationBulkController extends ReservationBaseController
                 ['conflict_date' => $conflictDate]
             );
         }
+
+        $this->recordReservationAudit('reservation_bulk_change_edit', $auditTarget, [
+            'updated_count' => $result->updated, 'created_count' => $result->created, 'skipped_count' => count($result->skipped),
+        ], true);
 
         return $this->apiResponseService->success(
             $this->response,
@@ -265,7 +272,10 @@ class ReservationBulkController extends ReservationBaseController
                 isBlockLeader: UserRole::isBlockLeader((int)($this->request->getAttribute('identity')->get('i_admin') ?? 0)),
             ));
 
+            $auditDetail = ['date_count' => is_array($data['dates'] ?? null) ? count($data['dates']) : 0, 'conflict_date' => $result->conflictDate];
             if (!$result->ok) {
+                $this->recordReservationAudit('reservation_bulk_add', null, $auditDetail, false, $result->message);
+
                 return $this->apiResponseService->error(
                     $this->response,
                     $result->message,
@@ -273,6 +283,7 @@ class ReservationBulkController extends ReservationBaseController
                     ['conflict_date' => $result->conflictDate]
                 );
             }
+            $this->recordReservationAudit('reservation_bulk_add', null, $auditDetail, true);
 
             return $this->apiResponseService->success(
                 $this->response,
@@ -281,6 +292,7 @@ class ReservationBulkController extends ReservationBaseController
             );
         } catch (\Throwable $e) {
             $this->log('Error occurred: ' . $e->getMessage(), 'error');
+            $this->recordReservationAudit('reservation_bulk_add', null, [], false, '予期しないエラーで保存できませんでした');
             return $this->apiResponseService->error(
                 $this->response,
                 '一括予約の登録中にエラーが発生しました。',

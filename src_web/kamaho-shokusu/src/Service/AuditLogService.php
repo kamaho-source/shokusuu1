@@ -82,6 +82,8 @@ class AuditLogService
         'reservation_copy'             => '予約コピー',
         'reservation_bulk_add'         => '予約一括登録',
         'reservation_change_edit'      => '予約の直前変更',
+        'reservation_bulk_change_edit' => '予約の直前一括変更',
+        'reservation_no_meal_report'   => '欠食報告',
         'direct_register_meals'        => 'カレンダーからの予約登録',
         'change_meal_room'             => '予約の部屋変更',
         'actual_meal_save'             => '実食入力',

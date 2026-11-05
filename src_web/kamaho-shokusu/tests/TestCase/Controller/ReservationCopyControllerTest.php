@@ -6,6 +6,7 @@ namespace App\Test\TestCase\Controller;
 use Cake\Datasource\ConnectionManager;
 use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\I18n\Date;
+use App\Test\TestCase\Support\AuditRowAssertions;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -14,6 +15,7 @@ use Cake\TestSuite\TestCase;
  */
 class ReservationCopyControllerTest extends TestCase
 {
+    use AuditRowAssertions;
     use IntegrationTestTrait;
 
     protected array $fixtures = [
@@ -93,6 +95,7 @@ class ReservationCopyControllerTest extends TestCase
         $this->assertSame('週コピーが完了しました。', $body['message']);
         $this->assertSame(['mode' => 'week', 'total' => 1, 'copied' => 1, 'skipped' => 0, 'invalid_date' => 0, 'affected' => 1], $body['data']);
         $this->assertSame(1, $this->countOn($dst->addDays(2)));
+        $this->assertAudited('reservation_copy', 1, 1);
     }
 
     public function testCopy_weekSnapsGivenDatesToMonday(): void

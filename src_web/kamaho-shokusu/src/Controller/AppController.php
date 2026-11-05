@@ -19,6 +19,7 @@ namespace App\Controller;
 use App\Application\Port\AuditActor;
 use App\Domain\Service\DatePeriodRule;
 use App\Domain\ValueObject\AccountStatus;
+use App\Service\AuditLogService;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -151,6 +152,20 @@ class AppController extends Controller
             $identity ? (int)$identity->get('i_id_user') : 0,
             (string)($identity?->get('c_login_account') ?? ''),
             $this->getClientIp(),
+        );
+    }
+
+    /**
+     * 予約の書き込みの監査ログを1件残す（成功・失敗のどちらでも）。
+     *
+     * @param array<string, mixed> $detail 日付・部屋・件数など。利用者名などの個人情報は入れない
+     */
+    protected function recordReservationAudit(string $action, ?string $targetId, array $detail, bool $succeeded, ?string $failureReason = null): void
+    {
+        $actor = $this->auditActor();
+        AuditLogService::record(
+            'reservation', $action, $actor->name, $actor->id, 't_reservation_info', $targetId, $detail,
+            $actor->ipAddress !== '' ? $actor->ipAddress : null, $succeeded ? 1 : 0, $actor->loginId, $failureReason
         );
     }
 
