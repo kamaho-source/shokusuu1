@@ -237,7 +237,8 @@ final class GroupBulkAddPlanner
         $rowsToActivate  = [];
 
         $users   = isset($input->data['users']) && is_array($input->data['users']) ? $input->data['users'] : [];
-        $userIds = array_keys($users);
+        // 利用者キーは day_users と同じく int にそろえる（数字でないキーをそのまま DB の検索に渡すと 500 になる。#989）
+        $userIds = array_values(array_unique(array_map('intval', array_keys($users))));
         $selectedDates = [];
         foreach ($dates as $date => $checkedDate) {
             if ($checkedDate) {
@@ -313,7 +314,7 @@ final class GroupBulkAddPlanner
     /**
      * 利用者・日付の既存予約を、有効な行（日付・利用者・食事ごと）と部屋ごとの行の2種のマップにする。
      *
-     * @param array<array-key, mixed> $dates
+     * @param list<array-key> $dates 検証済みの日付（Y-m-d）
      * @param array<array-key, mixed> $userIds
      * @return array{active: array<string, array<int, array<int, MealReservation>>>, byRoom: array<string, array<int, array<int, array<int, MealReservation>>>>}
      */
@@ -321,7 +322,7 @@ final class GroupBulkAddPlanner
     {
         $active = [];
         $byRoom = [];
-        foreach ($this->reservations->findByUsersAndDates($dates, $userIds, MealType::values()) as $row) {
+        foreach ($this->reservations->findByUsersAndDates(array_map('strval', $dates), $userIds, MealType::values()) as $row) {
             $byRoom[$row->date][$row->userId][$row->mealType][$row->roomId] = $row;
             if ($row->isEffective($today)) {
                 $active[$row->date][$row->userId][$row->mealType] = $row;

@@ -16,6 +16,9 @@ interface UserQueryInterface
     /** 利用者が居るか（削除済みも含む）。 */
     public function exists(int $userId): bool;
 
+    /** このログインIDの利用者が居るか（削除済みも含む。登録時の重複チェック＝CreateUserUseCase と同じ判定）。 */
+    public function loginAccountExists(string $loginAccount): bool;
+
     /** 削除されていない利用者が居るか。 */
     public function isActive(int $userId): bool;
 

@@ -1,0 +1,3103 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Call to an undefined method Cake\\Datasource\\RepositoryInterface\:\:getConnection\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Application.php
+
+		-
+			message: '#^Class App\\Application extends generic class Cake\\Http\\BaseApplication but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Application.php
+
+		-
+			message: '#^Parameter \#1 \$reservations of class App\\Infrastructure\\Repository\\CakeReservationRepository constructor expects App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable, Cake\\Datasource\\RepositoryInterface given\.$#'
+			identifier: argument.type
+			count: 4
+			path: src/Application.php
+
+		-
+			message: '#^Parameter \#1 \$reservations of class App\\Infrastructure\\ReservationUseCases constructor expects App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable, Cake\\Datasource\\RepositoryInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Application.php
+
+		-
+			message: '#^Parameter \#1 \$users of class App\\Infrastructure\\Repository\\CakeUserAccountRepository constructor expects Cake\\ORM\\Table, Cake\\Datasource\\RepositoryInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Application.php
+
+		-
+			message: '#^Parameter \#2 \$users of class App\\Infrastructure\\ReservationUseCases constructor expects Cake\\ORM\\Table, Cake\\Datasource\\RepositoryInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Application.php
+
+		-
+			message: '#^Parameter \#2 \$userIds of method App\\Domain\\Repository\\ReservationRepositoryInterface\:\:findByUsersAndDates\(\) expects list\<int\>, array\<mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Application/UseCase/BulkAddReservations/GroupBulkAddPlanner.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>admin" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Application/UseCase/RegisterIndividualReservation/RegisterIndividualReservationUseCase.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>userLevel" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Application/UseCase/RegisterIndividualReservation/RegisterIndividualReservationUseCase.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\AiAssistantController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Controller/AiAssistantController.php
+
+		-
+			message: '#^Parameter \#1 \$request of method Cake\\Controller\\Controller\:\:__construct\(\) expects Cake\\Http\\ServerRequest, Cake\\Http\\ServerRequest\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AiAssistantController.php
+
+		-
+			message: '#^Parameter \#1 \$string of method Cake\\Http\\Response\:\:withStringBody\(\) expects string\|null, string\|false given\.$#'
+			identifier: argument.type
+			count: 3
+			path: src/Controller/AiAssistantController.php
+
+		-
+			message: '#^Parameter \#2 \$apiKey of method App\\Controller\\AiAssistantController\:\:callGroq\(\) expects string, float\|int\<min, \-1\>\|int\<1, max\>\|string\|true given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AiAssistantController.php
+
+		-
+			message: '#^Parameter \#2 \$apiKey of method App\\Controller\\AiAssistantController\:\:streamFromGroq\(\) expects string, float\|int\<min, \-1\>\|int\<1, max\>\|string\|true given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AiAssistantController.php
+
+		-
+			message: '#^Parameter \#2 \$options of function curl_setopt_array expects array\{10002\: non\-empty\-string, 47\: bool, 10015\: array\|string, 10023\: array\<int, string\>, 19913\: bool, 78\: int, 13\: int\}, array\{10002\: ''https\://api\.groq…'', 47\: true, 10015\: non\-empty\-string\|false, 10023\: array\{non\-falsy\-string, ''Content\-Type\:…''\}, 19913\: true, 78\: 10, 13\: 60\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AiAssistantController.php
+
+		-
+			message: '#^Parameter \#2 \$options of function curl_setopt_array expects array\{10002\: non\-empty\-string, 47\: bool, 10015\: array\|string, 10023\: array\<int, string\>, 19913\: bool, 78\: int, 20011\: \(callable\(CurlHandle, string\)\: int\)\|null, 13\: int\}, array\{10002\: ''https\://api\.groq…'', 47\: true, 10015\: non\-empty\-string\|false, 10023\: array\{non\-falsy\-string, ''Content\-Type\:…''\}, 19913\: false, 78\: 10, 20011\: Closure\(mixed, string\)\: int\<0, max\>, 13\: 60\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AiAssistantController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\AppController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Controller/AppController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\AppController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AppController.php
+
+		-
+			message: '#^Call to an undefined method Authentication\\IdentityInterface\:\:get\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Controller/AppController.php
+
+		-
+			message: '#^Method App\\Controller\\AppController\:\:beforeFilter\(\) with return type void returns Cake\\Http\\Response but should not return anything\.$#'
+			identifier: return.void
+			count: 1
+			path: src/Controller/AppController.php
+
+		-
+			message: '#^Method App\\Controller\\AppController\:\:beforeFilter\(\) with return type void returns Cake\\Http\\Response\|null but should not return anything\.$#'
+			identifier: return.void
+			count: 1
+			path: src/Controller/AppController.php
+
+		-
+			message: '#^Method App\\Controller\\AppController\:\:isSafeRedirect\(\) has parameter \$url with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/AppController.php
+
+		-
+			message: '#^Method App\\Controller\\AppController\:\:redirect\(\) has parameter \$url with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/AppController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ApprovalController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 8
+			path: src/Controller/ApprovalController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ApprovalController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 9
+			path: src/Controller/ApprovalController.php
+
+		-
+			message: '#^Method App\\Controller\\ApprovalController\:\:beforeFilter\(\) has parameter \$event with generic interface Cake\\Event\\EventInterface but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Controller/ApprovalController.php
+
+		-
+			message: '#^Method App\\Controller\\ApprovalController\:\:index\(\) should return Cake\\Http\\Response but returns Cake\\Http\\Response\|null\.$#'
+			identifier: return.type
+			count: 3
+			path: src/Controller/ApprovalController.php
+
+		-
+			message: '#^Method App\\Controller\\ApprovalController\:\:jsonForbidden\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: src/Controller/ApprovalController.php
+
+		-
+			message: '#^Method App\\Controller\\ApprovalController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/ApprovalController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\AuditLogController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_action\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_actor_login_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_detail\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_ip_address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_target_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_target_table\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_actor_user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_audit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_result\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Method App\\Controller\\AuditLogController\:\:buildConditions\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Method App\\Controller\\AuditLogController\:\:export\(\) should return Cake\\Http\\Response but returns Cake\\Http\\Response\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Parameter \#1 \$stream of function fclose expects resource, resource\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Parameter \#1 \$stream of function fputcsv expects resource, resource\|false given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Parameter \#1 \$stream of function fwrite expects resource, resource\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Parameter \#1 \$stream of function rewind expects resource, resource\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Parameter \#1 \$stream of function stream_get_contents expects resource, resource\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/AuditLogController.php
+
+		-
+			message: '#^Method App\\Controller\\Component\\JsonResponseComponent\:\:error\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/Component/JsonResponseComponent.php
+
+		-
+			message: '#^Method App\\Controller\\Component\\JsonResponseComponent\:\:error\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/Component/JsonResponseComponent.php
+
+		-
+			message: '#^Method App\\Controller\\Component\\JsonResponseComponent\:\:success\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/Component/JsonResponseComponent.php
+
+		-
+			message: '#^Method App\\Controller\\Component\\JsonResponseComponent\:\:success\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/Component/JsonResponseComponent.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ContactsController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/ContactsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ContactsController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Controller/ContactsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\FeatureUsageSummaryController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/FeatureUsageSummaryController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\MMealPriceInfoController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Controller/MMealPriceInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MMealPriceInfoController\:\:delete\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Controller/MMealPriceInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MMealPriceInfoController\:\:delete\(\) should return Cake\\Http\\Response but returns Cake\\Http\\Response\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Controller/MMealPriceInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MMealPriceInfoController\:\:deny\(\) has parameter \$redirect with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/MMealPriceInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MMealPriceInfoController\:\:edit\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Controller/MMealPriceInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MMealPriceInfoController\:\:view\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Controller/MMealPriceInfoController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\MNoticeController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/MNoticeController.php
+
+		-
+			message: '#^Method App\\Controller\\MNoticeController\:\:delete\(\) should return Cake\\Http\\Response but returns Cake\\Http\\Response\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Controller/MNoticeController.php
+
+		-
+			message: '#^Method App\\Controller\\MNoticeController\:\:denyUnlessAdmin\(\) has parameter \$redirect with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/MNoticeController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\MRoomInfoController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 10
+			path: src/Controller/MRoomInfoController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\MRoomTransferScheduleController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Controller/MRoomTransferScheduleController.php
+
+		-
+			message: '#^Method `redirect\(\)` must be used to prevent unreachable code\. Use `return \$this\-\>redirect\(\)` or assign it to a variable\.$#'
+			identifier: cake.controller.redirectMustBeUsed
+			count: 5
+			path: src/Controller/MRoomTransferScheduleController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\MUserInfoController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\MUserInfoController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 24
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Access to an undefined property App\\Infrastructure\\Persistence\\Entity\\MUserGroup\:\:\$i_left_by_deletion\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:add\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:addUserRooms\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:adminChangePassword\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:delete\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:delete\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:edit\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:edit\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:import\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:importForm\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:importJson\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:login\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:logout\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:restore\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:restore\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:updateAdminStatus\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:updateReportAccess\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:updateSystemAdminStatus\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:updateUserLevel\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:userIdParam\(\) has parameter \$value with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:view\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\MUserInfoController\:\:view\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Property App\\Controller\\MUserInfoController\:\:\$MRoomInfo has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Property App\\Controller\\MUserInfoController\:\:\$MUserInfo has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: src/Controller/MUserInfoController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\NotificationsController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Controller/NotificationsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\NotificationsController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Controller/NotificationsController.php
+
+		-
+			message: '#^Method App\\Controller\\NotificationsController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/NotificationsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\PagesController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/PagesController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\PagesController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/PagesController.php
+
+		-
+			message: '#^Method App\\Controller\\PagesController\:\:beforeFilter\(\) has parameter \$event with generic interface Cake\\Event\\EventInterface but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Controller/PagesController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ReservationActualMealController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Controller/ReservationActualMealController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ReservationActualMealController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/ReservationActualMealController.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_reject_reason\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/ReservationActualMealController.php
+
+		-
+			message: '#^Method App\\Controller\\ReservationActualMealController\:\:beforeFilter\(\) has parameter \$event with generic interface Cake\\Event\\EventInterface but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Controller/ReservationActualMealController.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int\<min, \-1\>\|int\<1, max\> and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: src/Controller/ReservationActualMealController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>c_user_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Controller/ReservationActualMealController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ReservationBaseController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/ReservationBaseController.php
+
+		-
+			message: '#^Property App\\Controller\\ReservationBaseController\:\:\$MRoomInfo \(App\\Infrastructure\\Persistence\\Table\\MRoomInfoTable\) does not accept Cake\\ORM\\Table\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Controller/ReservationBaseController.php
+
+		-
+			message: '#^Property App\\Controller\\ReservationBaseController\:\:\$MUserGroup \(App\\Infrastructure\\Persistence\\Table\\MUserGroupTable\) does not accept Cake\\ORM\\Table\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Controller/ReservationBaseController.php
+
+		-
+			message: '#^Property App\\Controller\\ReservationBaseController\:\:\$MUserInfo \(App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\) does not accept Cake\\ORM\\Table\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Controller/ReservationBaseController.php
+
+		-
+			message: '#^Property App\\Controller\\ReservationBaseController\:\:\$TIndividualReservationInfo \(App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable\) does not accept Cake\\ORM\\Table\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Controller/ReservationBaseController.php
+
+		-
+			message: '#^Property App\\Controller\\ReservationBaseController\:\:\$TReservationInfo \(App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable\) does not accept Cake\\ORM\\Table\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Controller/ReservationBaseController.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type mixed\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 4
+			path: src/Controller/ReservationBulkController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ReservationDirectRegisterController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Controller/ReservationDirectRegisterController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ReservationHistoryController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/ReservationHistoryController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ReservationHistoryController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/ReservationHistoryController.php
+
+		-
+			message: '#^Method App\\Controller\\ReservationReportController\:\:invalidRangeResponse\(\) has parameter \$fromDate with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/ReservationReportController.php
+
+		-
+			message: '#^Method App\\Controller\\ReservationReportController\:\:invalidRangeResponse\(\) has parameter \$toDate with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/ReservationReportController.php
+
+		-
+			message: '#^Parameter \#2 \$timestamp of function date expects int\|null, int\|false given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Controller/ReservationReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\ReservationToggleController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/ReservationToggleController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\RoomUsageController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Controller/RoomUsageController.php
+
+		-
+			message: '#^Method App\\Controller\\RoomUsageController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/RoomUsageController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\StatsAiController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Controller/StatsAiController.php
+
+		-
+			message: '#^Parameter \#1 \$messages of method App\\Controller\\StatsAiController\:\:sanitizeMessages\(\) expects list\<array\<string, mixed\>\>, non\-empty\-array\<mixed, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/StatsAiController.php
+
+		-
+			message: '#^Parameter \#1 \$request of method Cake\\Controller\\Controller\:\:__construct\(\) expects Cake\\Http\\ServerRequest, Cake\\Http\\ServerRequest\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/StatsAiController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\SystemReportController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 6
+			path: src/Controller/SystemReportController.php
+
+		-
+			message: '#^Method App\\Controller\\SystemReportController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/SystemReportController.php
+
+		-
+			message: '#^Parameter \#1 \$excludeUserIds of method App\\Application\\Query\\SystemReportQueryInterface\:\:dailyChildCounts\(\) expects list\<int\>, array\<int\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/SystemReportController.php
+
+		-
+			message: '#^Parameter \#1 \$excludeUserIds of method App\\Application\\Query\\SystemReportQueryInterface\:\:roomStats\(\) expects list\<int\>, array\<int\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/SystemReportController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\TReservationInfoController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\TReservationInfoController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\TReservationInfoController\:\:add\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\TReservationInfoController\:\:formatDuplicateMessage\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\TReservationInfoController\:\:jsonResponse\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Method App\\Controller\\TReservationInfoController\:\:validateReservationDate\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^PHPDoc tag @return with type Cake\\Http\\Response\|void\|null is not subtype of native type Cake\\Http\\Response\|null\.$#'
+			identifier: return.phpDocType
+			count: 4
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Parameter \#1 \$roomIds of method App\\Application\\Query\\CalendarQueryInterface\:\:getMealCountsByDate\(\) expects list\<int\>\|null, array\<int\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Parameter \#1 \$singular of function __ expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Parameter \#3 \$roomIds of method App\\Application\\Query\\CalendarQueryInterface\:\:getTotalCountsByDate\(\) expects list\<int\>\|null, array\<int\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Controller/TReservationInfoController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\WebhooksController\:\:\$Authentication\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/WebhooksController.php
+
+		-
+			message: '#^Access to an undefined property App\\Controller\\WebhooksController\:\:\$Authorization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Controller/WebhooksController.php
+
+		-
+			message: '#^Parameter \#2 \$options of function curl_setopt_array expects array\{10002\: non\-empty\-string, 47\: bool, 10015\: array\|string, 10023\: array\<int, string\>, 19913\: bool, 78\: int, 13\: int, 20011\: \(callable\(CurlHandle, string\)\: int\)\|null\}, array\{10002\: ''https\://api\.groq…'', 47\: true, 10015\: non\-empty\-string\|false, 10023\: array\{non\-falsy\-string, ''Content\-Type\:…''\}, 19913\: false, 78\: 10, 13\: 60, 20011\: Closure\(mixed, string\)\: int\<0, max\>\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/AI/GroqClient.php
+
+		-
+			message: '#^Parameter \#1 \$date of method App\\Infrastructure\\AI\\SystemPromptProvider\:\:formatDate\(\) expects Cake\\I18n\\Date, Cake\\Chronos\\ChronosDate given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Infrastructure/AI/SystemPromptProvider.php
+
+		-
+			message: '#^Parameter \#1 \$url of method Cake\\Http\\Client\:\:post\(\) expects string, bool\|float\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Notification/CakeContactNotifier.php
+
+		-
+			message: '#^Call to an undefined method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:find\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Call to an undefined method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:setDisplayField\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Call to an undefined method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:setPrimaryKey\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Call to an undefined method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:setTable\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Call to an undefined static method Cake\\ORM\\Entity\:\:initialize\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:getUserReservations\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:getUserReservations\(\) has parameter \$date with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:getUserReservations\(\) has parameter \$userId with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:initialize\(\) has parameter \$config with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TIndividualReservationInfo.php
+
+		-
+			message: '#^Call to an undefined method App\\Infrastructure\\Persistence\\Entity\\TReservationInfo\:\:find\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TReservationInfo\:\:getReservationSummary\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TReservationInfo\:\:getReservationSummary\(\) has parameter \$date with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TReservationInfo\:\:getReservationSummary\(\) has parameter \$mealType with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TReservationInfo.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Entity\\TReservationInfo\:\:getReservationSummary\(\) has parameter \$roomId with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Infrastructure/Persistence/Entity/TReservationInfo.php
+
+		-
+			message: '#^Offset 1 on array\{non\-falsy\-string, '''', numeric\-string\}\|array\{non\-falsy\-string, numeric\-string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: src/Infrastructure/Persistence/SystemError.php
+
+		-
+			message: '#^Offset 2 might not exist on array\{non\-falsy\-string, '''', numeric\-string\}\|array\{non\-falsy\-string, numeric\-string\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/SystemError.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method deleteMany\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method deleteMany\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method deleteManyOrFail\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method deleteManyOrFail\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method findOrCreate\(\) parameter \#3 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method get\(\) parameter \#2 \$finder with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method newEntities\(\) parameter \#1 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method newEntities\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method newEntity\(\) parameter \#1 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method newEntity\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method patchEntities\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method patchEntities\(\) parameter \#2 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method patchEntities\(\) parameter \#3 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method patchEntity\(\) parameter \#2 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method patchEntity\(\) parameter \#3 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method save\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method saveMany\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method saveMany\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method saveManyOrFail\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method saveManyOrFail\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\MMealPriceInfoTable has PHPDoc tag @method for method saveOrFail\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MMealPriceInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MNoticeTable\:\:findActive\(\) has parameter \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MNoticeTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MNoticeTable\:\:findActive\(\) has parameter \$query with generic class Cake\\ORM\\Query\\SelectQuery but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MNoticeTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MNoticeTable\:\:findActive\(\) return type with generic class Cake\\ORM\\Query\\SelectQuery does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MNoticeTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MRoomInfoTable\:\:hasMany could not find the class for "MUserGroup"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MRoomInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MRoomInfoTable\:\:hasMany could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MRoomInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MRoomTransferScheduleTable\:\:belongsTo could not find the class for "MRoomInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 2
+			path: src/Infrastructure/Persistence/Table/MRoomTransferScheduleTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MRoomTransferScheduleTable\:\:belongsTo could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MRoomTransferScheduleTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MUserGroupTable\:\:belongsTo could not find the class for "MRoomInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserGroupTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MUserGroupTable\:\:belongsTo could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserGroupTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:belongsTo could not find the class for "MRoomInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:hasMany could not find the class for "MUserGroup"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:hasMany could not find the class for "TIndividualReservationInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Call to an undefined method object\:\:isDirty\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:beforeSave\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:beforeSave\(\) has parameter \$entity with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:beforeSave\(\) has parameter \$event with generic interface Cake\\Event\\EventInterface but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:beforeSave\(\) has parameter \$options with generic class ArrayObject but does not specify its types\: TKey, TValue$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:findAuth\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:findAuth\(\) has parameter \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\MUserInfoTable\:\:findAuth\(\) has parameter \$query with generic class Cake\\ORM\\Query\\SelectQuery but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Persistence/Table/MUserInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TApprovalLogTable\:\:belongsTo could not find the class for "MRoomInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TApprovalLogTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TApprovalLogTable\:\:belongsTo could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 2
+			path: src/Infrastructure/Persistence/Table/TApprovalLogTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TAuditLogTable\:\:belongsTo could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TAuditLogTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TContactRepliesTable\:\:belongsTo could not find the class for "TContacts"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TContactRepliesTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TContactsTable\:\:hasMany could not find the class for "TContactReplies"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TContactsTable.php
+
+		-
+			message: '#^Access to an undefined property App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:\$i_version\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable\:\:\$MUserInfo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 10
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 8
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_version\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable\:\:belongsTo could not find the class for "MRoomInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable\:\:belongsTo could not find the class for "MUserGroup"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable\:\:belongsTo could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Parameter \#1 \$value of static method App\\Domain\\ValueObject\\MealType\:\:labelOf\(\) expects int, int\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Parameter \#3 \$mealType of method App\\Infrastructure\\Persistence\\Table\\TIndividualReservationInfoTable\:\:findEffectiveRoomIds\(\) expects int, int\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Property App\\Infrastructure\\Persistence\\Entity\\TIndividualReservationInfo\:\:\$d_reservation_date \(Cake\\I18n\\Date\) does not accept string\.$#'
+			identifier: assign.propertyType
+			count: 2
+			path: src/Infrastructure/Persistence/Table/TIndividualReservationInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TNotificationTable\:\:belongsTo could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TNotificationTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable\:\:belongsTo could not find the class for "MRoomInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Call to App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable\:\:belongsTo could not find the class for "MUserInfo"$#'
+			identifier: cake.addAssociation.existClass
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method deleteMany\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method deleteMany\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method deleteManyOrFail\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method deleteManyOrFail\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method findOrCreate\(\) parameter \#3 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method get\(\) parameter \#2 \$finder with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method newEntities\(\) parameter \#1 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method newEntities\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method newEntity\(\) parameter \#1 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method newEntity\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method patchEntities\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method patchEntities\(\) parameter \#2 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method patchEntities\(\) parameter \#3 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method patchEntity\(\) parameter \#2 \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method patchEntity\(\) parameter \#3 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method save\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method saveMany\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method saveMany\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method saveManyOrFail\(\) parameter \#1 \$entities with no value type specified in iterable type iterable\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method saveManyOrFail\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Class App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable has PHPDoc tag @method for method saveOrFail\(\) parameter \#2 \$options with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Persistence\\Table\\TReservationInfoTable\:\:getTotalMealsByDate\(\) return type with generic class Cake\\ORM\\Query\\SelectQuery does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Persistence/Table/TReservationInfoTable.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeCalendarQuery\:\:getRoomNames\(\) should return array\<int, string\> but returns array\<int\|string, string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeCalendarQuery\:\:getRoomsForUser\(\) should return array\<int, string\> but returns array\<int\|string, string\>\.$#'
+			identifier: return.type
+			count: 3
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeCalendarQuery\:\:whereRange\(\) has parameter \$query with generic class Cake\\ORM\\Query\\SelectQuery but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Query/CakeCalendarQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_room_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Cannot access property \$c_user_name on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Cannot access property \$i_id_user on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Cannot access property \$i_user_level on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: src/Infrastructure/Query/CakeChangeEditQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeContactQuery\:\:mine\(\) should return list\<App\\Domain\\Entity\\Contact\> but returns array\<int, App\\Domain\\Entity\\Contact\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeContactQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeContactQuery\:\:page\(\) should return list\<App\\Domain\\Entity\\Contact\> but returns array\<int, App\\Domain\\Entity\\Contact\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeContactQuery.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(array\|Cake\\Datasource\\EntityInterface\)\: mixed\)\|null, Closure\(App\\Infrastructure\\Persistence\\Entity\\TContact\)\: App\\Domain\\Entity\\Contact given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/Infrastructure/Query/CakeContactQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_admin\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeDashboardQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeDayViewQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeDayViewQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeDayViewQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeDayViewQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeDayViewQuery.php
+
+		-
+			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
+			identifier: cake.entity.arrayAccess
+			count: 10
+			path: src/Infrastructure/Query/CakeMealCountGridQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_fiscal_year\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealPriceQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeMealPriceQuery\:\:all\(\) should return list\<App\\Domain\\Entity\\MealPrice\> but returns array\<int, App\\Domain\\Entity\\MealPrice\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeMealPriceQuery.php
+
+		-
+			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
+			identifier: cake.entity.arrayAccess
+			count: 20
+			path: src/Infrastructure/Query/CakeMealReportQuery.php
+
+		-
+			message: '#^Call to function method_exists\(\) with DateTimeInterface and ''format'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Infrastructure/Query/CakeMealReportQuery.php
+
+		-
+			message: '#^Cannot access property \$i_id_user on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: src/Infrastructure/Query/CakeMealReportQuery.php
+
+		-
+			message: '#^Function collection not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealReportQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeMealReportQuery\:\:getDailyMealCounts\(\) should return list\<App\\Application\\Query\\Dto\\DailyMealCount\> but returns array\<App\\Application\\Query\\Dto\\DailyMealCount\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeMealReportQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeMealReportQuery\:\:getExportRank\(\) should return list\<App\\Application\\Query\\Dto\\RankMealCount\> but returns array\<App\\Application\\Query\\Dto\\RankMealCount\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeMealReportQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeMealReportQuery\:\:getMealCounts\(\) should return list\<App\\Application\\Query\\Dto\\MealTypeCount\> but returns array\<App\\Application\\Query\\Dto\\MealTypeCount\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeMealReportQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_user_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_del_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_staff\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeMealSummaryQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeNoticeQuery\:\:active\(\) should return list\<App\\Domain\\Entity\\Notice\> but returns array\<int, App\\Domain\\Entity\\Notice\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeNoticeQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeNoticeQuery\:\:all\(\) should return list\<App\\Domain\\Entity\\Notice\> but returns array\<int, App\\Domain\\Entity\\Notice\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeNoticeQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_actor_user_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_detail\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_user_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_actor_user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_admin\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_user_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
+			identifier: cake.entity.arrayAccess
+			count: 6
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>admin" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationHistoryQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$max_dt\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Call to an undefined method object\:\:format\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeReservationReadQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_room_name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Cannot access property \$eat_flag on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Cannot access property \$i_change_flag on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Cannot access property \$i_id_room on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Cannot access property \$m_user_info on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Cannot call method has\(\) on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Function collection not found\.$#'
+			identifier: function.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomMealDetailQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomQuery.php
+
+		-
+			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
+			identifier: cake.entity.arrayAccess
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomQuery.php
+
+		-
+			message: '#^Cannot call method get\(\) on array\|Cake\\Datasource\\EntityInterface\.$#'
+			identifier: method.nonObject
+			count: 9
+			path: src/Infrastructure/Query/CakeRoomQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeRoomQuery\:\:getAllActiveRooms\(\) should return array\<int, string\> but returns array\<int\|string, string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeRoomQuery\:\:getRoomsByIds\(\) should return array\<int, string\> but returns array\<int\|string, string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_create_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_effective_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$m_user_info\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$room_from\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$room_to\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeRoomTransferQuery\:\:selectableRooms\(\) should return array\<int, string\> but returns array\<int\|string, string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Query\\CakeRoomTransferQuery\:\:selectableUsers\(\) should return array\<int, string\> but returns array\<int\|string, string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomTransferQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>c_room_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>c_user_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>i_user_level" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Infrastructure/Query/CakeRoomUsageQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_result\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Offset ''adult'' might not exist on non\-empty\-array\{child\?\: int\<0, max\>, adult\?\: int\<0, max\>\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Offset ''adult''\|''child'' might not exist on non\-empty\-array\{child\?\: int\<0, max\>, adult\?\: int\<0, max\>\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Offset ''child'' might not exist on non\-empty\-array\{child\?\: int\<0, max\>, adult\?\: int\<0, max\>\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 2
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Offset ''name'' might not exist on array\{name\?\: non\-empty\-string, users\?\: array\{child\: int\<0, max\>, adult\: int\<0, max\>\}, reservations\: non\-empty\-array\{child\?\: int\<0, max\>, adult\?\: int\<0, max\>\}\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Offset ''users'' might not exist on array\{name\?\: non\-empty\-string, users\?\: array\{child\: int\<0, max\>, adult\: int\<0, max\>\}, reservations\: non\-empty\-array\{child\?\: int\<0, max\>, adult\?\: int\<0, max\>\}\}\.$#'
+			identifier: offsetAccess.notFound
+			count: 4
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>c_room_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>i_user_level" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Infrastructure/Query/CakeSystemReportQuery.php
+
+		-
+			message: '#^Dead catch \- Cake\\Database\\Exception\\QueryException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/Infrastructure/Repository/CakeContactRepository.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Repository\\CakeContactRepository\:\:withReplies\(\) return type with generic class Cake\\ORM\\Query\\SelectQuery does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Infrastructure/Repository/CakeContactRepository.php
+
+		-
+			message: '#^Offset ''external_message_id'' on array\{\} in isset\(\) does not exist\.$#'
+			identifier: isset.offset
+			count: 1
+			path: src/Infrastructure/Repository/CakeContactRepository.php
+
+		-
+			message: '#^Parameter \#1 \$row of static method App\\Infrastructure\\Repository\\CakeContactRepository\:\:toContact\(\) expects App\\Infrastructure\\Persistence\\Entity\\TContact, array\|Cake\\Datasource\\EntityInterface given\.$#'
+			identifier: argument.type
+			count: 3
+			path: src/Infrastructure/Repository/CakeContactRepository.php
+
+		-
+			message: '#^Ternary operator condition is always false\.$#'
+			identifier: ternary.alwaysFalse
+			count: 1
+			path: src/Infrastructure/Repository/CakeContactRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_create_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_approval_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_taberu_ninzuu\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_version\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$max_dt\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Dead catch \- App\\Domain\\Exception\\DomainException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 2
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Cake\\Database\\Connection\:\:transactional\(\) expects Closure, callable\(\)\: array\<mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Cake\\Datasource\\EntityInterface\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: src/Infrastructure/Repository/CakeReservationRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_room_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeRoomMembershipRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeRoomMembershipRepository.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Repository\\CakeRoomMembershipRepository\:\:activeRoomIds\(\) should return list\<int\> but returns list\<Cake\\Datasource\\EntityInterface\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Repository/CakeRoomMembershipRepository.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Repository\\CakeRoomMembershipRepository\:\:selectableRooms\(\) should return array\<int, string\> but returns array\<Cake\\Datasource\\EntityInterface\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Repository/CakeRoomMembershipRepository.php
+
+		-
+			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
+			identifier: cake.entity.arrayAccess
+			count: 1
+			path: src/Infrastructure/Repository/CakeRoomRepository.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Repository\\CakeUserAccountRepository\:\:activeUserNames\(\) should return array\<int, string\> but returns array\<int\|string, string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Repository/CakeUserAccountRepository.php
+
+		-
+			message: '#^Method App\\Infrastructure\\Repository\\CakeUserAccountRepository\:\:childUserIds\(\) should return list\<int\> but returns array\<int, int\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Infrastructure/Repository/CakeUserAccountRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_user_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Infrastructure/Repository/CakeUserRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_admin\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Repository/CakeUserRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Repository/CakeUserRepository.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_user_level\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Infrastructure/Repository/CakeUserRepository.php
+
+		-
+			message: '#^Method App\\Policy\\AiAssistantPolicy\:\:canAsk\(\) has parameter \$resource with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Policy/AiAssistantPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\AiAssistantPolicy\:\:canAskStream\(\) has parameter \$resource with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Policy/AiAssistantPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\AiAssistantPolicy\:\:canFeedback\(\) has parameter \$resource with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Policy/AiAssistantPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\AiAssistantPolicy\:\:canSuggestions\(\) has parameter \$resource with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Policy/AiAssistantPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\ApprovalPolicy\:\:getOriginalIdentity\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Policy/ApprovalPolicy.php
+
+		-
+			message: '#^Property App\\Policy\\ApprovalPolicy\:\:\$roomAccessService is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: src/Policy/ApprovalPolicy.php
+
+		-
+			message: '#^Instanceof between ArrayAccess and ArrayAccess will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Policy/AuditLogPolicy.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between array\|ArrayAccess and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Policy/AuditLogPolicy.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: src/Policy/AuditLogPolicy.php
+
+		-
+			message: '#^Instanceof between ArrayAccess and ArrayAccess will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Policy/ContactsPolicy.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: src/Policy/ContactsPolicy.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: src/Policy/ContactsPolicy.php
+
+		-
+			message: '#^Instanceof between ArrayAccess and ArrayAccess will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Policy/FeatureUsageSummaryPolicy.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between array\|ArrayAccess and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Policy/FeatureUsageSummaryPolicy.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: src/Policy/FeatureUsageSummaryPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\MMealPriceInfoPolicy\:\:getOriginalIdentity\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Policy/MMealPriceInfoPolicy.php
+
+		-
+			message: '#^Instanceof between ArrayAccess and ArrayAccess will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Policy/MNoticePolicy.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between array\|ArrayAccess and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Policy/MNoticePolicy.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: src/Policy/MNoticePolicy.php
+
+		-
+			message: '#^Cannot access offset string on array\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: src/Policy/MRoomInfoPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\MRoomInfoPolicy\:\:getOriginalIdentity\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Policy/MRoomInfoPolicy.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between array\|ArrayAccess and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Policy/MRoomTransferSchedulePolicy.php
+
+		-
+			message: '#^Access to an undefined property App\\Infrastructure\\Persistence\\Entity\\MUserInfo\:\:\$i_user_level\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Policy/MUserInfoPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\MUserInfoPolicy\:\:getOriginalIdentity\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Policy/MUserInfoPolicy.php
+
+		-
+			message: '#^Instanceof between ArrayAccess and ArrayAccess will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Policy/ReservationHistoryPolicy.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: src/Policy/ReservationHistoryPolicy.php
+
+		-
+			message: '#^Instanceof between ArrayAccess and ArrayAccess will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Policy/RoomUsagePolicy.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between array\|ArrayAccess and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Policy/RoomUsagePolicy.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: src/Policy/RoomUsagePolicy.php
+
+		-
+			message: '#^Call to an undefined method Authorization\\IdentityInterface\:\:get\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Policy/StatsAiPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\StatsAiPolicy\:\:canAskStream\(\) has parameter \$resource with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Policy/StatsAiPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\StatsAiPolicy\:\:canIndex\(\) has parameter \$resource with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: src/Policy/StatsAiPolicy.php
+
+		-
+			message: '#^Instanceof between ArrayAccess and ArrayAccess will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/Policy/SystemReportPolicy.php
+
+		-
+			message: '#^Result of \|\| is always true\.$#'
+			identifier: booleanOr.alwaysTrue
+			count: 1
+			path: src/Policy/SystemReportPolicy.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: src/Policy/SystemReportPolicy.php
+
+		-
+			message: '#^Cannot access offset ''i_id_user'' on array\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: src/Policy/TContactPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\TContactPolicy\:\:getOriginalIdentity\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Policy/TContactPolicy.php
+
+		-
+			message: '#^Method App\\Policy\\TReservationInfoPolicy\:\:getOriginalIdentity\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Policy/TReservationInfoPolicy.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_create_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_approval_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_version\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
+			identifier: cake.entity.arrayAccess
+			count: 7
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Call to function method_exists\(\) with DateTimeInterface and ''format'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Method App\\Service\\ActualMealManagementService\:\:buildWeekGrid\(\) has parameter \$users with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Method App\\Service\\ActualMealManagementService\:\:buildWeekGrid\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Method App\\Service\\ActualMealManagementService\:\:requestApproval\(\) has parameter \$keys with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ActualMealManagementService.php
+
+		-
+			message: '#^Method App\\Service\\ApiResponseService\:\:encode\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApiResponseService.php
+
+		-
+			message: '#^Method App\\Service\\ApiResponseService\:\:error\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApiResponseService.php
+
+		-
+			message: '#^Method App\\Service\\ApiResponseService\:\:success\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApiResponseService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 4
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_room\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:adminApprove\(\) has parameter \$keys with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:blockLeaderApprove\(\) has parameter \$keys with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:getAdminList\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:getAdminSummary\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:getBlockLeaderList\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:reject\(\) has parameter \$keys with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:updateApprovalStatus\(\) has parameter \$allowedFromStatuses with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Method App\\Service\\ApprovalService\:\:updateApprovalStatus\(\) has parameter \$keys with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ApprovalService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_action\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_actor_login_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_actor_user_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_detail\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_ip_address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_target_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_target_table\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$dt_create\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_actor_user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_result\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$c_action\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$c_actor_login_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$c_actor_user_name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Array access to entity Cake\\Datasource\\EntityInterface is not allowed, access as object instead$#'
+			identifier: cake.entity.arrayAccess
+			count: 2
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Method App\\Service\\AuditLogService\:\:applyFailureReason\(\) has parameter \$detail with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Method App\\Service\\AuditLogService\:\:applyFailureReason\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Method App\\Service\\AuditLogService\:\:buildQuery\(\) has parameter \$conditions with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Method App\\Service\\AuditLogService\:\:buildQuery\(\) return type with generic class Cake\\ORM\\Query\\SelectQuery does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Method App\\Service\\AuditLogService\:\:record\(\) has parameter \$detail with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/AuditLogService.php
+
+		-
+			message: '#^Method App\\Service\\BulkReservationFormService\:\:buildBulkAddData\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/BulkReservationFormService.php
+
+		-
+			message: '#^Method App\\Service\\BulkReservationFormService\:\:buildBulkChangeEditData\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/BulkReservationFormService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$eat_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_approval_status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_change_flag\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Method App\\Service\\MealSummaryExportService\:\:aggregatePreview\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Method App\\Service\\MealSummaryExportService\:\:fetchStaffUsers\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/MealSummaryExportService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_login_account\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$c_user_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Access to an undefined property Cake\\Datasource\\EntityInterface\:\:\$i_id_user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$d_reservation_date\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$i_reservation_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Cannot call method format\(\) on class\-string\|object\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Method App\\Service\\NotificationService\:\:createRejectionNotifications\(\) has parameter \$keys with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Method App\\Service\\NotificationService\:\:getNotifications\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Method App\\Service\\NotificationService\:\:getRecentNotifications\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Method App\\Service\\NotificationService\:\:markAsRead\(\) has parameter \$notificationIds with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>c_login_account" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>c_user_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Service/NotificationService.php
+
+		-
+			message: '#^Method App\\Service\\ReservationAddService\:\:ensureReservationDate\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ReservationAddService.php
+
+		-
+			message: '#^Method App\\Service\\ReservationAddService\:\:ensureReservationDate\(\) return type has no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ReservationAddService.php
+
+		-
+			message: '#^Method App\\Service\\ReservationAddService\:\:validateLunchBento\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Service/ReservationAddService.php
+
+		-
+			message: '#^Method App\\Service\\ReservationDatePolicy\:\:changeBoundaryDate\(\) should return Cake\\I18n\\Date but returns Cake\\Chronos\\ChronosDate\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Service/ReservationDatePolicy.php
+
+		-
+			message: '#^Method App\\Service\\ReservationDatePolicy\:\:minimumOrderDate\(\) should return Cake\\I18n\\Date but returns Cake\\Chronos\\ChronosDate\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Service/ReservationDatePolicy.php
+
+		-
+			message: '#^Method App\\Service\\RoomMemberOrderService\:\:orderMembers\(\) has parameter \$query with generic class Cake\\ORM\\Query\\SelectQuery but does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Service/RoomMemberOrderService.php
+
+		-
+			message: '#^Method App\\Service\\RoomMemberOrderService\:\:orderMembers\(\) return type with generic class Cake\\ORM\\Query\\SelectQuery does not specify its types\: TSubject$#'
+			identifier: missingType.generics
+			count: 1
+			path: src/Service/RoomMemberOrderService.php

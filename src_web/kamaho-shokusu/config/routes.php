@@ -180,6 +180,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset']);
         $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
+        $builder->connect('/MUserInfo/check-unique-login-id', ['controller' => 'MUserInfo', 'action' => 'checkUniqueLoginId']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
         $builder->connect('/MUserInfo/delete/*', ['controller' => 'MUserInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);

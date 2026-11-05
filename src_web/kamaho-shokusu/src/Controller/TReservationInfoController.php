@@ -551,10 +551,12 @@ class TReservationInfoController extends ReservationBaseController
 
             $reservationType = $data['reservation_type'] ?? '1';
             $auditSuccess = 0;
+            $output = null;
+            $errorMessage = '';
             try {
                 $dateValidation = $this->datePolicy->validateReservationDate((string)$data['d_reservation_date']);
                 $dateError      = $dateValidation === true ? null : (string)$dateValidation;
-                $result = ((string)$reservationType === '1')
+                $output = ((string)$reservationType === '1')
                     ? $registerIndividual->execute(new RegisterIndividualReservationInput(
                         reservationDate: $data['d_reservation_date'],
                         data: $data,
@@ -562,7 +564,7 @@ class TReservationInfoController extends ReservationBaseController
                         userId: (int)$userId,
                         userName: (string)$user->get('c_user_name'),
                         dateError: $dateError,
-                    ))->toArray($this->reservationIndexUrl())
+                    ))
                     : $registerGroup->execute(new RegisterGroupReservationInput(
                         reservationDate: $data['d_reservation_date'],
                         data: $data,
@@ -573,14 +575,17 @@ class TReservationInfoController extends ReservationBaseController
                         isAdmin: UserRole::isAdmin((int)$user->get('i_admin')),
                         loginUserLevel: (int)$user->get('i_user_level'),
                         isBlockLeader: UserRole::isBlockLeader((int)$user->get('i_admin')),
-                    ))->toArray($this->reservationIndexUrl());
+                    ));
                 $auditSuccess = 1;
+                $result = $output->toArray($this->reservationIndexUrl());
                 $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
             } catch (\App\Domain\Exception\DomainException $e) {
-                $resultResponse = $this->jsonErrorResponse($e->getMessage(), $e->getStatusCode());
+                $errorMessage = $e->getMessage();
+                $resultResponse = $this->jsonErrorResponse($errorMessage, $e->getStatusCode());
             } catch (\Throwable $e) {
                 $this->log('予約登録エラー: ' . $e->getMessage(), 'error');
-                $resultResponse = $this->jsonErrorResponse('内部エラーが発生しました。', 500);
+                $errorMessage = '内部エラーが発生しました。';
+                $resultResponse = $this->jsonErrorResponse($errorMessage, 500);
             }
 
             \App\Service\AuditLogService::record(
@@ -596,44 +601,18 @@ class TReservationInfoController extends ReservationBaseController
                 (string)($user->get('c_login_account') ?? '')
             );
 
-            // ★ ここからが重要：非AJAXでは「常にサーバ側で配列ルート→redirect()」に集約
             if ($this->request->is('ajax')) {
-                return $resultResponse instanceof Response ? $resultResponse : $this->response;
+                return $resultResponse;
             }
 
+            // フォーム送信は JSON を経由せず、UseCase の Output で Flash を決める（#989 不具合1）。
+            // 戻り先は常にその日の一覧（Output の redirect は Ajax の JS 向けの文字列 URL）
             $defaultRedirect = ['action' => 'index', '?' => ['date' => $data['d_reservation_date']]];
-
-            if ($resultResponse instanceof Response) {
-                $ctype = $resultResponse->getType() ?? '';
-                if (stripos($ctype, 'application/json') !== false) {
-                    $body = (string)$resultResponse->getBody();
-                    $json = null;
-                    try {
-                        $json = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
-                    } catch (\Throwable $e) {
-                        $this->log('Failed to decode add action JSON response: ' . $e->getMessage(), 'warning');
-                    }
-
-                    if (is_array($json)) {
-                        if (($json['status'] ?? '') === 'success') {
-                            $this->Flash->success($json['message'] ?? __('登録しました。'));
-                            if (!empty($json['redirect']) && is_array($json['redirect'])) {
-                                return $this->redirect($json['redirect']);
-                            }
-                            return $this->redirect($defaultRedirect);
-                        }
-                        $this->Flash->error($json['message'] ?? __('登録に失敗しました。'));
-                        return $this->redirect($defaultRedirect);
-                    }
-                    $this->log('JSON decode failed for add result response.', 'warning');
-                }
-
-                if ($resultResponse->getStatusCode() >= 300 && $resultResponse->getStatusCode() < 400) {
-                    return $resultResponse;
-                }
+            if ($output === null) {
+                $this->Flash->error($errorMessage);
+                return $this->redirect($defaultRedirect);
             }
-
-            $this->Flash->success(__('登録しました。'));
+            $this->Flash->success($output->message);
             return $this->redirect($defaultRedirect);
         }
 

@@ -414,6 +414,28 @@ class ReservationBulkControllerTest extends TestCase
         $this->assertNotNull($this->row(3, $date, 1));
     }
 
+    /**
+     * 古い画面の users に数字でない利用者キーが来ても 500 にしない（#989）。
+     * day_users と同じく int にそろえるので、存在しない利用者（0）として権限なしで何も書かずに断る。
+     */
+    public function testBulkAddSubmit_groupNonNumericUserKeyIsRejectedNot500(): void
+    {
+        $date = $this->farDate();
+        $this->loginAdmin();
+        $this->post('/TReservationInfo/bulk-add-submit', [
+            'reservation_type' => 'group',
+            'dates' => [$date => 1],
+            'i_id_room' => 1,
+            'users' => [3 => ['morning' => 1], 'abc' => ['morning' => 1]],
+        ]);
+
+        $this->assertResponseOk();
+        $body = $this->json();
+        $this->assertFalse($body['ok']);
+        $this->assertSame('他ユーザーの予約を更新する権限がありません。', $body['message']);
+        $this->assertNull($this->row(3, $date, 1));
+    }
+
     public function testBulkAddSubmit_childIsDenied(): void
     {
         $date = $this->farDate();

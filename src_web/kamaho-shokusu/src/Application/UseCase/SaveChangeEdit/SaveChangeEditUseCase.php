@@ -46,6 +46,7 @@ final class SaveChangeEditUseCase
      * @throws ConflictException 他の操作と競合した・二重予約・昼食と弁当の同時予約になる
      * @throws ReservationValidationException 新しい行が検証ルールに当たった（lunchBentoMessage があれば昼食と弁当）
      * @throws PersistenceException DB の失敗
+     * @throws \LogicException 起こり得ない状態（変える対象の予約行が無い）
      */
     public function execute(SaveChangeEditInput $input): SaveChangeEditOutput
     {
@@ -152,7 +153,8 @@ final class SaveChangeEditUseCase
                     }
                 }
 
-                $targetRow = $inRoom ?? $forMeal;
+                // 両方 null の場合は上で continue しているので、ここでは必ずどちらかがある
+                $targetRow = $inRoom ?? $forMeal ?? throw new \LogicException('対象の予約行がありません。');
                 if ($changeFlag === 1) {
                     foreach ($eatsElsewhere as $rid => $other) {
                         if ($other !== $targetRow) {

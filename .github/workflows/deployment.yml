@@ -17,6 +17,10 @@ jobs:
   phpunit:
     name: PHPUnit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 時刻に依存するテストをローカル（コンテナ）と同じ条件にする。RESEND_WEBHOOK_SECRET は設定しない（既知）
+    env:
+      TZ: Asia/Tokyo
     defaults:
       run:
         working-directory: src_web/kamaho-shokusu
@@ -39,7 +43,8 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Run PHPUnit
-        run: vendor/bin/phpunit --configuration phpunit.xml.dist tests/TestCase/Policy tests/TestCase/Service --colors=never
+        # 本番に出す前に全テストを通す（対象は phpunit.xml.dist の testsuite で決まる）
+        run: vendor/bin/phpunit --configuration phpunit.xml.dist --colors=never
 
   deploy:
     name: Deploy to VPS

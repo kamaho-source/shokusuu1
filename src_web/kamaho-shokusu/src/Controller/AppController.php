@@ -18,6 +18,7 @@ namespace App\Controller;
 
 use App\Application\Port\AuditActor;
 use App\Domain\Service\DatePeriodRule;
+use App\Domain\ValueObject\AccountStatus;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -183,11 +184,11 @@ class AppController extends Controller
 
     /**
      * 削除済み(i_del_flag=1)または無効(i_enable=1)のユーザーか。
-     * 判定基準は MUserInfoController::login() と同じ。
+     * 判定は AccountStatus に1つだけあり、MUserInfoController::login() も同じものを使う。
      */
     private function isDisabledIdentity(\Authentication\IdentityInterface $user): bool
     {
-        return (int)$user->get('i_del_flag') === 1 || (int)$user->get('i_enable') === 1;
+        return AccountStatus::isDisabled($user->get('i_del_flag'), $user->get('i_enable'));
     }
 
     public function beforeFilter(EventInterface $event)

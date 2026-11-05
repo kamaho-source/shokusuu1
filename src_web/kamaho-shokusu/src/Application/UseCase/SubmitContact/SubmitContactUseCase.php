@@ -18,7 +18,7 @@ final class SubmitContactUseCase
     ) {}
 
     /**
-     * @param array<string, string> $data 'category'・'name'・'email'・'body'
+     * 入力（$input->data の category・name・email・body）を検証して保存し、通知する。
      */
     public function execute(SubmitContactInput $input): SubmitContactOutput
     {
