@@ -214,6 +214,57 @@ class MUserInfoControllerActionsTest extends TestCase
         $this->assertSame(1, (int)$this->userField(3, 'i_admin'));
     }
 
+    /**
+     * 権限の値が数値でない（abc・配列）送信は、権限を解除（0）に書き換えず 400 で拒否する。
+     *
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function invalidRoleInputProvider(): array
+    {
+        return [
+            '値が文字列'     => [['i_id_user' => 3, 'i_admin' => 'abc']],
+            '値が配列'       => [['i_id_user' => 3, 'i_admin' => [1]]],
+            '対象IDが配列'   => [['i_id_user' => [3], 'i_admin' => 1]],
+            '対象IDが文字列' => [['i_id_user' => 'abc', 'i_admin' => 1]],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidRoleInputProvider
+     * @param array<string, mixed> $data
+     */
+    public function testUpdateAdminStatus_invalidInput_isRejectedWithoutChange(array $data): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => 1], ['i_id_user' => 3]);
+        $before = $this->getTableLocator()->get('MUserInfo')->find()->select(['i_id_user', 'i_admin'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->login(1);
+
+        $this->post('/MUserInfo/update-admin-status', $data);
+
+        $this->assertResponseCode(400);
+        $after = $this->getTableLocator()->get('MUserInfo')->find()->select(['i_id_user', 'i_admin'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->assertSame($before, $after);
+    }
+
+    /**
+     * @dataProvider invalidRoleInputProvider
+     * @param array<string, mixed> $data
+     */
+    public function testUpdateReportAccess_invalidInput_isRejectedWithoutChange(array $data): void
+    {
+        $data = ['i_report_access' => $data['i_admin']] + $data;
+        unset($data['i_admin']);
+        $table  = $this->getTableLocator()->get('MUserInfo');
+        $before = $table->find()->select(['i_id_user', 'i_report_access'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->login(1, 3);
+
+        $this->post('/MUserInfo/update-report-access', $data);
+
+        $this->assertResponseCode(400);
+        $after = $table->find()->select(['i_id_user', 'i_report_access'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->assertSame($before, $after);
+    }
+
     public function testUpdateAdminStatus_changingFromAnotherRole_needsConfirmation(): void
     {
         $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => 2], ['i_id_user' => 3]);

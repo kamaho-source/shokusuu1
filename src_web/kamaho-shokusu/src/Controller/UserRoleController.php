@@ -23,6 +23,7 @@ use Cake\Http\Response;
  */
 class UserRoleController extends AppController
 {
+    private const INVALID_INPUT_MESSAGE = 'ユーザーIDまたは権限の値が正しくありません。';
 
     public function initialize(): void
     {
@@ -89,7 +90,13 @@ class UserRoleController extends AppController
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, $missingMessage, 400);
         }
-        if (!$userQuery->exists((int)$userId)) {
+        $userId = self::intOrNull($userId);
+        $value  = self::intOrNull($value);
+        if ($userId === null || $value === null) {
+            $this->Authorization->skipAuthorization();
+            return $apiResponse->error($this->response, self::INVALID_INPUT_MESSAGE, 400);
+        }
+        if (!$userQuery->exists($userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
@@ -101,9 +108,9 @@ class UserRoleController extends AppController
             return $apiResponse->error($this->response, $forbiddenMessage, 403);
         }
 
-        $newRole = $isSystemAdmin ? ((int)$value === 1 ? UserRole::SYSTEM_ADMIN : UserRole::GENERAL) : (int)$value;
+        $newRole = $isSystemAdmin ? ($value === 1 ? UserRole::SYSTEM_ADMIN : UserRole::GENERAL) : $value;
         $result  = $changeRole->execute(new ChangeUserRoleInput(
-            (int)$userId,
+            $userId,
             $newRole,
             $offTargetRole,
             $this->isOverwriteConfirmed($data),
@@ -117,6 +124,21 @@ class UserRoleController extends AppController
             ChangeUserRoleOutput::NOT_ASSIGNABLE => $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403),
             default                              => $apiResponse->error($this->response, $roleLabel . 'の更新に失敗しました。', 500),
         };
+    }
+
+    /**
+     * 送られた値を整数にする。数値でない文字列・配列は null（(int) の型変換だと、abc は 0 に、配列は 1 になり、別の利用者や権限の解除として処理されてしまう）。
+     *
+     * @param array<array-key, mixed>|string|int|float|bool $value
+     */
+    private static function intOrNull(array|string|int|float|bool $value): ?int
+    {
+        if (is_array($value)) {
+            return null;
+        }
+        $int = filter_var($value, FILTER_VALIDATE_INT);
+
+        return $int === false ? null : $int;
     }
 
     /**
@@ -142,7 +164,13 @@ class UserRoleController extends AppController
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, 'ユーザーIDまたはレポートアクセス権が指定されていません。', 400);
         }
-        if (!$userQuery->exists((int)$userId)) {
+        $userId       = self::intOrNull($userId);
+        $reportAccess = self::intOrNull($reportAccess);
+        if ($userId === null || $reportAccess === null) {
+            $this->Authorization->skipAuthorization();
+            return $apiResponse->error($this->response, self::INVALID_INPUT_MESSAGE, 400);
+        }
+        if (!$userQuery->exists($userId)) {
             $this->Authorization->skipAuthorization();
             return $apiResponse->error($this->response, '対象ユーザーが見つかりません。', 404);
         }
@@ -153,7 +181,7 @@ class UserRoleController extends AppController
             return $apiResponse->error($this->response, 'この操作はシステム管理者のみ実行できます。', 403);
         }
 
-        $result = $changeReportAccess->execute(new ChangeReportAccessInput((int)$userId, (int)$reportAccess === 1, $this->auditActor()));
+        $result = $changeReportAccess->execute(new ChangeReportAccessInput($userId, $reportAccess === 1, $this->auditActor()));
         if ($result->saved) {
             return $apiResponse->success($this->response, [], 'レポートアクセス権を更新しました。');
         }
