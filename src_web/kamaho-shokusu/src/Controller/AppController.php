@@ -159,6 +159,7 @@ class AppController extends Controller
      * 予約の書き込みの監査ログを1件残す（成功・失敗のどちらでも）。
      *
      * @param array<string, mixed> $detail 日付・部屋・件数など。利用者名などの個人情報は入れない
+     *                                     失敗の理由（$failureReason）は例外の文言をそのまま使うため、利用者名を含むことがある
      */
     protected function recordReservationAudit(string $action, ?string $targetId, array $detail, bool $succeeded, ?string $failureReason = null): void
     {

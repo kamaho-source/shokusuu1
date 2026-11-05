@@ -858,6 +858,31 @@ class MUserInfoControllerActionsTest extends TestCase
         $this->assertSame('権限がありません', $this->json()['message']);
     }
 
+    /**
+     * 整数でない i_id_user（1.5・1e3・配列）は、(int) の型変換で別の利用者（1.5 → 1）にならず、拒否される。
+     *
+     * @return array<string, array{0: mixed}>
+     */
+    public static function nonIntegerUserIds(): array
+    {
+        return ['小数' => ['1.5'], '指数' => ['1e0'], '配列' => [[1]], '文字列' => ['abc']];
+    }
+
+    /**
+     * @dataProvider nonIntegerUserIds
+     */
+    public function testAddUserRooms_nonIntegerUserIdIsRejectedWithoutChange(mixed $userId): void
+    {
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $before = $groups->find()->count();
+        $this->login(1);
+
+        $this->post('/MUserInfo/add-user-rooms', ['i_id_user' => $userId, 'room_names' => ['Lorem ipsum dolor sit amet']]);
+
+        $this->assertFalse($this->json()['ok']);
+        $this->assertSame($before, $groups->find()->count(), '所属部屋は変わらない');
+    }
+
     public function testAddUserRooms_adminReassignsRooms(): void
     {
         $this->login(1);

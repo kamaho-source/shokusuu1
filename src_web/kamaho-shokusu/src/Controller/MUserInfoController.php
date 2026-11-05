@@ -297,13 +297,14 @@ class MUserInfoController extends AppController
         $userId    = $this->request->getData('i_id_user');
         $roomNames = $this->request->getData('room_names');
 
-        if (!is_numeric($userId) || empty($roomNames) || !is_array($roomNames)) {
+        // (int) の型変換だと 1.5 が 1 になり、別の利用者を指してしまうため、整数の形のときだけ受け付ける
+        $userId = is_string($userId) || is_int($userId) ? filter_var($userId, FILTER_VALIDATE_INT) : false;
+        if ($userId === false || empty($roomNames) || !is_array($roomNames)) {
             $this->Authorization->skipAuthorization();
             $this->set(['ok' => false, 'message' => 'i_id_userとroom_names[]が必要です', '_serialize' => ['ok', 'message']]);
             return;
         }
 
-        $userId = (int)$userId;
         if (!$userQuery->isActive($userId)) {
             $this->Authorization->skipAuthorization();
             $this->set(['ok' => false, 'message' => 'ユーザーが見つかりません', '_serialize' => ['ok', 'message']]);
