@@ -3,62 +3,34 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
-use Cake\Http\ServerRequest;
-use App\Application\Query\ReservationReadQueryInterface;
-use App\Application\Query\RoomQueryInterface;
-use App\Application\Query\CalendarQueryInterface;
 use App\Application\Query\CalendarEventBuilder;
-use App\Application\Query\ChangeEditQueryInterface;
-use App\Application\Query\Dto\ChangeEditContext;
-use App\Application\Query\Dto\ChangeEditMember;
 use App\Domain\Service\DatePeriodRule;
 use App\Application\Query\DayViewQueryInterface;
 use App\Application\Query\RoomMealDetailQueryInterface;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
-use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationInput;
-use App\Application\UseCase\RegisterGroupReservation\RegisterGroupReservationUseCase;
-use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationInput;
-use App\Application\UseCase\RegisterIndividualReservation\RegisterIndividualReservationUseCase;
-use App\Application\UseCase\SaveChangeEdit\SaveChangeEditInput;
-use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
 use App\Domain\ValueObject\UserRole;
-use App\Infrastructure\Persistence\Entity\TReservationInfo;
 use Cake\Http\Exception\BadRequestException;
 use Cake\Http\Exception\NotFoundException;
 use Cake\Http\Exception\UnauthorizedException;
 use Cake\Http\Response;
 use Cake\I18n\Date;
-use App\Service\ReservationAddService;
 use Cake\Routing\Router;
 
 /**
- * TReservationInfo コントローラー（コア予約CRUD・カレンダー表示担当）。
+ * TReservationInfo コントローラー（予約カレンダーの表示・読み取り API）。
  *
  * 以下の責務を持つ:
  * - カレンダーIndex・イベント取得
  * - 日別ビュー・部屋詳細
- * - 個人/集団予約の新規登録 (add)
- * - 直前編集 (changeEdit)
  * - 部屋別利用者取得・個人予約取得・重複チェック
  *
- * 一括・コピー・レポート・実食管理は各専用コントローラーへ分離済み。
+ * 新規登録（add）は ReservationAddController、直前編集（changeEdit）は ReservationChangeEditController。
+ * 一括・コピー・レポート・実食管理も各専用コントローラーへ分離済み。
+ *
+ * @property \Authorization\Controller\Component\AuthorizationComponent $Authorization
  */
 class TReservationInfoController extends ReservationBaseController
 {
-    use JsonResponseTrait;
-
-    private ReservationAddService $addService;
-
-    public function __construct(
-        ServerRequest $request,
-        CalendarQueryInterface $calendarQuery,
-        RoomQueryInterface $roomQuery,
-        ReservationReadQueryInterface $reservationRead,
-        private readonly ChangeEditQueryInterface $changeEditQuery,
-    ) {
-        parent::__construct($request, $calendarQuery, $roomQuery, $reservationRead);
-    }
-
     /**
      * initialize メソッド
      */
@@ -66,12 +38,8 @@ class TReservationInfoController extends ReservationBaseController
     {
         parent::initialize();
 
-        $this->addService        = new ReservationAddService();
-
         $this->FormProtection->setConfig('unlockedActions', [
-            'add',
             'checkDuplicateReservation',
-            'changeEdit',
             'view',
         ]);
     }
@@ -90,47 +58,30 @@ class TReservationInfoController extends ReservationBaseController
         if (!$authUser) {
             throw new UnauthorizedException('ログインが必要です。');
         }
-        $userId   = $authUser->get('i_id_user');
-        $user     = $this->MUserInfo->get($userId);
-        $today    = Date::today();
+        $userId = (int)$authUser->get('i_id_user');
+        $today  = Date::today();
 
-        // 有効な所属部屋（退出済み・削除済みを除く）。既定の部屋もこの中から選ぶ
-        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds((int)$userId), false));
-        $userRoomId  = $userRoomIds !== [] ? (int)$userRoomIds[0] : null;
-
-        $isAdmin       = UserRole::isAdmin((int)($user->i_admin ?? 0));
-        $isBlockLeader = UserRole::isBlockLeader((int)($user->i_admin ?? 0));
-        $isOfficeUser  = $this->roomQuery->isOfficeUser((int)$userId);
+        // テンプレートが使うのはログイン中の利用者の項目（i_admin・i_user_level・i_id_user）だけなので、identity をそのまま渡す
+        $user            = $authUser;
+        $isAdmin         = UserRole::isAdmin((int)($authUser->get('i_admin') ?? 0));
         // 管理者・システム管理者も所属部屋のみ（#821）。全部屋の集計を見られるのは事務所ユーザーだけ。
-        $canViewAllRooms = $isOfficeUser;
-        $rooms         = $this->calendarQuery->getRoomsForUser($userRoomIds, false, $isOfficeUser);
-        $authorizedRooms = $rooms;
+        $canViewAllRooms = $this->roomQuery->isOfficeUser($userId);
 
-        // カレンダーの予約ポップアップで選べる部屋。管理者も所属外の部屋には予約できないため（#821）、
-        // 役割を問わず「所属していて削除されていない部屋」に限る
-        $pickerRooms = $this->calendarQuery->getRoomsForUser($userRoomIds, false);
-
-        // 選べない部屋（所属外など）を指定されたときは、指定なしと同じ既定の部屋にする（選択欄の表示と集計を揃える）
         $calRoomIdQuery = $this->request->getQuery('cal_room_id');
-        $requestedCalRoomId = ($calRoomIdQuery !== null && $calRoomIdQuery !== '') ? (int)$calRoomIdQuery : null;
-        $calRoomId = null;
-        if ($requestedCalRoomId !== null && isset($rooms[$requestedCalRoomId])) {
-            $calRoomId = $requestedCalRoomId;
-        } elseif (!$canViewAllRooms && $userRoomId !== null && isset($rooms[(int)$userRoomId])) {
-            $calRoomId = (int)$userRoomId;
-        }
-        // 初期表示は前月〜翌2ヶ月の範囲に絞る（FullCalendarの表示範囲に合わせる）
-        // サービス側が endDate を排他的（<）に扱うため、viewEnd は翌々月末の翌日（月初）を指定する
-        $firstOfMonth = new Date($today->format('Y-m') . '-01');
-        $viewStart    = $firstOfMonth->subMonths(1)->format('Y-m-d');
-        $viewEnd      = $firstOfMonth->addMonths(3)->format('Y-m-d');
+        $scope = $this->calendarQuery->roomScope(
+            $this->roomQuery->getUserRoomIds($userId),
+            $canViewAllRooms,
+            ($calRoomIdQuery !== null && $calRoomIdQuery !== '') ? (int)$calRoomIdQuery : null
+        );
+        $userRoomId      = $scope->userRoomId;
+        $rooms           = $scope->rooms;
+        $authorizedRooms = $rooms;
+        $pickerRooms     = $scope->pickerRooms;
+        $calRoomId       = $scope->calRoomId;
+        [$viewStart, $viewEnd] = $this->calendarQuery->initialViewRange();
 
-        $calRoomFilter = $calRoomId !== null
-            ? [$calRoomId]
-            : $this->countableRoomIds($canViewAllRooms, $userRoomIds);
-
-        $mealDataArray        = $this->calendarQuery->getMealCountsByDate($calRoomFilter, $viewStart, $viewEnd);
-        $myReservationDetails = $this->calendarQuery->getMyReservationDays((int)$userId, $viewStart, $viewEnd);
+        $mealDataArray        = $this->calendarQuery->getMealCountsByDate($scope->roomFilter, $viewStart, $viewEnd);
+        $myReservationDetails = $this->calendarQuery->getMyReservationDays($userId, $viewStart, $viewEnd);
         $myReservationDates   = CalendarEventBuilder::reservedDates($myReservationDetails);
 
         // 予約に登場する部屋の名前
@@ -195,32 +146,13 @@ class TReservationInfoController extends ReservationBaseController
 
         // 合計は有効な所属部屋のみ（管理者も同じ。#821）。全部屋の合計は事務所ユーザーだけ
         $userId  = (int)$this->Authentication->getIdentity()?->get('i_id_user');
-        $roomIds = $this->countableRoomIds(
-            $this->roomQuery->isOfficeUser($userId),
-            array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds($userId), false))
-        );
+        $roomIds = $this->calendarQuery->countableRoomIds($this->roomQuery->isOfficeUser($userId), $this->roomQuery->getUserRoomIds($userId));
 
         $events = CalendarEventBuilder::totalEvents(
             $this->calendarQuery->getTotalCountsByDate($startDate->format('Y-m-d'), $endDate->format('Y-m-d'), $roomIds)
         );
 
         return $this->apiResponseService->success($this->response, ['events' => $events]);
-    }
-
-    /**
-     * 食数の集計対象の部屋。事務所ユーザーは有効な全部屋、それ以外は有効な所属部屋（どちらも削除済みを除く。#821）。
-     * 空のときは該当なしの ID を返し、全部屋の集計に落ちないようにする。
-     *
-     * @param array<int> $validUserRoomIds 有効な所属部屋
-     * @return array<int>
-     */
-    private function countableRoomIds(bool $isOfficeUser, array $validUserRoomIds): array
-    {
-        $roomIds = $isOfficeUser
-            ? array_keys($this->calendarQuery->getRoomsForUser([], true))
-            : $validUserRoomIds;
-
-        return $roomIds ?: [0];
     }
 
     /**
@@ -240,7 +172,6 @@ class TReservationInfoController extends ReservationBaseController
         }
 
         $userId = (int)$authUser->get('i_id_user');
-        $user   = $this->MUserInfo->get($userId);
 
         $start = $this->queryString('start');
         $end   = $this->queryString('end');
@@ -261,14 +192,12 @@ class TReservationInfoController extends ReservationBaseController
             return $this->apiResponseService->error($this->response, 'Date range too large', 400);
         }
 
-        $canViewAllRooms = $this->roomQuery->isOfficeUser((int)$userId);
-
         // 集計は有効な所属部屋（削除済みの部屋を除く）だけ。index と同じ基準
-        $userRoomIds = array_keys($this->calendarQuery->getRoomsForUser($this->roomQuery->getUserRoomIds((int)$userId), false));
+        $roomIds = $this->calendarQuery->countableRoomIds($this->roomQuery->isOfficeUser($userId), $this->roomQuery->getUserRoomIds($userId));
 
         $events = CalendarEventBuilder::calendarEvents(
-            $this->calendarQuery->getMealCountsByDate($this->countableRoomIds($canViewAllRooms, $userRoomIds), $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
-            $this->calendarQuery->getMyReservationDays((int)$userId, $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
+            $this->calendarQuery->getMealCountsByDate($roomIds, $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
+            $this->calendarQuery->getMyReservationDays($userId, $startDate->format('Y-m-d'), $endDate->format('Y-m-d')),
             $startDate,
             $endDate
         );
@@ -462,524 +391,5 @@ class TReservationInfoController extends ReservationBaseController
         }
 
         return $this->apiResponseService->success($this->response, ['isDuplicate' => false]);
-    }
-
-    /**
-     * 予約登録メソッド（個人予約・集団予約）。
-     */
-    public function add(RegisterIndividualReservationUseCase $registerIndividual, RegisterGroupReservationUseCase $registerGroup)
-    {
-        $this->authorizeReservation('add');
-
-        $user       = $this->request->getAttribute('identity');
-        $isModal    = ($this->request->getQuery('modal') === '1');
-        $addService = $this->addService;
-
-        if ($isModal) {
-            $this->viewBuilder()->disableAutoLayout();
-            $this->response = $this->response
-                ->withHeader('X-Frame-Options', 'SAMEORIGIN')
-                ->withHeader('Content-Security-Policy', "frame-ancestors 'self'");
-        }
-
-        $date = $this->queryDate('date') ?? Date::today()->format('Y-m-d');
-
-        if (!$user) {
-            $this->set('errorMessage', __('ログインが必要です。'));
-            $this->set('date', $date);
-            $this->set('rooms', []);
-            $this->set('roomList', []);
-            $this->set('userLevel', null);
-            $this->set('tReservationInfo', $this->TReservationInfo->newEmptyEntity());
-            return null;
-        }
-
-        $userLevel = $user->i_user_level;
-        $userId    = $user->get('i_id_user');
-        $rooms     = $this->roomQuery->getAccessibleRooms((int)$userId);
-
-        if ($this->request->is('get')) {
-            $validation = $addService->validateDate((string)$date, $this->datePolicy);
-            $roomList   = $this->roomQuery->getAllActiveRooms();
-
-            $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
-
-            $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomList', 'userLevel'));
-
-            if ($validation !== true) {
-                $this->set('errorMessage', __($validation));
-            } elseif (!$roomList) {
-                $this->set('errorMessage', __('部屋が見つかりません。'));
-            }
-
-            return null;
-        }
-
-        $validation = $addService->validateDate((string)$date, $this->datePolicy);
-        if ($validation !== true) {
-            $msg = __((string)$validation);
-            if ($this->request->is('ajax')) {
-                return $this->jsonErrorResponse($msg, 422);
-            }
-            $this->Flash->error($msg);
-            return $this->redirect(['action' => 'index', '?' => ['date' => $date]]);
-        }
-
-        $roomList = $this->roomQuery->getAllActiveRooms();
-
-        if (!$roomList) {
-            if ($this->request->is('ajax')) {
-                return $this->jsonErrorResponse(__('部屋が見つかりません。'), 404);
-            }
-            $this->Flash->error(__('部屋が見つかりません。'));
-            return $this->redirect(['action' => 'index', '?' => ['date' => $date]]);
-        }
-
-        $tReservationInfo = $this->TReservationInfo->newEmptyEntity();
-
-        if ($this->request->is('post')) {
-            $data = $addService->ensureReservationDate($this->request->getData(), (string)$date);
-
-            $conflict = $addService->validateLunchBento($data);
-            if ($conflict) {
-                if ($this->request->is('ajax')) {
-                    return $this->jsonErrorResponse(__($conflict), 409);
-                }
-                $this->Flash->error(__($conflict));
-                return $this->redirect(['action' => 'index', '?' => ['date' => $data['d_reservation_date']]]);
-            }
-
-            $reservationType = $data['reservation_type'] ?? '1';
-            $auditSuccess = 0;
-            $output = null;
-            $errorMessage = '';
-            try {
-                $dateValidation = $this->datePolicy->validateReservationDate((string)$data['d_reservation_date']);
-                $dateError      = $dateValidation === true ? null : (string)$dateValidation;
-                $output = ((string)$reservationType === '1')
-                    ? $registerIndividual->execute(new RegisterIndividualReservationInput(
-                        reservationDate: $data['d_reservation_date'],
-                        data: $data,
-                        rooms: $rooms,
-                        userId: (int)$userId,
-                        userName: (string)$user->get('c_user_name'),
-                        dateError: $dateError,
-                    ))
-                    : $registerGroup->execute(new RegisterGroupReservationInput(
-                        reservationDate: $data['d_reservation_date'],
-                        data: $data,
-                        rooms: $rooms,
-                        creatorName: (string)$user->get('c_user_name'),
-                        dateError: $dateError,
-                        loginUserId: (int)$userId,
-                        isAdmin: UserRole::isAdmin((int)$user->get('i_admin')),
-                        loginUserLevel: (int)$user->get('i_user_level'),
-                        isBlockLeader: UserRole::isBlockLeader((int)$user->get('i_admin')),
-                    ));
-                $auditSuccess = 1;
-                $result = $output->toArray($this->reservationIndexUrl());
-                $resultResponse = $this->jsonSuccessResponse($result['message'], $result['data'] ?? [], $result['redirect'] ?? null);
-            } catch (\App\Domain\Exception\DomainException $e) {
-                $errorMessage = $e->getMessage();
-                $resultResponse = $this->jsonErrorResponse($errorMessage, $e->getStatusCode());
-            } catch (\Throwable $e) {
-                $this->log('予約登録エラー: ' . $e->getMessage(), 'error');
-                $errorMessage = '内部エラーが発生しました。';
-                $resultResponse = $this->jsonErrorResponse($errorMessage, 500);
-            }
-
-            \App\Service\AuditLogService::record(
-                'reservation',
-                (string)$reservationType === '1' ? 'reservation_individual_save' : 'reservation_group_save',
-                (string)$user->get('c_user_name'),
-                (int)$userId,
-                't_reservation_info',
-                $data['d_reservation_date'] ?? null,
-                ['date' => $data['d_reservation_date'] ?? null],
-                $this->getClientIp(),
-                $auditSuccess,
-                (string)($user->get('c_login_account') ?? '')
-            );
-
-            if ($this->request->is('ajax')) {
-                return $resultResponse;
-            }
-
-            // フォーム送信は JSON を経由せず、UseCase の Output で Flash を決める（#989 不具合1）。
-            // 戻り先は常にその日の一覧（Output の redirect は Ajax の JS 向けの文字列 URL）
-            $defaultRedirect = ['action' => 'index', '?' => ['date' => $data['d_reservation_date']]];
-            if ($output === null) {
-                $this->Flash->error($errorMessage);
-                return $this->redirect($defaultRedirect);
-            }
-            $this->Flash->success($output->message);
-            return $this->redirect($defaultRedirect);
-        }
-
-        $this->set(compact('rooms', 'tReservationInfo', 'date', 'roomList', 'userLevel'));
-    }
-
-    /**
-     * 直前編集（モーダル用API/画面）。どの流れか（モーダルの枠・個人の保存・表の JSON・画面・まとめて保存）を決めるだけ。
-     *
-     * @param int|null $roomId
-     * @param string|null $date YYYY-MM-DD
-     * @param int|null $mealType 1=朝,2=昼,3=夜,4=弁当
-     * @throws BadRequestException 画面で、部屋・日付が無い・日付が正しくない
-     * @throws NotFoundException 画面で、部屋が無い
-     * @throws \Throwable 画面で、それ以外の失敗（changeEditError がそのまま投げ直す）
-     */
-    public function changeEdit(RegisterIndividualReservationUseCase $registerIndividual, SaveChangeEditUseCase $saveChangeEdit, $roomId = null, $date = null, $mealType = null): ?Response
-    {
-        $wantsJson =
-            $this->request->is('ajax') ||
-            $this->request->getQuery('ajax') === '1' ||
-            $this->request->accepts('application/json') ||
-            $this->request->getParam('_ext') === 'json';
-
-        if ($denied = $this->changeEditDeniedForNonMember($wantsJson) ?? $this->authorizeReservation('changeEdit', [], $wantsJson)) {
-            return $denied;
-        }
-
-        try {
-            $roomId   = $roomId   ?? $this->request->getParam('roomId')   ?? $this->request->getQuery('roomId')   ?? $this->request->getData('i_id_room');
-            $date     = $date     ?? $this->request->getParam('date')     ?? $this->request->getQuery('date')     ?? $this->request->getData('d_reservation_date');
-            // 暦にない日付は、以前は画面によって 200（空の表）・500 とばらばらだった。ここで 400 にそろえる
-            if ($date !== null && $date !== '' && (!is_string($date) || !DatePeriodRule::isDate($date))) {
-                throw new \InvalidArgumentException('日付が正しくありません。');
-            }
-
-            $login = $this->request->getAttribute('identity');
-            $rooms = $this->roomQuery->getAccessibleRooms((int)$login?->get('i_id_user'));
-            if ($this->request->is('get') && $this->queryString('modal') === '1') {
-                return $this->changeEditModalShell($rooms, $roomId, $date);
-            }
-            $data = $this->request->is(['post', 'put']) ? $this->changeEditRequestData() : [];
-            if (($data['reservation_type'] ?? '2') === '1') {
-                return $this->saveChangeEditIndividual($registerIndividual, $data, $date, $rooms, $wantsJson);
-            }
-
-            if (!$roomId || !$date) {
-                throw new \InvalidArgumentException('部屋IDまたは日付が指定されていません。');
-            }
-            if (!isset($rooms[(int)$roomId])) {
-                if ($wantsJson) {
-                    return $this->changeEditJson(403, 'error', 'この部屋を操作する権限がありません。', data: []);
-                }
-                $this->Flash->error(__('この部屋を操作する権限がありません。'));
-                return $this->redirect(['action' => 'index']);
-            }
-
-            $context = $this->changeEditQuery->context((int)$roomId, $date, (int)$login?->get('i_id_user'), (int)($login?->get('i_admin') ?? 0), (int)($login?->get('i_user_level') ?? -1));
-            $room    = ['id' => $context->roomId, 'name' => $context->roomName];
-            if ($this->request->is('get')) {
-                return $wantsJson ? $this->changeEditTableJson($context, $date) : $this->changeEditScreen($room, $rooms, $date, true);
-            }
-            // ここに来るのは GET 以外。保存するのは POST/PUT だけで、それ以外（DELETE など）は保存せずにそのまま画面を出す
-            if ($this->request->is(['post', 'put'])) {
-                $saved = $this->saveChangeEditBulk($saveChangeEdit, $data, $context, $date, $wantsJson);
-                if ($saved !== null) {
-                    return $saved;
-                }
-            }
-            // 保存できなかった（画面）。理由は Flash に出して、同じ画面を出す
-            return $this->changeEditScreen($room, $rooms, $date, false);
-        } catch (\Throwable $e) {
-            return $this->changeEditError($e, $wantsJson);
-        }
-    }
-
-    /**
-     * ログインしていて、職員でも管理者でもなく所属も無い人は使えない（Policy の canChangeEdit）。
-     * authorizeReservation の拒否とは文言・status（forbidden）が違うので先に見る。未ログインは authorizeReservation に任せる。
-     */
-    private function changeEditDeniedForNonMember(bool $wantsJson): ?Response
-    {
-        if ($this->request->getAttribute('identity') === null || $this->Authorization->can(new TReservationInfo(), 'changeEdit')) {
-            return null;
-        }
-        $this->Authorization->skipAuthorization();
-        $reason = '直前編集は職員・管理者・所属グループがある方のみ使用できます。予約変更は通常の予約画面からご利用ください。';
-        if ($wantsJson) {
-            return $this->changeEditJson(403, 'forbidden', $reason);
-        }
-        $this->Flash->error($reason);
-
-        return $this->redirect(['action' => 'index']);
-    }
-
-    /**
-     * モーダルの枠（GET ?modal=1）。部屋の指定が無ければ、その日に予約がある部屋を選ぶ。
-     *
-     * @param array<int, string> $rooms 使える部屋
-     * @param int|string|null $roomId 指定された部屋（リクエストのまま）
-     * @param string|null $date YYYY-MM-DD（形式は changeEdit で確認済み）。無ければ null
-     */
-    private function changeEditModalShell(array $rooms, $roomId, ?string $date): Response
-    {
-        if (!$roomId && $date && !empty($rooms)) {
-            $roomId = $this->changeEditQuery->defaultRoomId($rooms, $date);
-        }
-        $room = null;
-        if ($roomId && isset($rooms[(int)$roomId])) {
-            $name = $this->changeEditQuery->roomName((int)$roomId);
-            $room = $name === null ? null : ['id' => (int)$roomId, 'name' => $name];
-        }
-        if (empty($rooms)) {
-            $this->log('changeEdit modal: No rooms available for user ' . $this->request->getAttribute('identity')?->get('i_id_user'), 'warning');
-        }
-
-        return $this->changeEditScreen($room, $rooms, $date, true);
-    }
-
-    /**
-     * 直前編集の画面。$withOwnMeals のときは、本人のその日の予約（個人の直前編集の初期表示）も渡す。
-     *
-     * @param array{id: int, name: string}|null $room
-     * @param array<int, string> $rooms
-     * @param string|null $date YYYY-MM-DD（形式は changeEdit で確認済み）。無ければ null で、本人の予約も空にする
-     */
-    private function changeEditScreen(?array $room, array $rooms, ?string $date, bool $withOwnMeals): Response
-    {
-        $this->set(compact('room', 'rooms', 'date'));
-        if ($withOwnMeals) {
-            $loginUid = $this->request->getAttribute('identity')?->get('i_id_user');
-            $this->set('individualReservations', $loginUid && $date ? $this->changeEditQuery->ownMeals((int)$loginUid, $date) : []);
-        }
-
-        return $this->render('change_edit');
-    }
-
-    /** 部屋の表（GET の JSON）。行ごとの allowEdit は ChangeEditQuery が見る人に合わせて決めている。 */
-    private function changeEditTableJson(ChangeEditContext $context, string $date): Response
-    {
-        return $this->changeEditJson(200, 'success', null, [
-            'contextRoom'      => ['id' => $context->roomId, 'name' => $context->roomName],
-            'date'             => $date,
-            'users'            => array_map(static fn(ChangeEditMember $m): array => $m->toJson(), $context->members),
-            'userReservations' => $context->reservations,
-        ]);
-    }
-
-    /**
-     * POST の中身（フォーム。空なら JSON の本文）。
-     *
-     * @return array<array-key, mixed>
-     */
-    private function changeEditRequestData(): array
-    {
-        $data = $this->request->getData();
-        if (empty($data)) {
-            $parsed = json_decode((string)$this->request->getBody(), true);
-            if (is_array($parsed)) {
-                $data = $parsed;
-            }
-        }
-
-        return (array)$data;
-    }
-
-    /**
-     * 個人の直前編集の保存（reservation_type=1）。
-     *
-     * @param array<array-key, mixed> $data
-     * @param array<int, string> $rooms 使える部屋
-     */
-    private function saveChangeEditIndividual(RegisterIndividualReservationUseCase $registerIndividual, array $data, ?string $date, array $rooms, bool $wantsJson): ?Response
-    {
-        $postDate = $date ?? ($data['d_reservation_date'] ?? null);
-        if (!$postDate) {
-            if ($wantsJson) {
-                return $this->changeEditJson(422, 'error', '日付が指定されていません。');
-            }
-            $this->Flash->error('日付が指定されていません。');
-            return $this->redirect(['action' => 'index']);
-        }
-
-        $login = $this->request->getAttribute('identity');
-        try {
-            $result = $registerIndividual->execute(new RegisterIndividualReservationInput(
-                reservationDate: (string)$postDate,
-                data: $data,
-                rooms: $rooms,
-                userId: (int)$login?->get('i_id_user'),
-                userName: (string)($login?->get('c_user_name') ?? ''),
-                // 直前編集は14日以内を扱う。過ぎた日（実績）は書き換えさせない（予約の新規登録 add とは基準が違うので、ここで決める）
-                dateError: $this->datePolicy->isPastDate((string)$postDate) ? '過去日の予約は変更できません。' : null,
-            ))->toArray($this->reservationIndexUrl());
-            $message = '直前予約（個人）を更新しました。';
-            if ($wantsJson) {
-                // 個人の保存だけ、data の後ろに date を付ける（以前のまま）
-                return $this->jsonResponse(self::changeEditBody('success', $message, $result) + ['date' => $postDate]);
-            }
-            $this->Flash->success($message);
-            return $this->redirect(['action' => 'index']);
-        } catch (\App\Domain\Exception\DomainException $e) {
-            $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'warning');
-            if ($wantsJson) {
-                return $this->changeEditJson($e->getStatusCode(), 'error', $e->getMessage());
-            }
-            $this->Flash->error($e->getMessage());
-            return $this->redirect(['action' => 'index']);
-        } catch (\Throwable $e) {
-            $this->log('直前編集（個人）エラー: ' . $e->getMessage(), 'error');
-            if ($wantsJson) {
-                return $this->changeEditJson(500, 'error', '予約の更新中にエラーが発生しました。');
-            }
-            $this->Flash->error('予約の更新中にエラーが発生しました。');
-            return $this->redirect(['action' => 'index']);
-        }
-    }
-
-    /**
-     * 部屋の表のまとめて保存。画面で保存できなかったときは Flash に理由を出して null を返す（呼び出し側が画面を出す）。
-     *
-     * @param array<array-key, mixed> $data
-     */
-    private function saveChangeEditBulk(SaveChangeEditUseCase $saveChangeEdit, array $data, ChangeEditContext $context, string $date, bool $wantsJson): ?Response
-    {
-        $login = $this->request->getAttribute('identity');
-        try {
-            $output = $saveChangeEdit->execute(new SaveChangeEditInput(
-                usersData: (isset($data['users']) && is_array($data['users'])) ? $data['users'] : [],
-                memberIds: $context->memberIds(),
-                date: $date,
-                roomId: $context->roomId,
-                loginUserId: (int)$login?->get('i_id_user'),
-                loginUserName: (string)($login?->get('c_user_name') ?? 'system'),
-                loginAdmin: (int)($login?->get('i_admin') ?? 0),
-                loginLevel: (int)($login?->get('i_user_level') ?? -1),
-            ));
-            $message = '直前予約を更新しました。';
-            if ($wantsJson) {
-                return $this->changeEditJson(200, 'success', $message, ['updated' => $output->updated, 'created' => $output->created, 'skipped' => $output->skipped]);
-            }
-            $this->Flash->success(__($message));
-            return $this->redirect(['action' => 'index']);
-        } catch (\App\Domain\Exception\DomainException $e) {
-            [$httpStatus, $status, $message] = self::changeEditFailure($e);
-            $this->log('直前編集 変更拒否: ' . $e->getMessage(), $httpStatus >= 500 ? 'error' : 'warning');
-            if ($wantsJson) {
-                return $this->changeEditJson($httpStatus, $status, $message, data: []);
-            }
-            $this->Flash->error(__($message));
-        } catch (\Throwable $e) {
-            $this->log('直前編集エラー: ' . $e->getMessage(), 'error');
-            if ($wantsJson) {
-                return $this->changeEditJson(500, 'error', '直前予約の更新中にエラーが発生しました。', data: []);
-            }
-            $this->Flash->error(__('直前予約の更新中にエラーが発生しました。'));
-        }
-
-        return null;
-    }
-
-    /**
-     * 直前編集で拾えなかった失敗。JSON は 400（入力の誤り）・404（部屋が無い）・500 で固定の文言を返す。
-     * 画面は、入力の誤りを 400、部屋が無いを 404 に変えて投げ直す（それ以外はそのまま）。
-     *
-     * @throws BadRequestException
-     * @throws NotFoundException
-     * @throws \Throwable
-     */
-    private function changeEditError(\Throwable $e, bool $wantsJson): Response
-    {
-        $this->log('changeEdit error: ' . $e->getMessage(), 'error');
-        if ($wantsJson) {
-            $httpStatus = match (true) {
-                $e instanceof \InvalidArgumentException => 400,
-                $e instanceof NotFoundException, $e instanceof DomainNotFoundException => 404,
-                default => 500,
-            };
-            return $this->changeEditJson($httpStatus, 'error', '直前予約の取得中にエラーが発生しました。', data: []);
-        }
-        // 部屋・日付が無いなどの入力の誤りは、画面でも 400 で返す（JSON と同じ）
-        if ($e instanceof \InvalidArgumentException) {
-            throw new BadRequestException($e->getMessage(), null, $e);
-        }
-        if ($e instanceof DomainNotFoundException) {
-            throw new NotFoundException($e->getMessage(), null, $e);
-        }
-
-        throw $e;
-    }
-
-    /**
-     * 直前編集の JSON 応答。本文は changeEditBody。
-     *
-     * @param int $httpStatus HTTP の状態コード
-     * @param string $status 本文の status（success・error・forbidden・conflict・approved）
-     * @param array<array-key, mixed>|null $data null なら data キーを付けない。空でも付けるときは data: [] と書く
-     */
-    private function changeEditJson(int $httpStatus, string $status, ?string $message, ?array $data = null): Response
-    {
-        return $this->jsonResponse(self::changeEditBody($status, $message, $data), $httpStatus);
-    }
-
-    /**
-     * 直前編集の JSON 本文（ok・status・message、data があれば data）。ok は status が success のときだけ true。
-     *
-     * @param array<array-key, mixed>|null $data null なら data キーを付けない
-     * @return array<string, bool|string|array<array-key, mixed>|null>
-     */
-    private static function changeEditBody(string $status, ?string $message, ?array $data = null): array
-    {
-        $body = ['ok' => $status === 'success', 'status' => $status, 'message' => $message];
-        if ($data !== null) {
-            $body['data'] = $data;
-        }
-
-        return $body;
-    }
-
-    /**
-     * 直前編集の保存の失敗を、応答（HTTP の状態・status・利用者に出す文言）にする。
-     *
-     * @return array{0: int, 1: string, 2: string}
-     */
-    private static function changeEditFailure(\App\Domain\Exception\DomainException $e): array
-    {
-        return match (true) {
-            $e instanceof \App\Domain\Exception\ApprovedReservationChangeException => [409, 'approved', $e->getMessage()],
-            $e instanceof \App\Domain\Exception\ConflictException => [409, 'conflict', $e->getMessage()],
-            // 新しい行の検証ルール。昼食と弁当なら理由を返し、それ以外はシステムの失敗として扱う
-            $e instanceof \App\Domain\Exception\ReservationValidationException => $e->lunchBentoMessage !== null
-                ? [409, 'conflict', $e->lunchBentoMessage]
-                : [500, 'error', '直前予約の更新中にエラーが発生しました。'],
-            $e instanceof \App\Domain\Exception\PersistenceException => [500, 'error', '直前予約の更新中にエラーが発生しました。'],
-            // 入力・権限の拒否（過去日など）。理由をそのまま返す
-            default => [$e->getStatusCode(), 'error', $e->getMessage()],
-        };
-    }
-
-    private function validateReservationDate(?string $reservationDate): string|bool
-    {
-        return $this->datePolicy->validateReservationDate($reservationDate);
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $duplicates
-     */
-    private function formatDuplicateMessage(array $duplicates): string
-    {
-        if (empty($duplicates)) {
-            return '重複した予約はありません。';
-        }
-
-        $parts = [];
-        foreach ($duplicates as $row) {
-            $userName = (string)($row['user_name'] ?? '不明ユーザー');
-            $mealType = (string)($row['meal_type'] ?? '不明');
-            $roomName = (string)($row['room_name'] ?? '不明な部屋');
-            $parts[]  = sprintf('%s（%s・%s）', $userName, $mealType, $roomName);
-        }
-
-        return '既に予約済みのためスキップ: ' . implode('、', $parts);
-    }
-
-    /** 予約の書き込みのあとに戻る一覧の URL。 */
-    private function reservationIndexUrl(): string
-    {
-        return (string)($this->request->getAttribute('webroot') ?? '') . 'TReservationInfo/';
     }
 }

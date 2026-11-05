@@ -12,6 +12,7 @@ use Cake\Datasource\EntityInterface;
 use Cake\Event\EventInterface;
 use Cake\I18n\Date;
 use Cake\I18n\DateTime;
+use App\Domain\ValueObject\ApprovalStatus;
 use Cake\ORM\Exception\PersistenceFailedException;
 use Cake\ORM\RulesChecker;
 use Cake\ORM\Table;
@@ -23,7 +24,7 @@ class TIndividualReservationInfoTable extends Table
      * 「承認済み」とみなす i_approval_status の値（1=ブロック長承認, 2=管理者承認済み）。
      * この状態のレコードは予約内容を変更できない。
      */
-    public const APPROVED_STATUSES = [1, 2];
+    public const APPROVED_STATUSES = ApprovalStatus::APPROVED;
 
 
     public function initialize(array $config): void

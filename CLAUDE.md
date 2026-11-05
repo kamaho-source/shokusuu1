@@ -92,9 +92,9 @@ src/
 **読み取り（Query）** — 画面・API の読み取りは Application の `〜QueryInterface` と `Dto/` に形を決め、Infrastructure の `Cake〜Query` で実装する。書き込みの UseCase とは分ける。キャッシュのキーと中身の形は、リリースをまたいでも読めるように変えない。「食べる」の判定は `ReservationDateRule::countedValue`、「部屋に所属」は `RoomMembershipRepository` / `RoomQueryInterface`（所属中かつ削除されていない部屋）に一本化している。
 
 **Service 層の位置づけ（`src/Service`）** — 新しい業務ロジック・DB の読み書きは足さない（Domain・Application・Infrastructure に置く）。残してよいのは次のものだけ。
-- DB を読まない画面の組み立て・小さな部品（`BulkReservationFormService`・`DashboardService`・`ReservationAddService`・`ApiResponseService`・`ReservationDatePolicy`。`RoomMemberOrderService` は Query が使う並び順の部品）
+- DB を読まない画面の組み立て・小さな部品（`BulkReservationFormService`・`DashboardService`・`ApiResponseService`・`ReservationDatePolicy`。`RoomMemberOrderService` は Query が使う並び順の部品）
 - 監査ログの書き込みの本体（`AuditLogService`。Application からは `AuditLogInterface` 経由で使う）
-- 運用を止めている・対象外の機能（実食 `ActualMealManagementService`、承認 `ApprovalService`・`NotificationService`・`MealSummaryExportService` の未承認プレビュー、AI 集計 `AiStatsContextService`・`FeatureUsageSummaryService`）。これらを動かし直すときに同じ層構成へ移す。
+- 運用を止めている・対象外の機能（承認の差し戻し通知 `NotificationService`（Application からは `ApprovalNotifierInterface` 経由）・`MealSummaryExportService` の未承認プレビュー、AI 集計 `AiStatsContextService`・`FeatureUsageSummaryService`）。これらを動かし直すときに同じ層構成へ移す。
 
 ---
 

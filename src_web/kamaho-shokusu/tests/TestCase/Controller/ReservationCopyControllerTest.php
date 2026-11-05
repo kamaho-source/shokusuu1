@@ -6,6 +6,7 @@ namespace App\Test\TestCase\Controller;
 use Cake\Datasource\ConnectionManager;
 use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use Cake\I18n\Date;
+use App\Test\TestCase\Support\AuditRowAssertions;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -14,6 +15,7 @@ use Cake\TestSuite\TestCase;
  */
 class ReservationCopyControllerTest extends TestCase
 {
+    use AuditRowAssertions;
     use IntegrationTestTrait;
 
     protected array $fixtures = [
@@ -93,6 +95,20 @@ class ReservationCopyControllerTest extends TestCase
         $this->assertSame('週コピーが完了しました。', $body['message']);
         $this->assertSame(['mode' => 'week', 'total' => 1, 'copied' => 1, 'skipped' => 0, 'invalid_date' => 0, 'affected' => 1], $body['data']);
         $this->assertSame(1, $this->countOn($dst->addDays(2)));
+        $this->assertAudited('reservation_copy', 1, 1);
+    }
+
+    /** 失敗しても、監査ログに残す mode は week / month だけ（利用者が送った任意の文字列は入れない） */
+    public function testCopy_invalidModeIsAuditedWithoutTheRawValue(): void
+    {
+        $this->login();
+
+        $this->post('/TReservationInfo/copy', ['mode' => 'x<script>' . str_repeat('a', 300), 'source' => '2030-01-01', 'target' => '2030-01-08']);
+
+        $this->assertTrue($this->_response->getStatusCode() >= 400);
+        $row = $this->assertAudited('reservation_copy', 0, 1);
+        $this->assertStringNotContainsString('script', (string)$row['c_detail']);
+        $this->assertNull(json_decode((string)$row['c_detail'], true)['mode']);
     }
 
     public function testCopy_weekSnapsGivenDatesToMonday(): void

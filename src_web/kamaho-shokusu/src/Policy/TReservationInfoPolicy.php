@@ -240,11 +240,6 @@ class TReservationInfoPolicy
         return $this->isAuthenticated($user);
     }
 
-    public function canWeeklyMealGrid(?IdentityInterface $user, TReservationInfo $resource): bool
-    {
-        return $this->isStaffOrAdmin($user);
-    }
-
     private function isAuthenticated(?IdentityInterface $user): bool
     {
         return $this->getOriginalIdentity($user) !== null;
@@ -343,7 +338,7 @@ class TReservationInfoPolicy
     /**
      * ログインユーザーがいずれかの部屋グループに所属しているか。
      *
-     * TReservationInfoController::changeEdit は、所属の無い人への専用の文言を出すため、この判定（canChangeEdit）を先に呼ぶ。
+     * ReservationChangeEditController::changeEdit は、所属の無い人への専用の文言を出すため、この判定（canChangeEdit）を先に呼ぶ。
      */
     private function isRoomAffiliated(?IdentityInterface $user): bool
     {

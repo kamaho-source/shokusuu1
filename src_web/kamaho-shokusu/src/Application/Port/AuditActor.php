@@ -8,6 +8,9 @@ namespace App\Application\Port;
  */
 final class AuditActor
 {
+    /** 操作者のアカウントが見つからないとき（存在しないログインIDでのログイン失敗など）の名前 */
+    public const UNKNOWN_ACCOUNT_NAME = '（該当アカウントなし）';
+
     public function __construct(
         public readonly string $name,
         public readonly int $id,

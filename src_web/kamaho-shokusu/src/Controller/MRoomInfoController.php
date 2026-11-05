@@ -47,7 +47,7 @@ class MRoomInfoController extends AppController
             $this->Authorization->authorize($resource, 'index');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('あなたは閲覧権限がありません。'));
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+            return $this->redirect(['controller' => 'Auth', 'action' => 'login']);
         }
 
         $query = $this->MRoomInfo->find()->where(['i_del_flg' => 0]);

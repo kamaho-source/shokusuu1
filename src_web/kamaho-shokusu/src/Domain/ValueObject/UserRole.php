@@ -80,6 +80,15 @@ final class UserRole
         return self::isAdmin($iAdmin) || self::isBlockLeader($iAdmin) || ($userLevel !== null && self::isStaffLevel($userLevel));
     }
 
+    /**
+     * ログイン後、行き先の指定が無いときに予約カレンダーへ行くか（管理者・システム管理者と、子ども(i_user_level=1)）。
+     * それ以外（職員・ブロック長など）はホームへ行く。i_user_level が未設定(NULL)は 0 として渡す（ホームへ行く）。
+     */
+    public static function landsOnReservationCalendar(int $iAdmin, int $userLevel): bool
+    {
+        return self::isAdmin($iAdmin) || $userLevel === 1;
+    }
+
     /** システム管理者かどうかを返す。 */
     public static function isSystemAdmin(int $value): bool
     {

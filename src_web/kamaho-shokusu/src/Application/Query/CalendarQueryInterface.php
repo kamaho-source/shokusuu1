@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Application\Query;
 
+use App\Application\Query\Dto\CalendarRoomScope;
 use App\Application\Query\Dto\DayMealCounts;
 use App\Application\Query\Dto\MyReservationDay;
 
@@ -54,4 +55,29 @@ interface CalendarQueryInterface
      * @return array<int, string> 部屋ID => 部屋名
      */
     public function getRoomNames(array $roomIds): array;
+
+    /**
+     * 一覧画面の部屋の範囲。指定された部屋（cal_room_id）が選べないときは、指定なしと同じ既定の部屋にする。
+     *
+     * @param list<int> $userRoomIds 所属部屋（退出済み・削除済みを含んでよい）
+     * @param bool $isOfficeUser 事務所ユーザーか
+     * @param int|null $requestedCalRoomId 指定された部屋（指定なしは null）
+     */
+    public function roomScope(array $userRoomIds, bool $isOfficeUser, ?int $requestedCalRoomId): CalendarRoomScope;
+
+    /**
+     * 食数の集計対象の部屋。事務所ユーザーは有効な全部屋、それ以外は有効な所属部屋（どちらも削除済みを除く。#821）。
+     * 空のときは該当なしの ID（0）を返し、全部屋の集計に落ちないようにする。
+     *
+     * @param list<int> $userRoomIds 所属部屋（退出済み・削除済みを含んでよい）
+     * @return list<int>
+     */
+    public function countableRoomIds(bool $isOfficeUser, array $userRoomIds): array;
+
+    /**
+     * 一覧画面の初期表示の期間（前月の月初〜翌々月末。FullCalendar の表示範囲に合わせる）。終わりは含まない（翌々月末の翌日）。
+     *
+     * @return array{0: string, 1: string} [開始日, 終了日（含まない）] YYYY-MM-DD
+     */
+    public function initialViewRange(): array;
 }

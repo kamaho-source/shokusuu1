@@ -4,9 +4,19 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Cake\Http\ServerRequest;
+use App\Application\Query\ApprovalQueryInterface;
 use App\Application\Query\RoomQueryInterface;
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\ApproveByAdmin\ApproveByAdminInput;
+use App\Application\UseCase\ApproveByAdmin\ApproveByAdminUseCase;
+use App\Application\UseCase\ApproveByBlockLeader\ApproveByBlockLeaderInput;
+use App\Application\UseCase\ApproveByBlockLeader\ApproveByBlockLeaderUseCase;
+use App\Application\UseCase\ReflectApprovedToReservation\ReflectApprovedToReservationInput;
+use App\Application\UseCase\ReflectApprovedToReservation\ReflectApprovedToReservationUseCase;
+use App\Application\UseCase\RejectApproval\RejectApprovalInput;
+use App\Application\UseCase\RejectApproval\RejectApprovalUseCase;
+use App\Domain\ValueObject\ApprovalStatus;
 use App\Domain\ValueObject\UserRole;
-use App\Service\ApprovalService;
 use Cake\Core\Configure;
 use Cake\Event\EventInterface;
 use Cake\Http\Exception\NotFoundException;
@@ -23,10 +33,11 @@ class ApprovalController extends AppController
 {
     use JsonResponseTrait;
 
-    private ApprovalService $approvalService;
-
-    public function __construct(ServerRequest $request, private readonly RoomQueryInterface $roomAccessService)
-    {
+    public function __construct(
+        ServerRequest $request,
+        private readonly RoomQueryInterface $roomAccessService,
+        private readonly ApprovalQueryInterface $approvalQuery,
+    ) {
         parent::__construct($request);
     }
 
@@ -35,22 +46,25 @@ class ApprovalController extends AppController
      * （ダッシュボードから導線を隠しているが、直接URLアクセスも塞ぐ）
      *
      * @param \Cake\Event\EventInterface $event
-     * @return void
+     * @return Response|null 無効化された人の締め出しなど、親が返した応答
      */
-    public function beforeFilter(EventInterface $event)
+    public function beforeFilter(EventInterface $event): ?Response
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if ($response !== null) {
+            return $response;
+        }
 
         if (!Configure::read('Features.approval')) {
             throw new NotFoundException('予約承認機能は現在無効です。');
         }
+
+        return null;
     }
 
     public function initialize(): void
     {
         parent::initialize();
-        $this->approvalService   = new ApprovalService($this->roomAccessService);
-
         // これらのアクションは JSON ボディを受け取る AJAX エンドポイントのため
         // FormProtection のフォームトークン検証対象外にする。
         // CSRF 保護は CsrfProtectionMiddleware がミドルウェア層で適用済み。
@@ -103,11 +117,11 @@ class ApprovalController extends AppController
         $filterRoomId = $this->request->getQuery('room_id') ? (int)$this->request->getQuery('room_id') : null;
         $filterStatus = $this->request->getQuery('status') !== null && $this->request->getQuery('status') !== ''
             ? (int)$this->request->getQuery('status')
-            : ApprovalService::STATUS_PENDING;
+            : ApprovalStatus::PENDING;
         $dateFrom = $this->request->getQuery('date_from') ?? Date::today()->startOfWeek()->format('Y-m-d');
         $dateTo   = $this->request->getQuery('date_to')   ?? Date::today()->endOfWeek()->format('Y-m-d');
 
-        $records = $this->approvalService->getBlockLeaderList(
+        $records = $this->approvalQuery->getBlockLeaderList(
             $userId, $filterRoomId, $dateFrom, $dateTo, $filterStatus
         );
 
@@ -120,26 +134,20 @@ class ApprovalController extends AppController
     /**
      * POST /Approval/blockLeaderApprove
      */
-    public function blockLeaderApprove(): Response
+    public function blockLeaderApprove(ApproveByBlockLeaderUseCase $approve): Response
     {
         $this->Authorization->authorize($this, 'blockLeaderApprove');
         $this->request->allowMethod('post');
 
-        $user         = $this->Authentication->getIdentity();
-        $approver     = (int)$user->get('i_id_user');
-        $actor        = (string)($user->get('c_user_name') ?? '不明');
-        $actorLoginId = (string)($user->get('c_login_account') ?? '');
-        $keys         = (array)($this->request->getData('keys') ?? []);
-        // ブロック長は所属している部屋だけ承認・差し戻しできる。管理者は全部屋（null）（#989）
-        $roomScope    = UserRole::isAdmin((int)($user->get('i_admin') ?? 0)) ? null : $approver;
-
+        $keys = (array)($this->request->getData('keys') ?? []);
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->blockLeaderApprove($keys, $approver, $actor, $roomScope, $this->getClientIp(), $actorLoginId);
-            return $this->jsonResponse(['success' => $ok]);
+            // ブロック長は所属している部屋だけ承認できる。管理者は全部屋（#989）
+            $output = $approve->execute(new ApproveByBlockLeaderInput($keys, $this->approver(), $this->approverIsAdmin()));
+            return $this->jsonResponse(['success' => $output->succeeded()]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderApprove error: ' . $e->getMessage(), 'error');
             return $this->jsonError('承認処理中にエラーが発生しました。', 500);
@@ -149,27 +157,21 @@ class ApprovalController extends AppController
     /**
      * POST /Approval/blockLeaderReject
      */
-    public function blockLeaderReject(): Response
+    public function blockLeaderReject(RejectApprovalUseCase $reject): Response
     {
         $this->Authorization->authorize($this, 'blockLeaderReject');
         $this->request->allowMethod('post');
 
-        $user         = $this->Authentication->getIdentity();
-        $approver     = (int)$user->get('i_id_user');
-        $actor        = (string)($user->get('c_user_name') ?? '不明');
-        $actorLoginId = (string)($user->get('c_login_account') ?? '');
-        $keys         = (array)($this->request->getData('keys') ?? []);
-        // ブロック長は所属している部屋だけ承認・差し戻しできる。管理者は全部屋（null）（#989）
-        $roomScope    = UserRole::isAdmin((int)($user->get('i_admin') ?? 0)) ? null : $approver;
-        $reason       = $this->request->getData('reason');
-
+        $keys = (array)($this->request->getData('keys') ?? []);
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, $roomScope, $this->getClientIp(), $actorLoginId, $approver);
-            return $this->jsonResponse(['success' => $ok]);
+            // ブロック長は所属している部屋だけ差し戻せる。管理者は全部屋（#989）
+            $input  = RejectApprovalInput::byBlockLeader($keys, $this->approver(), $this->request->getData('reason'), $this->approverIsAdmin());
+            $output = $reject->execute($input);
+            return $this->jsonResponse(['success' => $output->succeeded()]);
         } catch (\Throwable $e) {
             $this->log('blockLeaderReject error: ' . $e->getMessage(), 'error');
             return $this->jsonError('却下処理中にエラーが発生しました。', 500);
@@ -190,12 +192,12 @@ class ApprovalController extends AppController
         $filterRoomId = $this->request->getQuery('room_id') ? (int)$this->request->getQuery('room_id') : null;
         $filterStatus = $this->request->getQuery('status') !== null && $this->request->getQuery('status') !== ''
             ? (int)$this->request->getQuery('status')
-            : ApprovalService::STATUS_BLOCK_LEADER;
+            : ApprovalStatus::BLOCK_LEADER;
         $dateFrom = $this->request->getQuery('date_from') ?? Date::today()->startOfWeek()->format('Y-m-d');
         $dateTo   = $this->request->getQuery('date_to')   ?? Date::today()->endOfWeek()->format('Y-m-d');
 
-        $records = $this->approvalService->getAdminList($filterRoomId, $dateFrom, $dateTo, $filterStatus);
-        $summary = $this->approvalService->getAdminSummary($dateFrom, $dateTo);
+        $records = $this->approvalQuery->getAdminList($filterRoomId, $dateFrom, $dateTo, $filterStatus);
+        $summary = $this->approvalQuery->getAdminSummary($dateFrom, $dateTo);
 
         $rooms = $this->roomAccessService->getAllActiveRooms();
 
@@ -206,24 +208,19 @@ class ApprovalController extends AppController
     /**
      * POST /Approval/adminApprove
      */
-    public function adminApprove(): Response
+    public function adminApprove(ApproveByAdminUseCase $approve): Response
     {
         $this->Authorization->authorize($this, 'adminApprove');
         $this->request->allowMethod('post');
 
-        $user         = $this->Authentication->getIdentity();
-        $approver     = (int)$user->get('i_id_user');
-        $actor        = (string)($user->get('c_user_name') ?? '不明');
-        $actorLoginId = (string)($user->get('c_login_account') ?? '');
-        $keys         = (array)($this->request->getData('keys') ?? []);
-
+        $keys = (array)($this->request->getData('keys') ?? []);
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->adminApprove($keys, $approver, $actor, $this->getClientIp(), $actorLoginId);
-            return $this->jsonResponse(['success' => $ok]);
+            $output = $approve->execute(new ApproveByAdminInput($keys, $this->approver()));
+            return $this->jsonResponse(['success' => $output->succeeded()]);
         } catch (\Throwable $e) {
             $this->log('adminApprove error: ' . $e->getMessage(), 'error');
             return $this->jsonError('承認処理中にエラーが発生しました。', 500);
@@ -233,25 +230,19 @@ class ApprovalController extends AppController
     /**
      * POST /Approval/adminReject
      */
-    public function adminReject(): Response
+    public function adminReject(RejectApprovalUseCase $reject): Response
     {
         $this->Authorization->authorize($this, 'adminReject');
         $this->request->allowMethod('post');
 
-        $user         = $this->Authentication->getIdentity();
-        $approver     = (int)$user->get('i_id_user');
-        $actor        = (string)($user->get('c_user_name') ?? '不明');
-        $actorLoginId = (string)($user->get('c_login_account') ?? '');
-        $keys         = (array)($this->request->getData('keys') ?? []);
-        $reason       = $this->request->getData('reason');
-
+        $keys = (array)($this->request->getData('keys') ?? []);
         if (empty($keys)) {
             return $this->jsonError('対象が指定されていません', 400);
         }
 
         try {
-            $ok = $this->approvalService->reject($keys, $approver, $actor, $reason, null, $this->getClientIp(), $actorLoginId);
-            return $this->jsonResponse(['success' => $ok]);
+            $output = $reject->execute(RejectApprovalInput::byAdmin($keys, $this->approver(), $this->request->getData('reason')));
+            return $this->jsonResponse(['success' => $output->succeeded()]);
         } catch (\Throwable $e) {
             $this->log('adminReject error: ' . $e->getMessage(), 'error');
             return $this->jsonError('却下処理中にエラーが発生しました。', 500);
@@ -261,7 +252,7 @@ class ApprovalController extends AppController
     /**
      * POST /Approval/adminReflect
      */
-    public function adminReflect(): Response
+    public function adminReflect(ReflectApprovedToReservationUseCase $reflect): Response
     {
         $this->Authorization->authorize($this, 'adminReflect');
         $this->request->allowMethod('post');
@@ -273,8 +264,8 @@ class ApprovalController extends AppController
         $dateTo   = $this->request->getData('date_to') ?: null;
 
         try {
-            [$reflectedCount, $recordCount] = $this->approvalService->reflectToReservation($roomId, $dateFrom, $dateTo, $actor);
-            return $this->jsonResponse(['success' => true, 'reflected_count' => $recordCount, 'group_count' => $reflectedCount]);
+            $output = $reflect->execute(new ReflectApprovedToReservationInput($roomId, $dateFrom, $dateTo, $actor));
+            return $this->jsonResponse(['success' => true, 'reflected_count' => $output->recordCount, 'group_count' => $output->groupCount]);
         } catch (\Throwable $e) {
             $this->log('adminReflect error: ' . $e->getMessage(), 'error');
             return $this->jsonError('反映処理中にエラーが発生しました。', 500);
@@ -296,25 +287,8 @@ class ApprovalController extends AppController
             return $this->redirect(['controller' => 'Pages', 'action' => 'display', 'home']);
         }
 
-        $query = $this->fetchTable('TApprovalLog')->find()
-            ->contain(['MUserInfo', 'MRoomInfo', 'Approvers']);
-
-        // ブロック長の場合は自分が担当する部屋のログ、または自分が承認したログのみに制限
-        if (!$isAdmin && $isBlockLeader) {
-            $myRoomIds = $this->roomAccessService->getUserRoomIds((int)$user->get('i_id_user'));
-            $query->where([
-                'OR' => [
-                    'TApprovalLog.i_id_room IN' => $myRoomIds,
-                    'TApprovalLog.i_approver_id' => (int)$user->get('i_id_user'),
-                ]
-            ]);
-        }
-
-        $query->orderBy(['TApprovalLog.dt_create' => 'DESC']);
-
-        $logs = $this->paginate($query, [
-            'limit' => 50,
-        ]);
+        // ブロック長は担当部屋の履歴か、自分が承認・差し戻しした履歴だけ
+        $logs = $this->approvalQuery->approvalLogs((int)$user->get('i_id_user'), $isAdmin, $this->request->getQueryParams());
 
         $this->set(compact('logs'));
         return null;
@@ -324,8 +298,22 @@ class ApprovalController extends AppController
     // helpers
     // ------------------------------------------------------------------
 
-    private function jsonForbidden(): Response
+    /** 承認者（ログイン中の利用者）。名前が無ければ「不明」（承認の更新者・監査ログの操作者に使う）。 */
+    private function approver(): AuditActor
     {
-        return $this->jsonError('権限がありません', 403);
+        $user = $this->Authentication->getIdentity();
+
+        return new AuditActor(
+            (string)($user->get('c_user_name') ?? '不明'),
+            (int)$user->get('i_id_user'),
+            (string)($user->get('c_login_account') ?? ''),
+            $this->getClientIp(),
+        );
+    }
+
+    /** 承認者が管理者か（管理者でなければ担当部屋だけを対象にする）。 */
+    private function approverIsAdmin(): bool
+    {
+        return UserRole::isAdmin((int)($this->Authentication->getIdentity()->get('i_admin') ?? 0));
     }
 }

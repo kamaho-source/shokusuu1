@@ -158,7 +158,6 @@ class UpdateRoomReorderIntegrationTest extends TestCase
     public function testReservationScreensUseSameOrder(): void
     {
         $users = $this->getTableLocator()->get('MUserInfo');
-        $groups = $this->getTableLocator()->get('MUserGroup');
         $reservations = $this->getTableLocator()->get('TIndividualReservationInfo');
         $users->updateAll(['i_disp_no' => 10], ['i_id_user' => 1]); // 職員1 を児童3 より後ろにする
         $users->updateAll(['i_id_staff' => 1001], ['i_id_user IN' => [1, 2]]);
@@ -176,7 +175,7 @@ class UpdateRoomReorderIntegrationTest extends TestCase
         $this->assertSame($expected, $context->memberIds(), '予約変更');
 
         $this->assertSame($expected, array_map(static fn($u) => $u->userId, (new \App\Infrastructure\Query\CakeMealReportQuery(new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->getUsersByRoomForEdit(1, '2026-05-11')), '直前編集API');
-        $this->assertSame([2, 1], array_column((new \App\Service\ActualMealManagementService())->getAdultUsers($groups, $users, 1), 'id'), '実績管理');
+        $this->assertSame([2, 1], array_column((new \App\Infrastructure\Query\CakeActualMealQuery(new \Cake\Chronos\ClockFactory('Asia/Tokyo')))->getAdultUsers(1), 'id'), '実績管理');
     }
 
     /** 部屋名と並び順は1つのトランザクション。並び順が誤っていれば、部屋名の変更も保存しない */

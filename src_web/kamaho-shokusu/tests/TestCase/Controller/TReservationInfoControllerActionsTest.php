@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Controller;
 
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
+use App\Test\TestCase\Support\AuditRowAssertions;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -15,6 +16,7 @@ use Cake\TestSuite\TestCase;
  */
 class TReservationInfoControllerActionsTest extends TestCase
 {
+    use AuditRowAssertions;
     use IntegrationTestTrait;
 
     protected array $fixtures = [
@@ -278,6 +280,23 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertResponseOk();
         $this->assertArrayHasKey(1, $this->viewVariable('roomList'));
         $this->assertNull($this->viewVariable('errorMessage'));
+    }
+
+    /** 分割後も、以前は fallbacks で届いていた書き方（ケバブ・スネークケース）で新規登録・直前編集の画面が開く（#989） */
+    public function testSplitControllers_kebabCaseAddUrlStillReachesAction(): void
+    {
+        $this->loginStaff(false);
+        $this->get('/t-reservation-info/add?date=' . $this->day(30));
+        $this->assertResponseOk();
+        $this->assertTemplate('add');
+    }
+
+    public function testSplitControllers_snakeCaseChangeEditUrlStillReachesAction(): void
+    {
+        $this->loginStaff(false);
+        $this->get('/TReservationInfo/change_edit?modal=1&date=' . $this->day(3));
+        $this->assertResponseOk();
+        $this->assertTemplate('change_edit');
     }
 
     public function testAdd_modalRendersWithoutLayoutAndFrameHeaders(): void
@@ -553,6 +572,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertResponseOk();
         $this->assertSame([], $this->json()['data']['skipped']);
         $this->assertNotNull($this->row(1, $date, 1));
+        $this->assertAudited('reservation_change_edit', 1, 2);
     }
 
     public function testChangeEdit_getHtmlRendersEditScreen(): void
@@ -612,7 +632,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/change-edit/1/' . $date, ['users' => [3 => [1 => ['i_change_flag' => 1]]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertNotNull($this->row(3, $date, 1));
     }
 
@@ -629,6 +649,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         // date は data の後ろ（キーの順も以前のまま）
         $this->assertSame(['ok', 'status', 'message', 'data', 'date'], array_keys($body));
         $this->assertNotNull($this->row(2, $date, 1));
+        $this->assertAudited('reservation_change_edit', 1, 2);
     }
 
     public function testChangeEdit_postIndividualWithoutDateReturns422(): void
@@ -645,7 +666,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/changeEdit', ['reservation_type' => '1', 'meals' => [1 => [1 => 1]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashMessage('日付が指定されていません。');
     }
 
@@ -659,6 +680,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertTrue($this->_response->getStatusCode() >= 400);
         $this->assertFalse($this->json()['ok']);
         $this->assertNull($this->row(2, $date, 1));
+        $this->assertAudited('reservation_change_edit', 0, 2);
     }
 
     public function testChangeEdit_postIndividualDomainErrorRedirectsWhenNotJson(): void
@@ -666,7 +688,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/change-edit/1/' . $this->day(-3), ['reservation_type' => '1', 'meals' => [1 => [1 => 1]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashElement('flash/error');
     }
 
@@ -740,7 +762,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->get('/TReservationInfo/change-edit/99/' . $this->day(3));
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashElement('flash/error');
     }
 

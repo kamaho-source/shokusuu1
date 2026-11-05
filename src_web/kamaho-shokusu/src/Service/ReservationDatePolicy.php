@@ -38,20 +38,7 @@ class ReservationDatePolicy
      */
     public function validateReservationDate(?string $reservationDate): string|bool
     {
-        // 空チェック: null・空文字・空白のみ のいずれかの場合はエラー
-        if (empty($reservationDate)) {
-            return '予約日が指定されていません。';
-        }
-
-        // 日付形式チェック: 不正なフォーマットは Date コンストラクタが例外を投げる
-        try {
-            $reservationDateObj = new Date($reservationDate);
-        } catch (\Exception $e) {
-            return '無効な日付フォーマットです。';
-        }
-
-        // リードタイムチェック: 最小受付日より前の日付は通常予約不可
-        return ReservationDateRule::normalOrderError($reservationDateObj, $this->today()) ?? true;
+        return ReservationDateRule::normalOrderDateError((string)$reservationDate, $this->today()) ?? true;
     }
 
     /**

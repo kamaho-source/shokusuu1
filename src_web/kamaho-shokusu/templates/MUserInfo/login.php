@@ -40,7 +40,7 @@ $this->assign('title', 'ログイン');
             </div>
 
             <div class="d-flex justify-content-center mt-3">
-                <?= $this->Html->link('新規登録', ['action' => 'add'], ['class' => 'btn btn-primary']) ?>
+                <?= $this->Html->link('新規登録', ['controller' => 'MUserInfo', 'action' => 'add'], ['class' => 'btn btn-primary']) ?>
             </div>
 
 

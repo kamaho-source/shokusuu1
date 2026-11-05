@@ -28,6 +28,8 @@ final class ReservationFixture
 
     public SpyReservationCache $cache;
 
+    public SpyAuditLog $auditLog;
+
     /** 時計（今日は各テストの Chronos::setTestNow で固定する） */
     public ClockInterface $clock;
 
@@ -37,6 +39,7 @@ final class ReservationFixture
         $this->rooms        = new FakeRoomMembershipRepository(['10:1', '10:7', '10:8']);
         $this->users        = new FakeUserRepository([10 => FakeUserRepository::staff()]);
         $this->cache        = new SpyReservationCache();
+        $this->auditLog     = new SpyAuditLog();
         $this->clock        = new ClockFactory('Asia/Tokyo');
     }
 
@@ -47,12 +50,12 @@ final class ReservationFixture
 
     public function registerIndividual(): RegisterIndividualReservationUseCase
     {
-        return new RegisterIndividualReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger(), $this->clock);
+        return new RegisterIndividualReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger(), $this->clock, $this->auditLog);
     }
 
     public function registerGroup(): RegisterGroupReservationUseCase
     {
-        return new RegisterGroupReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger(), $this->clock);
+        return new RegisterGroupReservationUseCase($this->reservations, $this->rooms, $this->users, $this->reservations, $this->cache, new NullLogger(), $this->clock, $this->auditLog);
     }
 
     public function bulkAdd(): BulkAddReservationsUseCase

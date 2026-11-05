@@ -86,4 +86,19 @@ class ReservationDateRuleTest extends TestCase
         $this->assertNotNull(ReservationDateRule::normalOrderError(new Date('2026-11-15'), $today));
         $this->assertTrue(ReservationDateRule::isPast(self::d('2026-10-31'), new Date('2026-11-01')));
     }
+
+    /** 予約の新規登録の日付の検証（旧 TReservationInfoController::validateReservationDate のテストを引き継ぐ） */
+    public function testNormalOrderDateError(): void
+    {
+        $today = new ChronosDate('2026-11-03');
+
+        $this->assertSame('予約日が指定されていません。', ReservationDateRule::normalOrderDateError('', $today));
+        $this->assertSame('無効な日付フォーマットです。', ReservationDateRule::normalOrderDateError('not-a-date', $today));
+        $this->assertSame(
+            '通常発注は「きょうから15日目以降」のみ登録できます（2026-11-18 以降）。',
+            ReservationDateRule::normalOrderDateError('2026-11-17', $today)
+        );
+        $this->assertNull(ReservationDateRule::normalOrderDateError('2026-11-18', $today));
+        $this->assertNull(ReservationDateRule::normalOrderDateError('2026-12-04', $today));
+    }
 }

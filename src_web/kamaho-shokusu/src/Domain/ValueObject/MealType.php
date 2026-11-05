@@ -93,6 +93,14 @@ enum MealType: int
     }
 
     /**
+     * 画面で昼食と弁当を両方選んだときの理由（予約の新規登録）。両方でなければ null。
+     */
+    public static function exclusiveSelectionError(bool $lunch, bool $bento): ?string
+    {
+        return $lunch && $bento ? '昼食と弁当は同時に予約できません。どちらか一方を選択してください。' : null;
+    }
+
+    /**
      * 区分値 => 表示名。$withBento が false なら弁当を除く（実食の画面は朝・昼・夕だけ）。
      *
      * @param string $style LABEL_* のどれか

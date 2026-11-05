@@ -6,6 +6,7 @@
 use Cake\Routing\Route\DashedRoute;
 use Cake\Routing\RouteBuilder;
 use Cake\Routing\Router;
+use Cake\Utility\Inflector;
 
 return function (RouteBuilder $routes): void {
 
@@ -28,9 +29,11 @@ return function (RouteBuilder $routes): void {
         // TReservationInfo（一覧など）
         $builder->connect('/TReservationInfo', ['controller' => 'TReservationInfo', 'action' => 'index']);
         $builder->connect('/TReservationInfo/events', ['controller' => 'TReservationInfo', 'action' => 'events']);
-        $builder->connect('/TReservationInfo/add', ['controller' => 'TReservationInfo', 'action' => 'add']);
+        $builder->connect('/TReservationInfo/add', ['controller' => 'ReservationAdd', 'action' => 'add']);
+        // 以前は fallbacks で届いていた形（/t-reservation-info/add・/TReservationInfo/add/…）も同じ ReservationAddController へ
+        $builder->connect('/TReservationInfo/add/*', ['controller' => 'ReservationAdd', 'action' => 'add']);
+        $builder->connect('/t-reservation-info/add/*', ['controller' => 'ReservationAdd', 'action' => 'add']);
         $builder->connect('/TReservationInfo/edit/*', ['controller' => 'TReservationInfo', 'action' => 'edit']);
-        $builder->connect('/TReservationInfo/delete/*', ['controller' => 'TReservationInfo', 'action' => 'delete']);
 
         // ── 一括予約（ReservationBulkController） ──
         $builder->connect(
@@ -99,10 +102,10 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'ReservationBulk', 'action' => 'getReservationSnapshots']
         )->setMethods(['POST']);
 
-        $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'TReservationInfo', 'action' => 'changeEdit']);
+        $builder->connect('/TReservationInfo/changeEdit/*', ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']);
         $builder->connect(
             '/TReservationInfo/changeEdit/{roomId}/{date}/{mealType}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
             ->setPatterns([
@@ -114,7 +117,7 @@ return function (RouteBuilder $routes): void {
         // ce-change-edit.js が生成するURLはダッシュ区切りアクション名を使うため明示的にルートを登録する
         $builder->connect(
             '/TReservationInfo/change-edit/{roomId}/{date}/{mealType}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
             ->setPatterns([
@@ -126,7 +129,7 @@ return function (RouteBuilder $routes): void {
 
         $builder->connect(
             '/TReservationInfo/change-edit/{roomId}/{date}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date'])
             ->setPatterns([
@@ -137,10 +140,10 @@ return function (RouteBuilder $routes): void {
 
         // ===== 小文字パス（API） =====
         // 3セグメント版（従来：{roomId}/{date}/{mealType}）
-        // ※ changeEdit は TReservationInfoController に実装されているため controller を揃える
+        // ※ changeEdit は ReservationChangeEditController に実装されているため controller を揃える
         $builder->connect(
             '/t-individual-reservation-info/change-edit/{roomId}/{date}/{mealType}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date', 'mealType'])
             ->setPatterns([
@@ -154,7 +157,7 @@ return function (RouteBuilder $routes): void {
         // Accept: application/json 付きの GET は JSON を返却。拡張子なしアクセスにも対応。
         $builder->connect(
             '/t-individual-reservation-info/change-edit/{roomId}/{date}',
-            ['controller' => 'TReservationInfo', 'action' => 'changeEdit']
+            ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']
         )
             ->setPass(['roomId', 'date'])
             ->setPatterns([
@@ -162,6 +165,12 @@ return function (RouteBuilder $routes): void {
                 'date'   => '\d{4}-\d{2}-\d{2}',
             ])
             ->setMethods(['GET', 'POST']);
+
+        // 以前は fallbacks で TReservationInfoController::changeEdit に届いていた形（上のパターンに合わない引数・メソッド、
+        // ケバブ・スネークケースの書き方）も、同じ ReservationChangeEditController へ
+        foreach (['/TReservationInfo/change-edit/*', '/TReservationInfo/change_edit/*', '/t-reservation-info/changeEdit/*', '/t-reservation-info/change-edit/*', '/t-reservation-info/change_edit/*'] as $path) {
+            $builder->connect($path, ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']);
+        }
 
         // MMealPriceInfo
         $builder->connect('/MMealPriceInfo', ['controller'=> 'MMealPriceInfo', 'action'=>'index']);
@@ -172,20 +181,36 @@ return function (RouteBuilder $routes): void {
 
         // MUserInfo
         $builder->connect('/MUserInfo', ['controller' => 'MUserInfo', 'action' => 'index']);
-        $builder->connect('/MUserInfo/admin_change_password', ['controller' => 'MUserInfo', 'action' => 'adminChangePassword']);
-        $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
-        $builder->connect('/MUserInfo/update-user-level', ['controller' => 'MUserInfo', 'action' => 'updateUserLevel'])->setMethods(['POST']);
-        $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'MUserInfo', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
-        $builder->connect('/MUserInfo/update-report-access', ['controller' => 'MUserInfo', 'action' => 'updateReportAccess'])->setMethods(['POST']);
-        $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'MUserInfo', 'action' => 'generalPasswordReset']);
-        $builder->connect('/MUserInfo/login', ['controller' => 'MUserInfo', 'action' => 'login']);
+        $builder->connect('/MUserInfo/admin_change_password', ['controller' => 'UserPassword', 'action' => 'adminChangePassword']);
+        $builder->connect('/MUserInfo/update-admin-status', ['controller' => 'UserRole', 'action' => 'updateAdminStatus'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-user-level', ['controller' => 'UserRole', 'action' => 'updateUserLevel'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-system-admin-status', ['controller' => 'UserRole', 'action' => 'updateSystemAdminStatus'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/update-report-access', ['controller' => 'UserRole', 'action' => 'updateReportAccess'])->setMethods(['POST']);
+        $builder->connect('/MUserInfo/generalPasswordReset', ['controller' => 'UserPassword', 'action' => 'generalPasswordReset']);
+        $builder->connect('/MUserInfo/login', ['controller' => 'Auth', 'action' => 'login']);
         $builder->connect('/MUserInfo/add', ['controller' => 'MUserInfo', 'action' => 'add']);
         $builder->connect('/MUserInfo/check-unique-login-id', ['controller' => 'MUserInfo', 'action' => 'checkUniqueLoginId']);
         $builder->connect('/MUserInfo/edit/*', ['controller' => 'MUserInfo', 'action' => 'edit']);
         $builder->connect('/MUserInfo/delete/*', ['controller' => 'MUserInfo', 'action' => 'delete']);
         $builder->connect('/MUserInfo/restore/*', ['controller' => 'MUserInfo', 'action' => 'restore']);
-        $builder->connect('/MUserInfo/logout', ['controller' => 'MUserInfo', 'action' => 'logout']);
+        $builder->connect('/MUserInfo/logout', ['controller' => 'Auth', 'action' => 'logout']);
         $builder->connect('/MUserInfo/view/*', ['controller' => 'MUserInfo', 'action' => 'view']);
+        // MUserInfo から分けたアクション（#989）。以前 fallbacks で届いていた形（/m-user-info/import-form・/MUserInfo/importJson など）も
+        // 同じアクションへつなぐ。逆引き（['controller' => 'UserImport', ...]）が以前と同じ URL になるよう /m-user-info/{dashed} を先にする
+        foreach ([
+            'Auth'         => ['login', 'logout'],
+            'UserImport'   => ['importForm', 'importJson', 'import'],
+            'UserPassword' => ['adminChangePassword', 'generalPasswordReset'],
+            'UserRole'     => ['updateAdminStatus', 'updateSystemAdminStatus', 'updateUserLevel', 'updateReportAccess'],
+        ] as $splitController => $splitActions) {
+            foreach ($splitActions as $splitAction) {
+                $dashed     = Inflector::dasherize($splitAction);
+                $underscore = Inflector::underscore($splitAction);
+                foreach (array_unique(["/m-user-info/{$dashed}", "/MUserInfo/{$dashed}", "/MUserInfo/{$splitAction}", "/m-user-info/{$splitAction}", "/MUserInfo/{$underscore}", "/m-user-info/{$underscore}"]) as $path) {
+                    $builder->connect($path, ['controller' => $splitController, 'action' => $splitAction]);
+                }
+            }
+        }
 
         // 監査ログ（システム管理者専用）
         $builder->connect('/AuditLog', ['controller' => 'AuditLog', 'action' => 'index'])->setMethods(['GET']);
@@ -314,10 +339,8 @@ return function (RouteBuilder $routes): void {
             ['controller' => 'ReservationActualMeal', 'action' => 'myActualMeal']
         )->setMethods(['GET']);
 
-        $builder->connect(
-            '/TReservationInfo/meal-count-grid',
-            ['controller' => 'ReservationActualMeal', 'action' => 'mealCountGrid']
-        )->setMethods(['GET']);
+        // ── エクセル食数予約（MealCountGridController） ──
+        $builder->connect('/TReservationInfo/meal-count-grid', ['controller' => 'MealCountGrid', 'action' => 'mealCountGrid'])->setMethods(['GET']);
 
         // ── 予約コピー（ReservationCopyController） ──
         // メソッド制限をルーターで行わずコントローラーの allowMethod() に委ねる（405 を正しく返すため）
