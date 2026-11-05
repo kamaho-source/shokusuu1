@@ -157,6 +157,17 @@ class UserRoleTest extends TestCase
         ];
     }
 
+    /** ログイン後の既定の行き先：管理者・システム管理者と子どもは予約カレンダー、それ以外はホーム */
+    public function testLandsOnReservationCalendar(): void
+    {
+        $this->assertTrue(UserRole::landsOnReservationCalendar(UserRole::ADMIN, 0));
+        $this->assertTrue(UserRole::landsOnReservationCalendar(UserRole::SYSTEM_ADMIN, 0));
+        $this->assertTrue(UserRole::landsOnReservationCalendar(UserRole::GENERAL, 1), '子ども');
+        $this->assertFalse(UserRole::landsOnReservationCalendar(UserRole::GENERAL, 0), '職員');
+        $this->assertFalse(UserRole::landsOnReservationCalendar(UserRole::GENERAL, 7), '職員(7)');
+        $this->assertFalse(UserRole::landsOnReservationCalendar(UserRole::BLOCK_LEADER, 0), 'ブロック長');
+    }
+
     public function testLevelLabel(): void
     {
         $this->assertSame('未設定', UserRole::levelLabel(null));

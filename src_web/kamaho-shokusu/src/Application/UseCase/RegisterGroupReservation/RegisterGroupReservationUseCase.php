@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\RegisterGroupReservation;
 
+use App\Application\Port\AuditActor;
+use App\Application\Port\AuditLogInterface;
 use App\Application\Port\ReservationCacheInterface;
 use App\Application\Port\TransactionManagerInterface;
 use App\Domain\Entity\MealReservation;
@@ -43,6 +45,7 @@ final class RegisterGroupReservationUseCase
         private readonly ReservationCacheInterface $cache,
         private readonly LoggerInterface $logger,
         private readonly ClockInterface $clock,
+        private readonly AuditLogInterface $auditLog,
         /** true なら保存失敗の詳細（検証エラーの文言）を利用者に返す（デバッグ時のみ） */
         private readonly bool $showErrorDetail = false,
     ) {}
@@ -54,6 +57,34 @@ final class RegisterGroupReservationUseCase
      * @throws PersistenceException 保存に失敗した場合
      */
     public function execute(RegisterGroupReservationInput $input): RegisterGroupReservationOutput
+    {
+        if ($input->auditActor === null) {
+            return $this->register($input);
+        }
+        // 監査ログは成功・失敗（例外）のどちらでも残す
+        try {
+            $output = $this->register($input);
+        } catch (\Throwable $e) {
+            $this->recordAudit($input->auditActor, $input->reservationDate, false);
+            throw $e;
+        }
+        $this->recordAudit($input->auditActor, $input->reservationDate, true);
+
+        return $output;
+    }
+
+    private function recordAudit(AuditActor $actor, string $reservationDate, bool $succeeded): void
+    {
+        $this->auditLog->record('reservation', 'reservation_group_save', $actor, 't_reservation_info', $reservationDate, ['date' => $reservationDate], $succeeded);
+    }
+
+    /**
+     * @throws InvalidInputException 入力・日付が不正な場合
+     * @throws UnauthorizedException 権限のない部屋・利用者を指定した場合
+     * @throws ConflictException 競合・昼食と弁当の同時予約になる場合
+     * @throws PersistenceException 保存に失敗した場合
+     */
+    private function register(RegisterGroupReservationInput $input): RegisterGroupReservationOutput
     {
         $reservationDate = $input->reservationDate;
         $loginUserId     = $input->loginUserId;
@@ -73,9 +104,12 @@ final class RegisterGroupReservationUseCase
             throw new InvalidInputException('データ構造が不正です。');
         }
 
-        if ($input->dateError !== null) {
-            $this->logger->error('日付検証エラー: ' . $input->dateError);
-            throw new InvalidInputException($input->dateError);
+        $dateError = $input->checkNormalOrderDate
+            ? ReservationDateRule::normalOrderDateError($reservationDate, new ChronosDate($this->clock->now()))
+            : $input->dateError;
+        if ($dateError !== null) {
+            $this->logger->error('日付検証エラー: ' . $dateError);
+            throw new InvalidInputException($dateError);
         }
 
         $roomId  = isset($data['i_id_room']) ? (int)$data['i_id_room'] : null;

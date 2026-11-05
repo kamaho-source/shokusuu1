@@ -1,23 +1,35 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Test\TestCase\Service;
+namespace App\Test\TestCase\Application\UseCase\Approval;
 
-use App\Service\ApprovalService;
-use App\Service\NotificationService;
+use App\Application\Port\ApprovalNotifierInterface;
+use App\Application\Port\AuditActor;
+use App\Application\UseCase\Approval\ApprovalWriter;
+use App\Application\UseCase\ApproveByAdmin\ApproveByAdminInput;
+use App\Application\UseCase\ApproveByAdmin\ApproveByAdminUseCase;
+use App\Application\UseCase\ApproveByBlockLeader\ApproveByBlockLeaderInput;
+use App\Application\UseCase\ApproveByBlockLeader\ApproveByBlockLeaderUseCase;
+use App\Application\UseCase\RejectApproval\RejectApprovalInput;
+use App\Application\UseCase\RejectApproval\RejectApprovalUseCase;
+use App\Domain\ValueObject\ApprovalStatus;
+use App\Infrastructure\Log\AuditLogAdapter;
+use App\Infrastructure\Persistence\CakeTransactionManager;
+use App\Infrastructure\Query\CakeRoomQuery;
+use App\Infrastructure\Repository\CakeApprovalRepository;
+use Cake\Chronos\ClockFactory;
 use Cake\ORM\TableRegistry;
 use Cake\TestSuite\TestCase;
 
 /**
- * ApprovalService のテスト
+ * 承認・差し戻しの UseCase を本物の Repository・監査ログにつないだテスト（旧 ApprovalServiceTest を引き継ぐ。期待値は同じ）
  *
  * 主な確認項目:
- *   - blockLeaderApprove: STATUS_PENDING(0) のレコードのみ承認可能
- *   - adminApprove: STATUS_BLOCK_LEADER(1) のレコードのみ承認可能
- *   - reject: STATUS_PENDING(0) または STATUS_BLOCK_LEADER(1) から差し戻し可能
- *   - バグ再現: STATUS_PENDING(0) のレコードを adminApprove しても更新されないこと
+ *   - ブロック長の承認: 未承認(0) のレコードのみ承認可能
+ *   - 管理者の承認: 未承認(0)・ブロック長承認済(1) から最終承認できる
+ *   - 差し戻し: 未承認(0) または ブロック長承認済(1) から差し戻し可能
  */
-class ApprovalServiceTest extends TestCase
+class ApprovalUseCasesIntegrationTest extends TestCase
 {
     protected array $fixtures = [
         'app.TIndividualReservationInfo',
@@ -27,7 +39,7 @@ class ApprovalServiceTest extends TestCase
         'app.TAuditLog',
     ];
 
-    private ApprovalService $service;
+    private ApprovalNotifierInterface $notifier;
 
     /** @var \Cake\ORM\Table */
     private $individualTable;
@@ -51,11 +63,7 @@ class ApprovalServiceTest extends TestCase
     {
         parent::setUp();
 
-        $notificationMock = $this->getMockBuilder(NotificationService::class)
-            ->onlyMethods(['createRejectionNotifications'])
-            ->getMock();
-
-        $this->service = new ApprovalService(new \App\Infrastructure\Query\CakeRoomQuery(), $notificationMock);
+        $this->notifier = $this->createMock(ApprovalNotifierInterface::class);
         $this->individualTable = TableRegistry::getTableLocator()->get('TIndividualReservationInfo');
 
         // key2: 自己承認防止テスト用に、フィクスチャとは別ユーザー・別日付のレコードを追加する。
@@ -63,13 +71,66 @@ class ApprovalServiceTest extends TestCase
         // フィクスチャ自体は変更せずこのテストクラス内でのみ挿入する。
         $entity = $this->individualTable->newEntity(array_merge($this->key2, [
             'eat_flag' => 1,
-            'i_approval_status' => ApprovalService::STATUS_PENDING,
+            'i_approval_status' => ApprovalStatus::PENDING,
             'dt_create' => '2024-09-14 16:00:30',
             'c_create_user' => 'tester',
             'dt_update' => '2024-09-14 16:00:30',
             'c_update_user' => 'tester',
         ]));
         $this->individualTable->saveOrFail($entity);
+    }
+
+    /** 承認の UseCase を本物の Repository・監査ログ・トランザクションにつなぐ（差し戻しの通知は Spy） */
+    private function writer(): ApprovalWriter
+    {
+        return new ApprovalWriter(new CakeApprovalRepository(), new ClockFactory('Asia/Tokyo'));
+    }
+
+    private function transaction(): CakeTransactionManager
+    {
+        return new CakeTransactionManager($this->getTableLocator()->get('TIndividualReservationInfo')->getConnection());
+    }
+
+    /**
+     * 旧 ApprovalService::blockLeaderApprove と同じ呼び方。$roomScopeUserId が null なら全部屋（承認者が管理者）、
+     * 渡せば承認者の担当部屋だけ（承認者＝$roomScopeUserId として扱う）。
+     *
+     * @param array<int, array<string, int|string>> $keys
+     */
+    private function blockLeaderApprove(array $keys, int $approverId, string $actor, ?int $roomScopeUserId): bool
+    {
+        $useCase = new ApproveByBlockLeaderUseCase($this->writer(), new CakeRoomQuery(), $this->transaction(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo'));
+
+        return $useCase->execute(new ApproveByBlockLeaderInput($keys, new AuditActor($actor, $approverId, '', ''), $roomScopeUserId === null))->succeeded();
+    }
+
+    /**
+     * 旧 ApprovalService::adminApprove と同じ呼び方。
+     *
+     * @param array<int, array<string, int|string>> $keys
+     */
+    private function adminApprove(array $keys, int $approverId, string $actor): bool
+    {
+        $useCase = new ApproveByAdminUseCase($this->writer(), $this->transaction(), new AuditLogAdapter(), new ClockFactory('Asia/Tokyo'));
+
+        return $useCase->execute(new ApproveByAdminInput($keys, new AuditActor($actor, $approverId, '', '')))->succeeded();
+    }
+
+    /**
+     * 旧 ApprovalService::reject と同じ呼び方。$excludeUserId を渡すとブロック長の差し戻し（自分の予約を除く）、
+     * 渡さなければ管理者の差し戻し。$roomScopeUserId が null なら全部屋。
+     *
+     * @param array<int, array<string, int|string>> $keys
+     */
+    private function reject(array $keys, int $approverId, string $actor, ?string $reason, ?int $roomScopeUserId, string $ipAddress = '', string $actorLoginId = '', ?int $excludeUserId = null): bool
+    {
+        $useCase = new RejectApprovalUseCase($this->writer(), new CakeRoomQuery(), $this->transaction(), $this->notifier, new AuditLogAdapter(), new ClockFactory('Asia/Tokyo'));
+        $actorObj = new AuditActor($actor, $approverId, $actorLoginId, $ipAddress);
+        $input = $excludeUserId !== null
+            ? RejectApprovalInput::byBlockLeader($keys, $actorObj, $reason, $roomScopeUserId === null)
+            : RejectApprovalInput::byAdmin($keys, $actorObj, $reason);
+
+        return $useCase->execute($input)->succeeded();
     }
 
     private function setStatus(int $status, ?array $key = null): void
@@ -114,22 +175,22 @@ class ApprovalServiceTest extends TestCase
 
     public function testBlockLeaderApprove_succeeds_from_pending(): void
     {
-        $this->setStatus(ApprovalService::STATUS_PENDING);
+        $this->setStatus(ApprovalStatus::PENDING);
 
-        $result = $this->service->blockLeaderApprove([$this->key1], 99, 'tester');
+        $result = $this->blockLeaderApprove([$this->key1], 99, 'tester', null);
 
         $this->assertTrue($result);
-        $this->assertSame(ApprovalService::STATUS_BLOCK_LEADER, $this->getStatus());
+        $this->assertSame(ApprovalStatus::BLOCK_LEADER, $this->getStatus());
     }
 
     public function testBlockLeaderApprove_fails_when_already_admin_approved(): void
     {
-        $this->setStatus(ApprovalService::STATUS_ADMIN);
+        $this->setStatus(ApprovalStatus::ADMIN);
 
-        $result = $this->service->blockLeaderApprove([$this->key1], 99, 'tester');
+        $result = $this->blockLeaderApprove([$this->key1], 99, 'tester', null);
 
         $this->assertFalse($result);
-        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), 'ステータスが変更されていないこと');
+        $this->assertSame(ApprovalStatus::ADMIN, $this->getStatus(), 'ステータスが変更されていないこと');
     }
 
     // ----------------------------------------------------------------
@@ -138,12 +199,12 @@ class ApprovalServiceTest extends TestCase
 
     public function testAdminApprove_succeeds_from_block_leader(): void
     {
-        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER);
+        $this->setStatus(ApprovalStatus::BLOCK_LEADER);
 
-        $result = $this->service->adminApprove([$this->key1], 99, 'tester');
+        $result = $this->adminApprove([$this->key1], 99, 'tester');
 
         $this->assertTrue($result);
-        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus());
+        $this->assertSame(ApprovalStatus::ADMIN, $this->getStatus());
     }
 
     /**
@@ -151,12 +212,12 @@ class ApprovalServiceTest extends TestCase
      */
     public function testAdminApprove_succeeds_from_pending(): void
     {
-        $this->setStatus(ApprovalService::STATUS_PENDING);
+        $this->setStatus(ApprovalStatus::PENDING);
 
-        $result = $this->service->adminApprove([$this->key1], 99, 'tester');
+        $result = $this->adminApprove([$this->key1], 99, 'tester');
 
         $this->assertTrue($result);
-        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), '管理者は未承認レコードを直接最終承認できる');
+        $this->assertSame(ApprovalStatus::ADMIN, $this->getStatus(), '管理者は未承認レコードを直接最終承認できる');
     }
 
     // ----------------------------------------------------------------
@@ -165,32 +226,32 @@ class ApprovalServiceTest extends TestCase
 
     public function testReject_succeeds_from_pending(): void
     {
-        $this->setStatus(ApprovalService::STATUS_PENDING);
+        $this->setStatus(ApprovalStatus::PENDING);
 
-        $result = $this->service->reject([$this->key1], 99, 'tester', '理由');
+        $result = $this->reject([$this->key1], 99, 'tester', '理由', null);
 
         $this->assertTrue($result);
-        $this->assertSame(ApprovalService::STATUS_REJECTED, $this->getStatus());
+        $this->assertSame(ApprovalStatus::REJECTED, $this->getStatus());
     }
 
     public function testReject_succeeds_from_block_leader(): void
     {
-        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER);
+        $this->setStatus(ApprovalStatus::BLOCK_LEADER);
 
-        $result = $this->service->reject([$this->key1], 99, 'tester', '理由');
+        $result = $this->reject([$this->key1], 99, 'tester', '理由', null);
 
         $this->assertTrue($result);
-        $this->assertSame(ApprovalService::STATUS_REJECTED, $this->getStatus());
+        $this->assertSame(ApprovalStatus::REJECTED, $this->getStatus());
     }
 
     public function testReject_fails_when_already_admin_approved(): void
     {
-        $this->setStatus(ApprovalService::STATUS_ADMIN);
+        $this->setStatus(ApprovalStatus::ADMIN);
 
-        $result = $this->service->reject([$this->key1], 99, 'tester', '理由');
+        $result = $this->reject([$this->key1], 99, 'tester', '理由', null);
 
         $this->assertFalse($result);
-        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus(), '最終承認済みは差し戻せないこと');
+        $this->assertSame(ApprovalStatus::ADMIN, $this->getStatus(), '最終承認済みは差し戻せないこと');
     }
 
     // ----------------------------------------------------------------
@@ -203,20 +264,20 @@ class ApprovalServiceTest extends TestCase
      */
     public function testBlockLeaderApprove_excludes_own_reservation_but_approves_others(): void
     {
-        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key1);
-        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
+        $this->setStatus(ApprovalStatus::PENDING, $this->key1);
+        $this->setStatus(ApprovalStatus::PENDING, $this->key2);
 
         // 承認者(approverId=1) は key1 の予約者本人
-        $result = $this->service->blockLeaderApprove([$this->key1, $this->key2], 1, 'tester');
+        $result = $this->blockLeaderApprove([$this->key1, $this->key2], 1, 'tester', null);
 
         $this->assertTrue($result, '他ユーザーの予約が承認されるため全体としては成功する');
         $this->assertSame(
-            ApprovalService::STATUS_PENDING,
+            ApprovalStatus::PENDING,
             $this->getStatus($this->key1),
             '承認者自身の予約は自己承認防止のため未承認のまま'
         );
         $this->assertSame(
-            ApprovalService::STATUS_BLOCK_LEADER,
+            ApprovalStatus::BLOCK_LEADER,
             $this->getStatus($this->key2),
             '他ユーザーの予約は承認されること'
         );
@@ -235,19 +296,19 @@ class ApprovalServiceTest extends TestCase
      */
     public function testAdminApprove_allows_own_reservation(): void
     {
-        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER, $this->key1);
-        $this->setStatus(ApprovalService::STATUS_BLOCK_LEADER, $this->key2);
+        $this->setStatus(ApprovalStatus::BLOCK_LEADER, $this->key1);
+        $this->setStatus(ApprovalStatus::BLOCK_LEADER, $this->key2);
 
         // 承認者(approverId=1) は key1 の予約者本人
-        $result = $this->service->adminApprove([$this->key1, $this->key2], 1, 'tester');
+        $result = $this->adminApprove([$this->key1, $this->key2], 1, 'tester');
 
         $this->assertTrue($result);
         $this->assertSame(
-            ApprovalService::STATUS_ADMIN,
+            ApprovalStatus::ADMIN,
             $this->getStatus($this->key1),
             '管理者は自己承認が許可されているため自身の予約も最終承認される'
         );
-        $this->assertSame(ApprovalService::STATUS_ADMIN, $this->getStatus($this->key2));
+        $this->assertSame(ApprovalStatus::ADMIN, $this->getStatus($this->key2));
     }
 
     /**
@@ -255,20 +316,20 @@ class ApprovalServiceTest extends TestCase
      */
     public function testReject_excludes_own_reservation_when_block_leader_rejects(): void
     {
-        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key1);
-        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
+        $this->setStatus(ApprovalStatus::PENDING, $this->key1);
+        $this->setStatus(ApprovalStatus::PENDING, $this->key2);
 
         // ブロック長(approverId=1, excludeUserId=1) は key1 の予約者本人
-        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由', '', '', 1);
+        $result = $this->reject([$this->key1, $this->key2], 1, 'tester', '理由', null, '', '', 1);
 
         $this->assertTrue($result, '他ユーザーの予約が却下されるため全体としては成功する');
         $this->assertSame(
-            ApprovalService::STATUS_PENDING,
+            ApprovalStatus::PENDING,
             $this->getStatus($this->key1),
             'ブロック長自身の予約は自己承認防止のため却下対象外'
         );
         $this->assertSame(
-            ApprovalService::STATUS_REJECTED,
+            ApprovalStatus::REJECTED,
             $this->getStatus($this->key2),
             '他ユーザーの予約は却下されること'
         );
@@ -285,19 +346,19 @@ class ApprovalServiceTest extends TestCase
      */
     public function testReject_includes_own_reservation_when_admin_rejects(): void
     {
-        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key1);
-        $this->setStatus(ApprovalService::STATUS_PENDING, $this->key2);
+        $this->setStatus(ApprovalStatus::PENDING, $this->key1);
+        $this->setStatus(ApprovalStatus::PENDING, $this->key2);
 
         // 管理者(approverId=1) は key1 の予約者本人。excludeUserId は渡さない。
-        $result = $this->service->reject([$this->key1, $this->key2], 1, 'tester', '理由');
+        $result = $this->reject([$this->key1, $this->key2], 1, 'tester', '理由', null);
 
         $this->assertTrue($result);
         $this->assertSame(
-            ApprovalService::STATUS_REJECTED,
+            ApprovalStatus::REJECTED,
             $this->getStatus($this->key1),
             '管理者は自身の予約も却下対象に含まれること'
         );
-        $this->assertSame(ApprovalService::STATUS_REJECTED, $this->getStatus($this->key2));
+        $this->assertSame(ApprovalStatus::REJECTED, $this->getStatus($this->key2));
     }
 
 }

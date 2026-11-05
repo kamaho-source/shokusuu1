@@ -84,7 +84,7 @@ class MMealPriceInfoController extends AppController
 
     public function index(MealPriceQueryInterface $priceQuery): ?Response
     {
-        if ($denied = $this->deny('index', 'あなたは閲覧権限がありません。', ['controller' => 'MUserInfo', 'action' => 'login'])) {
+        if ($denied = $this->deny('index', 'あなたは閲覧権限がありません。', ['controller' => 'Auth', 'action' => 'login'])) {
             return $denied;
         }
 

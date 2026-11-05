@@ -516,4 +516,33 @@ class CakeCalendarQueryTest extends TestCase
 
         $this->assertSame([0, null, 1, 1], [$day->breakfast, $day->breakfastRoom, $day->lunch, $day->lunchRoom]);
     }
+
+    /** 一覧の部屋の範囲：所属外の部屋を指定しても既定の部屋になり、事務所ユーザーでなければ集計はその部屋だけ */
+    public function testRoomScope_unknownRequestedRoomFallsBackToDefault(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->insert('m_room_info', ['i_id_room' => 81, 'c_room_name' => '削除済み', 'i_disp_no' => 81, 'i_del_flg' => 1]);
+
+        $scope = (new CakeCalendarQuery(new ClockFactory('Asia/Tokyo')))->roomScope([81, 1], false, 999);
+
+        $this->assertSame([[1], 1, 1, [1]], [$scope->userRoomIds, $scope->userRoomId, $scope->calRoomId, $scope->roomFilter]);
+        $this->assertSame($scope->pickerRooms, $scope->rooms);
+    }
+
+    /** 集計範囲が空なら、全部屋の集計に落ちないよう該当なしの ID（0）にする */
+    public function testCountableRoomIds_emptyIsZero(): void
+    {
+        $this->assertSame([0], (new CakeCalendarQuery(new ClockFactory('Asia/Tokyo')))->countableRoomIds(false, []));
+    }
+
+    /** 初期表示の期間は前月の月初〜翌々月末の翌日（終わりは含まない） */
+    public function testInitialViewRange(): void
+    {
+        \Cake\Chronos\Chronos::setTestNow('2026-11-17 09:00:00');
+        try {
+            $this->assertSame(['2026-10-01', '2027-02-01'], (new CakeCalendarQuery(new ClockFactory('Asia/Tokyo')))->initialViewRange());
+        } finally {
+            \Cake\Chronos\Chronos::setTestNow(null);
+        }
+    }
 }

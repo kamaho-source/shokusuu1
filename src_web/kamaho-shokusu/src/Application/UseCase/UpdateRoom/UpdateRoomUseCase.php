@@ -32,7 +32,8 @@ final class UpdateRoomUseCase
      */
     public function execute(UpdateRoomInput $input): UpdateRoomOutput
     {
-        if ($this->rooms->find($input->roomId) === null) {
+        $room = $this->rooms->find($input->roomId);
+        if ($room === null) {
             throw new NotFoundException('部屋が見つかりません。');
         }
         $at = $this->clock->now()->format('Y-m-d H:i:s');

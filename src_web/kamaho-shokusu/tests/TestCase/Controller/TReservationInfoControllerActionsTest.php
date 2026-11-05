@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Controller;
 
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
+use App\Test\TestCase\Support\AuditRowAssertions;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -15,6 +16,7 @@ use Cake\TestSuite\TestCase;
  */
 class TReservationInfoControllerActionsTest extends TestCase
 {
+    use AuditRowAssertions;
     use IntegrationTestTrait;
 
     protected array $fixtures = [
@@ -280,6 +282,23 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertNull($this->viewVariable('errorMessage'));
     }
 
+    /** 分割後も、以前は fallbacks で届いていた書き方（ケバブ・スネークケース）で新規登録・直前編集の画面が開く（#989） */
+    public function testSplitControllers_kebabCaseAddUrlStillReachesAction(): void
+    {
+        $this->loginStaff(false);
+        $this->get('/t-reservation-info/add?date=' . $this->day(30));
+        $this->assertResponseOk();
+        $this->assertTemplate('add');
+    }
+
+    public function testSplitControllers_snakeCaseChangeEditUrlStillReachesAction(): void
+    {
+        $this->loginStaff(false);
+        $this->get('/TReservationInfo/change_edit?modal=1&date=' . $this->day(3));
+        $this->assertResponseOk();
+        $this->assertTemplate('change_edit');
+    }
+
     public function testAdd_modalRendersWithoutLayoutAndFrameHeaders(): void
     {
         $this->loginAdmin(false);
@@ -367,6 +386,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->post('/TReservationInfo/add?date=' . $date, ['reservation_type' => '1', 'meals' => [1 => [1 => 1]]]);
 
         $this->assertRedirectContains('/TReservationInfo');
+        $this->assertFlashElement('flash/success');
         $this->assertNotNull($this->row(2, $date, 1));
     }
 
@@ -377,6 +397,100 @@ class TReservationInfoControllerActionsTest extends TestCase
 
         $this->assertRedirectContains('/TReservationInfo');
         $this->assertFlashElement('flash/error');
+    }
+
+    // ---- add：成功・失敗の応答（#989 不具合1。フォーム送信で成功しても Flash がエラーになっていた） ----
+
+    /**
+     * 個人（1）・集団（2）それぞれの、成功する送信内容・失敗する送信内容・成功時の文言。
+     *
+     * @return array<string, array{string, array<string, mixed>, array<string, mixed>, string}>
+     */
+    public static function addResultProvider(): array
+    {
+        return [
+            '個人予約' => ['1', ['meals' => [1 => [1 => 1]]], [], '個人予約が正常に登録されました。'],
+            '集団予約' => ['2', ['i_id_room' => 1, 'users' => [3 => [1 => 1]]], ['i_id_room' => 1], '予約が正常に登録されました。'],
+        ];
+    }
+
+    private function loginForAdd(string $type, bool $ajax): void
+    {
+        $type === '1' ? $this->loginStaff($ajax) : $this->loginAdmin($ajax);
+        if ($ajax) {
+            $this->configRequest(['headers' => ['Accept' => 'application/json', 'X-Requested-With' => 'XMLHttpRequest']]);
+        }
+    }
+
+    /**
+     * @dataProvider addResultProvider
+     * @param array<string, mixed> $ok
+     * @param array<string, mixed> $ng
+     */
+    public function testAdd_formSuccessShowsSuccessFlashAndRedirectsToIndexOfThatDate(string $type, array $ok, array $ng, string $message): void
+    {
+        $date = $this->day(30);
+        $this->loginForAdd($type, false);
+        $this->post('/TReservationInfo/add?date=' . $date, ['reservation_type' => $type] + $ok);
+
+        $this->assertRedirectEquals('/TReservationInfo?date=' . $date);
+        $this->assertFlashElement('flash/success');
+        $this->assertFlashMessage($message);
+    }
+
+    /**
+     * @dataProvider addResultProvider
+     * @param array<string, mixed> $ok
+     * @param array<string, mixed> $ng
+     */
+    public function testAdd_formFailureShowsErrorFlashAndRedirectsToIndexOfThatDate(string $type, array $ok, array $ng, string $message): void
+    {
+        $date = $this->day(30);
+        $this->loginForAdd($type, false);
+        $this->post('/TReservationInfo/add?date=' . $date, ['reservation_type' => $type] + $ng);
+
+        $this->assertRedirectEquals('/TReservationInfo?date=' . $date);
+        $this->assertFlashElement('flash/error');
+        $this->assertFlashMessage('データ構造が不正です。');
+    }
+
+    /**
+     * Ajax の JSON 応答は JS が読むので形を変えない（ok・message・data.redirect）。
+     *
+     * @dataProvider addResultProvider
+     * @param array<string, mixed> $ok
+     * @param array<string, mixed> $ng
+     */
+    public function testAdd_ajaxSuccessReturnsJsonWithRedirect(string $type, array $ok, array $ng, string $message): void
+    {
+        $date = $this->day(30);
+        $this->loginForAdd($type, true);
+        $this->post('/TReservationInfo/add?date=' . $date, ['reservation_type' => $type] + $ok);
+
+        $this->assertResponseOk();
+        $this->assertContentType('application/json');
+        $json = $this->json();
+        $this->assertTrue($json['ok']);
+        $this->assertSame($message, $json['message']);
+        $this->assertSame('/TReservationInfo/', $json['data']['redirect']);
+        $this->assertSame($date, $json['data']['date']);
+        $this->assertNull($this->_requestSession->read('Flash'));
+    }
+
+    /**
+     * @dataProvider addResultProvider
+     * @param array<string, mixed> $ok
+     * @param array<string, mixed> $ng
+     */
+    public function testAdd_ajaxFailureReturnsJsonError(string $type, array $ok, array $ng, string $message): void
+    {
+        $this->loginForAdd($type, true);
+        $this->post('/TReservationInfo/add?date=' . $this->day(30), ['reservation_type' => $type] + $ng);
+
+        $this->assertResponseCode(422);
+        $this->assertContentType('application/json');
+        $this->assertSame(['ok' => false, 'message' => 'データ構造が不正です。', 'data' => []], $this->json());
+        $this->assertNull($this->_requestSession->read('Flash'));
     }
 
     // ---- changeEdit ----
@@ -458,6 +572,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertResponseOk();
         $this->assertSame([], $this->json()['data']['skipped']);
         $this->assertNotNull($this->row(1, $date, 1));
+        $this->assertAudited('reservation_change_edit', 1, 2);
     }
 
     public function testChangeEdit_getHtmlRendersEditScreen(): void
@@ -517,7 +632,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/change-edit/1/' . $date, ['users' => [3 => [1 => ['i_change_flag' => 1]]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertNotNull($this->row(3, $date, 1));
     }
 
@@ -534,6 +649,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         // date は data の後ろ（キーの順も以前のまま）
         $this->assertSame(['ok', 'status', 'message', 'data', 'date'], array_keys($body));
         $this->assertNotNull($this->row(2, $date, 1));
+        $this->assertAudited('reservation_change_edit', 1, 2);
     }
 
     public function testChangeEdit_postIndividualWithoutDateReturns422(): void
@@ -550,7 +666,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/changeEdit', ['reservation_type' => '1', 'meals' => [1 => [1 => 1]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashMessage('日付が指定されていません。');
     }
 
@@ -564,6 +680,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->assertTrue($this->_response->getStatusCode() >= 400);
         $this->assertFalse($this->json()['ok']);
         $this->assertNull($this->row(2, $date, 1));
+        $this->assertAudited('reservation_change_edit', 0, 2);
     }
 
     public function testChangeEdit_postIndividualDomainErrorRedirectsWhenNotJson(): void
@@ -571,7 +688,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->post('/TReservationInfo/change-edit/1/' . $this->day(-3), ['reservation_type' => '1', 'meals' => [1 => [1 => 1]]]);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashElement('flash/error');
     }
 
@@ -645,7 +762,7 @@ class TReservationInfoControllerActionsTest extends TestCase
         $this->loginStaff(false);
         $this->get('/TReservationInfo/change-edit/99/' . $this->day(3));
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'TReservationInfo', 'action' => 'index']);
         $this->assertFlashElement('flash/error');
     }
 

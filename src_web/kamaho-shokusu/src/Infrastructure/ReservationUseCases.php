@@ -15,6 +15,7 @@ use App\Application\UseCase\ReportNoMeal\ReportNoMealUseCase;
 use App\Application\UseCase\SaveChangeEdit\SaveChangeEditUseCase;
 use App\Application\UseCase\ToggleMeal\ToggleMealUseCase;
 use App\Infrastructure\Cache\ReservationCacheAdapter;
+use App\Infrastructure\Log\AuditLogAdapter;
 use App\Infrastructure\Log\CakeLogger;
 use App\Infrastructure\Persistence\CakeTransactionManager;
 use App\Infrastructure\Repository\CakeReservationRepository;
@@ -108,6 +109,7 @@ final class ReservationUseCases
             $this->cache,
             $this->logger,
             $this->clock,
+            new AuditLogAdapter(),
             (bool)Configure::read('debug'),
         );
     }
@@ -122,6 +124,7 @@ final class ReservationUseCases
             $this->cache,
             $this->logger,
             $this->clock,
+            new AuditLogAdapter(),
             (bool)Configure::read('debug'),
         );
     }

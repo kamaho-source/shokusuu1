@@ -24,12 +24,18 @@ class ContactsController extends AppController
     /**
      * @throws \Exception
      */
-    public function beforeFilter(EventInterface $event): void
+    public function beforeFilter(EventInterface $event): ?Response
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if ($response !== null) {
+            return $response;
+        }
+
         if ($this->request->getParam('action') === 'index') {
             $this->FormProtection->setConfig('unlockedFields', ['name', 'email', 'category', 'body']);
         }
+
+        return null;
     }
 
     /**

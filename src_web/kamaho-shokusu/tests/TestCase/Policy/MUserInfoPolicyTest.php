@@ -66,6 +66,21 @@ class MUserInfoPolicyTest extends TestCase
         $this->assertFalse($policy->canChangeRole(new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 0]), $target));
     }
 
+    /** 所属部屋を変えられるのは、他の人を編集する管理者と本人だけ（職員・ブロック長が児童を編集するときは変えられない） */
+    public function testCanEditRoomsForAdminOnOthersAndOwner(): void
+    {
+        $policy = new MUserInfoPolicy(new TestRoomAccessService([]));
+        $target = new MUserInfo();
+        $target->set('i_id_user', 10, ['guard' => false]);
+
+        $this->assertTrue($policy->canEditRooms(new PolicyTestIdentity(['i_id_user' => 1, 'i_admin' => 1]), $target));
+        $this->assertTrue($policy->canEditRooms(new PolicyTestIdentity(['i_id_user' => 10, 'i_admin' => 1]), $target), '管理者の本人');
+        $this->assertTrue($policy->canEditRooms(new PolicyTestIdentity(['i_id_user' => 10, 'i_admin' => 0, 'i_user_level' => 1]), $target), '本人');
+        $this->assertFalse($policy->canEditRooms(new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 2, 'i_user_level' => 0]), $target));
+        $this->assertFalse($policy->canEditRooms(new PolicyTestIdentity(['i_id_user' => 2, 'i_admin' => 0, 'i_user_level' => 0]), $target));
+        $this->assertFalse($policy->canEditRooms(null, $target));
+    }
+
     /**
      * 職員・ブロック長は、同じ部屋に所属する児童だけ閲覧・編集できる。
      */

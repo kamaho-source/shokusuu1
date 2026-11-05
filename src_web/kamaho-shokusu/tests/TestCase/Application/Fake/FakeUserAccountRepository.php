@@ -53,6 +53,17 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
         return $this->users[$userId] ?? null;
     }
 
+    public function findByLoginAccount(string $loginAccount): ?UserAccount
+    {
+        foreach ($this->users as $user) {
+            if ($user->loginAccount === $loginAccount) {
+                return $user;
+            }
+        }
+
+        return null;
+    }
+
     public function updateRole(int $userId, int $role, string $updatedBy): bool
     {
         return $this->update('role', $userId, $role, $updatedBy);

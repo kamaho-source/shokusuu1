@@ -23,13 +23,19 @@ use Throwable;
 class WebhooksController extends AppController
 {
 
-    public function beforeFilter(EventInterface $event): void
+    public function beforeFilter(EventInterface $event): ?Response
     {
-        parent::beforeFilter($event);
+        $response = parent::beforeFilter($event);
+        if ($response !== null) {
+            return $response;
+        }
+
         $this->Authentication->allowUnauthenticated(['resendInbound']);
         // 外部サービスからの生JSON POSTのため、HTMLフォーム由来の改ざん防止トークンは対象外とする。
         // 保護はWebhook署名検証（Svix HMAC）で行う。
         $this->FormProtection->setConfig('unlockedActions', ['resendInbound']);
+
+        return null;
     }
 
     /**

@@ -1,6 +1,14 @@
+includes:
+    - vendor/cakedc/cakephp-phpstan/extension.neon
+    - phpstan-baseline.neon
+
 parameters:
     level: 8
     treatPhpDocTypesAsCertain: false
-    checkGenericClassInNonGenericObjectType: false
     paths:
         - src/
+    # __() などのグローバル関数と定数（CONFIG など）を読み込む
+    bootstrapFiles:
+        - config/paths.php
+        - vendor/cakephp/cakephp/src/Core/functions_global.php
+        - vendor/cakephp/cakephp/src/I18n/functions_global.php

@@ -228,6 +228,7 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
 
 <!-- ユーザー情報フォーム用 JavaScript -->
 <script>
+    const BASE_PATH = <?= json_encode(rtrim($this->request->getAttribute('base') ?? '', '/'), JSON_UNESCAPED_SLASHES) ?>;
     document.addEventListener('DOMContentLoaded', () => {
         const form       = document.getElementById('reservation-form');
         const submitBtn  = document.getElementById('submit-button');
@@ -340,23 +341,23 @@ $this->Html->script('birth-date-age.js', ['block' => true]);
             const loginId = loginIdField.value.trim();
             if (!loginId) return;
 
-            fetch('/m-user-info/check-unique-login-id', {
-                method : 'POST',
-                headers: {
-                    'Content-Type' : 'application/json',
-                    'X-CSRF-Token' : document.querySelector('input[name="_csrfToken"]').value
-                },
-                body: JSON.stringify({ c_login_account: loginId })
+            fetch(BASE_PATH + '/MUserInfo/check-unique-login-id?c_login_account=' + encodeURIComponent(loginId), {
+                headers: { 'Accept': 'application/json' }
             })
-                .then(res => res.json())
+                // セッション切れでログイン画面（HTML）が返ったときも JSON として読まない
+                .then(res => (res.ok && (res.headers.get('Content-Type') || '').includes('application/json')) ? res.json() : null)
                 .then(data => {
+                    // 確認できなかったとき（権限・通信エラー）や、問い合わせ中に入力が変わったときは表示を変えない。
+                    // 送信時にサーバー側でも確認している
+                    if (!data || loginIdField.value.trim() !== loginId) return;
                     if (!data.unique) {
                         setInvalid(loginIdField, loginIdFeedback, 'このログインIDは既に使用されています。');
                     } else {
                         setValid(loginIdField, loginIdFeedback);
                     }
                     checkAllFields();
-                });
+                })
+                .catch(() => {});
         });
 
         /* ==================================================================

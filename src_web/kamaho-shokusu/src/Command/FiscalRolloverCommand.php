@@ -121,7 +121,7 @@ class FiscalRolloverCommand extends Command
                     $io->out(sprintf(
                         '%d年度分のロールオーバーは実行済みです（%s）。--force で再実行できます。',
                         $fiscalYear,
-                        $alreadyRun->dt_create->format('Y-m-d H:i:s')
+                        $alreadyRun->get('dt_create')->format('Y-m-d H:i:s')
                     ));
                     return self::CODE_SUCCESS;
                 }
@@ -135,7 +135,7 @@ class FiscalRolloverCommand extends Command
         }
     }
 
-    private function runRollover(\Cake\ORM\Table $mUserInfo, \Cake\Datasource\ConnectionInterface $connection, int $fiscalYear, bool $dryRun, ConsoleIo $io): int
+    private function runRollover(\Cake\ORM\Table $mUserInfo, \Cake\Database\Connection $connection, int $fiscalYear, bool $dryRun, ConsoleIo $io): int
     {
         $connection->begin();
 

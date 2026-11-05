@@ -5,6 +5,7 @@ namespace App\Test\TestCase\Controller;
 
 use Cake\Datasource\ConnectionManager;
 use Cake\I18n\Date;
+use App\Test\TestCase\Support\AuditRowAssertions;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
 
@@ -13,6 +14,7 @@ use Cake\TestSuite\TestCase;
  */
 class ReservationBulkControllerTest extends TestCase
 {
+    use AuditRowAssertions;
     use IntegrationTestTrait;
 
     protected array $fixtures = [
@@ -295,6 +297,7 @@ class ReservationBulkControllerTest extends TestCase
         $this->assertSame(0, (int)$this->row(3, $date, 3)->i_change_flag);
         $this->assertNotNull($this->row(3, $date, 1));
         $this->assertNotNull($this->row(2, $date, 1));
+        $this->assertAudited('reservation_bulk_change_edit', 1, 1);
     }
 
     public function testBulkChangeEditSubmit_missingRoomOrContentReturnsError(): void
@@ -384,6 +387,7 @@ class ReservationBulkControllerTest extends TestCase
         $this->assertArrayHasKey('redirect', $body['data']);
         $this->assertNotNull($this->row(1, $date, 1));
         $this->assertNotNull($this->row(1, $date, 3));
+        $this->assertAudited('reservation_bulk_add', 1, 1);
     }
 
     public function testBulkAddSubmit_businessErrorsAreReturnedAsNotOk(): void
@@ -396,6 +400,7 @@ class ReservationBulkControllerTest extends TestCase
         $this->assertFalse($body['ok']);
         $this->assertSame('日付が選択されていません。', $body['message']);
         $this->assertArrayHasKey('conflict_date', $body['data']);
+        $this->assertAudited('reservation_bulk_add', 0, 1);
     }
 
     public function testBulkAddSubmit_groupRegistersSelectedUsers(): void
@@ -412,6 +417,28 @@ class ReservationBulkControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertTrue($this->json()['ok']);
         $this->assertNotNull($this->row(3, $date, 1));
+    }
+
+    /**
+     * 古い画面の users に数字でない利用者キーが来ても 500 にしない（#989）。
+     * day_users と同じく int にそろえるので、存在しない利用者（0）として権限なしで何も書かずに断る。
+     */
+    public function testBulkAddSubmit_groupNonNumericUserKeyIsRejectedNot500(): void
+    {
+        $date = $this->farDate();
+        $this->loginAdmin();
+        $this->post('/TReservationInfo/bulk-add-submit', [
+            'reservation_type' => 'group',
+            'dates' => [$date => 1],
+            'i_id_room' => 1,
+            'users' => [3 => ['morning' => 1], 'abc' => ['morning' => 1]],
+        ]);
+
+        $this->assertResponseOk();
+        $body = $this->json();
+        $this->assertFalse($body['ok']);
+        $this->assertSame('他ユーザーの予約を更新する権限がありません。', $body['message']);
+        $this->assertNull($this->row(3, $date, 1));
     }
 
     public function testBulkAddSubmit_childIsDenied(): void
