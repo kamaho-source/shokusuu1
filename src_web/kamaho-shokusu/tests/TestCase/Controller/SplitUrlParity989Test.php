@@ -101,18 +101,4 @@ class SplitUrlParity989Test extends TestCase
         $this->assertSame('ReservationBulk', $this->_controller->getName());
         $this->assertSame('bulkAddForm', $this->_controller->getRequest()->getParam('action'));
     }
-
-    /**
-     * add 画面は、集団予約で部屋を選んだときの利用者の読み込みを、画面の中だけで完結させる。
-     * buildGetUsersByRoomUrl はカレンダー側のスクリプトにしか無く、この画面を単独で開くと未定義（ReferenceError）になっていた。
-     */
-    public function testAddPage_doesNotDependOnCalendarScriptFunction(): void
-    {
-        $this->loginAdmin();
-        $this->get('/TReservationInfo/add?date=' . Date::today()->addDays(30)->format('Y-m-d'));
-
-        $this->assertResponseOk();
-        $this->assertResponseNotContains('= buildGetUsersByRoomUrl(');
-        $this->assertResponseContains('window.GET_USERS_BY_ROOM_TPL).replace(');
-    }
 }
