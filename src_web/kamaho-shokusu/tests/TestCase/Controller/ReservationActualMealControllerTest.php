@@ -119,7 +119,7 @@ class ReservationActualMealControllerTest extends TestCase
 
         $this->get('/TReservationInfo/actual-meal-management?week=2000-01-05');
         $this->assertResponseOk();
-        $oldest = (new \App\Service\ActualMealManagementService())->getAdminOldestAllowedMonday()->format('Y-m-d');
+        $oldest = \App\Domain\Service\MealGridWeekRule::actualMealAdminOldestMonday(new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
         $this->assertSame($oldest, $this->viewVariable('weekMondayStr'));
         $this->assertFalse($this->viewVariable('canGoPrev'));
 
@@ -242,7 +242,7 @@ class ReservationActualMealControllerTest extends TestCase
         $this->login(1, 1);
 
         $this->get('/TReservationInfo/my-actual-meal?week=2000-01-05');
-        $oldest = (new \App\Service\ActualMealManagementService())->getAdminOldestAllowedMonday()->format('Y-m-d');
+        $oldest = \App\Domain\Service\MealGridWeekRule::actualMealAdminOldestMonday(new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo')))->format('Y-m-d');
         $this->assertSame($oldest, $this->viewVariable('weekMondayStr'));
 
         $this->get('/TReservationInfo/my-actual-meal?week=2099-01-05');
@@ -357,6 +357,22 @@ class ReservationActualMealControllerTest extends TestCase
         $this->save(['room_id' => 1, 'date' => '2024-09-07', 'meal_type' => 1, 'user_id' => 1, 'checked' => 1, 'version' => 1]);
         $this->assertResponseCode(409);
         $this->assertSame(2, $this->rowVersion(1, '2024-09-07', 1, 1));
+    }
+
+    public function testSave_newRow_recordsAuditLogLikeUpdate(): void
+    {
+        $this->login(1, 1);
+        $countLogs = fn(): int => (int)ConnectionManager::get('test')
+            ->execute("SELECT COUNT(*) FROM t_audit_log WHERE c_action = 'actual_meal_save'")->fetchColumn(0);
+
+        $this->save(['room_id' => 1, 'date' => '2024-09-20', 'meal_type' => 2, 'user_id' => 1, 'checked' => 1, 'version' => 1]);
+        $this->assertResponseOk();
+        $this->assertSame(1, $this->rowVersion(1, '2024-09-20', 1, 2), '新規作成された');
+        $this->assertSame(1, $countLogs(), '新規作成でも監査ログが1件残る');
+
+        $this->save(['room_id' => 1, 'date' => '2024-09-20', 'meal_type' => 2, 'user_id' => 1, 'checked' => 0, 'version' => 1]);
+        $this->assertResponseOk();
+        $this->assertSame(2, $countLogs(), '更新は従来どおり1件残る');
     }
 
     public function testSave_userWhoLeftTheRoom_canOnlyUpdateExistingRows(): void

@@ -4,13 +4,14 @@ declare(strict_types=1);
 namespace App\Domain\Service;
 
 use App\Domain\ValueObject\MealGridWeek;
+use Cake\Chronos\Chronos;
 use Cake\Chronos\ChronosDate;
 
 /**
- * エクセル食数予約の表示期間の決まり。
+ * エクセル食数予約・実食入力の表示期間の決まり。
  *
- * - 表示は月曜始まりの 28 日（4 週）
- * - 管理者は 2 か月前の週まで戻れる。それ以外は今週より前に戻れない
+ * - 表示は月曜始まりの 28 日（4 週）。実食入力は 7 日（dateRange の日数で指定）
+ * - 管理者は 2 か月前の週まで戻れる（起点はエクセル食数予約が今週の月曜、実食入力が今日）。それ以外は今週より前に戻れない
  * - 先へ進めるのは今週から 4 週先まで
  */
 final class MealGridWeekRule
@@ -56,19 +57,35 @@ final class MealGridWeekRule
         return $start . ' 〜 ' . $end . ' (' . count($dates) . '日)';
     }
 
-    /** 管理者が遡れる最古の週の月曜日。 */
+    /** エクセル食数予約で管理者が遡れる最古の週の月曜日（今週の月曜から 2 か月前の日を含む週）。 */
     public static function adminOldestMonday(\DateTimeImmutable $today): \DateTimeImmutable
     {
         return self::mondayOf(self::mondayOf($today)->modify('-' . self::ADMIN_LOOKBACK_MONTHS . ' months'));
     }
 
     /**
-     * 指定の週（どの曜日でもよい。読めなければ今週）を、移れる範囲に収めて返す。
+     * 実食入力で管理者が遡れる最古の週の月曜日（今日から 2 か月前の日を含む週。月末でも翌月へ繰り上げない #919）。
+     * 旧 ActualMealManagementService::getAdminOldestAllowedMonday と同じ結果。
      */
-    public static function resolve(?string $weekParam, bool $isAdmin, \DateTimeImmutable $today): MealGridWeek
+    public static function actualMealAdminOldestMonday(\DateTimeImmutable $today): \DateTimeImmutable
+    {
+        return self::mondayOf(\DateTimeImmutable::createFromInterface(Chronos::instance($today)->subMonths(self::ADMIN_LOOKBACK_MONTHS)));
+    }
+
+    /**
+     * 指定の週（どの曜日でもよい。読めなければ今週）を、移れる範囲に収めて返す。
+     *
+     * @param bool $forActualMeal true なら実食入力の決まり。管理者以外は前の週へ移れず（今週より先を見ていても戻れない）、
+     *                            管理者の最古の週は actualMealAdminOldestMonday
+     */
+    public static function resolve(?string $weekParam, bool $isAdmin, \DateTimeImmutable $today, bool $forActualMeal = false): MealGridWeek
     {
         $thisMonday   = self::mondayOf($today);
-        $oldestMonday = $isAdmin ? self::adminOldestMonday($today) : $thisMonday;
+        $oldestMonday = match (true) {
+            !$isAdmin      => $thisMonday,
+            $forActualMeal => self::actualMealAdminOldestMonday($today),
+            default        => self::adminOldestMonday($today),
+        };
         $futureMonday = $thisMonday->modify('+' . self::FUTURE_WEEKS . ' weeks');
 
         $weekMonday = $thisMonday;
@@ -95,7 +112,7 @@ final class MealGridWeekRule
             $weekMonday,
             $prevMonday,
             $nextMonday,
-            $prevMonday >= $oldestMonday,
+            ($isAdmin || !$forActualMeal) && $prevMonday >= $oldestMonday,
             $nextMonday <= $futureMonday,
         );
     }
@@ -123,9 +140,12 @@ final class MealGridWeekRule
         return $categories;
     }
 
+    /** その週の月曜日の 0:00（時刻は落とす。月曜だけ時刻が残ると、今週の月曜との比較がずれる） */
     private static function mondayOf(\DateTimeImmutable $date): \DateTimeImmutable
     {
-        return (int)$date->format('N') === 1 ? $date : $date->modify('monday this week');
+        $day = $date->setTime(0, 0);
+
+        return (int)$day->format('N') === 1 ? $day : $day->modify('monday this week');
     }
 
     private function __construct() {}

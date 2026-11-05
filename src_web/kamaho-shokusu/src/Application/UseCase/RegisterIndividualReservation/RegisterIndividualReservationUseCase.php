@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\RegisterIndividualReservation;
 
+use App\Application\Port\AuditActor;
+use App\Application\Port\AuditLogInterface;
 use App\Application\Port\ReservationCacheInterface;
 use App\Application\Port\TransactionManagerInterface;
 use App\Domain\Entity\MealReservation;
@@ -41,6 +43,7 @@ final class RegisterIndividualReservationUseCase
         private readonly ReservationCacheInterface $cache,
         private readonly LoggerInterface $logger,
         private readonly ClockInterface $clock,
+        private readonly AuditLogInterface $auditLog,
         /** true なら保存失敗の詳細（検証エラーの文言）を利用者に返す（デバッグ時のみ） */
         private readonly bool $showErrorDetail = false,
     ) {}
@@ -52,6 +55,34 @@ final class RegisterIndividualReservationUseCase
      * @throws PersistenceException 保存に失敗した場合
      */
     public function execute(RegisterIndividualReservationInput $input): RegisterIndividualReservationOutput
+    {
+        if ($input->auditActor === null) {
+            return $this->register($input);
+        }
+        // 監査ログは成功・失敗（例外）のどちらでも残す
+        try {
+            $output = $this->register($input);
+        } catch (\Throwable $e) {
+            $this->recordAudit($input->auditActor, $input->reservationDate, false);
+            throw $e;
+        }
+        $this->recordAudit($input->auditActor, $input->reservationDate, true);
+
+        return $output;
+    }
+
+    private function recordAudit(AuditActor $actor, string $reservationDate, bool $succeeded): void
+    {
+        $this->auditLog->record('reservation', 'reservation_individual_save', $actor, 't_reservation_info', $reservationDate, ['date' => $reservationDate], $succeeded);
+    }
+
+    /**
+     * @throws InvalidInputException 入力・日付が不正な場合
+     * @throws UnauthorizedException 権限のない部屋を指定した場合、職員が直前期間に取消・部屋変更をしようとした場合
+     * @throws ConflictException 競合・昼食と弁当の同時予約・画面外の部屋の予約を変える必要がある場合
+     * @throws PersistenceException 保存に失敗した場合
+     */
+    private function register(RegisterIndividualReservationInput $input): RegisterIndividualReservationOutput
     {
         $reservationDate = $input->reservationDate;
         $userId          = $input->userId;
@@ -71,9 +102,12 @@ final class RegisterIndividualReservationUseCase
             throw new InvalidInputException('データ構造が不正です。');
         }
 
-        if ($input->dateError !== null) {
-            $this->logger->error('日付検証エラー: ' . $input->dateError);
-            throw new InvalidInputException($input->dateError);
+        $dateError = $input->checkNormalOrderDate
+            ? ReservationDateRule::normalOrderDateError($reservationDate, new ChronosDate($this->clock->now()))
+            : $input->dateError;
+        if ($dateError !== null) {
+            $this->logger->error('日付検証エラー: ' . $dateError);
+            throw new InvalidInputException($dateError);
         }
 
         try {
@@ -133,7 +167,8 @@ final class RegisterIndividualReservationUseCase
             ]);
         }
 
-        throw new PersistenceException('システムエラーが発生しました。');
+        // 食事が1つも選ばれておらず、取り消す予約もなかった。サーバーの失敗ではなく、利用者の入力の問題として返す
+        throw new InvalidInputException('変更する内容がありません。予約する食事を選択してから保存してください。');
     }
 
     /**

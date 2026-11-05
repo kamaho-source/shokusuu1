@@ -12,6 +12,9 @@ use Cake\Http\Response;
  */
 trait JsonResponseTrait
 {
+    /**
+     * @param array<array-key, mixed> $data
+     */
     private function jsonResponse(array $data, int $status = 200): Response
     {
         return $this->response

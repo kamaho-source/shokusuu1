@@ -18,6 +18,8 @@ namespace App\Controller;
 
 use App\Application\Port\AuditActor;
 use App\Domain\Service\DatePeriodRule;
+use App\Domain\ValueObject\AccountStatus;
+use App\Service\AuditLogService;
 use App\Service\NotificationService;
 use Cake\Controller\Controller;
 use Cake\Event\EventInterface;
@@ -154,6 +156,21 @@ class AppController extends Controller
     }
 
     /**
+     * 予約の書き込みの監査ログを1件残す（成功・失敗のどちらでも）。
+     *
+     * @param array<string, mixed> $detail 日付・部屋・件数など。利用者名などの個人情報は入れない
+     *                                     失敗の理由（$failureReason）は例外の文言をそのまま使うため、利用者名を含むことがある
+     */
+    protected function recordReservationAudit(string $action, ?string $targetId, array $detail, bool $succeeded, ?string $failureReason = null): void
+    {
+        $actor = $this->auditActor();
+        AuditLogService::record(
+            'reservation', $action, $actor->name, $actor->id, 't_reservation_info', $targetId, $detail,
+            $actor->ipAddress !== '' ? $actor->ipAddress : null, $succeeded ? 1 : 0, $actor->loginId, $failureReason
+        );
+    }
+
+    /**
      * クライアントの実IPアドレスを取得する。
      *
      * Docker + リバースプロキシ構成では REMOTE_ADDR がプロキシのIPになるため、
@@ -183,14 +200,18 @@ class AppController extends Controller
 
     /**
      * 削除済み(i_del_flag=1)または無効(i_enable=1)のユーザーか。
-     * 判定基準は MUserInfoController::login() と同じ。
+     * 判定は AccountStatus に1つだけあり、AuthController::login() も同じものを使う。
      */
     private function isDisabledIdentity(\Authentication\IdentityInterface $user): bool
     {
-        return (int)$user->get('i_del_flag') === 1 || (int)$user->get('i_enable') === 1;
+        return AccountStatus::isDisabled($user->get('i_del_flag'), $user->get('i_enable'));
     }
 
-    public function beforeFilter(EventInterface $event)
+    /**
+     * 全コントローラー共通の前処理。ログイン中に削除・無効化された人は、ここで締め出す応答（401 の JSON、またはログイン画面への転送）を返す。
+     * beforeFilter を上書きするコントローラーは、この戻り値を必ず返すこと（捨てると、締め出しが認証ミドルウェアの副作用頼みになる）。
+     */
+    public function beforeFilter(EventInterface $event): ?Response
     {
         parent::beforeFilter($event);
         $this->Authentication->allowUnauthenticated(['login']);
@@ -214,7 +235,7 @@ class AppController extends Controller
             }
             $this->Flash->error(__('このアカウントは無効化されています。'));
 
-            return $this->redirect(['controller' => 'MUserInfo', 'action' => 'login']);
+            return $this->redirect(['controller' => 'Auth', 'action' => 'login']);
         }
 
         $this->set('user', $user);
@@ -226,6 +247,8 @@ class AppController extends Controller
             $this->set('notificationUnreadCount', 0);
             $this->set('recentNotifications', []);
         }
+
+        return null;
     }
 
 }

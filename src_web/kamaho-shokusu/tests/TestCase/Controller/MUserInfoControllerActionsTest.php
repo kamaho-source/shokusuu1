@@ -113,7 +113,8 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->login(3, 0);
         $this->get('/m-user-info/import-form');
-        $this->assertRedirect(['action' => 'index']);
+        // 一括登録は UserImportController に分けたので、行き先（利用者一覧）はコントローラー名を付けて書く（#989）
+        $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']);
         $this->assertFlashMessage('この機能を利用する権限がありません。', 'flash');
     }
 
@@ -211,6 +212,57 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->assertResponseOk();
         $this->assertSame(1, (int)$this->userField(3, 'i_admin'));
+    }
+
+    /**
+     * 権限の値が数値でない（abc・配列）送信は、権限を解除（0）に書き換えず 400 で拒否する。
+     *
+     * @return array<string, array{0: array<string, mixed>}>
+     */
+    public static function invalidRoleInputProvider(): array
+    {
+        return [
+            '値が文字列'     => [['i_id_user' => 3, 'i_admin' => 'abc']],
+            '値が配列'       => [['i_id_user' => 3, 'i_admin' => [1]]],
+            '対象IDが配列'   => [['i_id_user' => [3], 'i_admin' => 1]],
+            '対象IDが文字列' => [['i_id_user' => 'abc', 'i_admin' => 1]],
+        ];
+    }
+
+    /**
+     * @dataProvider invalidRoleInputProvider
+     * @param array<string, mixed> $data
+     */
+    public function testUpdateAdminStatus_invalidInput_isRejectedWithoutChange(array $data): void
+    {
+        $this->getTableLocator()->get('MUserInfo')->updateAll(['i_admin' => 1], ['i_id_user' => 3]);
+        $before = $this->getTableLocator()->get('MUserInfo')->find()->select(['i_id_user', 'i_admin'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->login(1);
+
+        $this->post('/MUserInfo/update-admin-status', $data);
+
+        $this->assertResponseCode(400);
+        $after = $this->getTableLocator()->get('MUserInfo')->find()->select(['i_id_user', 'i_admin'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->assertSame($before, $after);
+    }
+
+    /**
+     * @dataProvider invalidRoleInputProvider
+     * @param array<string, mixed> $data
+     */
+    public function testUpdateReportAccess_invalidInput_isRejectedWithoutChange(array $data): void
+    {
+        $data = ['i_report_access' => $data['i_admin']] + $data;
+        unset($data['i_admin']);
+        $table  = $this->getTableLocator()->get('MUserInfo');
+        $before = $table->find()->select(['i_id_user', 'i_report_access'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->login(1, 3);
+
+        $this->post('/MUserInfo/update-report-access', $data);
+
+        $this->assertResponseCode(400);
+        $after = $table->find()->select(['i_id_user', 'i_report_access'])->orderBy(['i_id_user' => 'ASC'])->disableHydration()->toArray();
+        $this->assertSame($before, $after);
     }
 
     public function testUpdateAdminStatus_changingFromAnotherRole_needsConfirmation(): void
@@ -725,7 +777,7 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->get('/MUserInfo/admin_change_password');
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']); // UserPasswordController に分けたため、行き先をコントローラー名付きで書く（#989）
         $this->assertFlashMessage('この機能は管理者のみ利用できます。', 'flash');
     }
 
@@ -751,7 +803,7 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->post('/MUserInfo/admin_change_password', ['user_id' => 2, 'new_password' => 'new-pass-1', 'confirm_password' => 'new-pass-1']);
 
-        $this->assertRedirect(['action' => 'index']);
+        $this->assertRedirect(['controller' => 'MUserInfo', 'action' => 'index']); // 同上（#989）
         $this->assertFlashMessage('パスワードを変更しました。', 'flash');
         $hash = (string)$this->getTableLocator()->get('MUserInfo')->get(2)->c_login_passwd;
         $this->assertTrue((new DefaultPasswordHasher())->check('new-pass-1', $hash));
@@ -804,6 +856,31 @@ class MUserInfoControllerActionsTest extends TestCase
 
         $this->assertFalse($this->json()['ok']);
         $this->assertSame('権限がありません', $this->json()['message']);
+    }
+
+    /**
+     * 整数でない i_id_user（1.5・1e3・配列）は、(int) の型変換で別の利用者（1.5 → 1）にならず、拒否される。
+     *
+     * @return array<string, array{0: mixed}>
+     */
+    public static function nonIntegerUserIds(): array
+    {
+        return ['小数' => ['1.5'], '指数' => ['1e0'], '配列' => [[1]], '文字列' => ['abc']];
+    }
+
+    /**
+     * @dataProvider nonIntegerUserIds
+     */
+    public function testAddUserRooms_nonIntegerUserIdIsRejectedWithoutChange(mixed $userId): void
+    {
+        $groups = $this->getTableLocator()->get('MUserGroup');
+        $before = $groups->find()->count();
+        $this->login(1);
+
+        $this->post('/MUserInfo/add-user-rooms', ['i_id_user' => $userId, 'room_names' => ['Lorem ipsum dolor sit amet']]);
+
+        $this->assertFalse($this->json()['ok']);
+        $this->assertSame($before, $groups->find()->count(), '所属部屋は変わらない');
     }
 
     public function testAddUserRooms_adminReassignsRooms(): void

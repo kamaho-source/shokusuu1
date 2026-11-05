@@ -58,7 +58,7 @@ $keepOption = static function (array $options, int|string|null $value): string|f
                         <div class="mb-3">
                             <?= $this->Html->link(
                                 __('🔑 パスワード変更'),
-                                ['action' => 'adminChangePassword', '?' => ['user_id' => $mUserInfo->i_id_user]],
+                                ['controller' => 'UserPassword', 'action' => 'adminChangePassword', '?' => ['user_id' => $mUserInfo->i_id_user]],
                                 ['class' => 'btn btn-outline-primary btn-sm']
                             ) ?>
                         </div>

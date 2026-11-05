@@ -69,7 +69,7 @@ $indivJson = json_encode(array_values($individualReservations), JSON_UNESCAPED_U
         <aside class="col-md-3" <?= $isModal ? 'style="display:none;"' : '' ?>>
             <div class="list-group">
                 <h4 class="list-group-item list-group-item-action active"><?= __('Actions') ?></h4>
-                <?= $this->Html->link(__('食数予約一覧に戻る'), ['action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
+                <?= $this->Html->link(__('食数予約一覧に戻る'), ['controller' => 'TReservationInfo', 'action' => 'index'], ['class' => 'list-group-item list-group-item-action']) ?>
             </div>
         </aside>
 
@@ -79,7 +79,7 @@ $indivJson = json_encode(array_values($individualReservations), JSON_UNESCAPED_U
                     <h3><?= __('直前編集') ?></h3>
                 </div>
                 <div class="card-body">
-                    <?= $this->Form->create(null, ['id' => 'change-edit-form', 'url' => ['action' => 'changeEdit']]) ?>
+                    <?= $this->Form->create(null, ['id' => 'change-edit-form', 'url' => ['controller' => 'ReservationChangeEdit', 'action' => 'changeEdit']]) ?>
 
                     <!-- hidden fields -->
                     <?= $this->Form->hidden('d_reservation_date', ['value' => $date, 'id' => 'ce-date-hidden']) ?>

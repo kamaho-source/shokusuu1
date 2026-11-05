@@ -16,7 +16,7 @@ echo $this->Html->css('user-import', ['block' => true]);
             <h2 class="list-group-item list-group-item-action active h5 mb-0"><?= __('操作') ?></h2>
             <?= $this->Html->link(
                     __('ユーザー情報一覧'),
-                    ['action' => 'index'],
+                    ['controller' => 'MUserInfo', 'action' => 'index'],
                     ['class' => 'list-group-item list-group-item-action']
             ) ?>
         </div>
@@ -32,7 +32,7 @@ echo $this->Html->css('user-import', ['block' => true]);
             <div class="card-body" id="user-import-root">
                 <!-- JS が読む設定値（現状維持） -->
                 <meta name="csrfToken" content="<?= h($csrfToken) ?>">
-                <meta name="importJsonUrl" content="<?= h($this->Url->build(['controller'=>'MUserInfo','action'=>'importJson'])) ?>">
+                <meta name="importJsonUrl" content="<?= h($this->Url->build(['controller'=>'UserImport','action'=>'importJson'])) ?>">
                 <meta name="xlsxLocalSrc" content="<?= h($this->Url->assetUrl('js/xlsx.full.min.js')) ?>">
 
                 <!-- CDN（失敗時は ensureXLSX() がフォールバック再読み込み） -->

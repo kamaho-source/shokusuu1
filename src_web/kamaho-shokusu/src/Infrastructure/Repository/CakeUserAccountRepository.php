@@ -84,10 +84,20 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
     public function find(int $userId): ?UserAccount
     {
         $row = $this->row($userId);
-        if ($row === null) {
-            return null;
-        }
 
+        return $row === null ? null : $this->toAccount($row);
+    }
+
+    public function findByLoginAccount(string $loginAccount): ?UserAccount
+    {
+        /** @var \Cake\Datasource\EntityInterface|null $row */
+        $row = $this->users->find()->where(['c_login_account' => $loginAccount])->first();
+
+        return $row === null ? null : $this->toAccount($row);
+    }
+
+    private function toAccount(EntityInterface $row): UserAccount
+    {
         return new UserAccount(
             (int)$row->get('i_id_user'),
             $row->get('c_user_name') === null ? null : (string)$row->get('c_user_name'),

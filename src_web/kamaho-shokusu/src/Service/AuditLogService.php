@@ -48,7 +48,7 @@ class AuditLogService
     public const REASON_FALLBACK = '原因不明（詳細はサーバーログを参照）';
 
     /** ログイン失敗で、入力されたログインIDに該当するアカウントが無いときの操作者名 */
-    public const UNKNOWN_ACCOUNT_NAME = '（該当アカウントなし）';
+    public const UNKNOWN_ACCOUNT_NAME = \App\Application\Port\AuditActor::UNKNOWN_ACCOUNT_NAME;
 
     /** @var array<string, string> カテゴリ → 表示名 */
     public const CATEGORY_LABELS = [
@@ -82,6 +82,8 @@ class AuditLogService
         'reservation_copy'             => '予約コピー',
         'reservation_bulk_add'         => '予約一括登録',
         'reservation_change_edit'      => '予約の直前変更',
+        'reservation_bulk_change_edit' => '予約の直前一括変更',
+        'reservation_no_meal_report'   => '欠食報告',
         'direct_register_meals'        => 'カレンダーからの予約登録',
         'change_meal_room'             => '予約の部屋変更',
         'actual_meal_save'             => '実食入力',
