@@ -133,7 +133,8 @@ final class RegisterIndividualReservationUseCase
             ]);
         }
 
-        throw new PersistenceException('システムエラーが発生しました。');
+        // 食事が1つも選ばれておらず、取り消す予約もなかった。サーバーの失敗ではなく、利用者の入力の問題として返す
+        throw new InvalidInputException('変更する内容がありません。予約する食事を選択してから保存してください。');
     }
 
     /**

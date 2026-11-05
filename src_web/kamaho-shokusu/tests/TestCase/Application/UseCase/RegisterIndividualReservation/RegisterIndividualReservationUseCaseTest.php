@@ -254,11 +254,15 @@ class RegisterIndividualReservationUseCaseTest extends TestCase
         $this->assertSame([], $this->f->cache->forgotten);
     }
 
-    public function testNothingChanged_isSystemError(): void
+    public function testNothingChanged_isInvalidInput(): void
     {
-        $this->expectException(PersistenceException::class);
-        $this->expectExceptionMessage('システムエラーが発生しました。');
-
-        $this->register([1 => [1 => 0]]);
+        try {
+            $this->register([1 => [1 => 0]]);
+            $this->fail('例外が出ませんでした');
+        } catch (InvalidInputException $e) {
+            // サーバーの失敗（500）ではなく、利用者の入力の問題（422）として返す
+            $this->assertSame(422, $e->getStatusCode());
+            $this->assertStringContainsString('変更する内容がありません', $e->getMessage());
+        }
     }
 }
