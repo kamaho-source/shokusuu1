@@ -380,7 +380,9 @@ $URL_GET_USERS_BY_ROOM_TPL = $this->Url->build(
 
                             function fetchUserData(roomId) {
                                 // ✅ ここで __RID__ を確実に置換してからアクセス（%3AroomId のまま飛ばさない）
-                                const url = buildGetUsersByRoomUrl(roomId);
+                                // buildGetUsersByRoomUrl はカレンダー側（treservation_index.js）にしか無く、この画面を単独で開くと未定義になるため、ここで組み立てる
+                                const url = String(window.GET_USERS_BY_ROOM_TPL).replace('__RID__', encodeURIComponent(roomId))
+                                    + '?date=' + encodeURIComponent(window.QUERY_DATE || '');
                                 showLoading();
                                 fetch(url, { credentials: 'same-origin' })
                                     .then(r => {
