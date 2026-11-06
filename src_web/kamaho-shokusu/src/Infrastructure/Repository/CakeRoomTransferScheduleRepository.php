@@ -44,13 +44,44 @@ final class CakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
         return $row === null ? null : self::toSchedule($row);
     }
 
-    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at): void
+    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at, array $onlyFrom = []): bool
     {
-        $row = $this->schedules->get($scheduleId);
-        $row->set('i_status', $status);
-        $row->set('c_update_user', $updatedBy);
-        $row->set('dt_update', $at);
-        $this->schedules->saveOrFail($row);
+        $where = ['i_id' => $scheduleId];
+        if ($onlyFrom !== []) {
+            $where['i_status IN'] = $onlyFrom;
+        }
+
+        return $this->schedules->updateAll(
+            ['i_status' => $status, 'c_fail_reason' => null, 'c_update_user' => $updatedBy, 'dt_update' => $at],
+            $where
+        ) > 0;
+    }
+
+    public function markFailed(int $scheduleId, string $reason, string $at): bool
+    {
+        return $this->schedules->updateAll(
+            [
+                'i_status'      => RoomTransferSchedule::STATUS_FAILED,
+                'c_fail_reason' => mb_substr($reason, 0, 255),
+                'c_update_user' => 'batch',
+                'dt_update'     => $at,
+            ],
+            ['i_id' => $scheduleId, 'i_status' => RoomTransferSchedule::STATUS_PENDING]
+        ) > 0;
+    }
+
+    public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool
+    {
+        return $this->schedules->updateAll(
+            [
+                'i_status'         => RoomTransferSchedule::STATUS_PENDING,
+                'd_effective_date' => $effectiveDate,
+                'c_fail_reason'    => null,
+                'c_update_user'    => $updatedBy,
+                'dt_update'        => $at,
+            ],
+            ['i_id' => $scheduleId, 'i_status' => RoomTransferSchedule::STATUS_FAILED]
+        ) > 0;
     }
 
     public function pendingUntil(string $date): array
@@ -78,6 +109,7 @@ final class CakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
             (int)$row->get('i_id_room_to'),
             $date instanceof Date ? $date->format('Y-m-d') : (string)$date,
             (int)$row->get('i_status'),
+            $row->get('c_fail_reason') === null ? null : (string)$row->get('c_fail_reason'),
         );
     }
 }

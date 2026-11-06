@@ -24,6 +24,11 @@ class MRoomTransferSchedulePolicy
         return $this->isAdmin($user);
     }
 
+    public function canRetry(?IdentityInterface $user, \App\Infrastructure\Persistence\Entity\MRoomTransferSchedule $resource): bool
+    {
+        return $this->isAdmin($user);
+    }
+
     private function isAdmin(?IdentityInterface $user): bool
     {
         if ($user === null) {

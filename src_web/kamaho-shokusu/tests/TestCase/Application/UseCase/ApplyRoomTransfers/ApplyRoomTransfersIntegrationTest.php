@@ -311,4 +311,50 @@ class ApplyRoomTransfersIntegrationTest extends TestCase
         $this->assertSame(0, (int)$db->execute('SELECT i_status FROM m_room_transfer_schedule WHERE i_id_user = 6')->fetchColumn(0), '未適用のまま残る');
         $this->assertSame(0, (int)$db->execute('SELECT COUNT(*) FROM m_user_group WHERE i_id_user = 6 AND i_id_room = 72')->fetchColumn(0), '削除済みの人が異動先に所属していない');
     }
+
+    /** 異動元と異動先が同じ部屋の異動を適用しても、その部屋の予約が消えない（#945） */
+    public function testApplyPending_sameRoom_keepsReservations(): void
+    {
+        $today  = Date::today('Asia/Tokyo')->format('Y-m-d');
+        $future = Date::today('Asia/Tokyo')->addDays(20)->format('Y-m-d');
+        $this->insertReservation(1, $future, 1, 1);
+        ConnectionManager::get('test')->insert('m_room_transfer_schedule', [
+            'i_id_user' => 1, 'i_id_room_from' => 1, 'i_id_room_to' => 1, 'd_effective_date' => $today,
+            'i_status' => 0, 'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+        ]);
+
+        $result = $this->apply($today);
+
+        $this->assertSame(0, $result->applied);
+        $this->assertCount(1, $result->errors);
+        $this->assertSame([1 => 1], $this->eatFlagsByRoom($future), '予約が消えていない');
+    }
+
+    /** 昼食と弁当が重なって適用できない異動は「適用失敗」と理由が残り、次の実行では対象にしない（#945） */
+    public function testApplyPending_failedTransfer_isMarkedFailedAndNotRetried(): void
+    {
+        $today  = Date::today('Asia/Tokyo')->format('Y-m-d');
+        $future = Date::today('Asia/Tokyo')->addDays(20)->format('Y-m-d');
+        $db = ConnectionManager::get('test');
+        foreach ([[1, 2], [2, 4]] as [$roomId, $mealType]) {
+            $db->insert('t_individual_reservation_info', [
+                'i_id_user' => 1, 'd_reservation_date' => $future, 'i_reservation_type' => $mealType, 'i_id_room' => $roomId,
+                'eat_flag' => 1, 'i_change_flag' => 1, 'i_approval_status' => 0, 'i_version' => 1,
+                'dt_create' => '2026-01-01 00:00:00', 'c_create_user' => 'test',
+            ]);
+        }
+        $this->scheduleTransfer($today);
+
+        $first = $this->apply($today);
+
+        $this->assertSame(0, $first->applied);
+        $this->assertCount(1, $first->errors);
+        $row = TableRegistry::getTableLocator()->get('MRoomTransferSchedule')->find()->where(['i_id_user' => 1])->firstOrFail();
+        $this->assertSame(3, (int)$row->i_status);
+        $this->assertSame('昼食と弁当は同時に予約できません。どちらか一方にしてください。', $row->c_fail_reason, '管理者が読める理由だけを残す');
+        $this->assertSame('batch', $row->c_update_user);
+
+        $second = $this->apply($today);
+        $this->assertSame([0, []], [$second->applied, $second->errors], '次の実行では同じ失敗を繰り返さない');
+    }
 }

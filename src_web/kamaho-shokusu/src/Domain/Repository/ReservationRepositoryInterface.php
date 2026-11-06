@@ -126,6 +126,7 @@ interface ReservationRepositoryInterface
      * 部屋異動で、予約行を異動先の部屋へ移す（RoomTransferReservationRule の決めたとおりに）。
      * 異動元の行は消す。異動先の行を作るときは、作成者・作成日時・承認状態を引き継ぐ（版は 1 から。二重予約の確認はしない）。
      * 異動先の行に写すときは、承認状態を引き継ぎ、版を上げる。保存できなければ例外を投げる。
+     * 異動先で昼食と弁当が重なるときは、読める理由の ConflictException を投げる（部屋異動の「適用失敗」の理由になる）。
      *
      * @param string $at 更新日時（'Y-m-d H:i:s'）
      */

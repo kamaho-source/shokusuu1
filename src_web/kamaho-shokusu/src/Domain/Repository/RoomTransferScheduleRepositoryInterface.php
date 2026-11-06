@@ -25,11 +25,32 @@ interface RoomTransferScheduleRepositoryInterface
     public function find(int $scheduleId): ?RoomTransferSchedule;
 
     /**
-     * 状態を変える（取消・適用済み）。
+     * 状態を変える（取消・適用済み・やり直し）。適用失敗の理由は消す。
+     * $onlyFrom を渡すと、今の状態がそのどれかのときだけ変える（ほかの操作が先に変えていれば何もしない）。
+     *
+     * @param list<int> $onlyFrom 変えてよい今の状態（空なら問わない）
+     * @param string $at 更新日時（'Y-m-d H:i:s'）
+     * @return bool 変えたか
+     */
+    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at, array $onlyFrom = []): bool;
+
+    /**
+     * 適用失敗にして理由を残す（更新者は 'batch'）。理由は列の長さ（255文字）に切る。
+     * 予約中のときだけ変える（バッチの途中で管理者が取り消した異動を上書きしない）。
      *
      * @param string $at 更新日時（'Y-m-d H:i:s'）
+     * @return bool 変えたか
      */
-    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at): void;
+    public function markFailed(int $scheduleId, string $reason, string $at): bool;
+
+    /**
+     * 適用失敗の異動を、指定した有効開始日の予約中に戻す（やり直し）。理由は消す。適用失敗のときだけ変える。
+     *
+     * @param string $effectiveDate 新しい有効開始日（'Y-m-d'）
+     * @param string $at 更新日時（'Y-m-d H:i:s'）
+     * @return bool 変えたか
+     */
+    public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool;
 
     /**
      * 有効開始日が基準日以前の、予約中の予約。

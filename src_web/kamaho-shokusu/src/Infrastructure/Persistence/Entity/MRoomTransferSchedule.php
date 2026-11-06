@@ -14,6 +14,7 @@ use Cake\ORM\Entity;
  * @property int $i_id_room_to
  * @property \Cake\I18n\Date $d_effective_date
  * @property int $i_status
+ * @property string|null $c_fail_reason
  * @property string|null $c_create_user
  * @property \Cake\I18n\DateTime|null $dt_create
  * @property string|null $c_update_user

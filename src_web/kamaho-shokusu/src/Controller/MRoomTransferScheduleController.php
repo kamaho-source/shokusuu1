@@ -4,21 +4,27 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Application\Query\RoomTransferQueryInterface;
-use App\Infrastructure\Persistence\Entity\MRoomTransferSchedule;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferInput;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferOutput;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferInput;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferOutput;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
+use App\Application\UseCase\RetryRoomTransfer\RetryRoomTransferInput;
+use App\Application\UseCase\RetryRoomTransfer\RetryRoomTransferOutput;
+use App\Application\UseCase\RetryRoomTransfer\RetryRoomTransferUseCase;
 use App\Domain\Exception\NotFoundException as DomainNotFoundException;
+use App\Infrastructure\Persistence\Entity\MRoomTransferSchedule;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
+use Cake\Http\Response;
 
 /**
  * 部屋異動予約コントローラー
  *
  * 管理者が将来日付での部屋異動を事前登録・確認・キャンセルする画面を提供する。
+ *
+ * @property \Authorization\Controller\Component\AuthorizationComponent $Authorization
  */
 class MRoomTransferScheduleController extends AppController
 {
@@ -44,7 +50,7 @@ class MRoomTransferScheduleController extends AppController
         }
 
         $statusFilter = $this->request->getQuery('status');
-        $schedules = $transferQuery->schedules(in_array($statusFilter, ['0', '1', '2'], true) ? (int)$statusFilter : null);
+        $schedules = $transferQuery->schedules(in_array($statusFilter, ['0', '1', '2', '3'], true) ? (int)$statusFilter : null);
 
         $this->set(compact('schedules', 'statusFilter'));
     }
@@ -142,5 +148,42 @@ class MRoomTransferScheduleController extends AppController
         }
 
         $this->redirect(['action' => 'index']);
+    }
+
+    /**
+     * 適用失敗の異動を予約中に戻す（次のバッチで適用し直す。#945）
+     *
+     * @param int $id スケジュールID
+     */
+    public function retry(RetryRoomTransferUseCase $retryTransfer, int $id): ?Response
+    {
+        $this->request->allowMethod(['post']);
+
+        $resource = new MRoomTransferSchedule();
+
+        try {
+            $this->Authorization->authorize($resource, 'retry');
+        } catch (ForbiddenException $e) {
+            $this->Flash->error(__('この機能は管理者のみ利用できます。'));
+
+            return $this->redirect(['action' => 'index']);
+        }
+
+        $identity = $this->request->getAttribute('identity');
+        try {
+            $result = $retryTransfer->execute(new RetryRoomTransferInput($id, $identity ? (string)$identity->get('c_user_name') : '管理者'));
+            match ($result->status) {
+                RetryRoomTransferOutput::RETRIED => $this->Flash->success($result->movedTo === null
+                    ? __('異動予約を予約中に戻しました。次のバッチで適用します。')
+                    : __('異動予約を予約中に戻しました。有効開始日を {0} にしました。次のバッチで適用します。', $result->movedTo)),
+                RetryRoomTransferOutput::REJECTED => $this->Flash->error((string)$result->message),
+            };
+        } catch (DomainNotFoundException $e) {
+            throw new NotFoundException('指定された予約が見つかりません。');
+        } catch (\Throwable $e) {
+            $this->Flash->error(__('やり直しの処理中にエラーが発生しました。'));
+        }
+
+        return $this->redirect(['action' => 'index']);
     }
 }

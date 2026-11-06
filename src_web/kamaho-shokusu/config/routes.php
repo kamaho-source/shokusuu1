@@ -237,6 +237,13 @@ return function (RouteBuilder $routes): void {
             ->setPass(['id'])
             ->setPatterns(['id' => '\d+'])
             ->setMethods(['POST']);
+        $builder->connect(
+            '/MRoomTransferSchedule/retry/{id}',
+            ['controller' => 'MRoomTransferSchedule', 'action' => 'retry']
+        )
+            ->setPass(['id'])
+            ->setPatterns(['id' => '\d+'])
+            ->setMethods(['POST']);
 
         // Pages
         $builder->connect('/pages/*', 'Pages::display');
