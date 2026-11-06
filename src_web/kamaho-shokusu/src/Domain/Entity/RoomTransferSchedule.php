@@ -28,6 +28,23 @@ final class RoomTransferSchedule
         public readonly int $status,
     ) {}
 
+    /** 異動元と異動先が同じ部屋の異動を断るときの理由。 */
+    public const SAME_ROOM_MESSAGE = '異動元と異動先が同じ部屋です。';
+
+    /**
+     * 異動元と異動先が同じ部屋か。同じ部屋の異動は行えない（適用すると、その部屋の予約を消してしまう。#945）。
+     * 異動元なし（新しい配属）は同じ部屋ではない。
+     */
+    public static function isSameRoom(?int $roomFromId, int $roomToId): bool
+    {
+        return $roomFromId !== null && $roomFromId === $roomToId;
+    }
+
+    public function isSameRoomTransfer(): bool
+    {
+        return self::isSameRoom($this->roomFromId, $this->roomToId);
+    }
+
     public function isPending(): bool
     {
         return $this->status === self::STATUS_PENDING;

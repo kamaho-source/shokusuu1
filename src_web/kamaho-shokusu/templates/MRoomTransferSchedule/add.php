@@ -78,6 +78,20 @@ $today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
 
     const userSelect    = document.getElementById('i_id_user');
     const roomFromSelect = document.getElementById('i_id_room_from');
+    const roomToSelect   = document.getElementById('i_id_room_to');
+
+    // 異動元と同じ部屋は異動先に選べない（同じ部屋の異動を適用すると、その部屋の予約が消えるため。#945）
+    function excludeRoomFromDestination() {
+        const fromValue = roomFromSelect.value;
+        Array.from(roomToSelect.options).forEach(function (opt) {
+            const same = fromValue !== '' && opt.value === fromValue;
+            opt.disabled = same;
+            opt.hidden = same;
+        });
+        if (fromValue !== '' && roomToSelect.value === fromValue) {
+            roomToSelect.value = '';
+        }
+    }
 
     function updateRoomFromOptions(userId) {
         const currentValue = roomFromSelect.value;
@@ -99,7 +113,10 @@ $today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
                 roomFromSelect.add(opt);
             }
         });
+        excludeRoomFromDestination();
     }
+
+    roomFromSelect.addEventListener('change', excludeRoomFromDestination);
 
     userSelect.addEventListener('change', function () {
         updateRoomFromOptions(this.value ? parseInt(this.value, 10) : null);
@@ -108,5 +125,6 @@ $today = \Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d');
     if (userSelect.value) {
         updateRoomFromOptions(parseInt(userSelect.value, 10));
     }
+    excludeRoomFromDestination();
 })();
 </script>

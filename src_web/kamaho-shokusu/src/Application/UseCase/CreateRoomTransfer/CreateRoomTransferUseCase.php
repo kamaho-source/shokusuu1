@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Application\UseCase\CreateRoomTransfer;
 
+use App\Domain\Entity\RoomTransferSchedule;
 use App\Domain\Repository\RoomTransferScheduleRepositoryInterface;
 use App\Domain\Service\DatePeriodRule;
 use Psr\Clock\ClockInterface;
@@ -27,6 +28,9 @@ final class CreateRoomTransferUseCase
     {
         if (!$input->userId || !$input->roomToId || $input->effectiveDate === '') {
             return CreateRoomTransferOutput::rejected('ユーザー・異動先部屋・有効開始日は必須です。');
+        }
+        if (RoomTransferSchedule::isSameRoom($input->roomFromId, $input->roomToId)) {
+            return CreateRoomTransferOutput::rejected(RoomTransferSchedule::SAME_ROOM_MESSAGE);
         }
         if (!DatePeriodRule::isDate($input->effectiveDate)) {
             return CreateRoomTransferOutput::rejected('有効開始日が正しくありません。');

@@ -47,6 +47,11 @@ final class ApplyRoomTransfersUseCase
             if ($this->users->find($schedule->userId)?->isDeleted()) {
                 continue;
             }
+            // 同じ部屋の異動を適用すると、その部屋の予約を消してしまう。動かさずに理由を返す（#945）
+            if ($schedule->isSameRoomTransfer()) {
+                $errors[] = sprintf('スケジュールID=%d: %s', $schedule->id, RoomTransferSchedule::SAME_ROOM_MESSAGE);
+                continue;
+            }
             $this->transaction->begin();
             try {
                 $this->apply($schedule);
