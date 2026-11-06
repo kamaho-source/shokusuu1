@@ -27,9 +27,53 @@ final class FakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
         return $this->schedules[$scheduleId] ?? null;
     }
 
-    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at): void
+    /** @var array<int, int> 予約ID => 今の状態（バッチの途中で、ほかの操作が状態を変えたことにする） */
+    public array $currentStatus = [];
+
+    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at, array $onlyFrom = []): bool
     {
+        if (!$this->isIn($scheduleId, $onlyFrom)) {
+            return false;
+        }
         $this->statusChanges[] = [$scheduleId, $status, $updatedBy];
+
+        return true;
+    }
+
+    /**
+     * @param list<int> $statuses 空なら状態を問わない
+     */
+    private function isIn(int $scheduleId, array $statuses): bool
+    {
+        $current = $this->currentStatus[$scheduleId] ?? ($this->schedules[$scheduleId]->status ?? null);
+
+        return $statuses === [] || in_array($current, $statuses, true);
+    }
+
+    /** @var list<array{int, string, string}> reopen の呼び出し [予約ID, 有効開始日, 更新者] */
+    public array $reopens = [];
+
+    public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool
+    {
+        if (!$this->isIn($scheduleId, [RoomTransferSchedule::STATUS_FAILED])) {
+            return false;
+        }
+        $this->reopens[] = [$scheduleId, $effectiveDate, $updatedBy];
+
+        return true;
+    }
+
+    /** @var list<array{int, string}> markFailed の呼び出し [予約ID, 理由] */
+    public array $failures = [];
+
+    public function markFailed(int $scheduleId, string $reason, string $at): bool
+    {
+        if (!$this->isIn($scheduleId, [RoomTransferSchedule::STATUS_PENDING])) {
+            return false;
+        }
+        $this->failures[] = [$scheduleId, $reason];
+
+        return true;
     }
 
     public function pendingUntil(string $date): array

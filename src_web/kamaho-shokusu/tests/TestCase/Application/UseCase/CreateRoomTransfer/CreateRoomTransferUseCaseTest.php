@@ -40,8 +40,19 @@ class CreateRoomTransferUseCaseTest extends TestCase
                 return null;
             }
 
-            public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at): void
+            public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at, array $onlyFrom = []): bool
             {
+                return true;
+            }
+
+            public function markFailed(int $scheduleId, string $reason, string $at): bool
+            {
+                return true;
+            }
+
+            public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool
+            {
+                return true;
             }
 
             public function pendingUntil(string $date): array
@@ -106,6 +117,15 @@ class CreateRoomTransferUseCaseTest extends TestCase
     public function testEmptyDate_isRequiredError(): void
     {
         $this->assertSame('ユーザー・異動先部屋・有効開始日は必須です。', $this->create(''));
+        $this->assertSame([], $this->schedules->created);
+    }
+
+    /** 異動元と異動先が同じ部屋の異動は登録しない（適用すると予約が消えるため。#945） */
+    public function testSameRoom_isRejectedAndNotSaved(): void
+    {
+        $output = $this->useCase->execute(new CreateRoomTransferInput(2, 3, 3, '2026-11-10', 'tester'));
+
+        $this->assertSame('異動元と異動先が同じ部屋です。', $output->message);
         $this->assertSame([], $this->schedules->created);
     }
 }

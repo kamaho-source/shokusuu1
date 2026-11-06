@@ -367,12 +367,6 @@ parameters:
 			path: src/Controller/MRoomInfoController.php
 
 		-
-			message: '#^Access to an undefined property App\\Controller\\MRoomTransferScheduleController\:\:\$Authorization\.$#'
-			identifier: property.notFound
-			count: 3
-			path: src/Controller/MRoomTransferScheduleController.php
-
-		-
 			message: '#^Method `redirect\(\)` must be used to prevent unreachable code\. Use `return \$this\-\>redirect\(\)` or assign it to a variable\.$#'
 			identifier: cake.controller.redirectMustBeUsed
 			count: 5

@@ -32,8 +32,14 @@ final class SpyReservationCache implements ReservationCacheInterface
     /** @var list<array{date: string, userId: int}> forgetAfterRoomTransfer の呼び出し */
     public array $afterTransfer = [];
 
+    /** forgetAfterRoomTransfer で例外を投げる */
+    public ?\Throwable $afterTransferThrows = null;
+
     public function forgetAfterRoomTransfer(string $date, int $userId): void
     {
+        if ($this->afterTransferThrows !== null) {
+            throw $this->afterTransferThrows;
+        }
         $this->afterTransfer[] = ['date' => $date, 'userId' => $userId];
     }
 }
