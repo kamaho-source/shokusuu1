@@ -351,7 +351,16 @@ final class CakeReservationRepository implements ReservationRepositoryInterface
             // 異動は予約内容の変更ではないため承認状態を引き継ぐ（mass assign 不可のため個別に設定する）
             $new->set('i_approval_status', (int)($old->i_approval_status ?? 0));
             // 既存の行を部屋ごと移すだけで二重予約は増えないため、重複チェックは行わない
-            $this->reservations->saveOrFail($new, ['checkDuplicateRoom' => false]);
+            try {
+                $this->reservations->saveOrFail($new, ['checkDuplicateRoom' => false]);
+            } catch (PersistenceFailedException $e) {
+                // 昼食と弁当の重なりは、管理者が読める理由にする（部屋異動の「適用失敗」の理由として残る。#945）
+                $reason = TIndividualReservationInfoTable::lunchBentoViolation($e);
+                if ($reason === null) {
+                    throw $e;
+                }
+                throw new ConflictException($reason);
+            }
         }
     }
 

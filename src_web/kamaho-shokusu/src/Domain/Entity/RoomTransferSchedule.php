@@ -14,10 +14,13 @@ final class RoomTransferSchedule
     public const STATUS_APPLIED = 1;
     /** 取消済み */
     public const STATUS_CANCELLED = 2;
+    /** 適用失敗（理由を残し、管理者がやり直すか取り消すまでバッチの対象にしない。#945） */
+    public const STATUS_FAILED = 3;
 
     /**
      * @param int|null $roomFromId 異動元の部屋（null は新しく配属）
      * @param string $effectiveDate 有効開始日（'Y-m-d'）
+     * @param string|null $failReason 適用失敗の理由（適用失敗のときだけ）
      */
     public function __construct(
         public readonly int $id,
@@ -26,6 +29,7 @@ final class RoomTransferSchedule
         public readonly int $roomToId,
         public readonly string $effectiveDate,
         public readonly int $status,
+        public readonly ?string $failReason = null,
     ) {}
 
     /** 異動元と異動先が同じ部屋の異動を断るときの理由。 */
@@ -43,6 +47,11 @@ final class RoomTransferSchedule
     public function isSameRoomTransfer(): bool
     {
         return self::isSameRoom($this->roomFromId, $this->roomToId);
+    }
+
+    public function isFailed(): bool
+    {
+        return $this->status === self::STATUS_FAILED;
     }
 
     public function isPending(): bool

@@ -10,8 +10,9 @@ final class RoomTransferView
 {
     /**
      * @param string $effectiveDate 異動日（Y-m-d）
-     * @param int $status 0=予約中・1=適用済み・2=取消
+     * @param int $status 0=予約中・1=適用済み・2=取消・3=適用失敗
      * @param string|null $createdAt 登録日時（Y-m-d H:i:s）
+     * @param string|null $failReason 適用失敗の理由（適用失敗のときだけ）
      */
     public function __construct(
         public readonly int $id,
@@ -22,5 +23,6 @@ final class RoomTransferView
         public readonly int $status,
         public readonly ?string $createdBy,
         public readonly ?string $createdAt,
+        public readonly ?string $failReason = null,
     ) {}
 }

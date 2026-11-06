@@ -10,7 +10,7 @@ final class CancelRoomTransferOutput
 {
     /** 取り消した */
     public const CANCELLED = 'cancelled';
-    /** 取り消せない（予約中でない）。$message に理由 */
+    /** 取り消せない（予約中・適用失敗でない）。$message に理由 */
     public const REJECTED = 'rejected';
 
     private function __construct(

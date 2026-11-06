@@ -11,6 +11,7 @@ class MRoomTransferScheduleTable extends Table
     public const STATUS_PENDING   = 0;
     public const STATUS_APPLIED   = 1;
     public const STATUS_CANCELLED = 2;
+    public const STATUS_FAILED    = 3;
 
     public function initialize(array $config): void
     {
@@ -54,7 +55,7 @@ class MRoomTransferScheduleTable extends Table
 
         $validator
             ->integer('i_status', '状態の指定が正しくありません。')
-            ->inList('i_status', [self::STATUS_PENDING, self::STATUS_APPLIED, self::STATUS_CANCELLED], '状態の指定が正しくありません。');
+            ->inList('i_status', [self::STATUS_PENDING, self::STATUS_APPLIED, self::STATUS_CANCELLED, self::STATUS_FAILED], '状態の指定が正しくありません。');
 
         return $validator;
     }

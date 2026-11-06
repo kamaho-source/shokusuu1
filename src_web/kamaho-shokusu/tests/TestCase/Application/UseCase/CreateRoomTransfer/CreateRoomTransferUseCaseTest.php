@@ -40,8 +40,19 @@ class CreateRoomTransferUseCaseTest extends TestCase
                 return null;
             }
 
-            public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at): void
+            public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at, array $onlyFrom = []): bool
             {
+                return true;
+            }
+
+            public function markFailed(int $scheduleId, string $reason, string $at): bool
+            {
+                return true;
+            }
+
+            public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool
+            {
+                return true;
             }
 
             public function pendingUntil(string $date): array
