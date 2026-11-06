@@ -155,7 +155,7 @@ class MRoomTransferScheduleController extends AppController
      *
      * @param int $id スケジュールID
      */
-    public function retry(RetryRoomTransferUseCase $retryTransfer, int $id): Response
+    public function retry(RetryRoomTransferUseCase $retryTransfer, int $id): ?Response
     {
         $this->request->allowMethod(['post']);
 
