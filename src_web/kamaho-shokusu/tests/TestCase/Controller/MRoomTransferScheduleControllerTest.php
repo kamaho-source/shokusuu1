@@ -110,7 +110,7 @@ class MRoomTransferScheduleControllerTest extends TestCase
     {
         $this->login(true);
         $this->post('/MRoomTransferSchedule/add', [
-            'i_id_user' => '2', 'i_id_room_from' => '1', 'i_id_room_to' => '1', 'd_effective_date' => '2030-04-01',
+            'i_id_user' => '2', 'i_id_room_from' => '1', 'i_id_room_to' => '2', 'd_effective_date' => '2030-04-01',
         ]);
 
         $this->assertRedirectContains('/MRoomTransferSchedule');
@@ -118,6 +118,7 @@ class MRoomTransferScheduleControllerTest extends TestCase
         $row = $this->getTableLocator()->get('MRoomTransferSchedule')->find()->firstOrFail();
         $this->assertSame(2, (int)$row->i_id_user);
         $this->assertSame(1, (int)$row->i_id_room_from);
+        $this->assertSame(2, (int)$row->i_id_room_to);
         $this->assertSame(MRoomTransferScheduleTable::STATUS_PENDING, (int)$row->i_status);
         $this->assertSame('管理者ユーザー', $row->c_create_user);
     }
@@ -290,5 +291,18 @@ class MRoomTransferScheduleControllerTest extends TestCase
         $this->get("/MRoomTransferSchedule/cancel/{$id}");
         $this->assertResponseError();
         $this->assertSame(MRoomTransferScheduleTable::STATUS_PENDING, $this->statusOf($id));
+    }
+
+    /** 異動元と異動先が同じ部屋の異動は登録できず、理由が出る（#945） */
+    public function testAdd_post_sameRoom_showsErrorAndSavesNothing(): void
+    {
+        $this->login(true);
+        $before = $this->getTableLocator()->get('MRoomTransferSchedule')->find()->count();
+
+        $this->post('/MRoomTransferSchedule/add', ['i_id_user' => '2', 'i_id_room_from' => '1', 'i_id_room_to' => '1', 'd_effective_date' => '2030-04-20']);
+
+        $this->assertResponseOk();
+        $this->assertResponseContains('異動元と異動先が同じ部屋です。');
+        $this->assertSame($before, $this->getTableLocator()->get('MRoomTransferSchedule')->find()->count());
     }
 }

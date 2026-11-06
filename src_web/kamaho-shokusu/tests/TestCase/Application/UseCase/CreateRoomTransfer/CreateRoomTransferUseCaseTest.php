@@ -108,4 +108,13 @@ class CreateRoomTransferUseCaseTest extends TestCase
         $this->assertSame('ユーザー・異動先部屋・有効開始日は必須です。', $this->create(''));
         $this->assertSame([], $this->schedules->created);
     }
+
+    /** 異動元と異動先が同じ部屋の異動は登録しない（適用すると予約が消えるため。#945） */
+    public function testSameRoom_isRejectedAndNotSaved(): void
+    {
+        $output = $this->useCase->execute(new CreateRoomTransferInput(2, 3, 3, '2026-11-10', 'tester'));
+
+        $this->assertSame('異動元と異動先が同じ部屋です。', $output->message);
+        $this->assertSame([], $this->schedules->created);
+    }
 }

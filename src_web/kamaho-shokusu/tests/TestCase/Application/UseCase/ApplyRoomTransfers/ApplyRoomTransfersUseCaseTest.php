@@ -115,4 +115,21 @@ class ApplyRoomTransfersUseCaseTest extends TestCase
         $this->assertSame([[2, RoomTransferSchedule::STATUS_APPLIED, 'batch']], $this->schedules->statusChanges);
         $this->assertSame([['date' => '2026-11-02', 'userId' => 20]], $this->cache->afterTransfer, '取り消した予約のキャッシュは捨てない');
     }
+
+    /** 登録済みの「異動元と異動先が同じ部屋」の異動は、予約を動かさずに理由を返す。ほかの異動は適用する（#945） */
+    public function testSameRoom_isNotApplied_andOthersAre(): void
+    {
+        $this->schedules->schedules[1] = new RoomTransferSchedule(1, 20, 1, 1, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
+        $this->schedules->schedules[2] = new RoomTransferSchedule(2, 20, null, 3, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
+        $this->reservations->record(20, '2026-11-20', 1, 1);
+
+        $result = $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02'));
+
+        $this->assertSame(1, $result->applied);
+        $this->assertSame(['スケジュールID=1: 異動元と異動先が同じ部屋です。'], $result->errors);
+        $this->assertSame(['transfer:20:-->3'], $this->users->roomOps, '同じ部屋の異動では所属を変えない');
+        $this->assertSame([], $this->reservations->transferOps, '予約を動かさない');
+        $this->assertSame([[2, RoomTransferSchedule::STATUS_APPLIED, 'batch']], $this->schedules->statusChanges);
+        $this->assertSame(['begin', 'commit'], $this->transaction->calls, '同じ部屋の異動はトランザクションも開かない');
+    }
 }
