@@ -143,7 +143,12 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                             <button type="button"
                                     class="btn btn-sm btn-outline-primary rts-retry-btn mb-1"
                                     data-form-id="retry-form-<?= $schedule->id ?>"
-                                    data-message="<?= h(sprintf('%s の異動予約（→ %s）を予約中に戻し、次のバッチで適用し直しますか？失敗の理由を直してから実行してください。', $schedule->userName ?? '', $schedule->roomToName ?? '')) ?>">
+                                    data-message="<?= h(sprintf(
+                                        '%s の異動予約（→ %s）を予約中に戻し、次のバッチで適用し直しますか？%s失敗の理由を直してから実行してください。',
+                                        $schedule->userName ?? '',
+                                        $schedule->roomToName ?? '',
+                                        $schedule->effectiveDate < $today->format('Y-m-d') ? '有効開始日は過ぎているので、今日にして適用し直します。' : ''
+                                    )) ?>">
                                 <i class="bi bi-arrow-repeat"></i> やり直す
                             </button>
                         <?php endif; ?>

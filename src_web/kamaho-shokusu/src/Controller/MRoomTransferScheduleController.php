@@ -173,7 +173,9 @@ class MRoomTransferScheduleController extends AppController
         try {
             $result = $retryTransfer->execute(new RetryRoomTransferInput($id, $identity ? (string)$identity->get('c_user_name') : '管理者'));
             match ($result->status) {
-                RetryRoomTransferOutput::RETRIED => $this->Flash->success(__('異動予約を予約中に戻しました。次のバッチで適用します。')),
+                RetryRoomTransferOutput::RETRIED => $this->Flash->success($result->movedTo === null
+                    ? __('異動予約を予約中に戻しました。次のバッチで適用します。')
+                    : __('異動予約を予約中に戻しました。有効開始日を {0} にしました。次のバッチで適用します。', $result->movedTo)),
                 RetryRoomTransferOutput::REJECTED => $this->Flash->error((string)$result->message),
             };
         } catch (DomainNotFoundException $e) {

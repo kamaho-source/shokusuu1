@@ -44,6 +44,15 @@ interface RoomTransferScheduleRepositoryInterface
     public function markFailed(int $scheduleId, string $reason, string $at): bool;
 
     /**
+     * 適用失敗の異動を、指定した有効開始日の予約中に戻す（やり直し）。理由は消す。適用失敗のときだけ変える。
+     *
+     * @param string $effectiveDate 新しい有効開始日（'Y-m-d'）
+     * @param string $at 更新日時（'Y-m-d H:i:s'）
+     * @return bool 変えたか
+     */
+    public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool;
+
+    /**
      * 有効開始日が基準日以前の、予約中の予約。
      *
      * @return list<RoomTransferSchedule>

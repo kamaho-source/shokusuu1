@@ -50,6 +50,11 @@ class CreateRoomTransferUseCaseTest extends TestCase
                 return true;
             }
 
+            public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool
+            {
+                return true;
+            }
+
             public function pendingUntil(string $date): array
             {
                 return [];

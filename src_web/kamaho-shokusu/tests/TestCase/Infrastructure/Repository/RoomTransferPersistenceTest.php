@@ -177,4 +177,23 @@ class RoomTransferPersistenceTest extends TestCase
         $this->assertTrue($repo->markFailed($id, '理由', self::AT));
         $this->assertSame(RoomTransferSchedule::STATUS_FAILED, $repo->find($id)?->status);
     }
+
+    /** やり直しは、適用失敗のものだけを、新しい有効開始日の予約中に戻し、理由を消す */
+    public function testReopen_onlyFailed_withNewDate(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->execute('DELETE FROM m_room_transfer_schedule');
+        foreach ([RoomTransferSchedule::STATUS_FAILED, RoomTransferSchedule::STATUS_CANCELLED] as $status) {
+            $db->insert('m_room_transfer_schedule', ['i_id_user' => 1, 'i_id_room_from' => 1, 'i_id_room_to' => 2, 'd_effective_date' => '2026-11-01', 'i_status' => $status, 'c_fail_reason' => '理由', 'dt_create' => self::AT, 'c_create_user' => 't']);
+        }
+        [$failedId, $cancelledId] = array_map(static fn(array $r): int => (int)$r[0], $db->execute('SELECT i_id FROM m_room_transfer_schedule ORDER BY i_id')->fetchAll('num'));
+        $repo = new CakeRoomTransferScheduleRepository();
+
+        $this->assertTrue($repo->reopen($failedId, '2026-11-20', '管理者', self::AT));
+        $this->assertFalse($repo->reopen($cancelledId, '2026-11-20', '管理者', self::AT));
+
+        $reopened = $repo->find($failedId);
+        $this->assertSame([RoomTransferSchedule::STATUS_PENDING, '2026-11-20', null], [$reopened?->status, $reopened?->effectiveDate, $reopened?->failReason]);
+        $this->assertSame(RoomTransferSchedule::STATUS_CANCELLED, $repo->find($cancelledId)?->status);
+    }
 }

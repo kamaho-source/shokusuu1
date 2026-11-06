@@ -50,6 +50,19 @@ final class FakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
         return $statuses === [] || in_array($current, $statuses, true);
     }
 
+    /** @var list<array{int, string, string}> reopen の呼び出し [予約ID, 有効開始日, 更新者] */
+    public array $reopens = [];
+
+    public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool
+    {
+        if (!$this->isIn($scheduleId, [RoomTransferSchedule::STATUS_FAILED])) {
+            return false;
+        }
+        $this->reopens[] = [$scheduleId, $effectiveDate, $updatedBy];
+
+        return true;
+    }
+
     /** @var list<array{int, string}> markFailed の呼び出し [予約ID, 理由] */
     public array $failures = [];
 

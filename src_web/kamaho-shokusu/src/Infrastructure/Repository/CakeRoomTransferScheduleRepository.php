@@ -70,6 +70,20 @@ final class CakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
         ) > 0;
     }
 
+    public function reopen(int $scheduleId, string $effectiveDate, string $updatedBy, string $at): bool
+    {
+        return $this->schedules->updateAll(
+            [
+                'i_status'         => RoomTransferSchedule::STATUS_PENDING,
+                'd_effective_date' => $effectiveDate,
+                'c_fail_reason'    => null,
+                'c_update_user'    => $updatedBy,
+                'dt_update'        => $at,
+            ],
+            ['i_id' => $scheduleId, 'i_status' => RoomTransferSchedule::STATUS_FAILED]
+        ) > 0;
+    }
+
     public function pendingUntil(string $date): array
     {
         $rows = $this->schedules->find()
