@@ -39,7 +39,7 @@ final class CakeRoomTransferQuery implements RoomTransferQueryInterface
                 (int)$s->i_status,
                 $s->c_create_user,
                 $s->dt_create?->format('Y-m-d H:i:s'),
-                $s->c_fail_reason,
+                $s->get('c_fail_reason') === null ? null : (string)$s->get('c_fail_reason'),
             );
         }
 

@@ -17,11 +17,14 @@ use App\Domain\Exception\NotFoundException as DomainNotFoundException;
 use App\Infrastructure\Persistence\Entity\MRoomTransferSchedule;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Exception\NotFoundException;
+use Cake\Http\Response;
 
 /**
  * 部屋異動予約コントローラー
  *
  * 管理者が将来日付での部屋異動を事前登録・確認・キャンセルする画面を提供する。
+ *
+ * @property \Authorization\Controller\Component\AuthorizationComponent $Authorization
  */
 class MRoomTransferScheduleController extends AppController
 {
@@ -152,7 +155,7 @@ class MRoomTransferScheduleController extends AppController
      *
      * @param int $id スケジュールID
      */
-    public function retry(RetryRoomTransferUseCase $retryTransfer, int $id): void
+    public function retry(RetryRoomTransferUseCase $retryTransfer, int $id): Response
     {
         $this->request->allowMethod(['post']);
 
@@ -162,8 +165,8 @@ class MRoomTransferScheduleController extends AppController
             $this->Authorization->authorize($resource, 'retry');
         } catch (ForbiddenException $e) {
             $this->Flash->error(__('この機能は管理者のみ利用できます。'));
-            $this->redirect(['action' => 'index']);
-            return;
+
+            return $this->redirect(['action' => 'index']);
         }
 
         $identity = $this->request->getAttribute('identity');
@@ -179,6 +182,6 @@ class MRoomTransferScheduleController extends AppController
             $this->Flash->error(__('やり直しの処理中にエラーが発生しました。'));
         }
 
-        $this->redirect(['action' => 'index']);
+        return $this->redirect(['action' => 'index']);
     }
 }
