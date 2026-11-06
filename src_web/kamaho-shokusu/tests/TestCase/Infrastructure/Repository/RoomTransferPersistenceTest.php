@@ -159,4 +159,22 @@ class RoomTransferPersistenceTest extends TestCase
         $repo->changeStatus($id, RoomTransferSchedule::STATUS_PENDING, '管理者', self::AT);
         $this->assertNull($repo->find($id)?->failReason);
     }
+
+    /** 状態を変える書き込みは、思っている状態のときだけ行う（ほかの操作の結果を上書きしない） */
+    public function testConditionalWrites_doNotOverwriteOtherChanges(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->execute('DELETE FROM m_room_transfer_schedule');
+        $db->insert('m_room_transfer_schedule', ['i_id_user' => 1, 'i_id_room_from' => 1, 'i_id_room_to' => 2, 'd_effective_date' => '2026-11-01', 'i_status' => RoomTransferSchedule::STATUS_CANCELLED, 'dt_create' => self::AT, 'c_create_user' => 't']);
+        $id = (int)$db->execute('SELECT MAX(i_id) FROM m_room_transfer_schedule')->fetchColumn(0);
+        $repo = new CakeRoomTransferScheduleRepository();
+
+        $this->assertFalse($repo->markFailed($id, '理由', self::AT), '取消済みを適用失敗にしない');
+        $this->assertFalse($repo->changeStatus($id, RoomTransferSchedule::STATUS_APPLIED, 'batch', self::AT, [RoomTransferSchedule::STATUS_PENDING]));
+        $this->assertSame([RoomTransferSchedule::STATUS_CANCELLED, null], [$repo->find($id)?->status, $repo->find($id)?->failReason]);
+
+        $this->assertTrue($repo->changeStatus($id, RoomTransferSchedule::STATUS_PENDING, '管理者', self::AT, [RoomTransferSchedule::STATUS_CANCELLED]));
+        $this->assertTrue($repo->markFailed($id, '理由', self::AT));
+        $this->assertSame(RoomTransferSchedule::STATUS_FAILED, $repo->find($id)?->status);
+    }
 }

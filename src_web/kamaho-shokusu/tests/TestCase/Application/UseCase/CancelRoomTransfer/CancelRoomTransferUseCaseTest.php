@@ -64,4 +64,16 @@ class CancelRoomTransferUseCaseTest extends TestCase
         $this->assertSame(CancelRoomTransferOutput::CANCELLED, $this->cancel(3)->status);
         $this->assertSame([[3, RoomTransferSchedule::STATUS_CANCELLED, '管理者']], $this->schedules->statusChanges);
     }
+
+    /** 画面を開いたあとにバッチが適用した異動は、取り消さない（適用済みを上書きしない） */
+    public function testChangedAfterRead_isRejected(): void
+    {
+        $this->schedules->currentStatus[1] = RoomTransferSchedule::STATUS_APPLIED;
+
+        $out = $this->cancel(1);
+
+        $this->assertSame(CancelRoomTransferOutput::REJECTED, $out->status);
+        $this->assertSame('ほかの操作で状態が変わりました。画面を読み込み直してください。', $out->message);
+        $this->assertSame([], $this->schedules->statusChanges);
+    }
 }

@@ -41,6 +41,8 @@ final class AddFailReasonToMRoomTransferSchedule extends AbstractMigration
         if (!$table->hasColumn('c_fail_reason')) {
             return;
         }
+        // 戻したあとのコードは「適用失敗」を知らないので、予約中に戻す（次のバッチで適用し直す）
+        $this->execute('UPDATE m_room_transfer_schedule SET i_status = 0 WHERE i_status = 3');
         $table->removeColumn('c_fail_reason')->update();
     }
 }

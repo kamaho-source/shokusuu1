@@ -54,4 +54,14 @@ class RetryRoomTransferUseCaseTest extends TestCase
         $this->expectException(NotFoundException::class);
         $this->retry(999);
     }
+
+    public function testChangedAfterRead_isRejected(): void
+    {
+        $this->schedules->currentStatus[1] = RoomTransferSchedule::STATUS_CANCELLED;
+
+        $out = $this->retry(1);
+
+        $this->assertSame(RetryRoomTransferOutput::REJECTED, $out->status);
+        $this->assertSame('ほかの操作で状態が変わりました。画面を読み込み直してください。', $out->message);
+    }
 }

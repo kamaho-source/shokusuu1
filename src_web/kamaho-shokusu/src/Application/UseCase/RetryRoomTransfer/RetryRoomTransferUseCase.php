@@ -32,7 +32,10 @@ final class RetryRoomTransferUseCase
         if (!$schedule->isFailed()) {
             return RetryRoomTransferOutput::rejected('やり直せるのは適用失敗のスケジュールのみです。');
         }
-        $this->schedules->changeStatus($input->scheduleId, RoomTransferSchedule::STATUS_PENDING, $input->actorName, $this->clock->now()->format('Y-m-d H:i:s'));
+        $changed = $this->schedules->changeStatus($input->scheduleId, RoomTransferSchedule::STATUS_PENDING, $input->actorName, $this->clock->now()->format('Y-m-d H:i:s'), [RoomTransferSchedule::STATUS_FAILED]);
+        if (!$changed) {
+            return RetryRoomTransferOutput::rejected('ほかの操作で状態が変わりました。画面を読み込み直してください。');
+        }
 
         return RetryRoomTransferOutput::retried();
     }

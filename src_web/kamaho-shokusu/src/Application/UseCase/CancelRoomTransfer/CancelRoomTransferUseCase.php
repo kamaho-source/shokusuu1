@@ -33,7 +33,11 @@ final class CancelRoomTransferUseCase
         if (!$schedule->isPending() && !$schedule->isFailed()) {
             return CancelRoomTransferOutput::rejected('キャンセルできるのは予約中・適用失敗のスケジュールのみです。');
         }
-        $this->schedules->changeStatus($scheduleId, RoomTransferSchedule::STATUS_CANCELLED, $input->actorName, $this->clock->now()->format('Y-m-d H:i:s'));
+        // 画面を開いたあとにバッチが適用していたら、取り消さない（適用済みを上書きしない）
+        $changed = $this->schedules->changeStatus($scheduleId, RoomTransferSchedule::STATUS_CANCELLED, $input->actorName, $this->clock->now()->format('Y-m-d H:i:s'), [RoomTransferSchedule::STATUS_PENDING, RoomTransferSchedule::STATUS_FAILED]);
+        if (!$changed) {
+            return CancelRoomTransferOutput::rejected('ほかの操作で状態が変わりました。画面を読み込み直してください。');
+        }
 
         return CancelRoomTransferOutput::cancelled();
     }

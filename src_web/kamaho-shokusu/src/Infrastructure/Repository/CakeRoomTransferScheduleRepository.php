@@ -44,24 +44,30 @@ final class CakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
         return $row === null ? null : self::toSchedule($row);
     }
 
-    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at): void
+    public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at, array $onlyFrom = []): bool
     {
-        $row = $this->schedules->get($scheduleId);
-        $row->set('i_status', $status);
-        $row->set('c_fail_reason', null);
-        $row->set('c_update_user', $updatedBy);
-        $row->set('dt_update', $at);
-        $this->schedules->saveOrFail($row);
+        $where = ['i_id' => $scheduleId];
+        if ($onlyFrom !== []) {
+            $where['i_status IN'] = $onlyFrom;
+        }
+
+        return $this->schedules->updateAll(
+            ['i_status' => $status, 'c_fail_reason' => null, 'c_update_user' => $updatedBy, 'dt_update' => $at],
+            $where
+        ) > 0;
     }
 
-    public function markFailed(int $scheduleId, string $reason, string $at): void
+    public function markFailed(int $scheduleId, string $reason, string $at): bool
     {
-        $row = $this->schedules->get($scheduleId);
-        $row->set('i_status', RoomTransferSchedule::STATUS_FAILED);
-        $row->set('c_fail_reason', mb_substr($reason, 0, 255));
-        $row->set('c_update_user', 'batch');
-        $row->set('dt_update', $at);
-        $this->schedules->saveOrFail($row);
+        return $this->schedules->updateAll(
+            [
+                'i_status'      => RoomTransferSchedule::STATUS_FAILED,
+                'c_fail_reason' => mb_substr($reason, 0, 255),
+                'c_update_user' => 'batch',
+                'dt_update'     => $at,
+            ],
+            ['i_id' => $scheduleId, 'i_status' => RoomTransferSchedule::STATUS_PENDING]
+        ) > 0;
     }
 
     public function pendingUntil(string $date): array
