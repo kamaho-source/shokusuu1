@@ -132,4 +132,41 @@ class ApplyRoomTransfersUseCaseTest extends TestCase
         $this->assertSame([[2, RoomTransferSchedule::STATUS_APPLIED, 'batch']], $this->schedules->statusChanges);
         $this->assertSame(['begin', 'commit'], $this->transaction->calls, '同じ部屋の異動はトランザクションも開かない');
     }
+
+    /** 適用できなかった異動は「適用失敗」にして理由を残す（毎晩同じ失敗を繰り返さない。#945） */
+    public function testFailure_marksScheduleFailedWithReason(): void
+    {
+        $this->schedules->schedules[1] = new RoomTransferSchedule(1, 20, 1, 2, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
+        $this->reservations->record(20, '2026-11-20', 1, 1);
+        $this->reservations->moveThrows = new \RuntimeException('昼と弁当が重なります。');
+
+        $result = $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02'));
+
+        $this->assertSame(['スケジュールID=1: 昼と弁当が重なります。'], $result->errors, 'その日の実行はエラーとして知らせる');
+        $this->assertSame([[1, '昼と弁当が重なります。']], $this->schedules->failures);
+        $this->assertSame(['begin', 'rollback'], $this->transaction->calls, '異動そのものは取り消す');
+    }
+
+    public function testSameRoom_marksScheduleFailed(): void
+    {
+        $this->schedules->schedules[1] = new RoomTransferSchedule(1, 20, 1, 1, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
+
+        $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02'));
+
+        $this->assertSame([[1, RoomTransferSchedule::SAME_ROOM_MESSAGE]], $this->schedules->failures);
+    }
+
+    /** ドライランでは、失敗しても状態を変えない */
+    public function testDryRun_failureIsNotMarked(): void
+    {
+        $this->schedules->schedules[1] = new RoomTransferSchedule(1, 20, 1, 2, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
+        $this->schedules->schedules[2] = new RoomTransferSchedule(2, 20, 1, 1, '2026-11-02', RoomTransferSchedule::STATUS_PENDING);
+        $this->reservations->record(20, '2026-11-20', 1, 1);
+        $this->reservations->moveThrows = new \RuntimeException('昼と弁当が重なります。');
+
+        $result = $this->useCase()->execute(new ApplyRoomTransfersInput('2026-11-02', true));
+
+        $this->assertCount(2, $result->errors);
+        $this->assertSame([], $this->schedules->failures);
+    }
 }

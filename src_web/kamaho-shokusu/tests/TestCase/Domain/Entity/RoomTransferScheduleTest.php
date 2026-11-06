@@ -23,4 +23,16 @@ class RoomTransferScheduleTest extends TestCase
         $this->assertTrue((new RoomTransferSchedule(1, 20, 910, 910, '2026-11-10', RoomTransferSchedule::STATUS_PENDING))->isSameRoomTransfer());
         $this->assertFalse((new RoomTransferSchedule(1, 20, 910, 911, '2026-11-10', RoomTransferSchedule::STATUS_PENDING))->isSameRoomTransfer());
     }
+
+    /** 適用できなかった異動は「適用失敗」（3）。予約中ではないので、毎日のバッチの対象にならない（#945） */
+    public function testFailedStatus(): void
+    {
+        $failed = new RoomTransferSchedule(1, 20, 910, 911, '2026-11-10', RoomTransferSchedule::STATUS_FAILED, '昼と弁当が重なります。');
+
+        $this->assertSame(3, RoomTransferSchedule::STATUS_FAILED);
+        $this->assertTrue($failed->isFailed());
+        $this->assertFalse($failed->isPending());
+        $this->assertSame('昼と弁当が重なります。', $failed->failReason);
+        $this->assertNull((new RoomTransferSchedule(2, 20, 910, 911, '2026-11-10', RoomTransferSchedule::STATUS_PENDING))->failReason);
+    }
 }

@@ -49,7 +49,7 @@ final class ApplyRoomTransfersUseCase
             }
             // 同じ部屋の異動を適用すると、その部屋の予約を消してしまう。動かさずに理由を返す（#945）
             if ($schedule->isSameRoomTransfer()) {
-                $errors[] = sprintf('スケジュールID=%d: %s', $schedule->id, RoomTransferSchedule::SAME_ROOM_MESSAGE);
+                $errors[] = $this->fail($schedule, RoomTransferSchedule::SAME_ROOM_MESSAGE, $dryRun);
                 continue;
             }
             $this->transaction->begin();
@@ -66,11 +66,32 @@ final class ApplyRoomTransfersUseCase
                 if ($this->transaction->inTransaction()) {
                     $this->transaction->rollback();
                 }
-                $errors[] = sprintf('スケジュールID=%d: %s', $schedule->id, $e->getMessage());
+                $errors[] = $this->fail($schedule, $e->getMessage(), $dryRun);
             }
         }
 
         return new ApplyRoomTransfersOutput($applied, $errors);
+    }
+
+    /**
+     * 適用できなかった異動を「適用失敗」にして理由を残す（ドライランでは変えない）。毎晩同じ失敗を繰り返さないため（#945）。
+     * 印を付けられなかったときは予約中のまま残し、その理由もエラーの文に足す。
+     *
+     * @return string その日の実行で返すエラーの文
+     */
+    private function fail(RoomTransferSchedule $schedule, string $reason, bool $dryRun): string
+    {
+        $error = sprintf('スケジュールID=%d: %s', $schedule->id, $reason);
+        if ($dryRun) {
+            return $error;
+        }
+        try {
+            $this->schedules->markFailed($schedule->id, $reason, $this->clock->now()->format('Y-m-d H:i:s'));
+        } catch (\Throwable $e) {
+            $error .= '（適用失敗の記録もできませんでした: ' . $e->getMessage() . '）';
+        }
+
+        return $error;
     }
 
     private function apply(RoomTransferSchedule $schedule): void

@@ -44,6 +44,10 @@ class CreateRoomTransferUseCaseTest extends TestCase
             {
             }
 
+            public function markFailed(int $scheduleId, string $reason, string $at): void
+            {
+            }
+
             public function pendingUntil(string $date): array
             {
                 return [];

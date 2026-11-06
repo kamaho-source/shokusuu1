@@ -32,6 +32,14 @@ interface RoomTransferScheduleRepositoryInterface
     public function changeStatus(int $scheduleId, int $status, string $updatedBy, string $at): void;
 
     /**
+     * 適用失敗にして理由を残す（更新者は 'batch'）。理由は列の長さ（255文字）に切る。
+     * 状態を変える changeStatus では、理由を消す。
+     *
+     * @param string $at 更新日時（'Y-m-d H:i:s'）
+     */
+    public function markFailed(int $scheduleId, string $reason, string $at): void;
+
+    /**
      * 有効開始日が基準日以前の、予約中の予約。
      *
      * @return list<RoomTransferSchedule>

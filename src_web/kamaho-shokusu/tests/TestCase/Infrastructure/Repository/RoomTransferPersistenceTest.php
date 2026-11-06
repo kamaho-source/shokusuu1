@@ -140,4 +140,23 @@ class RoomTransferPersistenceTest extends TestCase
         $this->assertSame(RoomTransferSchedule::STATUS_PENDING, $pending[0]->status);
         $this->assertSame('2026-11-01', $pending[0]->effectiveDate);
     }
+
+    /** 適用失敗にすると理由が残り、予約中に戻すと理由を消す（#945） */
+    public function testMarkFailed_keepsReason_andChangeStatusClearsIt(): void
+    {
+        $db = ConnectionManager::get('test');
+        $db->execute('DELETE FROM m_room_transfer_schedule');
+        $db->insert('m_room_transfer_schedule', ['i_id_user' => 1, 'i_id_room_from' => 1, 'i_id_room_to' => 2, 'd_effective_date' => '2026-11-01', 'i_status' => 0, 'dt_create' => self::AT, 'c_create_user' => 't']);
+        $repo = new CakeRoomTransferScheduleRepository();
+        $id = $repo->pendingUntil('2026-11-02')[0]->id;
+
+        $repo->markFailed($id, str_repeat('あ', 300), self::AT);
+        $failed = $repo->find($id);
+        $this->assertSame(RoomTransferSchedule::STATUS_FAILED, $failed?->status);
+        $this->assertSame(255, mb_strlen((string)$failed->failReason), '長い理由は列の長さに切る');
+        $this->assertSame([], $repo->pendingUntil('2026-11-02'));
+
+        $repo->changeStatus($id, RoomTransferSchedule::STATUS_PENDING, '管理者', self::AT);
+        $this->assertNull($repo->find($id)?->failReason);
+    }
 }

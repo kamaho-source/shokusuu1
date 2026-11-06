@@ -46,7 +46,7 @@ class CancelRoomTransferUseCaseTest extends TestCase
         $out = $this->cancel(2);
 
         $this->assertSame(CancelRoomTransferOutput::REJECTED, $out->status);
-        $this->assertSame('キャンセルできるのは予約中のスケジュールのみです。', $out->message);
+        $this->assertSame('キャンセルできるのは予約中・適用失敗のスケジュールのみです。', $out->message);
         $this->assertSame([], $this->schedules->statusChanges);
     }
 
@@ -54,5 +54,14 @@ class CancelRoomTransferUseCaseTest extends TestCase
     {
         $this->expectException(NotFoundException::class);
         $this->cancel(999);
+    }
+
+    /** 適用失敗の異動も取り消せる（#945） */
+    public function testFailed_isCancelled(): void
+    {
+        $this->schedules->schedules[3] = new RoomTransferSchedule(3, 20, 1, 2, '2026-11-10', RoomTransferSchedule::STATUS_FAILED, '理由');
+
+        $this->assertSame(CancelRoomTransferOutput::CANCELLED, $this->cancel(3)->status);
+        $this->assertSame([[3, RoomTransferSchedule::STATUS_CANCELLED, '管理者']], $this->schedules->statusChanges);
     }
 }

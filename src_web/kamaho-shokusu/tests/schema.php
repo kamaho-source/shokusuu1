@@ -213,6 +213,7 @@ return [
             'i_id_room_to'   => ['type' => 'integer', 'null' => false],
             'd_effective_date' => ['type' => 'date', 'null' => false],
             'i_status'       => ['type' => 'integer', 'null' => false, 'default' => 0],
+            'c_fail_reason'  => ['type' => 'string', 'length' => 255, 'null' => true, 'default' => null],
             'c_create_user'  => ['type' => 'string', 'length' => 50, 'null' => true],
             'dt_create'      => ['type' => 'datetime', 'null' => true],
             'c_update_user'  => ['type' => 'string', 'length' => 50, 'null' => true],

@@ -44,6 +44,7 @@ use App\Application\UseCase\RequestActualMealApproval\RequestActualMealApprovalU
 use App\Application\UseCase\SaveActualMeal\SaveActualMealUseCase;
 use App\Application\UseCase\AssignUserRooms\AssignUserRoomsUseCase;
 use App\Application\UseCase\CancelRoomTransfer\CancelRoomTransferUseCase;
+use App\Application\UseCase\RetryRoomTransfer\RetryRoomTransferUseCase;
 use App\Application\UseCase\CreateRoomTransfer\CreateRoomTransferUseCase;
 use App\Command\ApplyRoomTransferScheduleCommand;
 use App\Application\UseCase\BulkAddReservations\BulkAddReservationsUseCase;
@@ -397,6 +398,7 @@ class Application extends BaseApplication implements AuthenticationServiceProvid
         $container->add(DeleteRoomUseCase::class, static fn() => new DeleteRoomUseCase(new CakeRoomRepository(), new AuditLogAdapter(), $clock()));
         $container->add(CreateRoomTransferUseCase::class, static fn() => new CreateRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), $clock()));
         $container->add(CancelRoomTransferUseCase::class, static fn() => new CancelRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), $clock()));
+        $container->add(RetryRoomTransferUseCase::class, static fn() => new RetryRoomTransferUseCase(new CakeRoomTransferScheduleRepository(), $clock()));
         $container->add(ApplyRoomTransfersUseCase::class, static fn() => new ApplyRoomTransfersUseCase(
             new CakeRoomTransferScheduleRepository(),
             $userAccounts(),

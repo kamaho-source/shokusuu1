@@ -262,7 +262,7 @@ class MRoomTransferScheduleControllerTest extends TestCase
         $this->login(true);
         $this->post("/MRoomTransferSchedule/cancel/{$id}");
 
-        $this->assertFlashMessage('キャンセルできるのは予約中のスケジュールのみです。', 'flash');
+        $this->assertFlashMessage('キャンセルできるのは予約中・適用失敗のスケジュールのみです。', 'flash');
         $this->assertSame(MRoomTransferScheduleTable::STATUS_APPLIED, $this->statusOf($id));
     }
 
@@ -304,5 +304,34 @@ class MRoomTransferScheduleControllerTest extends TestCase
         $this->assertResponseOk();
         $this->assertResponseContains('異動元と異動先が同じ部屋です。');
         $this->assertSame($before, $this->getTableLocator()->get('MRoomTransferSchedule')->find()->count());
+    }
+
+    /** 適用失敗は一覧に理由と一緒に出て、絞り込める。やり直すと予約中に戻る（#945） */
+    public function testFailed_isListedWithReason_andCanBeRetried(): void
+    {
+        $id = $this->insertSchedule(3);
+        ConnectionManager::get('test')->update('m_room_transfer_schedule', ['c_fail_reason' => '昼と弁当が重なります。'], ['i_id' => $id]);
+        $this->login(true);
+
+        $this->get('/MRoomTransferSchedule?status=3');
+        $this->assertResponseOk();
+        $this->assertCount(1, $this->viewVariable('schedules'));
+        $this->assertResponseContains('適用失敗');
+        $this->assertResponseContains('昼と弁当が重なります。');
+
+        $this->post('/MRoomTransferSchedule/retry/' . $id);
+        $this->assertRedirectContains('/MRoomTransferSchedule');
+        $this->assertSame(0, $this->statusOf($id));
+    }
+
+    public function testRetry_nonAdmin_isRejected(): void
+    {
+        $id = $this->insertSchedule(3);
+        $this->login(false);
+
+        $this->post('/MRoomTransferSchedule/retry/' . $id);
+
+        $this->assertRedirectContains('/MRoomTransferSchedule');
+        $this->assertSame(3, $this->statusOf($id));
     }
 }

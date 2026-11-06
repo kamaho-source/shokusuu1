@@ -32,6 +32,14 @@ final class FakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
         $this->statusChanges[] = [$scheduleId, $status, $updatedBy];
     }
 
+    /** @var list<array{int, string}> markFailed の呼び出し [予約ID, 理由] */
+    public array $failures = [];
+
+    public function markFailed(int $scheduleId, string $reason, string $at): void
+    {
+        $this->failures[] = [$scheduleId, $reason];
+    }
+
     public function pendingUntil(string $date): array
     {
         return array_values(array_filter($this->schedules, fn(RoomTransferSchedule $s) => $s->isPending() && $s->effectiveDate <= $date));

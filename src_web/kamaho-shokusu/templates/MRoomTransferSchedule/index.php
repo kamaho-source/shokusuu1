@@ -12,6 +12,7 @@ $statusLabels = [
     0 => ['label' => '予約中',    'class' => 'text-bg-warning',  'icon' => 'bi-clock'],
     1 => ['label' => '適用済み',  'class' => 'text-bg-success',  'icon' => 'bi-check-circle-fill'],
     2 => ['label' => 'キャンセル','class' => 'text-bg-secondary', 'icon' => 'bi-x-circle-fill'],
+    3 => ['label' => '適用失敗',  'class' => 'text-bg-danger',    'icon' => 'bi-exclamation-triangle-fill'],
 ];
 
 $today = new \DateTime(\Cake\I18n\Date::today('Asia/Tokyo')->format('Y-m-d'));
@@ -52,6 +53,11 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
             '<i class="bi bi-x-circle-fill"></i> キャンセル',
             ['action' => 'index', '?' => ['status' => '2']],
             ['class' => 'btn btn-sm ' . ($statusFilter === '2' ? 'btn-secondary' : 'btn-outline-secondary'), 'escape' => false]
+        ) ?>
+        <?= $this->Html->link(
+            '<i class="bi bi-exclamation-triangle-fill"></i> 適用失敗',
+            ['action' => 'index', '?' => ['status' => '3']],
+            ['class' => 'btn btn-sm ' . ($statusFilter === '3' ? 'btn-danger' : 'btn-outline-danger'), 'escape' => false]
         ) ?>
     </div>
 
@@ -117,11 +123,31 @@ $dayNames = ['日', '月', '火', '水', '木', '金', '土'];
                         <span class="badge rounded-pill <?= $statusInfo['class'] ?>">
                             <i class="bi <?= $statusInfo['icon'] ?> me-1"></i><?= h($statusInfo['label']) ?>
                         </span>
+                        <?php if ($schedule->status === 3 && $schedule->failReason !== null): ?>
+                            <div class="small text-danger mt-1"><?= h($schedule->failReason) ?></div>
+                        <?php endif; ?>
                     </td>
                     <td class="text-muted small"><?= h($schedule->createdBy) ?></td>
                     <td class="text-muted small text-nowrap"><?= h($dtCreate) ?></td>
                     <td>
-                        <?php if ($schedule->status === 0): ?>
+                        <?php if ($schedule->status === 3): ?>
+                            <!-- やり直し用フォーム（予約中に戻し、次のバッチで適用する。#945） -->
+                            <?= $this->Form->create(null, [
+                                'url'    => ['action' => 'retry', $schedule->id],
+                                'method' => 'post',
+                                'id'     => 'retry-form-' . $schedule->id,
+                                'style'  => 'display:none',
+                            ]) ?>
+                            <?= $this->Form->end() ?>
+
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary rts-retry-btn mb-1"
+                                    data-form-id="retry-form-<?= $schedule->id ?>"
+                                    data-message="<?= h(sprintf('%s の異動予約（→ %s）を予約中に戻し、次のバッチで適用し直しますか？失敗の理由を直してから実行してください。', $schedule->userName ?? '', $schedule->roomToName ?? '')) ?>">
+                                <i class="bi bi-arrow-repeat"></i> やり直す
+                            </button>
+                        <?php endif; ?>
+                        <?php if ($schedule->status === 0 || $schedule->status === 3): ?>
                             <!-- キャンセル用フォーム（非表示） -->
                             <?= $this->Form->create(null, [
                                 'url'    => ['action' => 'cancel', $schedule->id],
@@ -163,6 +189,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const ok = await window.ConfirmPopup.show(btn.dataset.message, {
                 okLabel:  'キャンセルする',
                 okColor:  'danger',
+                cancelLabel: '戻る',
+            });
+            if (ok) {
+                document.getElementById(btn.dataset.formId)?.submit();
+            }
+        });
+    });
+    document.querySelectorAll('.rts-retry-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const ok = await window.ConfirmPopup.show(btn.dataset.message, {
+                okLabel:  'やり直す',
+                okColor:  'primary',
                 cancelLabel: '戻る',
             });
             if (ok) {

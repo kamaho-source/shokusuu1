@@ -48,7 +48,18 @@ final class CakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
     {
         $row = $this->schedules->get($scheduleId);
         $row->set('i_status', $status);
+        $row->set('c_fail_reason', null);
         $row->set('c_update_user', $updatedBy);
+        $row->set('dt_update', $at);
+        $this->schedules->saveOrFail($row);
+    }
+
+    public function markFailed(int $scheduleId, string $reason, string $at): void
+    {
+        $row = $this->schedules->get($scheduleId);
+        $row->set('i_status', RoomTransferSchedule::STATUS_FAILED);
+        $row->set('c_fail_reason', mb_substr($reason, 0, 255));
+        $row->set('c_update_user', 'batch');
         $row->set('dt_update', $at);
         $this->schedules->saveOrFail($row);
     }
@@ -78,6 +89,7 @@ final class CakeRoomTransferScheduleRepository implements RoomTransferScheduleRe
             (int)$row->get('i_id_room_to'),
             $date instanceof Date ? $date->format('Y-m-d') : (string)$date,
             (int)$row->get('i_status'),
+            $row->get('c_fail_reason') === null ? null : (string)$row->get('c_fail_reason'),
         );
     }
 }
