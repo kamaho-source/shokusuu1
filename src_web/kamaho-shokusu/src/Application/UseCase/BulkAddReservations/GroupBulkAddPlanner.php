@@ -8,6 +8,7 @@ use App\Domain\Entity\MealReservation;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\RoomMembershipRepositoryInterface;
 use App\Domain\Repository\UserRepositoryInterface;
+use App\Domain\Service\ChangeEditPermission;
 use App\Domain\Service\ReservationDateRule;
 use App\Domain\ValueObject\MealType;
 use App\Domain\ValueObject\UserRole;
@@ -30,6 +31,7 @@ final class GroupBulkAddPlanner
     ];
 
     private const NO_PERMISSION_MESSAGE = '他ユーザーの予約を更新する権限がありません。';
+    private const STAFF_LAST_MINUTE_CANCEL_MESSAGE = '職員は直前編集でのキャンセルはできません。';
 
     public function __construct(
         private readonly ReservationRepositoryInterface $reservations,
@@ -178,6 +180,13 @@ final class GroupBulkAddPlanner
                             return [
                                 'ok'      => false,
                                 'message' => self::NO_PERMISSION_MESSAGE,
+                            ];
+                        }
+                        // 日ごとのボタン（ToggleMealUseCase）と同じく、直前期間の職員の予約は管理者しか取り消せない
+                        if (ChangeEditPermission::isStaffLockedInLastMinute($input->isAdmin, ReservationDateRule::isLastMinuteWindow(new ChronosDate((string)$date), $today), $targetLevel)) {
+                            return [
+                                'ok'      => false,
+                                'message' => self::STAFF_LAST_MINUTE_CANCEL_MESSAGE,
                             ];
                         }
                         $rowsToDeactivate[implode(':', [$date, (int)$targetUserId, $mealType, $activeRow->roomId])] = $activeRow;

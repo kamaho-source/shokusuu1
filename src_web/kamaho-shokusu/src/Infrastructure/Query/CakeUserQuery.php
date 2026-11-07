@@ -122,8 +122,8 @@ final class CakeUserQuery implements UserQueryInterface
         return $this->rooms->selectableRooms($this->rooms->activeRoomIds($actorId));
     }
 
-    public function passwordResetTargets(): array
+    public function passwordResetTargets(bool $includeSystemAdmins): array
     {
-        return $this->users->activeUserNames();
+        return $this->users->activeUserNames($includeSystemAdmins);
     }
 }

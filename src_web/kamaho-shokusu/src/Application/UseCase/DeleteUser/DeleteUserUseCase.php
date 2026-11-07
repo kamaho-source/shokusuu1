@@ -9,6 +9,7 @@ use App\Domain\Entity\UserAccount;
 use App\Domain\Exception\NotFoundException;
 use App\Domain\Repository\ReservationRepositoryInterface;
 use App\Domain\Repository\UserAccountRepositoryInterface;
+use App\Domain\Service\UserRoleRule;
 use Cake\Chronos\ChronosDate;
 use Psr\Clock\ClockInterface;
 
@@ -42,6 +43,11 @@ final class DeleteUserUseCase
         $user = $this->users->find($input->userId);
         if ($user === null) {
             throw new NotFoundException('対象ユーザーが見つかりません。');
+        }
+        if (!UserRoleRule::canManage($this->users->find($input->actor->id)?->role, $user->role)) {
+            $this->record($input, $user, false, 'システム管理者は、システム管理者だけが削除できます');
+
+            return new DeleteUserOutput(false);
         }
         $now   = $this->clock->now();
         $at    = $now->format('Y-m-d H:i:s');

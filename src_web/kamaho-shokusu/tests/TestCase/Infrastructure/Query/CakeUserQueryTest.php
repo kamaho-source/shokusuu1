@@ -102,9 +102,14 @@ class CakeUserQueryTest extends TestCase
 
     public function testPasswordResetTargets_excludesDeleted(): void
     {
-        $targets = $this->query()->passwordResetTargets();
+        $targets = $this->query()->passwordResetTargets(true);
 
         $this->assertSame([1, 2, 3, 4, 5], array_keys($targets));
         $this->assertSame('管理者ユーザー', $targets[1]);
+    }
+
+    public function testPasswordResetTargets_forAdmin_excludesSystemAdmins(): void
+    {
+        $this->assertSame([1, 2, 3, 5], array_keys($this->query()->passwordResetTargets(false)), '管理者には、システム管理者（4）を出さない');
     }
 }
