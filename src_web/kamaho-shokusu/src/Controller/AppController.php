@@ -182,17 +182,17 @@ class AppController extends Controller
      */
     protected function getClientIp(): string
     {
-        $forwardedFor = $this->request->getHeaderLine('X-Forwarded-For');
-        if ($forwardedFor !== '') {
-            $ip = trim(explode(',', $forwardedFor)[0]);
-            if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
-                return $ip;
-            }
+        // X-Real-IP は前段の nginx が接続元で上書きする。X-Forwarded-For は送信者の値の後ろに追記されるため、
+        // 先頭は送信者が自由に書ける。信用できるのは、直前のプロキシが足した末尾だけ。
+        $realIp = $this->request->getHeaderLine('X-Real-IP');
+        if (filter_var($realIp, FILTER_VALIDATE_IP) !== false) {
+            return $realIp;
         }
 
-        $realIp = $this->request->getHeaderLine('X-Real-IP');
-        if ($realIp !== '' && filter_var($realIp, FILTER_VALIDATE_IP) !== false) {
-            return $realIp;
+        $forwardedFor = explode(',', $this->request->getHeaderLine('X-Forwarded-For'));
+        $ip = trim((string)end($forwardedFor));
+        if (filter_var($ip, FILTER_VALIDATE_IP) !== false) {
+            return $ip;
         }
 
         return (string)$this->request->clientIp();

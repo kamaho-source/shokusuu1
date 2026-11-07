@@ -127,6 +127,18 @@ class ContactMailTest extends TestCase
         $this->assertMailSubjectContainsAt(1, '新しいお問い合わせ：不具合報告');
     }
 
+    public function testSubmit_autoReplyDoesNotEchoWhatTheSenderTyped(): void
+    {
+        // 宛先は送信者が自由に入力できるため、本文や名前を載せると、他人宛てに任意の文面を送る踏み台になる（2026-11-07 の監査）
+        $this->submit(['category' => 'その他', 'name' => '今すぐ http://spam.example を開いて', 'email' => 'victim@example.com', 'body' => '当選しました http://spam.example'], 7);
+
+        $this->assertMailSentTo('victim@example.com');
+        $this->assertMailContainsTextAt(0, '内容を確認の上、担当者よりご連絡いたします。');
+        $sent = \Cake\TestSuite\TestEmailTransport::getMessages()[0];
+        $this->assertStringNotContainsString('spam.example', $sent->getBodyString(), '本文に送信者の入力を載せない');
+        $this->assertSame(['victim@example.com' => 'victim@example.com'], $sent->getTo(), '宛先の表示名にも載せない');
+    }
+
     public function testSubmit_replyToUsesTokenAndConfiguredDomain(): void
     {
         Configure::write('App.inboundReplyDomain', 'in.example.test');

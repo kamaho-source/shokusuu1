@@ -58,8 +58,9 @@ class FiscalRolloverCommand extends Command
 
     public function execute(Arguments $args, ConsoleIo $io): int
     {
-        $dryRun = (bool)($args->getOption('dryRun') ?? $args->getOption('dry-run') ?? false);
-        $force  = (bool)($args->getOption('force')  ?? $args->getOption('force-run') ?? false);
+        // 真偽のオプションは未指定でも false が返る（null ではない）ため、?? ではなく || でつなぐ
+        $dryRun = (bool)$args->getOption('dryRun') || (bool)$args->getOption('dry-run');
+        $force  = (bool)$args->getOption('force') || (bool)$args->getOption('force-run');
 
         // 基準日（JST）
         $dateOpt = $args->getOption('date');

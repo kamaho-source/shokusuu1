@@ -36,13 +36,16 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 2
 
+      # paths-filter は workflow_run では既定ブランチ（main）と比べるため、main に同じ Dockerfile があると「変更なし」になっていた（#855）。
+      # デプロイするコミットと、その1つ目の親（マージコミットなら develop 側の直前）を直接比べる。
       - name: Check Dockerfile diff
         id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            dockerfile:
-              - 'docker/kamakura-shokusu_web/Dockerfile'
+        run: |
+          if git diff --quiet HEAD~1 HEAD -- docker/kamakura-shokusu_web/Dockerfile; then
+            echo "dockerfile=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dockerfile=true" >> "$GITHUB_OUTPUT"
+          fi
 
   # ── ② Dockerfile 変更時のみイメージをビルド & ghcr.io に push ────────────
   build:

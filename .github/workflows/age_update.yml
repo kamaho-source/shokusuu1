@@ -17,7 +17,10 @@ jobs:
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
 
     steps:
-      - name: SSH into production server and run age update
+      # 年齢の加算と年代（i_user_rank）の繰り上げを1つの UPDATE で行う。年度ごとに実行済みの記録を残すので、二重には上がらない。
+      # （以前の scripts/age_update.sh は i_enable = 1＝無効な利用者だけを上げ、年代も繰り上げていなかった）
+      # コンテナ内では bin/cake が起動しないため、bin/cake.php を php で呼ぶ。
+      - name: SSH into production server and run fiscal rollover
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -25,10 +28,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
-            cd ${{ secrets.DEPLOY_PATH }}
-            DB_USER=${{ secrets.DB_USER }} \
-            DB_PASS=${{ secrets.DB_PASS }} \
-            bash scripts/age_update.sh
+            set -euo pipefail
+            docker exec kamakura-shokusu_web php /var/www/html/kamaho-shokusu/bin/cake.php fiscal:rollover
 
       - name: Slack Notification on Success
         uses: rtCamp/action-slack-notify@v2

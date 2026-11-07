@@ -126,16 +126,12 @@ final class CakeContactNotifier implements ContactNotifierInterface
         $template = self::AUTO_REPLY_TEMPLATES[$entity->category]
             ?? self::AUTO_REPLY_TEMPLATES['その他'];
 
+        // 宛先は送信者が自由に入力できるため、名前・本文など送信者の入力は載せない（他人宛てに任意の文面を送る踏み台にさせない）
         $body = implode("\n", [
-            $entity->name . ' 様',
-            '',
             $template['message'],
             '',
             '─────────────────────────────',
-            '【お問い合わせ内容】',
             'カテゴリ：' . $entity->category,
-            '',
-            $entity->body,
             '─────────────────────────────',
             '鎌倉児童ホーム食数管理システム',
             'no-reply@kamaho-shokusu.jp',
@@ -145,7 +141,7 @@ final class CakeContactNotifier implements ContactNotifierInterface
         $mailer->setFrom(self::MAIL_FROM);
         $this->applyReplyTo($mailer, $entity);
         $mailer
-            ->setTo($entity->email, $entity->name)
+            ->setTo($entity->email)
             ->setSubject($template['subject'])
             ->setEmailFormat('text')
             ->deliver($body);

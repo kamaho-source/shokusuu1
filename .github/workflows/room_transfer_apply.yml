@@ -21,7 +21,7 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ubuntu
-          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
             cd ${{ secrets.DEPLOY_PATH }}

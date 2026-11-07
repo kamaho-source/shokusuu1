@@ -65,7 +65,7 @@ jobs:
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ${{ secrets.PROD_USER }}
-          password: ${{ secrets.PROD_SSH_PASSWORD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: SUDO_PASS
           script_stop: true
           script: |

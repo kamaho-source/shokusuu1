@@ -168,4 +168,38 @@ class FiscalRolloverCommandTest extends TestCase
         $this->assertSame(13, $user->i_user_age, '--force 指定時は再実行され年齢がさらに加算されるはず');
         $this->assertSame(5, $user->i_user_rank);
     }
+
+    /**
+     * 確認だけのオプションは、どの書き方でも書き込まない。
+     * 以前は --dry-run と -r が効かず、本番でコミットされた（2026-11-08）。
+     *
+     * @return array<string, array{string}>
+     */
+    public static function dryRunSpellings(): array
+    {
+        return ['--dryRun' => ['--dryRun'], '--dry-run' => ['--dry-run'], '-r' => ['-r']];
+    }
+
+    /** @dataProvider dryRunSpellings */
+    public function testDryRun_writesNothingWithAnySpelling(string $option): void
+    {
+        $userId = $this->createActiveUser('rollover_dry' . md5($option), 11);
+
+        $this->exec('fiscal:rollover --date 2026-04-01 ' . $option);
+
+        $this->assertExitSuccess();
+        $this->assertOutputContains('[DRY-RUN]');
+        $this->assertSame(11, $this->userTable()->get($userId)->i_user_age);
+    }
+
+    /** --force-run も --force と同じく効く。 */
+    public function testForceRunAlias_allowsReRun(): void
+    {
+        $userId = $this->createActiveUser('rollover_force_run', 11);
+
+        $this->exec('fiscal:rollover --date 2026-04-01');
+        $this->exec('fiscal:rollover --date 2026-04-01 --force-run');
+
+        $this->assertSame(13, $this->userTable()->get($userId)->i_user_age);
+    }
 }
