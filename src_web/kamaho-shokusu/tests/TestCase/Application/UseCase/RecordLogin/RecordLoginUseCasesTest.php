@@ -77,8 +77,9 @@ class RecordLoginUseCasesTest extends TestCase
         (new RecordLoginFailureUseCase($users, $this->audit))->execute(new RecordLoginFailureInput($long, '10.0.0.2'));
 
         $record = $this->audit->records[0];
-        $this->assertSame(str_repeat('あ', 255), $record['detail']['login_account'], '入力は 255 文字までしか残さない');
-        $this->assertSame(str_repeat('あ', 255), $record['actor']->loginId);
+        // c_actor_login_id は 100 文字。超えると保存が失敗し、失敗の記録ごと消えていた（監査で見つかった不具合）
+        $this->assertSame(str_repeat('あ', 100), $record['detail']['login_account'], '入力は 100 文字までしか残さない');
+        $this->assertSame(str_repeat('あ', 100), $record['actor']->loginId);
     }
 
     public function testLogout_recordsSuccess(): void

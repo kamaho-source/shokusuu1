@@ -118,9 +118,10 @@ interface UserAccountRepositoryInterface
     /**
      * 削除されていない利用者（i_del_flag=0）の氏名。パスワードを変える相手を選ぶのに使う。
      *
+     * @param bool $includeSystemAdmins システム管理者（i_admin=3）も含めるか
      * @return array<int, string> 利用者ID => 氏名
      */
-    public function activeUserNames(): array;
+    public function activeUserNames(bool $includeSystemAdmins): array;
 
     /**
      * パスワードを変える（保存時にハッシュ化される）。保存できなければ false（利用者が居ない場合も false）。
