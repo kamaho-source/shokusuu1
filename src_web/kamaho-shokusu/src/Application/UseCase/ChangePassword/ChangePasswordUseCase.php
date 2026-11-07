@@ -6,6 +6,7 @@ namespace App\Application\UseCase\ChangePassword;
 use App\Application\Port\AuditLogInterface;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 use App\Domain\Service\PasswordRule;
+use App\Domain\Service\UserRoleRule;
 
 /**
  * パスワードを変える（管理者が他の人のを変える、または本人が自分のを変える）。
@@ -26,6 +27,9 @@ final class ChangePasswordUseCase
         $user = $input->userId === null ? null : $this->users->find($input->userId);
         if ($input->byAdmin && ($user === null || $user->delFlag !== 0)) {
             return ChangePasswordOutput::rejected('ユーザーを選択してください。');
+        }
+        if ($input->byAdmin && !UserRoleRule::canManage($this->users->find($input->actor->id)?->role, $user->role)) {
+            return ChangePasswordOutput::rejected('システム管理者のパスワードは、システム管理者だけが変更できます。');
         }
         $error = PasswordRule::changeError($input->newPassword, $input->confirmPassword, countBytes: $input->byAdmin);
         if ($error !== null) {

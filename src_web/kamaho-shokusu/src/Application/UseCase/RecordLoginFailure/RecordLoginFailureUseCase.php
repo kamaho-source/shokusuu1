@@ -16,7 +16,7 @@ final class RecordLoginFailureUseCase
     public const FAILURE_REASON = 'ユーザー名またはパスワードが一致しません';
 
     /** 監査ログに残す入力の最大文字数（c_actor_login_id の長さに合わせる） */
-    private const MAX_LOGIN_ACCOUNT_LENGTH = 255;
+    private const MAX_LOGIN_ACCOUNT_LENGTH = 100;
 
     public function __construct(
         private readonly UserQueryInterface $users,

@@ -9,6 +9,7 @@ use App\Domain\Entity\UserUpdateResult;
 use App\Domain\Repository\UserAccountRepositoryInterface;
 use App\Domain\Service\DeletedMembershipRule;
 use App\Domain\ValueObject\RoomMembershipStatus;
+use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\Persistence\Table\MUserGroupTable;
 use Cake\Datasource\EntityInterface;
 use Cake\I18n\DateTime;
@@ -266,10 +267,15 @@ final class CakeUserAccountRepository implements UserAccountRepositoryInterface
         return $rows === [] || $this->groups->saveMany($rows) !== false;
     }
 
-    public function activeUserNames(): array
+    public function activeUserNames(bool $includeSystemAdmins): array
     {
+        $conditions = ['i_del_flag' => 0];
+        if (!$includeSystemAdmins) {
+            $conditions['OR'] = ['i_admin IS' => null, 'i_admin !=' => UserRole::SYSTEM_ADMIN];
+        }
+
         return $this->users->find('list', keyField: 'i_id_user', valueField: 'c_user_name')
-            ->where(['i_del_flag' => 0])
+            ->where($conditions)
             ->toArray();
     }
 

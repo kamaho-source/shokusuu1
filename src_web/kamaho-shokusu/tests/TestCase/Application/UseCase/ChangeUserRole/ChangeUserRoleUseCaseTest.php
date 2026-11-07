@@ -112,4 +112,42 @@ class ChangeUserRoleUseCaseTest extends TestCase
         $this->expectException(NotFoundException::class);
         $this->change(999, 1, 1);
     }
+
+    public function testAdmin_cannotChangeSystemAdminRole(): void
+    {
+        // 監査で見つかった不具合: 管理者が「上書き」でシステム管理者を管理者へ降格できた
+        $this->users->users[9]  = new UserAccount(9, '管理者さん', 1, 0);
+        $this->users->users[22] = new UserAccount(22, 'システム管理者さん', 3, 0);
+
+        foreach ([[1, 1, true], [0, 1, false], [2, 2, true]] as [$role, $offTarget, $overwrite]) {
+            $result = $this->change(22, $role, $offTarget, $overwrite);
+            $this->assertSame(ChangeUserRoleOutput::FORBIDDEN, $result->status, (string)$role);
+            $this->assertSame('システム管理者の権限は、システム管理者だけが変更できます。', $result->message);
+        }
+        $this->assertSame(3, $this->users->users[22]->role);
+        $this->assertSame([], $this->users->updates);
+    }
+
+    public function testSystemAdminScreen_canChangeSystemAdminRole(): void
+    {
+        $this->users->users[9]  = new UserAccount(9, '操作者', 3, 0);
+        $this->users->users[22] = new UserAccount(22, 'システム管理者さん', 3, 0);
+
+        $this->assertSame(ChangeUserRoleOutput::CHANGED, $this->change(22, 0, 3, false, true)->status);
+        $this->assertSame(0, $this->users->users[22]->role);
+    }
+
+    public function testOwnRole_cannotBeChanged(): void
+    {
+        // 監査で見つかった不具合: 管理者が自分の管理者権限を外せた（最後の管理者だと誰も管理できなくなる）
+        $this->users->users[9] = new UserAccount(9, '操作者', 1, 0);
+
+        foreach ([[0, 1, false, false], [2, 2, true, false], [0, 3, false, true]] as [$role, $offTarget, $overwrite, $sys]) {
+            $result = $this->change(9, $role, $offTarget, $overwrite, $sys);
+            $this->assertSame(ChangeUserRoleOutput::FORBIDDEN, $result->status, (string)$role);
+            $this->assertSame('自分の権限は変更できません。', $result->message);
+        }
+        $this->assertSame(1, $this->users->users[9]->role);
+        $this->assertSame([], $this->users->updates);
+    }
 }
