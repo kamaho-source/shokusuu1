@@ -124,13 +124,27 @@ class MealGridWeekRuleTest extends TestCase
     }
 
     /** 今日から見て、だいたい 2 か月前（±7 日）の月曜日 */
-    public function testAdminOldestMonday_isMondayAboutTwoMonthsAgo(): void
+    /**
+     * 今週の月曜から 2 か月前の日を含む週の月曜日。
+     * 実行日の日付に頼らない（日曜は今週の月曜が 6 日前のため、「今日の 2 か月前」から 8 日離れる日があり、以前のテストは日によって落ちていた）。
+     *
+     * @return array<string, array{string, string}>
+     */
+    public static function adminOldestMondayCases(): array
     {
-        $now    = new \DateTimeImmutable('now', new \DateTimeZone('Asia/Tokyo'));
-        $result = MealGridWeekRule::adminOldestMonday($now);
+        return [
+            '月曜（2026-05-11 → 03-11 を含む週）' => ['2026-05-11', '2026-03-09'],
+            '日曜（2026-11-08 → 今週の月曜 11-02 → 09-02 を含む週）' => ['2026-11-08', '2026-08-31'],
+            '2か月前の日が月曜（2026-11-02 → 09-02 を含む週）' => ['2026-11-02', '2026-08-31'],
+        ];
+    }
 
-        $this->assertSame('1', $result->format('N'));
-        $this->assertLessThanOrEqual(7, abs((int)$result->diff($now->modify('-2 months'))->days));
+    /** @dataProvider adminOldestMondayCases */
+    public function testAdminOldestMonday_isMondayOfTheWeekTwoMonthsBeforeThisMonday(string $today, string $expected): void
+    {
+        $result = MealGridWeekRule::adminOldestMonday(new \DateTimeImmutable($today, new \DateTimeZone('Asia/Tokyo')));
+
+        $this->assertSame($expected, $result->format('Y-m-d'));
     }
 
     // ---- resolve ----
