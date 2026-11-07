@@ -16,6 +16,8 @@ use App\Domain\Service\UserRoleRule;
 final class ChangeUserRoleUseCase
 {
     private const AUDIT_ACTION = 'user_permission_change';
+    private const OWN_ROLE_MESSAGE = '自分の権限は変更できません。';
+    private const SYSTEM_ADMIN_ONLY_MESSAGE = 'システム管理者の権限は、システム管理者だけが変更できます。';
 
     public function __construct(
         private readonly UserAccountRepositoryInterface $users,
@@ -31,6 +33,12 @@ final class ChangeUserRoleUseCase
         $user = $this->users->find($input->targetUserId);
         if ($user === null) {
             throw new NotFoundException('対象ユーザーが見つかりません。');
+        }
+        if ($user->id === $input->actor->id) {
+            return ChangeUserRoleOutput::forbidden(self::OWN_ROLE_MESSAGE);
+        }
+        if (!UserRoleRule::canManage($this->users->find($input->actor->id)?->role, $user->role)) {
+            return ChangeUserRoleOutput::forbidden(self::SYSTEM_ADMIN_ONLY_MESSAGE);
         }
         $detail = [
             'target_user_name' => $user->name,

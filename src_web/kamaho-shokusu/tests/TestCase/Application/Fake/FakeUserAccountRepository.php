@@ -166,11 +166,11 @@ final class FakeUserAccountRepository implements UserAccountRepositoryInterface
     /** @var array<int, string> changePassword の呼び出し（利用者ID => 新しいパスワード） */
     public array $passwords = [];
 
-    public function activeUserNames(): array
+    public function activeUserNames(bool $includeSystemAdmins): array
     {
         $names = [];
         foreach ($this->users as $u) {
-            if ($u->delFlag === 0) {
+            if ($u->delFlag === 0 && ($includeSystemAdmins || $u->role !== 3)) {
                 $names[$u->id] = (string)$u->name;
             }
         }

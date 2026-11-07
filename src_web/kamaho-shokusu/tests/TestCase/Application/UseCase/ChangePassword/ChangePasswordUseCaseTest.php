@@ -87,4 +87,25 @@ class ChangePasswordUseCaseTest extends TestCase
         $this->assertSame(ChangePasswordOutput::SAVE_FAILED, $this->change(20, 'new-pass', 'new-pass')->status);
         $this->assertSame([], $this->audit->records);
     }
+
+    public function testAdmin_cannotChangeSystemAdminPassword(): void
+    {
+        // 監査で見つかった不具合: 管理者がシステム管理者のパスワードを変えられた（乗っ取りの経路になる）
+        $this->users->users[1]  = new UserAccount(1, '管理者', 1, 0, 0);
+        $this->users->users[22] = new UserAccount(22, 'システム管理者さん', 3, 0, 0);
+
+        $result = $this->change(22, 'new-pass', 'new-pass');
+
+        $this->assertSame(ChangePasswordOutput::REJECTED, $result->status);
+        $this->assertSame('システム管理者のパスワードは、システム管理者だけが変更できます。', $result->message);
+        $this->assertSame([], $this->users->passwords);
+    }
+
+    public function testSystemAdmin_canChangeSystemAdminPassword(): void
+    {
+        $this->users->users[1]  = new UserAccount(1, '管理者', 3, 0, 0);
+        $this->users->users[22] = new UserAccount(22, 'システム管理者さん', 3, 0, 0);
+
+        $this->assertSame(ChangePasswordOutput::CHANGED, $this->change(22, 'new-pass', 'new-pass')->status);
+    }
 }

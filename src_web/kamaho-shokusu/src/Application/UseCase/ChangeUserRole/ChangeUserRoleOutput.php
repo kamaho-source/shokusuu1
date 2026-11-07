@@ -14,6 +14,8 @@ final class ChangeUserRoleOutput
     public const CONFLICT = 'conflict';
     /** その画面からは付けられない値 */
     public const NOT_ASSIGNABLE = 'not_assignable';
+    /** 操作者には変えられない相手（自分・システム管理者）（$message に理由） */
+    public const FORBIDDEN = 'forbidden';
     /** 保存できなかった */
     public const SAVE_FAILED = 'save_failed';
 
@@ -35,6 +37,11 @@ final class ChangeUserRoleOutput
     public static function notAssignable(): self
     {
         return new self(self::NOT_ASSIGNABLE);
+    }
+
+    public static function forbidden(string $message): self
+    {
+        return new self(self::FORBIDDEN, $message);
     }
 
     public static function saveFailed(): self

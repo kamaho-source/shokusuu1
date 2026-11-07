@@ -122,6 +122,7 @@ class UserRoleController extends AppController
             ChangeUserRoleOutput::CHANGED        => $apiResponse->success($this->response, [], $roleLabel . 'が正常に更新されました。'),
             ChangeUserRoleOutput::CONFLICT       => $apiResponse->error($this->response, (string)$result->message, 409),
             ChangeUserRoleOutput::NOT_ASSIGNABLE => $apiResponse->error($this->response, 'この画面からは、その権限に変更できません。', 403),
+            ChangeUserRoleOutput::FORBIDDEN      => $apiResponse->error($this->response, (string)$result->message, 403),
             default                              => $apiResponse->error($this->response, $roleLabel . 'の更新に失敗しました。', 500),
         };
     }

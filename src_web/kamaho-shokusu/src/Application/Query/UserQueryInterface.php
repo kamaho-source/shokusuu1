@@ -52,7 +52,8 @@ interface UserQueryInterface
     /**
      * 管理者がパスワードを変える相手として選べる人（削除されていない人）。
      *
+     * @param bool $includeSystemAdmins システム管理者も出すか（操作者がシステム管理者のときだけ true）
      * @return array<int, string> 利用者ID => 氏名
      */
-    public function passwordResetTargets(): array;
+    public function passwordResetTargets(bool $includeSystemAdmins): array;
 }

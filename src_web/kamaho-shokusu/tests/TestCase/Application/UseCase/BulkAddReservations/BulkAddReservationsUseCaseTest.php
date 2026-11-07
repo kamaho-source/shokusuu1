@@ -291,4 +291,30 @@ class BulkAddReservationsUseCaseTest extends TestCase
         $this->assertSame(1, $this->f->reservations->find(21, self::FAR, 1, 3)?->eatFlag, '取消も取り消される');
         $this->assertSame([], $this->f->cache->forgotten);
     }
+
+    public function testGroup_staffCannotCancelStaffReservationInLastMinute_sameAsToggle(): void
+    {
+        // 監査で見つかった不具合: 日ごとのボタンでは止まる直前期間の取消が、部屋単位の一括登録では通っていた
+        $this->f->reservations->record(10, '2026-11-05', 1, 1);
+
+        $result = $this->group(['2026-11-05' => ['10' => ['1' => '0']]]);
+
+        $this->assertSame(['ok' => false, 'message' => '職員は直前編集でのキャンセルはできません。'], $result);
+        $this->assertSame([], $this->f->reservations->updates);
+        $this->assertSame(1, $this->f->reservations->find(10, '2026-11-05', 1, 1)?->changeFlag, '直前期間の取消は i_change_flag を 0 にする');
+    }
+
+    public function testGroup_lastMinuteCancel_isAllowedForAdminOrChildTarget(): void
+    {
+        $this->f->reservations->record(10, '2026-11-05', 1, 1);
+        $this->f->reservations->record(20, '2026-11-05', 1, 1);
+
+        // 職員が児童の直前の予約を取り消すのは、従来どおりできる
+        $this->group(['2026-11-05' => ['20' => ['1' => '0']]]);
+        $this->assertSame(0, $this->f->reservations->find(20, '2026-11-05', 1, 1)?->changeFlag);
+
+        // 管理者は職員の直前の予約も取り消せる
+        $this->add(['reservation_type' => 'group', 'i_id_room' => '1', 'day_users' => ['2026-11-05' => ['10' => ['1' => '0']]]], 10, 0, true);
+        $this->assertSame(0, $this->f->reservations->find(10, '2026-11-05', 1, 1)?->changeFlag);
+    }
 }

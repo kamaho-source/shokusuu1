@@ -113,4 +113,23 @@ class DeleteUserUseCaseTest extends TestCase
         $this->assertSame([], $this->transaction->calls);
         $this->assertSame([], $this->audit->records);
     }
+
+    public function testAdmin_cannotDeleteSystemAdmin(): void
+    {
+        $this->users->users[1]  = new UserAccount(1, '管理者', 1, 0, 0);
+        $this->users->users[22] = new UserAccount(22, 'システム管理者さん', 3, 0, 0);
+
+        $this->assertFalse($this->delete(22));
+        $this->assertFalse($this->users->users[22]->isDeleted());
+        $this->assertSame([], $this->transaction->calls);
+        $this->assertSame([], $this->users->roomOps);
+    }
+
+    public function testSystemAdmin_canDeleteSystemAdmin(): void
+    {
+        $this->users->users[1]  = new UserAccount(1, '管理者', 3, 0, 0);
+        $this->users->users[22] = new UserAccount(22, 'システム管理者さん', 3, 0, 0);
+
+        $this->assertTrue($this->delete(22));
+    }
 }

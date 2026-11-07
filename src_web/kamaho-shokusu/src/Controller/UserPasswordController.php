@@ -7,6 +7,7 @@ use App\Application\Query\UserQueryInterface;
 use App\Application\UseCase\ChangePassword\ChangePasswordInput;
 use App\Application\UseCase\ChangePassword\ChangePasswordOutput;
 use App\Application\UseCase\ChangePassword\ChangePasswordUseCase;
+use App\Domain\ValueObject\UserRole;
 use App\Infrastructure\Persistence\Entity\MUserInfo;
 use Authorization\Exception\ForbiddenException;
 use Cake\Http\Response;
@@ -39,7 +40,7 @@ class UserPasswordController extends AppController
             return $this->redirect(['controller' => 'MUserInfo', 'action' => 'index']);
         }
 
-        $users = $userQuery->passwordResetTargets();
+        $users = $userQuery->passwordResetTargets(UserRole::isSystemAdmin((int)$this->request->getAttribute('identity')?->get('i_admin')));
         $selectedUserId = null;
 
         if ($this->request->is(['post', 'put'])) {

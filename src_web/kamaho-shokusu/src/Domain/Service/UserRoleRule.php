@@ -32,6 +32,17 @@ final class UserRoleRule
     }
 
     /**
+     * 操作者が、対象の利用者の権限・パスワード・削除を扱ってよいか。システム管理者を扱えるのはシステム管理者だけ。
+     *
+     * @param int|null $actorRole  操作者の i_admin（操作者が見つからなければ null）
+     * @param int|null $targetRole 対象の i_admin
+     */
+    public static function canManage(?int $actorRole, ?int $targetRole): bool
+    {
+        return !UserRole::isSystemAdmin((int)$targetRole) || UserRole::isSystemAdmin((int)$actorRole);
+    }
+
+    /**
      * 画面の確認なしに別の権限へ上書きしたり、別の権限を解除で消したりしないための確認。
      *
      * - 付与: 既に別の権限を持つ場合は $overwrite（画面で「本当に変更しますか？」に同意）が必要
