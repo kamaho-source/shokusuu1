@@ -142,6 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!$('maint_from').value || !$('maint_to').value) { alert('開始日時と終了予定日時を入力してください。'); return; }
         const from = new Date($('maint_from').value);
         const to = new Date($('maint_to').value);
+        if (isNaN(from) || isNaN(to)) { alert('日時は「2026-11-20T22:00」の形式で入力してください。'); return; }
         if (to <= from) { alert('終了予定日時は開始日時より後にしてください。'); return; }
         if (to <= new Date()) { alert('終了予定日時が過去です。未来の日時を入力してください。'); return; }
 
