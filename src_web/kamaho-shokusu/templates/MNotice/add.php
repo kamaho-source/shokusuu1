@@ -143,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const from = new Date($('maint_from').value);
         const to = new Date($('maint_to').value);
         if (to <= from) { alert('終了予定日時は開始日時より後にしてください。'); return; }
+        if (to <= new Date()) { alert('終了予定日時が過去です。未来の日時を入力してください。'); return; }
 
         const sameDay = ymd(from) === ymd(to);
         const range = sameDay ? `${md(from)} ${hm(from)}〜${hm(to)}` : `${md(from)} ${hm(from)}〜${md(to)} ${hm(to)}`;
@@ -152,8 +153,9 @@ document.addEventListener('DOMContentLoaded', () => {
         set('c_body', `${range}の間、システムメンテナンスを実施します。\n` +
             (note ? `${note}\n` : '') +
             '作業中はシステムをご利用いただけません。ご不便をおかけしますが、ご理解のほどよろしくお願いいたします。');
-        set('d_start', ymd(new Date()));
+        // d_start の検証は d_end を参照するため、終了日を先に入れる
         set('d_end', ymd(to));
+        set('d_start', ymd(new Date()));
         $('imp_high').checked = true;
         const t = $('type_normal'); if (t) t.checked = true;
     });
