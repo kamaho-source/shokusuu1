@@ -1,0 +1,18 @@
+{
+  "train": {
+    "gates": [
+      {
+        "kind": "workflows",
+        "workflows": ["phpunit.yml"],
+        "required_jobs": ["phpunit.yml/phpunit"]
+      }
+    ],
+    "land": {
+      "merge_method": "merge",
+      "required_checks": ["phpunit", "branch-check"]
+    },
+    "max_size": 3,
+    "fill_hours": 1
+  },
+  "min_gstack_version": "1.92.0.0"
+}

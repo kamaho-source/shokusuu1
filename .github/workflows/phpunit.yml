@@ -1,11 +1,19 @@
 name: PHPUnit
 
+# マージトレインの検証で nonce 付きで起動されたときだけ、実行名に [eval-bg <nonce>] を付ける
+run-name: ${{ inputs.nonce && format('{0} [eval-bg {1}]', github.workflow, inputs.nonce) || github.workflow }}
+
 on:
   pull_request:
   push:
     branches:
       - develop
   workflow_dispatch:
+    inputs:
+      nonce:
+        description: 'gstack merge-train nonce'
+        required: false
+        type: string
 
 # 同じブランチ・PR に続けて push したら、古い実行は取り消す
 concurrency:
