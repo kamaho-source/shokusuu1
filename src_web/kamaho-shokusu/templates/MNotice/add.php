@@ -36,6 +36,18 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
                 </div>
             </div>
             <small id="maint_hint" class="text-muted d-none mb-2">このブラウザは日時の選択に対応していないため、「2026-11-20 22:00」の形式で入力してください。</small>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="maint_partial">
+                <label class="form-check-label small" for="maint_partial">一部の機能だけ停止する（チェックしない場合は、システム全体の停止として書きます）</label>
+            </div>
+            <div id="maint_features" class="d-none mb-2"><div class="d-flex flex-wrap gap-3">
+                <?php foreach (['予約', '予約履歴', '部屋情報・部屋異動予約', 'ユーザー管理', '食数単価・食事控除表', 'お問い合わせ', 'メール通知', 'AI集計', 'ログイン'] as $i => $feature): ?>
+                <div class="form-check">
+                    <input class="form-check-input maint-feature" type="checkbox" id="maint_f<?= $i ?>" value="<?= h($feature) ?>">
+                    <label class="form-check-label small" for="maint_f<?= $i ?>"><?= h($feature) ?></label>
+                </div>
+                <?php endforeach; ?>
+            </div></div>
             <input type="text" id="maint_note" class="form-control mb-2" maxlength="100" placeholder="備考（任意） 例：サーバー更新のため">
             <button type="button" id="maint-fill" class="btn btn-outline-warning btn-sm">予告文を挿入</button>
         </div>
@@ -152,6 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ok = dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d && dt.getHours() === h && dt.getMinutes() === mi;
         return ok ? dt : null;
     };
+    $('maint_partial').addEventListener('change', () => $('maint_features').classList.toggle('d-none', !$('maint_partial').checked));
     if ($('maint_from').type !== 'datetime-local') $('maint_hint').classList.remove('d-none');
 
     fillBtn.addEventListener('click', () => {
@@ -162,14 +175,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (to <= from) { alert('終了予定日時は開始日時より後にしてください。'); return; }
         if (to <= new Date()) { alert('終了予定日時が過去です。未来の日時を入力してください。'); return; }
 
+        // 「一部の機能だけ停止する」のときは、選んだ機能名を本文に入れる。チェックしなければシステム全体の停止
+        const names = $('maint_partial').checked
+            ? Array.prototype.filter.call(document.querySelectorAll('.maint-feature'), (c) => c.checked).map((c) => c.value)
+            : [];
+        if ($('maint_partial').checked && !names.length) { alert('停止する機能を1つ以上選んでください。'); return; }
+
         const sameDay = ymd(from) === ymd(to);
         const range = sameDay ? `${md(from)} ${hm(from)}〜${hm(to)}` : `${md(from)} ${hm(from)}〜${md(to)} ${hm(to)}`;
         const note = $('maint_note').value.trim();
 
-        set('c_title', `【メンテナンス予告】${range}`);
+        set('c_title', `【メンテナンス予告】${range}${names.length ? '（一部機能）' : ''}`);
         set('c_body', `${range}の間、システムメンテナンスを実施します。\n` +
             (note ? `${note}\n` : '') +
-            '作業中はシステムをご利用いただけません。ご不便をおかけしますが、ご理解のほどよろしくお願いいたします。');
+            (names.length ? `作業中は、${names.join('・')}を停止します。ほかの機能は通常どおりご利用いただけます。` : '作業中はシステムをご利用いただけません。') +
+            'ご不便をおかけしますが、ご理解のほどよろしくお願いいたします。');
         // d_start の検証は d_end を参照するため、終了日を先に入れる
         set('d_end', ymd(to));
         set('d_start', ymd(new Date()));
