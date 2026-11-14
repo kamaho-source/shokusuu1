@@ -320,7 +320,8 @@ $recentNotifications     = $recentNotifications ?? [];
 </div>
 <script>
     (() => {
-        const KEY = 'notice_modal_ack_ids';
+        // 共用の端末でも、ほかの人の確認で消えないよう、利用者ごとに保存する
+        const KEY = 'notice_modal_ack_ids:<?= (int)$user->i_id_user ?>';
         const el = document.getElementById('noticeModal');
         if (!el || !window.bootstrap) return;
 
@@ -341,6 +342,7 @@ $recentNotifications     = $recentNotifications ?? [];
                 const show = () => {
                     const n = queue[i];
                     confirmed = false;
+                    $('noticeModalAck').disabled = true; // 表示アニメーション中は押せない（hide が無視されるため）
                     $('noticeModalTitle').textContent = n.title;
                     $('noticeModalBody').textContent = n.body || '';
                     $('noticeModalHigh').classList.toggle('d-none', !n.high);
@@ -349,6 +351,7 @@ $recentNotifications     = $recentNotifications ?? [];
                     $('noticeModalCount').classList.toggle('d-none', queue.length < 2);
                     modal.show();
                 };
+                el.addEventListener('shown.bs.modal', () => { $('noticeModalAck').disabled = false; });
                 $('noticeModalAck').addEventListener('click', () => {
                     confirmed = true;
                     acked.add(String(queue[i].id));

@@ -86,6 +86,7 @@ class MNoticeTable extends Table
                 ],
             ])
             ->orderByDesc('i_importance')
-            ->orderByDesc('dt_create');
+            ->orderByDesc('dt_create')
+            ->orderByDesc('i_id');
     }
 }

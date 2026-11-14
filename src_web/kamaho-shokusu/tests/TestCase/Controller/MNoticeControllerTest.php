@@ -124,6 +124,28 @@ class MNoticeControllerTest extends TestCase
         $this->assertSame(['モーダルで出す'], $titles);
     }
 
+    public function testModals_ordersByImportanceThenNewestAndHonorsPeriod(): void
+    {
+        $table = $this->getTableLocator()->get('MNotice');
+        $make = function (string $title, int $importance, ?string $start = null) use ($table): void {
+            $n = $table->newEntity(['c_title' => $title, 'i_importance' => $importance, 'i_type' => 0, 'i_modal' => 1, 'd_start' => $start]);
+            $n->c_create_user = 'seed';
+            $table->saveOrFail($n);
+        };
+        $make('通常・先', 0);
+        $make('通常・後', 0);
+        $make('重要', 1);
+        $make('明日から', 1, '2999-01-01');
+        $this->login(0);
+
+        $this->get('/MNotice/modals');
+
+        $items = json_decode((string)$this->_response->getBody(), true);
+        $this->assertSame(['重要', '通常・後', '通常・先'], array_column($items, 'title'), '重要度の降順、同じなら新しい順。開始前は出ない');
+        $this->assertSame(['id', 'title', 'body', 'high'], array_keys($items[0]));
+        $this->assertTrue($items[0]['high']);
+    }
+
     public function testModals_guest_isRedirectedToLogin(): void
     {
         $this->get('/MNotice/modals');
@@ -148,6 +170,18 @@ class MNoticeControllerTest extends TestCase
 
         $this->assertRedirect(['action' => 'index']);
         $this->assertSame(0, (int)$this->getTableLocator()->get('MNotice')->find()->firstOrFail()->i_modal);
+    }
+
+    public function testEdit_systemAdmin_canTurnModalOffAndOn(): void
+    {
+        $id = $this->createNotice('モーダル', 0, 1);
+        $this->login(3);
+
+        $this->post('/MNotice/edit/' . $id, ['c_title' => 'モーダル', 'i_importance' => 0, 'i_type' => 0]);
+        $this->assertSame(0, (int)$this->getTableLocator()->get('MNotice')->get($id)->i_modal, 'チェックを外すと 0');
+
+        $this->post('/MNotice/edit/' . $id, ['c_title' => 'モーダル', 'i_importance' => 0, 'i_type' => 0, 'i_modal' => 1]);
+        $this->assertSame(1, (int)$this->getTableLocator()->get('MNotice')->get($id)->i_modal, 'チェックを入れると 1');
     }
 
     public function testEdit_admin_keepsModal(): void
