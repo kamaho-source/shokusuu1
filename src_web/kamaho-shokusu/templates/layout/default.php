@@ -298,20 +298,38 @@ $recentNotifications     = $recentNotifications ?? [];
 
 <?php if ($user && !$isModal): ?>
 <?php /* お知らせのモーダル表示（i_modal=1 の掲載中のもの）。「確認した」を押すまで毎回出す。既読はブラウザごと */ ?>
+<style>
+    /* 画面イメージ（Figma #1013）に合わせた寸法・色 */
+    #noticeModal .modal-dialog { --bs-modal-width: 560px; }
+    #noticeModal .modal-content { border-radius: 10px; overflow: hidden; }
+    #noticeModal .modal-header { padding: 14px 20px; background: #fff5f5; border-bottom: 1px solid #f1aeb5; }
+    #noticeModal .notice-modal-icon { width: 28px; height: 28px; border-radius: 50%; background: #fde8e8; color: #dc3545; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+    #noticeModal .modal-body { padding: 18px 20px; }
+    #noticeModal #noticeModalTitle { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+    #noticeModal #noticeModalBody { font-size: 14px; line-height: 1.65; color: #343a40; white-space: pre-line; }
+    #noticeModal .modal-footer { padding: 14px 20px; background: #f8f9fa; justify-content: space-between; flex-wrap: nowrap; gap: 10px; }
+    #noticeModal .modal-footer small { font-size: 12px; }
+    @media (max-width: 575.98px) {
+        #noticeModal #noticeModalTitle { font-size: 15px; }
+        #noticeModal .modal-footer { flex-direction: column; align-items: stretch; }
+        #noticeModal .modal-footer .btn { width: 100%; }
+    }
+</style>
 <div class="modal fade" id="noticeModal" tabindex="-1" aria-labelledby="noticeModalTitle" aria-hidden="true" role="alertdialog" aria-modal="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header" id="noticeModalHeader">
-                <span class="badge text-bg-danger me-2 d-none" id="noticeModalHigh">重要</span>
-                <span class="fw-bold">お知らせ</span>
-                <span class="ms-auto me-3 small text-muted d-none" id="noticeModalCount"></span>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            <div class="modal-header align-items-center gap-2" id="noticeModalHeader">
+                <span class="notice-modal-icon" aria-hidden="true">!</span>
+                <span class="badge rounded-pill text-bg-danger d-none" id="noticeModalHigh">重要</span>
+                <span class="fw-bold text-danger fs-6">お知らせ</span>
+                <span class="ms-auto small text-muted d-none" id="noticeModalCount"></span>
+                <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <div class="modal-body">
-                <h5 class="fw-bold mb-3" id="noticeModalTitle"></h5>
-                <div id="noticeModalBody" style="white-space:pre-line;"></div>
+                <h5 id="noticeModalTitle"></h5>
+                <div id="noticeModalBody"></div>
             </div>
-            <div class="modal-footer justify-content-between">
+            <div class="modal-footer">
                 <small class="text-muted">「確認した」を押すまで、画面を開くたびに表示されます。</small>
                 <button type="button" class="btn btn-primary" id="noticeModalAck">確認した</button>
             </div>
@@ -346,7 +364,6 @@ $recentNotifications     = $recentNotifications ?? [];
                     $('noticeModalTitle').textContent = n.title;
                     $('noticeModalBody').textContent = n.body || '';
                     $('noticeModalHigh').classList.toggle('d-none', !n.high);
-                    $('noticeModalHeader').classList.toggle('bg-danger-subtle', !!n.high);
                     $('noticeModalCount').textContent = (i + 1) + ' / ' + queue.length;
                     $('noticeModalCount').classList.toggle('d-none', queue.length < 2);
                     modal.show();
