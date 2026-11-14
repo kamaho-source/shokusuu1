@@ -21,6 +21,8 @@ use Cake\Http\Response;
 
 /**
  * お知らせ管理（管理者・システム管理者）。登録・更新・削除は UseCase、一覧は NoticeQueryInterface。
+ *
+ * @property \Authorization\Controller\Component\AuthorizationComponent $Authorization
  */
 class MNoticeController extends AppController
 {

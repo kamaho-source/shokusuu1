@@ -343,12 +343,6 @@ parameters:
 			path: src/Controller/MMealPriceInfoController.php
 
 		-
-			message: '#^Access to an undefined property App\\Controller\\MNoticeController\:\:\$Authorization\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Controller/MNoticeController.php
-
-		-
 			message: '#^Method App\\Controller\\MNoticeController\:\:delete\(\) should return Cake\\Http\\Response but returns Cake\\Http\\Response\|null\.$#'
 			identifier: return.type
 			count: 1
