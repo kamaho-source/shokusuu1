@@ -295,5 +295,76 @@ $recentNotifications     = $recentNotifications ?? [];
         document.addEventListener('hidden.bs.collapse', applyPad);
     })();
 </script>
+
+<?php if ($user && !$isModal): ?>
+<?php /* お知らせのモーダル表示（i_modal=1 の掲載中のもの）。「確認した」を押すまで毎回出す。既読はブラウザごと */ ?>
+<div class="modal fade" id="noticeModal" tabindex="-1" aria-labelledby="noticeModalTitle" aria-hidden="true" role="alertdialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" id="noticeModalHeader">
+                <span class="badge text-bg-danger me-2 d-none" id="noticeModalHigh">重要</span>
+                <span class="fw-bold">お知らせ</span>
+                <span class="ms-auto me-3 small text-muted d-none" id="noticeModalCount"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <h5 class="fw-bold mb-3" id="noticeModalTitle"></h5>
+                <div id="noticeModalBody" style="white-space:pre-line;"></div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <small class="text-muted">「確認した」を押すまで、画面を開くたびに表示されます。</small>
+                <button type="button" class="btn btn-primary" id="noticeModalAck">確認した</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (() => {
+        const KEY = 'notice_modal_ack_ids';
+        const el = document.getElementById('noticeModal');
+        if (!el || !window.bootstrap) return;
+
+        const load = () => { try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]').map(String)); } catch (e) { return new Set(); } };
+        const save = (ids) => { try { localStorage.setItem(KEY, JSON.stringify([...ids])); } catch (e) { /* 保存できなければ次の画面でまた出る */ } };
+        const $ = (id) => document.getElementById(id);
+        const modal = new bootstrap.Modal(el);
+
+        fetch('<?= $this->Url->build('/MNotice/modals') ?>', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then((r) => (r.ok ? r.json() : []))
+            .then((list) => {
+                const acked = load();
+                const queue = list.filter((n) => !acked.has(String(n.id)));
+                if (!queue.length) return;
+
+                let i = 0;
+                let confirmed = false;
+                const show = () => {
+                    const n = queue[i];
+                    confirmed = false;
+                    $('noticeModalTitle').textContent = n.title;
+                    $('noticeModalBody').textContent = n.body || '';
+                    $('noticeModalHigh').classList.toggle('d-none', !n.high);
+                    $('noticeModalHeader').classList.toggle('bg-danger-subtle', !!n.high);
+                    $('noticeModalCount').textContent = (i + 1) + ' / ' + queue.length;
+                    $('noticeModalCount').classList.toggle('d-none', queue.length < 2);
+                    modal.show();
+                };
+                $('noticeModalAck').addEventListener('click', () => {
+                    confirmed = true;
+                    acked.add(String(queue[i].id));
+                    save(acked);
+                    modal.hide();
+                });
+                // 確認したときだけ次の1件へ。✕・Esc・背景クリックで閉じたら、この画面ではここで止める
+                el.addEventListener('hidden.bs.modal', () => {
+                    if (!confirmed || ++i >= queue.length) return;
+                    show();
+                });
+                show();
+            })
+            .catch((e) => console.error('notice modal', e));
+    })();
+</script>
+<?php endif; ?>
 </body>
 </html>

@@ -33,4 +33,12 @@ final class CakeNoticeQuery implements NoticeQueryInterface
             TableRegistry::getTableLocator()->get('MNotice')->find('active')->all()->toList()
         );
     }
+
+    public function activeModals(): array
+    {
+        return array_map(
+            CakeNoticeRepository::toNotice(...),
+            TableRegistry::getTableLocator()->get('MNotice')->find('active')->where(['i_modal' => 1])->all()->toList()
+        );
+    }
 }

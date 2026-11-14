@@ -36,10 +36,10 @@ class MNoticeControllerTest extends TestCase
         $this->enableCsrfToken();
         $this->enableSecurityToken();
         // コントローラーの beforeFilter と同じ（プレーン HTML 入力でフォームヘルパーが追跡しない項目）
-        $this->setUnlockedFields(['i_importance', 'i_type', 'd_start', 'd_end']);
+        $this->setUnlockedFields(['i_importance', 'i_type', 'i_modal', 'd_start', 'd_end']);
     }
 
-    private function createNotice(string $title = '既存のお知らせ', int $type = 0): int
+    private function createNotice(string $title = '既存のお知らせ', int $type = 0, int $modal = 0, ?string $end = null): int
     {
         $table = $this->getTableLocator()->get('MNotice');
         $notice = $table->newEmptyEntity();
@@ -48,6 +48,8 @@ class MNoticeControllerTest extends TestCase
             'c_body' => '本文',
             'i_importance' => 0,
             'i_type' => $type,
+            'i_modal' => $modal,
+            'd_end' => $end,
         ]);
         $notice->c_create_user = 'seed';
         $notice->c_update_user = 'seed';
@@ -103,6 +105,60 @@ class MNoticeControllerTest extends TestCase
     {
         $this->get('/MNotice');
         $this->assertRedirectContains('/MUserInfo/login');
+    }
+
+    // ---------------------------------------------------------------- modals
+
+    public function testModals_returnsOnlyActiveModalNotices(): void
+    {
+        $this->createNotice('モーダルで出す', 0, 1);
+        $this->createNotice('カードだけ', 0, 0);
+        $this->createNotice('期間が過ぎたモーダル', 0, 1, '2000-01-01');
+        $this->login(0);
+
+        $this->get('/MNotice/modals');
+
+        $this->assertResponseOk();
+        $this->assertContentType('application/json');
+        $titles = array_column(json_decode((string)$this->_response->getBody(), true), 'title');
+        $this->assertSame(['モーダルで出す'], $titles);
+    }
+
+    public function testModals_guest_isRedirectedToLogin(): void
+    {
+        $this->get('/MNotice/modals');
+        $this->assertRedirectContains('/MUserInfo/login');
+    }
+
+    public function testAdd_systemAdmin_canSetModal(): void
+    {
+        $this->login(3);
+
+        $this->post('/MNotice/add', ['c_title' => 'モーダル予告', 'i_importance' => 1, 'i_type' => 0, 'i_modal' => 1]);
+
+        $this->assertRedirect(['action' => 'index']);
+        $this->assertSame(1, (int)$this->getTableLocator()->get('MNotice')->find()->firstOrFail()->i_modal);
+    }
+
+    public function testAdd_admin_cannotSetModal(): void
+    {
+        $this->login(1);
+
+        $this->post('/MNotice/add', ['c_title' => '管理者の予告', 'i_importance' => 1, 'i_type' => 0, 'i_modal' => 1]);
+
+        $this->assertRedirect(['action' => 'index']);
+        $this->assertSame(0, (int)$this->getTableLocator()->get('MNotice')->find()->firstOrFail()->i_modal);
+    }
+
+    public function testEdit_admin_keepsModal(): void
+    {
+        $id = $this->createNotice('モーダル', 0, 1);
+        $this->login(1);
+
+        $this->post('/MNotice/edit/' . $id, ['c_title' => '題名だけ変更', 'i_importance' => 0, 'i_type' => 0]);
+
+        $this->assertRedirect(['action' => 'index']);
+        $this->assertSame(1, (int)$this->getTableLocator()->get('MNotice')->get($id)->i_modal);
     }
 
     // ------------------------------------------------------------------- add

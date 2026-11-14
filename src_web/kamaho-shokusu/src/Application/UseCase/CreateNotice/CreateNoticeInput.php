@@ -23,5 +23,6 @@ final class CreateNoticeInput
         public readonly int $type,
         public readonly bool $isSystemAdmin,
         public readonly AuditActor $actor,
+        public readonly bool $modal = false,
     ) {}
 }
