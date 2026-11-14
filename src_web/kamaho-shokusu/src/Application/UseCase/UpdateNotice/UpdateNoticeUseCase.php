@@ -41,6 +41,7 @@ final class UpdateNoticeUseCase
             NoticeRule::resolveType($input->isSystemAdmin, $input->type, $current->type),
             $current->createdBy,
             $current->createdAt,
+            NoticeRule::resolveModal($input->isSystemAdmin, $input->modal, $current->modal),
         );
         if (!$this->notices->update($notice, $input->actor->name)) {
             return new UpdateNoticeOutput(false, 'お知らせの更新に失敗しました。入力内容を確認してください。', $notice);

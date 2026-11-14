@@ -38,6 +38,7 @@ final class CreateNoticeUseCase
             $input->endDate,
             $input->importance,
             NoticeRule::resolveType($input->isSystemAdmin, $input->type, null),
+            modal: NoticeRule::resolveModal($input->isSystemAdmin, $input->modal, null),
         );
         $id = $this->notices->add($notice, $input->actor->id, $input->actor->name);
         if ($id === null) {

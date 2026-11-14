@@ -21,6 +21,8 @@ use Cake\Http\Response;
 
 /**
  * お知らせ管理（管理者・システム管理者）。登録・更新・削除は UseCase、一覧は NoticeQueryInterface。
+ *
+ * @property \Authorization\Controller\Component\AuthorizationComponent $Authorization
  */
 class MNoticeController extends AppController
 {
@@ -37,7 +39,7 @@ class MNoticeController extends AppController
             return $response;
         }
 
-        $this->FormProtection->setConfig('unlockedFields', ['i_importance', 'i_type', 'd_start', 'd_end']);
+        $this->FormProtection->setConfig('unlockedFields', ['i_importance', 'i_type', 'i_modal', 'd_start', 'd_end']);
 
         return null;
     }
@@ -64,9 +66,9 @@ class MNoticeController extends AppController
     }
 
     /**
-     * 送信された値（タイトル・本文・掲載期間・重要度・種別）。
+     * 送信された値（タイトル・本文・掲載期間・重要度・種別・モーダル表示）。
      *
-     * @return array{0: string, 1: string|null, 2: string|null, 3: string|null, 4: int, 5: int}
+     * @return array{0: string, 1: string|null, 2: string|null, 3: string|null, 4: int, 5: int, 6: bool}
      */
     private function noticeFields(): array
     {
@@ -79,7 +81,29 @@ class MNoticeController extends AppController
             $this->dataString('d_end') ?: null,
             (int)$this->dataString('i_importance'),
             (int)$this->dataString('i_type'),
+            $this->dataString('i_modal') === '1',
         ];
+    }
+
+    /**
+     * 共通レイアウトのモーダルが読む JSON。ログイン済みなら誰でも読める（認証ミドルウェアが未ログインを止める）。
+     */
+    public function modals(NoticeQueryInterface $noticeQuery): Response
+    {
+        $this->request->allowMethod(['get']);
+        $this->Authorization->skipAuthorization();
+
+        $items = array_map(static fn($n): array => [
+            'id' => $n->id,
+            'title' => $n->title,
+            'body' => $n->body,
+            'high' => $n->isHighImportance(),
+        ], $noticeQuery->activeModals());
+
+        return $this->response
+            ->withType('application/json')
+            ->withHeader('Cache-Control', 'no-store')
+            ->withStringBody((string)json_encode($items, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
     }
 
     public function index(NoticeQueryInterface $noticeQuery): ?Response
@@ -102,9 +126,9 @@ class MNoticeController extends AppController
 
         $isSysAdmin = $this->isSystemAdmin();
         if ($this->request->is('post')) {
-            [$title, $body, $start, $end, $importance, $type] = $this->noticeFields();
+            [$title, $body, $start, $end, $importance, $type, $modal] = $this->noticeFields();
             try {
-                $createNotice->execute(new CreateNoticeInput($title, $body, $start, $end, $importance, $type, $isSysAdmin, $this->auditActor()));
+                $createNotice->execute(new CreateNoticeInput($title, $body, $start, $end, $importance, $type, $isSysAdmin, $this->auditActor(), $modal));
                 $this->Flash->success(__('お知らせを登録しました。'));
 
                 return $this->redirect(['action' => 'index']);
@@ -134,8 +158,8 @@ class MNoticeController extends AppController
                 return null;
             }
 
-            [$title, $body, $start, $end, $importance, $type] = $this->noticeFields();
-            $output = $updateNotice->execute(new UpdateNoticeInput($id, $title, $body, $start, $end, $importance, $type, $isSysAdmin, $this->auditActor()));
+            [$title, $body, $start, $end, $importance, $type, $modal] = $this->noticeFields();
+            $output = $updateNotice->execute(new UpdateNoticeInput($id, $title, $body, $start, $end, $importance, $type, $isSysAdmin, $this->auditActor(), $modal));
         } catch (DomainNotFoundException $e) {
             throw new NotFoundException($e->getMessage(), null, $e);
         }
