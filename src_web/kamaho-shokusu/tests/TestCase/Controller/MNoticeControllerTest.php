@@ -115,6 +115,7 @@ class MNoticeControllerTest extends TestCase
         $this->createNotice('カードだけ', 0, 0);
         $this->createNotice('期間が過ぎたモーダル', 0, 1, '2000-01-01');
         $this->login(0);
+        $this->session(['noticeModalPending' => true]);
 
         $this->get('/MNotice/modals');
 
@@ -137,6 +138,7 @@ class MNoticeControllerTest extends TestCase
         $make('重要', 1);
         $make('明日から', 1, '2999-01-01');
         $this->login(0);
+        $this->session(['noticeModalPending' => true]);
 
         $this->get('/MNotice/modals');
 
@@ -144,6 +146,22 @@ class MNoticeControllerTest extends TestCase
         $this->assertSame(['重要', '通常・後', '通常・先'], array_column($items, 'title'), '重要度の降順、同じなら新しい順。開始前は出ない');
         $this->assertSame(['id', 'title', 'body', 'high'], array_keys($items[0]));
         $this->assertTrue($items[0]['high']);
+    }
+
+    public function testModals_returnsOnlyOncePerLogin(): void
+    {
+        $this->createNotice('モーダルで出す', 0, 1);
+        $this->login(0);
+
+        $this->get('/MNotice/modals');
+        $this->assertSame([], json_decode((string)$this->_response->getBody(), true), 'ログインの印が無ければ出さない');
+
+        $this->session(['noticeModalPending' => true]);
+        $this->get('/MNotice/modals');
+        $this->assertCount(1, json_decode((string)$this->_response->getBody(), true), 'ログイン直後は出す');
+
+        // 結合テストは session() の値を毎回入れ直すので、「次の画面では出さない」は印が消えたことで確かめる
+        $this->assertSession(null, 'noticeModalPending');
     }
 
     public function testModals_guest_isRedirectedToLogin(): void

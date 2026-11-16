@@ -93,12 +93,14 @@ class MNoticeController extends AppController
         $this->request->allowMethod(['get']);
         $this->Authorization->skipAuthorization();
 
-        $items = array_map(static fn($n): array => [
+        // ログイン直後の最初の1回だけ返す（読んだら印を消す）。ログインし直すとまた出る
+        $pending = $this->request->getSession()->consume('noticeModalPending') === true;
+        $items = $pending ? array_map(static fn($n): array => [
             'id' => $n->id,
             'title' => $n->title,
             'body' => $n->body,
             'high' => $n->isHighImportance(),
-        ], $noticeQuery->activeModals());
+        ], $noticeQuery->activeModals()) : [];
 
         return $this->response
             ->withType('application/json')
