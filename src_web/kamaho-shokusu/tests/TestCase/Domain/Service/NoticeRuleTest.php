@@ -34,4 +34,12 @@ class NoticeRuleTest extends TestCase
         $this->assertSame(0, NoticeRule::resolveType(false, 1, null), '管理者の登録は通常');
         $this->assertSame(1, NoticeRule::resolveType(false, 0, 1), '管理者の更新は今の種別のまま');
     }
+
+    public function testResolveModal(): void
+    {
+        $this->assertTrue(NoticeRule::resolveModal(true, true, false), 'システム管理者は指定どおり');
+        $this->assertFalse(NoticeRule::resolveModal(true, false, true));
+        $this->assertFalse(NoticeRule::resolveModal(false, true, null), '管理者の登録はモーダルにしない');
+        $this->assertTrue(NoticeRule::resolveModal(false, false, true), '管理者の更新は今の値のまま');
+    }
 }

@@ -61,6 +61,10 @@ class MNoticeTable extends Table
             ->integer('i_type')
             ->inList('i_type', [self::TYPE_NORMAL, self::TYPE_RELEASE_NOTE]);
 
+        $validator
+            ->integer('i_modal')
+            ->inList('i_modal', [0, 1]);
+
         return $validator;
     }
 
@@ -82,6 +86,7 @@ class MNoticeTable extends Table
                 ],
             ])
             ->orderByDesc('i_importance')
-            ->orderByDesc('dt_create');
+            ->orderByDesc('dt_create')
+            ->orderByDesc('i_id');
     }
 }

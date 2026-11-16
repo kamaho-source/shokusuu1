@@ -33,6 +33,7 @@ final class CakeNoticeRepository implements NoticeRepositoryInterface
             (int)($row->get('i_type') ?? 0),
             $row->get('c_create_user') === null ? null : (string)$row->get('c_create_user'),
             $row->get('dt_create')?->format('Y-m-d H:i:s'),
+            (int)($row->get('i_modal') ?? 0) === 1,
         );
     }
 
@@ -57,6 +58,7 @@ final class CakeNoticeRepository implements NoticeRepositoryInterface
             'd_end'        => $notice->endDate,
             'i_importance' => $notice->importance,
             'i_type'       => $notice->type,
+            'i_modal'      => $notice->modal ? 1 : 0,
         ];
     }
 
