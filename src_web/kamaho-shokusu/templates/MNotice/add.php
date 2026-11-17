@@ -24,7 +24,7 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
     <div class="card mb-4" id="maint-box">
         <div class="card-body">
             <div class="fw-bold mb-2"><i class="bi bi-tools"></i> メンテナンス予告（システム管理者）</div>
-            <small class="text-muted d-block mb-2">日時を入れて「予告文を挿入」を押すと、タイトル・本文・掲示期間・重要度を自動入力します。内容は登録前に編集できます。</small>
+            <small class="text-muted d-block mb-2">日時を入れて「予告文を挿入」を押すと、タイトル・本文・掲示期間・重要度に加え、「モーダルで表示する」にも自動でチェックを入れます。内容は登録前に編集できます。</small>
             <div class="row g-2 mb-2">
                 <div class="col-sm-6">
                     <label for="maint_from" class="form-label small mb-0">開始日時</label>
@@ -130,6 +130,17 @@ $this->Html->script('realtime-validation.js', ['block' => true]);
     </div>
     <?php endif; ?>
 
+    <?php if ($isSysAdmin): ?>
+    <div class="mb-4">
+        <label class="form-label fw-bold">表示方法</label>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="i_modal" id="i_modal" value="1">
+            <label class="form-check-label" for="i_modal">モーダルで表示する</label>
+        </div>
+        <small class="text-muted d-block">ログイン後のどの画面でも、開いたときに表示します。「確認した」を押すまで毎回出ます。</small>
+    </div>
+    <?php endif; ?>
+
     <div class="d-flex gap-2">
         <?= $this->Form->submit('登録する', ['class' => 'btn btn-primary', 'id' => 'submit-btn', 'disabled' => true]) ?>
         <?= $this->Html->link('キャンセル', ['action' => 'index'], ['class' => 'btn btn-secondary']) ?>
@@ -195,6 +206,7 @@ document.addEventListener('DOMContentLoaded', () => {
         set('d_start', ymd(new Date()));
         $('imp_high').checked = true;
         const t = $('type_normal'); if (t) t.checked = true;
+        const modalBox = $('i_modal'); if (modalBox) modalBox.checked = true;
     });
 });
 </script>

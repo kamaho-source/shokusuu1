@@ -295,5 +295,98 @@ $recentNotifications     = $recentNotifications ?? [];
         document.addEventListener('hidden.bs.collapse', applyPad);
     })();
 </script>
+
+<?php if ($user && !$isModal): ?>
+<?php /* お知らせのモーダル表示（i_modal=1 の掲載中のもの）。ログインのたびに、最初の画面で1回出す（出すかどうかはサーバーのセッションで決める） */ ?>
+<style>
+    /* ---- PC（画面イメージ Figma #1013 に合わせた寸法・色） ---- */
+    #noticeModal .modal-dialog { max-width: 560px; }
+    #noticeModal .modal-content { border-radius: 10px; overflow: hidden; }
+    #noticeModal .modal-header { padding: 14px 20px; background: #fff5f5; border-bottom: 1px solid #f1aeb5; justify-content: flex-start; }
+    #noticeModal .modal-header .badge { flex-shrink: 0; line-height: 1.2; }
+    #noticeModal .modal-header .btn-close { margin: 0 0 0 4px; }
+    #noticeModal .notice-modal-icon { width: 28px; height: 28px; border-radius: 50%; background: #fde8e8; color: #dc3545; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    #noticeModal .modal-body { padding: 18px 20px; max-height: 60vh; overflow-y: auto; }
+    #noticeModal #noticeModalTitle { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+    #noticeModal #noticeModalBody { font-size: 14px; line-height: 1.65; color: #343a40; white-space: pre-line; overflow-wrap: anywhere; }
+    #noticeModal .modal-footer { padding: 14px 20px; background: #f8f9fa; justify-content: space-between; flex-wrap: nowrap; gap: 10px; }
+    #noticeModal .modal-footer small { font-size: 12px; }
+
+    /* ---- スマホ（幅 575px 以下）。PC の指定を上書きするものだけ書く ---- */
+    @media (max-width: 575.98px) {
+        #noticeModal .modal-dialog { max-width: none; margin: 12px; }
+        #noticeModal .modal-header { padding: 12px 14px; }
+        #noticeModal .modal-body { padding: 14px; max-height: 55vh; }
+        #noticeModal #noticeModalTitle { font-size: 16px; line-height: 1.5; }
+        #noticeModal #noticeModalBody { font-size: 15px; line-height: 1.7; }
+        #noticeModal .modal-footer { padding: 12px 14px; flex-direction: column-reverse; align-items: stretch; }
+        #noticeModal .modal-footer small { font-size: 12px; text-align: center; }
+        #noticeModal .modal-footer .btn { width: 100%; min-height: 44px; font-size: 16px; }
+    }
+</style>
+<div class="modal fade" id="noticeModal" tabindex="-1" aria-labelledby="noticeModalTitle" aria-hidden="true" role="alertdialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header align-items-center gap-2" id="noticeModalHeader">
+                <span class="notice-modal-icon" aria-hidden="true">!</span>
+                <span class="badge rounded-pill text-bg-danger d-none" id="noticeModalHigh">重要</span>
+                <span class="fw-bold text-danger fs-6 flex-grow-1">お知らせ</span>
+                <span class="small text-muted d-none" id="noticeModalCount"></span>
+                <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <h5 id="noticeModalTitle"></h5>
+                <div id="noticeModalBody"></div>
+            </div>
+            <div class="modal-footer">
+                <small class="text-muted">ログインするたびに表示されます。</small>
+                <button type="button" class="btn btn-primary" id="noticeModalAck">確認した</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    (() => {
+        const el = document.getElementById('noticeModal');
+        if (!el || !window.bootstrap) return;
+
+        const $ = (id) => document.getElementById(id);
+        const modal = new bootstrap.Modal(el);
+
+        fetch('<?= $this->Url->build('/MNotice/modals') ?>', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+            .then((r) => (r.ok ? r.json() : []))
+            .then((list) => {
+                const queue = list;
+                if (!queue.length) return;
+
+                let i = 0;
+                let confirmed = false;
+                const show = () => {
+                    const n = queue[i];
+                    confirmed = false;
+                    $('noticeModalAck').disabled = true; // 表示アニメーション中は押せない（hide が無視されるため）
+                    $('noticeModalTitle').textContent = n.title;
+                    $('noticeModalBody').textContent = n.body || '';
+                    $('noticeModalHigh').classList.toggle('d-none', !n.high);
+                    $('noticeModalCount').textContent = (i + 1) + ' / ' + queue.length;
+                    $('noticeModalCount').classList.toggle('d-none', queue.length < 2);
+                    modal.show();
+                };
+                el.addEventListener('shown.bs.modal', () => { $('noticeModalAck').disabled = false; });
+                $('noticeModalAck').addEventListener('click', () => {
+                    confirmed = true;
+                    modal.hide();
+                });
+                // 確認したときだけ次の1件へ。✕・Esc・背景クリックで閉じたら、この画面ではここで止める
+                el.addEventListener('hidden.bs.modal', () => {
+                    if (!confirmed || ++i >= queue.length) return;
+                    show();
+                });
+                show();
+            })
+            .catch((e) => console.error('notice modal', e));
+    })();
+</script>
+<?php endif; ?>
 </body>
 </html>

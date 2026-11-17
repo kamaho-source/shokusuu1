@@ -26,4 +26,11 @@ interface NoticeQueryInterface
      * @return list<Notice>
      */
     public function active(): array;
+
+    /**
+     * 掲載期間中で、モーダルでも表示するお知らせ（重要度の高い順、同じなら新しい順）。
+     *
+     * @return list<\App\Domain\Entity\Notice>
+     */
+    public function activeModals(): array;
 }

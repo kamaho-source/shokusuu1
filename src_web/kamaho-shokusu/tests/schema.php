@@ -176,6 +176,7 @@ return [
             'd_end'         => ['type' => 'date', 'null' => true],
             'i_importance'  => ['type' => 'integer', 'null' => true, 'default' => 0],
             'i_type'        => ['type' => 'integer', 'null' => false, 'default' => 0],
+            'i_modal'       => ['type' => 'integer', 'null' => false, 'default' => 0],
             'i_id_user_created' => ['type' => 'integer', 'null' => true],
             'c_create_user' => ['type' => 'string', 'length' => 50, 'null' => true],
             'c_update_user' => ['type' => 'string', 'length' => 50, 'null' => true],

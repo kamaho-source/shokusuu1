@@ -99,6 +99,18 @@ $endVal   = $notice->endDate ?? '';
     </div>
     <?php endif; ?>
 
+    <?php if ($isSysAdmin): ?>
+    <div class="mb-4">
+        <label class="form-label fw-bold">表示方法</label>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="i_modal" id="i_modal" value="1"
+                <?= $notice->modal ? 'checked' : '' ?>>
+            <label class="form-check-label" for="i_modal">モーダルで表示する</label>
+        </div>
+        <small class="text-muted d-block">ログイン後のどの画面でも、開いたときに表示します。「確認した」を押すまで毎回出ます。</small>
+    </div>
+    <?php endif; ?>
+
     <div class="d-flex gap-2">
         <?= $this->Form->submit('更新する', ['class' => 'btn btn-primary', 'id' => 'submit-btn']) ?>
         <?= $this->Html->link('キャンセル', ['action' => 'index'], ['class' => 'btn btn-secondary']) ?>
