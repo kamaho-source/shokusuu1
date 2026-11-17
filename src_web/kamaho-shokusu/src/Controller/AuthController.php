@@ -49,6 +49,8 @@ class AuthController extends AppController
 
             // セッション固定化攻撃対策：ログイン成功時にセッションIDを再生成する
             $this->request->getSession()->renew();
+            // お知らせのモーダルは、ログインのたびに最初の画面で1回出す（MNotice/modals が読んで消す）
+            $this->request->getSession()->write('noticeModalPending', true);
 
             $recordLogin->execute(new RecordLoginInput(
                 (int)$this->Authentication->getIdentityData('i_id_user'),

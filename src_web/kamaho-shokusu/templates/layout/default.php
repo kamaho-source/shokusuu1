@@ -297,22 +297,31 @@ $recentNotifications     = $recentNotifications ?? [];
 </script>
 
 <?php if ($user && !$isModal): ?>
-<?php /* お知らせのモーダル表示（i_modal=1 の掲載中のもの）。「確認した」を押すまで毎回出す。既読はブラウザごと */ ?>
+<?php /* お知らせのモーダル表示（i_modal=1 の掲載中のもの）。ログインのたびに、最初の画面で1回出す（出すかどうかはサーバーのセッションで決める） */ ?>
 <style>
-    /* 画面イメージ（Figma #1013）に合わせた寸法・色 */
-    #noticeModal .modal-dialog { --bs-modal-width: 560px; }
+    /* ---- PC（画面イメージ Figma #1013 に合わせた寸法・色） ---- */
+    #noticeModal .modal-dialog { max-width: 560px; }
     #noticeModal .modal-content { border-radius: 10px; overflow: hidden; }
-    #noticeModal .modal-header { padding: 14px 20px; background: #fff5f5; border-bottom: 1px solid #f1aeb5; }
-    #noticeModal .notice-modal-icon { width: 28px; height: 28px; border-radius: 50%; background: #fde8e8; color: #dc3545; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
-    #noticeModal .modal-body { padding: 18px 20px; }
+    #noticeModal .modal-header { padding: 14px 20px; background: #fff5f5; border-bottom: 1px solid #f1aeb5; justify-content: flex-start; }
+    #noticeModal .modal-header .badge { flex-shrink: 0; line-height: 1.2; }
+    #noticeModal .modal-header .btn-close { margin: 0 0 0 4px; }
+    #noticeModal .notice-modal-icon { width: 28px; height: 28px; border-radius: 50%; background: #fde8e8; color: #dc3545; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    #noticeModal .modal-body { padding: 18px 20px; max-height: 60vh; overflow-y: auto; }
     #noticeModal #noticeModalTitle { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
-    #noticeModal #noticeModalBody { font-size: 14px; line-height: 1.65; color: #343a40; white-space: pre-line; }
+    #noticeModal #noticeModalBody { font-size: 14px; line-height: 1.65; color: #343a40; white-space: pre-line; overflow-wrap: anywhere; }
     #noticeModal .modal-footer { padding: 14px 20px; background: #f8f9fa; justify-content: space-between; flex-wrap: nowrap; gap: 10px; }
     #noticeModal .modal-footer small { font-size: 12px; }
+
+    /* ---- スマホ（幅 575px 以下）。PC の指定を上書きするものだけ書く ---- */
     @media (max-width: 575.98px) {
-        #noticeModal #noticeModalTitle { font-size: 15px; }
-        #noticeModal .modal-footer { flex-direction: column; align-items: stretch; }
-        #noticeModal .modal-footer .btn { width: 100%; }
+        #noticeModal .modal-dialog { max-width: none; margin: 12px; }
+        #noticeModal .modal-header { padding: 12px 14px; }
+        #noticeModal .modal-body { padding: 14px; max-height: 55vh; }
+        #noticeModal #noticeModalTitle { font-size: 16px; line-height: 1.5; }
+        #noticeModal #noticeModalBody { font-size: 15px; line-height: 1.7; }
+        #noticeModal .modal-footer { padding: 12px 14px; flex-direction: column-reverse; align-items: stretch; }
+        #noticeModal .modal-footer small { font-size: 12px; text-align: center; }
+        #noticeModal .modal-footer .btn { width: 100%; min-height: 44px; font-size: 16px; }
     }
 </style>
 <div class="modal fade" id="noticeModal" tabindex="-1" aria-labelledby="noticeModalTitle" aria-hidden="true" role="alertdialog" aria-modal="true">
@@ -321,8 +330,8 @@ $recentNotifications     = $recentNotifications ?? [];
             <div class="modal-header align-items-center gap-2" id="noticeModalHeader">
                 <span class="notice-modal-icon" aria-hidden="true">!</span>
                 <span class="badge rounded-pill text-bg-danger d-none" id="noticeModalHigh">重要</span>
-                <span class="fw-bold text-danger fs-6">お知らせ</span>
-                <span class="ms-auto small text-muted d-none" id="noticeModalCount"></span>
+                <span class="fw-bold text-danger fs-6 flex-grow-1">お知らせ</span>
+                <span class="small text-muted d-none" id="noticeModalCount"></span>
                 <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <div class="modal-body">
@@ -330,7 +339,7 @@ $recentNotifications     = $recentNotifications ?? [];
                 <div id="noticeModalBody"></div>
             </div>
             <div class="modal-footer">
-                <small class="text-muted">「確認した」を押すまで、画面を開くたびに表示されます。</small>
+                <small class="text-muted">ログインするたびに表示されます。</small>
                 <button type="button" class="btn btn-primary" id="noticeModalAck">確認した</button>
             </div>
         </div>
@@ -338,21 +347,16 @@ $recentNotifications     = $recentNotifications ?? [];
 </div>
 <script>
     (() => {
-        // 共用の端末でも、ほかの人の確認で消えないよう、利用者ごとに保存する
-        const KEY = 'notice_modal_ack_ids:<?= (int)$user->i_id_user ?>';
         const el = document.getElementById('noticeModal');
         if (!el || !window.bootstrap) return;
 
-        const load = () => { try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]').map(String)); } catch (e) { return new Set(); } };
-        const save = (ids) => { try { localStorage.setItem(KEY, JSON.stringify([...ids])); } catch (e) { /* 保存できなければ次の画面でまた出る */ } };
         const $ = (id) => document.getElementById(id);
         const modal = new bootstrap.Modal(el);
 
         fetch('<?= $this->Url->build('/MNotice/modals') ?>', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
             .then((r) => (r.ok ? r.json() : []))
             .then((list) => {
-                const acked = load();
-                const queue = list.filter((n) => !acked.has(String(n.id)));
+                const queue = list;
                 if (!queue.length) return;
 
                 let i = 0;
@@ -371,8 +375,6 @@ $recentNotifications     = $recentNotifications ?? [];
                 el.addEventListener('shown.bs.modal', () => { $('noticeModalAck').disabled = false; });
                 $('noticeModalAck').addEventListener('click', () => {
                     confirmed = true;
-                    acked.add(String(queue[i].id));
-                    save(acked);
                     modal.hide();
                 });
                 // 確認したときだけ次の1件へ。✕・Esc・背景クリックで閉じたら、この画面ではここで止める
