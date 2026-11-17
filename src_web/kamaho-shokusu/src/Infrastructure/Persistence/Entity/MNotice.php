@@ -15,6 +15,7 @@ use Cake\ORM\Entity;
  * @property \Cake\I18n\Date|null $d_end
  * @property int $i_importance
  * @property int $i_type
+ * @property int $i_modal
  * @property int|null $i_id_user_created
  * @property string|null $c_create_user
  * @property \Cake\I18n\DateTime|null $dt_create
@@ -30,6 +31,7 @@ class MNotice extends Entity
         'd_end'             => true,
         'i_importance'      => true,
         'i_type'            => true,
+        'i_modal'           => true,
         'i_id_user_created' => true,
         'c_create_user'     => true,
         'dt_create'         => true,

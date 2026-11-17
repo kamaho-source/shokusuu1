@@ -14,6 +14,7 @@ final class Notice
      * @param int $importance 重要度（NoticeRule::IMPORTANCE_*）
      * @param int $type 種別（NoticeRule::TYPE_*）
      * @param string|null $createdAt 登録日時（Y-m-d H:i:s）
+     * @param bool $modal ログイン後の画面でモーダルでも表示するか
      */
     public function __construct(
         public readonly ?int $id,
@@ -25,6 +26,7 @@ final class Notice
         public readonly int $type,
         public readonly ?string $createdBy = null,
         public readonly ?string $createdAt = null,
+        public readonly bool $modal = false,
     ) {}
 
     public function isHighImportance(): bool
