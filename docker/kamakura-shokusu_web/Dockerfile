@@ -1,5 +1,6 @@
-# CVE-2026-109618 / CVE-2026-109619（php2shell）修正版。`8.3-apache` タグが 8.3.36 以降を指したら戻してよい
-FROM php:8.3.36-apache
+# 2026-11-19 のセキュリティリリース（8.3.37。CVE-2026-115560 ほか）。10/21 の CVE-2026-109618 / 109619（php2shell）修正は 8.3.36 以降に含まれる
+# `8.3-apache` タグが 8.3.37 以降を指したら戻してよい
+FROM php:8.3.37-apache
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
