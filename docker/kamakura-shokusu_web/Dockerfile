@@ -1,5 +1,6 @@
-# CVE-2026-109618 / CVE-2026-109619（php2shell）修正版。`8.3-apache` タグが 8.3.36 以降を指したら戻してよい
-FROM php:8.3.36-apache
+# PHP 8.5。8.5.13 は 2026-11-19 のセキュリティリリース（CVE-2026-115560 ほか、10/21 の CVE-2026-109618 / 109619 の修正を含む）
+# `8.5-apache` タグが 8.5.13 以降を指したら戻してよい
+FROM php:8.5.13-apache
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
