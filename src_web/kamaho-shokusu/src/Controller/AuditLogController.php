@@ -90,7 +90,7 @@ class AuditLogController extends AppController
         $output = fopen('php://temp', 'w+');
         // BOM付きUTF-8（Excelで文字化けしない）
         fwrite($output, "\xEF\xBB\xBF");
-        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '操作種別コード', '対象テーブル', '対象ID', '操作者ID', 'ログインID', '操作者名', 'IPアドレス', '結果', '失敗理由', '詳細', '操作日時']);
+        fputcsv($output, ['ID', 'カテゴリ', '操作種別', '操作種別コード', '対象テーブル', '対象ID', '操作者ID', 'ログインID', '操作者名', 'IPアドレス', '結果', '失敗理由', '詳細', '操作日時'], ',', '"', '\\');
         $failedLoginNames = AuditLogService::failedLoginActorNames($logs);
 
         foreach ($logs as $log) {
@@ -119,7 +119,7 @@ class AuditLogController extends AppController
                 $reason,
                 $log->c_detail,
                 $log->dt_create,
-            ]);
+            ], ',', '"', '\\');
         }
 
         rewind($output);
