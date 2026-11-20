@@ -7,8 +7,11 @@ services:
       context: ./kamakura-shokusu_web
       dockerfile: Dockerfile
     # 80 番ポートを割り当て
+    # ホストの nginx が localhost:8091 へ転送する。外部から直接届かないようループバックに限定する（IPv4 / IPv6）
     ports:
-      - "8091:80"
+      - "127.0.0.1:8091:80"
+      - "[::1]:8091:80"
+    restart: unless-stopped
     # ローカル の src_web フォルダをコンテナの /var/www/html にマウント
     volumes:
       - "../src_web:/var/www/html"
@@ -27,8 +30,12 @@ services:
   kamakura-shokusu_db:
     container_name: kamakura-shokusu_web_db
     image: mysql:lts
+    # アプリからは Docker のネットワーク経由で接続する。ホストへはループバックだけ公開する
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
+    restart: unless-stopped
+    # 再作成・停止時に InnoDB の書き込みが終わるまで待つ（既定は10秒）
+    stop_grace_period: 2m
     volumes:
       - "../datasource/database:/var/lib/mysql"
       - "../datasource/dump:/usr/local/dump"

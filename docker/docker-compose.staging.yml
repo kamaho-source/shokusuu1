@@ -3,8 +3,9 @@ services:
   web:
     container_name: stg_web
     image: ghcr.io/kamaho-source/shokusuu1/web:staging
+    # ホストの nginx が 127.0.0.1:8091 へ転送する。外部から直接届かないようループバックに限定する
     ports:
-      - "8091:80"
+      - "127.0.0.1:8091:80"
     volumes:
       - "../src_web:/var/www/html"
     env_file:
