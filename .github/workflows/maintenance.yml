@@ -16,6 +16,11 @@ on:
         type: choice
         options: [production, staging]
         default: production
+      kind:
+        description: '種別（on のとき画面に表示。normal=通常のメンテナンス / emergency=緊急メンテナンス）'
+        type: choice
+        options: [normal, emergency]
+        default: normal
       start_time:
         description: '開始時間（on のとき画面に表示。例: 10/22 14:00。空欄=実行した時刻）'
         required: false
@@ -39,6 +44,7 @@ permissions:
 
 env:
   MODE: ${{ inputs.mode }}
+  KIND: ${{ inputs.kind }}
   START_TIME: ${{ inputs.start_time }}
   END_TIME: ${{ inputs.end_time }}
   REASON: ${{ inputs.reason }}
@@ -69,8 +75,8 @@ jobs:
       - name: 表示内容の作成
         run: |
           START="${START_TIME:-$(TZ=Asia/Tokyo date '+%-m/%-d %H:%M')}"
-          INFO=$(jq -cn --arg start "${START:0:40}" --arg end "${END_TIME:0:40}" --arg reason "${REASON:0:100}" \
-            '{start: $start, end: $end, reason: $reason}')
+          INFO=$(jq -cn --arg start "${START:0:40}" --arg end "${END_TIME:0:40}" --arg reason "${REASON:0:100}" --arg kind "$KIND" \
+            '{kind: $kind, start: $start, end: $end, reason: $reason}')
           echo "INFO=$(printf '%s' "$INFO" | base64 -w0)" >> "$GITHUB_ENV"
           echo "表示内容: $INFO"
 
