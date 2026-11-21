@@ -85,7 +85,10 @@
       const res = await fetch('/kamaho-shokusu/webroot/maintenance.json', { cache: 'no-store' });
       if (!res.ok) return;
       const d = await res.json();
-      $('title').textContent = 'メンテナンスを実施しています';
+      // 種別は Actions の kind で決まる。emergency のときだけ「緊急」と出す（無い・不明な値は通常）
+      const emergency = d.kind === 'emergency';
+      $('badge').textContent = emergency ? '緊急メンテナンス中' : 'メンテナンス中';
+      $('title').textContent = emergency ? '緊急メンテナンスを実施しています' : 'メンテナンスを実施しています';
       $('lead').textContent = '終了まで、今しばらくお待ちください。';
       $('start').textContent = d.start || '—';
       $('end').textContent = d.end || '未定（終わり次第再開します）';
